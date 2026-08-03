@@ -52,3 +52,5 @@ The suppress scan behind the health view now also treats a file covered by the a
 Same threading as the other suppression-scan callers: the health-check summary's suppression count must agree with the same exclusion authority the enforcement surface now honors, so an excluded file's waiver is never counted here either.
 ## [2026-08-02T12:05:03.752Z]
 Now calls computeTypeCoverageCached instead of computeTypeCoverage, so yg aspects benefits from the persistent on-disk type-classification cache instead of paying full classification cost every invocation.
+## [2026-08-03T00:22:37.720Z]
+Renamed the local variable holding this command's type-coverage classification walk from gitFiles to repoFiles, matching the plain disk walk it actually is rather than implying a git-tracked source. The sibling local variable a few dozen lines away, already named repoFiles for the identical walk in this same command's main body, is unchanged -- the two now agree.

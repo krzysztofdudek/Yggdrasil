@@ -70,3 +70,5 @@ the structural-attention note's family-string parsing now takes the language fro
 The same attention note also changed which comparison-cohort noun it names: a file with no owning component but a matched architecture type now reads as belonging to that type's own comparison group, worded plainly as such, instead of being described the same way as a file that does have a component. This corrects the cohort noun; the family-string parsing fix recorded above corrects a separate, mechanical bug in reading that same widened key.
 ## [2026-08-02T22:31:42.354Z]
 yg context --file on an excluded path routes through the same exclusion-source lookup yg owner --file already uses, naming the one real cause instead of the three-way guess it used to print — the two commands now agree on how much they know about the same path.
+## [2026-08-03T00:22:37.393Z]
+Renamed the local variable holding this command's own type-coverage classification walk from gitFiles to repoFiles -- the walk is a gitignore-aware disk scan, never a git-tracked-file list, and the old name asserted otherwise.

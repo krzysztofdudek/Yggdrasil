@@ -17,7 +17,7 @@ import { toPosixPath } from '../../utils/posix.js';
 export async function checkFileMappingGitignored(graph: Graph): Promise<ValidationIssue[]> {
   const projectRoot = path.dirname(graph.rootPath);
   const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
-  const [tracked, nestedProjectRoots] = await Promise.all([
+  const [walkedFiles, nestedProjectRoots] = await Promise.all([
     walkRepoFiles(projectRoot).then((files) => new Set(files)),
     findNestedProjectRoots(projectRoot),
   ]);
@@ -29,32 +29,32 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
     for (const relPath of mapping) {
       // Paths that walkRepoFiles skips for STRUCTURAL reasons (the top-level
       // `.yggdrasil/` graph directory, any `.git` segment) are absent from
-      // `tracked` but are NOT gitignored. Mapping a committed rule file under
+      // `walkedFiles` but are NOT gitignored. Mapping a committed rule file under
       // `.yggdrasil/` is sanctioned meta-modeling; treating its structural
       // absence as ".gitignored" would block the very mapping the docs instruct
       // authors to write. Exempt exactly those paths here.
       if (isCoverageExcludedPath(relPath)) continue;
       // Normalize the mapping entry (strip a leading './', convert separators)
-      // before the tracked-set membership test. `tracked` holds clean POSIX
+      // before the walked-set membership test. `walkedFiles` holds clean POSIX
       // repo-relative paths, but a mapping entry like './src/a.ts' arrives here
-      // only trimmed — an unnormalized comparison would miss the tracked file
-      // and falsely report a correctly-tracked file as gitignored.
+      // only trimmed — an unnormalized comparison would miss the walked file
+      // and falsely report a present, non-gitignored file as gitignored.
       const norm = normalizeMappingPath(relPath);
       const absPath = path.join(projectRoot, norm);
       let st;
       try { st = await statPath(absPath); } catch { continue; }
       if (!st.isFile()) continue;
 
-      // Exclusion is checked BEFORE the tracked-file short-circuit below, and
+      // Exclusion is checked BEFORE the walked-file short-circuit below, and
       // regardless of it: an excluded path is gone from this graph whether or
-      // not git happens to track it, so a git-tracked-but-excluded file must
-      // still be reported as excluded, not silently passed over because
-      // `tracked.has(norm)` would otherwise short-circuit this loop. A file
-      // absent from `tracked` for this reason (nested-project boundary) was
-      // never gitignored at all — blaming .gitignore would send an adopter to
-      // edit a file that may not exist and hides the real cause, which is why
-      // this generalized check runs first, one level ABOVE the more specific
-      // gitignore diagnosis below.
+      // not the disk walk would otherwise surface it, so a walked-but-excluded
+      // file must still be reported as excluded, not silently passed over
+      // because `walkedFiles.has(norm)` would otherwise short-circuit this
+      // loop. A file absent from `walkedFiles` for this reason (nested-project
+      // boundary) was never gitignored at all — blaming .gitignore would send
+      // an adopter to edit a file that may not exist and hides the real cause,
+      // which is why this generalized check runs first, one level ABOVE the
+      // more specific gitignore diagnosis below.
       const exclusionSource = describeExclusionSource(norm, exclusion);
       if (exclusionSource !== null) {
         // Names WHICH of the two independent sources caused this, instead of
@@ -81,7 +81,7 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
         continue;
       }
 
-      if (tracked.has(norm)) continue;
+      if (walkedFiles.has(norm)) continue;
 
       issues.push({
         severity: 'error',

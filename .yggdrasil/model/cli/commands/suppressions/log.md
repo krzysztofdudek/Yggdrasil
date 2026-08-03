@@ -28,3 +28,5 @@ The inventory now classifies the architecture type-level coverage lattice and tr
 Threads the adopter's coverage.excluded config into the audit-universe scan alongside the existing nested-project boundary, so the inventory this command prints agrees with the same exclusion authority enforcement now honors.
 ## [2026-08-02T12:05:04.781Z]
 Now calls computeTypeCoverageCached instead of computeTypeCoverage, so yg suppressions benefits from the persistent on-disk type-classification cache instead of paying full classification cost every invocation.
+## [2026-08-03T00:22:38.394Z]
+This command's own repo walk, and the parameter of its type-coverage helper that receives it, were both named gitFiles. Renamed both to repoFiles -- the walk this command runs is a plain, gitignore-aware disk scan, never a git-tracked-file list.

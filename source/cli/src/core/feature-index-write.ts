@@ -17,9 +17,10 @@
  *   - BEST-EFFORT — a write failure is swallowed to the debug log; a check never fails
  *     because the index could not be written (the index is attention, not law).
  *   - SPARSE — only files with at least one admitted deviation are written.
- *   - TRACKED-ONLY — it considers only the repository's git-tracked, graph-governed files (the
- *     universe the coverage layer governs); a gitignored / scratch / nested-worktree file that
- *     merely falls under a mapped ancestor directory is never flagged. When no git file set is
+ *   - COVERAGE-VISIBLE-ONLY — it considers only the repository's disk-walked, graph-governed files
+ *     (the same `walkRepoFiles` universe the coverage layer governs, gitignore-aware but
+ *     git-independent); a gitignored / scratch / nested-worktree file that merely falls under a
+ *     mapped ancestor directory is never flagged. When no coverage-visible file list is
  *     available, NO index is written (unknown scoping ≠ an empty or unfiltered one).
  *
  * ## Robust statistics only
@@ -214,17 +215,17 @@ export interface FamilyMember {
  * ({@link computeFamilyDeviations}) and the calibration dump (`runAttentionDump`) so the two
  * can never drift.
  *
- * `includedPaths` scopes the universe to the repository's TRACKED, graph-governed files (the
- * same set `yg check`'s coverage layer governs — tracked files minus nested-graph subtrees).
- * A file not in that set is skipped even if it has an owner: the relation pass parses every
- * node-mapped file, which can include gitignored scratch or a nested worktree copy that falls
- * under a mapped ancestor directory, and attention must never speak about files the repository
- * does not version. `ownerOf` resolves EITHER a node owner or (for a file no node owns) its
- * matched classifying type (see {@link FamilyOwner}) — a caller that only ever resolves node
- * ownership (never widened with a type-coverage `covered` map) sees the SAME node-only universe
- * as before. A file `ownerOf` resolves to neither is skipped (uncovered/unclassified files are a
- * coverage matter, not attention); a file whose extension has no extractor language is skipped
- * (defensive — every `factsByPath` entry has one).
+ * `includedPaths` scopes the universe to the repository's COVERAGE-VISIBLE, graph-governed files
+ * (the same set `yg check`'s coverage layer governs — the `walkRepoFiles` disk walk minus
+ * nested-graph subtrees). A file not in that set is skipped even if it has an owner: the relation
+ * pass parses every node-mapped file, which can include gitignored scratch or a nested worktree
+ * copy that falls under a mapped ancestor directory, and attention must never speak about files
+ * the coverage-visible walk does not surface. `ownerOf` resolves EITHER a node owner or (for a
+ * file no node owns) its matched classifying type (see {@link FamilyOwner}) — a caller that only
+ * ever resolves node ownership (never widened with a type-coverage `covered` map) sees the SAME
+ * node-only universe as before. A file `ownerOf` resolves to neither is skipped
+ * (uncovered/unclassified files are a coverage matter, not attention); a file whose extension has
+ * no extractor language is skipped (defensive — every `factsByPath` entry has one).
  */
 export function groupByFamily(
   factsByPath: Map<string, FileFacts>,
@@ -233,7 +234,7 @@ export function groupByFamily(
 ): Map<string, FamilyMember[]> {
   const families = new Map<string, FamilyMember[]>();
   for (const [filePath, facts] of factsByPath) {
-    if (!includedPaths.has(filePath)) continue; // only tracked, graph-governed files
+    if (!includedPaths.has(filePath)) continue; // only coverage-visible, graph-governed files
     const owner = ownerOf(filePath);
     if (owner === undefined) continue; // no node AND no matched type → not attention
     const language = getLanguageForExtension(path.extname(filePath));
@@ -259,7 +260,7 @@ export function groupByFamily(
  * with zero spread within a family is never a deviation.
  *
  * Pure and deterministic: no filesystem access, no clock. `includedPaths` scopes the universe
- * to the repository's tracked, graph-governed files (see {@link groupByFamily}). The
+ * to the repository's coverage-visible, graph-governed files (see {@link groupByFamily}). The
  * synthetic-family unit tests drive this directly.
  */
 export function computeFamilyDeviations(

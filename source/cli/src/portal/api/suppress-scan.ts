@@ -109,7 +109,7 @@ async function scanMarkersForFile(relFile: string, text: string): Promise<Suppre
 
 export async function runSuppressionsScan(
   projectRoot: string,
-  gitTrackedFiles: string[],
+  walkedFiles: string[],
   knownAspectIds: Set<string>,
   mappingEntries: string[] = [],
   underApproximatingAspectIds: Set<string> = new Set(),
@@ -124,13 +124,13 @@ export async function runSuppressionsScan(
   // Map<file, Map<aspectId, disableLineNum[]>>
   const openDisables = new Map<string, Map<string, number[]>>();
 
-  // `gitTrackedFiles` is an ordinary repo walk — it answers "what needs
+  // `walkedFiles` is an ordinary repo walk — it answers "what needs
   // coverage", not "what file can a live marker be on". Widen it to the
   // scan's real candidate universe (see `computeSuppressionScanUniverse`'s
   // own comment for exactly what that adds and why) before the noise filter
   // below ever runs, so a mapped file the walk cannot see is never silently
   // dropped before it gets a chance to be recognized as a live waiver site.
-  const scanFiles = await computeSuppressionScanUniverse(projectRoot, gitTrackedFiles, mappingEntries, coverage);
+  const scanFiles = await computeSuppressionScanUniverse(projectRoot, walkedFiles, mappingEntries, coverage);
 
   for (const relFile of scanFiles) {
     // Skip generated rules mirrors, per-node logs, and prose docs that carry no

@@ -97,8 +97,8 @@ function collectRelevantNodePaths(graph: Graph, nodePath: string): Set<string> {
 async function computeTypeCoverageForContext(graph: Graph): Promise<TypeCoverageInput | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
   const projectRoot = projectRootFromGraph(graph.rootPath);
-  const gitFiles = await walkRepoFiles(projectRoot);
-  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const repoFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, repoFiles);
   const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }

@@ -69,7 +69,7 @@ export async function extractPortalData(
   // directly (it imports only the facade + the data contract).
   const graph: Graph = await loadPortalGraph(projectRoot);
 
-  const gitFiles = await walkPortalFiles(projectRoot);
+  const repoFiles = await walkPortalFiles(projectRoot);
 
   // The type-level classification lattice (coverage.type_level), classified ONCE
   // for this extraction run — mirroring the same single-classification-per-run
@@ -78,7 +78,7 @@ export async function extractPortalData(
   // denominator all count the SAME universe instead of the portal silently
   // reporting a component-only one when the tier is on. Undefined at flag-off —
   // every consumer already treats that as "nothing to do."
-  const typeCoverageResult = await computePortalTypeCoverage(graph, gitFiles);
+  const typeCoverageResult = await computePortalTypeCoverage(graph, repoFiles);
   const typeCoverageInput = toPortalTypeCoverageInput(typeCoverageResult);
 
   // Reuse the engine: severities + coverage come straight from runCheck. The pipeline
@@ -87,7 +87,7 @@ export async function extractPortalData(
   // The clock feeds the review-cadence check, which is why it must be a real clock and
   // not a fixed instant: a rule past its review date has to surface here exactly as it
   // does on the command line.
-  const checkResult = await runPortalCheck(graph, gitFiles, () => new Date(), typeCoverageResult);
+  const checkResult = await runPortalCheck(graph, repoFiles, () => new Date(), typeCoverageResult);
 
   // Reuse the engine: per-pair states from lock verification, and the expected-pair
   // denominator from pair computation. (verifyLock computes the same expected set
@@ -107,7 +107,7 @@ export async function extractPortalData(
 
   // Live suppression inventory (the facade reaches the ast/suppress scan). Indexed by
   // file so each node's mapped files pick up exactly the markers detected in them.
-  const suppressionMarkers = await scanPortalSuppressions(graph, projectRoot, gitFiles, typeCoverageResult);
+  const suppressionMarkers = await scanPortalSuppressions(graph, projectRoot, repoFiles, typeCoverageResult);
   const flatSuppressions = buildSuppressions(suppressionMarkers);
   const suppressions = indexSuppressionsByFile(flatSuppressions);
 
@@ -153,7 +153,7 @@ export async function extractPortalData(
   // Hubs, residue and the worklist are pure over the already-built node array + the
   // CheckResult; they reuse the engine's own coverage scan and issue grouping.
   const hubs = buildHubs(nodes);
-  const uncovered = scanPortalUncovered(graph, gitFiles);
+  const uncovered = scanPortalUncovered(graph, repoFiles);
   // The residue's uncovered-files ledger must mean exactly what its own chip says:
   // "nothing is checking this, and it wasn't skipped on purpose". A type-covered
   // file has its own verdict (a real pair against its matched type); an

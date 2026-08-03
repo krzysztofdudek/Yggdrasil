@@ -213,14 +213,14 @@ async function gatherSuppressData(
   typeCoverage: TypeCoverageInput | undefined,
 ): Promise<SuppressData | undefined> {
   try {
-    const gitFiles = await walkRepoFiles(projectRoot);
+    const repoFiles = await walkRepoFiles(projectRoot);
     const knownAspectIds = new Set(graph.aspects.map((a) => a.id));
     const draftAspectIds = new Set(
       graph.aspects.filter((a) => (a.status ?? 'enforced') === 'draft').map((a) => a.id),
     );
     const report = await runSuppressionsScan(
       projectRoot,
-      gitFiles,
+      repoFiles,
       knownAspectIds,
       collectMappingEntries(graph),
       // No under-approximating warnings wanted here (unchanged) — advise's own
@@ -268,8 +268,8 @@ async function gatherSuppressData(
  */
 async function computeTypeCoverageForAdvise(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
-  const gitFiles = await walkRepoFiles(projectRoot);
-  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const repoFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, repoFiles);
   const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }

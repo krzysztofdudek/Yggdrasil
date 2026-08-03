@@ -193,8 +193,9 @@ function emitGroupedDiagnostics(
 // ============================================================
 
 export interface RunFillOptions {
-  /** Git-tracked files for the final coverage scan (mirrors plain check). Pass
-   *  null to skip the unmapped-files check (no git available). */
+  /** Coverage-visible files (the `walkRepoFiles` disk walk, gitignore-aware/
+   *  git-independent) for the final coverage scan (mirrors plain check). Pass
+   *  null to skip the unmapped-files check (no file walk ran this call). */
   coverageVisibleFiles: string[] | null;
   /** Real `git ls-files` output for the tracked∩gitignored anomaly check, threaded
    *  into both the dry-run cost-preview report and the final post-fill report

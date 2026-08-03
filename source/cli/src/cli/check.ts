@@ -108,16 +108,17 @@ export function registerCheckCommand(program: Command): void {
         const graph = await loadGraphOrAbort(cwd, { tolerateInvalidConfig: true });
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
         const projectRoot = path.dirname(graph.rootPath);
-        const gitFiles = await walkRepoFiles(projectRoot);
+        const repoFiles = await walkRepoFiles(projectRoot);
         // Tracked-file list for the anomaly check below; null (no git) skips it.
         const tracked = listGitTrackedFiles(projectRoot);
 
         // Hidden calibration instrument. Bypasses the normal report entirely: run the
         // read-only attention dump over warm shards, print it, exit 0. Writes nothing. It is
-        // scoped to the same tracked, graph-governed file set the report path uses — the git
-        // call stays in this CLI layer (core never shells out to git).
+        // scoped to the same coverage-visible, graph-governed file set the report path uses —
+        // the disk walk (`walkRepoFiles`) stays in this CLI layer; core only ever consumes
+        // the list handed to it, never walks the filesystem or shells out to git itself.
         if (opts.attentionDump) {
-          const dump = await runAttentionDump(graph, gitFiles);
+          const dump = await runAttentionDump(graph, repoFiles);
           process.stdout.write(dump);
           await exitAfterFlush(0);
           return;
@@ -325,7 +326,7 @@ export function registerCheckCommand(program: Command): void {
             const isDryRun = opts.dryRun ?? false;
             const isQuiet = opts.quiet ?? false;
             const fill = await runFill(graph, {
-              coverageVisibleFiles: gitFiles,
+              coverageVisibleFiles: repoFiles,
               trackedFiles: tracked, // mirrors reviewNowUtc/rulesArtifacts below
               onlyDeterministic: mode.onlyDeterministic,
               dryRun: isDryRun,
@@ -361,7 +362,7 @@ export function registerCheckCommand(program: Command): void {
               divergenceWrite: (text) => { writeFillDivergence(graph.rootPath, text); },
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
-            await applyHonestCoverageSplit(fill.checkResult, graph, gitFiles);
+            await applyHonestCoverageSplit(fill.checkResult, graph, repoFiles);
             process.stdout.write(formatOutput(fill.checkResult, { kind: 'full' }, autoFilled));
             // A dry-run is a cost preview only — it never writes and must never fail
             // the build for unverified/refused pairs it merely previewed. Exit 0 always.
@@ -400,14 +401,14 @@ export function registerCheckCommand(program: Command): void {
         // (which passes the same flag into its own runCheck) — so both `yg check` and
         // `yg check --approve` keep the index current. Only --dry-run (returns before the
         // fill's report) and the internal fill/portal re-checks stay byproduct-free.
-        const result = await runCheck(graph, gitFiles, {
+        const result = await runCheck(graph, repoFiles, {
           nowUtc: () => new Date(),
           writeFeatureIndex: true,
           now: () => new Date(),
           trackedFiles: tracked,
           rulesArtifacts: await readRulesArtifacts(projectRoot),
         });
-        await applyHonestCoverageSplit(result, graph, gitFiles);
+        await applyHonestCoverageSplit(result, graph, repoFiles);
         process.stdout.write(formatOutput(result, view));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and

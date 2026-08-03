@@ -19,9 +19,9 @@ import type { Graph } from '../model/graph.js';
  * setting on pays no classification cost and the inventory behaves exactly as
  * it always has.
  */
-async function computeTypeCoveredFilesForSuppressions(graph: Graph, gitFiles: string[]): Promise<Set<string>> {
+async function computeTypeCoveredFilesForSuppressions(graph: Graph, repoFiles: string[]): Promise<Set<string>> {
   if (!graph.config.coverage?.typeLevel) return new Set();
-  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const uncovered = scanUncoveredFiles(graph, repoFiles);
   const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return collectTypeCoveredFiles(result.covered);
 }
@@ -50,7 +50,7 @@ export function registerSuppressionsCommand(program: Command): void {
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
 
         const projectRoot = path.dirname(graph.rootPath);
-        const gitFiles = await walkRepoFiles(projectRoot);
+        const repoFiles = await walkRepoFiles(projectRoot);
         const knownAspectIds = new Set(graph.aspects.map(a => a.id));
         // Aspects whose deterministic check is labeled under-approximating — a
         // waiver targeting one is a footgun the scan flags as a non-blocking warning.
@@ -59,11 +59,11 @@ export function registerSuppressionsCommand(program: Command): void {
         );
         const report = await runSuppressionsScan(
           projectRoot,
-          gitFiles,
+          repoFiles,
           knownAspectIds,
           collectMappingEntries(graph),
           underApproximatingAspectIds,
-          await computeTypeCoveredFilesForSuppressions(graph, gitFiles),
+          await computeTypeCoveredFilesForSuppressions(graph, repoFiles),
           graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
         );
         process.stdout.write(formatSuppressionsOutput(report));

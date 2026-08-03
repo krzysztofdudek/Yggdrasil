@@ -13,9 +13,9 @@ import type { TypeCoverageInput } from '../../core/pairs.js';
  * so every consumer counts the SAME universe instead of the portal running an
  * independent classify per call. Undefined when the flag is off.
  */
-export async function computePortalTypeCoverage(graph: Graph, gitFiles: string[]): Promise<TypeCoverageResult | undefined> {
+export async function computePortalTypeCoverage(graph: Graph, repoFiles: string[]): Promise<TypeCoverageResult | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
-  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const uncovered = scanUncoveredFiles(graph, repoFiles);
   return computeTypeCoverageCached(graph, uncovered, new FileContentCache());
 }
 

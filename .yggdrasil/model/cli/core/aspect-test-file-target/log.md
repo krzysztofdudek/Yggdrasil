@@ -6,3 +6,5 @@ The --file addressing refusal only ever checked an adopter's coverage.excluded c
 A comment describing which command-layer check feeds this module's classification path still named the old, unguarded owner lookup after the command file it describes switched to the exclusion-aware wrapper around it. Reworded to name the wrapper it now actually calls, so the comment stays an accurate account of the division of responsibility between the two files.
 ## [2026-08-02T12:05:05.504Z]
 Now calls computeTypeCoverageCached and classifySingleFileCached instead of their uncached counterparts, so yg aspect-test benefits from the persistent on-disk type-classification cache instead of paying full classification cost every invocation.
+## [2026-08-03T00:22:37.075Z]
+The local variable holding this file's own plain repo walk (used to classify a --file target's type coverage) was named gitFiles, asserting a git-tracked backing the walk never had. Renamed to repoFiles, matching the name this identical walk already carries at its other call sites across the CLI.

@@ -99,7 +99,7 @@ export function isNoiseFile(relFile: string): boolean {
 }
 
 /**
- * Every node mapping entry in the graph, normalized to POSIX. A git-tracked file
+ * Every node mapping entry in the graph, normalized to POSIX. A coverage-visible file
  * that matches one is a mapped node SOURCE — a file an aspect verifies and whose
  * in-source `yg-suppress` marker the reviewer honors — so the inventory must list
  * its markers regardless of extension. The two production callers (`yg suppressions`

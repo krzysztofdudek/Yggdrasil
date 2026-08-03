@@ -132,11 +132,11 @@ export { NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js'; // re-exported so 
  */
 export async function runPortalCheck(
   graph: Graph,
-  gitFiles: string[],
+  repoFiles: string[],
   nowUtc: () => Date,
   precomputedTypeCoverage?: TypeCoverageResult,
 ): Promise<CheckResult> {
-  return runCheck(graph, gitFiles, {
+  return runCheck(graph, repoFiles, {
     nowUtc,
     rulesArtifacts: await readRulesArtifacts(path.dirname(graph.rootPath)),
     trackedFiles: listGitTrackedFiles(path.dirname(graph.rootPath)),
@@ -145,8 +145,8 @@ export async function runPortalCheck(
 }
 
 /** Classify type-level coverage ONCE per run, and its reduced lock-verification shape (see portal/api/type-coverage.ts). */
-export async function computePortalTypeCoverage(graph: Graph, gitFiles: string[]): Promise<TypeCoverageResult | undefined> {
-  return computeTypeCoverageImpl(graph, gitFiles);
+export async function computePortalTypeCoverage(graph: Graph, repoFiles: string[]): Promise<TypeCoverageResult | undefined> {
+  return computeTypeCoverageImpl(graph, repoFiles);
 }
 export function toPortalTypeCoverageInput(result: TypeCoverageResult | undefined): TypeCoverageInput | undefined {
   return toTypeCoverageInputImpl(result);
@@ -172,8 +172,8 @@ export async function computePortalPairs(graph: Graph, typeCoverage?: TypeCovera
 export { describeCascadeCycle };
 
 /** Reuse the engine's coverage scan: repo files mapped to no node. */
-export function scanPortalUncovered(graph: Graph, gitFiles: string[]): string[] {
-  return scanUncoveredFiles(graph, gitFiles);
+export function scanPortalUncovered(graph: Graph, repoFiles: string[]): string[] {
+  return scanUncoveredFiles(graph, repoFiles);
 }
 
 /**
@@ -253,7 +253,7 @@ export async function computePortalBoundary(
 export async function scanPortalSuppressions(
   graph: Graph,
   projectRoot: string,
-  gitFiles: string[],
+  repoFiles: string[],
   typeCoverage?: TypeCoverageResult,
 ): Promise<SuppressionMarkerInput[]> {
   const knownAspectIds = new Set(graph.aspects.map((a) => a.id));
@@ -261,7 +261,7 @@ export async function scanPortalSuppressions(
     graph.aspects.filter((a) => (a.status ?? 'enforced') === 'draft').map((a) => a.id),
   );
   const typeCoveredFiles = collectTypeCoveredFiles(typeCoverage?.covered);
-  const report = await runSuppressionsScan(projectRoot, gitFiles, knownAspectIds, collectMappingEntries(graph), undefined, typeCoveredFiles, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+  const report = await runSuppressionsScan(projectRoot, repoFiles, knownAspectIds, collectMappingEntries(graph), undefined, typeCoveredFiles, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
   return adaptSuppressions(report, knownAspectIds, draftAspectIds);
 }
 

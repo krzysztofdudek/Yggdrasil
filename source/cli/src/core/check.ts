@@ -439,8 +439,8 @@ export function scanUncoveredFiles(graph: Graph, coverageVisibleFiles: string[])
 
   const uncovered: string[] = [];
 
-  const tracked = excludeNestedGraphSubtrees(coverageVisibleFiles);
-  for (const file of tracked) {
+  const scopedFiles = excludeNestedGraphSubtrees(coverageVisibleFiles);
+  for (const file of scopedFiles) {
     const normalized = toPosixPath(file.trim());
 
     // Exclude .yggdrasil/ files
@@ -1032,10 +1032,11 @@ export async function runCheck(
   // change the issue set or the exit code. `writeFeatureIndex` is internally best-effort
   // (every error swallowed to debugWrite), so this never throws into the check.
   //
-  // Scope the index to the repository's tracked, graph-governed universe — EXACTLY the set the
-  // coverage layer governs (tracked files minus nested-graph subtrees). This keeps attention off
-  // gitignored scratch or a nested-worktree copy that falls under a mapped ancestor directory.
-  // With no git set available (coverageVisibleFiles === null) NO index is written — honest scoping.
+  // Scope the index to the repository's coverage-visible, graph-governed universe — EXACTLY the
+  // set the coverage layer governs (the walkRepoFiles disk walk minus nested-graph subtrees). This
+  // keeps attention off gitignored scratch or a nested-worktree copy that falls under a mapped
+  // ancestor directory. With no file list available (coverageVisibleFiles === null) NO index is
+  // written — honest scoping.
   if (options?.writeFeatureIndex && featureFactsByPath && featureHashByPath && coverageVisibleFiles !== null) {
     const includedPaths = new Set(
       excludeNestedGraphSubtrees(coverageVisibleFiles).map((f) => toPosixPath(f.trim())),
@@ -1080,10 +1081,10 @@ export async function runCheck(
  * re-calibrating the threshold. Returns the formatted string; the CLI prints it
  * and exits 0.
  *
- * `coverageVisibleFiles` scopes the universe to the same tracked, graph-governed
- * set the written index uses (CLI-supplied, same walk the report path uses — core
- * never shells out to git). A gitignored/scratch file under a mapped ancestor
- * directory is never shown.
+ * `coverageVisibleFiles` scopes the universe to the same coverage-visible, graph-governed
+ * set the written index uses (CLI-supplied `walkRepoFiles` disk walk, the same walk the
+ * report path uses — core never shells out to git or walks the filesystem itself). A
+ * gitignored/scratch file under a mapped ancestor directory is never shown.
  */
 export async function runAttentionDump(graph: Graph, coverageVisibleFiles: string[]): Promise<string> {
   const projectRoot = path.dirname(graph.rootPath);

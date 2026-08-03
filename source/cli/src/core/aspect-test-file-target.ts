@@ -36,8 +36,8 @@ export async function computeTypeCoverageForAspectTest(
   projectRoot: string,
 ): Promise<TypeCoverageInput | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
-  const gitFiles = await walkRepoFiles(projectRoot);
-  const uncovered = scanUncoveredFiles(graph, gitFiles);
+  const repoFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, repoFiles);
   const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }

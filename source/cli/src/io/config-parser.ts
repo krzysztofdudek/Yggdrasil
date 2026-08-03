@@ -75,13 +75,13 @@ function parseCoverage(raw: unknown, filename: string): CoverageConfig {
   // warning), not silent. (The ABSENT-block default remains ['/'] above, which
   // requires the whole repo; only an explicit [] opts into require-nothing.)
 
-  // Coverage roots are repo-relative prefixes; ".." never matches a git-tracked
+  // Coverage roots are repo-relative prefixes; ".." never matches a real repo-relative
   // path and silently mis-scopes coverage enforcement.
   for (const root of [...required, ...excluded]) {
     if (root.split('/').includes('..')) {
       throw new ConfigParseError({
         what: `${filename}: coverage root '${root}' contains a '..' segment.`,
-        why: "'..' is not a valid repo-relative prefix and will never match any git-tracked path, silently mis-scoping coverage enforcement.",
+        why: "'..' is not a valid repo-relative prefix and will never match any real repo-relative path, silently mis-scoping coverage enforcement.",
         next: 'Use a repo-relative path prefix without any ".." segments (e.g. - services/ instead of - services/../other/).',
       }, 'config-invalid');
     }
