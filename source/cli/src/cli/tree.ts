@@ -154,7 +154,7 @@ async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Prom
     // qualifier rather than failing an unrelated listing.
     debugWrite(`[tree] lock read failed while building the unverified qualifier: ${e instanceof Error ? e.message : String(e)}`);
   }
-  const enforcedNote = unverifiedEnforcedFiles > 0 ? ` (${unverifiedEnforcedFiles} with no recorded verdict for at least one)` : '';
+  const enforcedNote = unverifiedEnforcedFiles > 0 ? ` (${unverifiedEnforcedFiles} with no recorded verdict for at least one of its rules)` : '';
   const parts = [`${enforced} checked by at least one rule${enforcedNote}`, `${unenforced} with nothing that applies`];
   if (uncomputable > 0) {
     parts.push(`${uncomputable} whose rules could not be worked out (aspect implies cycle)`);

@@ -350,7 +350,7 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
     }
   });
 
-  // F2: "checked by at least one rule" names architecture-level status, never
+  // "checked by at least one rule" names architecture-level status, never
   // a recorded verdict — a cold, never-filled project must qualify that
   // bucket the same way plain `yg check` already does for the identical
   // pair, and the qualifier must disappear once the fill genuinely wrote one.
@@ -359,7 +359,7 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
     try {
       const before = run(['tree'], dir);
       expect(before.status).toBe(0);
-      expect(before.out).toMatch(/1 checked by at least one rule \(1 with no recorded verdict for at least one\)/);
+      expect(before.out).toMatch(/1 checked by at least one rule \(1 with no recorded verdict for at least one of its rules\)/);
 
       run(['check', '--approve', '--only-deterministic'], dir);
       const after = run(['tree'], dir);

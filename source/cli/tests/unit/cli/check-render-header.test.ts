@@ -660,10 +660,10 @@ describe('type-visibility block — counts-only under the triage views', () => {
     expect(out).not.toContain('z.ts');
   });
 
-  // F2/F9: the counts-only line is a presentation choice (keep the wall
-  // short), never a computational one — `result.issues` already carries the
-  // FULL lock-verification result regardless of which view rendered it, so
-  // the plain "no confirmed verdict" count costs nothing extra to show here.
+  // The counts-only line is a presentation choice (keep the wall short),
+  // never a computational one — `result.issues` already carries the FULL
+  // lock-verification result regardless of which view rendered it, so the
+  // plain "no confirmed verdict" count costs nothing extra to show here.
   // Only the fill-only SPECIFIC reason (`cannot run — …`) is genuinely
   // unavailable in this view, because --approve can never combine with it.
   it('also names how many enforced/advisory instances have no confirmed verdict — the same lock-derived fact the full view already shows, just not its fill-only reason', () => {
@@ -686,8 +686,8 @@ describe('type-visibility block — counts-only under the triage views', () => {
       unverifiedFileIssue('c.ts', 'warn-only'),
     ];
     const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues), { countsOnly: true });
-    expect(out).toMatch(/1 rule enforced \(2 unverified\)/);
-    expect(out).toMatch(/1 advisory \(1 unverified\)/);
+    expect(out).toMatch(/1 rule enforced \(2 unverified instances\)/);
+    expect(out).toMatch(/1 advisory \(1 unverified instance\)/);
     // Still never the deep fill-only reason or any other full-view-only detail.
     expect(out).not.toContain('cannot run');
   });

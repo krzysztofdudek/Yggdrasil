@@ -675,6 +675,22 @@ describe('cannotRunReasonFor / cannotRunUnverifiedMessage — the pair-fillable 
     expect(cannotRunReasonFor(runtimeRows, 'needs-node-context', 'node:src/crashy')).toBeUndefined();
   });
 
+  // `'file:'` and `'node:'` are both exactly 5 characters, so slicing a
+  // `node:`-prefixed key by `'file:'.length` (as the guard-less code would)
+  // silently strips the WRONG prefix and lands on a real-looking file path —
+  // 'node:src/crashy/a.ts'.slice(5) === 'src/crashy/a.ts'. A node path that
+  // happens to equal a real file path in `runtimeRows` would then read as a
+  // match with no guard in place. No shipped graph names a node path
+  // identical to a repo-relative file path, but the guard is the only thing
+  // standing between the two namespaces — this constructs the collision
+  // directly, independent of whether any real graph ever produces it.
+  it('a node: unit key never resolves to a runtime row, even when slicing off "file:".length worth of characters would land on a real file path in runtimeRows', () => {
+    const collidingRows: TypeVisibilityRow[] = [
+      { file: 'src/crashy/a.ts', aspectId: 'needs-node-context', reason: 'node-context-required' },
+    ];
+    expect(cannotRunReasonFor(collidingRows, 'needs-node-context', 'node:src/crashy/a.ts')).toBeUndefined();
+  });
+
   it('returns undefined when this run recorded no dispositions at all (a plain, never-filled check)', () => {
     expect(cannotRunReasonFor([], 'needs-node-context', 'file:src/crashy/a.ts')).toBeUndefined();
   });

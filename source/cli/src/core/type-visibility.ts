@@ -44,16 +44,20 @@
  *     one, both excluded from `zeroEnforcement`, so "resolution never ran" is
  *     never rendered as "resolution ran and found nothing".
  *
- * This module builds NO reason of its own: it groups, counts, and shapes what
- * the producers already decided (the render layer, `check-render-header.ts`,
- * turns a cascade-cycle group's `aspectId` into the same `why` sentence
- * `yg owner --file` / `yg context --file` already print, via
- * `type-effective.ts#describeCascadeCycle` — never restated here, so the
- * wording cannot drift between the three surfaces). The two things this
- * module DOES compute itself are which of a type's declared law is enforced
- * ANYWHERE (a plain group-by over `appliedPairs`) and where the type's
- * implicit parent chain stops — both pure graph facts, no file I/O,
- * independent of whether a relation-edge index is available.
+ * This module builds no NEW reason of its own: every `TypeVisibilityReason` it
+ * groups, counts, and shapes is one the producers above already decided (the
+ * render layer, `check-render-header.ts`, turns a cascade-cycle group's
+ * `aspectId` into the same `why` sentence `yg owner --file` / `yg context
+ * --file` already print, via `type-effective.ts#describeCascadeCycle` — never
+ * restated here, so the wording cannot drift between the three surfaces). The
+ * things this module DOES compute itself are which of a type's declared law
+ * is enforced ANYWHERE (a plain group-by over `appliedPairs`), where the
+ * type's implicit parent chain stops — both pure graph facts, no file I/O,
+ * independent of whether a relation-edge index is available — and, lower in
+ * this file, the message TEXT for an already-decided reason
+ * (`describeTypeVisibilityReason`, `cannotRunUnverifiedMessage`): composing a
+ * sentence out of a reason this module did not invent is not the same as
+ * inventing one.
  */
 import type { Graph } from '../model/graph.js';
 import type { AspectStatus } from '../model/graph.js';

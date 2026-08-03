@@ -220,7 +220,7 @@ function unverifiedCaveat(result: CheckResult, aspectId: string, files: string[]
 
 /**
  * Total unverified instances across an `enforcedCounts`/`advisoryCounts`
- * list — the counts-only render's caveat (F9). Costs nothing extra to
+ * list — the counts-only render's caveat. Costs nothing extra to
  * compute: `result.issues` already carries the FULL lock-verification result
  * regardless of which view is rendering it, so this is the same lock-derived
  * "no confirmed verdict" fact the full view's `unverifiedCaveat` shows, at
@@ -283,10 +283,14 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
         : '';
       const enforcedUnverified = unverifiedInstanceTotal(result, block.enforcedCounts, block.files);
       const advisoryUnverified = unverifiedInstanceTotal(result, block.advisoryCounts, block.files);
+      // "instances", never "rules": the parenthetical counts (rule, file) pairs, and a
+      // rule live on several files contributes one instance per file — the noun must
+      // match `droppedTotal`'s own "instance(s)" a few words later, not the immediately
+      // preceding "N rule(s) enforced" it qualifies.
       lines.push(
         `  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered — ` +
-        `${block.enforcedCounts.length} rule${block.enforcedCounts.length === 1 ? '' : 's'} enforced${enforcedUnverified > 0 ? ` (${enforcedUnverified} unverified)` : ''}, ` +
-        `${block.advisoryCounts.length} advisory${advisoryUnverified > 0 ? ` (${advisoryUnverified} unverified)` : ''}, ${droppedTotal} attached-but-not-enforced instance${droppedTotal === 1 ? '' : 's'}${uncomputableSuffix}`,
+        `${block.enforcedCounts.length} rule${block.enforcedCounts.length === 1 ? '' : 's'} enforced${enforcedUnverified > 0 ? ` (${enforcedUnverified} unverified instance${enforcedUnverified === 1 ? '' : 's'})` : ''}, ` +
+        `${block.advisoryCounts.length} advisory${advisoryUnverified > 0 ? ` (${advisoryUnverified} unverified instance${advisoryUnverified === 1 ? '' : 's'})` : ''}, ${droppedTotal} attached-but-not-enforced instance${droppedTotal === 1 ? '' : 's'}${uncomputableSuffix}`,
       );
       continue;
     }

@@ -24,3 +24,5 @@ Now calls computeTypeCoverageCached instead of computeTypeCoverage, so yg tree b
 The 'checked by at least one rule' bucket now also checks the lock directly -- a cheap presence check, not a full re-verification -- and names how many of those files have no recorded verdict for at least one of their rules. Being checked by an applicable rule and having a recorded verdict for it are different facts; the summary line used to only ever report the first.
 ## [2026-08-03T10:08:36.496Z]
 Reworded the comment above the 'no recorded verdict' qualifier to stop implying it matches yg check's own re-verification: it only ever checks whether the lock holds an entry at all (never re-hashing current inputs), so unlike yg owner --file and yg context --file (which now re-verify the one file each was asked about, catching a stale entry too), this summary line still cannot see a rule whose recorded verdict has gone stale since a source edit. No behavior changed here.
+## [2026-08-03T10:24:17.762Z]
+The 'no recorded verdict' qualifier now names what it counts: 'for at least one of its rules', instead of trailing off after 'for at least one' with no noun to finish the sentence.
