@@ -16,11 +16,16 @@
  *     touching ctx.node/ctx.graph with no component behind it, or a
  *     companion that could not resolve a dependency — this third reason has
  *     no `StructureRunnerError` code wired to it yet, see the note below
- *     `RUNTIME_DISPOSITION_REASONS`). These three are FILL-ONLY: neither `yg
- *     check` nor `yg context --file` ever re-executes check.mjs (see the
- *     module-level note below `RUNTIME_DISPOSITION_REASONS`), so
- *     `runtimeRows` is `[]` at both call sites today — never fabricated to
- *     look populated.
+ *     `RUNTIME_DISPOSITION_REASONS`). These are FILL-ONLY facts: `yg check`
+ *     and `yg context --file` never re-execute check.mjs themselves, so
+ *     `runtimeRows` is `[]` at both call sites' OWN classification — but `yg
+ *     check --approve`'s fill stage (core/fill.ts) DOES run check.mjs, and
+ *     hands the disposition it just watched happen to its own post-fill
+ *     report in the SAME process (core/check.ts's `runtimeDispositions`
+ *     option) — the only way a row with one of these reasons is ever
+ *     populated, never persisted, never visible to a later separate `yg
+ *     check`, `yg context --file`, `yg owner --file`, or the portal, none of
+ *     which fill.
  *   - `appliedPairs` — the (file, aspectId, status) rows that ACTUALLY
  *     produced a pair (`core/pairs.ts`'s own nodeless enumeration output,
  *     filtered to `nodePath === undefined`). This is the ONLY source of truth
@@ -98,28 +103,25 @@ export function describeChainTermination(t: ChainTermination): string {
  * code maps to it in `RUNTIME_DISPOSITION_REASONS` below, so no caller ever
  * constructs a row with it.
  *
- * All three runtime reasons are FILL-ONLY today: `yg check` and `yg context
- * --file` both compute this report with `runtimeRows: []` (see `check.ts` and
- * `build-context.ts`) because neither ever re-executes a deterministic
- * check.mjs — only `yg check --approve`'s fill stage does, and nothing
- * persists a runtime disposition's code across runs for either shipped
- * surface to read back. `describeTypeVisibilityReason` still describes them
- * (a caller that DOES observe one live, during a fill, must have real
- * wording ready), but do not expect to see them in rendered `yg check` or `yg
- * context --file` output — that would require wiring a same-process
- * fill→check handoff, which is a distinct, larger change.
- *
- * The other two are no more reachable in practice today, despite having a
- * mapped code: `classifyRunnerDisposition` below is the only thing that can
- * turn a `StructureRunnerError` into 'read-beyond-architecture' or
- * 'node-context-required', and nothing outside its own unit tests calls it.
- * A fill that actually hits `STRUCTURE_UNDECLARED_FS_READ` or
- * `STRUCTURE_NODE_CONTEXT_UNAVAILABLE` is caught in `fill-det.ts`, which
- * renders the `StructureRunnerError`'s own `messageData` directly and never
- * routes through this translator — so a reader who sees such a fill failure
- * sees that message, never the words "read-beyond-architecture" or
- * "node-context-required" this artifact would use. Wiring a real caller is
- * the same same-process fill→check handoff named above, still undone.
+ * All three runtime reasons are FILL-ONLY: they can only ever be discovered
+ * by actually running check.mjs, which happens nowhere except `yg check
+ * --approve`'s fill stage. `build-context.ts` (`yg context --file`) and
+ * `yg owner --file` both compute this report with `runtimeRows: []` always —
+ * they never fill, so they have nothing to hand off; a file whose disposition
+ * `yg check --approve` named in a prior run reads there exactly as it would
+ * with no disposition known at all (the qualified "unverified" fallback,
+ * never persisted — see `docs/cli-reference.md`'s note on this surface).
+ * `check.ts`'s OWN classification (the plain, non-`--approve` read) is
+ * likewise always `[]`; only the SAME run's `core/fill.ts`, having just
+ * watched a component-free det pair's check.mjs fail with a
+ * `StructureRunnerError`, translates its code via `classifyRunnerDisposition`
+ * below and passes the row into that run's own post-fill `runCheck` call
+ * (`RunCheckOptions.runtimeDispositions`) — the one and only live caller of
+ * that function outside its own unit tests. `'companion-context-failed'`
+ * still has no producer: no `StructureRunnerError` code maps to it in
+ * `RUNTIME_DISPOSITION_REASONS` below, so no caller ever constructs a row
+ * with it — wiring one is a distinct, still-undone change (an LLM pair's
+ * companion-hook failure has no code-based disposition to translate).
  */
 export type TypeVisibilityReason =
   | TypeAspectDropReason         // 'when-not-satisfied' | 'draft'
@@ -241,6 +243,23 @@ const RUNTIME_DISPOSITION_REASONS: ReadonlyMap<string, TypeVisibilityReason> = n
  */
 export function classifyRunnerDisposition(code: string): TypeVisibilityReason | undefined {
   return RUNTIME_DISPOSITION_REASONS.get(code);
+}
+
+/**
+ * `runFill`'s same-run fill→check handoff (core/fill.ts, `RunCheckOptions.
+ * runtimeDispositions`): translate its raw `(file, aspectId, code)` facts —
+ * a component-free det pair's check.mjs THIS run watched fail — into the rows
+ * `buildTypeVisibility`'s `runtimeRows` parameter expects, via
+ * `classifyRunnerDisposition` above. A code this module does not represent
+ * yields no row, same as no disposition at all — never a guess.
+ */
+export function toRuntimeVisibilityRows(dispositions: Array<{ file: string; aspectId: string; code: string }>): TypeVisibilityRow[] {
+  const rows: TypeVisibilityRow[] = [];
+  for (const d of dispositions) {
+    const reason = classifyRunnerDisposition(d.code);
+    if (reason) rows.push({ file: d.file, aspectId: d.aspectId, reason });
+  }
+  return rows;
 }
 
 /**

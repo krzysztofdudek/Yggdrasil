@@ -13,10 +13,14 @@ import { debugWrite } from '../utils/debug-log.js';
 /** Outcome of filling one deterministic pair. A real verdict carries an entry to
  *  write; a runtime-error is an infra disposition (no write — spec §3.2) and carries
  *  the structured notice so the orchestrator can collect and group by aspectId before
- *  emitting (one message per aspect instead of one per pair). */
+ *  emitting (one message per aspect instead of one per pair). `code` is the thrown
+ *  StructureRunnerError's own code (undefined for a runtime error with no such
+ *  instance behind it — a bare `succeeded: false` result, or a taint that survived
+ *  the one re-run) — the orchestrator's only way to learn WHICH disposition this was,
+ *  for the component-free files core/type-visibility.ts's translator can name. */
 export type DetFillOutcome =
   | { kind: 'verdict'; entry: VerdictEntry }
-  | { kind: 'runtime-error'; messageData: IssueMessage }
+  | { kind: 'runtime-error'; messageData: IssueMessage; code?: string }
   // A malformed (reasonless) `yg-suppress` marker in a mapped source file. This is
   // a fault in the marker, NOT in check.mjs, so it is a DISTINCT disposition (no
   // write) that must never be reported as aspect-check-runtime-error / "check.mjs

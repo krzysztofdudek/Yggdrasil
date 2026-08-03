@@ -879,3 +879,99 @@ describe('type-visibility block — an "enforced" count with no confirmed verdic
     expect(out).toMatch(/Advisory.*warn-only \(1, 1 unverified\)/);
   });
 });
+
+// ── A run that FILLED and watched the disposition happen (yg check --approve,
+// core/fill.ts's in-process handoff) reports it by name instead of the bare
+// "unverified" caveat above — the same reason phrase "Attached but not
+// enforced" already uses for a static drop, via the same
+// describeTypeVisibilityReason function, never a second vocabulary. A row
+// naming a file's disposition is never ALSO rendered under "Attached but not
+// enforced": that heading would then claim the opposite of "Enforced" for the
+// identical file, and the row's own existence proves a real pair was produced
+// (status enforced/advisory) — the exact situation none of the other reasons
+// in that bucket can ever be in. A run with no row for a file (a plain read
+// that never filled, or a disposition this module cannot name) keeps the
+// original "K unverified" wording untouched — the required fallback. ────────
+
+describe('type-visibility block — a run that watched the disposition happen names it, not "unverified"', () => {
+  it('every unverified file behind the aspect has a matching row: the reason replaces the bare caveat', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts', 'b.ts', 'c.ts'],
+        enforced: ['validates-input'],
+        enforcedCounts: [{ aspectId: 'validates-input', count: 3 }],
+        dropped: [{ aspectId: 'validates-input', reason: 'node-context-required', count: 3 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: ['a.ts', 'b.ts', 'c.ts'].map((file) => ({ file, aspectId: 'validates-input', reason: 'node-context-required' as const })),
+    };
+    const issues = ['a.ts', 'b.ts', 'c.ts'].map((f) => unverifiedFileIssue(f, 'validates-input'));
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues));
+    expect(out).toMatch(/Enforced: validates-input \(3, 3 cannot run — it needs component context \(ctx\.node \/ ctx\.graph\) that a type-covered file does not have\)/);
+    expect(out).not.toContain('3 unverified');
+    // Never ALSO under "Attached but not enforced" — the file IS enforced; the
+    // caveat above already says plainly why it never produces a verdict.
+    expect(out).not.toContain('Attached but not enforced');
+  });
+
+  it('only SOME of the unverified files have a matching row: both clauses appear, neither double-counts', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts', 'b.ts', 'c.ts'],
+        enforced: ['validates-input'],
+        enforcedCounts: [{ aspectId: 'validates-input', count: 3 }],
+        dropped: [{ aspectId: 'validates-input', reason: 'node-context-required', count: 1 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: [{ file: 'a.ts', aspectId: 'validates-input', reason: 'node-context-required' }],
+    };
+    const issues = ['a.ts', 'b.ts', 'c.ts'].map((f) => unverifiedFileIssue(f, 'validates-input'));
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues));
+    expect(out).toMatch(/Enforced: validates-input \(3, 1 cannot run — it needs component context \(ctx\.node \/ ctx\.graph\) that a type-covered file does not have; 2 unverified\)/);
+  });
+
+  it('a row for a DIFFERENT aspect on the same files never bleeds into this one\'s caveat', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts'],
+        enforced: ['validates-input'],
+        enforcedCounts: [{ aspectId: 'validates-input', count: 1 }],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: [{ file: 'a.ts', aspectId: 'other-rule', reason: 'node-context-required' }],
+    };
+    const issues = [unverifiedFileIssue('a.ts', 'validates-input')];
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues));
+    expect(out).toMatch(/Enforced: validates-input \(1, 1 unverified\)/);
+    expect(out).not.toContain('cannot run');
+  });
+
+  it('a static drop for a DIFFERENT aspect still renders under "Attached but not enforced" alongside a named runtime reason', () => {
+    const report: TypeVisibilityReport = {
+      byType: [block({
+        typeId: 'handler',
+        files: ['a.ts'],
+        enforced: ['validates-input'],
+        enforcedCounts: [{ aspectId: 'validates-input', count: 1 }],
+        dropped: [
+          { aspectId: 'validates-input', reason: 'node-context-required', count: 1 },
+          { aspectId: 'other-static-rule', reason: 'whole-unit-rule', count: 1 },
+        ],
+      })],
+      zeroEnforcement: { count: 0, samples: [] },
+      uncomputable: NO_UNCOMPUTABLE,
+      rows: [{ file: 'a.ts', aspectId: 'validates-input', reason: 'node-context-required' }],
+    };
+    const issues = [unverifiedFileIssue('a.ts', 'validates-input')];
+    const out = renderTypeVisibilityBlock(typeVisibilityResult(report, issues));
+    expect(out).toContain('Attached but not enforced');
+    expect(out).toMatch(/no component to run it on.*other-static-rule \(1\)/);
+    expect(out).not.toMatch(/component context.*validates-input/);
+  });
+});

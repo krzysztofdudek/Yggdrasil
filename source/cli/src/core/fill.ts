@@ -286,6 +286,19 @@ export interface RunFillResult {
   companionRuntimeErrors: number;
   /** Deterministic pairs left unverified by a malformed yg-suppress marker (no write). */
   malformedSuppressErrors: number;
+  /**
+   * Component-free (nodeless) deterministic pairs whose check.mjs THIS run
+   * watched fail with a StructureRunnerError — `(file, aspectId, code)`, raw
+   * and untranslated: this engine module names no `TypeVisibilityReason`
+   * itself (that vocabulary, and the translator over it, belong to
+   * core/type-visibility.ts, which this module does not import — see
+   * `checkResult.typeVisibility` below for the translated result). A
+   * component-owned pair's own disposition is never collected here — there is
+   * no type-covered "file" in core/type-visibility.ts's sense to attribute it
+   * to. Exposed for callers that want the raw facts; `checkResult` already
+   * carries the translated, rendered form.
+   */
+  runtimeDispositions: Array<{ file: string; aspectId: string; code: string }>;
 }
 
 /** Abort sentinel — the structural gate failed; no fills ran. */
@@ -586,7 +599,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       trackedFiles: opts.trackedFiles,
       precomputedTypeCoverage: typeCoverageResult,
     });
-    return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0 };
+    return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0, runtimeDispositions: [] };
   }
 
   // Count of verdict-content writes performed this run (one per setEntry). Read
@@ -656,6 +669,13 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   let runtimeErrors = 0;
   let companionRuntimeErrors = 0;
   let malformedSuppressErrors = 0;
+
+  // Component-free det pairs whose check.mjs THIS run watched fail with a
+  // named StructureRunnerError — raw (file, aspectId, code) facts, fed to the
+  // post-fill runCheck below so its own report can name the reason instead of
+  // a bare "unverified" caveat (core/type-visibility.ts's translator lives
+  // there, not here — see RunFillResult.runtimeDispositions's own doc).
+  const runtimeDispositions: Array<{ file: string; aspectId: string; code: string }> = [];
 
   // Collectors for grouped infra diagnostics (emitted AFTER each phase loop so
   // multiple units of the same aspect produce ONE message instead of N near-identical ones).
@@ -730,6 +750,14 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       // No write — pair stays unverified, reported as aspect-check-runtime-error.
       emitEvent(pair.aspectId, pair.unitKey, 'deterministic', 'runtime-error');
       tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', write);
+      // A component-free pair is the ONLY case core/type-visibility.ts's report
+      // can ever attribute a disposition to (there is no type-covered "file" to
+      // name for a component's own pair) — collect the raw code for the
+      // post-fill runCheck call to translate, exactly like this run itself just
+      // watched happen.
+      if (pair.nodePath === undefined && outcome.code !== undefined) {
+        runtimeDispositions.push({ file: toPosixPath(pair.subjectFiles[0]), aspectId: pair.aspectId, code: outcome.code });
+      }
       return { kind: 'runtime', item: { aspectId: pair.aspectId, unitKey: pair.unitKey, messageData: outcome.messageData } };
     }
     if (outcome.kind === 'malformed-suppress') {
@@ -1077,6 +1105,13 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     rulesArtifacts: opts.rulesArtifacts,
     trackedFiles: opts.trackedFiles,
     precomputedTypeCoverage: typeCoverageResult,
+    // The in-process fill→check handoff (core/type-visibility.ts's own module
+    // comment names this the missing piece): THIS run's own runtimeDispositions,
+    // so the report it is about to build can name a component-free disposition
+    // by reason instead of a bare "unverified" caveat. A run that never fills
+    // (plain `yg check`, or a later separate invocation) passes nothing here and
+    // gets runCheck's own empty-array default — the qualified fallback wording.
+    runtimeDispositions,
   });
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────
@@ -1108,5 +1143,5 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     debugWrite(`[fill] convergence sentinel failed (swallowed): ${e instanceof Error ? e.message : String(e)}`);
   }
 
-  return { checkResult, reviewerCallsMade, infraFailures, runtimeErrors, companionRuntimeErrors, malformedSuppressErrors };
+  return { checkResult, reviewerCallsMade, infraFailures, runtimeErrors, companionRuntimeErrors, malformedSuppressErrors, runtimeDispositions };
 }

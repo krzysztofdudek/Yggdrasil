@@ -43,7 +43,7 @@ import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { guardedResolve } from '../relations/resolve-path.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { computeTypeGateFindings } from '../relations/type-gate.js';
-import { buildTypeVisibility, toAppliedPairs, type TypeVisibilityReport } from './type-visibility.js';
+import { buildTypeVisibility, toAppliedPairs, toRuntimeVisibilityRows, type TypeVisibilityReport } from './type-visibility.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
 import {
@@ -626,16 +626,11 @@ function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
  *        digest, for the committed-digest staleness gate; same absence-skips
  *        seam as `nowUtc`. Read-only.
  */
-// Not every field below is the same kind of thing. `nowUtc`/`rulesArtifacts`/
-// `trackedFiles` are ISSUE-GATING: written above as `options?.<key> ? <issues>
-// : []`, so absence silently skips a check. `writeFeatureIndex`/`now` are
-// side-effect switches, gating no issue. Every call site must pass every
-// issue-gating field — `.yggdrasil/aspects/runcheck-injected-input-parity`
-// enforces this per node, deriving the key set from this file's ternary shape.
-//
-// New optional field here? That aspect requires it CLASSIFIED: write it as the
-// ternary above, or (only if it can never add/remove/alter an issue) list it in
-// that check.mjs's SIDE_EFFECT_ONLY allowlist with a reason. Neither ⇒ refused.
+// Each field below is either ISSUE-GATING (`options?.<key> ? <issues> : []` —
+// absence silently skips a check) or a side-effect switch. A NEW optional field
+// must be one or the other, or `.yggdrasil/aspects/runcheck-injected-input-parity`
+// refuses it as unclassified: write the ternary, or list it in that check.mjs's
+// SIDE_EFFECT_ONLY allowlist with a reason.
 export interface RunCheckOptions {
   /** INJECTED clock for the review-cadence check (spec RZ-18). Absent ⇒ that check is skipped. */
   nowUtc?: () => Date;
@@ -654,6 +649,8 @@ export interface RunCheckOptions {
   trackedFiles?: string[] | null;
   /** INJECTED already-classified result — skips a second classify when a caller (runFill) already ran one. Absent ⇒ classified here. */
   precomputedTypeCoverage?: TypeCoverageResult;
+  /** runFill's own fill→check handoff, this run only. Absent ⇒ none (a plain read never fills). */
+  runtimeDispositions?: Array<{ file: string; aspectId: string; code: string }>;
 }
 
 export async function runCheck(
@@ -732,9 +729,9 @@ export async function runCheck(
   try {
     const lock = readLock(graph.rootPath);
     const verification = await verifyLock(graph, lock, typeCoverageInput);
-    // runtimeRows is [] — a plain check never re-executes check.mjs.
+    const runtimeRows = toRuntimeVisibilityRows(options?.runtimeDispositions ?? []);
     typeVisibility = earlyTypeCoverage
-      ? buildTypeVisibility(graph, earlyTypeCoverage.covered, verification.drops, [], toAppliedPairs(verification.pairs.map((vp) => vp.pair)), verification.uncomputableTypeCoverage)
+      ? buildTypeVisibility(graph, earlyTypeCoverage.covered, verification.drops, runtimeRows, toAppliedPairs(verification.pairs.map((vp) => vp.pair)), verification.uncomputableTypeCoverage)
       : undefined;
 
     // Unreadable subjects → blocking file-unreadable errors (A4 fail-closed).

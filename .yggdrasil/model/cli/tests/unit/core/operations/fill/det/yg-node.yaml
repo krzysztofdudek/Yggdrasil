@@ -3,8 +3,9 @@ type: test-suite
 description: "Unit tests for deterministic fills — det-first ordering, det gate
   skipping LLM (pinned directly on detGateKey plus a real cross-file fill
   run), positive closure, log gate, GC, incremental writeLock,
-  taint/re-run-once, per-file pair contract, and the append-only verdict-events
-  telemetry sidecar."
+  taint/re-run-once, per-file pair contract, the append-only verdict-events
+  telemetry sidecar, and the same-process fill→check handoff that lets a
+  component-free file's disposition reach that same run's own report."
 aspects: []
 relations:
   [
@@ -22,7 +23,9 @@ relations:
     { target: cli/core/pair-hash, type: uses },
     { target: cli/core/pair-inputs, type: uses },
     { target: cli/core/type-coverage, type: uses },
-    { target: cli/tests/fixtures, type: uses }
+    { target: cli/tests/fixtures, type: uses },
+    { target: cli/core/check, type: uses },
+    { target: cli/check-render-header, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/fill-det.test.ts
@@ -35,3 +38,4 @@ mapping:
   - source/cli/tests/unit/core/fill-review-overdue.test.ts
   - source/cli/tests/unit/core/fill-prune-summary.test.ts
   - source/cli/tests/unit/core/fill-classify-once.test.ts
+  - source/cli/tests/unit/core/fill-runtime-disposition-handoff.test.ts

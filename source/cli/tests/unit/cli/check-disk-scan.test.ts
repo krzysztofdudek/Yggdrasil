@@ -98,6 +98,7 @@ describe('check --approve uses disk scan (walkRepoFiles), not git ls-files', () 
       runtimeErrors: 0,
       companionRuntimeErrors: 0,
       malformedSuppressErrors: 0,
+      runtimeDispositions: [],
     });
   });
 

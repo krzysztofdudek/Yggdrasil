@@ -1,7 +1,7 @@
 // yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import chalk from 'chalk';
 import type { CheckResult } from '../core/check.js';
-import type { TypeVisibilityReport } from '../core/type-visibility.js';
+import type { TypeVisibilityReason, TypeVisibilityReport } from '../core/type-visibility.js';
 import { describeTypeVisibilityReason, describeChainTermination } from '../core/type-visibility.js';
 import { describeCascadeCycle } from '../core/type-effective.js';
 
@@ -142,33 +142,88 @@ function zeroEnforcementGrammar(count: number): { has: string; it: string; subje
 }
 
 /**
- * How many of an (aspectId, file-count) pair's own files have NO confirmed
- * verdict — a real `ok`/`refused` outcome ever recorded — versus still
- * sitting `unverified`. `enforced/enforcedCounts` name effective STATUS (the
- * architecture says this aspect blocks on these files); a file can carry that
- * status while its pair has never once produced a real verdict, which is
- * exactly the shape a rule that structurally cannot run on a type-covered
- * file takes (it infra-errors on every fill, forever, and just sits
- * unverified). Cross-referencing `result.issues`' OWN `unverified` entries —
- * the same ones plain `yg check`'s Errors section already lists — costs
- * nothing new to compute and can never itself drift from what the rest of
- * this same report already says.
+ * Reasons only a fill's own attempt to run the check can decide (a structure-
+ * runner disposition translated by `classifyRunnerDisposition`) — never a
+ * static drop, so a row carrying one of these ALWAYS names a file also
+ * counted under `enforced`/`advisory` (a real pair exists; see
+ * core/type-visibility.ts's own doc). Rendering such a row under "Attached
+ * but not enforced" would claim the opposite of "Enforced" for the identical
+ * file; `unverifiedCaveat` below states the same fact instead, inline on the
+ * line it actually qualifies, so `renderReasonGroups` skips these reasons.
  */
-function unverifiedFileCount(result: CheckResult, aspectId: string, files: string[]): number {
+const RUNTIME_ONLY_REASONS = new Set<TypeVisibilityReason>([
+  'read-beyond-architecture',
+  'node-context-required',
+  'companion-context-failed',
+]);
+
+/** `dropped`, minus any reason a fill can only discover by running the check — see `RUNTIME_ONLY_REASONS`. */
+function staticDropped(dropped: TypeVisibilityReport['byType'][number]['dropped']): TypeVisibilityReport['byType'][number]['dropped'] {
+  return dropped.filter((d) => !RUNTIME_ONLY_REASONS.has(d.reason));
+}
+
+/**
+ * Every one of `files` this run's `result.issues` marks `unverified` for
+ * `aspectId` — the same cross-reference the caveat below has always used,
+ * pulled into its own function so both the named-reason path and the
+ * generic fallback start from the identical file set.
+ */
+function unverifiedFiles(result: CheckResult, aspectId: string, files: string[]): string[] {
   const unverifiedKeys = new Set(
     result.issues
       .filter((i) => i.code === 'unverified' && i.aspectId === aspectId && i.unitKey?.startsWith('file:'))
       .map((i) => i.unitKey!.slice('file:'.length)),
   );
-  return files.filter((f) => unverifiedKeys.has(f)).length;
+  return files.filter((f) => unverifiedKeys.has(f));
+}
+
+/**
+ * The caveat text appended to an `aspectId (N...)` entry for its unverified
+ * files. `enforced/enforcedCounts` name effective STATUS (the architecture
+ * says this aspect blocks on these files); a file can carry that status
+ * while its pair has never once produced a real verdict — exactly the shape
+ * a rule that structurally cannot run on a type-covered file takes.
+ *
+ * A file this run's fill actually attempted and watched fail with a
+ * disposition this module can name (`result.typeVisibility.rows`, populated
+ * only by `yg check --approve`'s in-process handoff — see core/fill.ts) gets
+ * the SPECIFIC reason, in the exact words `describeTypeVisibilityReason`
+ * already prints for a static drop — one vocabulary, not two. Every other
+ * unverified file — a plain read that never filled, an LLM infra failure, a
+ * det disposition this module does not represent — keeps the original,
+ * honest "K unverified" wording: the fallback a run with no sharper answer
+ * must still degrade to.
+ */
+function unverifiedCaveat(result: CheckResult, aspectId: string, files: string[]): string {
+  const unverified = unverifiedFiles(result, aspectId, files);
+  if (unverified.length === 0) return '';
+
+  const reasonByFile = new Map<string, TypeVisibilityReason>();
+  for (const row of result.typeVisibility?.rows ?? []) {
+    if (row.aspectId === aspectId) reasonByFile.set(row.file, row.reason);
+  }
+
+  const countByReason = new Map<TypeVisibilityReason, number>();
+  let plainCount = 0;
+  for (const f of unverified) {
+    const reason = reasonByFile.get(f);
+    if (reason) countByReason.set(reason, (countByReason.get(reason) ?? 0) + 1);
+    else plainCount++;
+  }
+
+  const clauses = [...countByReason.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([reason, count]) => `${count} cannot run — ${describeTypeVisibilityReason(reason)}`);
+  if (plainCount > 0) clauses.push(`${plainCount} unverified`);
+  return `, ${clauses.join('; ')}`;
 }
 
 /**
  * `(aspectId, count)` list → the rendered `aspectId (count)` segments this
- * block always showed, now with `, K unverified` appended whenever K > 0 of
- * that aspect's own files (from `block.files`) have no confirmed verdict —
- * see `unverifiedFileCount`. K === 0 (every file behind this aspect has a
- * real recorded outcome) renders byte-identical to the pre-caveat text.
+ * block always showed, now with `unverifiedCaveat`'s clause appended whenever
+ * that aspect has unverified files among `block.files`. No caveat (an aspect
+ * whose every file has a real recorded outcome) renders byte-identical to
+ * the pre-caveat text.
  */
 function renderCountList(
   result: CheckResult,
@@ -176,11 +231,7 @@ function renderCountList(
   files: string[],
 ): string {
   return entries
-    .map((e) => {
-      const unverified = unverifiedFileCount(result, e.aspectId, files);
-      const caveat = unverified > 0 ? `, ${unverified} unverified` : '';
-      return `${e.aspectId} (${e.count}${caveat})`;
-    })
+    .map((e) => `${e.aspectId} (${e.count}${unverifiedCaveat(result, e.aspectId, files)})`)
     .join(', ');
 }
 
@@ -204,8 +255,13 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
     // groups by the aspect at which each file's cascade cycled, but summing
     // `g.files.length` across groups counts FILES, not distinct rules.
     const uncomputableTotal = block.uncomputable.reduce((n, g) => n + g.files.length, 0);
+    // Runtime-only reasons render inline on Enforced/Advisory instead (see
+    // RUNTIME_ONLY_REASONS) — excluded here so this total, and the "Attached
+    // but not enforced" list below, never double-count a file that is ALSO
+    // named "Enforced".
+    const droppedForDisplay = staticDropped(block.dropped);
     if (countsOnly) {
-      const droppedTotal = block.dropped.reduce((n, d) => n + d.count, 0);
+      const droppedTotal = droppedForDisplay.reduce((n, d) => n + d.count, 0);
       const uncomputableSuffix = uncomputableTotal > 0
         ? `, ${uncomputableTotal} file${uncomputableTotal === 1 ? '' : 's'} could not have ${uncomputableTotal === 1 ? 'its' : 'their'} rules worked out (aspect implies cycle)`
         : '';
@@ -229,9 +285,9 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
       const advisoryList = renderCountList(result, block.advisoryCounts, block.files);
       lines.push(`    Advisory (runs, never blocks): ${advisoryList}`);
     }
-    if (block.dropped.length > 0) {
+    if (droppedForDisplay.length > 0) {
       lines.push('    Attached but not enforced:');
-      for (const reasonLine of renderReasonGroups(block.dropped)) lines.push(`      ${reasonLine}`);
+      for (const reasonLine of renderReasonGroups(droppedForDisplay)) lines.push(`      ${reasonLine}`);
     }
     for (const b of block.halfExpandedBundles) {
       lines.push(`    ${b.bundleId}: file-level part applies; whole-unit part needs a component`);

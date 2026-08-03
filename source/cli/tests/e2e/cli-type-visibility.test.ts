@@ -18,11 +18,12 @@ const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const BASE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
 const ZERO_ENFORCEMENT = path.join(BASE_FIXTURE, 'variants', 'zero-enforcement');
 const CYCLIC_TYPE = path.join(BASE_FIXTURE, 'variants', 'cyclic-type');
+const NEEDS_NODE_CONTEXT = path.join(BASE_FIXTURE, 'variants', 'needs-node-context');
 const distExists = existsSync(BIN_PATH);
 
-function run(args: string[], cwd: string): { stdout: string; status: number | null } {
+function run(args: string[], cwd: string): { stdout: string; stderr: string; status: number | null } {
   const r = spawnSync('node', [BIN_PATH, ...args], { cwd, encoding: 'utf-8' });
-  return { stdout: r.stdout ?? '', status: r.status };
+  return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status };
 }
 
 function copyFixture(...overlays: string[]): string {
@@ -98,6 +99,45 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
       const zeroBlock = stdout.slice(zeroIdx, zeroIdx + 200);
       expect(zeroBlock).toContain('src/ep/e.ts');
       expect(zeroBlock).not.toContain('src/cyclic/z.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A rule whose check reads ctx.node unconditionally can never produce a
+  // verdict on a component-free file — `yg check --approve` runs the check,
+  // watches it runtime-error the same way every time, and its own post-fill
+  // report must say so plainly, instead of a bare "unverified" caveat that
+  // leaves the reader to guess why. A LATER, separate `yg check` (this run
+  // never fills — fail-closed means no verdict was ever written) has nothing
+  // to hand off and must fall back to that same qualified wording honestly.
+  it('yg check --approve names a component-free disposition its own fill just watched happen; a later plain yg check falls back to the qualified wording', () => {
+    const dir = copyFixture(NEEDS_NODE_CONTEXT);
+    try {
+      const approve = run(['check', '--approve', '--only-deterministic'], dir);
+      // The fill-time notice (the runner's own typed disposition, real stderr progress).
+      expect(approve.stderr).toContain(
+        "check.mjs for aspect 'needs-node-context' accessed ctx.node.id, which is unavailable here.",
+      );
+      expect(approve.stdout).toMatch(
+        /Enforced: needs-node-context \(1, 1 cannot run — it needs component context \(ctx\.node \/ ctx\.graph\) that a type-covered file does not have\)/,
+      );
+      // The 'crashy' block itself — never a bare "unverified" caveat, and
+      // never ALSO an "Attached but not enforced" line for needs-node-context
+      // (the file IS enforced; the base fixture's OTHER types legitimately
+      // have their own unrelated "Attached but not enforced" sections).
+      const crashyIdx = approve.stdout.indexOf("'crashy'");
+      const nextBlockIdx = approve.stdout.indexOf("\n  '", crashyIdx + 1);
+      const crashyBlock = approve.stdout.slice(crashyIdx, nextBlockIdx === -1 ? undefined : nextBlockIdx);
+      expect(crashyBlock).not.toContain('1 unverified)');
+      expect(crashyBlock).not.toContain('Attached but not enforced');
+
+      // Fail-closed: the runtime error wrote nothing, so a later, separate
+      // (never-filled) `yg check` has no disposition to hand off — the
+      // qualified fallback, unchanged from before this handoff existed.
+      const plain = run(['check'], dir);
+      expect(plain.stdout).toContain('Enforced: needs-node-context (1, 1 unverified)');
+      expect(plain.stdout).not.toContain('cannot run');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
