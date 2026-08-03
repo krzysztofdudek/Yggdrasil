@@ -1,7 +1,7 @@
 name: Prompt Headroom Unit Tests
 type: test-suite
 description: >-
-  Unit tests for three pure/testable pieces of the prompt-headroom measurement
+  Unit tests for pure/testable pieces of the prompt-headroom measurement
   script (scripts/prompt-headroom.mjs). resolveTierLimits: given the raw text
   of a committed yg-config.yaml, resolves every declared reviewer tier's real
   max_prompt_chars ceiling using the CLI's own YAML parser — never fooled by a
@@ -16,13 +16,20 @@ description: >-
   installInterruptRestore: registers a handler for every one of SIGINT,
   SIGTERM, SIGHUP, and SIGQUIT that calls the script's restore function and
   exits with the conventional 128+signal code — `process.on('exit', ...)`
-  alone never fires for any of them. All three exercised directly and offline
-  (no subprocess, no built dist); the fourth necessary half of this fix —
-  that the restore handlers actually get a chance to run DURING a
-  multi-second child `yg check` wait, which requires the async `execFile`
-  this script now uses instead of a blocking `execFileSync` — was verified by
-  manually sending a real SIGINT to a running instance against a scratch
-  copy, not by an automated test (a real, timing-dependent OS signal
+  alone never fires for any of them. parsePromptTooLargeEntries: parses the
+  engine's "assembled prompt" sentence AND cross-checks the result against a
+  second, wording-independent count of the same fact (how many issues in the
+  same output carry the stable `prompt-too-large` code), throwing on
+  disagreement rather than silently under-reporting when that sentence's
+  wording changes. countDeclaredLlmAspects and classifyZeroMeasurement
+  together decide whether a zero-pairs-measured result is a genuinely
+  LLM-aspect-free graph or a broken measurement. All exercised directly and
+  offline (no subprocess, no built dist); the remaining necessary half of the
+  interruption fix — that the restore handlers actually get a chance to run
+  DURING a multi-second child `yg check` wait, which requires the async
+  `execFile` this script now uses instead of a blocking `execFileSync` — was
+  verified by manually sending a real SIGINT to a running instance against a
+  scratch copy, not by an automated test (a real, timing-dependent OS signal
   delivered mid-wait is not a reliable thing to assert on in CI).
 aspects: []
 relations:

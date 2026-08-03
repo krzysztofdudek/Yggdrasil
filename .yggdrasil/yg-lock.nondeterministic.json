@@ -871,7 +871,7 @@
       "file:source/cli/tests/unit/model/file-when.test.ts": {"hash":"81d032785848d191df42ef4642a90f7da5bf359f312c2a0df69ca1b68b0ae4e6","verdict":"approved"},
       "file:source/cli/tests/unit/model/lock-relation.test.ts": {"hash":"6554ad3e0001f222369822b72bf6eb0287046e48fa36172b747c9d0d91ff0877","verdict":"approved"},
       "file:source/cli/tests/unit/model/when.test.ts": {"hash":"cb8528f37d3c1ffa7f33f9d5ff0fb562d971af9753dfd5004367eca8426d81a2","verdict":"approved"},
-      "file:source/cli/tests/unit/prompt-headroom.test.ts": {"hash":"43eced405c688a8f3088dcad70d4012155eb1831134f863d86c6e3ff8c4cf60a","verdict":"approved"},
+      "file:source/cli/tests/unit/prompt-headroom.test.ts": {"hash":"fb742964930e0364fe7e712af65c5e6bbceccc6cf766ec0dede3dd50770b75c1","verdict":"approved"},
       "file:source/cli/tests/unit/relations/ast-cache-audit.test.ts": {"hash":"35f4f5d6b42eaa82f387af1d0901241334ced80ad5d57a02f4a81ff47923d425","verdict":"approved"},
       "file:source/cli/tests/unit/relations/candidate-parity.test.ts": {"hash":"b1b3398f851aaf1e991ffe6e08a0004a641989e9229c37d4f46017f468370041","verdict":"approved"},
       "file:source/cli/tests/unit/relations/csharp-parity.test.ts": {"hash":"41caaceb05b90150f403b1db860e21452ee1b3db87817e9479531925d88b2eaa","verdict":"approved"},

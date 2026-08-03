@@ -62,9 +62,27 @@
 // order sibling keys appear in either. `resolveTierLimits` either returns a ceiling for
 // every declared tier or throws — this script never prints a margin against a ceiling
 // it could not establish.
+//
+// MEASUREMENT INTEGRITY: the per-pair char counts come from parsing the engine's
+// "Assembled reviewer prompt ... is N chars, over the 'X' tier limit of ..." sentence —
+// ordinary CLI copy, free to be reworded like any other what/why/next message. A
+// rewording that broke that parse used to make this script report "no LLM pairs found
+// ... nothing to measure" and exit 0, on a graph that still has every LLM pair it always
+// had — the gauge going dead without a sound. `parsePromptTooLargeEntries` cross-checks
+// every sentence it parses against a count of a different kind: how many issues in the
+// same output carry the STABLE `prompt-too-large` issue code (a fixed identifier the
+// renderer looks up, never prose a wording pass touches) at the start of their own line.
+// The two always agree when the sentence parses correctly — a graph-wide run against
+// this repository confirms it (1030 sentences, 1030 coded lines) — so any disagreement
+// throws instead of silently reporting the (wrong) smaller number. And a run that
+// measures ZERO pairs is only ever legitimate when the graph declares no LLM aspect at
+// all: `countDeclaredLlmAspects` reads that fact straight from every aspect's own
+// committed YAML, independent of anything `yg check` ever prints, so a graph that DOES
+// declare an LLM aspect but measured zero pairs anyway fails loudly instead of printing
+// the same quiet "nothing to measure" a genuinely LLM-free graph is entitled to.
 
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
@@ -73,6 +91,7 @@ const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..
 const BIN_PATH = path.join(REPO_ROOT, 'source/cli/dist/bin.js');
 const CONFIG_PATH = path.join(REPO_ROOT, '.yggdrasil/yg-config.yaml');
 const SECRETS_PATH = path.join(REPO_ROOT, '.yggdrasil/yg-secrets.yaml');
+const ASPECTS_DIR = path.join(REPO_ROOT, '.yggdrasil/aspects');
 
 // The CLI's own YAML dependency, resolved as if this script were part of
 // source/cli — this script has no package.json/node_modules of its own to
@@ -130,6 +149,114 @@ export function resolveTierLimits(configText, configPath) {
 
 function isPlainObject(v) {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+/**
+ * How many of `aspectYamlTexts` declare an LLM reviewer (`reviewer.type:
+ * llm`) — read straight from each aspect's own committed YAML, entirely
+ * independent of anything `yg check` ever prints. Pure: takes raw text in,
+ * never touches the filesystem itself. Used only to tell a graph that
+ * genuinely has no LLM aspect (measuring zero pairs is simply correct) apart
+ * from one that declares an LLM aspect but measured zero anyway (the
+ * measurement broke). A text that fails to parse is skipped rather than
+ * thrown on — this is a best-effort ground truth for that one distinction,
+ * not the enforcement path itself (yg check already validates every aspect
+ * file on its own).
+ */
+export function countDeclaredLlmAspects(aspectYamlTexts) {
+  let count = 0;
+  for (const text of aspectYamlTexts) {
+    let parsed;
+    try {
+      parsed = YAML.parse(text);
+    } catch {
+      continue;
+    }
+    if (isPlainObject(parsed) && isPlainObject(parsed.reviewer) && parsed.reviewer.type === 'llm') count++;
+  }
+  return count;
+}
+
+/**
+ * What "zero LLM pairs measured" means, given how many of the graph's own
+ * aspects declare an LLM reviewer. Zero measured pairs is legitimate only
+ * when the graph declares no LLM aspect at all — a graph that DOES declare
+ * one always measures at least one pair, because the 1-char override
+ * guarantees every declared LLM pair trips the §4 gate (see the
+ * MEASUREMENT INTEGRITY note at the top of this file), so measuring zero
+ * anyway means the measurement itself broke, not that there was nothing to
+ * do. Pure: a plain count in, a plain description of what to do out — no
+ * filesystem access, no process.exit.
+ */
+export function classifyZeroMeasurement(declaredLlmAspectCount) {
+  if (declaredLlmAspectCount === 0) {
+    return { kind: 'nothing-to-measure' };
+  }
+  return {
+    kind: 'broken',
+    message:
+      `the graph declares ${declaredLlmAspectCount} LLM aspect(s) but this run measured zero prompt-too-large pairs. ` +
+      `A healthy run always measures every declared LLM pair (the 1-char override guarantees every one trips the gate), ` +
+      `so zero here means the measurement itself broke — a changed override, a mutated check path, or a regression — ` +
+      `not that there was nothing to measure. Investigate before trusting a green run.`,
+  };
+}
+
+/**
+ * Exact rendering `check-render-groups.ts` uses for a `prompt-too-large`
+ * issue's leading label (`getIssueLabel`): two spaces, the code, two spaces,
+ * then the issue's own text — present whether or not the issue also carries
+ * a node path (see `parsePromptTooLargeEntries` below). The code is a fixed
+ * identifier the renderer looks up, never free-form prose, so it cannot
+ * drift the way a what/why/next sentence can.
+ */
+const PROMPT_TOO_LARGE_LABEL_RE = /^ {2}prompt-too-large {2}/gm;
+
+/**
+ * Parse every "Assembled reviewer prompt ... is N chars, over the 'X' tier
+ * limit of ..." sentence out of a `yg check --details` run, AND cross-check
+ * the count against a wording-independent count of the same fact: how many
+ * lines in the same output carry the stable `prompt-too-large` issue code.
+ * The two always agree when the sentence's wording matches this parser —
+ * they disagree only when something changed the sentence out from under it
+ * (an engine wording pass, most commonly), in which case this throws rather
+ * than silently returning the smaller (wrong) count. Pure: takes the
+ * captured stdout text in, no filesystem access, no process state.
+ */
+export function parsePromptTooLargeEntries(stdout) {
+  const lineRe = /Assembled reviewer prompt for aspect '([^']+)' on (\S+) is (\d+) chars, over the '([^']+)' tier limit of \d+\./g;
+  const entries = [];
+  let match;
+  while ((match = lineRe.exec(stdout))) {
+    entries.push({ aspectId: match[1], unitKey: match[2], chars: Number(match[3]), tierName: match[4] });
+  }
+  const codeLabelCount = (stdout.match(PROMPT_TOO_LARGE_LABEL_RE) ?? []).length;
+  if (entries.length !== codeLabelCount) {
+    throw new Error(
+      `parsed ${entries.length} "Assembled reviewer prompt ..." sentence(s) but ${codeLabelCount} issue(s) in the same ` +
+        `output carried the stable 'prompt-too-large' code — the engine's sentence wording likely changed out from under ` +
+        `this script's regex. Update the sentence pattern in scripts/prompt-headroom.mjs to match the new wording, then re-run.`,
+    );
+  }
+  return entries;
+}
+
+/**
+ * Every committed aspect's raw `yg-aspect.yaml` text, read fresh on every
+ * call. Only reached on the zero-measured branch, so the extra read cost
+ * never touches the common (nonzero) path. Returns `[]` rather than
+ * throwing when `aspectsDir` itself is missing — a project with no aspects
+ * directory at all trivially declares zero LLM aspects.
+ */
+function readAspectYamlTexts(aspectsDir) {
+  if (!existsSync(aspectsDir)) return [];
+  const texts = [];
+  for (const entry of readdirSync(aspectsDir, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const aspectFile = path.join(aspectsDir, entry.name, 'yg-aspect.yaml');
+    if (existsSync(aspectFile)) texts.push(readFileSync(aspectFile, 'utf-8'));
+  }
+  return texts;
 }
 
 /**
@@ -279,16 +406,21 @@ async function main() {
     restore();
   }
 
-  const lineRe = /Assembled reviewer prompt for aspect '([^']+)' on (\S+) is (\d+) chars, over the '([^']+)' tier limit of \d+\./g;
-  const entries = [];
-  let match;
-  while ((match = lineRe.exec(stdout))) {
-    entries.push({ aspectId: match[1], unitKey: match[2], chars: Number(match[3]), tierName: match[4] });
+  let entries;
+  try {
+    entries = parsePromptTooLargeEntries(stdout);
+  } catch (e) {
+    fail(e.message);
   }
 
   if (entries.length === 0) {
-    log('no LLM pairs found in this graph — nothing to measure.');
-    process.exit(0);
+    const declaredLlmAspectCount = countDeclaredLlmAspects(readAspectYamlTexts(ASPECTS_DIR));
+    const zero = classifyZeroMeasurement(declaredLlmAspectCount);
+    if (zero.kind === 'nothing-to-measure') {
+      log("no LLM aspects are declared in this graph's committed rules — nothing to measure.");
+      process.exit(0);
+    }
+    fail(zero.message);
   }
 
   // Tightest margin per tier — the number that actually decides how much room the next

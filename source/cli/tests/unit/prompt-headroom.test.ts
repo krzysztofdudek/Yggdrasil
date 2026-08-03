@@ -6,7 +6,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 // exercised directly, mirroring this suite's own spectral-headroom.test.ts
 // precedent for a plain-ESM script at the repo root.
 // @ts-expect-error — plain ESM script at the repo root, no type declarations.
-import { resolveTierLimits, ENGINE_DEFAULT_MAX_PROMPT_CHARS, buildOverrideSecretsText, installInterruptRestore } from '../../../../scripts/prompt-headroom.mjs';
+import { resolveTierLimits, ENGINE_DEFAULT_MAX_PROMPT_CHARS, buildOverrideSecretsText, installInterruptRestore, parsePromptTooLargeEntries, countDeclaredLlmAspects, classifyZeroMeasurement } from '../../../../scripts/prompt-headroom.mjs';
 
 describe('prompt-headroom — resolveTierLimits reads the real committed ceiling', () => {
   it('is not fooled by a larger number sitting in a comment above the live value', () => {
@@ -176,5 +176,104 @@ describe('prompt-headroom — installInterruptRestore restores on every catchabl
     process.emit('SIGQUIT');
     expect(restore).toHaveBeenCalledTimes(1);
     expect(exitSpy).toHaveBeenCalledWith(131);
+  });
+});
+
+describe('prompt-headroom — parsePromptTooLargeEntries stays anchored to the stable issue code, not just the prose sentence', () => {
+  function detailsOutput(lines: string[]): string {
+    return ['yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows · 0 draft', '', 'Errors (1):', ...lines].join('\n');
+  }
+
+  it('parses a normal, unreworded sentence into one entry', () => {
+    const stdout = detailsOutput([
+      "  prompt-too-large  cli/example  Assembled reviewer prompt for aspect 'some-aspect' on node:cli/example is 500 chars, over the 'standard' tier limit of 1.",
+    ]);
+    const entries = parsePromptTooLargeEntries(stdout);
+    expect(entries).toEqual([{ aspectId: 'some-aspect', unitKey: 'node:cli/example', chars: 500, tierName: 'standard' }]);
+  });
+
+  it('parses one entry per pair across several tiers and units', () => {
+    const stdout = detailsOutput([
+      "  prompt-too-large  cli/a  Assembled reviewer prompt for aspect 'aspect-a' on node:cli/a is 100 chars, over the 'standard' tier limit of 1.",
+      "  prompt-too-large  cli/b  Assembled reviewer prompt for aspect 'aspect-b' on file:src/b.ts is 200 chars, over the 'big' tier limit of 1.",
+    ]);
+    expect(parsePromptTooLargeEntries(stdout)).toHaveLength(2);
+  });
+
+  it('returns no entries on a graph with no prompt-too-large issues at all', () => {
+    const stdout = 'yg check: PASS  1 nodes · 1/1 files · 1 aspects · 0 flows';
+    expect(parsePromptTooLargeEntries(stdout)).toEqual([]);
+  });
+
+  it('throws instead of silently under-reporting when the engine\'s sentence wording no longer matches this parser', () => {
+    // The stable 'prompt-too-large' code is untouched — only the free-form sentence
+    // text changed ("Assembled" -> "The assembled", "chars" -> "characters"), the
+    // shape an ordinary what/why/next wording edit takes. The prose regex below can
+    // no longer match this line at all, so entries.length would silently read 0 while
+    // one issue still carries the code — exactly the disagreement this function must
+    // catch rather than let through as "nothing to measure."
+    const stdout = detailsOutput([
+      "  prompt-too-large  cli/example  The assembled reviewer prompt for aspect 'some-aspect' on node:cli/example is 500 characters, over the 'standard' tier limit of 1.",
+    ]);
+    expect(() => parsePromptTooLargeEntries(stdout)).toThrow(/parsed 0 .* but 1 issue/);
+  });
+
+  it('throws when the prose regex somehow over-matches relative to the coded count too (both directions checked, not only under-count)', () => {
+    // Constructed disagreement in the other direction: a sentence-shaped line the
+    // prose regex matches, but with no 'prompt-too-large' code line preceding it
+    // (the code-labeled count is 0, the prose-parsed count is 1). This can only
+    // happen if the two ever drift apart for any reason, which is exactly the
+    // condition this function exists to refuse rather than silently resolve by
+    // picking one side.
+    const stdout = [
+      'yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows · 0 draft',
+      '',
+      'Errors (1):',
+      "  some-other-code  cli/example  Assembled reviewer prompt for aspect 'some-aspect' on node:cli/example is 500 chars, over the 'standard' tier limit of 1.",
+    ].join('\n');
+    expect(() => parsePromptTooLargeEntries(stdout)).toThrow(/parsed 1 .* but 0 issue/);
+  });
+});
+
+describe('prompt-headroom — countDeclaredLlmAspects reads ground truth straight from committed aspect YAML', () => {
+  it('counts an aspect declaring reviewer.type: llm', () => {
+    const texts = ['name: A\nreviewer:\n  type: llm\n'];
+    expect(countDeclaredLlmAspects(texts)).toBe(1);
+  });
+
+  it('does not count a deterministic aspect', () => {
+    const texts = ['name: A\nreviewer:\n  type: deterministic\n'];
+    expect(countDeclaredLlmAspects(texts)).toBe(0);
+  });
+
+  it('counts only the llm-typed aspects among a mixed set', () => {
+    const texts = [
+      'name: A\nreviewer:\n  type: llm\n',
+      'name: B\nreviewer:\n  type: deterministic\n',
+      'name: C\nreviewer:\n  type: llm\n',
+    ];
+    expect(countDeclaredLlmAspects(texts)).toBe(2);
+  });
+
+  it('skips a text that is not valid YAML rather than throwing', () => {
+    const texts = ['name: A\nreviewer:\n  type: llm\n', ': this is not : valid : yaml : at all'];
+    expect(countDeclaredLlmAspects(texts)).toBe(1);
+  });
+
+  it('an empty list of aspect texts counts zero', () => {
+    expect(countDeclaredLlmAspects([])).toBe(0);
+  });
+});
+
+describe('prompt-headroom — classifyZeroMeasurement tells a genuinely LLM-free graph apart from a broken measurement', () => {
+  it('zero declared LLM aspects: measuring zero pairs is legitimate', () => {
+    expect(classifyZeroMeasurement(0)).toEqual({ kind: 'nothing-to-measure' });
+  });
+
+  it('one or more declared LLM aspects but zero measured pairs: the measurement is broken, not empty', () => {
+    const result = classifyZeroMeasurement(11);
+    expect(result.kind).toBe('broken');
+    expect(result.message).toMatch(/11 LLM aspect/);
+    expect(result.message).toMatch(/measured zero/);
   });
 });
