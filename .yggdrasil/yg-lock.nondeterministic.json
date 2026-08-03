@@ -869,7 +869,6 @@
       "file:source/cli/tests/unit/llm/xml-escape.test.ts": {"hash":"2e6d8a4ff9c535629d9be687b2b0b1e5205d17c0537f2c65793aef0eb6ec3c89","verdict":"approved"},
       "file:source/cli/tests/unit/metamorphic-transforms.test.ts": {"hash":"1961405d23f0ed9fe461cb303bd85632095dc06754ebf8baeb3eeae1bcc78fa9","verdict":"approved"},
       "file:source/cli/tests/unit/model/file-when.test.ts": {"hash":"81d032785848d191df42ef4642a90f7da5bf359f312c2a0df69ca1b68b0ae4e6","verdict":"approved"},
-      "file:source/cli/tests/unit/model/lock-pairs-missing.test.ts": {"hash":"338115e79aad08f386428113907a6f8034fef1b22ff5c67473f4031307e199f3","verdict":"approved"},
       "file:source/cli/tests/unit/model/lock-relation.test.ts": {"hash":"6554ad3e0001f222369822b72bf6eb0287046e48fa36172b747c9d0d91ff0877","verdict":"approved"},
       "file:source/cli/tests/unit/model/when.test.ts": {"hash":"cb8528f37d3c1ffa7f33f9d5ff0fb562d971af9753dfd5004367eca8426d81a2","verdict":"approved"},
       "file:source/cli/tests/unit/prompt-headroom.test.ts": {"hash":"9b8eeee76c428482eefacb85010870facc1288951fd48a3deef516be6af49b43","verdict":"approved"},

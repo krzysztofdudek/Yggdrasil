@@ -52,29 +52,3 @@ export interface LockFile {
 export type UnitKey = string;
 export const nodeUnit = (nodePath: string): UnitKey => `node:${nodePath}`;
 export const fileUnit = (repoRelPosix: string): UnitKey => `file:${repoRelPosix}`;
-
-/**
- * The subset of `pairs` for which `lock.verdicts` holds NO entry at all —
- * the cheap, O(1)-per-pair half of "unverified" (a present entry may still
- * be STALE; this never re-hashes current inputs to check that, so it never
- * catches a stale entry — only a genuinely missing one). Deliberately not
- * `core/verify-lock.ts`'s full re-verification: that recomputes every
- * pair's input hash (re-reading files, re-observing `read:`/`list:`/
- * `graph:` targets, and for an LLM pair, resolving its companion for the
- * §4 size gate) across the WHOLE graph — the right cost for `yg check`
- * itself, and, since the "pay the tens-of-milliseconds nodeless
- * reverification everywhere" call, also the cost `yg tree` and the portal
- * now pay directly (`core/verify-lock.ts#verifyPairs`), rather than reaching
- * for this cheaper approximation. No CLI surface calls this function today —
- * every one of them (`yg check`, `yg owner --file`, `yg context --file`, `yg
- * tree`, the portal) now performs a genuine re-verification of every pair it
- * reports on, so none is left answering from presence alone. Kept as a
- * still-correct, independently tested primitive for a future caller that
- * genuinely cannot afford the real re-verification's cost.
- */
-export function pairsMissingFromLock<T extends { aspectId: string; unitKey: UnitKey }>(
-  lock: LockFile,
-  pairs: T[],
-): T[] {
-  return pairs.filter((p) => lock.verdicts[p.aspectId]?.[p.unitKey] === undefined);
-}
