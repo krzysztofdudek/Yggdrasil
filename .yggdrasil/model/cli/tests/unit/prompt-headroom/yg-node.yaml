@@ -1,0 +1,18 @@
+name: Prompt Headroom Unit Tests
+type: test-suite
+description: >-
+  Unit tests for resolveTierLimits, the pure config-reading half of the
+  prompt-headroom measurement script (scripts/prompt-headroom.mjs): given the
+  raw text of a committed yg-config.yaml, it resolves every declared reviewer
+  tier's real max_prompt_chars ceiling using the CLI's own YAML parser — never
+  fooled by a larger number sitting in a comment, indifferent to which sibling
+  key precedes `tiers:` — or throws when it cannot establish one (unparseable
+  YAML, a missing or empty reviewer.tiers, a non-positive-integer ceiling),
+  rather than let a caller print a margin against a ceiling it never actually
+  established. Fully offline — no subprocess, no built dist.
+aspects: []
+relations:
+  - target: scripts
+    type: uses
+mapping:
+  - source/cli/tests/unit/prompt-headroom.test.ts
