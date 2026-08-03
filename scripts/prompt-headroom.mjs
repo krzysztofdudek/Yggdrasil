@@ -31,23 +31,26 @@
 // today.
 //
 // INTERRUPTION SAFETY: `process.on('exit', restore)` alone is not enough — Node does
-// not run 'exit' handlers on SIGINT/SIGTERM, so a Ctrl-C (or a CI job kill) partway
-// through this step used to leave the 1-char override in place permanently, with no
-// trace in `git status` (the file is gitignored) until the next `yg check` mysteriously
-// refuses every LLM pair as prompt-too-large. `installInterruptRestore` registers real
-// SIGINT/SIGTERM handlers that call the same `restore()` and then exit with the
-// conventional 128+signal code, so both the normal path and an interrupted one restore
-// the maintainer's exact original bytes. The one interruption no handler in any process
-// can ever catch is SIGKILL (a `kill -9` cannot be intercepted by any userspace program,
-// in any language) — as a second, independent line of defense against exactly that
-// unrecoverable case, the override this script writes is never a bare template that
-// replaces the file wholesale: `buildOverrideSecretsText` deep-merges the 1-char ceiling
-// INTO whatever the maintainer's overlay already held (their provider, endpoint, model,
-// api_key, everything untouched), the same way config-parser.ts's own deep-merge treats
-// yg-secrets.yaml as an overlay everywhere else. So even in the one scenario nothing in
-// this process can prevent, what a `kill -9` would leave behind is the maintainer's own
-// settings with a temporarily-tightened ceiling, never an amputated file with their
-// reviewer config gone.
+// not run 'exit' handlers on a signal whose default disposition terminates the process,
+// so a Ctrl-C, a closed terminal or a dropped SSH session (SIGHUP), Ctrl-\ (SIGQUIT), or
+// a CI job's kill (SIGTERM) partway through this step used to leave the 1-char override
+// in place permanently, with no trace in `git status` (the file is gitignored) until the
+// next `yg check` mysteriously refuses every LLM pair as prompt-too-large.
+// `installInterruptRestore` registers real handlers for every one of those four —
+// SIGINT, SIGTERM, SIGHUP, SIGQUIT, every catchable signal a dropped session or a job
+// cancellation realistically sends — that call the same `restore()` and then exit with
+// the conventional 128+signal code, so the normal path and every one of those four
+// interrupted paths all restore the maintainer's exact original bytes. The one
+// interruption no handler in any process can ever catch is SIGKILL (a `kill -9` cannot be
+// intercepted by any userspace program, in any language) — as a second, independent line
+// of defense against exactly that unrecoverable case, the override this script writes is
+// never a bare template that replaces the file wholesale: `buildOverrideSecretsText`
+// deep-merges the 1-char ceiling INTO whatever the maintainer's overlay already held
+// (their provider, endpoint, model, api_key, everything untouched), the same way
+// config-parser.ts's own deep-merge treats yg-secrets.yaml as an overlay everywhere else.
+// So even in the one scenario nothing in this process can prevent, what a `kill -9` would
+// leave behind is the maintainer's own settings with a temporarily-tightened ceiling,
+// never an amputated file with their reviewer config gone.
 //
 // CONFIG READING: the real, committed ceiling(s) are parsed with the SAME `yaml`
 // package the CLI itself depends on (resolved via createRequire against
@@ -165,20 +168,32 @@ export function buildOverrideSecretsText(originalSecretsText, tierNames) {
 }
 
 /**
- * Register SIGINT/SIGTERM handlers that call `restore` and then exit with the
- * conventional 128+signal code. `process.on('exit', restore)` alone never
- * fires for either signal — Node's default disposition for both is immediate
- * termination unless a handler is registered, so without this an ordinary
- * Ctrl-C (or a CI job's kill) during this step skips the restore entirely,
- * leaving the 1-char override as the maintainer's new "permanent" config.
+ * Every signal `installInterruptRestore` handles, and its conventional
+ * 128+signal exit code (POSIX signal numbers: SIGHUP=1, SIGINT=2, SIGQUIT=3,
+ * SIGTERM=15). All four are catchable and are the ones a dropped
+ * terminal/SSH session, an interactive Ctrl-C, Ctrl-\, or a CI job
+ * cancellation realistically sends. SIGKILL cannot appear here — no handler
+ * in any process, in any language, can ever be registered for it.
+ */
+const INTERRUPT_SIGNAL_EXIT_CODES = { SIGHUP: 129, SIGINT: 130, SIGQUIT: 131, SIGTERM: 143 };
+
+/**
+ * Register a handler for every signal in `INTERRUPT_SIGNAL_EXIT_CODES` that
+ * calls `restore` and then exits with that signal's conventional 128+signal
+ * code. `process.on('exit', restore)` alone never fires for any of them —
+ * Node's default disposition for each is immediate termination unless a
+ * handler is registered, so without this an ordinary Ctrl-C, a dropped
+ * terminal/SSH session, Ctrl-\, or a CI job's kill during this step skips the
+ * restore entirely, leaving the 1-char override as the maintainer's new
+ * "permanent" config.
  */
 export function installInterruptRestore(restore) {
-  const onSignal = (signal) => {
-    restore();
-    process.exit(signal === 'SIGINT' ? 130 : 143);
-  };
-  process.on('SIGINT', () => onSignal('SIGINT'));
-  process.on('SIGTERM', () => onSignal('SIGTERM'));
+  for (const signal of Object.keys(INTERRUPT_SIGNAL_EXIT_CODES)) {
+    process.on(signal, () => {
+      restore();
+      process.exit(INTERRUPT_SIGNAL_EXIT_CODES[signal]);
+    });
+  }
 }
 
 function log(m) { process.stdout.write(`[prompt-headroom] ${m}\n`); }
@@ -207,8 +222,9 @@ async function main() {
     else if (existsSync(SECRETS_PATH)) rmSync(SECRETS_PATH);
   }
   // Last-resort net: restore on a NORMAL exit even if something below throws or calls
-  // process.exit() directly. Node does not run 'exit' handlers on SIGINT/SIGTERM, so
-  // this alone is not sufficient — installInterruptRestore below covers those two.
+  // process.exit() directly. Node does not run 'exit' handlers on a signal whose default
+  // disposition terminates the process, so this alone is not sufficient —
+  // installInterruptRestore below covers every signal in INTERRUPT_SIGNAL_EXIT_CODES.
   //
   // Both handlers ONLY have a chance to run promptly if the wait for the child `yg
   // check` process does not block the JS event loop: execFileSync's synchronous wait
@@ -223,11 +239,13 @@ async function main() {
   let currentChild;
   // Belt-and-suspenders: if a signal arrives, also terminate the still-running child
   // rather than leave it as an orphaned `yg check` process after this script exits.
-  // Registered BEFORE installInterruptRestore: Node calls same-event listeners in
-  // registration order, and installInterruptRestore's own listener calls
-  // process.exit() — once that runs, a listener registered AFTER it never gets a turn.
-  process.on('SIGINT', () => currentChild?.kill('SIGINT'));
-  process.on('SIGTERM', () => currentChild?.kill('SIGTERM'));
+  // Registered BEFORE installInterruptRestore, for every signal that function handles:
+  // Node calls same-event listeners in registration order, and
+  // installInterruptRestore's own listener calls process.exit() — once that runs, a
+  // listener registered AFTER it never gets a turn.
+  for (const signal of Object.keys(INTERRUPT_SIGNAL_EXIT_CODES)) {
+    process.on(signal, () => currentChild?.kill(signal));
+  }
   installInterruptRestore(restore);
 
   let stdout = '';

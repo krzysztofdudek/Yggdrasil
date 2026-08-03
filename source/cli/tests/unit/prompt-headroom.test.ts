@@ -130,10 +130,12 @@ describe('prompt-headroom — buildOverrideSecretsText never wipes the maintaine
   });
 });
 
-describe('prompt-headroom — installInterruptRestore restores on SIGINT/SIGTERM, not only on a normal exit', () => {
+describe('prompt-headroom — installInterruptRestore restores on every catchable interruption signal, not only on a normal exit', () => {
   afterEach(() => {
     process.removeAllListeners('SIGINT');
     process.removeAllListeners('SIGTERM');
+    process.removeAllListeners('SIGHUP');
+    process.removeAllListeners('SIGQUIT');
     vi.restoreAllMocks();
   });
 
@@ -153,5 +155,26 @@ describe('prompt-headroom — installInterruptRestore restores on SIGINT/SIGTERM
     process.emit('SIGTERM');
     expect(restore).toHaveBeenCalledTimes(1);
     expect(exitSpy).toHaveBeenCalledWith(143);
+  });
+
+  it('SIGHUP calls restore() and exits 129 — a closed terminal or a dropped SSH session must not skip the restore', () => {
+    // SIGHUP is exactly as catchable as SIGINT/SIGTERM, and just as terminal by
+    // default: a session drop mid-run used to skip the restore the same way an
+    // unhandled SIGINT or SIGTERM would, leaving the 1-char override behind.
+    const restore = vi.fn();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    installInterruptRestore(restore);
+    process.emit('SIGHUP');
+    expect(restore).toHaveBeenCalledTimes(1);
+    expect(exitSpy).toHaveBeenCalledWith(129);
+  });
+
+  it('SIGQUIT calls restore() and exits 131 — Ctrl-\\ mid-run must not skip the restore', () => {
+    const restore = vi.fn();
+    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
+    installInterruptRestore(restore);
+    process.emit('SIGQUIT');
+    expect(restore).toHaveBeenCalledTimes(1);
+    expect(exitSpy).toHaveBeenCalledWith(131);
   });
 });
