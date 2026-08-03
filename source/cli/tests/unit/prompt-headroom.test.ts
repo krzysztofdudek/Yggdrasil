@@ -1,4 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+// The engine's own default prompt-size ceiling — the ground truth
+// ENGINE_DEFAULT_MAX_PROMPT_CHARS below claims to mirror.
+import { DEFAULT_MAX_PROMPT_CHARS } from '../../src/llm/prompt.js';
 // resolveTierLimits is the pure config-reading half of the prompt-headroom
 // measurement script: given the RAW TEXT of a committed yg-config.yaml, it
 // returns the real max_prompt_chars ceiling for every declared reviewer tier,
@@ -69,6 +72,17 @@ describe('prompt-headroom — resolveTierLimits reads the real committed ceiling
     const configText = ['reviewer:', '  tiers:', '    standard:', '      provider: claude-code', ''].join('\n');
     const tierLimits = resolveTierLimits(configText, 'yg-config.yaml');
     expect(tierLimits.get('standard')).toBe(ENGINE_DEFAULT_MAX_PROMPT_CHARS);
+  });
+
+  it('the script\'s hand-copied default ceiling still matches the engine\'s own constant', () => {
+    // ENGINE_DEFAULT_MAX_PROMPT_CHARS is a hand-copy (this script cannot import the
+    // CLI's internal bundle) of llm/prompt.ts's DEFAULT_MAX_PROMPT_CHARS — the value
+    // core/verify-lock.ts's §4 gate actually falls back to for a tier that omits
+    // max_prompt_chars. Comparing against the REAL engine constant, imported from the
+    // shipped source rather than restated as a number here, is what makes this pin
+    // fail the moment the two values diverge — asserting the copy against itself
+    // could never catch that, no matter what either side's value was.
+    expect(ENGINE_DEFAULT_MAX_PROMPT_CHARS).toBe(DEFAULT_MAX_PROMPT_CHARS);
   });
 
   it('throws rather than silently measuring nothing when the file is not valid YAML at all', () => {

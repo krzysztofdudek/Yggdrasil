@@ -9,7 +9,9 @@ description: >-
   precedes `tiers:` — or throws when it cannot establish one (unparseable
   YAML, a missing or empty reviewer.tiers, a non-positive-integer ceiling),
   rather than let a caller print a margin against a ceiling it never actually
-  established. buildOverrideSecretsText: deep-merges the script's temporary
+  established; its own copy of the engine's default ceiling is asserted
+  against the real `DEFAULT_MAX_PROMPT_CHARS` import from llm/prompt.ts, not
+  against itself. buildOverrideSecretsText: deep-merges the script's temporary
   1-char measurement ceiling INTO whatever the maintainer's own gitignored
   yg-secrets.yaml overlay already held, rather than replace the file wholesale
   — so their provider/endpoint/model survive alongside the override.
@@ -34,6 +36,8 @@ description: >-
 aspects: []
 relations:
   - target: scripts
+    type: uses
+  - target: cli/llm/shared
     type: uses
 mapping:
   - source/cli/tests/unit/prompt-headroom.test.ts
