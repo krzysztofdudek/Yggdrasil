@@ -1,9 +1,12 @@
 name: NoNondeterminismDirect
-description: "Engine files must not call Date.now(), Math.random(), or access process.env directly — all non-deterministic inputs must be injected by the CLI layer as explicit parameters."
+description: "Engine files, and this repository's own rule-script implementations (.yggdrasil/aspects/*/check.mjs), must not call Date.now(), Math.random(), or access process.env directly — all non-deterministic inputs must be injected by the caller as explicit parameters."
 review_by: 2027-04-02
 errs: under
 reviewer:
   type: deterministic
 when:
-  node:
-    type: engine
+  any_of:
+    - node:
+        type: engine
+    - node:
+        type: rule-script

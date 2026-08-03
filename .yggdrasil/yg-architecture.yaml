@@ -522,13 +522,14 @@ node_types:
       default: deny
 
   rule-script:
-    description: "This repository's own deterministic rule implementations (check.mjs) under .yggdrasil/aspects/*/check.mjs — the graph's own enforcement code, held to the graph's own rules like any other first-party source. A curated subset of the general source-hygiene/safety baseline plus the checks that protect the two properties a rule script must have above all: it runs the SAME way every time (source-hygiene's self-contained-references, plus determinism), and it never reads outside what the sandboxed ctx it receives already grants (no-direct-fs). Excludes every CLI-product-surface aspect (command contracts, engine layering, provider/parser conventions, portal rules) — check.mjs is not CLI source, cannot import any of the internal modules those rules police, and is tested through its own drills/ convention rather than a sibling *.test.ts file."
+    description: "This repository's own deterministic rule implementations (check.mjs) under .yggdrasil/aspects/*/check.mjs — the graph's own enforcement code, held to the graph's own rules like any other first-party source. A curated subset of the general source-hygiene/safety baseline plus the checks that protect the two properties a rule script must have above all: it runs the SAME way every time — covered from both directions, the judgement-based deterministic aspect AND its mechanical counterpart no-nondeterminism-direct (no Date.now(), no Math.random(), no direct process.env — the free, provable half of the same property) — and it never reads outside what the sandboxed ctx it receives already grants (no-direct-fs). Excludes every CLI-product-surface aspect (command contracts, engine layering, provider/parser conventions, portal rules) — check.mjs is not CLI source, cannot import any of the internal modules those rules police, and is tested through its own drills/ convention rather than a sibling *.test.ts file."
     when:
       path: ".yggdrasil/aspects/*/check.mjs"
     aspects:
       - source-hygiene
       - source-no-raw-control-chars
       - deterministic
+      - no-nondeterminism-direct
       - no-direct-fs
       - no-side-effects-on-import
     parents: [module]
