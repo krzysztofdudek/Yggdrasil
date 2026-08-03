@@ -14,7 +14,7 @@ import { DEFAULT_MAX_PROMPT_CHARS } from '../../src/llm/prompt.js';
 // exercised directly, mirroring this suite's own spectral-headroom.test.ts
 // precedent for a plain-ESM script at the repo root.
 // @ts-expect-error — plain ESM script at the repo root, no type declarations.
-import { resolveTierLimits, ENGINE_DEFAULT_MAX_PROMPT_CHARS, buildOverrideSecretsText, installInterruptRestore, parsePromptTooLargeEntries, countDeclaredLlmAspects, classifyZeroMeasurement } from '../../../../scripts/prompt-headroom.mjs';
+import { resolveTierLimits, ENGINE_DEFAULT_MAX_PROMPT_CHARS, buildOverrideSecretsText, installInterruptRestore, parsePromptTooLargeEntries, countDeclaredLlmAspects, classifyZeroMeasurement, readAspectFacts, computeTierMargins, parseHeaderVerifiedLlmCount, assertMeasurementComplete } from '../../../../scripts/prompt-headroom.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -257,33 +257,164 @@ describe('prompt-headroom — parsePromptTooLargeEntries stays anchored to the s
   });
 });
 
+describe("prompt-headroom — computeTierMargins never reports a margin for a tier it could not establish", () => {
+  it('throws when a measured tier has no committed ceiling, rather than skipping it and reporting whatever margin the tiers that DID resolve leave behind', () => {
+    const entries = [{ aspectId: 'a', unitKey: 'file:a.ts', chars: 100, tierName: 'ghost-tier' }];
+    const tierLimits = new Map([['standard', 5000]]);
+    expect(() => computeTierMargins(entries, tierLimits)).toThrow(/ghost-tier/);
+  });
+
+  it('still throws even when SOME tiers in the same run do resolve — an unresolved tier could have been the tightest one, so a partial margin is not one this script can vouch for', () => {
+    const entries = [
+      { aspectId: 'a', unitKey: 'file:a.ts', chars: 100, tierName: 'standard' },
+      { aspectId: 'b', unitKey: 'file:b.ts', chars: 200, tierName: 'ghost-tier' },
+    ];
+    const tierLimits = new Map([['standard', 5000]]);
+    expect(() => computeTierMargins(entries, tierLimits)).toThrow(/ghost-tier/);
+  });
+
+  it('computes the tightest margin correctly across tiers that all resolve', () => {
+    const entries = [
+      { aspectId: 'a', unitKey: 'file:a.ts', chars: 4900, tierName: 'standard' },
+      { aspectId: 'b', unitKey: 'file:b.ts', chars: 100, tierName: 'big' },
+    ];
+    const tierLimits = new Map([['standard', 5000], ['big', 10000]]);
+    const result = computeTierMargins(entries, tierLimits);
+    expect(result.worstMarginOverall).toBe(100);
+    expect(result.tiers).toHaveLength(2);
+  });
+});
+
+describe("prompt-headroom — parseHeaderVerifiedLlmCount reads the independent LLM-verified count off the run's own header line", () => {
+  it('reads the LLM count out of the header\'s "N verified (D deterministic, L LLM)" segment', () => {
+    const stdout = 'yg check: PASS  411 nodes · 1316/1316 files · 68 aspects · 18 flows · 4772 verified (3743 deterministic, 1029 LLM)\n';
+    expect(parseHeaderVerifiedLlmCount(stdout)).toBe(1029);
+  });
+
+  it('reads zero when the header carries no verified segment at all (a run with nothing yet verified)', () => {
+    const stdout = 'yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows\n';
+    expect(parseHeaderVerifiedLlmCount(stdout)).toBe(0);
+  });
+
+  it('is not fooled by the UNVERIFIED summary segment, which shares the substring "verified ("', () => {
+    const stdout = 'yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows · 5 unverified (3 deterministic-free, 2 LLM)\n';
+    expect(parseHeaderVerifiedLlmCount(stdout)).toBe(0);
+  });
+});
+
+describe('prompt-headroom — assertMeasurementComplete refuses to trust a run whose measured count falls short of its own header', () => {
+  it('throws when the parsed pair count is LESS than the header\'s own LLM-verified count — the shape a truncated or killed child run takes', () => {
+    const stdout = [
+      'yg check: FAIL  411 nodes · 1316/1316 files · 68 aspects · 18 flows · 4772 verified (3743 deterministic, 1029 LLM)',
+      '',
+      'Errors (2):',
+      "  prompt-too-large  cli/a  Assembled reviewer prompt for aspect 'a' on file:a.ts is 100 chars, over the 'standard' tier limit of 1.",
+      "  prompt-too-large  cli/b  Assembled reviewer prompt for aspect 'b' on file:b.ts is 200 chars, over the 'standard' tier limit of 1.",
+    ].join('\n');
+    const entries = parsePromptTooLargeEntries(stdout);
+    expect(entries).toHaveLength(2);
+    expect(() => assertMeasurementComplete(entries, stdout)).toThrow(/1029/);
+  });
+
+  it("does not throw when the measured count meets or exceeds the header's own LLM-verified count", () => {
+    const stdout = 'yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows · 1 verified (0 deterministic, 1 LLM)\n';
+    const entries = [{ aspectId: 'a', unitKey: 'file:a.ts', chars: 100, tierName: 'standard' }];
+    expect(() => assertMeasurementComplete(entries, stdout)).not.toThrow();
+  });
+});
+
 describe('prompt-headroom — countDeclaredLlmAspects reads ground truth straight from committed aspect YAML', () => {
+  function fact(text: string, hasContentMd = false, hasCheckMjs = false) {
+    return { text, hasContentMd, hasCheckMjs };
+  }
+
   it('counts an aspect declaring reviewer.type: llm', () => {
-    const texts = ['name: A\nreviewer:\n  type: llm\n'];
-    expect(countDeclaredLlmAspects(texts)).toBe(1);
+    expect(countDeclaredLlmAspects([fact('name: A\nreviewer:\n  type: llm\n')])).toBe(1);
   });
 
   it('does not count a deterministic aspect', () => {
-    const texts = ['name: A\nreviewer:\n  type: deterministic\n'];
-    expect(countDeclaredLlmAspects(texts)).toBe(0);
+    expect(countDeclaredLlmAspects([fact('name: A\nreviewer:\n  type: deterministic\n')])).toBe(0);
   });
 
   it('counts only the llm-typed aspects among a mixed set', () => {
-    const texts = [
-      'name: A\nreviewer:\n  type: llm\n',
-      'name: B\nreviewer:\n  type: deterministic\n',
-      'name: C\nreviewer:\n  type: llm\n',
+    const facts = [
+      fact('name: A\nreviewer:\n  type: llm\n'),
+      fact('name: B\nreviewer:\n  type: deterministic\n'),
+      fact('name: C\nreviewer:\n  type: llm\n'),
     ];
-    expect(countDeclaredLlmAspects(texts)).toBe(2);
+    expect(countDeclaredLlmAspects(facts)).toBe(2);
   });
 
   it('skips a text that is not valid YAML rather than throwing', () => {
-    const texts = ['name: A\nreviewer:\n  type: llm\n', ': this is not : valid : yaml : at all'];
-    expect(countDeclaredLlmAspects(texts)).toBe(1);
+    const facts = [fact('name: A\nreviewer:\n  type: llm\n'), fact(': this is not : valid : yaml : at all')];
+    expect(countDeclaredLlmAspects(facts)).toBe(1);
   });
 
-  it('an empty list of aspect texts counts zero', () => {
+  it('an empty list of aspect facts counts zero', () => {
     expect(countDeclaredLlmAspects([])).toBe(0);
+  });
+
+  // The real parser (io/aspect-parser.ts) infers an aspect as `llm` from a bare
+  // content.md with NO reviewer: block at all, whenever no check.mjs sits
+  // alongside it — a fully supported, documented aspect shape. An aspect
+  // written this way is just as much an LLM aspect as one carrying an explicit
+  // `reviewer:\n  type: llm`, and must count as one here too, or the
+  // zero-measured guard goes blind on every aspect written this way.
+  it('counts an aspect with no reviewer: block but a content.md and no check.mjs, the same way the real parser infers it', () => {
+    expect(countDeclaredLlmAspects([fact('name: A\n', true, false)])).toBe(1);
+  });
+
+  it('treats an explicit reviewer: null the same as an absent reviewer: block for inference', () => {
+    expect(countDeclaredLlmAspects([fact('name: A\nreviewer: null\n', true, false)])).toBe(1);
+  });
+
+  it('does not infer llm when a check.mjs sits alongside the content.md — the real parser cannot infer either type from that shape', () => {
+    expect(countDeclaredLlmAspects([fact('name: A\n', true, true)])).toBe(0);
+  });
+
+  it('does not infer llm from a check.mjs with no content.md — that shape infers deterministic, not llm', () => {
+    expect(countDeclaredLlmAspects([fact('name: A\n', false, true)])).toBe(0);
+  });
+
+  it('an explicit reviewer.type wins over file-presence inference either way', () => {
+    expect(countDeclaredLlmAspects([fact('name: A\nreviewer:\n  type: deterministic\n', true, false)])).toBe(0);
+  });
+});
+
+describe("prompt-headroom — readAspectFacts scans aspects the same way the engine's own loader does", () => {
+  it('finds an aspect nested several directories deep, not only ones at the top level', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-headroom-aspects-'));
+    try {
+      const nestedDir = path.join(dir, 'group', 'sub-group', 'nested-aspect');
+      mkdirSync(nestedDir, { recursive: true });
+      writeFileSync(path.join(nestedDir, 'yg-aspect.yaml'), 'name: Nested\nreviewer:\n  type: llm\n');
+      writeFileSync(path.join(nestedDir, 'content.md'), '# nested\n');
+      const facts = readAspectFacts(dir);
+      expect(facts).toHaveLength(1);
+      expect(facts[0].hasContentMd).toBe(true);
+      expect(facts[0].hasCheckMjs).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not descend into a drills fixture directory — the loader's own reserved name for hand-authored regression fixtures, never a nested aspect", () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-headroom-aspects-'));
+    try {
+      const drillsDir = path.join(dir, 'real-aspect', 'drills', 'fixture-project', 'fake-aspect');
+      mkdirSync(drillsDir, { recursive: true });
+      writeFileSync(path.join(drillsDir, 'yg-aspect.yaml'), 'name: Fake\nreviewer:\n  type: llm\n');
+      writeFileSync(path.join(dir, 'real-aspect', 'yg-aspect.yaml'), 'name: Real\nreviewer:\n  type: deterministic\n');
+      const facts = readAspectFacts(dir);
+      expect(facts).toHaveLength(1);
+      expect(facts[0].text).toContain('Real');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('returns an empty list when the aspects directory does not exist at all', () => {
+    expect(readAspectFacts(path.join(tmpdir(), 'yg-headroom-aspects-does-not-exist'))).toEqual([]);
   });
 });
 

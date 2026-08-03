@@ -76,10 +76,26 @@
 // this repository confirms it (1030 sentences, 1030 coded lines) — so any disagreement
 // throws instead of silently reporting the (wrong) smaller number. And a run that
 // measures ZERO pairs is only ever legitimate when the graph declares no LLM aspect at
-// all: `countDeclaredLlmAspects` reads that fact straight from every aspect's own
-// committed YAML, independent of anything `yg check` ever prints, so a graph that DOES
-// declare an LLM aspect but measured zero pairs anyway fails loudly instead of printing
-// the same quiet "nothing to measure" a genuinely LLM-free graph is entitled to.
+// all: `countDeclaredLlmAspects` reads that fact from every aspect the SAME graph-wide
+// walk the engine's own loader performs (`readAspectFacts` recurses every subdirectory,
+// skipping the reserved `drills` fixture name, exactly like `graph-loader.ts`'s
+// `scanAspectsDirectory` — a one-level scan used to see 47 of this repo's 68 aspects)
+// and counts an aspect as LLM the same way the real parser infers it (a `content.md`
+// with no `reviewer:` block at all, whenever no `check.mjs` sits beside it — not only
+// one with an explicit `reviewer.type: llm`), independent of anything `yg check` ever
+// prints, so a graph that DOES declare an LLM aspect but measured zero pairs anyway
+// fails loudly instead of printing the same quiet "nothing to measure" a genuinely
+// LLM-free graph is entitled to. `assertMeasurementComplete` adds a THIRD, independent
+// cross-check on top: the same run's own header line — "`N verified (D deterministic, L
+// LLM)`", computed from the verification result rather than from any issue text — must
+// report an LLM-verified count no greater than the number of prompt-too-large pairs this
+// script actually parsed; a killed or `maxBuffer`-truncated child can under-report the
+// issue text without touching that header figure, and the shortfall is exactly what
+// gives a truncated run away. And `computeTierMargins` never reports a "tightest margin
+// anywhere" for a tier it could not resolve a committed ceiling for — a skipped tier
+// used to fall through to the next one, silently leaving `Infinity` as the answer
+// whenever every measured tier turned out to be unresolvable; now any unresolved tier
+// fails the whole run instead, since an unresolved tier could have been the tightest one.
 
 import { execFile } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
@@ -152,27 +168,34 @@ function isPlainObject(v) {
 }
 
 /**
- * How many of `aspectYamlTexts` declare an LLM reviewer (`reviewer.type:
- * llm`) — read straight from each aspect's own committed YAML, entirely
- * independent of anything `yg check` ever prints. Pure: takes raw text in,
- * never touches the filesystem itself. Used only to tell a graph that
- * genuinely has no LLM aspect (measuring zero pairs is simply correct) apart
- * from one that declares an LLM aspect but measured zero anyway (the
- * measurement broke). A text that fails to parse is skipped rather than
- * thrown on — this is a best-effort ground truth for that one distinction,
- * not the enforcement path itself (yg check already validates every aspect
- * file on its own).
+ * How many of `aspectFacts` declare an LLM reviewer — read straight from each
+ * aspect's own committed YAML plus the two rule-file facts (`hasContentMd`,
+ * `hasCheckMjs`) that sit beside it, entirely independent of anything `yg
+ * check` ever prints. Counts an aspect as LLM the same way the real parser
+ * (`io/aspect-parser.ts`'s `parseReviewer`) does: an explicit
+ * `reviewer.type: llm`, OR a `reviewer:` block that is absent/`null`
+ * altogether alongside a `content.md` with no `check.mjs` — the parser's own
+ * inferred-llm shape. Pure: takes the raw text and file facts in, never
+ * touches the filesystem itself. Used only to tell a graph that genuinely
+ * has no LLM aspect (measuring zero pairs is simply correct) apart from one
+ * that declares an LLM aspect but measured zero anyway (the measurement
+ * broke). A text that fails to parse is skipped rather than thrown on — this
+ * is a best-effort ground truth for that one distinction, not the
+ * enforcement path itself (yg check already validates every aspect file on
+ * its own).
  */
-export function countDeclaredLlmAspects(aspectYamlTexts) {
+export function countDeclaredLlmAspects(aspectFacts) {
   let count = 0;
-  for (const text of aspectYamlTexts) {
+  for (const { text, hasContentMd, hasCheckMjs } of aspectFacts) {
     let parsed;
     try {
       parsed = YAML.parse(text);
     } catch {
       continue;
     }
-    if (isPlainObject(parsed) && isPlainObject(parsed.reviewer) && parsed.reviewer.type === 'llm') count++;
+    const reviewer = isPlainObject(parsed) ? parsed.reviewer : undefined;
+    if (isPlainObject(reviewer) && reviewer.type === 'llm') count++;
+    else if ((reviewer === undefined || reviewer === null) && hasContentMd && !hasCheckMjs) count++;
   }
   return count;
 }
@@ -242,21 +265,123 @@ export function parsePromptTooLargeEntries(stdout) {
 }
 
 /**
- * Every committed aspect's raw `yg-aspect.yaml` text, read fresh on every
- * call. Only reached on the zero-measured branch, so the extra read cost
- * never touches the common (nonzero) path. Returns `[]` rather than
- * throwing when `aspectsDir` itself is missing — a project with no aspects
- * directory at all trivially declares zero LLM aspects.
+ * The independent LLM-verified count `yg check`'s own header line reports
+ * for THIS SAME run — the "`N verified (D deterministic, L LLM)`" segment
+ * `check-render-header.ts` prints, computed from the verification result
+ * itself rather than from any issue text. Absent entirely means the header
+ * printed no verified segment at all, which only happens when the run's
+ * total verified count (deterministic + LLM) is exactly zero — so 0 is the
+ * correct reading there, not a parse failure. Anchored on a leading digit so
+ * it cannot mistake the unrelated "`N unverified (D deterministic-free, L
+ * LLM)`" segment for a match: "verified (" is a substring of "unverified (",
+ * but no digit ever sits directly in front of "verified" inside that word.
+ * Pure: takes the captured stdout text in, no filesystem access.
  */
-function readAspectYamlTexts(aspectsDir) {
-  if (!existsSync(aspectsDir)) return [];
-  const texts = [];
-  for (const entry of readdirSync(aspectsDir, { withFileTypes: true })) {
-    if (!entry.isDirectory()) continue;
-    const aspectFile = path.join(aspectsDir, entry.name, 'yg-aspect.yaml');
-    if (existsSync(aspectFile)) texts.push(readFileSync(aspectFile, 'utf-8'));
+export function parseHeaderVerifiedLlmCount(stdout) {
+  const match = /\d+ verified \(\d+ deterministic, (\d+) LLM\)/.exec(stdout);
+  return match ? Number(match[1]) : 0;
+}
+
+/**
+ * Throws when `entries` (the prompt-too-large pairs this run parsed) is
+ * fewer than this SAME run's own header-reported LLM-verified count — the
+ * invariant a complete run always satisfies. Under the 1-char override every
+ * declared LLM pair either trips the gate fresh (landing in `entries` with
+ * no prior valid verdict) or keeps its prior valid verdict while flagged
+ * oversized (landing in `entries` AND still counting toward the header's
+ * LLM-verified tally) — so `entries.length` can never legitimately fall
+ * short of the header's own LLM-verified count. A shortfall means this run's
+ * captured output is incomplete (a killed or `maxBuffer`-truncated child),
+ * not that there was genuinely less to measure. Pure: takes the parsed
+ * entries and the captured stdout text in, no filesystem access.
+ */
+export function assertMeasurementComplete(entries, stdout) {
+  const headerLlmVerified = parseHeaderVerifiedLlmCount(stdout);
+  if (entries.length < headerLlmVerified) {
+    throw new Error(
+      `measured ${entries.length} prompt-too-large pair(s) but this run's own header reports ${headerLlmVerified} verified ` +
+        `LLM pair(s) — a complete run always measures at least as many pairs as its own header's LLM-verified count, so this ` +
+        `shortfall means the captured output is incomplete (a killed or truncated child process). Re-run this step rather ` +
+        `than trust the margin below.`,
+    );
   }
-  return texts;
+}
+
+/**
+ * Groups `entries` by tier and computes each tier's tightest margin plus the
+ * tightest margin overall — the number that actually decides how much room
+ * the next edit has, independent of which single aspect the review happened
+ * to be looking at. Throws rather than silently skipping when a measured
+ * tier has no entry in `tierLimits` (a maintainer's own local overlay tier,
+ * or a config edited mid-run): the script's contract is that it never
+ * prints a margin it has not established, and an unresolved tier could have
+ * been the tightest one, so falling through to whatever the OTHER tiers
+ * leave behind — down to the unresolvable `Infinity` when every tier is
+ * skipped — is exactly the false comfort this function refuses to produce.
+ * Pure: takes the parsed entries and the resolved tier limits in, no
+ * filesystem access, no process state.
+ */
+export function computeTierMargins(entries, tierLimits) {
+  const byTier = new Map();
+  for (const e of entries) {
+    const list = byTier.get(e.tierName);
+    if (list) list.push(e);
+    else byTier.set(e.tierName, [e]);
+  }
+  const tiers = [];
+  let worstMarginOverall = Infinity;
+  for (const [tierName, list] of byTier) {
+    const limit = tierLimits.get(tierName);
+    if (limit === undefined) {
+      throw new Error(
+        `tier '${tierName}' appeared in the measurement but has no committed max_prompt_chars — its tightest margin was ` +
+          `never established (config may have changed mid-run). Investigate before trusting any margin from this run.`,
+      );
+    }
+    list.sort((a, b) => b.chars - a.chars);
+    const margin = limit - list[0].chars;
+    worstMarginOverall = Math.min(worstMarginOverall, margin);
+    tiers.push({ tierName, limit, list, margin });
+  }
+  if (!Number.isFinite(worstMarginOverall)) {
+    throw new Error('no tier produced a measurable margin — cannot report a tightest margin.');
+  }
+  return { tiers, worstMarginOverall };
+}
+
+/**
+ * Every committed aspect's raw `yg-aspect.yaml` text, plus whether a
+ * `content.md` and/or `check.mjs` sit beside it — read fresh on every call.
+ * Walks `aspectsDir` the SAME way the engine's own loader does
+ * (`graph-loader.ts`'s `scanAspectsDirectory`): recursing into every
+ * subdirectory, an aspect id is a relative PATH, not just a top-level folder
+ * name, and a directory named `drills` (the loader's own reserved name for a
+ * hand-authored regression fixture, never a nested aspect) is never
+ * descended into. A one-level scan used to see 47 of this repo's 68 aspects;
+ * this sees all of them. Only reached on the zero-measured branch, so the
+ * extra read cost never touches the common (nonzero) path. Returns `[]`
+ * rather than throwing when `aspectsDir` itself is missing — a project with
+ * no aspects directory at all trivially declares zero LLM aspects.
+ */
+export function readAspectFacts(aspectsDir) {
+  if (!existsSync(aspectsDir)) return [];
+  const facts = [];
+  const walk = (dirPath) => {
+    const entries = readdirSync(dirPath, { withFileTypes: true });
+    if (entries.some((e) => e.isFile() && e.name === 'yg-aspect.yaml')) {
+      facts.push({
+        text: readFileSync(path.join(dirPath, 'yg-aspect.yaml'), 'utf-8'),
+        hasContentMd: existsSync(path.join(dirPath, 'content.md')),
+        hasCheckMjs: existsSync(path.join(dirPath, 'check.mjs')),
+      });
+    }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.') || entry.name === 'drills') continue;
+      walk(path.join(dirPath, entry.name));
+    }
+  };
+  walk(aspectsDir);
+  return facts;
 }
 
 /**
@@ -409,12 +534,13 @@ async function main() {
   let entries;
   try {
     entries = parsePromptTooLargeEntries(stdout);
+    assertMeasurementComplete(entries, stdout);
   } catch (e) {
     fail(e.message);
   }
 
   if (entries.length === 0) {
-    const declaredLlmAspectCount = countDeclaredLlmAspects(readAspectYamlTexts(ASPECTS_DIR));
+    const declaredLlmAspectCount = countDeclaredLlmAspects(readAspectFacts(ASPECTS_DIR));
     const zero = classifyZeroMeasurement(declaredLlmAspectCount);
     if (zero.kind === 'nothing-to-measure') {
       log("no LLM aspects are declared in this graph's committed rules — nothing to measure.");
@@ -423,34 +549,22 @@ async function main() {
     fail(zero.message);
   }
 
-  // Tightest margin per tier — the number that actually decides how much room the next
-  // edit has, independent of which single aspect the review happened to be looking at.
-  const byTier = new Map();
-  for (const e of entries) {
-    const list = byTier.get(e.tierName);
-    if (list) list.push(e);
-    else byTier.set(e.tierName, [e]);
+  let tierMargins;
+  try {
+    tierMargins = computeTierMargins(entries, tierLimits);
+  } catch (e) {
+    fail(e.message);
   }
-
-  let worstMarginOverall = Infinity;
-  for (const [tierName, list] of byTier) {
-    const limit = tierLimits.get(tierName);
-    if (limit === undefined) {
-      log(`tier '${tierName}' appeared in the measurement but has no committed max_prompt_chars — skipping (config may have changed mid-run).`);
-      continue;
-    }
-    list.sort((a, b) => b.chars - a.chars);
-    const worst = list[0];
-    const margin = limit - worst.chars;
-    worstMarginOverall = Math.min(worstMarginOverall, margin);
+  for (const { tierName, limit, list, margin } of tierMargins.tiers) {
     log(`'${tierName}' tier ceiling: ${limit} chars`);
-    log(`  largest assembled prompt: ${worst.chars} chars on ${worst.unitKey} (aspect '${worst.aspectId}') — margin ${margin}`);
+    log(`  largest assembled prompt: ${list[0].chars} chars on ${list[0].unitKey} (aspect '${list[0].aspectId}') — margin ${margin}`);
     for (const next of list.slice(1, 3)) {
       log(`  next tightest: ${next.chars} chars on ${next.unitKey} (aspect '${next.aspectId}') — margin ${limit - next.chars}`);
     }
   }
+  const worstMarginOverall = tierMargins.worstMarginOverall;
 
-  log(`measured ${entries.length} LLM pair(s) across ${byTier.size} tier(s). Tightest margin anywhere: ${worstMarginOverall}.`);
+  log(`measured ${entries.length} LLM pair(s) across ${tierMargins.tiers.length} tier(s). Tightest margin anywhere: ${worstMarginOverall}.`);
   // Reporting only — never fails the gate itself. A prompt that has actually breached
   // its ceiling is caught by the real "Graph: check" step that follows this one.
   process.exit(0);

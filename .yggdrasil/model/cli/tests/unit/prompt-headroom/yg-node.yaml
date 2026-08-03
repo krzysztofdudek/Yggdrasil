@@ -26,7 +26,21 @@ description: >-
   disagreement rather than silently under-reporting when that sentence's
   wording changes. countDeclaredLlmAspects and classifyZeroMeasurement
   together decide whether a zero-pairs-measured result is a genuinely
-  LLM-aspect-free graph or a broken measurement.
+  LLM-aspect-free graph or a broken measurement; readAspectFacts supplies
+  countDeclaredLlmAspects its ground truth by recursing every aspect
+  subdirectory the same way the graph loader's own scan does (skipping the
+  reserved `drills` fixture name), and countDeclaredLlmAspects counts an
+  aspect with a bare content.md and no reviewer: block as LLM the same way
+  the real parser infers it, not only one with an explicit
+  `reviewer.type: llm`. parseHeaderVerifiedLlmCount and
+  assertMeasurementComplete cross-check the measured pair count against a
+  third, independent fact in the same run's output — the check header's own
+  "verified (D deterministic, L LLM)" tally, computed from the verification
+  result rather than any issue text — refusing a run whose measured count
+  falls short of it, the shape a truncated or killed child process takes.
+  computeTierMargins refuses to report a margin for a tier the measurement
+  found but the committed config never declared, rather than skipping that
+  tier and letting an unresolvable margin print as `Infinity`.
   A separate integration test spawns the real, unmodified script against a
   scratch project whose `dist/bin.js` is a stand-in for a slow, multi-second
   `yg check --details`: it sleeps before writing a completion marker and
