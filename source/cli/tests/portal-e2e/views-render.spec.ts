@@ -126,6 +126,20 @@ test.describe('§3a views V1–V9 — render real data + honest palette', () => 
     await expectHonestPalette(page);
   });
 
+  // The same tier-on fixture, emitted BEFORE any fill ever runs: src/svc/handler.ts's own
+  // rule has no lock entry at all yet — cold, not yet refused, the one state
+  // typeCoveragePage's own always-approved-first setup never leaves on disk. The ledger's
+  // "enforced by architecture" chip and per-file row must both say so, never render as
+  // though a currently valid verdict were on record just because the file is enforced.
+  test('V2 Coverage & Audit: a type-covered file with no recorded lock entry at all is marked unverified on both the chip and its own row', async ({ page, typeCoverageUnverifiedPage }) => {
+    await page.goto(typeCoverageUnverifiedPage);
+    await navTo(page, 'Coverage & audit');
+    await expect(page.locator('.cov-ledger')).toContainText('with no recorded verdict');
+    const enforcedRow = page.locator('.cov-typelist-ok .cov-typerow', { hasText: 'src/svc/handler.ts' });
+    await expect(enforcedRow).toContainText('unverified');
+    await expectHonestPalette(page);
+  });
+
   test('V3 Structure renders the real node hierarchy', async ({ page, basicPage }) => {
     await page.goto(basicPage);
     await navTo(page, 'Structure');

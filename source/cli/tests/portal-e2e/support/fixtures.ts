@@ -25,7 +25,7 @@ import { newTeardown, teardown, staticPage, freshFixtureCopy, approveDeterminist
 // Playwright's own inference (the canonical worker-fixture form).
 export const test = base.extend<
   Record<never, never>,
-  { t: Teardown; basicPage: string; repoPage: string; typeCoveragePage: string }
+  { t: Teardown; basicPage: string; repoPage: string; typeCoveragePage: string; typeCoverageUnverifiedPage: string }
 >({
   t: [
     async ({}, use) => {
@@ -57,6 +57,19 @@ export const test = base.extend<
     async ({ t }, use) => {
       const project = freshFixtureCopy(t, 'portal-type-coverage');
       approveDeterministic(project);
+      await use(staticPage(t, { cwd: project }));
+    },
+    { scope: 'worker' },
+  ],
+  // The SAME tier-on fixture as typeCoveragePage, but with the static page emitted
+  // BEFORE any fill ever runs — src/svc/handler.ts's own rule has NO lock entry at
+  // all yet (cold, not yet refused), the one state typeCoveragePage's own
+  // approveDeterministic step never leaves on disk to render. Exercises the
+  // ledger's "no recorded verdict" chip suffix and per-row marker, which nothing
+  // in typeCoveragePage's own always-approved-first setup can ever show.
+  typeCoverageUnverifiedPage: [
+    async ({ t }, use) => {
+      const project = freshFixtureCopy(t, 'portal-type-coverage');
       await use(staticPage(t, { cwd: project }));
     },
     { scope: 'worker' },
