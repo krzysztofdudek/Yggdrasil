@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.7.0] - 2026-08-04
+
 ### Security
 
 - **Resolved a high-severity denial-of-service advisory in a transitive dependency (`brace-expansion`).** Bumped it to 5.0.8 in the CLI. The advisory is an unbounded expansion length that can exhaust memory and crash the process; the package arrives through `minimatch`, which is a runtime dependency, so the code path shipped. It reaches the expander from glob patterns in a project's own graph and coverage configuration rather than from anything an outside party controls, which bounds the practical exposure — but the fix costs nothing and the pattern source is not something the CLI should be relying on for safety.
