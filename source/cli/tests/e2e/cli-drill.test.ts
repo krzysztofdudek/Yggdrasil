@@ -181,6 +181,35 @@ describe.skipIf(!distExists)('CLI E2E — yg drill', () => {
     }
   });
 
+  it('(2b) --nodeless: the prompt the real reviewer receives has no <node> element and the single-file framing — the shape a file enforced by its architecture type alone (no owning component) actually gets', async () => {
+    const dir = copyFixture('llm-nodeless');
+    const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'mock' }) });
+    try {
+      pointReviewer(dir, mock.endpoint);
+      // A nodeless pair only ever arises for a per:file aspect (a whole-unit
+      // aspect is dropped entirely for a file with no component to run it
+      // on) — give the fixture aspect that scope so this exercises the same
+      // shape a real nodeless pair would.
+      const aspectYaml = path.join(yggRoot(dir), 'aspects', 'has-doc-comment', 'yg-aspect.yaml');
+      writeFileSync(aspectYaml, readFileSync(aspectYaml, 'utf-8') + 'scope:\n  per: file\n', 'utf-8');
+      writeCase(dir, 'has-doc-comment', 'satisfies-doc/good.ts', '// This file documents itself.\nexport const ok = true;\n');
+
+      const r = await runAsync(['drill', '--aspect', 'has-doc-comment', '--nodeless'], dir);
+      expect(r.status).toBe(0);
+      expect(r.all).toContain('1 pass · 0 MISS · 0 FALSE-ALARM');
+      expect(mock.chatCount()).toBe(1);
+
+      const prompt = mock.chatRequests[0].prompt;
+      expect(prompt).not.toContain('<node ');
+      expect(prompt).not.toContain('a node (component)');
+      expect(prompt).toContain('Below is a single source file with its content and one aspect (rule set).');
+      expect(prompt).toContain('You are reviewing this file on its own. It has no owning component');
+    } finally {
+      await mock.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('(3) prompt-too-large → unrun, exit 2, reviewer never called', async () => {
     const dir = copyFixture('toolarge');
     const mock = await startMockReviewer({ respond: () => ({ satisfied: true }) });

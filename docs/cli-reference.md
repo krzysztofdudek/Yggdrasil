@@ -835,6 +835,7 @@ sharpening a rule, not a sensitivity measurement; the lock is never written.
 yg drill --aspect no-direct-minimatch              # the in-repo corpus
 yg drill --aspect no-direct-minimatch --case 'violates-*/**'
 yg drill --aspect no-direct-minimatch --dir ../holdout --corpus holdout-v1
+yg drill --aspect has-doc-comment --dir ../holdout-nodeless --nodeless --corpus nodeless-v1
 ```
 
 Each case resolves to `pass`, `MISS` (a `violates-*` case the rule failed to
@@ -843,6 +844,12 @@ a check error or an over-limit prompt), or `unsupported` (the rule needs context
 a single-file drill cannot supply). Deterministic drills run locally and free; an
 LLM aspect goes through the real reviewer and bills it (the call budget prints
 first). Exit `1` on any MISS/FALSE-ALARM, else `2` on any unrun, else `0`.
+
+`--nodeless` assembles every LLM case's prompt WITHOUT a node — the shape a
+real file enforced by its architecture type alone (no owning component)
+receives from the reviewer, instead of the default synthetic node every other
+drill case carries. It has no effect on a deterministic aspect (its check runs
+over case files regardless).
 
 Failure output shows only the case label, content hashes, and pass/fail — never
 the case source. `yg drill` writes one thing: a local, gitignored results log

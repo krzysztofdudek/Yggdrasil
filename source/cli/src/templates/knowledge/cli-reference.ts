@@ -299,6 +299,11 @@ yg drill --aspect no-direct-minimatch --case 'violates-*/**'
 
 # Drill against an EXTERNAL holdout corpus (data only — case files, never imported)
 yg drill --aspect no-direct-minimatch --dir ../holdout-cases --corpus holdout-v1
+
+# Drill an LLM aspect's cases in the shape a file with NO owning component
+# receives (the prompt omits <node> entirely) instead of the default
+# synthetic node — --nodeless has no effect on a deterministic aspect
+yg drill --aspect has-doc-comment --dir .yggdrasil/aspects/has-doc-comment/drills/nodeless --nodeless --corpus nodeless-v1
 \`\`\`
 
 Corpus layout: each source file under a \`violates-*\` / \`satisfies-*\`

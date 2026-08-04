@@ -20,6 +20,8 @@ import {
 } from '../../../src/core/drill-runner.js';
 import type { AspectDef } from '../../../src/model/graph.js';
 import type { DrillResultLine } from '../../../src/io/drill-results-store.js';
+import { buildPairPrompt } from '../../../src/llm/prompt.js';
+import { resolveSuppressedRangesForPrompt } from '../../../src/structure/index.js';
 
 const CTX: DrillRunContext = { consensus: 1, maxPromptChars: 50000 };
 
@@ -356,6 +358,77 @@ describe('drill-runner — runDrills (LLM path)', () => {
     const summary = await runDrills(llmAspect('infra'), root, cases, { consensus: 1, tierName: 'standard', maxPromptChars: 50000 }, deps);
     expect(summary.counts.unrun).toBe(1);
     expect(summary.exitCode).toBe(2);
+  });
+});
+
+describe('drill-runner — runDrills (LLM path, ctx.nodeless)', () => {
+  const roots: string[] = [];
+  afterEach(() => {
+    for (const r of roots.splice(0)) rmSync(r, { recursive: true, force: true });
+  });
+
+  it('without ctx.nodeless, every prompt still carries the pre-existing synthetic drill: node (unchanged default behavior)', async () => {
+    const root = stageCorpus('withnode', { 'satisfies-good/good.ts': 'GOOD' });
+    roots.push(root);
+    const cases = await discoverDrillCases({ aspectId: 'withnode', projectRoot: root });
+    const prompts: string[] = [];
+    const { deps } = makeDeps({
+      review: (prompt) => {
+        prompts.push(prompt);
+        return { satisfied: true, votes: { satisfied: 1, total: 1 } };
+      },
+    });
+    const aspect = llmAspect('withnode', { scope: { per: 'file' } });
+    await runDrills(aspect, root, cases, { consensus: 1, tierName: 'standard', maxPromptChars: 50000 }, deps);
+    expect(prompts).toHaveLength(1);
+    expect(prompts[0]).toContain('<node path="drill:withnode"');
+    expect(prompts[0]).toContain('Below is a node (component) with its source files and one aspect (rule set).');
+  });
+
+  it('with ctx.nodeless, the assembled prompt is BYTE-IDENTICAL to buildPairPrompt called directly with an equivalent nodeless input — the shape a real file enforced by its architecture type alone (no owning component) receives', async () => {
+    const root = stageCorpus('nl', { 'satisfies-good/good.ts': 'GOOD' });
+    roots.push(root);
+    const cases = await discoverDrillCases({ aspectId: 'nl', projectRoot: root });
+    const prompts: string[] = [];
+    const { deps } = makeDeps({
+      review: (prompt) => {
+        prompts.push(prompt);
+        return { satisfied: true, votes: { satisfied: 1, total: 1 } };
+      },
+    });
+    const aspect = llmAspect('nl', { scope: { per: 'file' } });
+    const summary = await runDrills(
+      aspect,
+      root,
+      cases,
+      { consensus: 1, tierName: 'standard', maxPromptChars: 50000, nodeless: true },
+      deps,
+    );
+    expect(summary.counts.pass).toBe(1);
+    expect(prompts).toHaveLength(1);
+    // Neither the <node> element nor the componented framing appear.
+    expect(prompts[0]).not.toContain('<node ');
+    expect(prompts[0]).not.toContain('a node (component)');
+    expect(prompts[0]).not.toContain('a larger component');
+    expect(prompts[0]).toContain('Below is a single source file with its content and one aspect (rule set).');
+    expect(prompts[0]).toContain('You are reviewing this file on its own. It has no owning component');
+
+    const caseFilePath = cases[0].files[0];
+    const suppressedRanges = await resolveSuppressedRangesForPrompt(
+      [{ path: caseFilePath, bytes: Buffer.from('GOOD', 'utf8') }],
+      'nl',
+    );
+    const expected = buildPairPrompt({
+      aspect: { id: 'nl', description: 'a rule', content: '# Rule\nThe file must be fine.' },
+      references: [],
+      nodePath: undefined,
+      nodeDescription: undefined,
+      files: [{ path: caseFilePath, content: 'GOOD' }],
+      companions: [],
+      suppressedRanges,
+      scope: { per: 'file' },
+    });
+    expect(prompts[0]).toBe(expected);
   });
 });
 

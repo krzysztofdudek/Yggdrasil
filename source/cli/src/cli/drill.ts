@@ -48,6 +48,11 @@ export function registerDrillCommand(program: Command): void {
     .option('--dir <path>', 'external holdout corpus directory (data only — case files, never imported)')
     .option('--case <glob>', 'run only case labels matching this glob (repo-relative POSIX)')
     .option('--corpus <label>', 'label recorded for this run (default: "dev", or the --dir basename)')
+    .option(
+      '--nodeless',
+      'assemble every LLM case without a node — the prompt shape a file enforced by its ' +
+      'architecture type alone, with no owning component, receives from the real reviewer',
+    )
     .action(async (opts) => {
       const projectRoot = process.cwd();
       try {
@@ -104,7 +109,12 @@ export function registerDrillCommand(program: Command): void {
             process.exit(1);
             return;
           }
-          ctx = { consensus: setup.tier.consensus ?? 1, tierName: setup.tierName, maxPromptChars: setup.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS };
+          ctx = {
+            consensus: setup.tier.consensus ?? 1,
+            tierName: setup.tierName,
+            maxPromptChars: setup.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS,
+            nodeless: opts.nodeless === true,
+          };
           provider = setup.provider;
           judge = { provider: setup.tier.provider, model: String(setup.tier.model) };
         }
