@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- **Raised `brace-expansion` to 5.0.9, closing a high-severity denial-of-service advisory that bypasses the mitigation shipped in 5.7.0.** The 5.0.8 bump in 5.7.0 answered an earlier advisory in the same package; this one defeats that fix by exhausting memory through unbounded intermediate arrays instead. The package arrives transitively through `minimatch`, which is a runtime dependency, so the vulnerable path ships. It is reached from glob patterns in a project's own graph and coverage configuration rather than from anything an outside party supplies, which bounds the practical exposure — but the mitigation it bypasses is one this CLI was relying on.
+
 ## [5.7.0] - 2026-08-06
 
 ### Security
