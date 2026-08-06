@@ -22,12 +22,28 @@ import path from 'node:path';
  * false-positive guard: a `java.*` / `javax.*` / `jakarta.*` stdlib type, a
  * third-party library type, or any FQN whose file is not present resolves to
  * nothing and is never flagged.
+ *
+ * `deps.isExcluded`, when supplied, makes an excluded hit act as though it does
+ * not exist, for BOTH resolvers: `resolveType` skips it and keeps walking (the
+ * same candidate list at the current ancestor root, then further-out roots) and
+ * `resolveJavaPackageFiles` skips it and, if that empties an ancestor root's
+ * directory entirely, keeps climbing to the next one rather than stopping there.
+ * A half-migrated or flat layout can leave the SAME FQN's file sitting under two
+ * different ancestor roots — the nearer one always wins when live, but an
+ * excluded nearer copy must not end the search: the farther, still-live copy is
+ * the real target once the excluded one is set aside. Absent → no hit is ever
+ * skipped (today's behavior, unaffected).
  */
 export interface JavaResolveDeps {
   /** Does a file exist at this repo-relative POSIX path? */
   exists(repoRelPosix: string): boolean;
   /** Repo-relative POSIX paths of `.java` files directly in this directory (no recursion). */
   javaFilesIn(repoRelDir: string): string[];
+  /**
+   * Optional. True when the graph excludes this repo-relative POSIX path (a nested
+   * project's own boundary, or a `coverage.excluded` root). See the file doc comment.
+   */
+  isExcluded?(repoRelPosix: string): boolean;
 }
 
 /**
@@ -50,9 +66,13 @@ export function resolveJavaFqn(
 /**
  * Resolve a wildcard PACKAGE FQN (`com.foo`) to the candidate `.java` files in the
  * resolved package directory, found via the same ancestor-source-root search the type
- * resolver uses. Returns the FULL list (caller computes the owner set: one owner →
- * attribute, zero or 2+ → silence). Empty list = the package directory was found
- * nowhere, or exists with no `.java` files.
+ * resolver uses. Returns the LIVE (non-excluded) file list of the FIRST ancestor root
+ * whose directory has at least one (caller computes the owner set over it: one owner →
+ * attribute, zero or 2+ → silence). A root whose directory exists but whose every file
+ * is excluded does NOT end the search — it is treated exactly like an empty directory,
+ * so the walk keeps climbing to the next ancestor root instead of committing to a
+ * directory this graph enforces nothing in. Empty list = the package directory (or a
+ * live file in it) was found nowhere.
  */
 export function resolveJavaPackageFiles(
   packageFqn: string,
@@ -62,10 +82,11 @@ export function resolveJavaPackageFiles(
   const segments = packageFqn.split('.').filter((s) => s.length > 0);
   if (segments.length === 0) return [];
   const pkgDir = segments.join('/'); // com/foo
+  const isExcl = deps.isExcluded ?? ((): boolean => false);
   for (const dir of ancestorDirs(path.posix.dirname(toPosix(fromFile)))) {
     const repoRelDir = joinUnder(dir, pkgDir);
-    const files = deps.javaFilesIn(repoRelDir);
-    if (files.length > 0) return [...files].sort();
+    const live = deps.javaFilesIn(repoRelDir).filter((f) => !isExcl(f));
+    if (live.length > 0) return live.sort();
   }
   return [];
 }
@@ -82,12 +103,16 @@ function resolveType(
   // drop beyond the bare class (>= 2 segments left after dropping).
   const parentTypePath =
     segments.length >= 2 ? segments.slice(0, -1).join('/') + '.java' : undefined;
+  const isExcl = deps.isExcluded ?? ((): boolean => false);
 
   for (const dir of ancestorDirs(path.posix.dirname(toPosix(fromFile)))) {
     const candidates: string[] = [joinUnder(dir, typePath)];
     if (parentTypePath !== undefined) candidates.push(joinUnder(dir, parentTypePath));
     for (const cand of candidates) {
-      if (deps.exists(cand)) return cand;
+      // An excluded candidate is treated as though it does not exist: skip it and
+      // keep walking (the rest of this root's candidates, then further-out roots)
+      // rather than let it end the search the way a genuine miss never would.
+      if (deps.exists(cand) && !isExcl(cand)) return cand;
     }
   }
   return undefined;

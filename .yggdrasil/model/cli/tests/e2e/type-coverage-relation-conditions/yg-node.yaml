@@ -1,0 +1,25 @@
+name: E2E Tests — Type-Coverage Relation Conditions
+type: test-suite
+description: "Subprocess E2E proving that a `relations:` atom inside a rule's
+  applicability predicate is answered from a type-covered file's real,
+  statically-resolved imports rather than an absent index that always reads
+  false. Unit coverage already exercises the predicate's own logic against a
+  hand-built edge index handed straight to the cascade; nothing drove that
+  index through the real binary — real source, a real parse, a real resolved
+  import — so a rule gated on an import silently never attached and its
+  negation silently always did. Runs against the committed
+  tests/fixtures/type-level-engine project merged with its live-relations
+  variant, where one consumer file imports a leaf-typed file and its mirror
+  imports nothing, and asserts both polarities. Also pins agreement across the
+  three commands that answer this atom for the same file — the read-only
+  check, the approval path, and the single-file preview and ownership
+  lookups: a preview naming a different rule set than what is actually
+  enforced would send an agent to satisfy a rule that does not apply, or leave
+  one unaddressed that does. Every rule involved is deterministic, so the
+  suite needs no reviewer and costs nothing to run."
+aspects: []
+relations:
+  - target: cli/tests/e2e/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-type-coverage-relations-when.test.ts

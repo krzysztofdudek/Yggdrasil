@@ -16,7 +16,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(__dirname, '..', '..', 'dist', 'bin.js');
 const distExists = existsSync(BIN);
 
-const YG_CONFIG = `version: "5.1.0"
+const YG_CONFIG = `version: "5.2.0"
 quality:
   max_direct_relations: 10
 reviewer:

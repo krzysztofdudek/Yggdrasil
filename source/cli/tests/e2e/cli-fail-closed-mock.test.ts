@@ -47,19 +47,31 @@ function pointReviewer(dir: string, endpoint: string): void {
 const OK: () => ChatReply = () => ({ satisfied: true, reason: 'ok' });
 
 /**
- * Probe whether chmod 0o000 actually blocks reads. Under root (CI / container)
- * chmod is ignored and readFileSync still succeeds, so the EACCES branch is
- * unreachable — the reference-unreadable test skips cleanly when privileged,
- * mirroring cli-scope-unreadable.test.ts.
+ * Whether this runtime actually enforces a chmod(0o000) restriction on a file
+ * readable by its owner. A privileged process (root, or certain containers)
+ * ignores file mode bits entirely, so a test relying on a chmod(0o000)'d file
+ * genuinely refusing to read cannot execute there. Probed ONCE at module load
+ * — never per-test, never via an early `return` that lets vitest report a
+ * test that ran zero assertions as passed — so the reference-unreadable test
+ * is marked SKIPPED via `it.skipIf` for this environment, mirroring
+ * cli-scope-unreadable.test.ts.
  */
-function isPrivileged(absPath: string): boolean {
+function probeEnforcesFilePermissions(): boolean {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-permcheck-'));
+  const probe = path.join(dir, 'probe.txt');
+  writeFileSync(probe, 'x');
+  chmodSync(probe, 0o000);
+  let enforced = false;
   try {
-    readFileSync(absPath);
-    return true;
+    readFileSync(probe, 'utf8');
   } catch {
-    return false;
+    enforced = true;
   }
+  chmodSync(probe, 0o644); // restore so rmSync can remove it
+  rmSync(dir, { recursive: true, force: true });
+  return enforced;
 }
+const ENFORCES_FILE_PERMISSIONS = probeEnforcesFilePermissions();
 
 describe.skipIf(!distExists)('CLI E2E — fail-closed reviewer (#2)', () => {
   it('1: an infra failure (provider 500) on a source change does NOT advance the lock entry — yg check stays RED', async () => {
@@ -173,7 +185,7 @@ describe.skipIf(!distExists)('CLI E2E — fail-closed reviewer (#2)', () => {
   //   pass so the reference read is actually reached. With an unreachable provider
   //   the infra would be provider-unreachable (case 1) and mask this path.
   // ===========================================================================
-  it('4: an unreadable references file is infra (red) — NOTHING written, reviewer never billed, stays red', async () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('4: an unreadable references file is infra (red) — NOTHING written, reviewer never billed, stays red', async () => {
     const dir = fixture('ref-unreadable');
     const okMock = await startMockReviewer({ respond: OK });
     let refAbs: string | undefined;
@@ -194,10 +206,6 @@ describe.skipIf(!distExists)('CLI E2E — fail-closed reviewer (#2)', () => {
         'references:\n  - lookup-table.md\n',
       );
       chmodSync(refAbs, 0o000);
-      if (isPrivileged(refAbs)) {
-        chmodSync(refAbs, 0o644);
-        return; // privileged runtime — EACCES unreachable; skip cleanly.
-      }
 
       const fill = await runAsync(['check', '--approve'], dir);
       // FAIL-CLOSED: the unreadable reference is infra → the run ends RED.

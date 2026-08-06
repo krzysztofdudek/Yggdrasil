@@ -5,12 +5,20 @@ description: "Unit tests for the yg drill runner — corpus discovery (verdict-p
   --dir holdout), outcome classification and exit-code logic, caseHash stability,
   and the runDrills orchestration over injected impure ops: deterministic pass /
   MISS / FALSE-ALARM / unsupported, and the LLM path (budget before first review,
-  companion → unsupported, prompt-too-large → unrun, provider infra → unrun)."
+  companion → unsupported, prompt-too-large → unrun, provider infra → unrun).
+  Also covers the nodeless run context: with it unset, an assembled prompt still
+  carries the pre-existing synthetic node; with it set, the assembled prompt is
+  asserted BYTE-IDENTICAL to calling the production prompt builder directly with
+  an equivalent nodeless input (no owning component) — proving the drill
+  instrument can reproduce the same prompt shape a real component-less pair
+  receives, not just an approximation of it."
 aspects: []
 relations:
   [
     { target: cli/core/drill, type: uses },
-    { target: cli/model/graph, type: uses }
+    { target: cli/model/graph, type: uses },
+    { target: cli/llm/shared, type: uses },
+    { target: cli/structure, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/drill-runner.test.ts

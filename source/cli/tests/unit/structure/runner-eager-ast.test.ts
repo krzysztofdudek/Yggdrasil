@@ -38,7 +38,7 @@ describe('runStructureAspect — eager AST enrichment on own ctx.files', () => {
     });
     const result = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/eager-ast'),
-      aspectId: 'eager-ast', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'eager-ast', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(result.succeeded).toBe(true);
     expect(result.violations).toEqual([]);

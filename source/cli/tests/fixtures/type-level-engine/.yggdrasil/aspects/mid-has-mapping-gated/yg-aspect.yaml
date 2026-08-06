@@ -1,0 +1,6 @@
+name: Mid Has Mapping Gated
+description: "Attached to mid — an ANCESTOR type in leaf's implicit chain — with an attach-site when: { node: { has_mapping: true } }. True against the SUBJECT file's own facts (a file-level unit always maps itself); false against the synthetic ancestor view standing in for mid (it carries no meta.mapping at all). Pins that an ancestor-type attach-site when: is evaluated against the subject, never against the ancestor view itself."
+reviewer:
+  type: deterministic
+scope:
+  per: file

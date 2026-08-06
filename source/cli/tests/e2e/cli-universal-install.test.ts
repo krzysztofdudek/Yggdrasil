@@ -119,7 +119,7 @@ function sha256Hex(body: string): string {
  * combines its copy of this fixture with an `init`/`init --upgrade` call, so
  * it never surfaces this interaction.
  */
-const MINIMAL_CONFIG = `version: "5.1.0"
+const MINIMAL_CONFIG = `version: "5.2.0"
 quality:
   max_direct_relations: 10
 coverage:
@@ -242,7 +242,7 @@ function bareUpgradeRepo(label: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-univ-${label}-`));
   const yggRoot = path.join(dir, '.yggdrasil');
   mkdirSync(yggRoot, { recursive: true });
-  writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n', 'utf-8');
+  writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n', 'utf-8');
   return dir;
 }
 

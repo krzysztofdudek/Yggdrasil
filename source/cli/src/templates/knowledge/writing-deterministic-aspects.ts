@@ -18,8 +18,12 @@ that \`ctx\` they touch. But \`ctx\` is not equally rich everywhere it runs (see
 \`check.mjs\` executes in three places, split across TWO runners with different \`ctx\`:
 
 - The **graph-aware runner** — the \`yg check --approve\` fill stage and
-  \`yg aspect-test --node\` — hands the check the full \`ctx\`: \`files\`, \`fs\`, \`graph\`,
-  \`node\`, \`subject\`, and the parsers (\`parseAst\`, \`parseYaml\`, \`parseJson\`, \`parseToml\`).
+  \`yg aspect-test --node\` — always hands the check \`files\`, \`fs\`, \`subject\`, and
+  the parsers (\`parseAst\`, \`parseYaml\`, \`parseJson\`, \`parseToml\`); \`graph\` and
+  \`node\` are ALSO present, but only when the unit has an owning component. A
+  file enforced purely by its architecture type (\`coverage.type_level\`, no
+  component of its own) gets everything except \`graph\`/\`node\` — see "Rules on
+  a file with no component" below.
 - The **graphless AST runner** — \`yg drill\` and \`yg aspect-test --files\` — hands the
   check only \`ctx.files\`. A check that reads any graph-context accessor —
   \`ctx.node\`, \`ctx.subject\`, \`ctx.graph\`, \`ctx.fs\`, \`ctx.parseAst\`, \`ctx.parseYaml\`,
@@ -281,9 +285,11 @@ interface Violation {
 }
 \`\`\`
 
-Note \`ctx.files\` (the scope-driven subject view) vs \`ctx.node.files\` (always the
-full mapped set). Under \`scope.per: file\`, \`ctx.files\` is the single file; under
-\`per: node\` it is the whole subject set.
+Note \`ctx.files\` (the scope-driven subject view) vs \`ctx.node.files\` (the full
+mapped set — but only when the unit has an owning component; \`ctx.node\`
+itself, \`.files\` included, is absent entirely for a file with none — see
+"Rules on a file with no component" below). Under \`scope.per: file\`,
+\`ctx.files\` is the single file; under \`per: node\` it is the whole subject set.
 
 \`file\` is optional on the graph-aware path, where a file-less (graph-level)
 violation is accepted. On the graphless AST runner (\`yg drill\`,
@@ -311,10 +317,19 @@ the file is not in the aspect's allowed reads set — see the section below. For
 structured data files, prefer \`ctx.parseYaml\`, \`ctx.parseJson\`, or
 \`ctx.parseToml\` — also synchronous, no pre-warming requirement.
 
+**Never mutate a tree \`parseAst\` hands you.** The runner may reuse one parsed
+tree across several subjects of the same rule (e.g. every file of a \`per: file\`
+aspect on the same component, or a relation target every subject reaches) — the
+tree you receive is not necessarily yours alone. Calling tree-sitter's own
+\`tree.edit(...)\` / \`node.edit(...)\` mutates that tree in place and corrupts it
+for every OTHER subject that reads it afterward, silently — there is no error,
+just a wrong tree from then on. Read the tree; never edit it.
+
 ## Allowed reads set (D9=A)
 
-The runner enforces a strict read boundary. Attempting to read outside it throws
-a runtime violation instead of returning data.
+The runner enforces a strict read boundary. Attempting to read outside it raises
+a runtime fault instead of returning data — a \`Violation\` for a graph read or a
+non-prewarmed parse, or an infra fault for an \`fs\` read (see the table below).
 
 This boundary is a read **discipline**, not a security sandbox. \`check.mjs\` runs
 in-process (on an auto-sized worker-thread pool during \`--approve\`, for speed) with
@@ -330,17 +345,84 @@ Paths in the allowed reads set for a node:
 - **Ancestor mappings** — files belonging to parent and grandparent nodes.
 - **Own descendant mappings** — files belonging to any child or deeper descendant node.
 
-Accessing anything outside this set produces:
+Accessing anything outside this set is handled two different ways, depending
+on which accessor is involved:
 
 | Violation kind | Trigger |
 |---|---|
-| \`structure-aspect-undeclared-fs-read\` | \`ctx.fs.exists/list/read\` on a path outside the allowed set |
 | \`structure-aspect-undeclared-graph-read\` | \`ctx.graph.node(path)\` returning a node outside the allowed read set (\`nodesByType\` never triggers this — it only ever returns nodes already within the set) |
 | \`structure-aspect-parseast-not-prewarmed\` | \`ctx.parseAst\` on a file not in the pre-warmed set |
+
+An undeclared \`ctx.fs.exists/list/read\` is different: it is NOT a \`Violation\`.
+The runner throws before your check ever returns, so no verdict entry is
+written and the pair stays unverified — \`yg check --approve\` reports it under
+\`aspect-check-runtime-error\`, naming the real remedy (widen the architecture's
+\`relations:\` so the reachable type may depend on whatever owns the path, add a
+relation in \`yg-node.yaml\`, or give the file a component of its own) instead of
+"fix check.mjs" — there is nothing to fix in the check itself.
 
 If your check needs to reach a node not currently in scope, add an explicit
 relation in \`yg-node.yaml\` pointing to that node. Relations are the contract
 that widens the allowed reads set.
+
+## Rules on a file with no component
+
+A check can also run on a file that has no node of its own — one enforced
+purely by its architecture type (\`coverage.type_level\`). There is no
+\`yg-node.yaml\` behind such a file, so the ctx surface is narrower:
+
+- \`ctx.node\` and \`ctx.graph\` are **unavailable**. Touching any property of
+  \`ctx.node\`, or calling any \`ctx.graph.*\` method, throws immediately — never a
+  silent empty result. The two ways out: rewrite the check to use only
+  \`ctx.subject\` / \`ctx.fs\` over files the architecture already permits this
+  file's type to reach, or give the file a component of its own (a
+  \`yg-node.yaml\` mapping it) so \`ctx.node\` / \`ctx.graph\` become available.
+- \`ctx.fs\` still works, but the allowed reads set is different: the file
+  itself, plus every file whose type the architecture's \`relations:\`
+  allow-list permits THIS file's type to depend on — whether that file belongs
+  to a declared component or is itself enforced by its type alone. There is no
+  per-component narrowing to apply (there is no component), so the
+  architecture's allow-list is the only authority. Reading outside it is the
+  same infra fault as the node case (no \`Violation\`; the pair stays
+  unverified), naming the same two exits: widen the architecture's
+  \`relations:\` so this type may depend on the type that owns the file you
+  need, or give your own file a component so it can declare an explicit
+  relation instead. Honest
+  caveat: with no \`relations:\` table declared for this type at all — the
+  default a fresh \`yg init\` produces — every relation type is unconstrained,
+  so this "allowance" is, in practice, the whole covered repository; it only
+  narrows once you actually declare a \`relations:\` table that restricts
+  something.
+- \`ctx.fs.list(dir)\` still returns the RAW, unfiltered directory listing, and
+  the whole listing is still remembered — adding or renaming ANY entry in a
+  listed directory makes the result need re-checking, including a file your
+  check could never itself read. A rule that wants one specific file should
+  ask for that file, not list its directory.
+
+**The declarative/imperative asymmetry.** An aspect's *applicability* — which
+types it attaches to, any \`when:\` condition gating that attachment — MAY
+depend on the file's type, because applicability is worked out FRESH on every
+run from the current architecture and the file's current classification. The
+check's OWN CODE may not lean on that same fact once it has run: a verdict is
+CACHED, and nothing about a file's type is re-checked when a stored verdict is
+reused, only the observations the check itself made. A check that assumes "I
+only ever run on type X" without actually reading anything that would change if
+that stopped being true can go stale-green silently.
+
+**The same rule, different reach on two files.** Because reach comes from each
+file's OWN type, not from the rule, one aspect attached to two different types
+can see two different allowances: a file of a permissive type reaches a
+sibling; a file of a more restrictive type does not, and a check that tries
+anyway is refused as infrastructure on that file alone — the other file's run
+is unaffected.
+
+**This is a fill-time guard only** — exactly like a component's own allowed
+reads set. The allowance is computed once, when the check actually runs, from
+the architecture and graph as they stand then. A later edit narrowing the
+architecture's \`relations:\` allow-list does not retroactively invalidate an
+already-stored verdict; nothing that was actually observed changed. There is no
+continuous re-enforcement of this boundary the way \`yg check\` continuously
+re-verifies a live import graph.
 
 ## Observation = invalidation surface
 
@@ -375,9 +457,12 @@ code must NOT emit violations with this prefix. Use a plain \`kind\` or omit
 
 Common runtime kinds (for reference, not for author use):
 
-- \`structure-aspect-undeclared-fs-read\`
 - \`structure-aspect-undeclared-graph-read\`
 - \`structure-aspect-parseast-not-prewarmed\`
+
+An undeclared \`ctx.fs\` read is NOT among these — it is never a \`Violation\`
+(see "Allowed reads set" above), so it carries no \`kind\` at all: the runner
+throws before your check returns.
 
 ## Common helpers
 
@@ -522,18 +607,31 @@ by the node path and subject-file hashes.
 ## Testing with yg aspect-test
 
 Run a deterministic aspect's \`check.mjs\` live, without writing the lock. Scope it
-either to a graph node or to ad-hoc files:
+to a graph node, a file enforced by its architecture type alone (no owning
+component), or ad-hoc files:
 
 \`\`\`bash
 # Graph-scoped: run the check against a named node
 yg aspect-test --aspect sibling-test-file --node orders/handler
 
-# Ad-hoc: run the check against specific files
+# Type-scoped: run the check against a file with no owning component — the
+# architecture's relations: allow-list stands in for the node mapping ctx.fs
+# would otherwise enforce against.
+yg aspect-test --aspect sibling-test-file --file src/leaf/order-utils.ts
+
+# Ad-hoc: run the check against specific files (no graph attachment at all)
 yg aspect-test --aspect no-sync-fs --files src/orders/handler.ts src/other.ts
 
 # Verify the check is deterministic (same violations on every run)
 yg aspect-test --aspect sibling-test-file --node orders/handler --check-determinism
 \`\`\`
+
+\`--node\`, \`--file\`, and \`--files\` are mutually exclusive — pass exactly one.
+\`--file\` refuses a path that already has a component (use \`--node\`) or one
+that does not classify to exactly one architecture type (fix the architecture
+or map it to a node). See "A file enforced by its architecture type alone" in
+\`yg knowledge read writing-llm-aspects\` for what \`ctx.node\`/\`ctx.graph\`
+being unavailable means for a check running this way.
 
 Every run leads with a one-line verdict stamp (\`yg aspect-test: satisfied — No
 violations.\` or \`yg aspect-test: refused — N violation(s)\`) and ends with the

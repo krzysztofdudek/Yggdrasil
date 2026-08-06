@@ -1,0 +1,19 @@
+# yg-architecture.yaml — two non-strict types whose when overlaps on every
+# file in this fixture, so EVERY file here is ambiguous regardless of which
+# coverage tier it sits in. That is the one fact this fixture exists to prove.
+node_types:
+  alpha:
+    description: "First of two deliberately overlapping non-strict types."
+    when:
+      any_of:
+        - path: "src/required_amb.ts"
+        - path: "docs/middle_amb.ts"
+        - path: "vendor/excluded_amb.ts"
+
+  beta:
+    description: "Second of two deliberately overlapping non-strict types — identical predicate to alpha, so every file above matches both."
+    when:
+      any_of:
+        - path: "src/required_amb.ts"
+        - path: "docs/middle_amb.ts"
+        - path: "vendor/excluded_amb.ts"

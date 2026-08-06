@@ -94,6 +94,22 @@ describe.skipIf(!distExists)('E2E — pure-CLI init', () => {
     } finally { rmSync(dir, { recursive: true, force: true }); }
   });
 
+  it('fresh init turns coverage.type_level on and the closing summary explains it does nothing until a type declares `when:`', () => {
+    const dir = freshDir('type-level-honesty');
+    try {
+      const init = run(['init'], dir); // spawned → non-TTY, zero flags → keyless bootstrap
+      expect(init.status).toBe(0);
+      const cfg = readFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+      expect(cfg).toContain('type_level: true');
+      // The fresh architecture template ships with node_types: {} (no `when:`
+      // anywhere), so the same standing notice `yg check` prints for a
+      // zero-classifying-types graph appears in init's own closing summary.
+      expect(init.stdout).toContain(
+        "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.",
+      );
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
   it('existing repo: add a reviewer via flags, then check still passes', () => {
     const dir = freshDir('add-reviewer');
     try {

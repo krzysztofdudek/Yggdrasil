@@ -1,0 +1,6 @@
+name: Svc File Shape
+description: "A trivial always-pass deterministic rule attached to svc alongside the LLM-reviewed svc-review. Its verdicts land in the gitignored .yg-lock.deterministic.json, never committed and so never subject to a git merge — the fixture's other half of the fact svc-review's own description states."
+reviewer:
+  type: deterministic
+scope:
+  per: file

@@ -75,7 +75,7 @@ $ yg check --approve
 
 Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
 
-yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows
+yg check: FAIL  1 nodes · 1/1 files (1 node-owned, 0 type-covered, 0 excluded) · 1 aspects · 0 flows
 
 Errors (1):
 
@@ -160,6 +160,8 @@ export async function companion(ctx) {
 The hook returns `Array<{ path: string, label?: string }>` — whole files only; there is no line-range or slicing feature. `label` is an optional human-readable tag that appears in the live reviewer prompt. The hook may read and parse files to decide which paths to return, but it returns paths, never file content. What the hook reads to decide also folds into the verdict (not only what it returns). Read the single needed file via `ctx.fs.read`; materializing a whole related node via `ctx.graph` folds that node's entire content into every per-file pair and widens invalidation.
 
 **Purity requirement:** Like `check.mjs`, the companion hook must be pure — no file writes, no network calls, no `process.exit`. An impure hook yields non-deterministic observations; the runner retries once and then fails closed (reported as `aspect-companion-runtime-error`).
+
+**Never mutate a tree `ctx.parseAst` hands you.** The runner may reuse one parsed tree across several subjects of the same rule — every subject file of a `per: file` companion on the same component can share a relation target's parsed tree. Calling tree-sitter's own `tree.edit(...)` / `node.edit(...)` mutates that tree in place and silently corrupts it for every other subject that reads it afterward. Read the tree to decide which paths to return; never edit it.
 
 Returned paths may be absolute or repo-root-relative. The runner normalizes them to repo-root-relative POSIX, dedupes, and sorts them — so the prompt and the hash are deterministic regardless of the hook's return order. A path that escapes the repo root is an infra-fail (the existing allowed-reads guard).
 
@@ -269,7 +271,9 @@ interface File {
   path: string;       // repo-relative POSIX path
   content: string;    // raw file content
   ast?: Tree;         // tree-sitter parse tree — undefined for a file whose
-                      // extension has no registered grammar (.md, .sh, …); guard before use
+                      // extension has no registered grammar (.md, .sh, …); guard before use.
+                      // Read-only: this tree may be shared with other subjects — see the
+                      // "Never mutate a tree" note under graph-aware checks below.
   language?: string;  // registry language id ('typescript', …) — undefined when no grammar
 }
 
@@ -485,6 +489,15 @@ On this graph-aware path `file` is optional — a graph-level violation that nam
 no single file is accepted. On the ad-hoc path (`yg aspect-test --files`, and
 `yg drill`) every violation must carry a `file` that is one of the supplied files.
 
+**Never mutate a tree `ctx.parseAst` (or a subject file's `file.ast`) hands you.**
+The runner may reuse one parsed tree across several subjects of the same rule —
+every subject file of a `per: file` aspect on the same component, or every
+subject that reaches a shared relation target, can receive the SAME tree object.
+Calling tree-sitter's own `tree.edit(...)` / `node.edit(...)` mutates that tree
+in place and silently corrupts it for every other subject that reads it
+afterward — there is no error, just a wrong tree from then on. Read the tree;
+never edit it.
+
 The same helper exports available to parse-tree checks (`walk`, `report`, `inFile`, `closest`, `findComments`) are re-exported from `@chrisdudek/yg/structure` for checks that also inspect parsed trees via `ctx.parseAst`. Most graph-aware checks work purely with `ctx.graph` and `ctx.fs` without parsing any AST.
 
 #### Allowed reads
@@ -517,7 +530,7 @@ A rule that has never refused anything is a rule on trust. Four instruments exis
 
 **`yg aspect-test`** — run the rule live, right now, against a node or an explicit file list. The everyday loop while writing a rule: try it on code that should pass and code that should fail, and confirm it says so. Covered above for both kinds.
 
-**A drill corpus** — the regression net. Put example files beside the rule in a `drills/` directory of the aspect folder, under directories whose prefix encodes the expected verdict: anything under a `violates-*` directory must be refused, anything under `satisfies-*` must pass. `yg drill --aspect <id>` replays the whole corpus and reports each case as `pass`, `MISS` (a violating case the rule failed to catch — a hole), `FALSE-ALARM` (a clean case it wrongly refused), `unrun` (infrastructure, not scored), or `unsupported` (the rule needs context a drill cannot supply — a check that reads graph topology, or an LLM aspect shipping `companion.mjs`). Script rules drill locally and free; a judgment rule goes through the real reviewer and bills it, with the call budget printed before the first call.
+**A drill corpus** — the regression net. Put example files beside the rule in a `drills/` directory of the aspect folder, under directories whose prefix encodes the expected verdict: anything under a `violates-*` directory must be refused, anything under `satisfies-*` must pass. `yg drill --aspect <id>` replays the whole corpus and reports each case as `pass`, `MISS` (a violating case the rule failed to catch — a hole), `FALSE-ALARM` (a clean case it wrongly refused), `unrun` (infrastructure, not scored), or `unsupported` (the rule needs context a drill cannot supply — a check that reads graph topology, or an LLM aspect shipping `companion.mjs`). Script rules drill locally and free; a judgment rule goes through the real reviewer and bills it, with the call budget printed before the first call. `--nodeless` assembles a judgment rule's cases in the shape a file enforced by its architecture type alone (no owning component) receives — no `<node>` in the prompt — instead of the default synthetic node; point it at a separate corpus with `--dir`, since a single run cannot mix both shapes.
 
 `drills/` is a reserved directory name — it is never scanned as an aspect, so a fixture that happens to contain something resembling a rule file can never register a phantom rule. The corpus is a *regression* net, not a measurement of how good the rule is: you wrote the cases, so the rule passing them says it still behaves, not that it generalizes. Keeping one is a convention rather than a requirement — a missing corpus never blocks `yg check`, though the attention feed will point out a rule whose corpus has started failing.
 

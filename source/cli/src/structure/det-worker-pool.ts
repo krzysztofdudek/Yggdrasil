@@ -122,7 +122,8 @@ export class DetWorkerPool {
     const entry = this.pending.get(worker);
     if (entry) {
       this.pending.delete(worker);
-      debugWrite(`[det-pool] worker exited (code ${code}) mid-task ${entry.req.aspectId} on ${entry.req.nodePath}`);
+      const unitLabel = entry.req.unit.kind === 'node' ? entry.req.unit.nodePath : `file:${entry.req.unit.file}`;
+      debugWrite(`[det-pool] worker exited (code ${code}) mid-task ${entry.req.aspectId} on ${unitLabel}`);
       // Fail closed: surface the crash as an error reply the caller lowers to a
       // no-write runtime-error disposition — never a silent drop.
       entry.resolve({

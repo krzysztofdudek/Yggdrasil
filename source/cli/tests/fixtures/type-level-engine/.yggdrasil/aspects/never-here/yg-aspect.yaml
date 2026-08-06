@@ -1,0 +1,9 @@
+name: Never Here
+description: "Gated on node.has_port — a file-level unit can never own a port, so this must always be reported as a drop (when-not-satisfied), never as silently absent."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+when:
+  node:
+    has_port: some-port

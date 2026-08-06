@@ -1,0 +1,9 @@
+name: Type Class Cache
+type: persistence-adapter
+description: "Local cache for the type-level classification lattice's classification result, keyed by a file's own repository-relative path, its raw (un-normalized) byte content, and the full set of classifying types' when/enforce definitions — path is folded in because path: predicates are evaluated against exactly that path, so two files with identical bytes at different paths must never share an entry; content is raw because content: predicates are evaluated against raw, un-normalized bytes. Mirrors the AST fact cache's identity-checked, fail-closed shard contract, injected into classifyFile the same way FileContentCache is."
+relations:
+  - target: cli/io/atomic-write
+    type: calls
+    consumes: [write-atomic]
+mapping:
+  - source/cli/src/io/type-class-cache.ts

@@ -1,0 +1,242 @@
+import path from 'node:path';
+import type { Graph } from '../model/graph.js';
+import type { FileContentCache } from '../io/file-content-cache.js';
+import { TypeClassCache } from '../io/type-class-cache.js';
+import { classifyFile } from './type-classifier.js';
+import { isExcludedByCoverage } from './check-coverage-tiers.js';
+
+/**
+ * Result of classifying every uncovered file against the type-level
+ * classification lattice (coverage.type_level). Each file lands in exactly one
+ * bucket, or in none at all when it sits under a coverage.excluded root.
+ */
+export interface TypeCoverageResult {
+  /** File → the single non-strict type it matched. Satisfied for coverage purposes. */
+  covered: Map<string, string>;
+  /** 2+ non-strict types matched, no strict type — the caller turns this into ambiguous-node-type. */
+  ambiguous: Array<{ file: string; typeIds: string[] }>;
+  /**
+   * >=1 strict type matched. The strict backward scan (checkStrictBackwardCoverage)
+   * already owns this file — type-strict-orphan, type-strict-misplaced, or (when
+   * 2+ strict types match) strict-overlap-conflict — so the lattice must never
+   * additionally call it ambiguous or covered.
+   */
+  strictClaimed: Array<{ file: string; strictTypeId: string }>;
+  /** No type matched at all — falls through to the ordinary unmapped-files path. */
+  unmatched: string[];
+  /**
+   * A matching type's `when` could not be evaluated on this file (e.g. a
+   * content predicate on an oversized file) — one entry PER FILE (not per
+   * type: every unreadable type on the same file shares the same underlying
+   * FileContentCache read, so the readability verdict — and therefore
+   * `reason`/`kind` — is identical across all of them; `typeIds` names every
+   * type that could not be evaluated).
+   */
+  unreadable: Array<{ file: string; typeIds: string[]; reason: string; kind: 'read' | 'too-large' }>;
+}
+
+/** classifySingleFile's outcome for one file — the same five buckets computeTypeCoverage sorts a whole file list into, named here so a caller answering about ONE file (yg owner, yg context --file) never needs the whole-repo classification map just to get its own answer. */
+export type SingleFileClassification =
+  | { bucket: 'covered'; typeId: string }
+  | { bucket: 'ambiguous'; typeIds: string[] }
+  | { bucket: 'strict'; strictTypeId: string }
+  | { bucket: 'unmatched' }
+  | { bucket: 'unreadable'; typeIds: string[]; reason: string; readKind: 'read' | 'too-large' };
+
+/**
+ * Classify ONE file against the architecture: the per-file body of
+ * `computeTypeCoverage`'s own loop, extracted so a caller that only needs one
+ * file's answer never pays for classifying every uncovered file in the repo.
+ * Does not consult `coverage.excluded` — that is a whole-repo-scan concern;
+ * a caller answering about one path (already resolved against a real file)
+ * applies its own exclusion guard first.
+ *
+ * `classCache`, when supplied, is reused as-is (the shape `computeTypeCoverage`'s
+ * own loop below relies on, passing the SAME instance to every file so the
+ * architecture-predicate hash is computed once for the whole run). Omitted ⇒
+ * a live, uncached classification — no disk read or write beyond the ordinary
+ * `evaluateFileWhen`/`FileContentCache` content reads — exactly as if the
+ * type-classification cache did not exist. This function stays pure by
+ * default deliberately: a TypeClassCache is not like the FileContentCache
+ * parameter above (an in-memory read cache that never writes anything) — using
+ * one genuinely writes a JSON shard to disk on every cache miss, a durable
+ * side effect outside this process. Whether a given call can ever touch disk
+ * beyond the ordinary file reads every classification already does must be
+ * readable off the function's own name, not discovered by tracing whether
+ * every optional argument happened to be passed — so a cache is never
+ * silently constructed just because a caller left one out. A REAL caller
+ * that wants the persistent on-disk cache calls `classifySingleFileCached`
+ * instead — same signature, minus `classCache`, opted in by name rather than
+ * by an argument's absence.
+ *
+ * This boundary is a naming convention, not a type-level guarantee: nothing
+ * stops a future call site from typing the shorter, more discoverable bare
+ * name here (or on `computeTypeCoverage` below) and silently losing the
+ * cache. Rather than widen this function's own signature to make the cache
+ * a required parameter — which would force every existing caller, including
+ * this file's own two Cached wrappers, to thread a cache instance it may not
+ * have handy — the boundary is enforced by enumeration instead: a unit test
+ * (`tests/unit/core/type-coverage.test.ts`, "the cache boundary is enforced
+ * by enumeration, not just by convention") scans every production source
+ * file for a direct call to either bare function and fails if one exists
+ * outside this file, where the two Cached wrappers below do the wiring. A
+ * new direct call anywhere else fails that test on sight, before it can ship
+ * as a silent perf regression — a cheaper guarantee than a required
+ * parameter, at the cost of only firing when that test is run.
+ */
+export async function classifySingleFile(
+  graph: Graph,
+  file: string,
+  cache: FileContentCache,
+  classCache?: TypeClassCache,
+): Promise<SingleFileClassification> {
+  const projectRoot = path.dirname(graph.rootPath);
+  const absPath = path.join(projectRoot, file);
+  const classification = await classifyFile(absPath, file, graph, cache, classCache);
+
+  if (classification.unreadable.length > 0) {
+    const [first] = classification.unreadable;
+    return {
+      bucket: 'unreadable',
+      typeIds: classification.unreadable.map((u) => u.typeId),
+      reason: first.reason,
+      readKind: first.kind,
+    };
+  }
+
+  const strictMatches = classification.matches.filter(
+    (m) => graph.architecture.node_types[m.typeId]?.enforce === 'strict',
+  );
+  if (strictMatches.length > 0) return { bucket: 'strict', strictTypeId: strictMatches[0].typeId };
+
+  if (classification.matches.length === 1) return { bucket: 'covered', typeId: classification.matches[0].typeId };
+  if (classification.matches.length >= 2) {
+    return { bucket: 'ambiguous', typeIds: classification.matches.map((m) => m.typeId) };
+  }
+  return { bucket: 'unmatched' };
+}
+
+/**
+ * Compute the type-level classification lattice over a list of already-
+ * uncovered files (files no node mapping owns). The only I/O is file content
+ * reads performed through classifyFile/FileContentCache, plus a content hash
+ * per file and a best-effort cache read/write through classifyFile/
+ * TypeClassCache; no other filesystem or network access.
+ *
+ * `classCache`, when supplied, is used as-is and reused for every file in
+ * `uncoveredFiles` (the architecture-predicate hash it folds in its
+ * constructor is computed ONCE, not once per file). Omitted ⇒ a live,
+ * uncached classification of every file — see `classifySingleFile`'s own doc
+ * for why this stays the pure default rather than silently constructing a
+ * cache. `computeTypeCoverageCached` is the opt-in wrapper real callers use.
+ *
+ * For each file, in order:
+ *   1. Under a coverage.excluded root -> skipped ENTIRELY. Not classified at
+ *      all — contributes to none of the five buckets, exactly like it
+ *      contributes to no other coverage issue today.
+ *   2. classifyFile reports >=1 type whose `when` could not be evaluated
+ *      (e.g. a content predicate on a file over the 5MB scan limit) ->
+ *      `unreadable` (one entry per FILE, naming every unreadable type). The file is never
+ *      silently treated as covered, ambiguous, or unmatched on the strength
+ *      of whatever else it might have matched — mirroring the strict
+ *      backward scan's own fail-closed handling of an unreadable file.
+ *   3. >=1 STRICT type matched -> `strictClaimed`. Whether that is exactly
+ *      one strict match or two-or-more (an architecture-level strict-overlap
+ *      conflict) is the strict backward scan's own concern; either way this
+ *      lattice must not also call the file ambiguous or covered.
+ *   4. Exactly one non-strict type matched (no strict match) -> `covered`.
+ *   5. 2+ non-strict types matched (no strict match) -> `ambiguous`.
+ *   6. No type matched at all -> `unmatched`.
+ *
+ * Caller contract: invoke only when graph.config.coverage?.typeLevel is true
+ * (coverage.type_level is committed-only — see CoverageConfig.typeLevel); with
+ * the flag off, callers never reach this function, so classification cost and
+ * the `.yggdrasil/`-auto-exempt behavior classifyFile already applies (routed
+ * through here on every call — never bypassed) are paid only when opted in.
+ */
+export async function computeTypeCoverage(
+  graph: Graph,
+  uncoveredFiles: string[],
+  cache: FileContentCache,
+  classCache?: TypeClassCache,
+): Promise<TypeCoverageResult> {
+  const result: TypeCoverageResult = {
+    covered: new Map(),
+    ambiguous: [],
+    strictClaimed: [],
+    unmatched: [],
+    unreadable: [],
+  };
+
+  const coverage = graph.config.coverage!; // caller contract: only invoked when typeLevel is true, which requires a coverage block
+
+  for (const file of uncoveredFiles) {
+    if (isExcludedByCoverage(file, coverage)) continue;
+
+    const c = await classifySingleFile(graph, file, cache, classCache);
+    switch (c.bucket) {
+      case 'unreadable':
+        result.unreadable.push({ file, typeIds: c.typeIds, reason: c.reason, kind: c.readKind });
+        break;
+      case 'strict':
+        result.strictClaimed.push({ file, strictTypeId: c.strictTypeId });
+        break;
+      case 'covered':
+        result.covered.set(file, c.typeId);
+        break;
+      case 'ambiguous':
+        result.ambiguous.push({ file, typeIds: c.typeIds });
+        break;
+      case 'unmatched':
+        result.unmatched.push(file);
+        break;
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Constructs a persistent `TypeClassCache` for this graph (its only two
+ * inputs, root path and architecture, are already both right here on
+ * `graph`) and delegates to `classifySingleFile` with it — the one-file
+ * counterpart to `computeTypeCoverageCached` below. This is the call a REAL
+ * single-file command (`yg owner --file`, `yg context --file`,
+ * `yg aspect-test --file`) makes; `classifySingleFile` itself stays
+ * cache-free by default (see its own doc).
+ */
+export async function classifySingleFileCached(
+  graph: Graph,
+  file: string,
+  cache: FileContentCache,
+): Promise<SingleFileClassification> {
+  const classCache = new TypeClassCache(path.dirname(graph.rootPath), graph.architecture);
+  return classifySingleFile(graph, file, cache, classCache);
+}
+
+/**
+ * Constructs a persistent `TypeClassCache` for this graph and delegates to
+ * `computeTypeCoverage` with it, ONE instance reused for the whole scan (not
+ * once per file). This is the call every REAL whole-repo classification site
+ * makes — `yg check`, `yg check --approve`, `yg context`, `yg advise`,
+ * `yg aspects`, `yg impact`, `yg structure`, `yg tree`, `yg find`,
+ * `yg suppressions`, `yg aspect-test`, and the portal — so every one of them
+ * gets the persistent on-disk cache without hand-constructing a
+ * `TypeClassCache` at each call site. `computeTypeCoverage` itself stays
+ * cache-free by default (see its own doc, and `classifySingleFile`'s fuller
+ * one, for why: a `TypeClassCache` write is a durable side effect on the
+ * real filesystem, unlike the `FileContentCache` these functions already
+ * take unconditionally, so whether a call can ever touch disk must be
+ * readable off the function's own name rather than discovered by tracing
+ * which optional argument happened to be passed) — a caller that wants a
+ * live, uncached answer calls that instead, and never triggers a disk write
+ * it did not ask for.
+ */
+export async function computeTypeCoverageCached(
+  graph: Graph,
+  uncoveredFiles: string[],
+  cache: FileContentCache,
+): Promise<TypeCoverageResult> {
+  const classCache = new TypeClassCache(path.dirname(graph.rootPath), graph.architecture);
+  return computeTypeCoverage(graph, uncoveredFiles, cache, classCache);
+}

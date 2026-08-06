@@ -1,0 +1,15 @@
+version: "5.2.0"
+
+# The one committed fixture with coverage.type_level ON that a portal
+# extraction ever runs against. Deliberately small: one node-owned file, one
+# type-covered file carrying a REAL deterministic refusal, one type-covered
+# file matched by a type with NO rule at all (zero enforcement), one
+# excluded-root file — enough to prove the portal renders all three
+# differently: a checked type-covered file is never called an unguarded gap,
+# and an unchecked one is never called satisfied.
+coverage:
+  required:
+    - src/
+  excluded:
+    - vendor/
+  type_level: true

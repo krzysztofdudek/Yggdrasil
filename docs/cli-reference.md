@@ -34,7 +34,32 @@ yg context --file <file-path>
 - `--file <path>` — Resolves the owning node automatically, then assembles context. Prints
   owner mapping to stderr. If the file has no graph coverage but other files in the same
   directory are mapped, lists candidate nodes with file counts and a hint to use `--node`.
-  Exits 1 if no coverage. Mutually exclusive with `--node`.
+  Exits 1 if no coverage. Mutually exclusive with `--node`. Under `coverage.type_level`, a
+  file with no owning component but a matched architecture type gets a typed view instead
+  of the not-covered error (exit 0): the matched type, where its inherited chain stops and
+  why, the rules that apply (each tagged with its real status — `[enforced]` or
+  `[advisory]`, never a blanket `[enforced]` for a rule that only warns, plus `, unverified`
+  appended to either tag whenever the lock does not currently hold a valid verdict for that
+  rule — the same fact plain `yg check`'s own qualified "unverified" count carries for the
+  identical pair, so `[enforced]` alone is never read as "already verified"), the rules
+  attached to the type that do not (each with its reason), a note that dependency conditions
+  come from imports (never events, listens, or ports), and how to give the file a component
+  of its own. When literally nothing applies, it says so plainly instead of silently
+  omitting the "Must satisfy" section.
+
+  ```text
+  $ yg context --file src/handlers/capturePayment.ts
+  src/handlers/capturePayment.ts
+    Owner: type:handler
+
+    Matched type: handler
+    inherited rules stop at 'handler' — it has no parent type to inherit from
+
+    Must satisfy:
+
+      validates-input [enforced, unverified] — Every handler must validate its request body before acting on it
+        read: .yggdrasil/aspects/validates-input/check.mjs
+  ```
 
 The node view also reports, per effective aspect, how many files form its subject
 set (including `0 files — vacuous` when a `scope.files` filter excludes everything),
@@ -85,7 +110,7 @@ yg impact --type <id>
 
 - `--node` — Reverse dependencies, descendants, structural dependents of descendants, flows, aspects, and co-aspect nodes
 - `--file` — Resolve owner, then report a precise `Total to re-verify` block for the edit (its own output, not the `--node` summary). Also reflects deterministic checks whose recorded observations touched this file (cross-node impact), and marks a pair with no lock entry yet as one that *may* observe it. Runs the companion resolver for cold companion-backed pairs (no LLM call). Editing a `.yggdrasil/` graph file redirects to `yg impact --aspect <id>`. A companion whose hook fails appears under `Unresolved`.
-- `--aspect` — All nodes where this aspect is effective (own, hierarchy, flow, or implied), plus structural dependents of affected nodes — the pairs an edit to its rule, description, references, scope, tier, or `companion.mjs` would re-verify. Editing `companion.mjs` re-verifies every pair of the aspect (billed, not free); editing a resolved companion file re-verifies only the pairs that read it (also billed). `--file <companion-file>` reflects this fan-out via the lock's `touched` observations.
+- `--aspect` — All nodes where this aspect is effective (own, hierarchy, flow, or implied), plus structural dependents of affected nodes — the pairs an edit to its rule, description, references, scope, tier, or `companion.mjs` would re-verify. Editing `companion.mjs` re-verifies every pair of the aspect (billed, not free); editing a resolved companion file re-verifies only the pairs that read it (also billed). `--file <companion-file>` reflects this fan-out via the lock's `touched` observations. On a type-covered project, the cost line also counts files enforced by the aspect's architecture type alone (no owning node) — named separately, since "Directly affected" itself only lists components.
 - `--flow` — All participants and their descendants, plus structural dependents of participants
 - `--type <id>` — All nodes of that architecture type and their source files. Useful
   before adding a default aspect to a type — see how many nodes would be affected.
@@ -283,6 +308,7 @@ status semantics):
 | `prompt-too-large` | error | Assembled LLM prompt exceeds the resolved tier's `max_prompt_chars`. Takes precedence over `unverified`; `--approve` skips the pair. |
 | `lock-invalid` | error | A lock file is unparseable, garbled, conflict-markered, or an unknown version — fail closed. |
 | `relation-undeclared-dependency` | error (always) | Built-in relation-conformance check — a component depends on another component's code without a declared relation. Not an aspect: no status, not suppressible. Fix by declaring the relation in `yg-node.yaml` or removing the dependency. |
+| `type-relation-forbidden` | error (always) | With `coverage.type_level` on — a statically-resolved import between two classified endpoints (an explicit node and/or a type-covered file) has no relation type the architecture allows between their two node types. Additive to `relation-undeclared-dependency`, for the case that check cannot see: a type-covered endpoint has no `yg-node.yaml` to declare a relation in. Not an aspect, never cached. See [Relations, flows & ports](/relations-flows-ports#the-same-gate-widened-to-type-covered-files). |
 | `structural-cycle` | error (always) | The declared structural relations (`calls` / `uses` / `extends` / `implements`) form a cycle — including a component relating to itself. Not an aspect: no status, not suppressible. Break the cycle (extract the shared piece into a third component) rather than declaring a mutual dependency. |
 | `aspect-check-runtime-error` | error (`--approve` only) | A `check.mjs` failed to import or threw at fill time — fail closed, no verdict written. |
 | `aspect-companion-runtime-error` | error (`--approve` only) | A `companion.mjs` failed to resolve/run at fill time (threw, returned a bad shape, resolved a missing or out-of-reach path, or observations stayed inconsistent) — fail closed, no verdict written; plain `yg check` shows the pair as unverified. |
@@ -295,7 +321,9 @@ status semantics):
 | `aspect-review-by-malformed` | error | A rule's `review_by:` is present but not a calendar-valid bare `YYYY-MM-DD` date (`2027-13-01`, `2027-02-30`). Fired only on the rule that carries the field. |
 | `aspect-review-overdue` | warning | A rule's standing `review_by:` date has passed — it is running unreviewed. Status-independent; never writes a verdict and never blocks. Renew or retire the rule; never change the date without the owner's approval. |
 | `rules-digest-stale` | warning | The committed agent-rules digest (the `AGENTS.md` block, `.clinerules/yggdrasil.md`, or the `CLAUDE.md` `@AGENTS.md` import) is missing, hand-edited, from an older CLI, or duplicated. Never cached, never suppressible — recomputed live on every check. Fix: `yg init --upgrade`. |
-| `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components. Fix by correcting the attach sites / `when`, or set `status: draft` until the component or type it targets exists. |
+| `coverage-required-shadowed` | warning | A plain (non-glob) `coverage.required` root sits entirely inside a plain `coverage.excluded` root — exclusion is absolute, so every file under that required root is silenced before the required/advisory split ever runs, and the required line can never make anything block. Fix: remove the required line, or narrow the excluded root so it no longer contains it. |
+| `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components, OR — under `coverage.type_level` — while it could actually run (a `per: file` rule, not a whole-unit one) on at least one file enforced by its architecture type alone; a whole-unit rule stays reported dead even once a file matches its type, since it can never produce a verdict there. Usually fixed by correcting the attach sites / `when`, or setting `status: draft` until the component or type it targets exists — but when the rule is whole-unit and the type's only instances are such type-covered files, there is no `when` at fault: give a matching file a component of its own, or make the rule file-level. When the type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`, and points at `yg check` and the aspect files. |
+| `architecture-default-aspect-unreachable` | warning | An architecture type's own default rule is effective on zero instances OF THAT TYPE, even though the rule may be live on other types — its own `when` (or the attach-site `when`) filters it back off the exact type that declares it. Silent while the type has no instances at all; under `coverage.type_level`, a file enforced by the type alone counts as an instance, but only lets a `per: file` default count as reached there — a whole-unit default stays reported unreachable. Usually fixed by widening/removing the `when` so it reaches the type, or dropping the default if it should not apply there — but when the type's only instances are such type-covered files and the default is whole-unit, there is no `when` at fault: give a matching file a component of its own, or make the default file-level. When that type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`. |
 
 ### `yg log`
 
@@ -321,10 +349,17 @@ yg log merge-resolve --node <path>
   `--all` shows the full history. `--top` and `--all` are mutually exclusive. Use this
   before editing a node to understand past decisions.
   - `--with-verdicts` — Interleave the node's own recent verification events with its
-    log entries, newest first, under a `local telemetry since <timestamp>` header.
-    The events come from a local, gitignored telemetry sidecar written during
-    `yg check --approve`; only the node's own fill outcomes are shown (keyed by the
-    node itself or by one of its mapped files). Unknown or malformed lines are
+    log entries, newest first, under a `local telemetry since <timestamp>` header. The
+    events come from a local, gitignored telemetry sidecar written during
+    `yg check --approve`, unioned with any events a committed shared stream contributes
+    (older CLIs wrote verdicts there before the sidecar existed; when it contributes,
+    a second line reports how many events and why). Only the node's own fill outcomes
+    are shown — attributed by REAL ownership, the same hierarchy-first,
+    exclusion-aware answer `yg owner --file` gives, never by whether a path merely
+    falls inside one of the node's mapping strings: a directory-mapping ancestor's
+    mapping text also textually covers a descendant's own file, and text has no
+    notion of an exclusion, so neither a descendant's event nor an excluded file's
+    event is ever attributed to an ancestor. Unknown or malformed lines are
     tolerated and skipped. If the sidecar is unexpectedly committed (git-tracked),
     the header says so and drops the "local" label — a tracked sidecar is shared
     history, not local-only telemetry.
@@ -361,6 +396,31 @@ yg tree [--root <path>] [--depth <n>]
 - `--root <path>` — Show only subtree rooted at this path
 - `--depth <n>` — Maximum depth
 
+With `coverage.type_level` on, a summary line follows the node listing naming
+how many files are satisfied by the type-level lattice with no component of
+their own (never a synthetic tree entry — the listing above still renders
+nodes only). The count is always repo-wide: a type-covered file has no place
+in the graph hierarchy for `--root` to scope it to, so narrowing `--root` adds
+an explicit "repo-wide" note to the line rather than fabricating a scoped
+count. The total splits into how many are actually checked by at least one
+rule, how many matched a type with nothing that applies, and — only when it
+occurs — how many hit an aspect `implies` cycle that stopped their type's
+rules from ever being resolved, so a bare "N files satisfied" can never be
+misread as "N files enforced." The "checked by at least one rule" count
+further names, in parentheses, how many of those files have no CURRENT valid
+lock entry for at least one of their rules — a real re-verification (the same
+per-pair check `yg check` itself runs, scoped to just this listing's own
+nodeless pairs rather than a second whole-project pass), so it catches a rule
+whose recorded verdict has gone stale since a source edit exactly the way `yg
+owner --file` and `yg context --file` do (see those commands below), not only
+one the lock has never recorded at all. Absent entirely when the flag is off.
+
+```text
+$ yg tree
+...
+6 files are satisfied by the type-level lattice, no component of their own: 3 checked by at least one rule (3 with no recorded verdict for at least one of its rules), 3 with nothing that applies.
+```
+
 ### `yg structure`
 
 A read-only structural dashboard over the graph. It reports the shape of your
@@ -386,11 +446,30 @@ instrument, not a gate: it never reads or writes the lock, never calls a
 reviewer, and always exits `0` as long as the graph loads — even when `yg check`
 is red. It fails only when there is no graph to load.
 
+With `coverage.type_level` on, the universe widens: every statically-resolved
+import edge touching a type-covered file joins it too (named by the file's own
+path, since it has no node id), and the change-reach caption says "component or
+type-covered file" instead of "component" so the wording never misnames a file.
+The Modules heading widens the same way, from "component groups" to "groups of
+components and type-covered files", whenever the project has at least one
+type-covered file at all — not only once one actually turns up among the
+rendered groups, so the widened heading can print over "No dependencies
+between groups yet." too, with zero groups shown. The
+Tunnels ranking measures a type-covered file at a fixed, shallow depth rather
+than the file's own on-disk directory nesting, so a deeply-nested file's edge
+can no longer crowd out a genuine cross-module dependency purely because the
+file happens to live many directories down. A malformed `when:` predicate (an
+invalid regex, for example) degrades this widening to the node-only view
+rather than crashing the command — flag off (or zero type-covered files) is
+byte-identical to today's node-only view.
+
 ### `yg find`
 
-Natural-language search across nodes and aspects (flows are not indexed). Returns results
-ranked by relevance. Each result shows the `score`, the `Kind` (node/aspect), and a short
-`Description`. Node results also print a `Type:` line; aspect results print a `status:` line.
+Natural-language search across nodes, aspects, and — with `coverage.type_level` on —
+type-covered files (flows are not indexed). Returns results ranked by relevance. Each result
+shows the `score`, the `Kind` (`node` / `aspect` / `file`), and a short `Description`. Node
+and file results also print a `Type:` line (a node's own type, or a type-covered file's
+matched classifying type); aspect results print a `status:` line.
 A `Matched:` line lists the query terms that matched (deduplicated and capped to the
 first few, with a `(+N more)` suffix when the full set is longer).
 
@@ -407,6 +486,17 @@ closely-clustered scores mean the query is ambiguous, so confirm the top
 candidate with `yg context` before relying on it. Flows are not in the index — to
 find a flow, use `yg flows`.
 
+With `coverage.type_level` on, a file satisfied by the type-level lattice (no
+node of its own) is also searchable — its `Kind` prints `file`, its `Type:`
+line names the matched classifying type, and its `Description` is that type's
+own description (types carry required descriptions). `yg find` prints one
+terminal `Next:` line for the whole search, drawn from the single top-ranked
+result: when that result is a type-covered file, `Next:` points at
+`yg context --file <path>`, never `yg context --node` — a type-covered file
+has no `yg-node.yaml` to look up. When a node or an aspect outranks the file,
+the file still appears in the list with its own `Kind`/`Type`/`Description`,
+but `Next:` follows the higher-ranked entry instead.
+
 ### `yg aspects`
 
 Lists all defined aspects with metadata.
@@ -421,7 +511,10 @@ Output: a custom human-readable line format (not YAML). Each aspect renders as a
 description is set — there is no separate `name` field), followed by a `Reviewer:` line (for
 `llm` reviewers it also shows the tier), a usage line `Used by: N nodes
 (architecture/direct/implied/flow)` — or `Used by: 0 nodes — orphaned` when nothing references
-it — and an `Implies:` line when the aspect implies others.
+it — and an `Implies:` line when the aspect implies others. Under `coverage.type_level`, a rule
+reaching files only through an architecture type (no owning component) is never called orphaned:
+the line instead reads `Used by: 0 nodes, N type-covered file(s)` (for example, `Used by: 0 nodes,
+3 type-covered files`), or names the type-covered count alongside the node count when both apply.
 
 `--health` switches to a per-aspect health table: one row per aspect showing its kind
 (`llm` / `deterministic` / `aggregate`), status, review surface (`nodes` and `pairs`),
@@ -437,18 +530,25 @@ plain-words read of how confident that ratio is (few observations reads as a wid
 range, never a false-precise number), and a `label` — `active`, `quiet`, or `decorative?`. A
 `decorative?` rule whose own examples still pass is reported as *possibly deterring the very
 violations it would catch* rather than assumed useless; a demotion is only ever suggested when
-several independent signals agree, never on the catch count alone. The last column, `fp`, is the
+several independent signals agree, never on the catch count alone. The `fp` column is the
 false-block signal — how many of the rule's refusals a human later waived or overturned (a live
 `yg-suppress` waiver now covers the refused code, or the block was re-approved after a waiver moved
 rather than a genuine code fix; a real fix, with no waiver, never counts). It is a count with a
 plain-words small-sample label, never a bare rate, and it never gates — it feeds a human retirement
-ritual (the false-block budget), never an automatic block. The final column, `wrong-rule`, is the
+ritual (the false-block budget), never an automatic block. The `wrong-rule` column is the
 per-rule incident join: how many committed `wrong-rule` incidents name **this** rule via
 [`yg incident add --aspect`](#yg-incident), rendered as an honest count with a `(thin data)` label
 because incident testimony is sparse and qualitative (there is no exposure denominator to grow out of
 thin-ness). A `wrong-rule` incident recorded **without** `--aspect` counts in the `yg advise`
 aggregate but never surfaces per-rule here — the ledger read runs only in this view and never
-influences a verdict. When
+influences a verdict. A `files` column appears after `wrong-rule` only once `coverage.type_level`
+is on: how many distinct type-covered files — files enforced by the aspect's architecture type
+alone, with no owning component — have a review pair for the rule. With the tier off, the column
+is absent entirely (not a column of zeros or dashes) — the question was never asked, so no cell
+claims an answer. With the tier on, the count is real and may legitimately read `0`. `nodes` above
+counts only real components, but `pairs` and `refused` already count node-owned and type-covered
+pairs together, matching the same universe `yg check` reports on — `files` is that breakdown, not
+a separate universe. When
 units have no valid result on record the `refused` cell reads `unverified`, never `0`, so an
 unchecked aspect is never shown as clean; likewise `age` reads `unknown` when that history is
 unavailable (a shallow clone or no repository), never a fabricated `0`. These lookups run
@@ -470,7 +570,7 @@ own words, a case name, a file and line, shown in quotes with their source, neve
 instruction) — and the exact next step, which always ends by noting it needs your approval.
 
 The nomination classes, highest priority first. The first five rest on the graph as it stands;
-the next four are read from local history and carry an honesty label while the evidence is thin;
+the next five are read from local history and carry an honesty label while the evidence is thin;
 the last two are whole-codebase observations:
 
 1. **A regression case a rule no longer catches** — a `violates-*` drill case the rule now lets through.
@@ -482,8 +582,9 @@ the last two are whole-codebase observations:
 7. **Sharpen an inconsistently-judged rule** — the reviewer disagrees with itself on it.
 8. **A rule that has never once caught a violation** — reported as *possibly deterring* what it would catch, never assumed useless.
 9. **An uncovered hot spot** — a component whose files change often yet carry no enforced rule: the code most in motion with the least protection.
-10. **A candidate rule family** — see below.
-11. **An architecture cut** — see below.
+10. **A churning file the type tier alone carries** — with `coverage.type_level` on, a file with a matched architecture type but no component of its own has no node-level rule that can ever attach to it. This proposes giving such a file a component once TWO conditions both hold: it appears in at least two of the last 200 commits — the window this reads from git history; a file whose edits fall outside that window, or whose history is hidden by a rename or a merge, reads as unchanged here even though it was genuinely edited — and its matched type genuinely enforces something on it — a file whose matched type enforces nothing is simply uncovered, not carried by the type tier, so it does not appear here either. Within this class, items are ranked by how much they have churned — the busiest file first, never alphabetically. Two or more such files of the same type that import each other, both meeting these same two conditions, upgrade the evidence from one busy file to a cluster naming every file in it. On a shallow clone or a directory with no git history at all, this class reads as nothing to report rather than as no churn: there is no history to count from, so it stays silent rather than guessing — the same honest silence a CI checkout with a truncated fetch depth sees by default.
+11. **A candidate rule family** — see below.
+12. **An architecture cut** — see below.
 
 The lowest-priority suggestions include two whole-codebase observations: a **candidate rule
 family** — a tight group of near-identical files sharing no rule of their own, offered with a
@@ -573,9 +674,28 @@ Output: a custom human-readable line format (not YAML) with fields: `name`, `nod
 
 Finds which node owns a given file. Path is relative to repository root.
 Quick ownership check — use `yg context --file` when you need the full context package.
+Under `coverage.type_level`, an unmapped file with a matched architecture type answers
+with the type instead of reporting no graph coverage — and, when that type attaches at
+least one rule that actually runs on this file, says it is enforced by the type rather than
+a component. When the matched type has nothing that can run at file granularity, it says
+that plainly instead — never the enforcement claim. When it does say a rule is enforced,
+it re-verifies each of that file's own rules against the lock the same way `yg check`
+verifies every pair (never a second whole-project pass — this command already walks the
+whole project once to classify the file), and names how many currently have no valid
+recorded verdict — a rule the lock has never seen at all, or one whose recorded verdict
+has gone stale since a source edit, either way: "enforced by architecture" is never read
+as "already verified."
 
 ```bash
 yg owner --file <path>
+```
+
+```text
+$ yg owner --file src/handlers/capturePayment.ts
+src/handlers/capturePayment.ts -> type:handler
+  Enforced by its architecture type, not by a component (1 of 1 rule unverified — no valid verdict is currently on record for it).
+No node maps this file; every rule its matched type attaches still applies, or is honestly reported as attached but not enforced.
+yg context --file src/handlers/capturePayment.ts
 ```
 
 ### `yg suppressions`
@@ -628,6 +748,11 @@ match the path pattern. If the file exists, runs the full `when` predicate (path
 content). If multiple types match, the architecture has overlapping `when` rules that
 need disambiguating. If no type matches, shows the closest types by satisfied-fraction
 to help you choose where to move or refactor the file.
+
+If a type's `when` includes a `content:` predicate and the file is over the 5MB
+content-scan limit, that type's rule could not actually be checked at all — it is
+listed separately as "Could not be evaluated" rather than folded into an ordinary
+non-match, since the rule was never applied rather than applied and failed.
 
 ### `yg portal`
 
@@ -695,9 +820,9 @@ yg schemas read node
 
 | Command                                                          | Purpose                               |
 |------------------------------------------------------------------|---------------------------------------|
-| `yg aspect-test --aspect <id> --node <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
+| `yg aspect-test --aspect <id> --node <path>` / `--file <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
 | `yg drill --aspect <id>`                                         | Replay a rule over its `drills/` case corpus (`violates-*` must refuse, `satisfies-*` must pass); never writes the lock |
-| `yg simulate <candidate> --node <path>`                          | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
+| `yg simulate <candidate> --node <path>` / `--file <path>`        | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
 
 ### `yg drill`
 
@@ -710,6 +835,7 @@ sharpening a rule, not a sensitivity measurement; the lock is never written.
 yg drill --aspect no-direct-minimatch              # the in-repo corpus
 yg drill --aspect no-direct-minimatch --case 'violates-*/**'
 yg drill --aspect no-direct-minimatch --dir ../holdout --corpus holdout-v1
+yg drill --aspect has-doc-comment --dir ../holdout-nodeless --nodeless --corpus nodeless-v1
 ```
 
 Each case resolves to `pass`, `MISS` (a `violates-*` case the rule failed to
@@ -718,6 +844,12 @@ a check error or an over-limit prompt), or `unsupported` (the rule needs context
 a single-file drill cannot supply). Deterministic drills run locally and free; an
 LLM aspect goes through the real reviewer and bills it (the call budget prints
 first). Exit `1` on any MISS/FALSE-ALARM, else `2` on any unrun, else `0`.
+
+`--nodeless` assembles every LLM case's prompt WITHOUT a node — the shape a
+real file enforced by its architecture type alone (no owning component)
+receives from the reviewer, instead of the default synthetic node every other
+drill case carries. It has no effect on a deterministic aspect (its check runs
+over case files regardless).
 
 Failure output shows only the case label, content hashes, and pass/fail — never
 the case source. `yg drill` writes one thing: a local, gitignored results log
@@ -728,8 +860,9 @@ requirement — a missing corpus never blocks `yg check`.
 
 ### `yg aspect-test`
 
-Runs a single aspect — deterministic or LLM — against a node or an explicit file
-list, and prints the result. It is a **diagnostic**: it always runs live and never
+Runs a single aspect — deterministic or LLM — against a node, a file enforced by
+its architecture type alone (no owning component), or an explicit file list, and
+prints the result. It is a **diagnostic**: it always runs live and never
 writes the lock, so use it freely while authoring a rule. Every run carries a
 one-line verdict stamp `yg aspect-test: satisfied|refused|incomplete|dry-run` —
 leading on deterministic runs, as a trailing summary after the per-unit verdict
@@ -748,6 +881,7 @@ an enforced one (drafts stay dormant only in `yg check` / `--approve`). Use
 
 ```bash
 yg aspect-test --aspect <id> --node <node-path>
+yg aspect-test --aspect <id> --file <path>
 yg aspect-test --aspect <id> --files <path> [<path2> ...]
 yg aspect-test --aspect <id> --node <node-path> --check-determinism
 yg aspect-test --aspect <id> --node <node-path> --dry-run
@@ -760,8 +894,16 @@ yg aspect-test --aspect <id> --node <node-path> --tier <name>
   `ctx` (its own files plus, via declared relations, related nodes' files and metadata). The
   allow-list is a read *discipline* that scopes which files count as observations — not a
   security sandbox; `check.mjs` runs with full Node privileges.
-- `--files <paths...>` — Run against an explicit file list (deterministic aspects). Useful
-  for ad-hoc testing before wiring the aspect into the graph.
+- `--file <path>` — Run against a file enforced by its architecture type alone (`coverage.type_level`,
+  no owning component), with an architecture-derived read allowance in place of a node mapping: what
+  the matched type's `relations:` allow-list permits it to depend on, computed the same way a live
+  `check --approve` fill computes it for this kind of unit. Refused when the path already has a
+  component (use `--node` instead) or does not classify to exactly one non-strict architecture type
+  (the refusal names which). Mutually exclusive with `--node` and `--files`.
+- `--files <paths...>` — Run against an explicit file list with **no graph attachment at all**
+  (deterministic aspects only) — no node mapping, no architecture classification, no `ctx.node` /
+  `ctx.graph`. Useful for ad-hoc testing before wiring the aspect into the graph. Do not confuse with
+  `--file` (singular): that one *is* graph-attached, to a file's architecture type.
 - `--check-determinism` — (deterministic) Runs the check twice and exits 1 if the violation
   sets differ (lexically sorted), catching side effects and machine-dependence in `check.mjs`.
 - `--dry-run` — (LLM) Runs the companion hook live (if present), then prints the resolved companion

@@ -5,15 +5,20 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { computeEffectiveAspects, inferAspectDisplayKind } from '../core/graph/aspects.js';
+import { computeTypeAspectCascade, isReachableForTypeCoveredFile } from '../core/type-effective.js';
+import type { TypeCoverageInput } from '../core/pairs.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 import type { Graph, AspectStatus, AspectDef } from '../model/graph.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyLock } from '../core/verify-lock.js';
 import type { VerifiedPair } from '../core/verify-lock.js';
-import { walkRepoFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runSuppressionsScan } from '../portal/api/suppress-scan.js';
 import type { SuppressionsReport } from '../portal/api/suppress-scan.js';
 import { resolveSuppressedUnitsByAspect } from '../portal/api/suppress-coverage.js';
-import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
+import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
 import { getFirstCommitTimestamp } from '../utils/git.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
@@ -37,13 +42,30 @@ interface AspectUsage {
   own: number;
   implied: number;
   flow: number;
+  /** Real component nodes using this aspect — architecture + own + implied + flow. Never includes typeCovered below (a file is not a node). */
   total: number;
+  /**
+   * Files enforced by their architecture type alone (no owning component) —
+   * counted separately from `total` so a caller never mislabels a FILE as a
+   * "node" the way `total` names them. A rule live only through this count is
+   * still real, enforced law (`yg check` reports it enforced); it must never
+   * read as unused just because `total` (node usage) is zero.
+   */
+  typeCovered: number;
 }
 
-export function computeAspectUsage(graph: Graph): Map<string, AspectUsage> {
+/**
+ * `typeCoverage`: the type-level classification (coverage.type_level),
+ * optional — absent ⇒ today's behavior exactly (typeCovered stays 0 on every
+ * aspect, byte-identical to before the tier existed). Present ⇒ a file
+ * enforced by its architecture type alone is counted too, so a rule reachable
+ * ONLY that way is never reported as unused (0 nodes) when `yg check` already
+ * treats it as live.
+ */
+export function computeAspectUsage(graph: Graph, typeCoverage?: TypeCoverageInput): Map<string, AspectUsage> {
   const usage = new Map<string, AspectUsage>();
   for (const aspect of graph.aspects) {
-    usage.set(aspect.id, { architecture: 0, own: 0, implied: 0, flow: 0, total: 0 });
+    usage.set(aspect.id, { architecture: 0, own: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 });
   }
 
   for (const [, node] of graph.nodes) {
@@ -73,15 +95,44 @@ export function computeAspectUsage(graph: Graph): Map<string, AspectUsage> {
     }
   }
 
+  // Files enforced by their architecture type alone: the SAME reachability
+  // rule the dead-attach linters use (isReachableForTypeCoveredFile) — a
+  // whole-unit (per: node) rule is cascade-effective yet has no component to
+  // run on for a nodeless file, so it must not count as used there. A cascade
+  // that could not be resolved at all (an implies cycle) contributes nothing
+  // here; the dead-attach linters name that cause on their own path.
+  for (const [file, typeId] of typeCoverage?.covered ?? []) {
+    let cascade;
+    try {
+      cascade = computeTypeAspectCascade(graph, file, typeId, typeCoverage?.edges);
+    } catch (error) {
+      // An unexpected structural error (not an implies cycle — that is
+      // absorbed inside computeTypeAspectCascade itself and returned as
+      // cascade.cycle below) must not abort usage counting for every OTHER
+      // type-covered file in the run.
+      debugWrite(
+        `[aspects] type-covered usage skipped for '${file}' (type '${typeId}'): ${(error as Error).message}`,
+      );
+      continue;
+    }
+    if (cascade.cycle) continue;
+    for (const { aspectId } of cascade.effective) {
+      if (!isReachableForTypeCoveredFile(graph, aspectId)) continue;
+      const u = usage.get(aspectId);
+      if (!u) continue;
+      u.typeCovered++;
+    }
+  }
+
   return usage;
 }
 
-export function formatAspectsOutput(graph: Graph): string {
-  const usage = computeAspectUsage(graph);
+export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInput): string {
+  const usage = computeAspectUsage(graph, typeCoverage);
   const lines: string[] = [];
 
   for (const aspect of graph.aspects.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-    const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, implied: 0, flow: 0, total: 0 };
+    const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 };
     const displayName = aspect.description ?? aspect.name;
     const status = aspect.status ?? 'enforced';
     lines.push(`${aspect.id} [${status}] — ${displayName}`);
@@ -93,15 +144,21 @@ export function formatAspectsOutput(graph: Graph): string {
       lines.push(`  Reviewer: ${reviewerType}`);
     }
 
-    if (u.total === 0) {
+    if (u.total === 0 && u.typeCovered === 0) {
       lines.push(chalk.yellow(`  Used by: 0 nodes — orphaned`));
+    } else if (u.total === 0) {
+      // No component uses it, but files enforced by its architecture type
+      // alone do — live law, never orphaned just because no node declares it.
+      lines.push(`  Used by: 0 nodes, ${u.typeCovered} type-covered file${u.typeCovered === 1 ? '' : 's'}`);
     } else {
       const parts: string[] = [];
       if (u.architecture) parts.push(`architecture: ${u.architecture}`);
       if (u.own) parts.push(`direct: ${u.own}`);
       if (u.implied) parts.push(`implied: ${u.implied}`);
       if (u.flow) parts.push(`flow: ${u.flow}`);
-      lines.push(`  Used by: ${u.total} node${u.total === 1 ? '' : 's'} (${parts.join(', ')})`);
+      if (u.typeCovered) parts.push(`type-covered: ${u.typeCovered}`);
+      const fileSuffix = u.typeCovered > 0 ? ` + ${u.typeCovered} type-covered file${u.typeCovered === 1 ? '' : 's'}` : '';
+      lines.push(`  Used by: ${u.total} node${u.total === 1 ? '' : 's'}${fileSuffix} (${parts.join(', ')})`);
     }
 
     if (aspect.implies && aspect.implies.length > 0) {
@@ -139,6 +196,18 @@ export interface AspectHealthRow {
   status: AspectStatus;
   /** Distinct nodes that have a review pair for this aspect. */
   nodes: number;
+  /**
+   * Distinct type-covered files (nodeless pairs) that have a review pair for
+   * this aspect, as a rendered cell: EMPTY_CELL when `coverage.type_level` is
+   * off (the question was never asked — `verifyLock` never enumerated a
+   * file-level pair to count), otherwise the real count, which may legitimately
+   * be `'0'`. Never conflate the two: an unasked question and a zero answer are
+   * different facts. Rendered as its own table column (HEALTH_HEADERS), appended
+   * after wrong-rule, and OMITTED from the header entirely when the tier is off
+   * (see `formatAspectsHealthOutput`) so a flag-off repository's output stays
+   * byte-identical to before this column existed.
+   */
+  filesCell: string;
   /** Total review pairs for this aspect. */
   pairs: number;
   /** Rendered refusal cell — an integer, EMPTY_CELL, or the UNVERIFIED word. */
@@ -207,6 +276,14 @@ export interface AspectHealth {
    * never here).
    */
   hasWrongRuleAttribution: boolean;
+  /**
+   * `coverage.type_level` as read from the graph this health run was built for.
+   * Gates whether `formatAspectsHealthOutput` renders the `files` column at
+   * all: off ⇒ the column (header and every row's cell) is omitted outright,
+   * not merely em-dashed, so a repository that never turned the tier on keeps
+   * byte-identical `--health` output to before the column existed.
+   */
+  typeLevelEnabled: boolean;
 }
 
 /**
@@ -436,12 +513,16 @@ export function computeAspectHealth(
     refused: number;
     unknown: number;
     nodes: Set<string>;
+    /** Distinct type-covered files (nodeless pairs) — tracked separately so a
+     *  file never inflates the "nodes" count by a phantom component. Rendered
+     *  as its own table column, appended after wrong-rule. */
+    files: Set<string>;
   }
   const byAspect = new Map<string, Agg>();
   const aggFor = (id: string): Agg => {
     let a = byAspect.get(id);
     if (!a) {
-      a = { pairs: 0, refused: 0, unknown: 0, nodes: new Set<string>() };
+      a = { pairs: 0, refused: 0, unknown: 0, nodes: new Set<string>(), files: new Set<string>() };
       byAspect.set(id, a);
     }
     return a;
@@ -450,7 +531,8 @@ export function computeAspectHealth(
   for (const vp of verifiedPairs) {
     const a = aggFor(vp.pair.aspectId);
     a.pairs++;
-    a.nodes.add(vp.pair.nodePath);
+    if (vp.pair.nodePath !== undefined) a.nodes.add(vp.pair.nodePath);
+    else a.files.add(vp.pair.unitKey);
     if (vp.state.kind === 'refused') a.refused++;
     else if (vp.state.kind !== 'verified') a.unknown++;
   }
@@ -471,6 +553,11 @@ export function computeAspectHealth(
     }
   }
 
+  // Whether the `files` question was even askable this run. Read once, from the
+  // same graph field `verifyLock`'s own caller (`computeTypeCoverageForAspects`)
+  // gates on — never per-row, since it is a whole-run fact, not a per-aspect one.
+  const typeLevelEnabled = graph.config.coverage?.typeLevel === true;
+
   const rows: AspectHealthRow[] = [];
   let hasUnverified = false;
   let hasWrongRuleAttribution = false;
@@ -488,6 +575,7 @@ export function computeAspectHealth(
       kind: inferAspectDisplayKind(aspect),
       status: aspect.status ?? 'enforced',
       nodes: agg?.nodes.size ?? 0,
+      filesCell: typeLevelEnabled ? String(agg?.files.size ?? 0) : EMPTY_CELL,
       pairs,
       refused,
       suppresses: suppressByAspect.get(aspect.id) ?? 0,
@@ -503,7 +591,7 @@ export function computeAspectHealth(
 
   const signalNotes = buildSignalNotes(sorted, signals, drillStatuses);
   const fpNotes = buildFpNotes(sorted, fpSignals, telemetrySince, committedNote);
-  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes, hasWrongRuleAttribution };
+  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes, hasWrongRuleAttribution, typeLevelEnabled };
 }
 
 /** Column order is fixed by contract; other waves append columns to the right. */
@@ -524,30 +612,41 @@ const HEALTH_HEADERS = [
   'wrong-rule',
 ] as const;
 
-/** Render the health rows as a left-aligned, two-space-gap text table. */
+/**
+ * `files` is appended after `wrong-rule` (contract: other waves append columns
+ * to the right) ONLY once `coverage.type_level` is on. A repository that never
+ * turns the tier on gets exactly `HEALTH_HEADERS` — no trailing column at all —
+ * so its `--health` output stays byte-identical to before this column existed,
+ * rather than a whole column of fabricated em-dashes or zeros.
+ */
 export function formatAspectsHealthOutput(health: AspectHealth): string {
+  const headers = health.typeLevelEnabled ? [...HEALTH_HEADERS, 'files'] : [...HEALTH_HEADERS];
   const table: string[][] = [
-    [...HEALTH_HEADERS],
-    ...health.rows.map((r) => [
-      r.aspectId,
-      r.kind,
-      r.status,
-      String(r.nodes),
-      String(r.pairs),
-      r.refused,
-      String(r.suppresses),
-      r.errs,
-      r.age,
-      r.catchCell,
-      r.exposureCell,
-      r.signalCell,
-      r.fpCellValue,
-      r.wrongRuleCell,
-    ]),
+    headers,
+    ...health.rows.map((r) => {
+      const row = [
+        r.aspectId,
+        r.kind,
+        r.status,
+        String(r.nodes),
+        String(r.pairs),
+        r.refused,
+        String(r.suppresses),
+        r.errs,
+        r.age,
+        r.catchCell,
+        r.exposureCell,
+        r.signalCell,
+        r.fpCellValue,
+        r.wrongRuleCell,
+      ];
+      if (health.typeLevelEnabled) row.push(r.filesCell);
+      return row;
+    }),
   ];
 
-  const widths = HEALTH_HEADERS.map((_, c) => Math.max(...table.map((row) => row[c].length)));
-  const lastCol = HEALTH_HEADERS.length - 1;
+  const widths = headers.map((_, c) => Math.max(...table.map((row) => row[c].length)));
+  const lastCol = headers.length - 1;
 
   const lines = table.map((row) =>
     row.map((cell, c) => (c === lastCol ? cell : cell.padEnd(widths[c]))).join('  '),
@@ -641,7 +740,14 @@ async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<st
   const projectRoot = path.dirname(graph.rootPath);
 
   const lock = readLock(graph.rootPath);
-  const verification = await verifyLock(graph, lock);
+  // Same per-command hoist `formatAspectsOutput`'s branch below already does
+  // (computeTypeCoverageForAspects): without threading this through, verifyLock
+  // enumerates a component-only pair universe, so a file enforced by its
+  // architecture type alone (no owning component) is invisible here — its
+  // pairs are never counted and a real refusal recorded against it can never
+  // read as refused.
+  const typeCoverage = await computeTypeCoverageForAspects(graph, projectRoot);
+  const verification = await verifyLock(graph, lock, typeCoverage);
 
   const repoFiles = await walkRepoFiles(projectRoot);
   const knownAspectIds = new Set(graph.aspects.map((a) => a.id));
@@ -654,6 +760,10 @@ async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<st
     knownAspectIds,
     collectMappingEntries(graph),
     underApproximatingAspectIds,
+    // Reuse the SAME classification `verifyLock` just consumed above — no
+    // second pass over every uncovered file.
+    collectTypeCoveredFiles(typeCoverage?.covered),
+    graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
   );
 
   // Local, gitignored telemetry — read HERE at the CLI boundary (aspects.ts is on
@@ -707,6 +817,21 @@ async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<st
   return formatAspectsHealthOutput(health);
 }
 
+/**
+ * The type-level classification lattice (coverage.type_level), classified for
+ * this one `yg aspects` invocation — mirrors the same per-command hoist
+ * `yg impact`/`yg advise` each do their own. Undefined when the flag is off,
+ * so computeAspectUsage counts exactly the component-only universe it always
+ * has.
+ */
+async function computeTypeCoverageForAspects(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
+  if (!graph.config.coverage?.typeLevel) return undefined;
+  const repoFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, repoFiles);
+  const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
+  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
 export function registerAspectsCommand(program: Command): void {
   program
     .command('aspects')
@@ -726,7 +851,8 @@ export function registerAspectsCommand(program: Command): void {
           // threaded down so the pure renderers never read the clock themselves.
           process.stdout.write(await buildAspectsHealthOutput(graph, Date.now()));
         } else {
-          process.stdout.write(formatAspectsOutput(graph));
+          const typeCoverage = await computeTypeCoverageForAspects(graph, path.dirname(graph.rootPath));
+          process.stdout.write(formatAspectsOutput(graph, typeCoverage));
         }
       } catch (error) {
         abortOnUnexpectedError(error, 'listing aspects');

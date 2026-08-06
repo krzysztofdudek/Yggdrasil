@@ -6,19 +6,27 @@ import { tmpdir } from 'node:os';
 
 // Wrap the REAL relation pass so a single portal render's pass count can be measured — the
 // ≤2-pass invariant (runCheck's relation-conformance pass + the boundary pass, and NO third).
-// `vi.fn(actual.runRelationPass)` still runs the genuine parse (no fabricated data): this is a
-// COUNTER around the real function, not a stand-in for it.
+// `vi.fn(actual.runProjectRelationPass)` still runs the genuine parse (no fabricated data): this
+// is a COUNTER around the real function, not a stand-in for it. Wrapping `runProjectRelationPass`
+// (the one function every production call site — including both passes this test counts —
+// assembles its deps and calls the underlying pass through) rather than `runRelationPass` itself:
+// `runProjectRelationPass` calls `runRelationPass` as a same-module reference, which a mock on
+// `runRelationPass`'s own export could never observe.
 vi.mock('../../src/relations/pass.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/relations/pass.js')>();
-  return { ...actual, runRelationPass: vi.fn(actual.runRelationPass) };
+  return { ...actual, runProjectRelationPass: vi.fn(actual.runProjectRelationPass) };
 });
 
-import { runRelationPass } from '../../src/relations/pass.js';
+import { runProjectRelationPass } from '../../src/relations/pass.js';
 import { extractPortalData } from '../../src/portal/extract.js';
-import { deriveStructure, REACH_CAPTION_MIN_NODES } from '../../src/portal/derive-metrics.js';
+import { deriveStructure, REACH_CAPTION_MIN_NODES, type StructureTypeWidening } from '../../src/portal/derive-metrics.js';
 import { renderStructure, cyclePhrase } from '../../src/cli/structure.js';
 import { loadGraph } from '../../src/core/graph-loader.js';
-import { computeDetectedEdges } from '../../src/portal/api/boundary.js';
+import { computeDetectedEdges, computeTypedEdges } from '../../src/portal/api/boundary.js';
+import { walkRepoFiles } from '../../src/io/repo-scanner.js';
+import { scanUncoveredFiles } from '../../src/core/check.js';
+import { computeTypeCoverage } from '../../src/core/type-coverage.js';
+import { FileContentCache } from '../../src/io/file-content-cache.js';
 import type { PortalData, PortalStructure } from '../../src/portal/contract.js';
 import type { Graph } from '../../src/model/graph.js';
 
@@ -136,9 +144,9 @@ describe('portal structure panel — real repo, ≤2 relation passes, JSON-flat 
   let passCalls: number;
 
   beforeAll(async () => {
-    vi.mocked(runRelationPass).mockClear();
+    vi.mocked(runProjectRelationPass).mockClear();
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
-    passCalls = vi.mocked(runRelationPass).mock.calls.length;
+    passCalls = vi.mocked(runProjectRelationPass).mock.calls.length;
   }, 180_000);
 
   it('runs the relation pass AT MOST twice across one full render (reuses the boundary pass)', () => {
@@ -172,6 +180,43 @@ describe('portal structure panel — real repo, ≤2 relation passes, JSON-flat 
       expect(paths.has(t.to)).toBe(true);
       if (i > 0) expect(t.span).toBeLessThanOrEqual(data.structure.tunnels[i - 1].span);
     }
+  });
+});
+
+// ── extractPortalData on a TIER-ON fixture — the ≤2-pass invariant must hold there too ───────
+//
+// The block above only ever exercises this repository, whose tier is off — the type-level
+// widening path (computePortalBoundary seeded with a real classification, surfacing typedEdges
+// on its return value) never runs there, so a regression that added a THIRD relation pass
+// specifically at flag-on could land with this guard fully green. This block closes that gap:
+// same counter, same assertion, over a fixture that actually turns coverage.type_level on and
+// classifies something, so the widening path is genuinely exercised.
+
+describe('portal structure panel — TIER-ON fixture, ≤2 relation passes even with the type-level widening', () => {
+  const TIER_ON_FIXTURE = path.resolve(__dirname, '../fixtures/type-relation-gate');
+  let data: PortalData;
+  let passCalls: number;
+  let tmp: string;
+
+  beforeAll(async () => {
+    tmp = mkdtempSync(path.join(tmpdir(), 'yg-portal-structure-tieron-'));
+    cpSync(TIER_ON_FIXTURE, tmp, { recursive: true });
+    vi.mocked(runProjectRelationPass).mockClear();
+    data = await extractPortalData(tmp, { writeEnabled: false });
+    passCalls = vi.mocked(runProjectRelationPass).mock.calls.length;
+  }, 60_000);
+
+  afterAll(() => {
+    if (tmp) rmSync(tmp, { recursive: true, force: true });
+  });
+
+  it('the widening actually ran (the guard is not vacuous — a type-covered file really joined the panel)', () => {
+    expect(data.structure.hasTypeCovered).toBe(true);
+  });
+
+  it('still runs the relation pass AT MOST twice — the type-level widening reuses the boundary pass instead of paying a third', () => {
+    expect(passCalls).toBeGreaterThanOrEqual(1);
+    expect(passCalls).toBeLessThanOrEqual(2);
   });
 });
 
@@ -287,6 +332,77 @@ describe.skipIf(!existsSync(SAMPLE_FIXTURE))(
         // the panel's loopShare — binding the loop-share value across the two surfaces.
         expect(blocks[i].cyclePhraseLine).toBe(cyclePhrase(layer.crossings, 1 - layer.loopShare));
       }
+    });
+  },
+);
+
+// ── portal ↔ `yg structure` PARITY, at coverage.type_level ON ────────────────────────────────
+//
+// The parity block above proves the two surfaces agree on the NODE-ONLY universe. It says
+// nothing about the WIDENED one: `deriveStructure`'s `widened` parameter and `renderStructure`'s
+// `widened` parameter are each assembled by their own caller (the pipeline's `extractPortalData`,
+// which folds the widening into its own `computePortalBoundary` call, vs the command's
+// `computeTypeWidening`, which calls the standalone `computeTypedEdges`) through the SAME
+// translation (`structEdgesFromPass`, api/boundary.ts) and the SAME ranking
+// (`widenedTunnelMetrics` / `rankTunnels`, shared in `core/graph-metrics.ts`). This test builds
+// its own oracle via the standalone `computeTypedEdges` call directly (bypassing
+// `extractPortalData` entirely) and feeds the identical result to both renderers, so the only
+// remaining variable under test is the two callers' own assembly and rendering — not the two
+// pipelines' own wiring, which portal-extract.test.ts's cycle fixture and the ≤2-pass block above
+// exercise through the real `extractPortalData` call instead.
+
+const RELATION_GATE_FIXTURE = path.resolve(__dirname, '../fixtures/type-relation-gate');
+
+describe.skipIf(!existsSync(RELATION_GATE_FIXTURE))(
+  'portal ↔ yg structure parity — the type-level widening (coverage.type_level on)',
+  () => {
+    let tmp: string;
+    let s: PortalStructure;
+    let text: string;
+
+    beforeAll(async () => {
+      tmp = mkdtempSync(path.join(tmpdir(), 'yg-structure-parity-typecov-'));
+      cpSync(RELATION_GATE_FIXTURE, tmp, { recursive: true });
+      const graph = await loadGraph(tmp);
+      const projectRoot = path.dirname(graph.rootPath);
+      const detectedMap = (await computeDetectedEdges(graph, projectRoot)) ?? new Map<string, Set<string>>();
+      const detectedFlat = [...detectedMap].map(([from, targetSet]) => ({ from, targets: [...targetSet] }));
+
+      // Built directly via the standalone computeTypedEdges (the same one `yg structure` calls) —
+      // this test's own oracle, independent of how extractPortalData obtains its widening — fed
+      // to BOTH renderers below, so the only remaining variable under test is the two callers'
+      // own assembly and rendering, not which pass produced the edges.
+      const files = await walkRepoFiles(projectRoot);
+      const uncovered = scanUncoveredFiles(graph, files);
+      const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+      const typedEdges = await computeTypedEdges(graph, projectRoot, coverage.covered);
+      const widened: StructureTypeWidening = { edges: typedEdges, nodeIds: [...coverage.covered.keys()] };
+
+      s = deriveStructure(graph, detectedFlat, widened);
+      text = renderStructure(graph, detectedMap, { ...widened, hasTypeCovered: widened.nodeIds.length > 0 });
+    }, 60_000);
+
+    afterAll(() => {
+      if (tmp) rmSync(tmp, { recursive: true, force: true });
+    });
+
+    it('the widening actually adds a type-covered file to the universe (the guard is not vacuous)', () => {
+      expect(s.hasTypeCovered).toBe(true);
+      expect(s.tunnels.length).toBeGreaterThan(0);
+      expect(s.nodeCount).toBeGreaterThan(1); // more than the fixture's one real node ("owner")
+    });
+
+    it('tunnels match — same ranked list of (from, to, span) in the same order, type-covered file endpoints included', () => {
+      expect(parseTunnels(text)).toEqual(
+        s.tunnels.map((t) => ({ from: t.from, to: t.to, span: t.span })),
+      );
+    });
+
+    it('node count and change reach match, with the widened "component or type-covered file" wording on the rendered side', () => {
+      expect(text).toContain('From an average component or type-covered file,');
+      const reachMatch = /From an average component or type-covered file, (\d+)% of the system is reachable/.exec(text);
+      expect(reachMatch).not.toBeNull();
+      expect(Number((reachMatch as RegExpExecArray)[1])).toBe(Math.round(s.reachMean * 100));
     });
   },
 );

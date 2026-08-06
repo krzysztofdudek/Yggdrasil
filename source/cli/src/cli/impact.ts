@@ -14,20 +14,23 @@ import {
 import {
   collectDescendants,
   collectInvalidatedPairs,
+  computeGraduationPreview,
   computeNodeFillCost,
   handleAspectImpact,
   handleFlowImpact,
   handleTypeImpact,
+  renderGraduationPreview,
   renderNodeFillCost,
   summarizeImpact,
   renderImpactTotal,
 } from './impact-handlers.js';
 import type { ImpactSummary } from './impact-handlers.js';
-import { findOwner } from './owner.js';
+import { findOwnerWithinOwnGraph } from './owner.js';
 import { projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { readLock, LockInvalidError } from '../io/lock-store.js';
 import type { LockFile } from '../model/lock.js';
 import { toPosixPath } from '../utils/posix.js';
+import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 
 export function registerImpactCommand(program: Command): void {
   program
@@ -121,7 +124,31 @@ export function registerImpactCommand(program: Command): void {
               return;
             }
 
-            const ownerResult = findOwner(graph, repoRoot, repoRelative);
+            // Exclusion redirect — answered BEFORE ownership or the invalidated-
+            // pair set are even computed. An excluded path (a nested project's
+            // own boundary, or a coverage.excluded root) is invisible to every
+            // enforcement surface this graph has: no pair ever admits it as a
+            // subject, and no aspect can actually read it (structure/ctx-fs.ts's
+            // resolveAllowedReadPath refuses the read at runtime), so editing it
+            // can never invalidate a verdict. Deciding this first — rather than
+            // falling through to collectInvalidatedPairs and trusting whatever it
+            // reports — means the answer stays true even where that set's own
+            // "cold-start" estimate (an allowed-reads text match with no runtime
+            // confirmation) would otherwise admit a pair nothing can really touch.
+            const exclusion = await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+            if (isExcludedFromGraph(repoRelative, exclusion)) {
+              process.stdout.write(
+                buildIssueMessage({
+                  what: `${repoRelative} is excluded from graph coverage by design.`,
+                  why: 'This path sits inside a separate project\'s own boundary, or matches a coverage.excluded root — no node enforces it and no aspect can read it, so editing it invalidates nothing.',
+                  next: 'No action needed.',
+                }) + '\n',
+              );
+              await exitAfterFlush(0);
+              return;
+            }
+
+            const ownerResult = await findOwnerWithinOwnGraph(graph, repoRoot, repoRelative);
             const set = await collectInvalidatedPairs(graph, repoRelative, lock, repoRoot);
 
             // No coverage at all — not mapped, not referenced, not observed.
@@ -138,8 +165,19 @@ export function registerImpactCommand(program: Command): void {
             const summary = summarizeImpact(set, graph, lock);
 
             if (!ownerResult.nodePath) {
-              // No structural owner — render the Total and exit. This is an
-              // ADD over the old behavior which early-exited with no cost.
+              // No structural owner. When the file is ITSELF enforced by its
+              // architecture type alone (type-covered, not merely referenced
+              // or observed by some other pair), also preview what giving it
+              // a component of its own would cost — reusing this SAME
+              // invocation's pair universe (set.allPairs / set.typeCoverage)
+              // rather than paying a second, full computeExpectedPairs
+              // enumeration just to answer this one extra question.
+              if (set.typeCoverage?.covered.has(repoRelative)) {
+                const preview = await computeGraduationPreview(graph, repoRelative, set.typeCoverage, set.allPairs);
+                process.stdout.write(renderGraduationPreview(preview));
+              }
+              // Render the Total and exit. This is an ADD over the old
+              // behavior which early-exited with no cost.
               process.stdout.write(renderImpactTotal(summary, repoRelative, { isTTY: process.stdout.isTTY ?? false }));
               await exitAfterFlush(0);
               return;
@@ -154,7 +192,7 @@ export function registerImpactCommand(program: Command): void {
           }
 
           if (options.aspect) {
-            await handleAspectImpact(graph, options.aspect.trim(), lock);
+            await handleAspectImpact(graph, options.aspect.trim(), lock, projectRootFromGraph(graph.rootPath));
             return;
           }
           if (options.flow) {
@@ -162,7 +200,7 @@ export function registerImpactCommand(program: Command): void {
             return;
           }
           if (options.type) {
-            await handleTypeImpact(graph, options.type.trim());
+            await handleTypeImpact(graph, options.type.trim(), lock);
             return;
           }
 

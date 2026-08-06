@@ -1,0 +1,6 @@
+name: Cyc B Rule
+description: "cyc-b's own default — reached from cyc-a through the implicit chain before the walk stops on revisiting cyc-a, proving the walk yields the reachable prefix rather than hanging on the cycle."
+reviewer:
+  type: deterministic
+scope:
+  per: file

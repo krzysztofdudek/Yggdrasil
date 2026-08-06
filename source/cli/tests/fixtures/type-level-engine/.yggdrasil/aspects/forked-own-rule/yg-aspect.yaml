@@ -1,0 +1,6 @@
+name: Forked Own Rule
+description: "forked's own default — pins that a type whose parents: fork (names 2+ types) still gets its own declared defaults even though the chain walk truncates at the fork with no ancestor contribution."
+reviewer:
+  type: deterministic
+scope:
+  per: file

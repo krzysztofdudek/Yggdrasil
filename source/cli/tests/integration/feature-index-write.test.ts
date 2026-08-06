@@ -12,9 +12,12 @@
  *   - the write is best-effort (a write failure is swallowed, never throws, no partial file).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync, rmSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runCheck, runAttentionDump } from '../../src/core/check.js';
@@ -24,11 +27,13 @@ import { runRelationPass } from '../../src/relations/pass.js';
 import { extractorForLanguage } from '../../src/relations/extractors/registry.js';
 import { makeResolvePathToFile } from '../../src/relations/resolve-path.js';
 import { astCacheDir } from '../../src/relations/facts-cache.js';
+import { walkRepoFiles } from '../../src/io/repo-scanner.js';
 import { hashString } from '../../src/io/hash.js';
 import {
   writeFeatureIndex,
   familyKey,
   FEATURE_FIELD_FILENAME,
+  FEATURE_FIELD_VERSION,
   type FeatureFieldIndex,
 } from '../../src/core/feature-index-write.js';
 import type { Graph } from '../../src/model/graph.js';
@@ -103,7 +108,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
 
     expect(existsSync(indexAbs())).toBe(true);
     const index = readIndex();
-    expect(index.v).toBe(1);
+    expect(index.v).toBe(FEATURE_FIELD_VERSION);
     expect(index.generatedAt).toBe('2026-07-05T09:00:00.000Z'); // injected clock
 
     // Sparse: ONLY the outlier file is flagged (the five near-uniform files are not).
@@ -111,7 +116,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     const entry = index.files[OUTLIER_PATH];
 
     // Family = owner node × extractor language.
-    expect(entry.family).toBe(familyKey('svc', 'typescript'));
+    expect(entry.family).toBe(familyKey({ kind: 'node', id: 'svc' }, 'typescript'));
     // At least the branch-like dimension is flagged.
     expect(entry.deviations.map((d) => d.dim)).toContain('branch-like');
     expect(entry.deviations.length).toBeGreaterThan(0);
@@ -120,6 +125,19 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     const bytesHash = hashString(readFileSync(path.join(root, OUTLIER_PATH), 'utf-8'));
     expect(entry.contentHash).toBe(passHash);
     expect(entry.contentHash).toBe(bytesHash);
+  });
+
+  it('writes the on-disk schema version as the LITERAL number 2, not merely whatever the constant currently holds', async () => {
+    // Every other assertion in this file compares against the FEATURE_FIELD_VERSION
+    // symbol, so a regression that mutates the constant back to 1 (the pre-widening
+    // shape, before the family key gained its kind segment) would leave every one of
+    // them passing. This test pins the real on-disk contract at the literal value —
+    // a stale two-segment key must be rejected by a reader expecting a v2 index, and
+    // that only holds if the writer really emits 2.
+    const graph = await loadGraph(root);
+    await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date('2026-07-05T09:00:00.000Z') });
+    const index = readIndex();
+    expect(index.v).toBe(2);
   });
 
   it('self-ensures the .feature-field.json gitignore line on write', async () => {
@@ -147,20 +165,20 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
 
   it("a fill's real internal re-check writes NO index (byproduct-free call site)", async () => {
     const graph = await loadGraph(root);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(existsSync(indexAbs())).toBe(false);
   });
 
   it("a fill's dry-run internal re-check writes NO index (byproduct-free call site)", async () => {
     const graph = await loadGraph(root);
-    await runFill(graph, { gitTrackedFiles: null, dryRun: true, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, dryRun: true, write: () => {} });
     expect(existsSync(indexAbs())).toBe(false);
   });
 
   it("a real fill with writeFeatureIndex:true maintains the index on its post-fill report", async () => {
     const graph = await loadGraph(root);
     await runFill(graph, {
-      gitTrackedFiles: SVC_TRACKED,
+      coverageVisibleFiles: SVC_TRACKED,
       write: () => {},
       writeFeatureIndex: true,
       featureIndexNow: () => new Date('2026-07-05T09:00:00.000Z'),
@@ -175,7 +193,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
   it("a dry-run fill even WITH writeFeatureIndex:true writes NO index (returns before the report)", async () => {
     const graph = await loadGraph(root);
     await runFill(graph, {
-      gitTrackedFiles: SVC_TRACKED, // a valid tracked set, so the ONLY reason nothing is written is the dry-run early return
+      coverageVisibleFiles: SVC_TRACKED, // a valid tracked set, so the ONLY reason nothing is written is the dry-run early return
       dryRun: true,
       write: () => {},
       writeFeatureIndex: true,
@@ -199,7 +217,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     expect(existsSync(path.join(bogusParent, 'sub', FEATURE_FIELD_FILENAME))).toBe(false);
   });
 
-  it('scopes to the tracked set: an owned file NOT in gitTrackedFiles is excluded from the index', async () => {
+  it('scopes to the tracked set: an owned file NOT in coverageVisibleFiles is excluded from the index', async () => {
     const graph = await loadGraph(root);
     // Omit the outlier from the tracked set (it is owned by svc but "gitignored/scratch").
     const trackedWithoutOutlier = SVC_TRACKED.filter((p) => p !== OUTLIER_PATH);
@@ -209,7 +227,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     expect(Object.keys(readIndex().files)).not.toContain(OUTLIER_PATH); // …but never mentions the untracked file
   });
 
-  it('writes NO index when gitTrackedFiles is null (honest scoping — unknown ≠ unfiltered)', async () => {
+  it('writes NO index when coverageVisibleFiles is null (honest scoping — unknown ≠ unfiltered)', async () => {
     const graph = await loadGraph(root);
     await runCheck(graph, null, { writeFeatureIndex: true, now: () => new Date() });
     expect(existsSync(indexAbs())).toBe(false);
@@ -296,6 +314,125 @@ describe('runAttentionDump — in-process calibration view (writes nothing)', ()
       expect(dump).toContain('nothing to compare');
     } finally {
       rmSync(bare, { recursive: true, force: true });
+    }
+  });
+
+  it('builds its own resolvePathToFile through the exclusion-guarded constructor, like every other resolver this run', () => {
+    // A resolver built with a raw, unguarded owner index can decide a Go/Java
+    // package's ownership over files an exclusion should have dropped from
+    // consideration first (relations/resolve-path.ts's own doc comment). This
+    // is a source-text pin, not a behavioral one, because runAttentionDump's
+    // own body (verified just above by reading the same file this checks)
+    // reads ONLY relResult.factsByPath / relResult.hashByPath — populated by
+    // the pass's file ENUMERATION, never relResult.violationsByNode, which is
+    // the only field resolvePathToFile's guardedness could ever change. No
+    // fixture can make the dump's OWN printed text differ between a guarded
+    // and an unguarded construction, so there is nothing to observe from the
+    // outside; reading the shipped source is what pins the actual production
+    // wiring instead.
+    //
+    // runAttentionDump no longer builds resolvePathToFile inline — it, like
+    // every other production call site, routes through
+    // relations/pass.ts's runProjectRelationPass, which assembles the deps
+    // once for everyone. So the guardedness guarantee is pinned in two parts:
+    // runAttentionDump itself never hand-builds an unguarded resolver (and
+    // still never reads violationsByNode), AND the shared assembler it calls
+    // into is itself wired to the guarded constructor, not the raw one — a
+    // guarantee every one of that function's callers now inherits for free.
+    const checkSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'core', 'check.ts'), 'utf-8');
+    const attnDumpSrc = checkSrc.slice(checkSrc.indexOf('export async function runAttentionDump'));
+    expect(attnDumpSrc).not.toMatch(/resolvePathToFile:\s*makeResolvePathToFile\(/);
+    expect(attnDumpSrc).not.toContain('violationsByNode');
+    expect(attnDumpSrc).toMatch(/runProjectRelationPass\(/);
+
+    const passSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'relations', 'pass.ts'), 'utf-8');
+    const wrapperSrc = passSrc.slice(passSrc.indexOf('export async function runProjectRelationPass'));
+    expect(wrapperSrc).toMatch(/resolvePathToFile:\s*await guardedResolve\(/);
+    expect(wrapperSrc).not.toMatch(/resolvePathToFile:\s*makeResolvePathToFile\(/);
+  });
+});
+
+// ── A type-covered file (no owning node) forms its own family in the index ──
+
+describe('feature-field index — a type-covered file (no owning node) is admitted under its own family', () => {
+  const FIXTURE = path.join(__dirname, '..', 'fixtures', 'type-coverage-basic');
+
+  it('an outlier among 5 svc-type-covered files is flagged, keyed by a type family — not silently dropped for lack of an owning node', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'feat-field-type-covered-'));
+    try {
+      cpSync(FIXTURE, dir, { recursive: true });
+      // The fixture's own src/svc/handler.ts already matches ONLY the svc type (no
+      // node owns it, no other type overlaps it — see the fixture's architecture
+      // comment) and has 0 branches. Add 4 more pure-svc files (never touching
+      // src/svc/overlap.ts, which deliberately also matches `util` and stays
+      // ambiguous) so the svc family reaches MIN_N (5): branch counts [0 (handler),
+      // 1, 2, 3, 40] give the family real spread (a MAD of 0 — e.g. four files
+      // sharing handler's 0 — would silently zero out the dimension, per
+      // computeFamilyDeviations' own zero-spread guard) with file `extra3` (40
+      // branches) the clear outlier.
+      [1, 2, 3, 40].forEach((n, i) => w(dir, `src/svc/extra${i}.ts`, tsFileWithIfs(n)));
+
+      const graph = await loadGraph(dir);
+      const trackedFiles = await walkRepoFiles(dir);
+      const result = await runCheck(graph, trackedFiles, {
+        writeFeatureIndex: true,
+        now: () => new Date('2026-07-28T00:00:00.000Z'),
+      });
+      // The lattice classified all 5 as type-covered svc — confirms the family
+      // this test drives really does reach MIN_N via classification, not luck.
+      expect(result.typeCoveredCount).toBe(5);
+
+      const indexPath = path.join(dir, '.yggdrasil', FEATURE_FIELD_FILENAME);
+      expect(existsSync(indexPath)).toBe(true);
+      const index = JSON.parse(readFileSync(indexPath, 'utf-8')) as FeatureFieldIndex;
+
+      // The outlier (40 branches against 4 near-zero siblings) is admitted.
+      const entry = index.files['src/svc/extra3.ts'];
+      expect(entry).toBeDefined();
+      expect(entry.deviations.map((d) => d.dim)).toContain('branch-like');
+      // Keyed by the file's matched TYPE, not a node id it does not have — a
+      // node-owned family under the SAME raw id 'svc' (there is none in this
+      // fixture, but the contract must hold in general) could never collide with
+      // this key, because familyKey folds the owner KIND in too.
+      expect(entry.family).toBe(familyKey({ kind: 'type', id: 'svc' }, 'typescript'));
+      expect(entry.family).not.toBe(familyKey({ kind: 'node', id: 'svc' }, 'typescript'));
+
+      // The ambiguous file (matches svc AND util) never joins the svc family —
+      // computeTypeCoverage's `covered` map never resolves it in the first place.
+      expect(index.files['src/svc/overlap.ts']).toBeUndefined();
+      // vendor/tool.ts sits under this fixture's own coverage.excluded root
+      // ('vendor/') — an excluded file is never classified, so it can never be
+      // admitted to any family, type-keyed or otherwise.
+      expect(index.files['vendor/tool.ts']).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('flag off (coverage.type_level: false): the same 5-file svc family is NEVER admitted — byte-identical to a caller that never classifies at all', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'feat-field-type-covered-off-'));
+    try {
+      cpSync(FIXTURE, dir, { recursive: true });
+      [0, 0, 0, 40].forEach((n, i) => w(dir, `src/svc/extra${i}.ts`, tsFileWithIfs(n)));
+
+      const graphOn = await loadGraph(dir);
+      const graphOff: Graph = {
+        ...graphOn,
+        config: { ...graphOn.config, coverage: { ...graphOn.config.coverage!, typeLevel: false } },
+      };
+      const trackedFiles = await walkRepoFiles(dir);
+      await runCheck(graphOff, trackedFiles, {
+        writeFeatureIndex: true,
+        now: () => new Date('2026-07-28T00:00:00.000Z'),
+      });
+
+      const indexPath = path.join(dir, '.yggdrasil', FEATURE_FIELD_FILENAME);
+      const index = JSON.parse(readFileSync(indexPath, 'utf-8')) as FeatureFieldIndex;
+      // No node owns ANY file in this fixture and the tier is off, so NOTHING is
+      // classified at all — the index is written (best-effort) but stays empty.
+      expect(index.files).toEqual({});
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
     }
   });
 });

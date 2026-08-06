@@ -1,6 +1,6 @@
 name: AspectsCommand
 type: command
-description: Lists all aspects with usage statistics in human-readable format via yg aspects
+description: Lists all aspects with usage statistics in human-readable format via yg aspects. Usage also counts files enforced by an architecture type alone (no owning component), classified once per invocation, so a rule live only through type coverage is never reported as unused.
 aspects: []
 relations:
   - target: cli/core/loader
@@ -28,6 +28,14 @@ relations:
   - target: cli/io/incident-ledger
     type: calls
   - target: cli/portal/engine-api
+    type: calls
+  - target: cli/core/type-effective
+    type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/io/file-content-cache
     type: calls
 mapping:
   - source/cli/src/cli/aspects.ts

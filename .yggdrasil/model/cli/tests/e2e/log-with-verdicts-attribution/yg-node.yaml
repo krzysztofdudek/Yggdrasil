@@ -1,0 +1,12 @@
+name: E2E Tests — log-with-verdicts-attribution
+type: test-suite
+description: "Subprocess E2E for the file-to-node attribution `yg log read
+  --with-verdicts` relies on: a `file:` verdict event is matched to a node by
+  real ownership (hierarchy-first, exclusion-aware), never by whether the path
+  merely falls inside one of the node's mapping strings — a directory-mapping
+  ancestor never claims a descendant node's own file, and an excluded file's
+  event never appears under any node."
+aspects: []
+relations: [ { target: cli/tests/support, type: uses } ]
+mapping:
+  - source/cli/tests/e2e/cli-log-with-verdicts-attribution.test.ts

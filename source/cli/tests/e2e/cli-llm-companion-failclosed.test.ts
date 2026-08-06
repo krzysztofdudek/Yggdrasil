@@ -21,6 +21,8 @@
 //   14 companion path OUTSIDE allowed-reads (uses relation removed) → infra-fail; the
 //      NEXT names the OWNING node (relation source) + the target owner, and NOT the
 //      scenario .md subject as the relation site (negative assertion)
+//   14b companion path under coverage.excluded, relation STILL declared → infra-fail;
+//      the message says excluded, never sends the adopter to declare a relation
 //   15 bad RETURN SHAPE (not array of {path}) → infra-fail
 //   16 companion.mjs IMPORT/SYNTAX error → infra-fail
 //   17 companion.mjs WITHOUT content.md → validator error aspect-companion-without-content
@@ -295,6 +297,64 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
       const v = verdicts(dir, 'outside-companion');
       for (const s of SCENARIOS) expect(v[UNIT(s)]).toBeUndefined();
       expect(mock.chatCount()).toBe(0);
+    } finally {
+      await mock.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 40000);
+
+  // ===========================================================================
+  // (14b) a companion path under coverage.excluded is infra-fail EVEN THOUGH the
+  // relation to its owner is still declared — the opposite shape from (14): there
+  // the fix is to declare the relation, here no relation can ever fix it, so the
+  // message must say excluded, not send the adopter to declare a relation that
+  // already exists.
+  // ===========================================================================
+  it('(14b) a companion path under coverage.excluded is infra-fail with the relation still declared; the message says excluded, never declare-a-relation', async () => {
+    const dir = copyFixture('companion-excluded');
+    const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'ok' }) });
+    try {
+      pointReviewer(dir, mock.endpoint);
+      // Same frontmatter-driven pairing as the fixture's baked-in scenario-matches-test
+      // (each scenario resolves its OWN paired spec), but never calls ctx.fs.read itself —
+      // so the disposition is decided by resolveCompanionDescriptors's allowed-reads guard,
+      // exactly like (14) above.
+      writeAspect(dir, 'excluded-companion', {
+        companionMjs: [
+          "const SPEC_DIR = 'apps/e2e/tests';",
+          'export function companion(ctx) {',
+          '  const scenario = ctx.subject[0];',
+          '  const match = /^---\\r?\\n([\\s\\S]*?)\\r?\\n---/.exec(scenario.content);',
+          '  const meta = {};',
+          '  for (const line of match[1].split(/\\r?\\n/)) {',
+          '    const kv = /^([A-Za-z0-9_-]+):\\s*(.*)$/.exec(line);',
+          '    if (kv) meta[kv[1]] = kv[2].trim();',
+          '  }',
+          '  return [{ path: `${SPEC_DIR}/${meta.test}` }];',
+          '}',
+          '',
+        ].join('\n'),
+      });
+      // The scenarios -> specs relation is left declared (untouched) — only
+      // checkout's paired spec is placed under coverage.excluded.
+      const cp = cfgPath(dir);
+      writeFileSync(cp, `${readFileSync(cp, 'utf-8')}coverage:\n  excluded:\n    - apps/e2e/tests/checkout.spec.ts\n`, 'utf-8');
+
+      const fill = await runAsync(['check', '--approve'], dir);
+      expect(fill.status).toBe(1);
+      expect(fill.all).toContain('aspect-companion-runtime-error');
+      expect(fill.all).toContain('excluded from graph coverage by design');
+      expect(fill.all).not.toContain('declare a relation from scenarios to specs');
+
+      // Nothing written for the excluded pair; the reviewer never sees it.
+      const v = verdicts(dir, 'excluded-companion');
+      expect(v[UNIT('checkout')]).toBeUndefined();
+
+      // Control: login and search pair their OWN, non-excluded specs and still
+      // fill normally in the SAME run — the exclusion never silences generally.
+      expect(v[UNIT('login')]?.verdict).toBe('approved');
+      expect(v[UNIT('search')]?.verdict).toBe('approved');
+      expect(mock.chatCount()).toBe(2);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });

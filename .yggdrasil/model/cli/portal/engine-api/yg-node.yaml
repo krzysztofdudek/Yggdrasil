@@ -12,11 +12,23 @@ description: >-
   imports only this facade and the data contract. Read-only by construction: no lock
   writer is imported and the graph is loaded committed-only. The boundary join changes no
   engine logic; it reuses an additive read-only detected-edge accessor on the relation
-  pass.
+  pass. computePortalBoundary optionally accepts the caller's own type-coverage
+  classification (typeCoveredFiles); when given, the SAME single relation pass it already
+  runs also carries the live type-relation gate's edges, surfaced on its return value's
+  typedEdges field, translated to plain StructEdge data — so the extraction pipeline can
+  widen the structure PANEL with the identical edges `yg structure` widens its own
+  universe with, at no extra relation pass. api/boundary.ts separately exposes
+  computeTypedEdges as its own second-pass accessor for a caller that cannot fold the
+  widening into an existing pass — `yg structure` itself calls it directly (not through
+  this facade), since a CLI command is not bound to the portal's single-pass call.
+  isPortalFileExcludedByCoverage (imported straight from utils/coverage-exclusion,
+  not core/check-coverage-tiers, so it adds no new relation beyond the already-declared
+  cli/utils) lets the residue derivation exclude a deliberately-excluded file the same
+  way it excludes a type-covered one.
 aspects:
   - runcheck-injected-input-parity
 max_direct_relations:
-  limit: 22
+  limit: 23
   reason: >-
     Reviewed architectural seam. This node is the portal's SINGLE auditable
     read-only gateway to the engine — its whole purpose is to concentrate the
@@ -27,13 +39,20 @@ max_direct_relations:
     coupling into a spider of relations and defeat the single-seam guarantee. The
     ceiling is set to the exact reviewed count, so any NEW dependency beyond this
     pushes the node over its own ceiling and re-raises the warning. Raised from 21
-    to 22 for the shared rules-artifacts boundary reader: the check engine skips a
-    boundary-injected check whenever its input is missing, so this facade must
-    inject every input the command-line boundary injects or the portal renders a
-    surface that is silently greener than the command line. The dependency is on
-    the ONE shared reader both boundaries use, which is the point — a second,
-    portal-local copy of that read is exactly the drift this ceiling is meant to
-    make visible.
+    to 22 for the shared rules-artifacts boundary reader (see the prior note this
+    replaces), then from 22 to 24 for computePortalTypeCoverage: the classification
+    lattice this facade now runs ONCE per extraction (mirroring runCheck's /
+    runFill's own hoist) needs the classifier itself (cli/core/type-coverage) and
+    the content cache it reads through (cli/io/file-content-cache) — without this
+    facade computing and threading that classification, readAndVerifyLock and
+    computePortalPairs would silently count a component-only universe whenever the
+    type tier is on, exactly the drift this ceiling exists to keep visible rather
+    than hidden behind a smaller number. Lowered from 24 to 23: portal/api/boundary.ts's
+    direct cli/relations/extractors dependency (extractorForLanguage) is gone now that
+    every relation-pass call site, including this one, assembles its deps through
+    relations/pass.ts's runProjectRelationPass instead of by hand — the extractor
+    registry is reached transitively through the cli/relations/core relation this
+    facade already declares, so the direct edge was dropped rather than left dead.
 relations:
   - target: cli/preamble
     type: calls
@@ -48,6 +67,10 @@ relations:
   - target: cli/core/verify-lock
     type: calls
   - target: cli/core/pairs
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/io/file-content-cache
     type: calls
   - target: cli/core/loader
     type: calls
@@ -65,8 +88,6 @@ relations:
     type: calls
   - target: cli/relations/core
     type: calls
-  - target: cli/relations/extractors
-    type: calls
   - target: cli/ast/runtime
     type: calls
   - target: cli/formatters
@@ -81,7 +102,11 @@ relations:
     type: uses
 mapping:
   - source/cli/src/portal/engine-api.ts
+  - source/cli/src/portal/api/attestation.ts
   - source/cli/src/portal/api/boundary.ts
   - source/cli/src/portal/api/suppress-scan.ts
   - source/cli/src/portal/api/suppress-eligibility.ts
   - source/cli/src/portal/api/suppress-coverage.ts
+  - source/cli/src/portal/api/type-coverage.ts
+  - source/cli/src/portal/api/freshness.ts
+  - source/cli/src/portal/api/source-file-counts.ts

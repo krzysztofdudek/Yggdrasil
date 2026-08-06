@@ -1,0 +1,7 @@
+name: Drafty
+description: "A draft-status rule attached directly to leaf — pins that a draft aspect still shows up in the effective list (it is reachable) but is ALSO reported as a drop with reason 'draft', so a caller can tell \"attached but dormant\" apart from \"attached but its when: failed.\""
+reviewer:
+  type: deterministic
+scope:
+  per: file
+status: draft

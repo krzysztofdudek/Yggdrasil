@@ -340,7 +340,8 @@ describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform,
       WORKSPACE_ROOT,
     );
     expect(status).toBe(1);
-    expect(stderr).toContain('Neither --node nor --files');
+    // --node/--file/--files are a three-way exactly-one-mode contract.
+    expect(stderr).toContain('None of --node, --file, --files was provided');
   });
 
   it('yg aspect-test with --files runs check against specific files', () => {

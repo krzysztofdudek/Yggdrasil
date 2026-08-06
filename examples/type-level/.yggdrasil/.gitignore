@@ -1,0 +1,9 @@
+yg-secrets.yaml
+.symbols-cache/
+.ast-cache/
+.type-class-cache/
+.debug.log
+.yg-lock.deterministic.json
+.yg-events.jsonl
+.yg-fill-divergence.log*
+.feature-field.json

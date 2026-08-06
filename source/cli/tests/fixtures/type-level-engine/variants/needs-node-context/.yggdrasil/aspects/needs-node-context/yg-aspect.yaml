@@ -1,0 +1,6 @@
+name: needs-node-context
+description: "crashy's own per-file default — reads ctx.node unconditionally, which a component-free file can never back."
+reviewer:
+  type: deterministic
+scope:
+  per: file

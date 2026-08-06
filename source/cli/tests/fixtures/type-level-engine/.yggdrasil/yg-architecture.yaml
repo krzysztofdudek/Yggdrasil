@@ -1,0 +1,177 @@
+# yg-architecture.yaml — fixture architecture for the type-effective engine
+# (computeTypeEffectiveAspects / computeTypeAspectCascade). Every type below
+# exists to pin ONE semantic row the engine must get right; the comment on
+# each names that row.
+node_types:
+  leaf:
+    description: "Matches src/leaf/**. Carries its own defaults (own-file-rule,
+      bundle) plus a battery of when-gated aspects that exercise the
+      transient-view total-facts contract (node.type, node.has_mapping,
+      node.has_port, descendants:) and the status/expansion rules. Its
+      parents: [mid] is the unique (non-forking) chain leaf -> mid -> top ->
+      classifying-parent used to pin ordinary chain-walk contribution."
+    when:
+      path: "src/leaf/**"
+    parents: [mid]
+    aspects:
+      - own-file-rule
+      - bundle
+      - gated-on-type
+      - gated-on-has-mapping
+      - gated-on-descendants
+      - never-here
+      - drafty
+      - two-level-rule
+
+  mid:
+    description: "Organizational (no when — classifying-parent-free): a chain
+      link that itself cannot classify any file, so its contribution to leaf's
+      cascade proves an ordinary non-classifying ancestor participates. Also
+      re-attaches two-level-rule with a bumped status, so the effective status
+      for that rule must be the max across both levels. mid-has-mapping-gated's
+      attach-site when: pins that an ANCESTOR type's when: is evaluated
+      against the SUBJECT file, never against the synthetic ancestor view
+      standing in for mid itself."
+    parents: [top]
+    aspects:
+      - mid-file-rule
+      - id: two-level-rule
+        status: enforced
+      - id: mid-has-mapping-gated
+        when:
+          node:
+            has_mapping: true
+
+  top:
+    description: "No parents at all — the chain leaf -> mid -> top terminates
+      here for any type that treats top as its root; pins 'absent parents ends
+      the chain'."
+    aspects:
+      - top-file-rule
+
+  forked:
+    description: "Matches src/forked/**. Declares TWO parents (a fork, not a
+      chain) — the implicit walk must truncate immediately here: forked gets
+      its own declared defaults and nothing from either listed parent."
+    when:
+      path: "src/forked/**"
+    parents: [top, mid]
+    aspects:
+      - forked-own-rule
+
+  emptyparents:
+    description: "Matches src/ep/**. Declares parents: [] (present but empty)
+      — distinct from 'absent' above, this pins that an explicit empty list
+      also ends the chain immediately, with no ancestor contribution."
+    when:
+      path: "src/ep/**"
+    parents: []
+
+  cyc-a:
+    description: "Part of a two-type parents: cycle with cyc-b. Classifying
+      (has its own when) so it can stand as a directly-matched type in a test.
+      Pins that a cycle in the implicit chain walk terminates (does not hang)
+      and yields only the reachable prefix, rather than looping forever."
+    when:
+      path: "src/cyc/**"
+    parents: [cyc-b]
+
+  cyc-b:
+    description: "The other half of the cyc-a / cyc-b cycle. Declares its own
+      default so the cycle-stop test can observe that the walk reached this
+      far (the 'reachable prefix') before the revisit of cyc-a stopped it."
+    parents: [cyc-a]
+    aspects:
+      - cyc-b-rule
+
+  strictparent:
+    description: "enforce: strict. Pins that a STRICT parent type still
+      PARTICIPATES in the implicit chain walk exactly like a non-strict one —
+      strictness is a backward-coverage concern, not a reason to skip a type
+      when it appears as an ancestor."
+    enforce: strict
+    aspects:
+      - strict-parent-rule
+
+  underStrict:
+    description: "Matches src/us/**. parents: [strictparent] — the consumer of
+      the row above: a file typed underStrict must receive strict-parent-rule
+      via the parent chain."
+    when:
+      path: "src/us/**"
+    parents: [strictparent]
+
+  classifying-parent:
+    description: "Matches src/helper/** (so it classifies files on its own —
+      unlike mid/top above) AND is named as consumer's parent below, so it has
+      'children' in the parents graph too. Pins that a classifying parent type
+      contributes to a descendant's cascade exactly like a non-classifying
+      one — being independently matchable changes nothing about its role as
+      an ancestor."
+    when:
+      path: "src/helper/**"
+    aspects:
+      - classifying-parent-rule
+
+  consumer:
+    description: "Matches src/consumer/**. parents: [classifying-parent] (see
+      above). Its aspects are attached with conditional (object-form) `when:`
+      entries keyed on relations: — the derived-relation-atom rows (a
+      TypedEdgeIndex-supplied import edge is the only static evidence these
+      predicates can ever see). own-when-relations-gate/implied-own-when-
+      relations pin every forwarding site an aspect's OWN aspect-global when:
+      touches (direct channel-3 attach, the implies-expansion re-check, and
+      the status fix-point's own-when check for an implied id).
+      edge-relations-gate/implied-via-edge-when pin the SEPARATE per-edge
+      impliesWhens forwarding sites. draft-own-when-gate/blocked-by-draft-
+      gate pin the internal overrides hand-off from computeEffectiveAspects
+      into its own computeEffectiveAspectStatuses call, which the draft-
+      propagation gate depends on to correctly recognize a relations-gated
+      implier as draft."
+    when:
+      path: "src/consumer/**"
+    parents: [classifying-parent]
+    aspects:
+      - id: needs-leaf-dependency
+        when:
+          relations:
+            uses:
+              target_type: leaf
+      - id: needs-owned-target
+        when:
+          relations:
+            uses:
+              target: owned
+      - id: needs-calls-leaf
+        when:
+          relations:
+            calls:
+              target_type: leaf
+      - id: needs-extends-leaf
+        when:
+          relations:
+            extends:
+              target_type: leaf
+      - id: needs-implements-leaf
+        when:
+          relations:
+            implements:
+              target_type: leaf
+      - id: needs-emits
+        when:
+          relations:
+            emits:
+              target_type: leaf
+      - id: needs-listens
+        when:
+          relations:
+            listens:
+              target_type: leaf
+      - id: needs-consumed-port
+        when:
+          relations:
+            uses:
+              consumes_port: some-port
+      - own-when-relations-gate
+      - edge-relations-gate
+      - draft-own-when-gate

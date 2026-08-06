@@ -1,0 +1,7 @@
+name: E2E Tests — Tracked∩Gitignored Anomaly Check
+type: test-suite
+description: "Subprocess E2E proving the tracked-file-gitignored anomaly check: a git-tracked file that a .gitignore rule excludes (e.g. force-added) is invisible to the disk-based coverage walk regardless of node mapping, and the CLI reports it — error under a coverage.required root, warning outside one, silently skipped with no git available. Guards the CLI behavior through the real built binary."
+aspects: []
+relations: [ { target: cli/tests/support, type: uses } ]
+mapping:
+  - source/cli/tests/e2e/cli-tracked-file-gitignored.test.ts

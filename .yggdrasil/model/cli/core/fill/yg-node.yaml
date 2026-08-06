@@ -3,29 +3,62 @@ type: engine
 description: "Fill stage behind yg check --approve — the single producer of
   verdict-lock entries. Computes unverified pairs, runs the deterministic-first
   gate (det fills before LLM; a node's enforced det refusal skips its LLM
-  fills), dispatches LLM reviewer calls per tier with a single fail-closed write
-  chokepoint, enforces the mandatory-log gate, and on positive closure writes
-  the source fingerprint and log baseline. GCs detached verdict entries and
-  writes the lock canonically. No write ever happens on an infra disposition
-  (provider unreachable, tier-resolution error, reference-load failure,
-  unparseable response) or a tainted/failed deterministic result."
+  fills), hands the surviving LLM pairs to reviewer dispatch, enforces the
+  mandatory-log gate, and on positive closure writes the source fingerprint and
+  log baseline. GCs detached verdict entries and writes the lock canonically. No
+  write ever happens on an infra disposition (provider unreachable,
+  tier-resolution error, reference-load failure, unparseable response) or a
+  tainted/failed deterministic result. One orchestrator owns the ORDER of those
+  steps and nothing else; each step is a module of its own — pair classification
+  and cost budgeting, the serialized lock writer and its verdict telemetry, the
+  deterministic phase, the cost preview, and everything the stage says out loud.
+  Talking to the model is NOT one of those modules: this stage sequences the
+  reviewer phase and owns the fail-closed write chokepoint every verdict passes
+  through, but the reviewer calls themselves live in a separate node whose code
+  is a different kind — answers from a model are not reproducible call-to-call,
+  so that code cannot be held to the same-input/same-output rule this stage is
+  held to. Keeping the two apart lets this orchestrator be judged deterministic
+  in full, with no suppressed island inside it. The primitives both of them stand
+  on — the stage's contract and gate predicates, the shared outcome shapes, the
+  bounded worker pool, the per-(rule, subject) parse caches — belong to neither
+  and are owned by a substrate node instead, so neither has to depend back on the
+  other to reach them."
 max_direct_relations:
-  limit: 22
+  limit: 23
   reason: >-
     Reviewed architectural seam. This node is the SINGLE producer of verdict-lock
     entries and the fill orchestrator — it fans out to every subsystem a
     --approve run must coordinate (pair computation, the deterministic-first
-    gate, per-tier LLM dispatch, the fail-closed lock writer, the mandatory-log
+    gate, the reviewer phase, the fail-closed lock writer, the mandatory-log
     gate, source-fingerprint/closure recording, and detached-entry GC). Its high
     direct-relation count concentrates that orchestration in one auditable place
-    by design; a split was deliberately deferred by the maintainer because
-    dividing the single write chokepoint would weaken the fail-closed guarantee.
-    The ceiling is set to the exact reviewed count (22), so any NEW dependency
-    beyond this pushes the node over its own ceiling and re-raises the warning.
+    by design; splitting the NODE was deliberately deferred by the maintainer
+    because dividing the single write chokepoint across nodes would weaken the
+    fail-closed guarantee. That decision is about the node, not about file size:
+    the stage's modules are split freely inside it, and every one of them stays
+    mapped here so the orchestration keeps a single owner and this count does
+    not grow with them. The ceiling is set to the exact reviewed count, so any
+    NEW dependency beyond it pushes the node over its own ceiling and re-raises
+    the warning.
     Raised from 21 to 22 for a reviewed dependency on the log-history validator:
     the closure step records a node's log baseline, and a correctness fix now
     validates that baseline against tampering before recording it, rather than
     trusting a working-tree log that a merge or hand-edit could have rewritten.
+    Raised from 22 to 24 for two more genuine dependencies, added when
+    type-level coverage classification was threaded into this stage's own
+    verifyLock/GC calls (the anti-prune lever that keeps a type-covered file's
+    already-stored verdict from being garbage-collected once its type
+    classification is known): cli/core/type-coverage (the SAME classification
+    runCheck computes once per run) and cli/io/file-content-cache (the shared
+    content cache that classification reads through). Both are real calls this
+    stage's own code makes, not incidental coupling.
+    Lowered from 24 to 23 when the reviewer calls and the stage's phase-agnostic
+    substrate each moved to a node of their own. Two edges left with the reviewer
+    code — the provider factory and the companion resolver were reached only from
+    what talks to the model — and two arrived: one to the dispatch node, one to
+    the substrate node. The ceiling tracks the reviewed count down as well as up;
+    leaving it at 24 would have banked a unit of unearned headroom and let a
+    future dependency arrive unreviewed.
 aspects:
   - deterministic
   - posix-paths-output
@@ -52,7 +85,9 @@ relations:
     type: calls
   - target: cli/llm/shared
     type: calls
-  - target: cli/llm/registry
+  - target: cli/core/reviewer-dispatch
+    type: calls
+  - target: cli/core/fill-support
     type: calls
   - target: cli/model/graph
     type: uses
@@ -70,21 +105,23 @@ relations:
     type: calls
   - target: cli/relations/core
     type: calls
-  - target: cli/relations/extractors
-    type: calls
   - target: cli/structure
     type: calls
   - target: cli/utils
     type: calls
-  - target: cli/core/companion-resolve
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/io/file-content-cache
     type: calls
 mapping:
   - source/cli/src/core/fill.ts
-  - source/cli/src/core/fill-shared.ts
-  - source/cli/src/core/fill-pool.ts
+  - source/cli/src/core/fill-classify.ts
+  - source/cli/src/core/fill-writer.ts
+  - source/cli/src/core/fill-report.ts
+  - source/cli/src/core/fill-dry-run.ts
+  - source/cli/src/core/fill-det-phase.ts
   - source/cli/src/core/fill-log-gate.ts
   - source/cli/src/core/fill-det.ts
-  - source/cli/src/core/fill-llm.ts
   - source/cli/src/core/fill-closure.ts
   - source/cli/src/core/fill-gc.ts
   - source/cli/src/core/fill-progress.ts

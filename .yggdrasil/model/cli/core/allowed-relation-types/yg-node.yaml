@@ -1,0 +1,10 @@
+name: Allowed Relation Types
+type: engine
+description: "Pure lookup: for a (fromType, toType) node-type pair, which
+  relation types the architecture's allow-list permits. Shared by the
+  relation-conformance validator's relation-target-forbidden check, the
+  live relation refusal message builder, and the live type-relation gate
+  over classified imports."
+mapping:
+  - source/cli/src/core/allowed-relation-types.ts
+relations: []

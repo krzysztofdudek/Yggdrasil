@@ -1,0 +1,9 @@
+name: AppAbs
+description: >-
+  Imports the dotted module lib.mod by an absolute import. lib/ holds both a
+  module file (mod.py) and a same-named package (mod/__init__.py) — CPython
+  imports the package in that shape, since a regular package outranks a
+  same-named module at the same root.
+type: service
+mapping:
+  - app/main_abs.py

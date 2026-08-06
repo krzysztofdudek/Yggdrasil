@@ -1,0 +1,6 @@
+name: Svc File Shape
+description: "Trivial always-pass per-file check for the graduation-twin fixture — its content does not matter to this fixture's purpose, only that it is a free deterministic rule (no LLM), so graduation is provable without a reviewer call."
+reviewer:
+  type: deterministic
+scope:
+  per: file

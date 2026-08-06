@@ -11,7 +11,10 @@ relations:
     { target: cli/commands/owner, type: uses },
     { target: cli/impact-handlers, type: uses },
     { target: cli/model/lock, type: uses },
-    { target: cli/preamble, type: uses }
+    { target: cli/preamble, type: uses },
+    { target: cli/core/loader, type: uses },
+    { target: cli/io/lock-store, type: uses },
+    { target: cli/tests/fixtures, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/aspects.test.ts

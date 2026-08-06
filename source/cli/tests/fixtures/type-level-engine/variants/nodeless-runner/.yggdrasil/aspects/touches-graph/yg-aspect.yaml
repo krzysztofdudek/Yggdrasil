@@ -1,0 +1,7 @@
+name: Touches Graph
+description: "A rule with no owning component that calls ctx.graph — pins the
+  SAME typed, fail-closed refusal touches-node exercises for ctx.node."
+reviewer:
+  type: deterministic
+scope:
+  per: file

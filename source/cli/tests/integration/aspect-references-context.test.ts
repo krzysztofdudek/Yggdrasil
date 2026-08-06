@@ -9,7 +9,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url));
 const CLI = join(__dirname, '..', '..', 'dist', 'bin.js');
 
 const YG_CONFIG = `
-version: "5.1.0"
+version: "5.2.0"
 reviewer:
   default: standard
   tiers:

@@ -23,5 +23,11 @@ relations:
     type: calls
   - target: cli/io/file-content-cache
     type: calls
+  - target: cli/io/parsers/config
+    type: calls
+  - target: cli/core/check-coverage-tiers
+    type: calls
+  - target: cli/core/type-effective
+    type: calls
 mapping:
   - source/cli/src/core/pairs.ts

@@ -90,6 +90,27 @@ If the rule cannot be judged from that single file plus references, it is not
 file-local; leave it \`per: node\`. This guidance is load-bearing and cannot be
 enforced deterministically.
 
+### A file enforced by its architecture type alone (no owning component)
+
+When \`coverage.type_level\` is on, a file matched by exactly one architecture
+type's \`when\` — but mapped by no node — is still reviewed against that
+type's \`per: file\` aspects. There is no component to name, so the prompt
+carries nothing false about one: no \`<node>\` element, the framing sentence
+describes a single source file instead of "a node (component)", and the
+single-file framing paragraph says this file is judged on its own — never "a
+larger component" it does not have. Everything else — the rule text,
+references, companions, suppressed-range handling, the response contract —
+is identical to the component-owned \`per: file\` case.
+A \`per: node\` aspect never runs on a file like this (there is no whole unit
+to run it against) — it shows as \`whole-unit-rule\` in \`yg check\`'s type
+coverage report, naming the gap rather than silently enforcing nothing.
+Preview or run one of these exactly as you would for a node:
+
+\`\`\`bash
+yg aspect-test --aspect <id> --file <path> --dry-run   # preview the prompt, no reviewer call
+yg aspect-test --aspect <id> --file <path>              # run it live
+\`\`\`
+
 A \`scope\` edit (either \`per\` or \`files\`) invalidates EVERY pair of the aspect —
 it cascades like a \`content.md\` edit. Narrowing \`scope.files\` to exclude tests
 is still a full re-verification. Run \`yg impact --aspect <id>\` first.
@@ -238,6 +259,15 @@ normalizes each to repo-root-relative POSIX, deduplicates, and sorts. For
 \`scope.per: node\`, a returned path that equals a unit subject file is silently
 skipped and not recorded.
 
+**Never mutate a tree \`ctx.parseAst\` hands you.** As with a deterministic
+\`check.mjs\` (see the \`writing-deterministic-aspects\` doc), the runner may reuse
+one parsed tree across several subjects of the same rule — for a \`per: file\`
+companion, that means every subject file of the same component shares its
+relation targets' trees. Calling tree-sitter's own \`tree.edit(...)\` /
+\`node.edit(...)\` mutates that tree in place and corrupts it for every OTHER
+subject that reads it afterward, silently. Read the tree to decide what to
+return; never edit it.
+
 ### When to use companion files vs references
 
 - **\`references:\`** — static files that apply to ALL units of the aspect
@@ -261,6 +291,28 @@ whole related node via \`ctx.graph.node(...)\` to inspect it — that reads the
 entire node's content into **every** per-file pair's verdict, so any edit
 anywhere in that node re-verifies (and re-bills) every pair, defeating
 per-unit isolation.
+
+### Companion files for a file with no owning component
+
+A companion aspect works the same way on a file enforced by its architecture
+type alone: the subject is the file itself, and the hook may read whatever
+the architecture's \`relations:\` allow-list permits that file's TYPE to depend
+on — the same reach \`check.mjs\` gets on a unit like this, computed from
+\`yg-architecture.yaml\` rather than from a node's own mapping and relations.
+Read narrowly for the same reason as above: what the hook reads to decide
+folds into the verdict regardless of unit kind.
+
+A companion written for a component — one that calls \`ctx.node.*\` or
+\`ctx.graph.*\` — cannot work here: there is no \`yg-node.yaml\` to back either
+surface, so any access to them fails closed (nothing written, the pair stays
+unverified) with a message naming both exits: rewrite the hook to use only
+\`ctx.subject\`/\`ctx.fs\` over files the architecture already permits the
+file's type to reach, or give the file a component of its own (map it with a
+\`yg-node.yaml\`) so \`ctx.node\`/\`ctx.graph\` become available. A path the hook
+returns that the architecture does not permit the file's type to reach is a
+companion allowed-reads violation, exactly as it is for a component — the
+NEXT then points at widening \`relations:\` in \`yg-architecture.yaml\` or
+giving the file a component of its own, never at a node path (there is none).
 
 ### Purity requirement
 
@@ -337,11 +389,12 @@ const data = ctx.parseYaml('docs/config.yaml');
 
 ### Testing companion hooks
 
-Use \`yg aspect-test --aspect <id> --node <path> --dry-run\` to run the hook
-live and inspect the resolved companion paths and assembled prompt without
-making a reviewer call or writing the lock. (The ad-hoc \`--files\` mode is
-unavailable for companion aspects — they need a node's relations to resolve;
-always use \`--node\`.)
+Use \`yg aspect-test --aspect <id> --node <path> --dry-run\` (or, for a file
+enforced by its architecture type alone, \`--file <path> --dry-run\`) to run
+the hook live and inspect the resolved companion paths and assembled prompt
+without making a reviewer call or writing the lock. (The ad-hoc \`--files\`
+mode is unavailable for companion aspects — they need a node's relations, or
+an architecture-derived reach, to resolve; always use \`--node\` or \`--file\`.)
 
 ### Cost
 

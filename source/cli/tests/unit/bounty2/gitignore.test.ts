@@ -36,9 +36,9 @@ import {
 //   isIgnoredByStack        — ignored / not / negation / rel==='' / rel '..'
 //                             / nested stack precedence (OR-of-stack)
 //   collectFiles (via walk) — local .gitignore present/absent, .git skip,
-//                             top-level .yggdrasil skip, nested .yggdrasil
-//                             kept by the walk (then dropped by exclude),
-//                             ignored dir/file skip
+//                             top-level .yggdrasil skip, a nested `.yggdrasil`
+//                             or `.git` boundary pruned proactively before the
+//                             walk ever descends into it, ignored dir/file skip
 //   excludeNestedGraphSubtrees — idx>0 add / idx===0 (top-level) skip /
 //                             idx===-1 (no match) skip / size===0 early-return
 //                             / p===root drop / startsWith(root+'/') drop / keep
@@ -379,10 +379,10 @@ describe('walkRepoFiles', () => {
     }
   });
 
-  it('NESTED .yggdrasil (dir!==projectRoot) is WALKED INTO, then excluded by excludeNestedGraphSubtrees', async () => {
-    // This proves both halves: collectFiles does NOT skip a deep .yggdrasil
-    // (the `dir === projectRoot` guard is false), so its files are collected;
-    // then walkRepoFiles' final excludeNestedGraphSubtrees drops the subtree.
+  it('NESTED .yggdrasil (dir!==projectRoot) is pruned proactively — the whole subtree is never even walked in', async () => {
+    // The boundary is read off the filesystem before the walk starts
+    // (findNestedProjectRoots), so collectFiles skips the whole apps/ subtree
+    // the moment it reaches that directory — it never descends into it at all.
     const root = await freshRoot('walk-nestygg');
     try {
       await mkdir(path.join(root, 'apps/web'), { recursive: true });
@@ -394,6 +394,44 @@ describe('walkRepoFiles', () => {
       const files = await walkRepoFiles(root);
       expect(files).toContain('src/a.ts');
       // The whole apps/ subtree (which contained the nested graph) is dropped.
+      expect(files.every((f) => !f.startsWith('apps/'))).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('a nested, fully independent git repository (`.git` is a directory) is pruned the same way', async () => {
+    const root = await freshRoot('walk-nestgit');
+    try {
+      await mkdir(path.join(root, 'apps/sub/.git'), { recursive: true });
+      await writeFile(path.join(root, 'apps/sub/.git/HEAD'), 'ref: refs/heads/main\n');
+      await writeFile(path.join(root, 'apps/sub/lib.ts'), '');
+      await mkdir(path.join(root, 'src'), { recursive: true });
+      await writeFile(path.join(root, 'src/a.ts'), '');
+      const files = await walkRepoFiles(root);
+      expect(files).toContain('src/a.ts');
+      expect(files.every((f) => !f.startsWith('apps/'))).toBe(true);
+    } finally {
+      await rm(root, { recursive: true, force: true });
+    }
+  });
+
+  it('a `.gitignore` line hiding ONLY the nested `.yggdrasil/` marker does not un-nest the subtree — the boundary is read off disk, not the walk\'s own candidate list', async () => {
+    // If nested-root detection were derived from what the walk itself turns
+    // up (the OLD, list-derived shape), hiding just the marker directory from
+    // git would make the walk blind to the nested project — its ordinary
+    // (non-gitignored) sibling files would then leak into the coverage count.
+    const root = await freshRoot('walk-nestygg-gitignored-marker');
+    try {
+      await mkdir(path.join(root, 'apps/vendorlib/.yggdrasil'), { recursive: true });
+      await writeFile(path.join(root, 'apps/vendorlib/.yggdrasil/yg-config.yaml'), 'version: "5.2.0"\n');
+      await writeFile(path.join(root, 'apps/vendorlib/other.ts'), '');
+      await mkdir(path.join(root, 'src'), { recursive: true });
+      await writeFile(path.join(root, 'src/a.ts'), '');
+      await writeFile(path.join(root, '.gitignore'), 'apps/vendorlib/.yggdrasil/\n');
+      const files = await walkRepoFiles(root);
+      expect(files).toContain('src/a.ts');
+      // Neither the marker NOR its now-un-nested sibling leaks through.
       expect(files.every((f) => !f.startsWith('apps/'))).toBe(true);
     } finally {
       await rm(root, { recursive: true, force: true });

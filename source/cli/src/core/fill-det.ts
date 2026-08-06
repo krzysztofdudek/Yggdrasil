@@ -10,15 +10,68 @@ import path from 'node:path';
 import type { Graph, AspectDef } from '../model/graph.js';
 import type { VerdictEntry, Verdict } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
-import type { ExpectedPair } from './pairs.js';
+import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { computeNodeMappedFiles } from './pairs.js';
 import { computeDetInputHash } from './pair-hash.js';
 import { ruleHashFor } from './pair-inputs.js';
 import { hashBytes } from '../io/hash.js';
 import { runStructureAspect, StructureRunnerError, SUPPRESS_MARKER_MALFORMED_CODE } from '../structure/runner.js';
+import type { StructureUnit } from '../structure/runner.js';
+import { collectArchitectureReach } from '../structure/allowed-reads.js';
+import { buildOwnerIndex } from '../relations/owner-index.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { readBytesOrEmpty, type DetFillOutcome } from './fill-shared.js';
+import type { ParseCache } from '../structure/index.js';
+
+/**
+ * A subject-file-INDEPENDENT sentinel repo-relative path, used only as the
+ * throwaway `subjectFile` argument when computing the type-dependent part of
+ * an architecture reach (declared-component and type-covered files the
+ * architecture permits `fromType` to depend on) once per type, cacheable
+ * across every nodeless file of that type this run. A real repo-relative path
+ * is never empty and never contains NUL, so this can never collide with one;
+ * the sentinel itself is deleted from the result before caching, so the cached
+ * set holds only the type-dependent part — never a specific file's own
+ * identity, which the caller re-adds per file (see `reachExtraForType`).
+ */
+const REACH_SENTINEL_FILE = '\0';
+
+/**
+ * The type-dependent part of `collectArchitectureReach` for `fromType`
+ * (declared-component files and other type-covered files the architecture
+ * permits `fromType` to depend on) — cached by `fromType` so a run reviewing
+ * many files of the same type computes this ONCE per type: recomputing it per
+ * pair over a repo with thousands of files would dominate the run. The caller
+ * unions in its OWN subject file afterward (cheap, O(1) per file) — never
+ * cached here, since a DIFFERENT file's own identity must never leak into
+ * another file's allowance when the architecture does not itself permit
+ * `fromType` to depend on `fromType`.
+ */
+async function reachExtraForType(
+  fromType: string,
+  typeCoverage: TypeCoverageInput | undefined,
+  graph: Graph,
+  projectRoot: string,
+  reachCache: Map<string, Set<string>>,
+): Promise<Set<string>> {
+  const cached = reachCache.get(fromType);
+  if (cached) return cached;
+  const full = await collectArchitectureReach(REACH_SENTINEL_FILE, {
+    fromType,
+    typeCovered: typeCoverage?.covered ?? new Map<string, string>(),
+    architecture: graph.architecture,
+    graph,
+    projectRoot,
+    // Pure, graph-only, no I/O — cheap to (re)build per distinct fromType this
+    // run, and keeps structure/allowed-reads.ts free of its own value-level
+    // dependency on relations/owner-index.ts (see that module's own note).
+    ownerIndex: buildOwnerIndex(graph.nodes),
+  });
+  full.delete(REACH_SENTINEL_FILE);
+  reachCache.set(fromType, full);
+  return full;
+}
 
 /**
  * Fill one deterministic pair. Runs check.mjs through the structure runner with a
@@ -61,29 +114,65 @@ export async function fillDetPair(
   // StructureRunnerError on the parent so the catch below is byte-for-byte
   // unchanged. Only SPEED differs — the verdict is identical either way.
   runStructure: typeof runStructureAspect = runStructureAspect,
+  // Type-level coverage facts for this run (absent ⇒ no nodeless pairs exist,
+  // the feature-off contract every other type-coverage consumer already
+  // follows). Only consulted for a pair with no owning component.
+  typeCoverage?: TypeCoverageInput,
+  // Shared across every fillDetPair call THIS RUN (the caller constructs one
+  // Map and passes it to every call) so the per-type reach set above is
+  // computed once per fromType, never once per pair.
+  reachCache: Map<string, Set<string>> = new Map(),
+  // Shared AST parse cache for the (aspectId, node) bucket this pair belongs to
+  // (fill.ts's own non-pooled dispatch loop groups pairs this way) — see
+  // fillLlmPair's identical parameter for the full rationale. Threaded straight
+  // into runStructure; never destroyed here (the bucket's owner destroys it
+  // once every pair sharing it has settled). Not forwarded into the pooled
+  // worker-thread path (runViaPool) — a worker is a separate isolate with its
+  // own WASM instance, so a cache built on this thread cannot cross that
+  // boundary; that branch is out of scope here (see fill.ts).
+  parseCache?: ParseCache,
 ): Promise<DetFillOutcome> {
   const aspectDirAbs = path.join(projectRoot, '.yggdrasil', 'aspects', aspect.id);
   // The subject is narrowed iff it covers FEWER files than the node's full
   // mapping (pair.subjectFiles ⊆ full mapping always, so a length difference is
   // an exact set difference). Both per:file and per:node-with-scope.files can
   // narrow; a plain per:node aspect has subject == full mapping → undefined.
-  const fullMapping = await computeNodeMappedFiles(graph, pair.nodePath);
-  const subjectScope = pair.subjectFiles.length < fullMapping.length
+  // A nodeless pair has no "whole component" to compare against — its subject
+  // ALWAYS narrows (skip the mapped-files call entirely: computeNodeMappedFiles
+  // has no node to look up and would waste an I/O round-trip returning []).
+  const subjectScope = pair.nodePath === undefined
     ? pair.subjectFiles
-    : undefined;
+    : ((await computeNodeMappedFiles(graph, pair.nodePath)).length > pair.subjectFiles.length
+        ? pair.subjectFiles
+        : undefined);
+
+  // Addressing: a component pair runs the node branch unchanged; a nodeless
+  // pair (no owning component) carries its OWN architecture-derived allowance
+  // instead of one derived from a component's mapping — the matched type's own
+  // relation allow-list is the only authority, since there is no per-component
+  // narrowing to apply with no component (structure/allowed-reads.ts).
+  const unit: StructureUnit = pair.nodePath !== undefined
+    ? { kind: 'node', nodePath: pair.nodePath }
+    : await (async () => {
+        const file = pair.subjectFiles[0];
+        const fromType = typeCoverage?.covered.get(file) ?? '';
+        const reachExtra = await reachExtraForType(fromType, typeCoverage, graph, projectRoot, reachCache);
+        return { kind: 'file' as const, file, typeId: fromType, allowedReads: [...reachExtra, file] };
+      })();
 
   const runOnce = async () => {
     try {
       return { ok: true as const, result: await runStructure({
         aspectDir: aspectDirAbs,
         aspectId: aspect.id,
-        nodePath: pair.nodePath,
+        unit,
         graph,
         projectRoot,
         subjectScope,
+        parseCache,
       }) };
     } catch (e) {
-      debugWrite(`[fill] det runtime error for ${aspect.id} on ${pair.nodePath}: ${e instanceof Error ? e.message : String(e)}`);
+      debugWrite(`[fill] det runtime error for ${aspect.id} on ${pair.nodePath ?? pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
       // A malformed suppress marker is a fault in the SOURCE file's marker, not in
       // check.mjs — surface it as its OWN disposition (its self-describing
       // messageData), never as aspect-check-runtime-error.
@@ -93,7 +182,19 @@ export async function fillDetPair(
       const rendered = e instanceof StructureRunnerError
         ? `${e.messageData.what} — ${e.messageData.why}`
         : (e instanceof Error ? e.message : String(e));
-      return { ok: false as const, failure: { kind: 'runtime-error' as const, messageData: detRuntimeNotice(aspect.id, pair.unitKey, rendered) } };
+      // A thrown StructureRunnerError already carries its own specific, actionable
+      // `next` (e.g. STRUCTURE_NODE_CONTEXT_UNAVAILABLE names both exits: rewrite
+      // to ctx.subject/ctx.fs, or give the file a component of its own;
+      // STRUCTURE_NODE_MISSING says to pass an existing node path or add the node
+      // to the graph) — thread it through rather than always falling back to the
+      // generic "fix check.mjs" instruction below, which is frequently just wrong
+      // (a missing node, an async return, or a bad Violation shape are none of
+      // them a check.mjs bug in the sense that phrasing implies). Mirrors
+      // fill-llm.ts's companionRuntimeNotice, which already does the same for the
+      // companion-hook disposition.
+      const originalMessageData = e instanceof StructureRunnerError ? e.messageData : undefined;
+      const code = e instanceof StructureRunnerError ? e.code : undefined;
+      return { ok: false as const, failure: { kind: 'runtime-error' as const, messageData: detRuntimeNotice(aspect.id, pair.unitKey, rendered, originalMessageData), code } };
     }
   };
 
@@ -155,10 +256,19 @@ export async function fillDetPair(
   return { kind: 'verdict', entry };
 }
 
-function detRuntimeNotice(aspectId: string, unitKey: string, reason: string): IssueMessage {
+/**
+ * Build the printed aspect-check-runtime-error notice. `originalMessageData`,
+ * when present, is the specific StructureRunnerError that caused this run to
+ * fail — its own `next` is threaded through so actionable guidance (e.g. "give
+ * the file a component of its own", "pass an existing node path") reaches the
+ * user instead of being replaced by the generic fallback below. Mirrors
+ * fill-llm.ts's companionRuntimeNotice, which threads a companion hook's own
+ * `next` through the same way.
+ */
+function detRuntimeNotice(aspectId: string, unitKey: string, reason: string, originalMessageData?: IssueMessage): IssueMessage {
   return {
     what: `Deterministic check '${aspectId}' failed to run on ${toPosixPath(unitKey)} — left unverified (aspect-check-runtime-error).`,
     why: `The check.mjs crashed, returned an invalid result, or its observations changed mid-run: ${reason}`,
-    next: `Fix the check.mjs, then re-run: yg check --approve`,
+    next: originalMessageData?.next ?? `Fix the check.mjs, then re-run: yg check --approve`,
   };
 }

@@ -1,5 +1,6 @@
 import { UndeclaredFsReadError } from './ctx-fs.js';
-import { UndeclaredGraphReadError } from './ctx-graph.js';
+import { describeExclusionCause } from '../io/repo-scanner.js';
+import { UndeclaredGraphReadError, StructureNodeContextUnavailableError } from './ctx-graph.js';
 import { ParseAstNotPrewarmedError } from './ctx-parsers.js';
 import { normalizeMappingPath } from './expand-mapping-sync.js';
 import { collectSuppressions, isLineSuppressed, SuppressMarkerError } from '../ast/suppress.js';
@@ -10,11 +11,17 @@ import type { Violation } from './types.js';
 import type { ParseCache } from '../ast/parse-cache.js';
 import { destroyParseCache } from '../ast/parse-cache.js';
 import { StructureRunnerError, loadHookModule, buildUnitCtx } from './hook-loader.js';
+import type { StructureUnit } from './hook-loader.js';
 
 // StructureRunnerError is defined in hook-loader.ts (shared by the loader and
 // this runner without a circular import); re-export it here so existing importers
 // (structure/index.ts, callers keying off the runner module) are unaffected.
 export { StructureRunnerError } from './hook-loader.js';
+// StructureUnit likewise: defined in hook-loader.ts (BuildUnitCtxParams lives
+// there); re-exported here so callers addressing a deterministic run (fill-det.ts,
+// det-worker-core.ts, det-worker-pool.ts) import the addressing type from the
+// runner module they already depend on.
+export type { StructureUnit } from './hook-loader.js';
 
 // Distinct code stamped when a `yg-suppress` marker in a mapped source file is
 // malformed (reasonless). The filler keys on this to surface a "malformed suppress
@@ -25,7 +32,7 @@ export const SUPPRESS_MARKER_MALFORMED_CODE = 'STRUCTURE_SUPPRESS_MARKER_MALFORM
 export interface RunStructureAspectParams {
   aspectDir: string;
   aspectId: string;
-  nodePath: string;
+  unit: StructureUnit;
   graph: Graph;
   projectRoot: string;
   parseCache?: ParseCache;
@@ -59,7 +66,7 @@ export interface RunStructureAspectResult {
 export async function runStructureAspect(
   params: RunStructureAspectParams,
 ): Promise<RunStructureAspectResult> {
-  const { aspectDir, aspectId, nodePath, graph, projectRoot, subjectScope } = params;
+  const { aspectDir, aspectId, unit, graph, projectRoot, subjectScope } = params;
   const ownCache = !params.parseCache;
   const astCache: ParseCache = params.parseCache ?? new Map();
   const touchedFiles: string[] = [];
@@ -82,7 +89,7 @@ export async function runStructureAspect(
   // byte-behavior-preserving head: same recorder, touchedFiles, subjectFiles set,
   // ctx identity, and AST prewarmup as the legacy inline construction.
   const { ctx, recorder, ownFiles, astInputSet } = await buildUnitCtx({
-    aspectId, nodePath, graph, projectRoot, astCache, touchedFiles, subjectScope,
+    aspectId, unit, graph, projectRoot, astCache, touchedFiles, subjectScope,
   });
 
   let raw: unknown;
@@ -90,17 +97,40 @@ export async function runStructureAspect(
     raw = checkFn(ctx);
   } catch (err) {
     if (err instanceof UndeclaredFsReadError) {
-      return {
-        violations: [{
-          message: `Aspect tried to read undeclared path '${err.path}'. Add a relation in yg-node.yaml to the node owning this path.`,
-          kind: 'structure-aspect-undeclared-fs-read',
-          file: `.yggdrasil/aspects/${aspectId}/check.mjs`,
-        }],
-        touchedFiles: [],
-        succeeded: false,
-        observations: recorder.snapshot(),
-        observationsTainted: recorder.tainted,
-      };
+      // An excluded path (err.exclusionSource set) is a DIFFERENT fact from an
+      // undeclared one: no relation, mapping, or architecture change can ever
+      // make it readable — it is gone from graph coverage regardless of what
+      // the graph says. Report that fact directly, the same wording every
+      // other exclusion message in the graph uses, instead of falling into
+      // the relation/widen advice below, which would send an agent looping on
+      // a fix that cannot work.
+      if (err.exclusionSource !== null) {
+        throw new StructureRunnerError('STRUCTURE_UNDECLARED_FS_READ', {
+          what: `Aspect tried to read '${err.path}', which is excluded from graph coverage by design.`,
+          why: `No relation, mapping, or architecture change can make this path readable — it is never matched against any node or type because ${describeExclusionCause(err.exclusionSource)}.`,
+          next: `Remove the read of '${err.path}' from check.mjs, or read only a non-excluded, relation-reachable file.`,
+        });
+      }
+      // An undeclared read is never a bug IN check.mjs — the remedy is always
+      // an architecture or graph change (widen a relation, or give the file/
+      // node a component of its own), never a code fix. Throw a structured
+      // StructureRunnerError (like STRUCTURE_NODE_CONTEXT_UNAVAILABLE below)
+      // so that real remedy reaches the printed output through fill-det.ts's
+      // originalMessageData thread, instead of being returned as a Violation
+      // whose `next` the caller can only guess at (and guesses "fix check.mjs",
+      // which is wrong here). Split at the SAME sentence boundaries the prior
+      // single-string message used, so the wording an agent sees is unchanged.
+      throw new StructureRunnerError('STRUCTURE_UNDECLARED_FS_READ', unit.kind === 'file'
+        ? {
+            what: `Aspect tried to read undeclared path '${err.path}'.`,
+            why: `This file has no component of its own — its only reads beyond its own content are files the architecture's relations: allow-list permits '${unit.typeId}' to depend on.`,
+            next: `Allow '${unit.typeId}' to depend on whatever owns '${err.path}' in yg-architecture.yaml, or give '${unit.file}' a component of its own (a yg-node.yaml mapping it) so it can declare an explicit relation instead.`,
+          }
+        : {
+            what: `Aspect tried to read undeclared path '${err.path}'.`,
+            why: `check.mjs may only read files inside the node's allowed reads set (its own mapping, declared relation targets, ancestors, and descendants) — this path is outside all of them.`,
+            next: `Add a relation in yg-node.yaml to the node owning this path.`,
+          });
     }
     if (err instanceof UndeclaredGraphReadError) {
       return {
@@ -115,12 +145,28 @@ export async function runStructureAspect(
         observationsTainted: recorder.tainted,
       };
     }
+    // ctx.node / ctx.graph accessed on a unit with no owning component: a typed,
+    // fail-closed infra disposition (never a Violation) — thrown, not returned,
+    // exactly like every other STRUCTURE_* structural fault. Both exits named:
+    // make the rule file-local to files the architecture already permits this
+    // type to reach, or give the file a component of its own.
+    if (err instanceof StructureNodeContextUnavailableError) {
+      throw new StructureRunnerError('STRUCTURE_NODE_CONTEXT_UNAVAILABLE', {
+        what: `check.mjs for aspect '${aspectId}' accessed ctx.${err.member}, which is unavailable here.`,
+        why: `This file has no owning component — it is enforced by its architecture type alone, so there is no yg-node.yaml to back ctx.node or ctx.graph.`,
+        next: `Rewrite the check to use only ctx.subject / ctx.fs over files the architecture already permits this file's type to reach, or give the file a component of its own (a yg-node.yaml mapping it) so ctx.node / ctx.graph become available.`,
+      });
+    }
     if (err instanceof ParseAstNotPrewarmedError) {
       return {
         violations: [{
           message: `Aspect called ctx.parseAst on '${err.filePath}', which was not pre-warmed by the dispatcher. Add a declared relation to the node owning this file, or use ctx.parseYaml/Json/Toml if AST is not required.`,
           kind: 'structure-aspect-parseast-not-prewarmed',
-          file: `.yggdrasil/model/${nodePath}/yg-node.yaml`,
+          // A nodeless unit has no component file to point at — name the
+          // aspect's own check.mjs instead (there is no yg-node.yaml here).
+          file: unit.kind === 'node'
+            ? `.yggdrasil/model/${unit.nodePath}/yg-node.yaml`
+            : `.yggdrasil/aspects/${aspectId}/check.mjs`,
         }],
         touchedFiles: [],
         succeeded: false,

@@ -79,7 +79,7 @@ node_types:
       - command-error-via-buildissuemessage
     parents: [module]
     relations:
-      calls: [engine, parser-adapter, persistence-adapter, formatter, utility, llm-shared, template]
+      calls: [engine, parser-adapter, persistence-adapter, formatter, utility, llm-shared, template, command-support]
       uses: [types]
       default: deny
 
@@ -91,6 +91,12 @@ node_types:
         - path: "source/cli/src/core/**/*.ts"
         - not:
             path: "**/*.test.ts"
+        # Reviewer dispatch also lives under core/, but calling the LLM reviewer
+        # is exactly what this type forbids. Those two files are classified as
+        # reviewer-dispatch; naming them here keeps exactly one type matching
+        # each file, and keeps the rest of the engine judged in full.
+        - not:
+            path: "source/cli/src/core/{fill-llm,fill-llm-phase}.ts"
     aspects:
       - id: source-no-raw-control-chars
         status: enforced
@@ -103,7 +109,27 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [engine, parser-adapter, persistence-adapter, llm-shared, utility, formatter, relations-adapter, structure-adapter]
+      calls: [engine, parser-adapter, persistence-adapter, llm-shared, utility, formatter, relations-adapter, structure-adapter, reviewer-dispatch]
+      uses: [types]
+      default: deny
+
+  reviewer-dispatch:
+    description: "Reviewer dispatch — the core-layer code whose purpose is to call the configured LLM reviewer: group a run's unverified pairs by resolved tier, stand up one provider per tier, assemble each pair's prompt, run the tier's consensus votes, and turn the answer into a content-addressed verdict entry. Exempt from deterministic, because a model's answer to identical input is not guaranteed identical — demanding same-input/same-output here would forbid the code's own purpose. What replaces that guarantee is content-addressing: every verdict is stored under a hash of the inputs that produced it and is honored only while those inputs still hash to the recorded value, so reproducibility is proven at the lock layer rather than at the call. Everything else the engine must satisfy still holds, no-nondeterminism-direct included — the reviewer's answer may vary, but this code still takes its clock, its randomness, and its environment as injected inputs instead of reading them off the ambient process."
+    enforce: strict
+    when:
+      path: "source/cli/src/core/{fill-llm,fill-llm-phase}.ts"
+    aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
+      - no-direct-fs
+      - no-direct-console
+      - no-nondeterminism-direct
+      - source-hygiene
+      - single-source-graph-queries
+    log_required: true
+    parents: [module]
+    relations:
+      calls: [engine, persistence-adapter, llm-shared, structure-adapter, utility]
       uses: [types]
       default: deny
 
@@ -234,6 +260,7 @@ node_types:
         status: enforced
       - deterministic
       - source-hygiene
+    log_required: true
     parents: [module]
     relations:
       calls: [engine, ast-adapter, structure-adapter, persistence-adapter, llm-shared, utility, relations-adapter]
@@ -400,6 +427,7 @@ node_types:
       - id: source-no-raw-control-chars
         status: enforced
       - test-deterministic
+      - self-contained-references
     parents: [module, test-suite]
 
   doc-page:
@@ -515,6 +543,21 @@ node_types:
     description: "Test fixture projects — self-contained mini-repos used as data for integration and E2E tests."
     when:
       path: "source/cli/tests/fixtures/**"
+    parents: [module]
+    relations:
+      default: deny
+
+  rule-script:
+    description: "This repository's own deterministic rule implementations (check.mjs) under .yggdrasil/aspects/*/check.mjs — the graph's own enforcement code, held to the graph's own rules like any other first-party source. A curated subset of the general source-hygiene/safety baseline plus the checks that protect the two properties a rule script must have above all: it runs the SAME way every time — covered from both directions, the judgement-based deterministic aspect AND its mechanical counterpart no-nondeterminism-direct (no Date.now(), no Math.random(), no direct process.env — the free, provable half of the same property) — and it never reads outside what the sandboxed ctx it receives already grants (no-direct-fs). Excludes every CLI-product-surface aspect (command contracts, engine layering, provider/parser conventions, portal rules) — check.mjs is not CLI source, cannot import any of the internal modules those rules police, and is tested through its own drills/ convention rather than a sibling *.test.ts file."
+    when:
+      path: ".yggdrasil/aspects/*/check.mjs"
+    aspects:
+      - source-hygiene
+      - source-no-raw-control-chars
+      - deterministic
+      - no-nondeterminism-direct
+      - no-direct-fs
+      - no-side-effects-on-import
     parents: [module]
     relations:
       default: deny

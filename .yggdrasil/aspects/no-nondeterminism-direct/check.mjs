@@ -3,12 +3,21 @@ import { walk, report, inFile } from '@chrisdudek/yg/ast';
 // Identifiers that represent non-deterministic runtime state
 const NONDETERMINISM_CALLS = new Set(['Date.now', 'Math.random']);
 
+// The two homes a direct-nondeterminism failure can occur in: the CLI's own
+// engine layer (core/**/*.ts) and this repo's own rule-script implementations
+// (.yggdrasil/aspects/*/check.mjs, wherever they sit — including nested under
+// a drill corpus, which is why both globs carry a leading '**/'). A rule
+// script that reads the clock or a random source is exactly the same failure,
+// just running as a graph rule instead of shipped CLI source.
+function isCheckedFile(file) {
+  return inFile(file, { glob: '**/src/core/**/*.ts' }) || inFile(file, { glob: '**/.yggdrasil/aspects/*/check.mjs' });
+}
+
 export function check(ctx) {
   const violations = [];
   for (const file of ctx.files) {
     if (!file.ast) continue;
-    // Only check engine files (core/)
-    if (!inFile(file, { glob: '**/src/core/**/*.ts' })) continue;
+    if (!isCheckedFile(file)) continue;
 
     walk(file.ast.rootNode, (node) => {
       // Catch Date.now() and Math.random() — member expressions inside call_expression
@@ -24,7 +33,7 @@ export function check(ctx) {
                 report(
                   file,
                   node,
-                  `non-deterministic call '${key}()' — engine must not access runtime state directly; inject via parameter`,
+                  `non-deterministic call '${key}()' — this file must not access runtime state directly; inject via parameter`,
                 ),
               );
             }
@@ -44,7 +53,7 @@ export function check(ctx) {
           report(
             file,
             node,
-            `direct 'process.env' access — engine must receive environment values as injected parameters`,
+            `direct 'process.env' access — this file must receive environment values as injected parameters`,
           ),
         );
       }

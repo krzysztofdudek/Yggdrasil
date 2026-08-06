@@ -87,6 +87,91 @@ describe('resolvePythonModule — absolute', () => {
     const clean = new Set(['src/b/bar.py']);
     expect(resolvePythonModule('b.bar', 'src/a/foo.py', (p) => clean.has(p))).toBe('src/b/bar.py');
   });
+
+  describe('exclusion awareness', () => {
+    // Same shadow shape as the "own dir shadows a genuine root" test above: two
+    // ancestor roots each hold a file matching the same dotted module, so the
+    // absolute resolver treats it as genuinely ambiguous and stays silent. An
+    // `isExcluded` predicate that marks one of the two matches as graph-excluded
+    // must drop it from the ambiguity count BEFORE the silence decision, the same
+    // drop-then-decide rule the Go/Java package resolvers already apply.
+    const shadow = new Set(['src/a/b.py', 'src/b/bar.py']);
+    const shadowExists = (p: string) => shadow.has(p);
+
+    it('control: with nothing excluded, two distinct roots stay ambiguous — silent', () => {
+      expect(resolvePythonModule('b.bar', 'src/a/b.py', shadowExists)).toBeUndefined();
+    });
+
+    it('excluding the match that sorts FIRST resolves to the survivor', () => {
+      // 'src/a/b.py' < 'src/b/bar.py' lexicographically.
+      const isExcluded = (p: string) => p === 'src/a/b.py';
+      expect(resolvePythonModule('b.bar', 'src/a/b.py', shadowExists, isExcluded)).toBe(
+        'src/b/bar.py',
+      );
+    });
+
+    it('excluding the match that sorts LAST resolves to the survivor', () => {
+      const isExcluded = (p: string) => p === 'src/b/bar.py';
+      expect(resolvePythonModule('b.bar', 'src/a/b.py', shadowExists, isExcluded)).toBe(
+        'src/a/b.py',
+      );
+    });
+
+    it('excluding an UNRELATED path elsewhere leaves a genuinely ambiguous resolution silent', () => {
+      const isExcluded = (p: string) => p === 'somewhere/else/entirely.py';
+      expect(
+        resolvePythonModule('b.bar', 'src/a/b.py', shadowExists, isExcluded),
+      ).toBeUndefined();
+    });
+  });
+
+  describe('same-root module/package shadow', () => {
+    // ONE source root holds both a module file (mod.py) and a same-named package
+    // (mod/__init__.py). Verified against the real interpreter (python3 -c "import
+    // lib.mod" with both lib/mod.py and lib/mod/__init__.py present loads the
+    // __init__.py): CPython imports the PACKAGE — a regular package outranks a
+    // same-named module file at the same root. The per-root candidate list tries
+    // the package form first, then the module form, and does not stop at the first
+    // EXISTING candidate regardless of exclusion, so excluding the package falls
+    // through to the live module file at the very same root.
+    const shadow = new Set(['mod.py', 'mod/__init__.py']);
+    const shadowExists = (p: string) => shadow.has(p);
+
+    it('control: with nothing excluded, the package candidate wins over the module-as-file — matches CPython', () => {
+      expect(resolvePythonModule('mod', 'x.py', shadowExists)).toBe('mod/__init__.py');
+    });
+
+    it('excluding the package falls through to the live module-as-file at the same root', () => {
+      const isExcluded = (p: string) => p === 'mod/__init__.py';
+      expect(resolvePythonModule('mod', 'x.py', shadowExists, isExcluded)).toBe('mod.py');
+    });
+
+    it('excluding the module-as-file leaves the package resolution unaffected', () => {
+      const isExcluded = (p: string) => p === 'mod.py';
+      expect(resolvePythonModule('mod', 'x.py', shadowExists, isExcluded)).toBe('mod/__init__.py');
+    });
+
+    it('excluding both leaves the module unresolved', () => {
+      const isExcluded = (): boolean => true;
+      expect(resolvePythonModule('mod', 'x.py', shadowExists, isExcluded)).toBeUndefined();
+    });
+  });
+
+  describe('module-only and package-only shapes are unaffected by the package-first order', () => {
+    // Both shapes this fix must NOT disturb: a bare module file with no same-named
+    // package still resolves (the package candidate simply does not exist), and a
+    // bare package with no same-named module file still resolves via __init__.py —
+    // pinned here as the two "no shadow" counterparts to the shadow tests above.
+    it('a module file with no same-named package still resolves', () => {
+      const soloModule = new Set(['solo.py']);
+      expect(resolvePythonModule('solo', 'x.py', (p) => soloModule.has(p))).toBe('solo.py');
+    });
+
+    it('a package with no same-named module file still resolves via __init__.py', () => {
+      const soloPackage = new Set(['solo/__init__.py']);
+      expect(resolvePythonModule('solo', 'x.py', (p) => soloPackage.has(p))).toBe('solo/__init__.py');
+    });
+  });
 });
 
 describe('resolvePythonModule — relative', () => {
@@ -108,5 +193,32 @@ describe('resolvePythonModule — relative', () => {
 
   it('returns undefined when the relative target does not exist', () => {
     expect(resolvePythonModule('.missing', 'src/a/x.py', exists)).toBeUndefined();
+  });
+
+  describe('same-root module/package shadow, exclusion-aware', () => {
+    // `from .mod import X` from src/a/x.py: base 'src/a', tailPath 'mod', candidates
+    // 'src/a/mod/__init__.py' (package) then 'src/a/mod.py' (module) — the same
+    // package-then-module priority the absolute resolver uses (verified against the
+    // real interpreter — see the absolute resolver's own shadow tests above).
+    const shadow = new Set(['src/a/mod.py', 'src/a/mod/__init__.py']);
+    const shadowExists = (p: string) => shadow.has(p);
+
+    it('control: with nothing excluded, the package candidate wins over the module-as-file — matches CPython', () => {
+      expect(resolvePythonModule('.mod', 'src/a/x.py', shadowExists)).toBe('src/a/mod/__init__.py');
+    });
+
+    it('excluding the package falls through to the live module-as-file at the same root', () => {
+      const isExcluded = (p: string) => p === 'src/a/mod/__init__.py';
+      expect(resolvePythonModule('.mod', 'src/a/x.py', shadowExists, isExcluded)).toBe(
+        'src/a/mod.py',
+      );
+    });
+
+    it('excluding the module-as-file leaves the package resolution unaffected', () => {
+      const isExcluded = (p: string) => p === 'src/a/mod.py';
+      expect(resolvePythonModule('.mod', 'src/a/x.py', shadowExists, isExcluded)).toBe(
+        'src/a/mod/__init__.py',
+      );
+    });
   });
 });

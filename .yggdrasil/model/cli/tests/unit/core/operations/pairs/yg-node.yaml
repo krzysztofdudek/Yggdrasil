@@ -4,14 +4,24 @@ description: "Unit tests for expected-pair computation and source fingerprints â
   covers per-node and per-file pairs, scope.files path and content filters,
   binary exclusion for LLM aspects (deterministic aspects keep binaries),
   empty-subject vacuous pass, draft aspect inclusion/exclusion, aggregate aspect
-  exclusion, child carve-out, deterministic output ordering, and fingerprint
-  stability/sensitivity properties."
+  exclusion, child carve-out, deterministic output ordering, fingerprint
+  stability/sensitivity properties, and the nodeless enumeration pass for files
+  enforced by their architecture type alone â€” the PairDrop channel, the
+  absolute-exclusion guard (coverage.excluded cuts a component's own explicit
+  mapping too) against the real type-level-engine fixture, and the
+  shared-record merge at the unit level."
 aspects: []
 relations:
   [
     { target: cli/core/pairs, type: uses },
-    { target: cli/model/lock, type: uses }
+    { target: cli/model/lock, type: uses },
+    { target: cli/core/loader, type: uses },
+    { target: cli/core/pair-hash, type: uses },
+    { target: cli/core/pair-inputs, type: uses },
+    { target: cli/io/stores, type: uses },
+    { target: cli/core/verify-lock, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/pairs.test.ts
   - source/cli/tests/unit/core/pairs-helpers-branch-coverage.test.ts
+  - source/cli/tests/unit/core/pairs-type-coverage.test.ts

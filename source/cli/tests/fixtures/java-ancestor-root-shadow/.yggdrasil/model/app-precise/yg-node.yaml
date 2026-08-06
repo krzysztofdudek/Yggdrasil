@@ -1,0 +1,9 @@
+name: AppPrecise
+description: >-
+  Imports the type com.a.Zzz by a precise single-type import. Two ancestor
+  source roots of its own directory each hold a com/a/Zzz.java — a half-migrated
+  or flat Java layout, not a normal multi-module tree — so which copy wins
+  depends on the ancestor-root search and on which copy, if any, is excluded.
+type: service
+mapping:
+  - src/main/java/com/app/MainPrecise.java

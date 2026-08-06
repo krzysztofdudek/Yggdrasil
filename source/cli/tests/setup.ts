@@ -1,6 +1,7 @@
 import { beforeEach, afterEach, onTestFailed } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { readdirSync, existsSync, rmSync } from 'node:fs';
 
 // ── Defense-in-depth: git-fixture isolation boundary (runs once per worker) ──
 // Test suites spawn throwaway `git init`/`add`/`commit` fixtures. If any such
@@ -34,6 +35,32 @@ for (const v of [
   delete process.env[v];
 }
 process.env.GIT_CEILING_DIRECTORIES = REPO_ROOT;
+
+// ── Defense-in-depth: fixture cache-pollution guard (runs once per worker) ──
+// A committed fixture under tests/fixtures/ is meant to be classified only via
+// a copy (mktemp + cpSync) — never in place. If some path nonetheless runs the
+// real classifier against a fixture's own graph directly (a test bug, or a
+// manual run against the checked-out tree), it leaves behind a
+// `.yggdrasil/.type-class-cache/` directory written straight into the
+// committed fixture. That is more than untracked clutter: every OTHER test
+// that copies the same fixture (`cpSync`) would then inherit an
+// already-warm cache — a "cold cache" test would silently start warm,
+// exactly the cross-file/cross-run aliasing this cache's own key exists to
+// prevent. Scoped to the one known directory NAME directly under each
+// fixture root — never a broader glob — and removed unconditionally before
+// any test file's fixtures are copied.
+try {
+  const fixturesRoot = path.join(__dirname, 'fixtures');
+  for (const entry of readdirSync(fixturesRoot, { withFileTypes: true })) {
+    if (!entry.isDirectory()) continue;
+    const strayCacheDir = path.join(fixturesRoot, entry.name, '.yggdrasil', '.type-class-cache');
+    if (existsSync(strayCacheDir)) {
+      rmSync(strayCacheDir, { recursive: true, force: true });
+    }
+  }
+} catch {
+  // Best-effort sanitization only — never fail the whole suite over it.
+}
 
 let _capturedOut = '';
 let _capturedErr = '';

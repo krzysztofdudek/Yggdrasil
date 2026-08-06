@@ -31,7 +31,7 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a1'),
-      aspectId: 'a1', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a1', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.violations).toHaveLength(1);
     expect(r.violations[0].message).toBe('hi');
@@ -44,7 +44,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a2'),
-      aspectId: 'a2', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a2', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_ASYNC/);
   });
 
@@ -57,7 +57,7 @@ describe('runStructureAspect', () => {
     try {
       await runStructureAspect({
         aspectDir: path.join('.yggdrasil/aspects/amsgdata'),
-        aspectId: 'amsgdata', nodePath: 'N', graph: g, projectRoot,
+        aspectId: 'amsgdata', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       });
     } catch (e) {
       caught = e;
@@ -80,7 +80,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a3'),
-      aspectId: 'a3', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a3', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_RETURN_SHAPE/);
   });
 
@@ -91,7 +91,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a4'),
-      aspectId: 'a4', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a4', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_THROWN/);
   });
 
@@ -102,7 +102,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a5'),
-      aspectId: 'a5', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a5', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_NOT_EXPORTED/);
   });
 
@@ -115,7 +115,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a6'),
-      aspectId: 'a6', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a6', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_FILE_NOT_IN_CONTEXT/);
   });
 
@@ -126,7 +126,7 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a7'),
-      aspectId: 'a7', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a7', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.violations[0].message).toBe('graph-level');
   });
@@ -138,7 +138,7 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a8'),
-      aspectId: 'a8', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a8', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.touchedFiles).toContain('src/a.ts');
   });
@@ -148,7 +148,7 @@ describe('runStructureAspect', () => {
     const g = buildTestGraphForStructure({ nodes: [] });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a9'),
-      aspectId: 'a9', nodePath: 'nonexistent', graph: g, projectRoot,
+      aspectId: 'a9', unit: { kind: 'node', nodePath: 'nonexistent' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_NODE_MISSING/);
   });
 
@@ -161,7 +161,7 @@ describe('runStructureAspect', () => {
     mkdirSync(aspectDir, { recursive: true });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a10'),
-      aspectId: 'a10', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a10', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_LOADER_RESOLVE_FAILED/);
   });
 
@@ -175,7 +175,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a11'),
-      aspectId: 'a11', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a11', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_DEFAULT_EXPORT/);
   });
 
@@ -186,7 +186,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a12'),
-      aspectId: 'a12', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a12', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_NOT_FUNCTION/);
   });
 
@@ -197,7 +197,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a13'),
-      aspectId: 'a13', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a13', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_WRONG_ARITY/);
   });
 
@@ -208,7 +208,7 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/anomap'),
-      aspectId: 'anomap', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'anomap', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(0);
@@ -222,7 +222,7 @@ describe('runStructureAspect', () => {
     const parseCache = new Map();
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/acache'),
-      aspectId: 'acache', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'acache', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       parseCache,
     });
     expect(r.succeeded).toBe(true);
@@ -235,7 +235,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/anull'),
-      aspectId: 'anull', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'anull', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_RETURN_SHAPE/);
   });
 
@@ -251,7 +251,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/anonfn'),
-      aspectId: 'anonfn', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'anonfn', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_NOT_EXPORTED/);
   });
 
@@ -263,23 +263,31 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir, // absolute path
-      aspectId: 'aabs', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'aabs', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(0);
   });
 
-  it('undeclared fs read → structured violation (succeeded: false)', async () => {
+  it('undeclared fs read throws a structured STRUCTURE_UNDECLARED_FS_READ, never a returned violation', async () => {
     await writeAspect('a14', `export function check(ctx) { ctx.fs.read('src/not-allowed.ts'); return []; }`);
     const g = buildTestGraphForStructure({
       nodes: [{ path: 'N', type: 'module', mapping: ['src/a.ts'] }],
     });
-    const r = await runStructureAspect({
-      aspectDir: path.join('.yggdrasil/aspects/a14'),
-      aspectId: 'a14', nodePath: 'N', graph: g, projectRoot,
-    });
-    expect(r.succeeded).toBe(false);
-    expect(r.violations[0].kind).toBe('structure-aspect-undeclared-fs-read');
+    let caught: unknown;
+    try {
+      await runStructureAspect({
+        aspectDir: path.join('.yggdrasil/aspects/a14'),
+        aspectId: 'a14', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
+      });
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    const err = caught as StructureRunnerError;
+    expect(err.code).toBe('STRUCTURE_UNDECLARED_FS_READ');
+    expect(err.messageData.what).toContain("src/not-allowed.ts");
+    expect(err.messageData.next).toMatch(/relation/i);
   });
 
   it('bad violation entry shape → STRUCTURE_CHECK_RETURN_SHAPE', async () => {
@@ -289,7 +297,7 @@ describe('runStructureAspect', () => {
     });
     await expect(runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a15'),
-      aspectId: 'a15', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a15', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     })).rejects.toThrow(/STRUCTURE_CHECK_RETURN_SHAPE/);
   });
 
@@ -303,7 +311,7 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a16'),
-      aspectId: 'a16', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a16', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(false);
     expect(r.violations[0].kind).toBe('structure-aspect-undeclared-graph-read');
@@ -322,7 +330,7 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a17'),
-      aspectId: 'a17', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a17', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(0);
@@ -341,7 +349,7 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a18'),
-      aspectId: 'a18', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a18', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect(r.violations).toHaveLength(0);
@@ -360,7 +368,7 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a20'),
-      aspectId: 'a20', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'a20', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     // Must NOT throw — runner converts to a typed violation
     expect(r.succeeded).toBe(false);
@@ -380,7 +388,7 @@ describe('runStructureAspect', () => {
       });
       await expect(runStructureAspect({
         aspectDir: path.join('.yggdrasil/aspects/canary-async'),
-        aspectId: 'canary-async', nodePath: 'N', graph: g, projectRoot,
+        aspectId: 'canary-async', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       })).rejects.toThrow(/STRUCTURE_CHECK_ASYNC/);
     });
 
@@ -391,7 +399,7 @@ describe('runStructureAspect', () => {
       });
       const r = await runStructureAspect({
         aspectDir: path.join('.yggdrasil/aspects/canary-sync'),
-        aspectId: 'canary-sync', nodePath: 'N', graph: g, projectRoot,
+        aspectId: 'canary-sync', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       });
       expect(r.succeeded).toBe(true);
       expect(r.violations).toHaveLength(1);
@@ -406,7 +414,7 @@ describe('runStructureAspect', () => {
       });
       const r = await runStructureAspect({
         aspectDir: path.join('.yggdrasil/aspects/canary-type'),
-        aspectId: 'canary-type', nodePath: 'N', graph: g, projectRoot,
+        aspectId: 'canary-type', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       });
       expect(r.succeeded).toBe(true);
       // The node's identity is now folded, so a later type/ports change invalidates.
@@ -420,7 +428,7 @@ describe('runStructureAspect', () => {
       });
       const r = await runStructureAspect({
         aspectDir: path.join('.yggdrasil/aspects/canary-id'),
-        aspectId: 'canary-id', nodePath: 'N', graph: g, projectRoot,
+        aspectId: 'canary-id', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       });
       expect(r.succeeded).toBe(true);
       expect(r.observations.some(([k]) => k.startsWith('graph:') && k.includes('N'))).toBe(false);
@@ -440,7 +448,7 @@ describe('runStructureAspect', () => {
     });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/a19'),
-      aspectId: 'a19', nodePath: 'Parent', graph: g, projectRoot,
+      aspectId: 'a19', unit: { kind: 'node', nodePath: 'Parent' }, graph: g, projectRoot,
     });
     // src/sub/child.ts is child-owned so carved out; only src/a.ts in own files
     expect(r.succeeded).toBe(true);

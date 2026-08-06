@@ -22,7 +22,7 @@ describe('registerDrillCommand', () => {
     expect(cmd.description().length).toBeGreaterThan(0);
   });
 
-  it('requires --aspect and offers --dir / --case / --corpus', () => {
+  it('requires --aspect and offers --dir / --case / --corpus / --nodeless', () => {
     const cmd = drillCommand();
     const byLong = Object.fromEntries(cmd.options.map((o) => [o.long, o]));
     expect(byLong['--aspect']).toBeDefined();
@@ -30,5 +30,7 @@ describe('registerDrillCommand', () => {
     expect(byLong['--dir']).toBeDefined();
     expect(byLong['--case']).toBeDefined();
     expect(byLong['--corpus']).toBeDefined();
+    expect(byLong['--nodeless']).toBeDefined();
+    expect(byLong['--nodeless'].required).toBe(false);
   });
 });

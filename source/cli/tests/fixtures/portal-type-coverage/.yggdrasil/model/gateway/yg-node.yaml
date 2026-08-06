@@ -1,0 +1,5 @@
+name: Gateway
+type: gateway
+description: "The fixture's one explicit node — owns src/gateway/gateway.ts, so the portal's node-owned term has a real file to count."
+mapping:
+  - src/gateway/gateway.ts

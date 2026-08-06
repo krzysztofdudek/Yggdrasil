@@ -299,6 +299,11 @@ yg drill --aspect no-direct-minimatch --case 'violates-*/**'
 
 # Drill against an EXTERNAL holdout corpus (data only — case files, never imported)
 yg drill --aspect no-direct-minimatch --dir ../holdout-cases --corpus holdout-v1
+
+# Drill an LLM aspect's cases in the shape a file with NO owning component
+# receives (the prompt omits <node> entirely) instead of the default
+# synthetic node — --nodeless has no effect on a deterministic aspect
+yg drill --aspect has-doc-comment --dir .yggdrasil/aspects/has-doc-comment/drills/nodeless --nodeless --corpus nodeless-v1
 \`\`\`
 
 Corpus layout: each source file under a \`violates-*\` / \`satisfies-*\`
@@ -407,6 +412,18 @@ yg tree --root orders          # subtree from orders/
 yg tree --depth 2              # limit depth
 \`\`\`
 
+With \`coverage.type_level\` on, a summary line follows the node listing naming
+how many files the type-level lattice satisfies with no component of their
+own — never a synthetic tree entry (the listing above stays nodes only). The
+count is always repo-wide, even under \`--root\`: a type-covered file has no
+place in the graph hierarchy for that flag to narrow, so the line says
+"repo-wide" instead of fabricating a scoped count. The total splits into how
+many are actually checked by at least one rule, how many matched a type with
+nothing that applies, and — only when it occurs — how many hit an aspect
+\`implies\` cycle that stopped their type's rules from ever resolving, so the
+bare total is never mistaken for "all of these are enforced." Absent when the
+flag is off.
+
 ## yg structure
 
 Read-only structural dashboard over the graph. It reports the shape of your
@@ -431,6 +448,22 @@ to run when there is no graph to load.
 \`\`\`bash
 yg structure
 \`\`\`
+
+With \`coverage.type_level\` on, the universe widens: every statically-resolved
+import touching a type-covered file joins it too (named by the file's own
+path — it has no component id), and the change-reach line says "component or
+type-covered file" instead of "component" so a file is never misnamed. The
+Modules heading widens the same way, from "component groups" to "groups of
+components and type-covered files", whenever the project has at least one
+type-covered file at all — not only once one actually turns up among the
+rendered groups, so it can print over "No dependencies between groups yet."
+too, with zero groups shown. The
+Tunnels ranking measures a type-covered file at a fixed, shallow depth rather
+than its own on-disk directory nesting, so a deeply-nested file's edge can no
+longer crowd out a genuine cross-module dependency just for living many
+directories down. A malformed \`when:\` predicate degrades this widening to
+the node-only view rather than crashing — flag off (or zero type-covered
+files) renders exactly today's output.
 
 ## yg aspects
 
@@ -501,7 +534,7 @@ yg owner --file src/orders/handler.ts
 
 ## yg find
 
-Locate entry-point nodes/aspects by natural-language query.
+Locate entry-point nodes/aspects/type-covered files by natural-language query.
 
 \`\`\`bash
 yg find "order cancellation"
@@ -513,7 +546,19 @@ Returns ranked candidates. Scores are RELATIVE — the top result is always
 gap from #1 to #2 (e.g. \`1.00\` then \`0.40\`) signals a confident winner;
 closely-clustered scores (\`1.00\`, \`0.95\`, \`0.90\`) mean the query is
 ambiguous — verify the top few with \`yg context\`. \`yg find\` indexes nodes
-and aspects only — not flows.
+and aspects, plus type-covered files once \`coverage.type_level\` is on — not
+flows.
+
+With \`coverage.type_level\` on, a file satisfied by the type-level lattice (no
+node of its own) is searchable too — its result prints \`Kind: file\`, a
+\`Type:\` line naming the matched classifying type, and a \`Description\` taken
+from that type's own description. \`yg find\` prints one terminal \`Next\` line
+for the whole search, drawn from the single top-ranked result: when that
+result is a type-covered file, \`Next\` reads \`yg context --file <path>\`,
+never \`--node\` — a type-covered file has no \`yg-node.yaml\` to look up. When
+a node or an aspect outranks the file, the file still appears in the list
+with its own \`Kind\`/\`Type\`/\`Description\`, but \`Next\` follows the
+higher-ranked entry instead.
 
 ## yg log
 
@@ -535,15 +580,22 @@ exclusive — you cannot combine them.
 
 \`--with-verdicts\` interleaves the node's recent verification outcomes with its
 log entries into one newest-first timeline. The outcomes come from the local,
-git-ignored telemetry \`yg check --approve\` records for every verdict; only this
-node's own outcomes are shown (a verdict keyed by the node itself or by one of its
-mapped files), under a \`local telemetry since <timestamp>\` header. The reader is
-deliberately forgiving of that append-only telemetry — unknown line versions,
-unfamiliar entry kinds, and malformed lines are skipped, not errored — so an older
-or partially written file still reads. If the telemetry file has been committed
-(git-tracked) the header drops the "local" wording and says so, since a tracked
-file is shared history rather than local-only telemetry. Plain \`yg log read\` is
-unchanged.
+git-ignored telemetry \`yg check --approve\` records for every verdict, unioned
+with any events a committed shared stream contributes (older CLIs wrote verdicts
+there before the local telemetry existed; when it contributes, a second line
+reports how many events and why). Only this node's own outcomes are shown —
+attributed by REAL ownership, the same hierarchy-first, exclusion-aware answer
+\`yg owner --file\` gives, never by whether a path merely falls inside one of the
+node's mapping strings: a directory-mapping ancestor's mapping text also
+textually covers a descendant's own file, and text has no notion of an
+exclusion, so neither a descendant's outcome nor an excluded file's outcome is
+ever attributed to an ancestor. This is printed under a \`local telemetry since
+<timestamp>\` header. The reader is deliberately forgiving of that append-only
+telemetry — unknown line versions, unfamiliar entry kinds, and malformed lines
+are skipped, not errored — so an older or partially written file still reads.
+If the telemetry file has been committed (git-tracked) the header drops the
+"local" wording and says so, since a tracked file is shared history rather than
+local-only telemetry. Plain \`yg log read\` is unchanged.
 
 ## yg advise
 
@@ -585,8 +637,25 @@ yg advise --ids      # print each item's stable id (for dismiss / defer)
   short sample of the changed files, and the commit window as its evidence, and clears
   itself the moment a rule or coverage lands there or the churn ages out of the
   window; the churn is read from git history, so a shallow or non-git checkout simply
-  omits the class rather than guessing. Below even those sit two further suggestion
-  classes:
+  omits the class rather than guessing.
+
+  Once a project turns on type-level coverage — treating an otherwise uncovered file
+  as covered by matching an architecture type directly, no component required — the
+  same churn signal also flags a **churning file the type tier alone carries**: such a
+  file has no component of its own, so no node-level rule can ever attach to it —
+  whatever enforcement it gets comes from its matched type alone. It fires once a file
+  clears TWO conditions together: it appears in at least two of the last 200 commits —
+  the identical window and git read the hot spot above already uses, so the same
+  shallow-or-non-git silence applies here too, a busy file going as quiet as an
+  untouched one — and its matched type genuinely enforces something on it; a file
+  whose matched type enforces nothing is simply uncovered, not carried by anything, so
+  it never appears here. Items rank by how much they have churned, busiest first. Two
+  or more such files of the same type that import each other, each clearing both
+  conditions on its own, upgrade the evidence from one busy file to a cluster naming
+  every file in it — a partner that fails either condition is never named as carrying
+  weight.
+
+  Below even those sit two further suggestion classes:
   - **a candidate rule family** — a tight group of near-identical files that share no
     rule of their own, discovered by the offline structural-clustering pass and read
     from its local suggestions file. The item names the member files, the fitted scope
@@ -919,6 +988,7 @@ The validator (\`yg check\`) emits the following issue codes:
 | \`prompt-too-large\` | error | Assembled prompt exceeds the resolved tier's \`max_prompt_chars\` |
 | \`lock-invalid\` | error | Lock unparseable, garbled, conflict-markered, or unknown version — fail closed |
 | \`relation-undeclared-dependency\` | error (always) | Built-in relation-conformance check: node depends on another node's code without a declared, sanctioned relation. Not an aspect — not status-governed, not suppressible. Next: declare the relation in \`yg-node.yaml\` or remove the dependency. |
+| \`type-relation-forbidden\` | error (always) | With \`coverage.type_level\` on: a statically-resolved import between two classified endpoints (an explicit node and/or a type-covered file) has no relation type the architecture allows between their two node TYPES. Additive to \`relation-undeclared-dependency\`, not a replacement — this is the case that check cannot see because a type-covered endpoint has no \`yg-node.yaml\` to declare a relation in. Not an aspect — not status-governed, not suppressible, never cached. Next (cheapest first): allow the type pair in \`yg-architecture.yaml\`, give the target file an explicit node with a curated relation, or remove the dependency. |
 | \`log-entry-missing\` | error | \`--approve\` log gate fired |
 | \`aspect-status-invalid\` | error | Declared status is not one of \`draft\\|advisory\\|enforced\` |
 | \`aspect-review-by-malformed\` | error | Declared \`review_by:\` is present but not a calendar-valid bare ISO date (\`YYYY-MM-DD\`; e.g. \`2027-13-40\` or \`2027-02-30\`). Blocking parse-time error, fired ONLY on the aspect that carries the field. |
@@ -926,6 +996,7 @@ The validator (\`yg check\`) emits the following issue codes:
 | \`aspect-status-downgrade\` | error | Declared status is lower than cascade would yield (bump up OK, downgrade is error) |
 | \`implies-status-inherit-invalid\` | error | \`status_inherit:\` value not one of \`strictest\\|own-default\` |
 | \`aspect-effective-nowhere\` | warning | Dead-attach linter: an aspect that ships a rule source (\`content.md\` or \`check.mjs\`) and is not draft, yet is effective on ZERO nodes after the full cascade + every \`when\` — a rule that looks enforced but is never verified anywhere. Silent while the model has no nodes. Next: \`yg impact --aspect <id>\`; fix the attach sites / \`when\`, or set \`status: draft\` until the node/type it targets exists. |
+| \`coverage-required-shadowed\` | warning | A plain (non-glob) \`coverage.required\` root sits entirely inside a plain \`coverage.excluded\` root — exclusion is absolute, so every file under that required root is silenced before the required/advisory split ever runs, and the required line can never make anything block. Next: remove the required line, or narrow the excluded root so it no longer contains it. |
 | \`rules-digest-stale\` | warning | The committed agent-rules digest (\`AGENTS.md\` block, \`.clinerules/yggdrasil.md\`, or the \`CLAUDE.md\` \`@AGENTS.md\` import) is missing, was hand-edited, is from an older CLI, or is duplicated. Never cached, never suppressible — recomputed live on every \`yg check\`. Next: \`yg init --upgrade\`. |
 
 For detailed semantics of status: \`yg knowledge read aspect-status\`. For the lock,

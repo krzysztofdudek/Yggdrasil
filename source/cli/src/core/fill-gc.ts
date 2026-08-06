@@ -9,8 +9,30 @@ import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import { LOCK_FORMAT_VERSION, nodeUnit, fileUnit } from '../model/lock.js';
 import { computeExpectedPairs, computeUncomputableNodes } from './pairs.js';
+import type { TypeCoverageInput } from './pairs.js';
 import { toPosix } from '../utils/posix.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
+
+/**
+ * The writer's own report of what it pruned this run — printed by `--approve`
+ * and `--dry-run` whenever entries are pruned, split into billed (LLM — a
+ * re-verify would cost a reviewer call) vs free (deterministic), with a reason
+ * per entry. Empty (all counts 0, empty `entries`) whenever nothing was pruned.
+ *
+ * A pruned entry's aspect can be gone from the graph entirely (the reason
+ * `'aspect removed'`), which means its reviewer kind cannot be read off
+ * `graph.aspects` any more. `'unknown'` is that honest third state: an entry
+ * neither the graph nor the caller-supplied on-disk lock partition (see
+ * `garbageCollectAndRewrite`'s `detAspectIdsOnDisk` option) could classify.
+ * It is never folded into `billedCount` or `freeCount` — a caller that cannot
+ * prove an entry was free must not report it as free.
+ */
+export interface PruneSummary {
+  entries: Array<{ aspectId: string; unitKey: string; kind: 'llm' | 'deterministic' | 'unknown'; reason: string }>;
+  billedCount: number;
+  freeCount: number;
+  unknownCount: number;
+}
 
 /**
  * The owning node path for a verdict entry's unit key. `node:<path>` resolves
@@ -63,21 +85,63 @@ export function owningNodeForUnitKey(
  *     the file is still mapped and still exists. Such a pair is RETAINED (the run is
  *     already red from the blocking file-unreadable error). This mirrors the
  *     protection fill-closure applies for the same root cause.
+ *
+ * A third retain family covers a file the type-level classification lattice
+ * reported AMBIGUOUS this run (`opts.typeCoverage.ambiguousPaths`) — the
+ * machine could not decide its type, so nothing about it is positively detached
+ * either. Aspect-agnostic and PATH-keyed (unlike the other two families, which
+ * are keyed per aspect+unit): every verdict entry under that file's `file:` unit
+ * key is retained regardless of which aspect it belongs to, since the ambiguity
+ * is a property of the FILE, not of any one rule.
+ *
+ * `opts.typeCoverage`, threaded straight into `computeExpectedPairs`, is what
+ * puts nodeless (`file:`) pairs into the universe at all — the presence of
+ * those keys in `universe`, not `owningNodeForUnitKey`'s attribution (unchanged,
+ * still node-domain only), is the anti-prune lever for a file enforced by its
+ * architecture type. Returns a `PruneSummary` of every entry actually deleted.
+ *
+ * `opts.detAspectIdsOnDisk` (optional): the aspectIds whose verdicts live in
+ * the gitignored deterministic file, read directly from disk
+ * (`readDetLockAspectIds`) rather than off the current graph. Used ONLY to
+ * classify a pruned entry whose aspect no longer exists in `graph.aspects` —
+ * `reviewer.type` cannot answer for a deleted aspect, but the file its
+ * verdicts were last written to still can, and that provenance never changes
+ * just because the aspect's definition is gone. Absent (a caller with no
+ * on-disk lock to consult, e.g. a pure in-memory test) means such an entry is
+ * reported with kind `'unknown'` rather than guessed.
+ *
+ * `opts.scope` (optional, defaults to `'all'`): which of the two verdict
+ * partitions the caller's own `persistLock` will actually WRITE this run.
+ * `'deterministic'` (the `--only-deterministic` / CI path) rewrites only the
+ * gitignored deterministic file — the committed nondeterministic (LLM) file
+ * is never touched, on disk, regardless of what this function decides in
+ * memory. An LLM-kind (or unclassifiable `'unknown'`-kind, since it might be
+ * LLM) entry is therefore left IN `lock.verdicts` and OUT of the returned
+ * summary under that scope: reporting it as pruned would claim a write that
+ * never reaches disk. A full `--approve` (`scope: 'all'`) prunes and reports
+ * every kind, exactly as before this parameter existed.
  */
 export async function garbageCollectAndRewrite(
   graph: Graph,
   lock: LockFile,
   persistLock: () => Promise<void>,
-): Promise<void> {
+  opts?: { typeCoverage?: TypeCoverageInput; detAspectIdsOnDisk?: Set<string>; scope?: 'all' | 'deterministic' },
+): Promise<PruneSummary> {
+  const scope = opts?.scope ?? 'all';
+  const emptySummary: PruneSummary = { entries: [], billedCount: 0, freeCount: 0, unknownCount: 0 };
+
   // A node/aspect that failed to parse hides itself (and, for a node, its whole
   // subtree) from the graph, so its pairs never reach the universe. While the
   // graph is provably incomplete GC cannot prove anything detached — skip pruning
   // and the rewrite entirely, leaving the committed lock byte-for-byte untouched.
   if ((graph.nodeParseErrors?.length ?? 0) > 0 || (graph.aspectParseErrors?.length ?? 0) > 0) {
-    return;
+    return emptySummary;
   }
 
-  const { pairs, unreadable } = await computeExpectedPairs(graph, { includeDraft: true });
+  const { pairs, unreadable } = await computeExpectedPairs(graph, {
+    includeDraft: true,
+    typeCoverage: opts?.typeCoverage,
+  });
   const universe = new Set<string>(); // `${aspectId}\0${unitKey}`
   for (const p of pairs) universe.add(`${p.aspectId}\0${p.unitKey}`);
 
@@ -90,29 +154,83 @@ export async function garbageCollectAndRewrite(
   // mapped and still exists, so the verdict is NOT positively detached. Retain
   // both the per:node unit and the per:file unit so the guard covers whichever
   // scope the aspect uses, keyed exactly (aspectId + unit) so unrelated verdicts
-  // on the same node still prune normally.
+  // on the same node still prune normally. A nodeless unreadable subject has no
+  // node: unit to retain — only the file: key applies to it.
   const unreadableUnits = new Set<string>(); // `${aspectId}\0${unitKey}`
   for (const u of unreadable) {
-    unreadableUnits.add(`${u.aspectId}\0${nodeUnit(u.nodePath)}`);
+    if (u.nodePath !== undefined) unreadableUnits.add(`${u.aspectId}\0${nodeUnit(u.nodePath)}`);
     unreadableUnits.add(`${u.aspectId}\0${fileUnit(u.path)}`);
   }
+
+  // Ambiguous-file retain family: aspect-agnostic, keyed by the file's
+  // OWN `file:` unit key — every aspect's entry for that file is retained.
+  const ambiguousFileUnits = new Set(
+    (opts?.typeCoverage?.ambiguousPaths ?? []).map((p) => fileUnit(p)),
+  );
 
   // Build the canonical file→owner resolver ONCE for the whole prune loop below,
   // outside the per-entry iteration.
   const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
 
-  // Prune verdicts ∉ universe, EXCEPT entries owned by an uncomputable node or
-  // whose subject was unreadable this run.
+  // Index aspect defs by id so a pruned entry's reviewer kind (billed vs free) is
+  // known for the summary without a per-entry linear scan.
+  const aspectKindById = new Map<string, 'llm' | 'deterministic'>();
+  for (const a of graph.aspects) {
+    if (a.reviewer.type === 'llm' || a.reviewer.type === 'deterministic') {
+      aspectKindById.set(a.id, a.reviewer.type);
+    }
+  }
+
+  const prunedEntries: PruneSummary['entries'] = [];
+  let billedCount = 0;
+  let freeCount = 0;
+  let unknownCount = 0;
+
+  // Prune verdicts ∉ universe, EXCEPT entries owned by an uncomputable node, whose
+  // subject was unreadable this run, or whose file was reported ambiguous.
   for (const aspectId of Object.keys(lock.verdicts)) {
     const unitMap = lock.verdicts[aspectId];
     for (const unitKey of Object.keys(unitMap)) {
       if (universe.has(`${aspectId}\0${unitKey}`)) continue;
       if (unreadableUnits.has(`${aspectId}\0${unitKey}`)) continue;
+      if (unitKey.startsWith('file:') && ambiguousFileUnits.has(unitKey)) continue;
       const owner = owningNodeForUnitKey(ownerOf, unitKey);
       // Retain only when we can attribute the entry to a node that could not be
       // computed this run. Everything else (deleted node, detached aspect,
-      // deleted/unmapped file) is positively detached → prune.
+      // deleted/unmapped file, re-typed-away file) is positively detached → prune.
       if (owner !== null && uncomputable.has(owner)) continue;
+
+      // The aspect is still in the graph → its CURRENT reviewer.type is the
+      // kind, exactly as before. Gone from the graph entirely (the 'aspect
+      // removed' reason below) → reviewer.type cannot answer any more; fall
+      // back to where its verdicts physically live on disk (billed/free are
+      // still knowable — the aspect's definition is gone, not its history),
+      // and only report 'unknown' when even that provenance is unavailable.
+      // Never default a classification failure to 'deterministic' — that
+      // would silently under-report billed (LLM) work as free.
+      const kind: 'llm' | 'deterministic' | 'unknown' = aspectKindById.get(aspectId) ??
+        (opts?.detAspectIdsOnDisk === undefined
+          ? 'unknown'
+          : opts.detAspectIdsOnDisk.has(aspectId) ? 'deterministic' : 'llm');
+      // Under a deterministic-only run, the caller's persistLock rewrites
+      // ONLY the gitignored deterministic file — an LLM (or unclassifiable
+      // 'unknown', since it might be LLM) entry pruned from this in-memory
+      // lock would never actually leave the committed nondeterministic file
+      // on disk. Leave it in `lock.verdicts` and out of the summary rather
+      // than reporting a write that will not happen; a full `--approve`
+      // prunes it for real.
+      if (scope === 'deterministic' && kind !== 'deterministic') continue;
+
+      const reason = unitKey.startsWith('node:') && !graph.nodes.has(unitKey.slice('node:'.length))
+        ? 'node deleted'
+        : !aspectKindById.has(aspectId)
+          ? 'aspect removed'
+          : 'no longer in the expected pair set';
+      prunedEntries.push({ aspectId, unitKey, kind, reason });
+      if (kind === 'llm') billedCount++;
+      else if (kind === 'deterministic') freeCount++;
+      else unknownCount++;
+
       delete unitMap[unitKey];
     }
     if (Object.keys(unitMap).length === 0) delete lock.verdicts[aspectId];
@@ -125,4 +243,6 @@ export async function garbageCollectAndRewrite(
 
   lock.version = LOCK_FORMAT_VERSION;
   await persistLock();
+
+  return { entries: prunedEntries, billedCount, freeCount, unknownCount };
 }

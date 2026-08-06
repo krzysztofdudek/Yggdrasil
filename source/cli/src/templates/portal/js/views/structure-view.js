@@ -123,6 +123,12 @@
     // read "<1%", never "0%" (which would falsely say a change reaches nothing).
     var rounded = Math.round(structure.reachMean * 100);
     var pct = structure.reachMean > 0 && rounded === 0 ? '<1' : String(rounded);
+    // The jargon-free-language rule: once a type-covered file joins the widened universe
+    // `structure.hasTypeCovered` names it, so calling every member of the population a
+    // "component" would misname a file. False (typeLevel off, or no type-covered file
+    // joined) renders exactly today's "component" wording.
+    var subject = structure.hasTypeCovered ? 'components or type-covered files' : 'components';
+    var subjectSingular = structure.hasTypeCovered ? 'component or type-covered file' : 'component';
     if (structure.smallGraph) {
       // Small-N honesty: the raw figure only, in a distinct labelled panel — no "average
       // component" reading generalised from too few components.
@@ -132,7 +138,7 @@
         dom.el(
           'p',
           null,
-          'Too few components to generalise — the raw figure is shown without an "average component" reading.',
+          'Too few ' + subject + ' to generalise — the raw figure is shown without an "average ' + subjectSingular + '" reading.',
         ),
       );
       sect.appendChild(sn);
@@ -141,7 +147,7 @@
         dom.el(
           'p',
           'str-reach-cap',
-          'From an average component, ' + pct + '% of the system is reachable through dependencies.',
+          'From an average ' + subjectSingular + ', ' + pct + '% of the system is reachable through dependencies.',
         ),
       );
     }

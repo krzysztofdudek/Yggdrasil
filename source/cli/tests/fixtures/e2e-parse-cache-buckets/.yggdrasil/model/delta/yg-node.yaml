@@ -1,0 +1,5 @@
+name: Delta
+type: module
+description: Relation target of gamma — carries no aspect of its own; every one of its files is parsed by gamma's reads-target-2 companion hook.
+mapping:
+  - src/delta/*.ts

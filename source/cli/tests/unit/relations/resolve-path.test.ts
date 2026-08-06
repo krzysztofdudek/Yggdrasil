@@ -91,6 +91,7 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
     // javaFilesIn (the directory entry that is skipped).
     w('com/foo/Bar.java', 'package com.foo;\n');
     w('com/foo/App.java', 'package com.foo;\n');
+    w('com/foo/Baz.java', 'package com.foo;\n');
     w('com/foo/README.md', '# not java\n');
 
     // RUST: a crate named "my-crate" (hyphen → underscore identifier rule). A
@@ -191,6 +192,96 @@ describe('makeResolvePathToFile — per-language dispatch (disk-backed)', () => 
       return undefined;
     };
     const resolve = makeResolvePathToFile(root, ownerOf);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
+  });
+
+  it('excluding one file of a split Java wildcard package attributes the import to whichever owner is left', () => {
+    // Same split as above (App.java → node-a, Bar.java → node-b), but App.java is
+    // now excluded. Dropping it BEFORE deciding ownership means only Bar.java is
+    // left — owned solely by node-b — so the import now attributes to node-b: the
+    // exclusion removed App.java from consideration and nothing else.
+    const ownerOf = (f: string): string | undefined => {
+      if (f === 'com/foo/App.java') return 'node-a';
+      if (f === 'com/foo/Bar.java') return 'node-b';
+      return undefined;
+    };
+    const isExcluded = (f: string): boolean => f === 'com/foo/App.java';
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBe('com/foo/Bar.java');
+  });
+
+  it('excluding the OTHER file of the same split package attributes it to the other owner', () => {
+    // Mirror of the case above: Bar.java (node-b) excluded this time, leaving
+    // App.java (node-a) as the sole remaining owner.
+    const ownerOf = (f: string): string | undefined => {
+      if (f === 'com/foo/App.java') return 'node-a';
+      if (f === 'com/foo/Bar.java') return 'node-b';
+      return undefined;
+    };
+    const isExcluded = (f: string): boolean => f === 'com/foo/Bar.java';
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBe('com/foo/App.java');
+  });
+
+  it('a Java wildcard package split across THREE owners still silences the import after excluding one member', () => {
+    // com/foo now has three files, each owned by a different node. Excluding one
+    // still leaves two distinct owners among what remains — genuinely still
+    // split, so the import stays silent rather than collapsing to a survivor.
+    const ownerOf = (f: string): string | undefined => {
+      if (f === 'com/foo/App.java') return 'node-a';
+      if (f === 'com/foo/Bar.java') return 'node-b';
+      if (f === 'com/foo/Baz.java') return 'node-c';
+      return undefined;
+    };
+    const isExcluded = (f: string): boolean => f === 'com/foo/App.java';
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
+  });
+
+  it('a Java wildcard package where EVERY file is excluded resolves to no owner', () => {
+    // Both of com/foo's files belong to node 'foo', but both are excluded —
+    // nothing remains to decide ownership from, so the import stays silent
+    // (the same silence a wholly-unmapped package gets).
+    const ownerOf = (f: string): string | undefined =>
+      f.startsWith('com/foo/') && f.endsWith('.java') ? 'foo' : undefined;
+    const isExcluded = (f: string): boolean => f.startsWith('com/foo/') && f.endsWith('.java');
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
+  });
+
+  it('picks a NON-EXCLUDED file to represent a single-owner Java package when the lexically-first one is excluded', () => {
+    // Both files belong to 'foo' (not split). App.java sorts first and would
+    // normally be the representative, but it is excluded — the representative
+    // must shift to Bar.java (the SAME owner's other file), never silence.
+    const ownerOf = (f: string): string | undefined =>
+      f.startsWith('com/foo/') && f.endsWith('.java') ? 'foo' : undefined;
+    const isExcluded = (f: string): boolean => f === 'com/foo/App.java';
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBe('com/foo/Bar.java');
+  });
+
+  it('a Java wildcard package with NO node owner among its files still resolves to a representative file, not undefined', () => {
+    // No `ownerOf` mapping owns anything here — the shape a type-covered-only
+    // (nodeless) package always has under `coverage.type_level`. The caller
+    // that asked for this file is not always the node-owner index: it can be
+    // the type-coverage lookup, which has no owner to find at all and instead
+    // needs a LIVE file to check the package's matched architecture type
+    // against. Silencing unconditionally here — as if nothing could ever
+    // consume this answer but the owner index — makes every wildcard import
+    // into a nodeless package invisible to that lookup, whether anything is
+    // excluded or not.
+    const ownerOf = (): string | undefined => undefined;
+    const resolve = makeResolvePathToFile(root, ownerOf);
+    expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBe('com/foo/App.java');
+  });
+
+  it('control: a Java wildcard package where EVERY file is excluded still resolves to no owner, even with the no-node-owner fallback', () => {
+    // The fallback above must stop at "no candidate remains" — it must never
+    // hand back an excluded file merely because no node happens to own
+    // anything either.
+    const ownerOf = (): string | undefined => undefined;
+    const isExcluded = (f: string): boolean => f.startsWith('com/foo/') && f.endsWith('.java');
+    const resolve = makeResolvePathToFile(root, ownerOf, isExcluded);
     expect(resolve('com.foo', 'src/Main.java', 'java', true)).toBeUndefined();
   });
 

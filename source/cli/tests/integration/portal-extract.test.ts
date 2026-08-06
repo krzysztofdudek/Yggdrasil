@@ -1,8 +1,11 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync, cpSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runCheck, type CheckResult } from '../../src/core/check.js';
+import { runFill } from '../../src/core/fill.js';
 import { computeExpectedPairs, type ExpectedPair } from '../../src/core/pairs.js';
 import { walkRepoFiles } from '../../src/io/repo-scanner.js';
 import { readRulesArtifacts } from '../../src/cli/rules-artifacts.js';
@@ -280,6 +283,8 @@ function syntheticCheck(opts: {
   coveredFiles: number;
   totalFiles: number;
   draftSkipped: number;
+  typeCoveredCount?: number;
+  excludedFiles?: number;
 }): CheckResult {
   const issues = [
     ...Array.from({ length: opts.errors }, () => ({ severity: 'error' as const })),
@@ -290,6 +295,8 @@ function syntheticCheck(opts: {
     coveredFiles: opts.coveredFiles,
     totalFiles: opts.totalFiles,
     draftSkipped: opts.draftSkipped,
+    typeCoveredCount: opts.typeCoveredCount,
+    excludedFiles: opts.excludedFiles,
     issues,
   } as unknown as CheckResult;
 }
@@ -369,5 +376,344 @@ describe('buildCounts — pair-state bucketing over every kind (the honesty swit
     // pairs alternate llm/det across 6 synthetic pairs → 3 llm, 3 det.
     expect(counts.pairsLLM).toBe(3);
     expect(counts.pairsDet).toBe(3);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A type-covered file (satisfied by the type-level lattice, no node of its own)
+// must never be double-counted as "uncovered" on top of an aspect actually
+// checking it. `PortalCounts.coveredFiles` keeps its pre-existing conflated
+// meaning (nodeOwnedFiles + excludedFiles) — it is not redefined here — but
+// `uncoveredFiles` must subtract the type-covered files too, and the two new
+// fields must read straight off CheckResult's own honest split.
+// ---------------------------------------------------------------------------
+describe('buildCounts — type-covered files leave uncoveredFiles, coveredFiles keeps its legacy meaning', () => {
+  const graph = syntheticGraph(1, 1, 0);
+  const check = syntheticCheck({
+    errors: 0,
+    warnings: 0,
+    coveredFiles: 2, // legacy conflated total: 1 node-owned + 1 excluded-root
+    totalFiles: 4, // + 1 type-covered + 1 genuinely unmapped
+    draftSkipped: 0,
+    typeCoveredCount: 1,
+    excludedFiles: 1,
+  });
+  const counts = buildCounts(graph, check, [], []);
+
+  it('typeCoveredCount and excludedFiles read straight off CheckResult, unmodified', () => {
+    expect(counts.typeCoveredCount).toBe(1);
+    expect(counts.excludedFiles).toBe(1);
+  });
+
+  it('coveredFiles keeps its legacy conflated meaning (nodeOwned + excluded) — NOT redefined', () => {
+    expect(counts.coveredFiles).toBe(2);
+  });
+
+  it('uncoveredFiles subtracts the type-covered files too, leaving only the genuinely unmapped one', () => {
+    // totalFiles(4) - coveredFiles(2) - typeCoveredCount(1) = 1 — the one file
+    // neither a node, nor the type lattice, nor an exclusion accounts for.
+    expect(counts.uncoveredFiles).toBe(1);
+  });
+
+  it('a CheckResult with no type-coverage fields at all (flag-off) keeps the pre-existing formula', () => {
+    const flagOff = syntheticCheck({ errors: 0, warnings: 0, coveredFiles: 9, totalFiles: 11, draftSkipped: 0 });
+    const flagOffCounts = buildCounts(syntheticGraph(1, 1, 0), flagOff, [], []);
+    expect(flagOffCounts.typeCoveredCount).toBe(0);
+    expect(flagOffCounts.excludedFiles).toBe(0);
+    expect(flagOffCounts.uncoveredFiles).toBe(2); // unchanged: totalFiles - coveredFiles - 0
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The nested-project boundary cache must be re-read on every extraction, not
+// carried over from an earlier one in the same long-lived `yg portal` process.
+// `extractPortalData` calls `resetNestedProjectRootsCache()` at the top of
+// every run for exactly this reason (io/repo-scanner.ts). Proven here by
+// calling it TWICE against the SAME on-disk project root within one test
+// process — the shape a real portal server refresh takes — with a separate
+// project appearing on disk between the two calls. Without the reset, the
+// second call would silently reuse the first call's (now-stale) empty
+// boundary set and count the newly-appeared separate project's file as this
+// graph's own.
+// ---------------------------------------------------------------------------
+describe('extractPortalData re-reads the nested-project boundary on every call (portal refresh)', () => {
+  const FIXTURE_ROOT = path.resolve(__dirname, '../fixtures/portal-basic');
+
+  it('a separate project appearing between two extractions is excluded on the SECOND call too', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-nested-'));
+    cpSync(FIXTURE_ROOT, dir, { recursive: true });
+    try {
+      const before = await extractPortalData(dir, { writeEnabled: false });
+
+      // A separate project appears on disk — a real, independent `.git` checkout
+      // — with one ordinary source file inside it. Its subtree must never be
+      // walked in as this graph's own source.
+      mkdirSync(path.join(dir, 'vendored-dep', '.git'), { recursive: true });
+      writeFileSync(path.join(dir, 'vendored-dep', '.git', 'HEAD'), 'ref: refs/heads/main\n', 'utf-8');
+      writeFileSync(path.join(dir, 'vendored-dep', 'extra.ts'), 'export const extra = 1;\n', 'utf-8');
+
+      const after = await extractPortalData(dir, { writeEnabled: false });
+
+      expect(after.meta.counts.totalFiles).toBe(before.meta.counts.totalFiles);
+      expect(after.meta.counts.coveredFiles).toBe(before.meta.counts.coveredFiles);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The heart of it: a type-covered file that a real deterministic aspect just
+// refused must never ALSO read as "unmapped (unguarded)" in the same payload —
+// and a type-covered file whose matched type carries NO rule at all must never
+// read as "satisfied" either. portal-type-coverage is the one committed
+// fixture with coverage.type_level on: one node-owned file, one type-covered
+// file carrying a genuine refused verdict (a live deterministic check, no lock
+// committed), one type-covered file matched by a type with zero rules (zero
+// enforcement), one excluded-root file. Every count and the residue ledger are
+// asserted against real, independently-derived numbers — never a literal.
+// ---------------------------------------------------------------------------
+describe('extractPortalData over a real tier-on fixture — a checked file is never called unguarded, and an unchecked one is never called satisfied', () => {
+  const FIXTURE_ROOT = path.resolve(__dirname, '../fixtures/portal-type-coverage');
+
+  async function extractWithRealRefusal(): Promise<{ data: PortalData; dir: string }> {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-typecov-'));
+    cpSync(FIXTURE_ROOT, dir, { recursive: true });
+    // Fill the one deterministic pair LIVE (no committed lock) — the fixture's
+    // FIXME comment makes this a genuine refusal, not a fabricated state.
+    const graph = await loadGraph(dir);
+    const gitFiles = await walkRepoFiles(dir);
+    await runFill(graph, { coverageVisibleFiles: gitFiles, trackedFiles: gitFiles, onlyDeterministic: true, write: () => {} });
+    const data = await extractPortalData(dir, { writeEnabled: false });
+    return { data, dir };
+  }
+
+  it('the type-covered file carries a real refused pair (the fixture is doing its job)', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.meta.counts.refused).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('counts reconcile with the four honest terms: 1 node-owned + 2 type-covered (1 enforced, 1 not) + 1 excluded, 0 genuinely uncovered', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.meta.counts.totalFiles).toBe(4);
+      expect(data.meta.counts.typeCoveredCount).toBe(2);
+      expect(data.meta.counts.typeCoveredUnenforced).toBe(1);
+      expect(data.meta.counts.excludedFiles).toBe(1);
+      expect(data.meta.counts.coveredFiles).toBe(2); // legacy: nodeOwned(1) + excluded(1)
+      expect(data.meta.counts.uncoveredFiles).toBe(0); // nothing left over — every file is spoken for
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the refused type-covered file is absent from residue.uncoveredFiles — it is checked, not unguarded', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.residue.uncoveredFiles).not.toContain('src/svc/handler.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the unenforced type-covered file is ALSO absent from residue.uncoveredFiles — it is not "no node maps it" the way a genuinely unmapped file is', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.residue.uncoveredFiles).not.toContain('src/lib/util.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the excluded-root file is ALSO absent from residue.uncoveredFiles — it is deliberately skipped, not unguarded either', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.residue.uncoveredFiles).not.toContain('vendor/tool.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('residue.uncoveredFiles.length agrees with counts.uncoveredFiles — the chip and the export list can never disagree', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.residue.uncoveredFiles.length).toBe(data.meta.counts.uncoveredFiles);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('residue.typeCovered names BOTH type-covered files, each with its matched type and real enforcement state — the checked one and the unchecked one are never rendered the same way', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.residue.typeCovered).toEqual([
+        { path: 'src/lib/util.ts', type: 'lib', enforced: false, unverified: false },
+        // The fill above genuinely wrote its refused verdict to the lock
+        // (`write` there only stubs the printed progress lines, not
+        // persistence) — the lock holds a real entry for this pair, so
+        // `unverified` is false even though the verdict itself is `refused`:
+        // this field names lock PRESENCE, never the verdict outcome.
+        { path: 'src/svc/handler.ts', type: 'svc', enforced: true, unverified: false },
+      ]);
+      // The post-pass count is derived from this SAME list, so the two can never disagree.
+      expect(data.meta.counts.typeCoveredUnenforced).toBe(
+        data.residue.typeCovered.filter((f) => !f.enforced).length,
+      );
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('residue.excludedFiles names the excluded-root file by path — it has somewhere to be found by name, not only a number', async () => {
+    const { data, dir } = await extractWithRealRefusal();
+    try {
+      expect(data.residue.excludedFiles).toEqual(['vendor/tool.ts']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A type whose rules an aspect `implies` cycle stopped from being resolved at
+// all is a THIRD state, distinct from both "enforced" and "matched a type
+// with zero applicable rules". `yg check`, `yg context --file`, and `yg owner
+// --file` all say so plainly and name the cycle, rather than reporting the
+// file as satisfying coverage with no enforcement — the exact sentence
+// docs/configuration.md forbids for this case. The portal must agree: a file
+// whose cascade never ran must never be folded into the same "no rule
+// applies" bucket as a file whose cascade ran and found nothing.
+// ---------------------------------------------------------------------------
+describe('extractPortalData over a fixture with a real aspect implies cycle — a file whose rules could not be worked out is never called "no rule applies"', () => {
+  const BASE_FIXTURE = path.resolve(__dirname, '../fixtures/type-level-engine');
+  const CYCLIC_OVERLAY = path.resolve(__dirname, '../fixtures/type-level-engine/variants/cyclic-type');
+
+  async function extractWithCycle(): Promise<{ data: PortalData; dir: string }> {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-cyclic-'));
+    cpSync(BASE_FIXTURE, dir, { recursive: true });
+    cpSync(CYCLIC_OVERLAY, dir, { recursive: true });
+    const data = await extractPortalData(dir, { writeEnabled: false });
+    return { data, dir };
+  }
+
+  // Ground truth, independently confirmed against `yg check` on this exact fixture
+  // combination: 7 type-covered files total, of which 5 are genuinely enforced
+  // (consumer, forked, classifying-parent, leaf, underStrict each have at least one
+  // rule that actually runs), 1 has a matched type with literally no aspects at all
+  // (emptyparents — the zero-enforcement case), and 1 hit the aspect `implies` cycle
+  // (cyclic — cyclic-a <-> cyclic-b) before resolution ever ran.
+
+  it('counts.typeCoveredUncomputable is 1 and typeCoveredUnenforced is 1 — never conflated into 2', async () => {
+    const { data, dir } = await extractWithCycle();
+    try {
+      expect(data.meta.counts.typeCoveredCount).toBe(7);
+      expect(data.meta.counts.typeCoveredUncomputable).toBe(1);
+      expect(data.meta.counts.typeCoveredUnenforced).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('residue.typeCovered excludes the uncomputable file entirely — it is neither enforced nor unenforced, it is unresolved', async () => {
+    const { data, dir } = await extractWithCycle();
+    try {
+      expect(data.residue.typeCovered.map((f) => f.path)).not.toContain('src/cyclic/z.ts');
+      expect(data.residue.typeCovered).toHaveLength(6);
+      const unenforced = data.residue.typeCovered.filter((f) => !f.enforced);
+      expect(unenforced).toEqual([{ path: 'src/ep/e.ts', type: 'emptyparents', enforced: false, unverified: false }]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('residue.typeCoveredUncomputable names the cycle file, its type, and the SAME cycle sentence yg check/yg context --file/yg owner --file already print', async () => {
+    const { data, dir } = await extractWithCycle();
+    try {
+      expect(data.residue.typeCoveredUncomputable).toHaveLength(1);
+      const entry = data.residue.typeCoveredUncomputable[0];
+      expect(entry.path).toBe('src/cyclic/z.ts');
+      expect(entry.type).toBe('cyclic');
+      expect(entry.why).toMatch(/implies cycle/);
+      expect(entry.why).toContain('cyclic-a');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('counts.typeCoveredCount partitions exactly into enforced + unenforced + uncomputable, with nothing double-counted or dropped', async () => {
+    const { data, dir } = await extractWithCycle();
+    try {
+      const enforcedCount = data.residue.typeCovered.filter((f) => f.enforced).length;
+      const unenforcedCount = data.residue.typeCovered.filter((f) => !f.enforced).length;
+      const uncomputableCount = data.residue.typeCoveredUncomputable.length;
+      expect(enforcedCount + unenforcedCount + uncomputableCount).toBe(data.meta.counts.typeCoveredCount);
+      expect(unenforcedCount).toBe(data.meta.counts.typeCoveredUnenforced);
+      expect(uncomputableCount).toBe(data.meta.counts.typeCoveredUncomputable);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// An excluded file is excluded rather than unguarded — that rule does not read
+// coverage.type_level, so it holds even with the tier off. Every other committed
+// flag-off fixture carries no coverage.excluded root at all, so none of them can
+// tell a reader whether turning the tier off also turns this off; this one can.
+// ---------------------------------------------------------------------------
+describe('extractPortalData over a flag-off fixture with an excluded root — exclusion still moves a file out of the unguarded residue with the type-level tier off', () => {
+  const FIXTURE_ROOT = path.resolve(__dirname, '../fixtures/portal-flagoff-excluded');
+
+  async function extractFlagOff(): Promise<{ data: PortalData; dir: string }> {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-flagoff-excl-'));
+    cpSync(FIXTURE_ROOT, dir, { recursive: true });
+    const data = await extractPortalData(dir, { writeEnabled: false });
+    return { data, dir };
+  }
+
+  it('the type-level tier is genuinely off on this fixture — typeCoveredCount is 0', async () => {
+    const { data, dir } = await extractFlagOff();
+    try {
+      expect(data.meta.counts.typeCoveredCount).toBe(0);
+      expect(data.meta.counts.typeCoveredUnenforced).toBe(0);
+      expect(data.meta.counts.typeCoveredUncomputable).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('counts reconcile: 1 node-owned + 1 excluded + 2 genuinely unmapped, out of 4 total', async () => {
+    const { data, dir } = await extractFlagOff();
+    try {
+      expect(data.meta.counts.totalFiles).toBe(4);
+      expect(data.meta.counts.excludedFiles).toBe(1);
+      expect(data.meta.counts.coveredFiles).toBe(2); // legacy: nodeOwned(1) + excluded(1)
+      expect(data.meta.counts.uncoveredFiles).toBe(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the excluded file lands in residue.excludedFiles, not residue.uncoveredFiles, with the tier off', async () => {
+    const { data, dir } = await extractFlagOff();
+    try {
+      expect(data.residue.excludedFiles).toEqual(['vendor/tool.ts']);
+      expect(data.residue.uncoveredFiles).not.toContain('vendor/tool.ts');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('the two files that were never excluded stay in residue.uncoveredFiles — exclusion does not sweep up unrelated unmapped files', async () => {
+    const { data, dir } = await extractFlagOff();
+    try {
+      expect(data.residue.uncoveredFiles.slice().sort()).toEqual(['src/lib/util.ts', 'src/svc/handler.ts']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

@@ -1,0 +1,8 @@
+name: Lists Dir
+description: "A rule with no owning component that lists a permitted directory
+  via ctx.fs.list — pins that the listing stays raw and unfiltered, and that
+  adding an unrelated file to the listed directory invalidates the result."
+reviewer:
+  type: deterministic
+scope:
+  per: file

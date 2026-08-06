@@ -12,8 +12,6 @@ relations:
     type: calls
   - target: cli/tests/unit/cli
     type: uses
-  - target: cli/core/check-codes
-    type: calls
   - target: cli/core/fill
     type: calls
   - target: cli/exit-after-flush
@@ -26,9 +24,13 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
-  - target: cli/group-issues
-    type: calls
   - target: cli/rules-artifacts
+    type: calls
+  - target: cli/check-render-header
+    type: calls
+  - target: cli/check-render-groups
+    type: calls
+  - target: cli/check-render-views
     type: calls
 mapping:
   - source/cli/src/cli/check.ts

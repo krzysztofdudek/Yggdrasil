@@ -18,18 +18,31 @@
  *   - LLM subject sets exclude binary files (by extension); deterministic keeps them.
  *   - Empty subject set → no pair for that (aspect, node) — vacuous pass.
  *   - Nodes with empty mapping → no pairs at all.
+ *   - A mapping entry never contributes a pair for a path the graph excludes
+ *     globally (see `expandNodeFiles`, the one place this module expands a
+ *     mapping to files): a nested project's own boundary (a subtree carrying
+ *     its own `.yggdrasil/` graph, or its own `.git` checkout/submodule/
+ *     worktree — a DEFAULT member of the excluded set) or a `coverage.excluded`
+ *     root an adopter configured (the other source of members), regardless of
+ *     whether a directory/glob entry swept the path in or a node's own
+ *     mapping names it exactly — exclusion cuts everything it matches, with
+ *     no carve-out for an explicit claim. This is the same one exclusion
+ *     authority (`io/repo-scanner.ts`'s `isExcludedFromGraph`) the coverage
+ *     walk, the relation pass, and the audit/portal surfaces all consult, so
+ *     the pair universe and every other view of "what belongs to this graph"
+ *     agree.
  *   - Pairs are sorted by aspectId, then unitKey for deterministic output.
  */
 
 import path from 'node:path';
 
 import type { Graph } from '../model/graph.js';
-import type { AspectStatus } from '../model/graph.js';
+import type { AspectStatus, CoverageConfig } from '../model/graph.js';
 import type { UnitKey } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
 import { toPosixPath } from '../utils/posix.js';
 import { nodeUnit, fileUnit } from '../model/lock.js';
-import { expandMappingPaths, hashFile, hashString } from '../io/hash.js';
+import { expandMappingPathsWithinOwnGraph, hashFile, hashString } from '../io/hash.js';
 import { probeUnreadable } from '../io/graph-fs.js';
 import { normalizeMappingPaths } from '../io/paths.js';
 import {
@@ -41,6 +54,11 @@ import { evaluateFileWhen } from './file-when-evaluator.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { BINARY_EXTENSIONS } from '../utils/binary-extensions.js';
 import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
+import { DEFAULT_COVERAGE } from '../io/config-parser.js';
+import { isExcludedByCoverage } from './check-coverage-tiers.js';
+import { computeTypeAspectCascade, describeCascadeCycle } from './type-effective.js';
+import type { TypeAspectDrop, TypeAspectDropReason, TypeEffectiveAspect, TypeCascadeCycle } from './type-effective.js';
+import type { TypedEdgeIndex } from '../relations/pass.js';
 
 // ============================================================
 // Public types
@@ -50,9 +68,70 @@ export interface ExpectedPair {
   aspectId: string;
   kind: 'llm' | 'deterministic';
   unitKey: UnitKey;          // nodeUnit(nodePath) for per-node; fileUnit(path) per-file
-  nodePath: string;          // owning node
+  /**
+   * The component that owns this unit. Absent when the file is enforced by its
+   * architecture type and no component owns it — there is no owner to name, and
+   * inventing one would put a component in front of a person that does not exist.
+   */
+  nodePath?: string;
   status: AspectStatus;      // effective status on the node (for rendering/severity)
   subjectFiles: string[];    // repo-relative POSIX, sorted
+}
+
+/**
+ * Why a rule attached to a file's type does not run on that file. A widening of
+ * the cascade's own reasons (`TypeAspectDropReason`, `./type-effective.js`) with
+ * the ones only enumeration can decide — the cascade has no concept of
+ * `scope.per` / `scope.files` / binary subjects / a missing aspect definition,
+ * since those are pair-enumeration concepts, not cascade concepts.
+ *
+ * Every one of these MUST be recorded wherever the nodeless enumeration below
+ * decides an (aspect, file) pair will not exist: a silent `continue` with no
+ * drop row leaves nothing to distinguish "does not apply" from "was never
+ * checked", and a caller deriving "enforced" from the absence of a drop (never
+ * done here — see `type-visibility.ts`'s own contract) would misread the gap
+ * as enforcement.
+ */
+export type PairDropReason =
+  | TypeAspectDropReason
+  | 'whole-unit-rule'
+  | 'scope.files-excluded'
+  | 'aspect-undefined'
+  | 'unreadable'
+  | 'binary-subject';
+
+/**
+ * A cascade drop with the file it happened on attached. `TypeAspectDrop` is
+ * scoped to the single file a `computeTypeAspectCascade` call was made about and
+ * carries no `file` of its own; this is that value WITH the file attached — never
+ * push a bare `TypeAspectDrop` into a `PairDrop[]`.
+ *
+ * `Omit<TypeAspectDrop, 'reason'>` rather than a plain `extends`: `reason` here
+ * is WIDENED (`PairDropReason` ⊇ `TypeAspectDropReason`), and a plain `extends`
+ * requires the subinterface's property to be assignable to the base's — the
+ * narrower-to-wider direction TypeScript structurally forbids. The Omit removes
+ * the conflicting field before re-adding it at the wider type; the resulting
+ * shape is exactly `{ aspectId: string; file: string; reason: PairDropReason }`.
+ */
+export interface PairDrop extends Omit<TypeAspectDrop, 'reason'> {
+  file: string;
+  reason: PairDropReason;
+}
+
+/**
+ * Type-level coverage facts for one run, computed ONCE (by the caller, from
+ * `computeTypeCoverage`) and threaded in here — this function never classifies
+ * anything itself. Absent ⇒ no type-covered files exist for this run (the
+ * feature is off, or nothing matched), and enumeration behaves exactly as it
+ * did before the tier existed.
+ */
+export interface TypeCoverageInput {
+  /** file → matched type id, for every file enforced by its type alone. */
+  covered: Map<string, string>;
+  /** Files reported ambiguous this run — their stored results are retained, not pruned. */
+  ambiguousPaths: string[];
+  /** Statically-resolved import edges, for applicability only. Omit when unavailable. */
+  edges?: TypedEdgeIndex;
 }
 
 /**
@@ -67,12 +146,37 @@ export interface ExpectedPair {
  * the diagnostic directly without rebuilding the message from the raw fields.
  */
 export interface UnreadableSubject {
-  nodePath: string;
+  /** Absent for a nodeless (type-covered-file) unreadable subject — follows ExpectedPair's optionality. */
+  nodePath?: string;
   aspectId: string;
   path: string;          // repo-relative POSIX
   reason: string;        // from evaluateFileWhen's unreadableReason (or a clear fallback)
   messageData: IssueMessage;
 }
+
+/**
+ * One type-covered file whose rules could not be worked out at all: the
+ * nodeless enumeration's `computeTypeAspectCascade` call absorbed an aspect
+ * `implies` cycle for it (see that function's own exception contract). This
+ * file contributes ZERO pairs and ZERO drops — not because nothing applies,
+ * but because resolution never ran to completion. A caller that folds a file
+ * with no pairs/drops into "zero applicable rules" (as `core/type-visibility.ts`
+ * did before this type existed) reports a false "satisfies coverage with no
+ * enforcement" for a file whose coverage was never actually assessed.
+ */
+export interface UncomputableTypeCoverage {
+  file: string;
+  typeId: string;
+  cycle: TypeCascadeCycle;
+}
+
+/**
+ * Re-exported so a caller that already consumes `UncomputableTypeCoverage.cycle` through
+ * this module (this facade's own `PairComputation`, never type-effective.ts directly) can
+ * render the identical cycle sentence `yg check`, `yg context --file`, and `yg owner --file`
+ * already print for it — without a new relation to type-effective.ts of its own.
+ */
+export { describeCascadeCycle };
 
 /**
  * Return shape of computeExpectedPairs.
@@ -85,11 +189,21 @@ export interface UnreadableSubject {
 export interface PairComputation {
   pairs: ExpectedPair[];
   unreadable: UnreadableSubject[];
+  /** Rules attached to a file's type that do not run on it, with the reason. */
+  drops: PairDrop[];
+  /** Type-covered files an aspect `implies` cycle stopped from being resolved at all — see `UncomputableTypeCoverage`'s own doc. */
+  uncomputableTypeCoverage: UncomputableTypeCoverage[];
 }
 
 export interface ComputePairsOptions {
   /** When true, include draft aspects (used by GC universe). Default: false. */
   includeDraft?: boolean;
+  /**
+   * Files enforced by their architecture type. Absent ⇒ no such files exist for
+   * this run (the feature is off, or nothing matched) and enumeration behaves
+   * exactly as it did before the tier existed.
+   */
+  typeCoverage?: TypeCoverageInput;
 }
 
 /**
@@ -146,11 +260,41 @@ export function getChildMappingExclusions(graph: Graph, nodePath: string): strin
 }
 
 /**
+ * Expand a node's raw mapping entries to concrete files: gitignore-aware
+ * expansion with everything the graph excludes globally dropped
+ * (`expandMappingPathsWithinOwnGraph` — a directory below the mapping that
+ * carries its own `.yggdrasil/` graph, or is otherwise governed by a separate
+ * project's own boundary, is a DEFAULT member of the excluded set; a path an
+ * adopter's own `coverage.excluded` config names is the other source of
+ * members. Either way its files are never this graph's pairs, even when a
+ * node's own mapping names them exactly — exclusion cuts everything it
+ * matches, with no carve-out for an explicit claim. The same shared guard
+ * `structure/hook-loader.ts` and `structure/allowed-reads.ts` apply to the
+ * files they expose to a review), and the child carve-out applied (a
+ * descendant node's own mapping wins over a globbing ancestor's).
+ *
+ * The one place this expansion happens for the enforcement (pairs/fingerprint)
+ * path — every call site below shares it rather than repeating the guard.
+ */
+async function expandNodeFiles(
+  projectRoot: string,
+  rawMapping: string[],
+  excludePrefixes: string[],
+  coverage: CoverageConfig,
+): Promise<string[]> {
+  const allExpanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping, coverage);
+  return excludePrefixes.length > 0
+    ? allExpanded.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
+    : allExpanded;
+}
+
+/**
  * The full mapped subject set for a node: every mapped file (gitignore-aware
- * expansion) with the child carve-out applied, BEFORE any scope.files filter and
- * BEFORE binary exclusion. This is the deterministic-reviewer subject set when an
- * aspect declares no scope filter — identical to the `nodeFiles` set
- * computeExpectedPairs builds at step 4. Repo-relative POSIX paths, unsorted.
+ * expansion, nested-graph subtrees dropped) with the child carve-out applied,
+ * BEFORE any scope.files filter and BEFORE binary exclusion. This is the
+ * deterministic-reviewer subject set when an aspect declares no scope filter —
+ * identical to the `nodeFiles` set computeExpectedPairs builds at step 4.
+ * Repo-relative POSIX paths, unsorted.
  *
  * Used by the fill stage to decide whether a deterministic pair's subject is
  * NARROWER than the node's full mapping (a per:node aspect with a scope.files
@@ -169,10 +313,7 @@ export async function computeNodeMappedFiles(
 
   const projectRoot = path.dirname(graph.rootPath);
   const excludePrefixes = getChildMappingExclusions(graph, nodePath);
-  const allExpanded = await expandMappingPaths(projectRoot, rawMapping);
-  return excludePrefixes.length > 0
-    ? allExpanded.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
-    : allExpanded;
+  return expandNodeFiles(projectRoot, rawMapping, excludePrefixes, graph.config.coverage ?? DEFAULT_COVERAGE);
 }
 
 /**
@@ -230,6 +371,42 @@ export function computeUncomputableNodes(graph: Graph): Set<string> {
  * is a snapshot and missing paths are silently dropped at that stage. The
  * explicit `unreadable` channel covers only content-filter read failures (EACCES
  * or similar) on files that were successfully enumerated.
+ *
+ * Nodeless enumeration (`opts.typeCoverage`), run AFTER the node loop above so
+ * every component pair stays byte-identical: for each file enforced by its
+ * architecture type alone (`typeCoverage.covered`), unless the file sits under
+ * a `coverage.excluded` root (the same one exclusion authority the node loop
+ * above already applies via `expandNodeFiles` — this defensive re-check exists
+ * because `typeCoverage.covered` is computed upstream by `computeTypeCoverage`,
+ * which already filters by it; a file this excluded could not reach this
+ * point as "covered" in the first place, so this is the ONE step in this loop
+ * that stays silent rather than recording a drop: the file was never really
+ * "covered" to begin with, so there is nothing to have a reason about), run
+ * `computeTypeAspectCascade` once for the whole file and,
+ * for each of its effective aspects: skip aggregates silently (no reviewer, no
+ * own verdict — the bundle they belong to is reported separately, never as a
+ * bare drop); an id with no matching aspect definition records
+ * `aspect-undefined`; skip a whole-unit rule (`scope.per !== 'file'` — there is
+ * no component to run it on) recording `whole-unit-rule`; skip a file excluded
+ * by the aspect's own `scope.files` recording `scope.files-excluded`; an
+ * unreadable scope.files evaluation or unreadable subject records `unreadable`
+ * (in addition to routing through the same blocking `unreadable` channel the
+ * node loop uses); an LLM aspect over a binary subject records `binary-subject`
+ * (a prose rule cannot review bytes it cannot read as text). Every one of these
+ * is recorded — this loop never silently decides an (aspect, file) pair will
+ * not exist without leaving a reason for it, so a caller can never mistake "no
+ * drop was recorded" for "therefore enforced". Every surviving (aspect, file)
+ * emits one `file:` pair with `nodePath` omitted. `drops` collects every
+ * cascade drop (`when-not-satisfied` / `draft`) PLUS every enumeration-only
+ * reason above, each with the file it happened on attached.
+ *
+ * Before any of that: when `computeTypeAspectCascade` itself absorbed an
+ * aspect `implies` cycle for this file (its own `cycle` result), the file
+ * contributes NEITHER a pair NOR a drop — its rules were never resolved, so
+ * there is nothing to classify one way or the other. That fact is recorded on
+ * its own channel, `uncomputableTypeCoverage`, never folded into `drops`: a
+ * caller that reads "no pairs, no drops" as "genuinely zero applicable rules"
+ * (as `core/type-visibility.ts` used to) must consult this channel first.
  */
 export async function computeExpectedPairs(
   graph: Graph,
@@ -250,10 +427,7 @@ export async function computeExpectedPairs(
 
     // O(nodes²) with one FS walk per node — fine at current scale; if check latency grows, precompute a child-exclusion index per run.
     const excludePrefixes = getChildMappingExclusions(graph, nodePath);
-    const allExpanded = await expandMappingPaths(projectRoot, rawMapping);
-    const nodeFiles = excludePrefixes.length > 0
-      ? allExpanded.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
-      : allExpanded;
+    const nodeFiles = await expandNodeFiles(projectRoot, rawMapping, excludePrefixes, graph.config.coverage ?? DEFAULT_COVERAGE);
 
     if (nodeFiles.length === 0) continue; // after carve-out, nothing left
 
@@ -410,6 +584,155 @@ export async function computeExpectedPairs(
     }
   }
 
+  // ── Nodeless enumeration: files enforced by their architecture type alone. ──
+  // Added AFTER the node loop so every component pair above is byte-identical;
+  // absent opts.typeCoverage ⇒ this loop does not run at all (zero added cost,
+  // zero behavior change — the feature-off contract).
+  const drops: PairDrop[] = [];
+  const uncomputableTypeCoverage: UncomputableTypeCoverage[] = [];
+  const coverageConfig = graph.config.coverage ?? DEFAULT_COVERAGE;
+  for (const [file, typeId] of opts?.typeCoverage?.covered ?? []) {
+    // The one exclusion authority (isExcludedByCoverage) — a file under an
+    // excluded root is skipped entirely, not even classified into a drop. This
+    // is the SAME authority computeTypeCoverage itself already applied to reach
+    // `covered` in the first place (and the node loop above applies too, via
+    // expandNodeFiles), so this is a defensive re-check, not a new filter: a
+    // file this excluded should never actually reach this point as "covered".
+    if (isExcludedByCoverage(file, coverageConfig)) continue;
+
+    let cascade: { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[]; cycle?: TypeCascadeCycle };
+    try {
+      cascade = computeTypeAspectCascade(graph, file, typeId, opts?.typeCoverage?.edges);
+    } catch {
+      // Mirrors the node loop's own catch above: an unexpected structural error
+      // must not abort enumeration for every OTHER type-covered file in the run.
+      // (computeTypeAspectCascade's own contract already absorbs an implies
+      // cycle internally — see the branch below — so this guards the boundary
+      // against some OTHER, genuinely unexpected failure, not a known one.)
+      continue;
+    }
+    if (cascade.cycle) {
+      // The cascade absorbed an implies cycle instead of resolving this
+      // file's rules — record it on its OWN channel, never as a drop or a
+      // silent skip. A drop means "this specific rule does not run here"; an
+      // implies cycle means "nothing about this file's type could be
+      // resolved at all". Conflating the two is exactly what used to make
+      // this file read as "zero applicable rules" (genuinely nothing
+      // attached) when its rules were simply never worked out.
+      uncomputableTypeCoverage.push({ file, typeId, cycle: cascade.cycle });
+      continue;
+    }
+    for (const d of cascade.drops) drops.push({ file, ...d });
+
+    for (const { aspectId, status } of cascade.effective) {
+      // Aggregates never produce a pair (no own reviewer, no own verdict) —
+      // silent, exactly like the node loop's own aggregate skip.
+      if (isAggregateAspect(graph, aspectId)) continue;
+      if (!includeDraft && status === 'draft') continue; // recorded via cascade.drops above
+
+      const aspectDef = graph.aspects.find((a) => a.id === aspectId);
+      if (!aspectDef) {
+        // The architecture attaches an id with no matching aspect definition —
+        // a graph a real loader rejects (checkDanglingAspectRefs), reachable
+        // only via a hand-built Graph that bypasses that validation. Still
+        // recorded: a caller deriving "enforced" from the absence of a drop
+        // must never read this gap as enforcement.
+        drops.push({ file, aspectId, reason: 'aspect-undefined' });
+        continue;
+      }
+      const kind = aspectDef.reviewer.type as 'llm' | 'deterministic';
+      const scope = aspectDef.scope;
+
+      // A whole-unit (per: node, or absent scope) rule has no component to run
+      // on for a nodeless file — there is no "whole unit" here.
+      const per = scope?.per ?? 'node';
+      if (per !== 'file') {
+        drops.push({ file, aspectId, reason: 'whole-unit-rule' });
+        continue;
+      }
+
+      // scope.files content/path predicate, evaluated over this one file.
+      if (scope?.files) {
+        const result = await evaluateFileWhen(scope.files, {
+          absPath: path.resolve(projectRoot, file),
+          repoRelPath: file,
+          projectRoot,
+          cache,
+        });
+        if (result.unreadable) {
+          const key = `\0${aspectId}\0${file}`;
+          if (!unreadableMap.has(key)) {
+            const reason = result.unreadableReason ?? 'unreadable';
+            const tooLarge = result.unreadableKind === 'too-large';
+            const what = tooLarge
+              ? `Aspect '${aspectId}' could not evaluate the content filter on its subject file '${toPosixPath(file)}': ${reason}.`
+              : `Aspect '${aspectId}' could not read its subject file '${toPosixPath(file)}': ${reason}.`;
+            const why = tooLarge
+              ? 'The scope.files content filter must scan the file to decide whether it is a review subject, but this file exceeds the scan limit, so the filter could not be applied and the file was dropped from the review subject set. A silently dropped file can turn an enforced rule into a vacuous pass.'
+              : 'A file the scope.files filter must evaluate could not be read, so it was dropped from the review subject set. A silently dropped file can turn an enforced rule into a vacuous pass.';
+            const next = tooLarge
+              ? `Split '${toPosixPath(file)}' below the 5MB scan limit, narrow the content filter so it no longer needs to scan this file, or add its root to coverage.excluded, then re-run yg check.`
+              : `Fix the file permissions, or add its root to coverage.excluded, then re-run yg check.`;
+            unreadableMap.set(key, { aspectId, path: file, reason, messageData: { what, why, next } });
+          }
+          // Recorded on both channels: `unreadable` for the blocking error, AND
+          // a drop row here — the aspect still does not enforce on this file,
+          // and a caller deriving "enforced" from the absence of a drop must
+          // never read this gap (unreadable is not "attach condition satisfied").
+          drops.push({ file, aspectId, reason: 'unreadable' });
+          continue;
+        }
+        if (!result.result) {
+          drops.push({ file, aspectId, reason: 'scope.files-excluded' });
+          continue;
+        }
+      }
+
+      // LLM aspects never review a binary — a prose rule cannot review bytes
+      // it cannot read as text. Recorded (never silent, unlike the node loop's
+      // own binary exclusion): a type-covered file has no owning component to
+      // fall back on, so this is the only place this fact is ever surfaced.
+      if (kind === 'llm' && BINARY_EXTENSIONS.has(path.extname(file).toLowerCase())) {
+        drops.push({ file, aspectId, reason: 'binary-subject' });
+        continue;
+      }
+
+      // Final unreadable probe — a file written into typeCoverage.covered MUST be
+      // readable to be reviewed (mirrors the node loop's own step 2.5).
+      const absPath = path.resolve(projectRoot, file);
+      let reason = readabilityCache.get(absPath);
+      if (reason === undefined) {
+        reason = await probeUnreadable(absPath);
+        readabilityCache.set(absPath, reason);
+      }
+      if (reason !== null) {
+        const key = `\0${aspectId}\0${file}`;
+        if (!unreadableMap.has(key)) {
+          unreadableMap.set(key, {
+            aspectId,
+            path: file,
+            reason,
+            messageData: {
+              what: `Aspect '${aspectId}' could not read its subject file '${toPosixPath(file)}': ${reason}.`,
+              why: 'A file this aspect must review could not be read, so it cannot be reviewed. A silently dropped subject can turn an enforced rule into a vacuous pass (zero subject = no real review = implicit green).',
+              next: `Fix the file permissions, or add its root to coverage.excluded, then re-run yg check.`,
+            },
+          });
+        }
+        drops.push({ file, aspectId, reason: 'unreadable' });
+        continue;
+      }
+
+      pairs.push({
+        aspectId,
+        kind,
+        unitKey: fileUnit(file),
+        status,
+        subjectFiles: [file],
+      });
+    }
+  }
+
   // Deterministic output ordering: aspectId first, then unitKey.
   pairs.sort((a, b) => {
     if (a.aspectId < b.aspectId) return -1;
@@ -419,7 +742,7 @@ export async function computeExpectedPairs(
     return 0;
   });
 
-  return { pairs, unreadable: Array.from(unreadableMap.values()) };
+  return { pairs, unreadable: Array.from(unreadableMap.values()), drops, uncomputableTypeCoverage };
 }
 
 // ============================================================
@@ -463,10 +786,7 @@ export async function computeSourceFingerprint(
 
   const projectRoot = path.dirname(graph.rootPath);
   const excludePrefixes = getChildMappingExclusions(graph, nodePath);
-  const allExpanded = await expandMappingPaths(projectRoot, rawMapping);
-  const nodeFiles = excludePrefixes.length > 0
-    ? allExpanded.filter((p) => !excludePrefixes.some((ep) => mappingEntryMatchesFile(ep, p)))
-    : allExpanded;
+  const nodeFiles = await expandNodeFiles(projectRoot, rawMapping, excludePrefixes, graph.config.coverage ?? DEFAULT_COVERAGE);
 
   if (nodeFiles.length === 0) return undefined;
 

@@ -2,12 +2,51 @@ import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtempSync, cpSync, rmSync, readdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import {
   checkAspectEffectiveNowhere,
   checkArchitectureDefaultAspectUnreachable,
 } from '../../../src/core/checks/aspect-contracts.js';
 import type { Graph, AspectDef, GraphNode, ArchitectureDef } from '../../../src/model/graph.js';
 import type { WhenPredicate } from '../../../src/model/when.js';
+import type { TypeCoverageInput } from '../../../src/core/pairs.js';
+import { loadGraph } from '../../../src/core/graph-loader.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { scanUncoveredFiles } from '../../../src/core/check.js';
+import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
+import { FileContentCache } from '../../../src/io/file-content-cache.js';
+import { FIXTURE_TYPE_ONLY } from '../../fixtures/type-level-engine/variants/index.js';
+
+const __dirname2 = path.dirname(fileURLToPath(import.meta.url));
+const BASE_FIXTURE = path.join(__dirname2, '..', '..', 'fixtures', 'type-level-engine');
+
+/** Real classification pipeline (walkRepoFiles + scanUncoveredFiles + computeTypeCoverage) — never a hand-built map. */
+async function classify(graph: Graph): Promise<TypeCoverageInput> {
+  const projectRoot = path.dirname(graph.rootPath);
+  const files = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, files);
+  const result = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
+/**
+ * Copy the base type-level-engine fixture, overlay variants/type-only (a
+ * README only — no architecture override needed, per its own doc), then
+ * empty .yggdrasil/model/'s children so the resulting project has ZERO
+ * explicit components — only src/leaf/a.ts, enforced purely by its type.
+ */
+function buildTypeOnlyProject(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-type-only-'));
+  cpSync(BASE_FIXTURE, dir, { recursive: true });
+  cpSync(FIXTURE_TYPE_ONLY, dir, { recursive: true });
+  const modelDir = path.join(dir, '.yggdrasil', 'model');
+  for (const child of readdirSync(modelDir)) {
+    rmSync(path.join(modelDir, child), { recursive: true, force: true });
+  }
+  return dir;
+}
 
 const tempDirs: string[] = [];
 
@@ -222,6 +261,15 @@ describe('checkArchitectureDefaultAspectUnreachable (per-type dead-attach linter
     expect(issues[0].severity).toBe('warning');
     expect(issues[0].messageData.what).toContain("'pinned'");
     expect(issues[0].messageData.what).toContain("'module'");
+    // A real node of type 'module' exists (svc) — the genuine predicate case,
+    // never the whole-unit/no-component wording (that requires the type's ONLY
+    // instances to be type-covered files, not true here).
+    expect(issues[0].messageData.why).toBe(
+      "The architecture attaches it to 'module', but its own 'when' (or the attach-site 'when') filters it back off every 'module' node — so the rule looks enforced for this type yet verifies nothing there.",
+    );
+    expect(issues[0].messageData.next).toBe(
+      "Widen or remove the aspect's 'when' so it reaches 'module' nodes (yg impact --aspect pinned), or drop the default from the 'module' type in yg-architecture.yaml if it should not apply there.",
+    );
   });
 
   it('stays silent when the default aspect is effective on at least one node of the type', async () => {
@@ -248,5 +296,364 @@ describe('checkArchitectureDefaultAspectUnreachable (per-type dead-attach linter
     const graph = graphWith(rootPath, [pinned], new Map([['g', ghostNode]]), ARCH_PINNED);
 
     expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
+  });
+});
+
+describe('type-coverage tier-awareness', () => {
+  const typeOnlyDirs: string[] = [];
+  afterEach(() => {
+    for (const d of typeOnlyDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  });
+
+  // FIXTURE_TYPE_ONLY: zero explicit components anywhere in the graph — only
+  // src/leaf/a.ts, enforced purely by its 'leaf' architecture type. The base
+  // fixture attaches own-file-rule to 'leaf' and nowhere else, so this is the
+  // MOST extreme case: a rule live only on files, no component anywhere.
+  it('does not call a rule dead when it applies only to files that have no component', async () => {
+    const dir = buildTypeOnlyProject();
+    typeOnlyDirs.push(dir);
+    const graph = await loadGraph(dir);
+    const typeCoverage = await classify(graph);
+    expect(typeCoverage.covered.get('src/leaf/a.ts')).toBe('leaf');
+
+    const on = checkAspectEffectiveNowhere(graph, typeCoverage);
+    expect(on.map((i) => i.messageData.what.match(/'([^']+)'/)?.[1])).not.toContain('own-file-rule');
+  });
+
+  // A naive flag-off twin of the test above would reuse this SAME zero-node
+  // fixture; that cannot hold: the bootstrap carve-out (silent while the model
+  // tree has zero nodes) already existed before type coverage did, and is
+  // UNCONDITIONAL for a one-argument call — "absent -> today's behavior
+  // exactly" pins that this genuinely-nodeless graph stays silent, one-arg,
+  // regardless of what a SECOND argument would have revealed. Verified real:
+  // reverting the two-argument threading, the two-argument call in the test
+  // above fails (own-file-rule reported dead) while THIS one-arg call is
+  // unaffected either way — proving the carve-out, not the new union, is what
+  // this test pins. The MEANINGFUL flag-off/flag-on twin (a non-bootstrap
+  // graph where the distinction is not vacuous) follows below.
+  it('the bootstrap carve-out still applies one-arg on a genuinely nodeless graph', async () => {
+    const dir = buildTypeOnlyProject();
+    typeOnlyDirs.push(dir);
+    const graph = await loadGraph(dir);
+    expect(checkAspectEffectiveNowhere(graph)).toHaveLength(0);
+  });
+
+  // A naive expectation would be toHaveLength(0) here — FALSE against this
+  // fixture, confirmed by running it: 'leaf' declares two aspects
+  // (gated-on-descendants, never-here) whose own doc comments state they must
+  // ALWAYS read when-not-satisfied for a file-level unit (a file can never own
+  // a port or have descendants) — genuinely unreachable BY DESIGN, the same
+  // way they are already unreachable today for the fixture's real 'owned' node
+  // (verified: checkArchitectureDefaultAspectUnreachable(loadGraph(BASE_FIXTURE))
+  // one-arg already reports these same two, with no type-coverage-aware code
+  // in play).
+  // "Has instances" is proven precisely by these two findings REAPPEARING for
+  // a type with zero real components once its only instance is a type-covered
+  // file — not by the type going silent.
+  it('treats a type with matching files as having instances (checkArchitectureDefaultAspectUnreachable)', async () => {
+    const dir = buildTypeOnlyProject();
+    typeOnlyDirs.push(dir);
+    const graph = await loadGraph(dir);
+    // Scoped to 'leaf' alone (not the fixture's full classification) so the
+    // assertion is not entangled with 'consumer's relation-gated aspects,
+    // which read false for an unrelated reason (no edge index supplied here).
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leaf/a.ts', 'leaf']]), ambiguousPaths: [] };
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues.map((i) => i.messageData.what.match(/'([^']+)'/)?.[1]).sort()).toEqual([
+      'gated-on-descendants', 'never-here',
+    ]);
+    // Confirms these are not new false positives introduced by threading
+    // typeCoverage through this check: the SAME two findings already fire for
+    // the real 'owned' node (type leaf) in the ordinary, fully-populated
+    // fixture, one-arg, with no typeCoverage at all.
+    const baseGraph = await loadGraph(BASE_FIXTURE);
+    const baseline = checkArchitectureDefaultAspectUnreachable(baseGraph);
+    expect(baseline.map((i) => i.messageData.what.match(/'([^']+)'/)?.[1]).sort()).toEqual([
+      'gated-on-descendants', 'never-here',
+    ]);
+  });
+
+  it('the bootstrap carve-out still applies one-arg on a genuinely nodeless graph (checkArchitectureDefaultAspectUnreachable)', async () => {
+    const dir = buildTypeOnlyProject();
+    typeOnlyDirs.push(dir);
+    const graph = await loadGraph(dir);
+    expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
+  });
+
+  // A non-bootstrap twin: ONE real node (of a DIFFERENT type) keeps
+  // graph.nodes.size > 0, so the carve-out never applies either way — the
+  // only thing that can make 'own-rule' live is the type-coverage union
+  // itself, discriminating flag-on from flag-off for real. `own-rule` is
+  // file-level (scope: { per: 'file' }): a per:node (whole-unit) rule has no
+  // component to run on for a nodeless file, so it could never be genuinely
+  // "live" there — see the dedicated whole-unit twin below for that direction.
+  function typeOnlyTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['own-rule'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const ownRule = detAspect('own-rule', { scope: { per: 'file' } });
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [ownRule], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a file-level rule live only on a type-covered file (real node exists for another type) is not dead', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'own-rule', 'check.mjs');
+    const { graph, typeCoverage } = typeOnlyTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph, typeCoverage);
+    expect(issues.some((i) => i.messageData.what.includes("'own-rule'"))).toBe(false);
+  });
+
+  it('flag-off: the SAME rule, one-arg, is still reported dead — byte-identical to before the tier existed', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'own-rule', 'check.mjs');
+    const { graph } = typeOnlyTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph);
+    expect(issues.some((i) => i.messageData.what.includes("'own-rule'"))).toBe(true);
+  });
+
+  // The other direction of the dead-law relaxation: a WHOLE-UNIT (per: node)
+  // rule reachable ONLY through a type-covered file
+  // must STILL be reported dead — it can never produce a pair there (no
+  // component to run it on), so counting the file as making it "live" would
+  // hide a rule that genuinely never verifies anything.
+  function typeOnlyWholeUnitTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['whole-unit-only-rule'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const wholeUnitRule = detAspect('whole-unit-only-rule'); // no scope -> per: node (whole-unit) default
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [wholeUnitRule], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a whole-unit rule reachable only through a type-covered file is still reported dead — it can never produce a pair there', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'whole-unit-only-rule', 'check.mjs');
+    const { graph, typeCoverage } = typeOnlyWholeUnitTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph, typeCoverage);
+    expect(issues.some((i) => i.messageData.what.includes("'whole-unit-only-rule'"))).toBe(true);
+  });
+
+  // The real cause here is NOT a `when` predicate filtering the rule off —
+  // there is no `when` on 'whole-unit-only-rule' at all. The rule is
+  // whole-unit (scope: { per: node }) and 'leafy' has zero real components,
+  // only a type-covered file — there is no component for it to ever run on.
+  // The generic "its own 'when' ... filters it back off" wording would be
+  // false here (no predicate exists to widen or remove), so this case must
+  // get its own honest why/next naming the real cause and the real remedies.
+  it('names the real cause (whole-unit, no component) instead of a nonexistent when predicate', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'whole-unit-only-rule', 'check.mjs');
+    const { graph, typeCoverage } = typeOnlyWholeUnitTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph, typeCoverage);
+    const issue = issues.find((i) => i.messageData.what.includes("'whole-unit-only-rule'"))!;
+    expect(issue.messageData.why).toBe(
+      "It is whole-unit (scope: { per: 'node' }), and the only instances of type 'leafy' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never verify anywhere.",
+    );
+    expect(issue.messageData.next).toBe(
+      "Give a file of type 'leafy' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/whole-unit-only-rule/yg-aspect.yaml.",
+    );
+    // Never the predicate-remedy wording — there is no predicate to widen or remove.
+    expect(issue.messageData.why).not.toMatch(/'when'/);
+    expect(issue.messageData.next).not.toMatch(/Widen or remove/);
+  });
+
+  // A third direction: the type's only instance's cascade could not be
+  // resolved AT ALL — an aspect `implies` cycle, not a `when` mismatch and not
+  // a whole-unit/no-component gap. 'leafy' has zero real components, so there
+  // is no real node the genuine-predicate wording's "filters it back off"
+  // could ever describe; the actual cause is the cycle the blocking
+  // aspect-implies-cycle validator error reports elsewhere in the same run.
+  function typeCycleTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['cyclic-rule'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const cyclicRule = detAspect('cyclic-rule', { implies: ['cyclic-partner'] });
+    const cyclicPartner = detAspect('cyclic-partner', { implies: ['cyclic-rule'] });
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [cyclicRule, cyclicPartner], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('names the real cause (an aspect implies cycle) instead of a nonexistent when predicate', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'cyclic-rule', 'check.mjs');
+    const { graph, typeCoverage } = typeCycleTwinGraph(rootPath);
+    const issues = checkAspectEffectiveNowhere(graph, typeCoverage);
+    const issue = issues.find((i) => i.messageData.what.includes("'cyclic-rule'"));
+    expect(issue).toBeDefined();
+    expect(issue!.messageData.why).toBe(
+      "The aspect graph has an implies cycle at 'cyclic-rule' — the cascade cannot tell which of the type's rules apply until that cycle is broken. The only instances of type 'leafy' are files enforced by their type alone (no component of their own), so there is no real node this rule could have been filtered off of — it was never resolved.",
+    );
+    expect(issue!.messageData.next).toBe(
+      "Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/.",
+    );
+    // Never the predicate-remedy wording — there is no `when` to widen or remove,
+    // and never the whole-unit wording — this is not a scope.per gap.
+    expect(issue!.messageData.why).not.toMatch(/'when'/);
+    expect(issue!.messageData.next).not.toMatch(/Widen or remove/);
+    expect(issue!.messageData.why).not.toMatch(/whole-unit/);
+  });
+
+  // Same non-bootstrap discrimination for checkArchitectureDefaultAspectUnreachable:
+  // ONE real node (a different type) keeps graph.nodes.size > 0 throughout, so
+  // whether 'leafy' is reported as having an unreachable default hinges ENTIRELY
+  // on typeCoverage granting it an instance, never on the bootstrap carve-out.
+  function unreachableDefaultTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['dead-default'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const deadDefault = detAspect('dead-default', { when: NEVER_MATCHES });
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [deadDefault], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a type with zero components but one type-covered file is checked for reachability', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'dead-default', 'check.mjs');
+    const { graph, typeCoverage } = unreachableDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].messageData.what).toContain("'dead-default'");
+    expect(issues[0].messageData.what).toContain("'leafy'");
+  });
+
+  it('flag-off: the SAME type, one-arg, has no known instance so nothing is checked — byte-identical to before the tier existed', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'dead-default', 'check.mjs');
+    const { graph } = unreachableDefaultTwinGraph(rootPath);
+    expect(checkArchitectureDefaultAspectUnreachable(graph)).toHaveLength(0);
+  });
+
+  // The dead-law relaxation, pinned directly on checkArchitectureDefaultAspectUnreachable:
+  // a file-level default reachable only through a type-covered file is
+  // genuinely reachable there and must NOT be reported unreachable.
+  function reachableFileDefaultTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['file-level-default'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const fileLevelDefault = detAspect('file-level-default', { scope: { per: 'file' } }); // no when -> always cascade-effective
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [fileLevelDefault], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a file-level default reachable through a type-covered file is not reported unreachable', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'file-level-default', 'check.mjs');
+    const { graph, typeCoverage } = reachableFileDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues.some((i) => i.messageData.what.includes("'file-level-default'"))).toBe(false);
+  });
+
+  // The other direction: a WHOLE-UNIT (per: node) default, with no `when` at
+  // all restricting it, is still reported unreachable when its only instance
+  // is a type-covered file — it can never produce a pair there regardless of
+  // `when`, so counting the file as an instance for it would hide a rule that
+  // genuinely never verifies anything for this type.
+  function wholeUnitDefaultTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['whole-unit-default'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const wholeUnitDefault = detAspect('whole-unit-default'); // no scope -> per: node; no when -> would be cascade-effective everywhere
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [wholeUnitDefault], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('flag-on: a whole-unit default reachable only through a type-covered file is still reported unreachable — it can never produce a pair there', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'whole-unit-default', 'check.mjs');
+    const { graph, typeCoverage } = wholeUnitDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues.some((i) => i.messageData.what.includes("'whole-unit-default'"))).toBe(true);
+  });
+
+  // Same real-cause requirement as checkAspectEffectiveNowhere's twin above:
+  // 'leafy' has zero real components (only a type-covered file), so there is
+  // no `when` filtering 'whole-unit-default' off — it is simply whole-unit
+  // with nothing to run on. The generic "its own 'when' ... filters it back
+  // off" / "Widen or remove the aspect's 'when'" wording is false in this
+  // case and must not appear.
+  it('names the real cause (whole-unit, no component) instead of a nonexistent when predicate', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'whole-unit-default', 'check.mjs');
+    const { graph, typeCoverage } = wholeUnitDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues).toHaveLength(1);
+    const issue = issues[0];
+    expect(issue.messageData.why).toBe(
+      "It is whole-unit (scope: { per: 'node' }), and the only instances of 'leafy' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never enforce here.",
+    );
+    expect(issue.messageData.next).toBe(
+      "Give a file of type 'leafy' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/whole-unit-default/yg-aspect.yaml.",
+    );
+    expect(issue.messageData.why).not.toMatch(/'when'/);
+    expect(issue.messageData.next).not.toMatch(/Widen or remove/);
+  });
+
+  // Same real-cause requirement as checkAspectEffectiveNowhere's cycle twin
+  // above: 'leafy' has zero real components, so there is no `when` that could
+  // have filtered 'cyclic-default' off — the cascade for its only instance
+  // could not be resolved at all (an aspect implies cycle), not narrowed by a
+  // predicate.
+  function typeCycleDefaultTwinGraph(rootPath: string): { graph: Graph; typeCoverage: TypeCoverageInput } {
+    const arch: ArchitectureDef = {
+      node_types: {
+        module: { description: 'A module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['cyclic-default'], when: { path: 'src/leafy/**' } },
+      },
+    };
+    const cyclicDefault = detAspect('cyclic-default', { implies: ['cyclic-default-partner'] });
+    const cyclicPartner = detAspect('cyclic-default-partner', { implies: ['cyclic-default'] });
+    const otherNode = moduleNode('other', []);
+    const graph: Graph = { config: {}, architecture: arch, nodes: new Map([['other', otherNode]]), aspects: [cyclicDefault, cyclicPartner], flows: [], rootPath };
+    const typeCoverage: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+    return { graph, typeCoverage };
+  }
+
+  it('names the real cause (an aspect implies cycle) instead of a nonexistent when predicate', async () => {
+    const rootPath = await createTempYggdrasil();
+    await createRuleSource(rootPath, 'cyclic-default', 'check.mjs');
+    const { graph, typeCoverage } = typeCycleDefaultTwinGraph(rootPath);
+    const issues = checkArchitectureDefaultAspectUnreachable(graph, typeCoverage);
+    expect(issues).toHaveLength(1);
+    const issue = issues[0];
+    expect(issue.messageData.why).toBe(
+      "The aspect graph has an implies cycle at 'cyclic-default' — the cascade cannot tell which of the type's rules apply until that cycle is broken. The only instances of 'leafy' are files enforced by their type alone (no component of their own), so there is no real node this default could have been filtered off of — it was never resolved.",
+    );
+    expect(issue.messageData.next).toBe(
+      "Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/.",
+    );
+    expect(issue.messageData.why).not.toMatch(/'when'/);
+    expect(issue.messageData.next).not.toMatch(/Widen or remove/);
+    expect(issue.messageData.why).not.toMatch(/whole-unit/);
   });
 });

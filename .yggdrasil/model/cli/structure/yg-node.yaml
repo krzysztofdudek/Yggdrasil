@@ -32,3 +32,5 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/core/allowed-relation-types
+    type: calls

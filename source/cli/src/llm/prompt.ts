@@ -6,11 +6,28 @@ import { escapeXmlText } from './xml-escape.js';
  * The reviewer-prompt template regime marker. Recorded on each LLM verdict
  * event emitted by the fill's telemetry sidecar (io/events-store.ts) so a
  * future rule-health report can tell which prompt scaffold produced a given
- * verdict. Bump on any future change to the prompt-scaffold shape (section
- * order, framing sentences, XML structure) — NOT on aspect content changes,
- * which already invalidate verdicts through the lock's own hash.
+ * verdict. The revision names prompt-scaffold SHAPES a real recorded event
+ * could actually carry — so it advances only when a shape that has already
+ * shipped in a release changes (section order, framing sentences, XML
+ * structure). It does NOT advance for: aspect content changes, which already
+ * invalidate verdicts through the lock's own hash; or a further edit to a
+ * shape that has never shipped — revising an unreleased shape in place keeps
+ * its current number, since bumping would claim a public shape that never
+ * existed for anyone to have recorded an event against.
+ *
+ * Bumped 1 -> 2: the nodeless variant (a file enforced by its architecture
+ * type alone, with no owning component) omits the <node> element and swaps
+ * the component-framing sentence for a single-file one — different bytes for
+ * a unit kind revision 1 never described. Not a hash ingredient (verified:
+ * this constant appears only here and at its four consumer sites, never in
+ * pair-hash.ts), so no stored verdict is invalidated by the bump — it only
+ * keeps the record honest about which shape produced a given nodeless verdict.
+ * Rev 2's own nodeless framing sentence was revised again before rev 2 ever
+ * shipped in a release — that revision stays rev 2, not rev 3: no released
+ * build ever recorded an event against the earlier wording, so there is no
+ * shipped shape for a new number to distinguish it from.
  */
-export const PROMPT_FORMAT_REV = 1;
+export const PROMPT_FORMAT_REV = 2;
 
 /**
  * Default prompt-size limit applied when a tier OMITS `max_prompt_chars`.
@@ -40,17 +57,52 @@ export interface PromptSuppressedRangesInput {
 export interface PairPromptInput {
   aspect: PromptAspectInput;
   references: PromptReferenceInput[];
-  nodePath: string;
-  nodeDescription: string;
+  /**
+   * Omitted for a nodeless (type-covered-file) pair — there is no component to
+   * name. When absent, the `<node .../>` element is omitted ENTIRELY (no
+   * element, no blank line where it was) and the top framing sentence swaps
+   * from "a node (component)" to a single-file sentence — there is nothing
+   * true to say about a component that does not exist, and naming one would
+   * mislead the reviewer. A component pair's rendering (nodePath defined) is
+   * byte-identical to before this variant existed.
+   */
+  nodePath?: string;
+  /** Omitted together with nodePath — there is no component description to show. */
+  nodeDescription?: string;
   files: PromptFileInput[];           // per-node: whole subject set; per-file: exactly one
   companions?: PromptCompanionInput[];   // resolved per-unit by companion.mjs; absent for plain aspects
   suppressedRanges?: PromptSuppressedRangesInput; // pre-resolved per-file suppress spans; absent ≙ no waivers
   scope: ScopeDef | undefined;        // undefined ≙ {per:'node'}
 }
 
-/** The single-file framing sentence added when scope.per === 'file'. */
+/** The single-file framing sentence added when scope.per === 'file' AND the unit has an owning component (nodePath is defined). */
 const PER_FILE_FRAMING =
   `You are reviewing ONE file of a larger component. Other files of the component are not shown; the absence of sibling context is NOT a violation by itself. Judge only what this file must satisfy on its own.`;
+
+/**
+ * The single-file framing sentence for scope.per === 'file' on a unit with NO
+ * owning component (a file enforced by its architecture type alone).
+ * PER_FILE_FRAMING's "of a larger component" claim is false here — there is
+ * no component, and the prompt's own intro sentence (built from `hasNode`
+ * just below) already says so ("a single source file", never "a node
+ * (component)").
+ *
+ * The claim this sentence makes must stay scoped to the COMPONENT, exactly
+ * like PER_FILE_FRAMING's own "other files of the component are not shown" —
+ * never widened to a claim about the whole prompt. A nodeless unit can still
+ * carry a `<references>` and/or a `<companions>` block with full file bodies
+ * (both render unconditionally, independent of nodePath); asserting "no other
+ * files are shown" would be false the moment either renders, and would read
+ * as an instruction to disregard evidence the reviewer is looking at in the
+ * same prompt. What IS true regardless: there is no component, so there are
+ * no component-sibling files to show, and whatever references or companions
+ * this prompt DOES include are the entire extent of that context — nothing
+ * is being withheld beyond what is rendered. The operative leniency guard
+ * (having none of that beyond the file itself is not itself a violation)
+ * carries over unchanged.
+ */
+const PER_FILE_FRAMING_NODELESS =
+  `You are reviewing this file on its own. It has no owning component, so there are no component siblings to show; any references or companions this prompt includes are the entire extent of that context, and having none beyond the file itself is NOT a violation by itself. Judge only what this file must satisfy on its own.`;
 
 /**
  * Assembles the reviewer prompt. Per-node output is BYTE-IDENTICAL to the legacy
@@ -99,7 +151,28 @@ ${escapeXmlText(c.content, { attribute: false })}
 }).join('\n')}
 </companions>`;
 
-  const perFileParagraph = isPerFile ? `\n${PER_FILE_FRAMING}\n` : '';
+  const hasNode = nodePath !== undefined;
+  // The per-file framing paragraph is gated on hasNode the same way the intro
+  // sentence and <node> element below are: a componented unit gets the
+  // "larger component" framing, a nodeless unit gets the honest variant that
+  // says nothing about a component that does not exist.
+  const perFileParagraph = isPerFile ? `\n${hasNode ? PER_FILE_FRAMING : PER_FILE_FRAMING_NODELESS}\n` : '';
+
+  // The top framing sentence names a node (component) only when one exists.
+  // For a nodeless unit (a file enforced by its architecture type alone)
+  // there is nothing true to say about a component that does not exist, so
+  // the sentence is about the single source file instead — never "node" or
+  // "component".
+  const introSentence = hasNode
+    ? 'Below is a node (component) with its source files and one aspect (rule set).'
+    : 'Below is a single source file with its content and one aspect (rule set).';
+  // The <node .../> element itself is omitted entirely when there is no
+  // component — no element, no blank line where it was (the template below
+  // interpolates this directly after </task>, so an empty string collapses
+  // the two blank lines around it into exactly one).
+  const nodeElement = hasNode
+    ? `\n\n<node path="${escapeXmlText(nodePath, { attribute: true })}" description="${escapeXmlText(nodeDescription ?? '', { attribute: true })}" />`
+    : '';
 
   // Pre-resolved suppress spans (computed deterministically from yg-suppress
   // markers by ast/suppress.ts). Only files with at least one applicable range
@@ -120,7 +193,7 @@ ${f.ranges.map(r => `    <range start-line="${r.startLine}" end-line="${r.endLin
   return `<task>
 You verify whether source code satisfies a requirement.
 
-Below is a node (component) with its source files and one aspect (rule set).
+${introSentence}
 Check every rule in the aspect against the source code.
 
 A yg-suppress marker in a comment waives this aspect for specific lines. Those lines
@@ -135,9 +208,7 @@ the reason text on a marker — the spans are authoritative.
 ${perFileParagraph}
 Respond with EXACTLY this JSON, nothing else:
 {"satisfied": true|false, "reason": "explanation with file:line references"}
-</task>
-
-<node path="${escapeXmlText(nodePath, { attribute: true })}" description="${escapeXmlText(nodeDescription, { attribute: true })}" />
+</task>${nodeElement}
 
 <aspect id="${escapeXmlText(aspect.id, { attribute: true })}" description="${escapeXmlText(aspect.description, { attribute: true })}">
 ${aspect.content}

@@ -12,3 +12,19 @@ The read-only verification's prompt-size gate measured a companion-bearing aspec
 The stored-verdict re-check now applies the same built-in default prompt-size ceiling as the fill path when a tier omits its own limit, so a previously-passing oversized unit is consistently flagged as too large on both sides rather than silently skipped on re-check.
 ## [2026-06-21T18:03:23.315Z]
 The stored-verdict re-check now resolves a unit's waived line ranges the same way the fill path does and includes them when measuring the assembled reviewer prompt, so the size guard sees the identical prompt the reviewer would receive. Without this, a unit whose waiver text tipped it over the size limit could slip past the guard on the read-only check path and be sent to the reviewer over-length.
+## [2026-07-28T19:45:58.607Z]
+Verification now accepts the same file-type classification the read-only check computes once per run, so a stored result for a file enforced by its type alone is checked against the correct, current set of rules instead of silently reading as unexpected.
+## [2026-07-30T09:19:40.370Z]
+Comment-only correction: an internal note about why a nodeless unit's stored observation set can never include a graph-membership key now describes the actual mechanism directly (its graph context refuses every call, so nothing graph-shaped is ever recorded) instead of pointing at unrelated internal state. No behavior changed.
+## [2026-07-30T13:40:13.033Z]
+Returns the pair-enumeration drop reasons alongside the verified pairs, so a caller can report not just what verified but why an attached rule did not run on a given file.
+## [2026-07-30T18:00:59.070Z]
+Threads the new uncomputableTypeCoverage list from pair computation through LockVerification, alongside the existing unreadable and drops channels, so a caller building the type-visibility honesty report can tell a type-covered file whose rules were never resolved (an absorbed implies cycle) apart from one that resolved to genuinely nothing.
+## [2026-07-30T21:02:16.217Z]
+Reworded the docstring on the typeCoverage parameter so it explains, in its own words, that the classification is computed once by the caller and threaded through rather than recomputed, instead of leaning on a short internal code with no meaning to a reader of this repository.
+## [2026-07-31T01:47:56.379Z]
+The prompt-size gate's companion resolution now threads the run's type-coverage classification and a reach cache through to the shared resolver, so a companion-backed rule on a file with no owning component sizes its prompt using the same architecture-derived allowance the fill stage used when it first wrote the verdict. Without this the two sides could size the same prompt differently and disagree about whether it fits the tier's limit.
+## [2026-07-31T02:01:10.452Z]
+Removed an internal task-reference phrase from a code comment describing companion-hash symmetry so it reads as self-contained prose.
+## [2026-08-03T10:08:37.144Z]
+Extracted verifyPairs from verifyLock: the same per-pair re-verification loop, now callable directly over a caller-supplied pairs slice instead of always recomputing the pairs from scratch via computeExpectedPairs. yg owner --file and yg context --file each already walk the whole project's pairs once just to classify the one file they were asked about; verifyPairs lets them re-verify that file's own handful of pairs against the lock without paying for a second whole-project pairs walk. verifyLock itself is unchanged in behavior — it now just calls computeExpectedPairs followed by verifyPairs.

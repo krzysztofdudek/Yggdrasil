@@ -1,6 +1,14 @@
 import { truncateDescription } from './truncate.js';
 import { toPosixPath } from '../utils/posix.js';
 
+/** Honesty note for a type-covered file's own `relations:` atoms — see conditional-aspects.ts's own "Applicability for a file enforced only by its type" section, which this restates for one file rather than the whole doc. */
+export const DERIVED_RELATIONS_NOTE =
+  "Dependency conditions here are worked out from this file's own imports, not a declared relation: one resolved import satisfies uses/calls/extends/implements alike, and can never satisfy emits/listens/consumes_port — those always read false for a type-covered file.";
+
+/** Next step for a type-covered file that wants component-level control (log gating, explicit relations, its own aspects). */
+export const GRADUATION_NEXT =
+  'To give this file a component of its own: add a yg-node.yaml mapping it, then run yg check --approve.';
+
 export interface FileContextData {
   filePath: string;
   ownerPath?: string;
@@ -9,6 +17,23 @@ export interface FileContextData {
   dependencies: FileContextDep[];
   dependentCount: number;
   candidates?: Array<{ nodePath: string; mappingPrefix: string }>;
+  /**
+   * A file enforced by its architecture type alone (no component of its own).
+   * Present ONLY when `ownerPath` is absent — replaces the plain "not covered
+   * by any node" text with the matched type, the chain, and both halves of
+   * what the type attaches: what runs and what does not, with the reason.
+   */
+  typeCoverage?: FileTypeCoverageView;
+}
+
+export interface FileTypeCoverageView {
+  typeId: string;
+  /** Pre-rendered "inherited rules stop at ..." sentence — a formatter renders already-decided text, never a business-logic enum (that decision belongs to the caller assembling this data). */
+  chainTerminationText: string;
+  /** Rules that DO apply, same shape as a node's own aspect list. */
+  applied: FileContextAspect[];
+  /** Rules attached to the type that do NOT apply here, with a pre-rendered reason phrase. */
+  dropped: Array<{ aspectId: string; reasonText: string }>;
 }
 
 export interface FileContextAspect {
@@ -21,6 +46,20 @@ export interface FileContextAspect {
   status?: import('../model/graph.js').AspectStatus;
   /** Present only for LLM aspects that ship companion.mjs (per-unit resolver). */
   companionReadPath?: string;
+  /**
+   * True when the lock does NOT currently hold a valid verdict for this
+   * (aspectId, file) pair — `[enforced]` names architecture-level status,
+   * never a recorded verdict. Set from the SAME per-pair re-verification
+   * plain `yg check` performs for the identical pair
+   * (`core/verify-lock.ts#verifyPairs`, scoped to just this file's own
+   * nodeless pairs), so a stale entry (this file edited since the verdict
+   * was recorded) sets this exactly as `yg check`'s own qualified "N
+   * unverified" wording would count it, not only a pair the lock has never
+   * seen at all. Type-covered-file view only (`build-context.ts`'s
+   * `buildTypeCoveredFileContextData`); a node-owned file's own aspect list
+   * never sets this field.
+   */
+  unverified?: boolean;
 }
 
 export interface FileContextDep {
@@ -38,6 +77,42 @@ export function formatFileContext(data: FileContextData): string {
   lines.push(posixPath(data.filePath));
   if (data.ownerPath) {
     lines.push(`  Owner: ${posixPath(data.ownerPath)} (${data.ownerType ?? 'unknown'})`);
+  } else if (data.typeCoverage) {
+    // "unmapped" is the product's own word for genuinely NOT covered — false
+    // here, and self-contradicted two lines later by "Matched type:" on the
+    // same file. Lead with the same ownership vocabulary `yg owner --file`
+    // already uses for the identical file ("-> type:X").
+    const tc = data.typeCoverage;
+    lines.push(`  Owner: type:${tc.typeId}`);
+    lines.push('');
+    lines.push(`  Matched type: ${tc.typeId}`);
+    lines.push(`  ${tc.chainTerminationText}`);
+    lines.push('');
+    if (tc.applied.length > 0) {
+      lines.push('  Must satisfy:');
+      lines.push('');
+      for (const aspect of tc.applied) {
+        const caveat = aspect.unverified ? ', unverified' : '';
+        lines.push(`    ${aspect.aspectId} [${aspect.status ?? 'enforced'}${caveat}] — ${aspect.aspectDescription}`);
+        lines.push(`      read: ${posixPath(aspect.verifiedAgainst)}`);
+      }
+      lines.push('');
+    } else {
+      lines.push('  No rules from this type apply to this file — it satisfies coverage with no enforcement.');
+      lines.push('');
+    }
+    if (tc.dropped.length > 0) {
+      lines.push('  Attached to this type but not enforced here:');
+      for (const d of tc.dropped) {
+        lines.push(`    ${d.aspectId} — ${d.reasonText}`);
+      }
+      lines.push('');
+    }
+    lines.push(`  ${DERIVED_RELATIONS_NOTE}`);
+    lines.push('');
+    lines.push(`  ${GRADUATION_NEXT}`);
+    lines.push('');
+    return lines.join('\n');
   } else {
     lines.push('  Owner: unmapped');
     lines.push('');

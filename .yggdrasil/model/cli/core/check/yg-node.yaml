@@ -5,9 +5,24 @@ description: "Unified check orchestrator — runs validation, coverage, the
   stored verdict is re-hashed against current inputs and rendered as pass,
   cached refusal, or unverified), then log integrity, and computes the suggested
   next command. Write-free: the lock is produced only by the fill stage behind
-  yg check --approve."
+  yg check --approve. When coverage.type_level is on, the coverage section also
+  runs the type-level classification lattice (core/type-coverage.ts) over every
+  uncovered file: a single classifying-type match is silently satisfied, 2+
+  non-strict matches raise a blocking ambiguous-node-type error, and a match
+  with no type at all gets a message saying so. Also assembles
+  CheckResult.typeVisibility (core/type-visibility.ts) from the lock
+  verification's drops and uncomputable-type-coverage list: what a
+  type-covered file's type enforces, does not, or could never resolve (an
+  implies cycle), and why. One orchestrator owns the ORDER of those steps —
+  and the injected-input gating that decides which optional checks run at all
+  — and nothing else; each cohesive stage is a module of its own: the public
+  issue/result contract, one pair's verdict translated into its issues, log
+  integrity plus the mandatory-log requirement, everything gated on a readable
+  lock, the uncovered-file and tracked-but-gitignored scans, the coverage
+  tiers plus the type-level lattice, and the single next step a finished check
+  points at."
 max_direct_relations:
-  limit: 23
+  limit: 25
   reason: >-
     Reviewed architectural seam. This node is the single read-only orchestrator of
     `yg check`: it composes every check module and every source of facts one report
@@ -19,7 +34,7 @@ max_direct_relations:
     checks and this node's own feature-index output require. The count grows by one
     each time a new check is added, which is the intended shape: keeping the
     composition in one auditable place is what lets a single run produce one
-    consistent issue set and exit code. The ceiling is the current count (21) plus modest headroom,
+    consistent issue set and exit code. The ceiling is the current count (23) plus modest headroom,
     so a couple of future checks land without churning this allowance while a
     larger jump still re-raises the warning for review.
 aspects:
@@ -60,8 +75,6 @@ relations:
     type: calls
   - target: cli/relations/core
     type: calls
-  - target: cli/relations/extractors
-    type: calls
   - target: cli/language-registry
     type: calls
   - target: cli/io/atomic-write
@@ -69,8 +82,21 @@ relations:
     consumes: [write-atomic]
   - target: cli/utils
     type: calls
+  - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/core/type-visibility
+    type: calls
 mapping:
   - source/cli/src/core/check.ts
+  - source/cli/src/core/check-contract.ts
+  - source/cli/src/core/check-pair-issues.ts
+  - source/cli/src/core/check-log-state.ts
+  - source/cli/src/core/check-lock-phase.ts
+  - source/cli/src/core/check-coverage-scan.ts
+  - source/cli/src/core/check-coverage-phase.ts
+  - source/cli/src/core/check-suggested-next.ts
   - source/cli/src/core/feature-index-write.ts
   - source/cli/src/core/feature-index-read.ts
   - source/cli/src/core/feature-field-schema.ts

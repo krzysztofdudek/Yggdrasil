@@ -18,5 +18,7 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/commands/owner
+    type: calls
 mapping:
   - source/cli/src/cli/log.ts

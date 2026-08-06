@@ -19,18 +19,20 @@
  */
 
 import { runStructureAspect, StructureRunnerError } from './runner.js';
-import type { RunStructureAspectResult } from './runner.js';
+import type { RunStructureAspectResult, StructureUnit } from './runner.js';
 import type { Graph } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 
 /** One unit of deterministic work dispatched to a worker. `id` correlates the
  *  reply back to the awaiting caller; the rest mirror the non-graph inputs of
- *  `RunStructureAspectParams` (the graph + projectRoot are worker-constant). */
+ *  `RunStructureAspectParams` (the graph + projectRoot are worker-constant).
+ *  `unit` carries `allowedReads` as a plain `string[]` (not a `Set`) so a
+ *  `unit.kind === 'file'` request survives the worker's structured clone. */
 export interface DetTaskRequest {
   id: number;
   aspectDir: string;
   aspectId: string;
-  nodePath: string;
+  unit: StructureUnit;
   subjectScope?: string[];
 }
 
@@ -56,7 +58,7 @@ export async function runDetTask(
     const result = await runStructureAspect({
       aspectDir: req.aspectDir,
       aspectId: req.aspectId,
-      nodePath: req.nodePath,
+      unit: req.unit,
       graph,
       projectRoot,
       subjectScope: req.subjectScope,

@@ -1,0 +1,7 @@
+name: Llm Leaf Rule
+description: "An LLM-reviewed rule attached to leaf, shared by the explicit
+  node and any plain leaf file alike."
+reviewer:
+  type: llm
+scope:
+  per: file

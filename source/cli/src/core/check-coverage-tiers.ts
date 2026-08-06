@@ -1,49 +1,78 @@
 import type { CoverageConfig } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
-import { mappingEntryMatchesFile, normalizeMappingPath } from '../utils/mapping-path.js';
+import { mappingEntryMatchesFile, normalizeMappingPath, isGlobPattern } from '../utils/mapping-path.js';
 // type-only import — erased at runtime, no circular runtime dependency
 import type { CheckIssue } from './check.js';
 
-/** Normalize a coverage root: POSIX, no leading/trailing slash, collapse internal double-slashes. "/" → "" (whole repo). */
-export function normalizeRoot(root: string): string {
-  return toPosixPath(root.trim()).replace(/^\/+/, '').replace(/\/+$/, '').replace(/\/{2,}/g, '/');
-}
-
 /**
- * A normalized root R matches file F iff R is "" (whole repo), or R covers F.
- * "Covers" uses the same semantics as a node mapping entry: a plain root is an
- * exact file match or a directory prefix (F === R or F under R/); a glob root
- * (one containing glob metacharacters) matches via minimatch — a single star
- * stays within one path segment, a double star spans segments. So an excluded
- * glob root can drop generated files anywhere in the tree, and a required glob
- * root can scope the blocking tier to a pattern rather than a whole directory.
+ * `normalizeRoot`, `matchesRoot`, `isExcludedByCoverage` now live in
+ * `utils/coverage-exclusion.ts` — the persistence-adapter layer (`io/hash.ts`,
+ * `io/repo-scanner.ts`) needs `isExcludedByCoverage` while expanding a mapping
+ * to real files, and a utility-layer module is the one place both that layer
+ * and this one (engine) may legally import from. Re-exported here so every
+ * existing importer of this module is unaffected by where the implementation
+ * lives — this file remains the coverage-tiering entry point, it just no
+ * longer OWNS the one-file exclusion predicate.
  */
-export function matchesRoot(file: string, normRoot: string): boolean {
-  return normRoot === '' || mappingEntryMatchesFile(normRoot, file);
-}
+export { normalizeRoot, matchesRoot, isExcludedByCoverage } from '../utils/coverage-exclusion.js';
+import { isExcludedByCoverage, normalizeRoot, matchesRoot } from '../utils/coverage-exclusion.js';
 
 /**
- * Split uncovered files into the error tier (longest match in `required`) and the
- * warning tier (no match). Files whose longest match is in `excluded` are dropped.
- * On an equal-length tie between required and excluded, excluded wins.
+ * Split uncovered files into the error tier (matches a `required` root) and the
+ * warning tier (matches none). A file matching ANY `excluded` root is dropped
+ * BEFORE this split runs at all — exclusion is absolute, independent of whether
+ * a required root also matches and independent of how specific either root is.
+ * Required/middle among the surviving files needs no length comparison: ANY
+ * required-root match is sufficient (there is nothing left to break a tie
+ * against, since excluded files never reach this point).
  */
 export function partitionByCoverageTier(
   uncovered: string[],
   coverage: CoverageConfig,
 ): { required: string[]; middle: string[] } {
   const req = coverage.required.map(normalizeRoot);
-  const exc = coverage.excluded.map(normalizeRoot);
   const required: string[] = [];
   const middle: string[] = [];
   for (const f of uncovered) {
-    let best = { len: -1, tier: 'middle' as 'required' | 'excluded' | 'middle' };
-    for (const r of req) if (matchesRoot(f, r) && r.length > best.len) best = { len: r.length, tier: 'required' };
-    for (const r of exc) if (matchesRoot(f, r) && r.length >= best.len) best = { len: r.length, tier: 'excluded' };
-    if (best.tier === 'required') required.push(f);
-    else if (best.tier === 'middle') middle.push(f);
-    // 'excluded' → silent
+    if (isExcludedByCoverage(f, coverage)) continue;
+    if (req.some((r) => matchesRoot(f, r))) required.push(f);
+    else middle.push(f);
   }
   return { required, middle };
+}
+
+/**
+ * A required root that can never match a file, because every file it could
+ * match also matches an excluded root — a dead config line. Only decided for
+ * PLAIN roots on both sides (glob-vs-glob containment is not statically
+ * decidable from the pattern text alone; documented in configuration.md
+ * instead of guessed here). One warning per shadowed required root, even if
+ * multiple excluded roots would each independently shadow it.
+ */
+export function checkRequiredShadowedByExcluded(coverage: CoverageConfig): CheckIssue[] {
+  const issues: CheckIssue[] = [];
+  for (const rawRequired of coverage.required) {
+    const req = normalizeRoot(rawRequired);
+    if (isGlobPattern(req)) continue;
+    for (const rawExcluded of coverage.excluded) {
+      const exc = normalizeRoot(rawExcluded);
+      if (isGlobPattern(exc)) continue;
+      const shadowed = exc === '' || req === exc || req.startsWith(exc + '/');
+      if (!shadowed) continue;
+      issues.push({
+        severity: 'warning',
+        code: 'coverage-required-shadowed',
+        rule: 'coverage-required-shadowed',
+        messageData: {
+          what: `Required coverage root '${rawRequired}' is fully inside excluded root '${rawExcluded}'.`,
+          why: 'Exclusion is absolute: any file under this required root also matches the excluded root and is silenced before it is ever sorted into the blocking or advisory tier. This required line can never make a file block.',
+          next: `Remove the required line for '${rawRequired}', or narrow the excluded root '${rawExcluded}' so it no longer contains it.`,
+        },
+      });
+      break;
+    }
+  }
+  return issues;
 }
 
 /**
@@ -131,7 +160,7 @@ export function buildCoverageAdvisoryIssue(uncoveredFiles: string[]): CheckIssue
     code: 'uncovered-advisory',
     rule: 'uncovered-advisory',
     messageData: {
-      what: `${uncoveredFiles.length} tracked file${uncoveredFiles.length === 1 ? '' : 's'} outside any required coverage root.\n${body}`,
+      what: `${uncoveredFiles.length} coverage-visible file${uncoveredFiles.length === 1 ? '' : 's'} outside any required coverage root.\n${body}`,
       why: 'Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.',
       next: 'Map these files to a node, or add their root to coverage.required to make this an error.',
     },

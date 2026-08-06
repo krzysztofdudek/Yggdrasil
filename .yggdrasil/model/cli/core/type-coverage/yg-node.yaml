@@ -1,0 +1,13 @@
+name: Type Coverage
+type: engine
+description: "Computes the type-level classification lattice (coverage.type_level) over a list of already-uncovered files: excluded-root files are skipped entirely before classification; a file whose matching type could not be evaluated (e.g. a content predicate on an oversized file) is unreadable; a file matching >=1 enforce:strict type is left to the strict backward scan (checkStrictBackwardCoverage owns it — never called ambiguous); exactly one non-strict match is covered (satisfied for coverage purposes); 2+ non-strict matches with no strict match is ambiguous — the caller (core/check.ts) turns that into the blocking ambiguous-node-type error. computeTypeCoverage/classifySingleFile stay pure by default (file-content reads through classifyFile/FileContentCache only, no disk cache): unlike FileContentCache, an in-memory read cache that never writes, a TypeClassCache writes a JSON shard to disk on every miss, and whether a call can ever touch disk must be readable off the function name, never discovered by tracing whether an optional argument was passed — so a cache is never silently constructed just because a caller omitted one. computeTypeCoverageCached/classifySingleFileCached are the opt-in wrappers every real command calls instead: each constructs its own persistent TypeClassCache (io/type-class-cache.ts) for the call, so every real caller gets the on-disk classification cache without hand-threading it through."
+aspects: []
+relations:
+  - target: cli/core/type-classifier
+    type: calls
+  - target: cli/core/check-coverage-tiers
+    type: calls
+  - target: cli/io/type-class-cache
+    type: calls
+mapping:
+  - source/cli/src/core/type-coverage.ts

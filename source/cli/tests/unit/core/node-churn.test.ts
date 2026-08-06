@@ -1,5 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { countChurnByNode, ownerOfForGraph } from '../../../src/core/node-churn.js';
+import { describe, it, expect, afterEach } from 'vitest';
+import path from 'node:path';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { countChurnByNode, countChurnByTypeCoveredFile, ownerOfForGraph } from '../../../src/core/node-churn.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 // Pure churn counting over SYNTHETIC per-commit touch sets — no git, no fixture.
@@ -86,19 +89,90 @@ describe('countChurnByNode — per-node commit churn over parsed touch sets', ()
   });
 });
 
-describe('ownerOfForGraph — the real buildOwnerIndex-backed resolver', () => {
-  it('resolves a mapped file to its owning node path, and undefined for an unmapped one', () => {
+// The trap: countChurnByNode attributes churn via ownerOf(file), so a file with no
+// owning node is silently dropped — which is EVERY type-covered file, by
+// definition. That reads as "no churn" when the real problem is "wrong function".
+describe('the churn-counting trap: countChurnByNode cannot see type-covered files', () => {
+  it('countChurnByNode returns an EMPTY map over commits that only touch owner-less files — looks like "no churn", is really "wrong function"', () => {
+    const commits = [['src/svc/handler.ts'], ['src/svc/handler.ts', 'src/svc/other.ts']];
+    const noOwnerEver = (): string | undefined => undefined; // every type-covered file has no node
+    expect(countChurnByNode(commits, noOwnerEver).size).toBe(0);
+  });
+});
+
+describe('countChurnByTypeCoveredFile — per-FILE commit churn over parsed touch sets (the fix for the trap above)', () => {
+  it('counts the SAME commits by file path directly, not by node ownership', () => {
+    const commits = [['src/svc/handler.ts'], ['src/svc/handler.ts', 'src/svc/other.ts']];
+    const typeCovered = new Set(['src/svc/handler.ts', 'src/svc/other.ts']);
+    const churn = countChurnByTypeCoveredFile(commits, typeCovered);
+    expect(churn.get('src/svc/handler.ts')).toEqual({ churn: 2, files: ['src/svc/handler.ts'] });
+    expect(churn.get('src/svc/other.ts')).toEqual({ churn: 1, files: ['src/svc/other.ts'] });
+  });
+
+  it('ignores a file NOT in the type-covered set — it contributes no churn even if touched', () => {
+    const commits = [['src/svc/handler.ts', 'README.md']];
+    const typeCovered = new Set(['src/svc/handler.ts']);
+    const churn = countChurnByTypeCoveredFile(commits, typeCovered);
+    expect(churn.size).toBe(1);
+    expect(churn.get('src/svc/handler.ts')).toEqual({ churn: 1, files: ['src/svc/handler.ts'] });
+  });
+
+  it('omits a file with zero churn entirely (no 0-churn entries in the map)', () => {
+    expect(countChurnByTypeCoveredFile([], new Set(['src/svc/handler.ts'])).size).toBe(0);
+    expect(countChurnByTypeCoveredFile([['other.ts']], new Set(['src/svc/handler.ts'])).size).toBe(0);
+  });
+
+  it('counts a commit touching the same file only once (defensive dedup, mirrors countChurnByNode)', () => {
+    const commits = [['src/svc/handler.ts', 'src/svc/handler.ts']];
+    const churn = countChurnByTypeCoveredFile(commits, new Set(['src/svc/handler.ts']));
+    expect(churn.get('src/svc/handler.ts')).toEqual({ churn: 1, files: ['src/svc/handler.ts'] });
+  });
+});
+
+describe('ownerOfForGraph — the real buildOwnerIndex-backed resolver, guarded against exclusion', () => {
+  let root: string;
+
+  afterEach(() => {
+    if (root) rmSync(root, { recursive: true, force: true });
+  });
+
+  function graphWithMapping(mapping: string[], excluded: string[]): Graph {
+    root = mkdtempSync(path.join(tmpdir(), 'node-churn-owner-'));
+    mkdirSync(path.join(root, '.yggdrasil'), { recursive: true });
     const nodes = new Map<string, GraphNode>();
     nodes.set('orders/service', {
-      meta: { name: 'service', type: 'service', description: 'x', mapping: ['src/orders/service.ts'] },
+      meta: { name: 'service', type: 'service', description: 'x', mapping },
       parent: undefined,
       children: [],
       aspects: [],
     } as unknown as GraphNode);
-    const graph = { nodes } as Graph;
+    return {
+      nodes,
+      rootPath: path.join(root, '.yggdrasil'),
+      config: { coverage: { required: [], excluded, typeLevel: false } },
+    } as unknown as Graph;
+  }
 
-    const ownerOf = ownerOfForGraph(graph);
+  it('resolves a mapped file to its owning node path, and undefined for an unmapped one', async () => {
+    const graph = graphWithMapping(['src/orders/service.ts'], []);
+
+    const ownerOf = await ownerOfForGraph(graph);
     expect(ownerOf('src/orders/service.ts')).toBe('orders/service');
     expect(ownerOf('src/unmapped/other.ts')).toBeUndefined();
+  });
+
+  it('answers undefined for a file coverage.excluded names, even though the node\'s mapping textually matches it', async () => {
+    const graph = graphWithMapping(['src/orders/service.ts'], ['src/orders/service.ts']);
+
+    const ownerOf = await ownerOfForGraph(graph);
+    expect(ownerOf('src/orders/service.ts')).toBeUndefined();
+  });
+
+  it('control: a sibling file under the SAME node, not excluded, still resolves — the guard does not silence ownership generally', async () => {
+    const graph = graphWithMapping(['src/orders/service.ts', 'src/orders/kept.ts'], ['src/orders/service.ts']);
+
+    const ownerOf = await ownerOfForGraph(graph);
+    expect(ownerOf('src/orders/service.ts')).toBeUndefined();
+    expect(ownerOf('src/orders/kept.ts')).toBe('orders/service');
   });
 });

@@ -1,0 +1,9 @@
+name: Reach Child File Rule
+description: "Reads a file genuinely owned by reach-child-type — a type
+  reach-leaf is NOT permitted to depend on — even though the file sits inside
+  reach-parent-type's mapped directory. Must be refused as infrastructure,
+  never silently admitted."
+reviewer:
+  type: deterministic
+scope:
+  per: file

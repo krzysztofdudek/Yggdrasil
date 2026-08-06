@@ -13,8 +13,10 @@
 //
 // CRITICAL privileged-runtime guard: under root (CI / container) chmod 0o000 is
 // ignored and readFileSync still succeeds — the EACCES branch is unreachable, so
-// the test would fail for the wrong reason. We probe readability after locking and
-// skip cleanly (restoring mode) when privileged, mirroring tests/unit/core/pairs.test.ts.
+// a test relying on it would either fail for the wrong reason or, worse, run zero
+// assertions and be reported as passed. Probed ONCE at module load
+// (ENFORCES_FILE_PERMISSIONS); the affected tests are marked SKIPPED via
+// `it.skipIf` for this environment — an honest, visible non-execution.
 //
 // HERMETIC: fresh mkdtemp copy of e2e-lifecycle per test, perms restored in finally
 // BEFORE rmSync so the tree is removable. No fixed ports, no clock/random asserts.
@@ -89,15 +91,31 @@ function installMarkerRule(dir: string): void {
   writeFileSync(flowPath(dir), readFileSync(flowPath(dir), 'utf-8').replace('  - services/payments\n', ''), 'utf-8');
 }
 
-/** Probe whether chmod 0o000 actually blocks reads. Returns true if privileged (read still works). */
-function isPrivileged(absPath: string): boolean {
+/**
+ * Whether this runtime actually enforces a chmod(0o000) restriction on a file
+ * readable by its owner. A privileged process (root, or certain containers)
+ * ignores file mode bits entirely, so a test relying on a chmod(0o000)'d file
+ * genuinely refusing to read cannot execute there. Probed ONCE at module load
+ * — never per-test, never via an early `return` that lets vitest report a
+ * test that ran zero assertions as passed — so the affected tests are marked
+ * SKIPPED for this environment via `it.skipIf`.
+ */
+function probeEnforcesFilePermissions(): boolean {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-permcheck-'));
+  const probe = path.join(dir, 'probe.txt');
+  writeFileSync(probe, 'x');
+  chmodSync(probe, 0o000);
+  let enforced = false;
   try {
-    readFileSync(absPath);
-    return true;
+    readFileSync(probe, 'utf8');
   } catch {
-    return false;
+    enforced = true;
   }
+  chmodSync(probe, 0o644); // restore so rmSync can remove it
+  rmSync(dir, { recursive: true, force: true });
+  return enforced;
 }
+const ENFORCES_FILE_PERMISSIONS = probeEnforcesFilePermissions();
 
 describe.skipIf(!distExists)('CLI E2E — scope fail-closed: unreadable subject file blocks (file-unreadable)', () => {
   // ===========================================================================
@@ -107,7 +125,7 @@ describe.skipIf(!distExists)('CLI E2E — scope fail-closed: unreadable subject 
   //   does not rescue it into a vacuous pass.
   // ===========================================================================
 
-  it('(4a) an unreadable mapped file blocks the run (file-unreadable, exit 1) — never a vacuous pass', () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('(4a) an unreadable mapped file blocks the run (file-unreadable, exit 1) — never a vacuous pass', () => {
     const dir = copyFixture('mixed');
     let lockedAbs: string | undefined;
     try {
@@ -126,10 +144,6 @@ describe.skipIf(!distExists)('CLI E2E — scope fail-closed: unreadable subject 
 
       lockedAbs = path.join(base, 'locked.ts');
       chmodSync(lockedAbs, 0o000);
-      if (isPrivileged(lockedAbs)) {
-        chmodSync(lockedAbs, 0o644);
-        return; // privileged runtime — EACCES unreachable; skip cleanly.
-      }
 
       const check = run(['check'], dir);
       // FAIL-CLOSED: blocking error, NOT a silent vacuous pass.
@@ -166,7 +180,7 @@ describe.skipIf(!distExists)('CLI E2E — scope fail-closed: unreadable subject 
   //   crash. The lock records NO approved verdict for the aspect.
   // ===========================================================================
 
-  it('(4b) the sole matching file unreadable → check AND --approve: file-unreadable, exit 1, NO approved verdict', () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('(4b) the sole matching file unreadable → check AND --approve: file-unreadable, exit 1, NO approved verdict', () => {
     const dir = copyFixture('sole');
     let lockedAbs: string | undefined;
     try {
@@ -184,10 +198,6 @@ describe.skipIf(!distExists)('CLI E2E — scope fail-closed: unreadable subject 
 
       lockedAbs = path.join(base, 'locked.ts');
       chmodSync(lockedAbs, 0o000);
-      if (isPrivileged(lockedAbs)) {
-        chmodSync(lockedAbs, 0o644);
-        return; // privileged runtime — skip cleanly.
-      }
 
       // Plain check: blocking file-unreadable error, exit 1 — never a vacuous pass.
       const check = run(['check'], dir);

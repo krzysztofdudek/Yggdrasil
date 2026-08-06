@@ -63,6 +63,7 @@
     var c = data.meta.counts;
     var nav = ctx && ctx.navigate ? ctx.navigate : function () {};
     var boundary = data.boundary || { unknown: false, phantom: [], forbiddenType: [] };
+    var residue = data.residue || { noRuleNodes: [], uncoveredFiles: [], typeCovered: [], typeCoveredUncomputable: [], excludedFiles: [] };
     var ledger = dom.el('div', 'cov-ledger');
 
     var head = dom.el('div', 'cov-lhead');
@@ -118,6 +119,28 @@
     nonpair.appendChild(key('draft', c.draft));
     nonpair.appendChild(key('not-applicable', c.notApplicable));
     ledger.appendChild(nonpair);
+
+    // A type-covered file's per-file enforcement state, split into its three DISTINCT
+    // lines (enforced / unenforced / uncomputable) — see coverage-typecovered.js, split
+    // out of this file so each stays a focused unit.
+    Yg.coverageTypeCovered.renderBlocks(ledger, residue);
+
+    // Files deliberately excluded from coverage (coverage.excluded) — never a residue gap
+    // and never enforced, but named here so an excluded file has somewhere to be found by
+    // name rather than only ever being a number in the header.
+    var excludedList = residue.excludedFiles || [];
+    if (excludedList.length > 0) {
+      ledger.appendChild(dom.el('div', 'cov-hair'));
+      var excludedBlock = dom.el('div', 'cov-nonpair');
+      excludedBlock.appendChild(dom.el('span', 'cov-nptag', 'deliberately excluded from coverage, never enforced:'));
+      excludedBlock.appendChild(Yg.coverageTypeCovered.neutralKey(excludedList.length, 'excluded', 'under a coverage.excluded root'));
+      ledger.appendChild(excludedBlock);
+      var excludedRows = dom.el('div', 'cov-typelist cov-typelist-excluded');
+      for (var xi = 0; xi < excludedList.length; xi += 1) {
+        excludedRows.appendChild(dom.el('div', 'cov-typerow mono', excludedList[xi]));
+      }
+      ledger.appendChild(excludedRows);
+    }
 
     // LIVE counters — read from the live data, never a fabricated zero. The boundary count is
     // the real undeclared + forbidden-type violation total (declared-only is legitimate, never

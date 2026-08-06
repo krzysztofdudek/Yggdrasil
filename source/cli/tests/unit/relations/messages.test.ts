@@ -97,6 +97,12 @@ describe('allowedRelationTypes', () => {
     const arch = makeGraph([]).architecture;
     expect(allowedRelationTypes(arch, 'nope', 'service')).toEqual([]);
   });
+
+  it('re-exports the SAME function object the engine module defines (relocation compat shim)', async () => {
+    const fromRelations = await import('../../../src/relations/allowed-types.js');
+    const fromCore = await import('../../../src/core/allowed-relation-types.js');
+    expect(fromRelations.allowedRelationTypes).toBe(fromCore.allowedRelationTypes);
+  });
 });
 
 describe('relationRefusedMessage', () => {

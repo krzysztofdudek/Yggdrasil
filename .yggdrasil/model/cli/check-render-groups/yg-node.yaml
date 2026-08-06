@@ -1,0 +1,16 @@
+name: Check Render Groups
+type: command-support
+description: "Renders grouped and --details issue output for yg check: the
+  Errors/Warnings sections, per-group and per-issue blocks, the unmapped-files
+  compact block, and the CAP_NODES/GROUP_CAP truncation logic. Reads the
+  useEmoji accessibility gate (owned by check-render-header) as the default
+  emoji parameter on its own section renderers."
+mapping:
+  - source/cli/src/cli/check-render-groups.ts
+relations:
+  - target: cli/group-issues
+    type: calls
+  - target: cli/check-render-header
+    type: calls
+  - target: cli/core/check
+    type: calls

@@ -46,7 +46,7 @@ const CLI_ROOT = path.join(__dirname, '../../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const distExists = existsSync(BIN_PATH);
 
-const CONFIG = 'version: "5.1.0"\n';
+const CONFIG = 'version: "5.2.0"\n';
 
 type FileSpec = { rel: string; content: string };
 type NodeSpec = { dir: string; yaml: string };

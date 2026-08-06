@@ -1,0 +1,6 @@
+name: Blocked By Draft Gate
+description: "Reached ONLY via draft-own-when-gate's implies edge. Carries no gating of its own — under correct behavior it must NEVER appear, because its only implier is draft, and a draft implier must not propagate its implied aspects."
+reviewer:
+  type: deterministic
+scope:
+  per: file

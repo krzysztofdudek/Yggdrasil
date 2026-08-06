@@ -108,6 +108,14 @@ Instead it is recomputed live on every run, plain `yg check` and `yg check --app
 
 That is also why a keyless CI `yg check` catches an undeclared dependency: it makes no LLM calls and reads no verdict for this check, yet it still parses and resolves live. For what it detects and how to clear a refusal, see [/relations-flows-ports](/relations-flows-ports).
 
+## Garbage-collection
+
+At the end of a successful `yg check --approve` run, the lock is rewritten canonically: verdict entries whose pair no longer exists — the aspect was detached or deleted, the file was deleted or unmapped, a `scope`/filter change moved it out, or its `when` now evaluates false — are pruned, and any `nodes` entry for a node path that no longer exists is pruned too. Status plays no part in this: a `draft` pair keeps its entry exactly like an enforced one, which is what makes parking an aspect with `status: draft` and later un-parking it free — nothing to re-verify, because nothing was ever thrown away.
+
+An entry is pruned only when the run can *positively* prove its pair is gone. Anything the run could not settle either way is retained instead — a node whose own rule set could not be computed this run (an `implies` cycle, reported separately), a file whose subject content was unreadable this run, and a file the type-level classifier could not decide a type for this run (reported as ambiguous). Each of those keeps its stored verdict untouched rather than losing it to an inconclusive run.
+
+`--approve` and `--dry-run` (a preview computed over a disposable copy — it writes nothing) both print a one-line summary whenever anything is actually pruned, split into billed (LLM) vs. free (deterministic) counts with the reason per entry; nothing prints when nothing was pruned. Under `--only-deterministic` the rewrite is scoped to the gitignored cache, so a keyless CI run never rewrites — or prunes — the two committed files.
+
 ## Merge conflicts
 
 Only the two **committed** files can ever conflict — `yg-lock.nondeterministic.json` and `yg-lock.logs.json`. The deterministic cache is gitignored, so it never appears in a merge and never conflicts; it is simply rebuilt locally.

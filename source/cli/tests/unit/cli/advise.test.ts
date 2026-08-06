@@ -30,6 +30,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'sample-project');
+const TYPE_LEVEL_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
 const distExists = existsSync(BIN_PATH);
 
 // The always-live nomination the fixture is rigged to produce (a far-past
@@ -248,6 +249,11 @@ describe.skipIf(!distExists)('yg advise — Step 2: cap, --all, --ids (spawned)'
     expect(shown).toBe(10);
     expect(stdout).toMatch(/and \d+ more nomination/);
     expect(stdout).toContain(`${MARKERS - 10} more`);
+    // Pinned to the exact pre-existing footer wording: `yg advise` output is
+    // unconditional (not gated by `coverage.type_level`), so it is held to the
+    // same flag-off byte-identity contract as every other command — this exact
+    // string must never drift without a matching entry in CHANGELOG.md.
+    expect(stdout).toContain('more nominations not shown — run yg advise --all to see them all.');
   });
 
   it('--all removes the cap and shows every nomination', () => {
@@ -311,6 +317,100 @@ function writeHostileDrillCase(projectRoot: string): string {
   );
   return `drill-miss:requires-audit/${caseLabel}`;
 }
+
+describe.skipIf(!distExists)('yg advise agrees with yg check on a rule enforced only through type coverage (spawned)', () => {
+  let projectRoot: string;
+
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-typelevel-'));
+    cpSync(TYPE_LEVEL_FIXTURE, projectRoot, { recursive: true });
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('never nominates dead-attach for a rule yg check reports enforced through a type with no real component node', () => {
+    // Ground truth from yg check: type 'forked' (tests/fixtures/type-level-engine)
+    // has no real component node anywhere — src/forked/f.ts is enforced by its
+    // architecture type alone — yet forked-own-rule is live there.
+    const checked = run(['check'], projectRoot);
+    // The (optional) trailing ", N unverified" is this fixture's own honest
+    // reporting of a pair that has not been approved here — irrelevant to
+    // what this test actually pins, which is that the rule is listed as
+    // effective (Enforced) on this nodeless type at all.
+    expect(checked.stdout).toMatch(/'forked'[\s\S]*?Enforced: forked-own-rule \(1(?:, \d+ unverified)?\)/);
+
+    // yg advise classifies the SAME graph for its own dead-attach nomination. It
+    // must reach the same verdict yg check just did, not report the identical
+    // rule as effective nowhere and offer to park it as draft.
+    const advised = run(['advise', '--all'], projectRoot);
+    expect(advised.status).toBe(0);
+    expect(advised.stdout).not.toContain(
+      "Aspect 'forked-own-rule' has a rule source but is effective on zero nodes.",
+    );
+  });
+});
+
+describe.skipIf(!distExists)('yg advise nominates a risky marker on every file a marker can live on (spawned)', () => {
+  let projectRoot: string;
+
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-waiverhosts-'));
+    cpSync(TYPE_LEVEL_FIXTURE, projectRoot, { recursive: true });
+    // Adds architecture type 'pics' (matches src/pics/**, attaches the LLM
+    // per-file rule prose-rule) and a real text subject, src/pics/readme.md —
+    // a type-covered file whose extension (`.md`) the suppression scan's
+    // noise filter would otherwise drop as documentation prose. A `.ts`
+    // subject can never exercise that filter (it was never noise to begin
+    // with), so this variant is what makes the type-covered case below
+    // actually depend on the type-coverage exemption rather than passing
+    // for an unrelated reason.
+    cpSync(path.join(TYPE_LEVEL_FIXTURE, 'variants', 'binary-subject'), projectRoot, { recursive: true });
+
+    // A live marker is honored on three different kinds of file, and `yg advise`
+    // must nominate a risky one on all three: a type-covered file with no
+    // owning component (src/pics/readme.md, type 'pics'), and two files the
+    // real 'owned' node maps directly — one under `.yggdrasil/` (a repo walk
+    // prunes that whole directory) and one a `.gitignore` excludes (an exact
+    // mapping entry is reviewed regardless of ignore status). None of the
+    // three would ever surface in an ordinary git-tracked-file walk; they are
+    // live waiver sites because the deterministic runner reads a node's mapping
+    // and the type-coverage lattice directly, never through that walk.
+    const nodeYamlPath = path.join(projectRoot, '.yggdrasil', 'model', 'owned', 'yg-node.yaml');
+    const original = readFileSync(nodeYamlPath, 'utf-8');
+    const updated = original.replace(
+      'mapping:\n  - src/owned/o.ts\n',
+      'mapping:\n  - src/owned/o.ts\n  - .yggdrasil/meta/notes.md\n  - generated/g.ts\n',
+    );
+    if (updated === original) throw new Error(`fixture drift: expected mapping block not found in ${nodeYamlPath}`);
+    writeFileSync(nodeYamlPath, updated);
+
+    mkdirSync(path.join(projectRoot, '.yggdrasil', 'meta'), { recursive: true });
+    writeFileSync(
+      path.join(projectRoot, '.yggdrasil', 'meta', 'notes.md'),
+      '# design notes\n\n<!-- yg-suppress(*) waiver on a file mapped under .yggdrasil -->\n',
+    );
+
+    writeFileSync(path.join(projectRoot, '.gitignore'), 'generated/\n');
+    mkdirSync(path.join(projectRoot, 'generated'), { recursive: true });
+    writeFileSync(
+      path.join(projectRoot, 'generated', 'g.ts'),
+      'export const G = 1;\n// yg-suppress(*) waiver on a gitignored mapped file\n',
+    );
+
+    appendFileSync(
+      path.join(projectRoot, 'src', 'pics', 'readme.md'),
+      '\n<!-- yg-suppress(*) waiver on a type-covered file with no component -->\n',
+    );
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('reports "is risky (wildcard)" for the type-covered file, the .yggdrasil/-mapped file, and the gitignored mapped file', () => {
+    const { status, stdout } = run(['advise', '--all'], projectRoot);
+    expect(status).toBe(0);
+    expect(stdout).toMatch(/A suppress marker at '?src\/pics\/readme\.md:\d+'? is risky \(wildcard\)/);
+    expect(stdout).toMatch(/A suppress marker at '?\.yggdrasil\/meta\/notes\.md:\d+'? is risky \(wildcard\)/);
+    expect(stdout).toMatch(/A suppress marker at '?generated\/g\.ts:\d+'? is risky \(wildcard\)/);
+  });
+});
 
 describe.skipIf(!distExists)('yg advise — id-surface injection hygiene (spawned)', () => {
   let projectRoot: string;
@@ -909,5 +1009,39 @@ describe.skipIf(!distExists)('yg advise — T2 shares the JOINT cap with T1 (non
     const { status, stdout } = run(['advise', '--all'], projectRoot);
     expect(status).toBe(0);
     expect((stdout.match(/A candidate rule family —/g) ?? []).length).toBe(12);
+  });
+});
+
+describe('gatherChurnByNode — git history is an EXTERNAL input now, never fetched inside this function', () => {
+  it('gatherChurnByNode contains NO git subprocess call at all — the misattribution risk a prior split guarded against by ORDERING is now eliminated STRUCTURALLY, by removing the git try/catch from this function entirely (Task 12: the git fetch is shared with the type-covered-churn counter, so it moved to its own gatherChurnHistory)', () => {
+    // Before Task 12, this function ran its own git subprocess AFTER resolving the
+    // owner index, so a filesystem-walk fault could never be misattributed to "no
+    // readable git history" only because of THAT ordering. Task 12 needed the SAME
+    // git history shared with a second counter (countChurnByTypeCoveredFile), so the
+    // fetch moved out into gatherChurnHistory — this function now takes
+    // touchesByCommit as a plain parameter and contains no git call whatsoever, which
+    // removes the misattribution risk outright rather than merely ordering around it.
+    const src = readFileSync(path.join(CLI_ROOT, 'src', 'cli', 'advise.ts'), 'utf-8');
+    const fnSrc = src.slice(
+      src.indexOf('async function gatherChurnByNode'),
+      src.indexOf('\n}\n', src.indexOf('async function gatherChurnByNode')),
+    );
+    expect(fnSrc).toContain('ownerOfForGraph(graph)');
+    expect(fnSrc).not.toContain('execFileSync');
+  });
+
+  it('the git history fetch (shallow probe + git log) lives in exactly ONE function, called once per yg advise run and threaded to both churn counters — never doubled for the type-covered-churn source', () => {
+    const src = readFileSync(path.join(CLI_ROOT, 'src', 'cli', 'advise.ts'), 'utf-8');
+    // Exactly two execFileSync('git', ...) call sites in the whole module: the
+    // shallow-repository probe and the `git log` call, both inside the ONE shared
+    // gatherChurnHistory. A caller (gatherChurnByNode, gatherTypeCoveredChurn) that
+    // wanted its own history would add a third or fourth call site here.
+    const gitCallSites = [...src.matchAll(/execFileSync\('git'/g)].length;
+    expect(gitCallSites).toBe(2);
+    const fetchFnSrc = src.slice(
+      src.indexOf('function gatherChurnHistory'),
+      src.indexOf('\n}\n', src.indexOf('function gatherChurnHistory')),
+    );
+    expect((fetchFnSrc.match(/execFileSync\('git'/g) ?? []).length).toBe(2);
   });
 });

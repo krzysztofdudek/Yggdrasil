@@ -15,7 +15,8 @@ import path from 'node:path';
 import type { Graph, GraphNode, AspectDef, ScopeDef, LlmConfig } from '../../../src/model/graph.js';
 import type { LockFile, VerdictEntry } from '../../../src/model/lock.js';
 import { nodeUnit, fileUnit, LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
-import { verifyLock } from '../../../src/core/verify-lock.js';
+import { verifyLock, verifyPairs } from '../../../src/core/verify-lock.js';
+import { computeExpectedPairs } from '../../../src/core/pairs.js';
 import { assembledPromptChars } from '../../../src/llm/prompt.js';
 import {
   hashExistsObservation,
@@ -937,5 +938,78 @@ describe('verifyLock — unreadable pass-through', () => {
     const graph = buildGraph([{ path: 'svc', mapping: ['src/a.ts'], aspects: ['asp'] }], [aspect]);
     const result = await verifyLock(graph, emptyLock());
     expect(Array.isArray(result.unreadable)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// verifyPairs — scoped re-verification over a caller-supplied pairs slice
+// ---------------------------------------------------------------------------
+
+// `yg owner --file` / `yg context --file` each already walk the WHOLE
+// project's pairs once (computeExpectedPairs) just to classify the one file
+// they were asked about; re-running that same whole-project walk a second
+// time just to re-verify the lock would be wasted work. verifyPairs exists
+// so a caller can hand it the pairs it already has (or any subset) and get
+// verifyLock's identical per-pair classification back, with no second
+// computeExpectedPairs call inside it.
+describe('verifyPairs — scoped re-verification (no second computeExpectedPairs walk)', () => {
+  it('classifies a pre-computed, pre-filtered pairs slice identically to verifyLock over the whole graph', async () => {
+    writeFile('src/a.ts', 'a-code');
+    writeFile('src/b.ts', 'b-code');
+    const aspect: TestAspect = { id: 'det', kind: 'deterministic', ruleContent: 'check' };
+    const graph = buildGraph(
+      [
+        { path: 'svc-a', mapping: ['src/a.ts'], aspects: ['det'] },
+        { path: 'svc-b', mapping: ['src/b.ts'], aspects: ['det'] },
+      ],
+      [aspect],
+    );
+
+    const lock = emptyLock();
+    // svc-a's pair has a valid, currently-verified entry; svc-b's has none at all.
+    setEntry(lock, 'det', nodeUnit('svc-a'), {
+      verdict: 'approved',
+      hash: await detHash({ aspect, nodePath: 'svc-a', subjectFiles: ['src/a.ts'], touched: [], verdict: 'approved' }),
+    });
+
+    // The caller's own whole-project pair walk (mirroring yg owner --file /
+    // yg context --file's own call site) — verifyPairs must never repeat it.
+    const { pairs } = await computeExpectedPairs(graph);
+    expect(pairs).toHaveLength(2);
+
+    // Scope down to JUST svc-a's own pair, the way owner/context scope down
+    // to one file's own nodeless pairs, and verify that slice alone.
+    const svcAPairs = pairs.filter((p) => p.nodePath === 'svc-a');
+    expect(svcAPairs).toHaveLength(1);
+    const scoped = await verifyPairs(graph, lock, svcAPairs);
+    expect(scoped).toHaveLength(1);
+    expect(scoped[0].state.kind).toBe('verified');
+
+    // Cross-check against verifyLock's own full-graph classification for the
+    // identical pair — the two must never disagree.
+    const full = await verifyLock(graph, lock);
+    const fullSvcA = full.pairs.find((vp) => vp.pair.nodePath === 'svc-a')!;
+    expect(scoped[0].state).toEqual(fullSvcA.state);
+  });
+
+  it('a pair with a stale entry (source edited after approval, never re-approved) classifies unverified — the missing-entry case is not the only one', async () => {
+    writeFile('src/a.ts', 'original');
+    const aspect: TestAspect = { id: 'det', kind: 'deterministic', ruleContent: 'check' };
+    const graph = buildGraph([{ path: 'svc', mapping: ['src/a.ts'], aspects: ['det'] }], [aspect]);
+
+    const lock = emptyLock();
+    setEntry(lock, 'det', nodeUnit('svc'), {
+      verdict: 'approved',
+      hash: await detHash({ aspect, nodePath: 'svc', subjectFiles: ['src/a.ts'], touched: [], verdict: 'approved' }),
+    });
+
+    const { pairs } = await computeExpectedPairs(graph);
+    expect((await verifyPairs(graph, lock, pairs))[0].state.kind).toBe('verified');
+
+    // Edit the file with no re-approve: the lock still holds the OLD entry —
+    // present, but no longer matching the file's current bytes.
+    writeFile('src/a.ts', 'edited');
+    const stale = await verifyPairs(graph, lock, pairs);
+    expect(stale[0].state.kind).toBe('unverified');
   });
 });

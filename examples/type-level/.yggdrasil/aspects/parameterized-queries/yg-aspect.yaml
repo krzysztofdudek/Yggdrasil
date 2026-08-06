@@ -1,0 +1,4 @@
+name: Parameterized Queries
+description: "Every query(...) call must pass its values as a separate parameters argument, never string-built into the SQL itself"
+scope:
+  per: file

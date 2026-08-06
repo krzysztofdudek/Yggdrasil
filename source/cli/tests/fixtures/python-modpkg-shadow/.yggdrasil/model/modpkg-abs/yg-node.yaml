@@ -1,0 +1,5 @@
+name: ModPkgAbs
+description: The package lib/mod/__init__.py — the live package AppAbs's absolute import falls through to once the module file is excluded.
+type: service
+mapping:
+  - lib/mod/__init__.py

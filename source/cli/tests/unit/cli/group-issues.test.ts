@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupIssues, CODE_ONLY_GROUP_CODES } from '../../../src/cli/group-issues.js';
+import { groupIssues, CODE_ONLY_GROUP_CODES, FULL_WHAT_CODES } from '../../../src/cli/group-issues.js';
 import { computeSuggestedNext } from '../../../src/core/check.js';
 import type { CheckIssue } from '../../../src/core/check.js';
 
@@ -39,6 +39,16 @@ describe('groupIssues', () => {
     ]);
     expect(g.perMemberReason).toBe(true);
     expect(g.label).toBe('enforced');
+  });
+
+  // The type-relation gate's `what` carries its sample-edges list on lines
+  // after the first (mirroring relation-undeclared-dependency's own violation
+  // list) — truncating to line 1 in --details would hide exactly the edges the
+  // agent needs to allow, graduate, or remove.
+  it('marks type-relation-forbidden as a FULL_WHAT code (its sample-edges list must not be truncated)', () => {
+    expect(FULL_WHAT_CODES.has('type-relation-forbidden')).toBe(true);
+    const [g] = groupIssues([iss({ code: 'type-relation-forbidden' })]);
+    expect(g.perMemberReason).toBe(true);
   });
 
   // NEW: unverified issues with DIFFERENT aspectIds collapse into ONE group
@@ -133,6 +143,54 @@ describe('groupIssues', () => {
   });
 });
 
+// ── fileCount — nodeless (type-covered-file) pair-derived members ────────────
+// A pair-derived issue with no nodePath carries its unitKey instead (set by
+// core/check.ts's emitPairIssue). nodeCount must count ONLY members with a
+// real component; fileCount counts nodeless members by their DISTINCT file
+// unit key, so the group header can say "3 components, 7 files" without
+// double-counting a file that several aspects share.
+function fileIss(p: Partial<CheckIssue>): CheckIssue {
+  return iss({ nodePath: undefined, ...p });
+}
+
+describe('groupIssues — fileCount', () => {
+  it('a nodeless member is excluded from nodeCount and counted in fileCount instead', () => {
+    const [g] = groupIssues([
+      iss({ aspectId: 'a', nodePath: 'svc' }),
+      fileIss({ aspectId: 'a', unitKey: 'file:src/leaf/a.ts' }),
+    ]);
+    expect(g.nodeCount).toBe(1);
+    expect(g.fileCount).toBe(1);
+  });
+
+  it('several aspects sharing the SAME file unit key count as ONE file, not one per aspect', () => {
+    const [g] = groupIssues([
+      fileIss({ code: 'unverified', aspectId: 'a', unitKey: 'file:src/leaf/a.ts' }),
+      fileIss({ code: 'unverified', aspectId: 'b', unitKey: 'file:src/leaf/a.ts' }),
+    ]);
+    // Both are code-only ('unverified') so they collapse into one group.
+    expect(g.fileCount).toBe(1);
+    expect(g.nodeCount).toBe(0);
+  });
+
+  it('a genuinely repo-level member (neither nodePath nor unitKey) counts toward neither', () => {
+    const [g] = groupIssues([
+      { severity: 'warning', code: 'rules-digest-stale', rule: 'rules-digest-stale', messageData: { what: 'w', why: 'y', next: 'n' } } as CheckIssue,
+    ]);
+    expect(g.nodeCount).toBe(0);
+    expect(g.fileCount).toBe(0);
+  });
+
+  it('sort key falls back to unitKey for a nodeless member (not collapsed to empty string)', () => {
+    const [g] = groupIssues([
+      fileIss({ aspectId: 'a', unitKey: 'file:src/leaf/z.ts' }),
+      fileIss({ aspectId: 'a', unitKey: 'file:src/leaf/a.ts' }),
+    ]);
+    // Sorted: file:src/leaf/a.ts before file:src/leaf/z.ts.
+    expect(g.members.map((m) => m.unitKey)).toEqual(['file:src/leaf/a.ts', 'file:src/leaf/z.ts']);
+  });
+});
+
 // ── F3: bare `--top` group === the rule `Next:` names (single ordering) ───────
 // issuePriorityRank (drives which group bare `--top` renders, via groupIssues)
 // and computeSuggestedNext (drives the `Next:` line) must order UNRANKED errors
@@ -207,5 +265,71 @@ describe('bare --top group === the rule Next names (F3 invariant)', () => {
     const next = computeSuggestedNext(errors);
     expect(topGroup.code).toBe('mapping-path-missing');
     expect(next).toBe('yg fix mapping on broken'); // the issue's own next, alphabetically-first
+  });
+});
+
+// ── computeSuggestedNext's structural fallback names the FILE for a
+//    nodeless (type-covered-file) structural issue, never '.yggdrasil'. ──────
+describe('computeSuggestedNext — nodeless structural fallback', () => {
+  it('names the subject FILE (from the unit key) when the chosen structural issue has no component', () => {
+    const errors: CheckIssue[] = [{
+      severity: 'error',
+      code: 'file-unreadable',
+      rule: 'file-unreadable',
+      nodePath: undefined,
+      unitKey: 'file:src/leaf/a.ts',
+      messageData: {
+        what: "Aspect 'own-file-rule' could not read its subject file 'src/leaf/a.ts': EACCES.",
+        why: 'y',
+        next: 'Fix permissions.',
+      },
+    } as CheckIssue];
+    const next = computeSuggestedNext(errors);
+    expect(next).toContain('Fix file-unreadable in src/leaf/a.ts');
+    expect(next).not.toContain('.yggdrasil');
+  });
+
+  it('still falls back to .yggdrasil for a genuinely repo-level structural issue (neither nodePath nor a file unitKey)', () => {
+    const errors: CheckIssue[] = [{
+      severity: 'error',
+      code: 'config-invalid',
+      rule: 'config-invalid',
+      messageData: { what: 'bad config', why: 'y', next: 'fix it' },
+    } as CheckIssue];
+    const next = computeSuggestedNext(errors);
+    expect(next).toContain('Fix config-invalid in .yggdrasil');
+  });
+});
+
+// A pair this run's fill already proved cannot run (see
+// core/type-visibility.ts's cannotRunUnverifiedMessage) carries its own real
+// remedy as `next`, never the generic 'yg check --approve'. computeSuggestedNext
+// must not let that pair's `next` win the overall `Next:` slot while a pair
+// --approve genuinely CAN still change is sitting right next to it — the run
+// would tell the reader to re-run the one command it just proved is useless
+// for one member, while staying silent about the pair it would actually help.
+describe('computeSuggestedNext — a pair this run proved cannot run never displaces a pair --approve can still fill', () => {
+  const cannotRunNext =
+    'Give the file a component of its own (a yg-node.yaml mapping it), or fix what the reason above names in check.mjs / yg-architecture.yaml — not another --approve.';
+
+  it('picks the fillable pair\'s generic command when a fillable AND a cannot-run unverified pair both exist', () => {
+    const errors: CheckIssue[] = [
+      iss({
+        aspectId: 'needs-node-context', nodePath: undefined, unitKey: 'file:src/crashy/a.ts',
+        messageData: { what: 'w', why: 'y', next: cannotRunNext },
+      }),
+      iss({ aspectId: 'fillable-y', nodePath: 'a' }), // default messageData.next: 'yg check --approve'
+    ];
+    expect(computeSuggestedNext(errors)).toBe('yg check --approve');
+  });
+
+  it('falls back to the cannot-run pair\'s own remedy only once EVERY unverified pair is unfillable', () => {
+    const errors: CheckIssue[] = [
+      iss({
+        aspectId: 'needs-node-context', nodePath: undefined, unitKey: 'file:src/crashy/a.ts',
+        messageData: { what: 'w', why: 'y', next: cannotRunNext },
+      }),
+    ];
+    expect(computeSuggestedNext(errors)).toBe(cannotRunNext);
   });
 });

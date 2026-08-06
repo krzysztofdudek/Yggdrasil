@@ -1,9 +1,53 @@
 name: BuildContextCommand
 type: command
-description: Assembles and outputs a context package for a node via yg
-  build-context --node or --file
+description: "Assembles and outputs a context package for a node via yg
+  build-context --node or --file. For --file on a file with no owning
+  component but a matched architecture type, classifies ONLY that one file
+  (never the whole-repo classification map) for the applied/dropped rule set
+  itself, and renders the typed view — matched type, chain termination,
+  applied/dropped rules (each applied rule tagged with its real
+  enforced/advisory status, and a plain statement when literally nothing
+  applies), the derived-relations note, and the graduation next-step —
+  replacing the not-covered error. A `relations:` atom on one of this file's
+  attached rules is answered from a real, statically-resolved import: this
+  DOES pay for classifying the whole repo once per invocation — the only way
+  to recognize an import into some OTHER type-covered file — and runs the
+  same relation pass yg check runs, so the rule set rendered here always
+  matches what yg check enforces, never the conservative always-false a
+  caller with no edge index falls back to. Before rendering that typed
+  view, runs the type's cascade once more directly (computeTypeAspectCascade)
+  to check for an absorbed aspect implies cycle — when one is present, it
+  reports plainly that the type's rules could not be worked out and names the
+  cycle, instead of rendering the file as satisfying coverage with zero
+  enforcement, which would be false since the rules were never resolved, not
+  resolved and absent. Each applied rule's status tag also re-verifies that
+  rule against the lock with the SAME per-pair check yg check itself
+  performs (verify-lock.ts's verifyPairs, scoped to this file's own already-
+  computed pairs, never a second whole-project pass) and marks ', unverified'
+  when the lock does NOT currently hold a valid verdict for it — a pair it
+  has never seen at all, or one whose recorded verdict has gone stale since
+  a source edit, both counted the same way yg check's own qualified
+  'unverified' wording counts them for the identical pair. '[enforced]'
+  names architecture-level status, never a recorded verdict, so the two are
+  never conflated."
 aspects:
   - what-why-next
+max_direct_relations:
+  limit: 21
+  reason: >-
+    Reviewed and accepted at exactly this count. Composition is this command's
+    entire purpose: it assembles the complete context package a reader needs
+    for a node, or for a file governed by its architecture type alone, so it
+    necessarily reaches every source of facts that package contains — the
+    loader and validator, the checker and its coverage tiers, expected pairs,
+    type classification, effective rules and their visibility, the lock and
+    its verifier, the log gate, the formatters, and the import-resolution pass
+    that answers a dependency-gated rule. Each was checked individually and is
+    real; one records the test suite covering this command, the convention
+    every other command node here follows. A high count is a description of
+    the work rather than a symptom, and splitting the orchestration would
+    scatter the single place that must stay consistent with what yg check
+    enforces without reducing any actual coupling.
 relations:
   - target: cli/core/loader
     type: calls
@@ -28,11 +72,25 @@ relations:
     type: calls
   - target: cli/core/pairs
     type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/core/type-effective
+    type: calls
   - target: cli/io/lock-store
     type: calls
   - target: cli/io/stores
     type: calls
+  - target: cli/io/file-content-cache
+    type: calls
   - target: cli/preamble
+    type: calls
+  - target: cli/core/check-coverage-tiers
+    type: calls
+  - target: cli/core/type-visibility
+    type: calls
+  - target: cli/core/verify-lock
+    type: calls
+  - target: cli/relations/core
     type: calls
 mapping:
   - source/cli/src/cli/build-context.ts

@@ -1,0 +1,8 @@
+name: Owned
+type: leaf
+description: "The one explicit node in this fixture. Its mapped file satisfies
+  its own type's when predicate, so the graph validates cleanly end to end —
+  a command that exits early on structural errors still reaches this node's
+  real context/aspect-test output."
+mapping:
+  - src/leaf/owned.ts

@@ -1,0 +1,7 @@
+name: Graph Rule Scripts
+type: rule-script
+description: "The deterministic check.mjs implementation for every aspect this graph defines. Governed like any other first-party source under this same repository's own rules, closing the gap where the rule scripts that enforce the graph were themselves outside the graph's coverage."
+aspects: []
+relations: []
+mapping:
+  - .yggdrasil/aspects/*/check.mjs

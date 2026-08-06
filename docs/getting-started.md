@@ -93,15 +93,19 @@ blocking error:
 ```text
 $ yg check
 
-yg check: PASS (1 warning)  0 nodes · 0/50 files (0%) · 0 aspects · 0 flows
+yg check: PASS (1 warning)  0 nodes · 0/50 files (0 node-owned, 0 type-covered, 0 excluded) · 0 aspects · 0 flows
+
+Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 
 Warnings (1):
 
   uncovered (50)
             src/…  (first 10 paths, then "... +40")
-            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
-            Fix: Map these files to a node, or add their root to coverage.required to make this an error.
+            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
+            Fix: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
 ```
+
+`yg init` turns `coverage.type_level` on by default (see [Configuration](/configuration#coverage-config)), and the fresh architecture starts with no classifying types — hence the notice line. Add a `when:` predicate to a type and matching files start satisfying coverage on their own, with no node required.
 
 Nothing is enforced yet — the warnings are your to-do list. Tell your agent to
 create the first rule.
@@ -124,12 +128,19 @@ The agent will create:
       yg-node.yaml          ← maps src/payments/, lists requires-audit aspect
 ```
 
+(A node's type must declare `when:` before the node can carry a mapping at
+all — independent of type-level coverage — so the agent also gives the
+payments module's type a `when: path: "src/payments/**"`. That is why the
+zero-classifying-types notice from the first check above does not reappear
+below: the architecture now has one classifying type, even though the
+payments file itself is node-owned, not type-covered.)
+
 Now run `yg check`:
 
 ```text
 $ yg check
 
-yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows
+yg check: FAIL  1 nodes · 1/1 files (1 node-owned, 0 type-covered, 0 excluded) · 1 aspects · 0 flows
 
 Errors (1):
 
@@ -151,14 +162,14 @@ $ yg check --approve
 
 Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
 
-yg check: PASS  1 nodes · 1/1 files · 1 aspects · 0 flows · 1 verified (0 deterministic, 1 LLM)
+yg check: PASS  1 nodes · 1/1 files (1 node-owned, 0 type-covered, 0 excluded) · 1 aspects · 0 flows · 1 verified (0 deterministic, 1 LLM)
 ```
 
 If the code didn't satisfy the aspect, the pair is refused and the report shows
 the enforced refusal block with the reviewer's reason:
 
 ```text
-yg check: FAIL  1 nodes · 1/1 files · 1 aspects · 0 flows
+yg check: FAIL  1 nodes · 1/1 files (1 node-owned, 0 type-covered, 0 excluded) · 1 aspects · 0 flows
 
 Errors (1):
 
@@ -188,7 +199,8 @@ A brand-new aspect on an existing codebase often surfaces violations across many
 of any size is **green from the first check**, with every unmapped file shown as
 a non-blocking warning. You tighten coverage as you go: add a path prefix to
 `coverage.required` in `yg-config.yaml` (e.g. `- src/payments/`) and files under
-it become blocking errors until they belong to a node; files outside required
+it become blocking errors until they belong to a node, or — with `coverage.type_level`
+on — until they match exactly one classifying type; files outside required
 (and not excluded) stay non-blocking warnings; files under `coverage.excluded`
 are silent. Subtrees with their own nested `.yggdrasil/` are auto-skipped. See
 [Configuration](/configuration) for details.

@@ -874,12 +874,13 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
     }
   });
 
-  // BUG (pinned, not encoded as correct) — a nonexistent --files path is an
-  // EXPECTED user error (a typo'd path) but surfaces through the generic
-  // abortOnUnexpectedError wrapper as an unclassified ENOENT crash ("This is a
-  // bug — please file an issue"), rather than a clean what/why/next telling the
-  // user the file does not exist. We pin the actual ENOENT + exit 1.
-  it('F3: aspect-test --files on a nonexistent path fails (exit 1, ENOENT)', () => {
+  // A nonexistent --files path is an EXPECTED user error (a typo'd path) —
+  // --files now probes for existence up front, the same way --file already
+  // does, and answers with a clean what/why/next instead of letting a raw
+  // ENOENT reach the generic unclassified-error funnel ("This is a bug —
+  // please file an issue"), which used to misreport an ordinary typo as an
+  // internal defect.
+  it('F3: aspect-test --files on a nonexistent path reports it plainly (exit 1, not a bug)', () => {
     const dir = deterministicFixture('f3');
     try {
       const { status, all } = run(
@@ -887,10 +888,9 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
         dir,
       );
       expect(status).toBe(1);
-      expect(all).toContain('ENOENT');
-      expect(all).toContain('src/services/MISSING.ts');
-      // BUG: rendered as an unclassified crash (see note above).
-      expect(all).toContain('This is a bug — please file an issue');
+      expect(all).toContain("'src/services/MISSING.ts' does not exist.");
+      expect(all).not.toContain('ENOENT');
+      expect(all).not.toContain('This is a bug — please file an issue');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -908,7 +908,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       const { status, all } = run(['aspect-test', '--aspect', 'has-doc-comment', '--files', 'src/services/orders.ts'], dir);
       expect(status).toBe(1);
       expect(all).toContain("--files cannot be used with LLM aspect 'has-doc-comment'.");
-      expect(all).toContain('Use --node <node-path> instead, or switch to a deterministic aspect for --files mode.');
+      expect(all).toContain('Use --node <node-path> or --file <path> instead, or switch to a deterministic aspect for --files mode.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

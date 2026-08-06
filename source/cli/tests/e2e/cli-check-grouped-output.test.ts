@@ -158,7 +158,7 @@ function buildGroupedFixture(opts: {
   return dir;
 }
 
-describe.skipIf(!distExists)('CLI E2E — yg check grouped default output (Phase 1)', () => {
+describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () => {
   it('the SAME aspect unverified across MANY nodes renders ONE group block, nodes one-per-line', () => {
     const nodes = ['alpha', 'beta', 'gamma', 'delta'];
     const dir = buildGroupedFixture({ nodeNames: nodes });
@@ -265,7 +265,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output (Phase
     }
   });
 
-  it('TWO DIFFERENT aspects unverified on ONE node collapse into ONE group (Phase 1.6)', () => {
+  it('TWO DIFFERENT aspects unverified on ONE node collapse into ONE group', () => {
     // Build a fixture with ONE node and TWO enforced LLM aspects (both unverified
     // on a cold lock). The old behaviour produced 2 per-(code,aspectId) groups;
     // the new behaviour produces ONE group with both aspect ids on body lines.

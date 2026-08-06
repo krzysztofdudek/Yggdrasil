@@ -1,0 +1,15 @@
+name: E2E Tests — Type-Coverage Graduation, GC Round-Trip, Lock Merge
+type: test-suite
+description: "Subprocess E2E for the lifecycle of a type-covered file's virtual verdict, on real committed fixtures: graduation (an explicit node claims a file the architecture type already covered — the same unit key, a changed stored hash, visible as an ordinary unverified pair rather than a silent stale pass, never a GC prune since the key stays in the expected universe); the flag disable/enable GC round-trip (a deterministic virtual entry is pruned by the scoped --only-deterministic writer on its very next run once detached, since that is the gitignored partition it freely rewrites; re-enabling refills the identical file once, free); and a real git merge of independently-filled LLM (committed-lock) verdicts across two branches, both the disjoint-key clean-merge case and the same-key conflict-and-resolve case, run through an in-process mock reviewer and git pinned to the fixture directory."
+aspects: []
+relations:
+  - target: cli/tests/e2e/support
+    type: uses
+  - target: cli/tests/support
+    type: uses
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-type-coverage-graduation.test.ts
+  - source/cli/tests/e2e/cli-type-coverage-gc-roundtrip.test.ts
+  - source/cli/tests/e2e/cli-type-coverage-lock-merge.test.ts

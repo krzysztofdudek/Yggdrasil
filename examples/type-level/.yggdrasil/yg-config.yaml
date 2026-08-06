@@ -1,0 +1,33 @@
+version: "5.2.0"
+
+# Quality thresholds
+quality:
+  max_direct_relations: 10
+
+# Enforcement targets the source tree. Only files under src/ must be mapped or
+# type-covered; the README and graph metadata are not example source. The
+# Yggdrasil-managed agent-rules files and the gitattributes scaffold are repo
+# plumbing, not example source, so they are excluded rather than mapped.
+coverage:
+  required: ["src"]
+  excluded: ["README.md", "AGENTS.md", "CLAUDE.md", ".clinerules/", ".gitattributes"]
+  # Type-level coverage: a file matched by exactly one classifying type's `when`
+  # is enforced by that type's per-file rules with no node required. This
+  # example exists to demonstrate exactly that — see README.md.
+  type_level: true
+
+# Reviewer configuration added by: yg init
+# (see yg schemas read config + yg knowledge read configuration)
+
+debug: false
+
+auto_approve: false
+
+# Committed, shared record of LLM verification events (opt-in; default OFF).
+# When enabled, each time the reviewer verifies a rule the event is appended to a
+# committed, union-merged file (.yggdrasil/yg-events.llm.jsonl) shared across the
+# team instead of a local-only file. Sensitive rationale is stripped from the
+# shared copy. Deterministic checks never write there, so a keyless CI run adds
+# nothing to it. Leave this off to keep every verification event local.
+# events:
+#   committed_llm: true

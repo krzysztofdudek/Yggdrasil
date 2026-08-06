@@ -109,6 +109,80 @@ describe('renderStructure', () => {
     const out = renderStructure(graph, detected);
     expect(out).toContain('p/a → q/b — jumps 4 levels across the tree, no declared contract');
   });
+
+  it('omitting `widened` renders the exact node-only output — byte-identical to a caller who never heard of the type-level augmentation', () => {
+    const graph = graphOf([node('p'), node('p/a')]);
+    const withoutArg = renderStructure(graph, NO_DETECTED);
+    const withEmptyWidening = renderStructure(graph, NO_DETECTED, { edges: [], nodeIds: [], hasTypeCovered: false });
+    expect(withoutArg).toBe(withEmptyWidening);
+    expect(withoutArg).toMatch(/From an average component, 0% of the system is reachable/);
+  });
+
+  it('a nonempty widening merges its edges into the SAME universe the node-only edges already populate, and widens the reach population', () => {
+    // 'p/a' is a real node; 'p/a/typed.ts' is the widened id space's own file path —
+    // sharing the string space directly (file paths are /-delimited too).
+    const graph = graphOf([node('p'), node('p/a')]);
+    const widened = {
+      edges: [{ from: 'p/a', to: 'p/a/typed.ts', viaContract: false, origin: 'detected' as const }],
+      nodeIds: ['p/a/typed.ts'],
+      hasTypeCovered: true,
+    };
+    const out = renderStructure(graph, NO_DETECTED, widened);
+    expect(out).toContain('p/a → p/a/typed.ts — jumps 1 level across the tree, no declared contract');
+    // The jargon-free-language rule: a type-covered file is never called a "component".
+    expect(out).toContain('From an average component or type-covered file,');
+    expect(out).not.toMatch(/From an average component,/);
+  });
+
+  it('a type-covered file edge that sits many directories deep on disk never outranks a genuine cross-module node tunnel', () => {
+    // The real architecture has exactly one genuine cross-module dependency: checkout/controller
+    // -> orders/service, spanning 4 hierarchy levels (mirrors the earlier "names cross-tree
+    // tunnels" test above). The widening adds an edge between two type-covered files that share
+    // no real ancestor and sit six/five directories deep — raw directory-segment math would rank
+    // that edge (span 9) ahead of the real tunnel (span 4); it must not.
+    const graph = graphOf([
+      node('checkout'),
+      node('checkout/controller', [{ target: 'orders/service', type: 'uses' }]),
+      node('orders'),
+      node('orders/service'),
+    ]);
+    const widened = {
+      edges: [{ from: 'src/a/b/c/d/e/p.ts', to: 'lib/q.ts', viaContract: false, origin: 'detected' as const }],
+      nodeIds: ['src/a/b/c/d/e/p.ts', 'lib/q.ts'],
+      hasTypeCovered: true,
+    };
+    const out = renderStructure(graph, NO_DETECTED, widened);
+    const tunnelsSection = out.slice(out.indexOf('Tunnels'), out.indexOf('Modules'));
+    const realIdx = tunnelsSection.indexOf('checkout/controller → orders/service');
+    const fileIdx = tunnelsSection.indexOf('src/a/b/c/d/e/p.ts → lib/q.ts');
+    expect(realIdx).toBeGreaterThanOrEqual(0);
+    expect(fileIdx).toBeGreaterThanOrEqual(0);
+    // The real architectural tunnel is listed FIRST — its span (4) outranks the file
+    // edge's span (2, bounded regardless of how deep the two files sit on disk).
+    expect(realIdx).toBeLessThan(fileIdx);
+    expect(tunnelsSection).toContain('checkout/controller → orders/service — jumps 4 levels across the tree');
+    expect(tunnelsSection).toContain('src/a/b/c/d/e/p.ts → lib/q.ts — jumps 2 levels across the tree');
+  });
+
+  it('renderModules calls the header "component groups" flag-off, and widens the wording once a type-covered file joins a group — never a file called a component', () => {
+    const graph = graphOf([
+      node('x'),
+      node('x/svc', [{ target: 'y/svc', type: 'calls' }]),
+      node('y'),
+      node('y/svc'),
+    ]);
+    const flagOff = renderStructure(graph, NO_DETECTED);
+    expect(flagOff).toContain('Modules — how component groups at each level depend on one another');
+
+    const widened = {
+      edges: [{ from: 'x/svc', to: 'x/svc/typed.ts', viaContract: false, origin: 'detected' as const }],
+      nodeIds: ['x/svc/typed.ts'],
+      hasTypeCovered: true,
+    };
+    const flagOn = renderStructure(graph, NO_DETECTED, widened);
+    expect(flagOn).toContain('Modules — how groups of components and type-covered files at each level depend on one another');
+    expect(flagOn).not.toContain('Modules — how component groups at each level depend on one another');
+  });
 });
 
 // The authoritative structural-edge-universe accessor, exercised end-to-end
@@ -152,6 +226,40 @@ describe.skipIf(!existsSync(FIXTURE))('computeStructuralEdgeUniverse (real fixtu
       expect(has('checkout/controller', 'orders/order-service')).toBe(true);
       expect(has('orders/order-service', 'auth/auth-api')).toBe(true);
       expect(has('orders/order-service', 'users/user-repo')).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+const RELATION_GATE_FIXTURE = path.join(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../fixtures/type-relation-gate',
+);
+
+describe.skipIf(!existsSync(RELATION_GATE_FIXTURE))('computeStructuralEdgeUniverse — type-level widening', () => {
+  it('a type-covered file joins nodeIds (own file path) and its real edges join the universe', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-edge-universe-typecov-'));
+    try {
+      cpSync(RELATION_GATE_FIXTURE, dir, { recursive: true });
+      const { nodeIds, edges } = await computeStructuralEdgeUniverse(dir);
+
+      expect(nodeIds).toContain('owner');
+      expect(nodeIds).toContain('src/svc/handler.ts');
+      expect(nodeIds).toContain('src/util/plain-util.ts');
+      // The ambiguous file is never classified into `covered` — it never joins nodeIds.
+      expect(nodeIds).not.toContain('src/svc/ambiguous.ts');
+
+      const has = (from: string, to: string) => edges.some((e) => e.from === from && e.to === to);
+      expect(has('src/svc/handler.ts', 'owner')).toBe(true);
+      expect(has('src/svc/handler.ts', 'src/util/plain-util.ts')).toBe(true);
+      expect(has('src/util/plain-util.ts', 'owner')).toBe(true);
+      // Every edge endpoint is a known id — the universe stays closed over nodeIds.
+      const idSet = new Set(nodeIds);
+      for (const e of edges) {
+        expect(idSet.has(e.from)).toBe(true);
+        expect(idSet.has(e.to)).toBe(true);
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -1,0 +1,340 @@
+// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
+import chalk from 'chalk';
+import type { CheckResult } from '../core/check.js';
+import type { TypeVisibilityReason, TypeVisibilityReport } from '../core/type-visibility.js';
+import { describeTypeVisibilityReason, describeChainTermination } from '../core/type-visibility.js';
+import { describeCascadeCycle } from '../core/type-effective.js';
+
+// ── Emoji gate ─────────────────────────────────────────────
+
+/**
+ * Emoji decoration is gated on color support.  When chalk has no color
+ * (NO_COLOR env var, non-color terminal, chalk.level === 0) the output is
+ * byte-identical to the pre-emoji text — no leading character, no extra space.
+ * Emoji is decoration only; verdict and severity are always readable as plain
+ * text without it.
+ *
+ * Exported so tests can read the current gate value; the optional `useEmoji`
+ * parameter on `formatOutput` allows tests to override it without mocking.
+ */
+export const useEmoji: boolean = chalk.level > 0;
+
+// ── Header ─────────────────────────────────────────────────
+
+export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji): string {
+  let verdict: string;
+  if (errorCount > 0) {
+    // auto-filled marker is a PASS qualifier only — never shown on FAIL.
+    verdict = chalk.red('yg check: FAIL');
+  } else if (autoFilled && warningCount > 0) {
+    verdict = `${chalk.green('yg check: PASS')} (auto-filled, ${warningCount} warning${warningCount === 1 ? '' : 's'})`;
+  } else if (autoFilled) {
+    verdict = `${chalk.green('yg check: PASS')} (auto-filled)`;
+  } else if (warningCount > 0) {
+    verdict = `${chalk.green('yg check: PASS')} (${warningCount} warning${warningCount === 1 ? '' : 's'})`;
+  } else {
+    verdict = chalk.green('yg check: PASS');
+  }
+
+  const emojiPrefix = emoji ? (errorCount > 0 ? '❌ ' : '✅ ') : '';
+
+  const metrics: string[] = [`${result.nodeCount} nodes`];
+
+  if (result.totalFiles > 0) {
+    if (result.typeLevel) {
+      // Three honest terms, not a flat percentage. "node-owned" is
+      // nodeOwnedFiles (an actual node mapping), NEVER the legacy
+      // coveredFiles (which also folds in excluded-root files) — an
+      // excluded file gets its own term instead. Flag off is byte-identical
+      // below, using coveredFiles exactly as before.
+      const nodeOwned = result.nodeOwnedFiles ?? 0;
+      const typeCovered = result.typeCoveredCount ?? 0;
+      const excluded = result.excludedFiles ?? 0;
+      metrics.push(`${nodeOwned + typeCovered + excluded}/${result.totalFiles} files (${nodeOwned} node-owned, ${typeCovered} type-covered, ${excluded} excluded)`);
+    } else if (result.coveredFiles < result.totalFiles) {
+      metrics.push(`${result.coveredFiles}/${result.totalFiles} files (${Math.round((result.coveredFiles / result.totalFiles) * 100)}%)`);
+    } else {
+      metrics.push(`${result.coveredFiles}/${result.totalFiles} files`);
+    }
+  }
+
+  metrics.push(`${result.aspectCount} aspects`);
+  metrics.push(`${result.flowCount} flows`);
+
+  const verifiedTotal = result.verifiedDet + result.verifiedLlm;
+  if (verifiedTotal > 0) {
+    metrics.push(`${verifiedTotal} verified (${result.verifiedDet} deterministic, ${result.verifiedLlm} LLM)`);
+  }
+
+  if (result.draftSkipped > 0) {
+    metrics.push(`${result.draftSkipped} draft`);
+  }
+
+  return `${emojiPrefix}${verdict}  ${metrics.join(' · ')}`;
+}
+
+// ── Type-visibility block ───────────────────────────────────
+//
+// Honesty surface for the type-level tier (core/type-visibility.ts): per
+// matched type, which rules enforce, which are attached but do not (with
+// counts), a half-expanded bundle, where the inherited chain stops, which of
+// the type's own files could not have their rules worked out at all (an
+// aspect implies cycle — named the same way `yg owner --file` / `yg context
+// --file` already name it, never a bare "nothing applies"), plus the
+// repo-wide zero-applicable-rules line. A statement of fact, not a warning —
+// printed in every view, same posture as the zero-classifying-types notice.
+
+/** Matches the rest of the check summary's own list-truncation cap. */
+const FILE_LIST_CAP = 12;
+
+/** Cap on how many aspect ids one reason group lists before summarizing the rest — a type where many aspects share ONE reason must not render an unbounded line. */
+const DROPPED_LIST_CAP = 12;
+
+/**
+ * One line per DISTINCT reason among `dropped`, the reason phrase stated
+ * ONCE, followed by every aspect id it applies to (capped, with a count of
+ * the rest). Reason text repeats for every (aspectId, reason) pair; capping
+ * that flat list only trimmed a fixture type observed producing ~1300
+ * characters down to ~1072 — still every entry paying for the same long
+ * phrase again. Grouping by reason instead pays for the phrase once per
+ * distinct reason (at most nine, the full width of `TypeVisibilityReason`)
+ * regardless of how many aspects share it.
+ */
+function renderReasonGroups(dropped: TypeVisibilityReport['byType'][number]['dropped']): string[] {
+  const reasons = [...new Set(dropped.map((d) => d.reason))].sort();
+  return reasons.map((reason) => {
+    const entries = dropped.filter((d) => d.reason === reason);
+    const shown = entries.slice(0, DROPPED_LIST_CAP);
+    const rendered = shown.map((e) => `${e.aspectId} (${e.count})`).join(', ');
+    const overflow = entries.length > DROPPED_LIST_CAP ? ` ... and ${entries.length - DROPPED_LIST_CAP} more` : '';
+    const phrase = describeTypeVisibilityReason(reason);
+    const capitalized = phrase.charAt(0).toUpperCase() + phrase.slice(1);
+    return `${capitalized}: ${rendered}${overflow}`;
+  });
+}
+
+/**
+ * One line per uncomputable group: the files sharing ONE cascade cycle,
+ * followed by the SAME `why` sentence `yg owner --file` / `yg context --file`
+ * already print for the identical fact (`describeCascadeCycle` — never
+ * restated here, so the three surfaces cannot disagree). Shares its file-list
+ * cap with `renderReasonGroups` (`DROPPED_LIST_CAP`) — a type whose cycle
+ * spans many files must not render an unbounded line either.
+ */
+function renderUncomputableGroups(groups: TypeVisibilityReport['uncomputable']['groups']): string[] {
+  return groups.map((group) => {
+    const shown = group.files.slice(0, DROPPED_LIST_CAP);
+    const overflow = group.files.length > DROPPED_LIST_CAP ? ` ... and ${group.files.length - DROPPED_LIST_CAP} more` : '';
+    return `${shown.join(', ')}${overflow} — ${describeCascadeCycle({ aspectId: group.aspectId })}`;
+  });
+}
+
+/**
+ * Grammar for the zero-enforcement sentence, singular vs. plural — every word
+ * that agrees with `count` lives here so a singular file never reads "they
+ * satisfy" (an earlier defect: the verb-and-pronoun clause was hardcoded to
+ * the plural form regardless of `count`).
+ */
+function zeroEnforcementGrammar(count: number): { has: string; it: string; subject: string; satisfy: string } {
+  return count === 1
+    ? { has: 'has', it: 'it', subject: 'it', satisfy: 'satisfies' }
+    : { has: 'have', it: 'them', subject: 'they', satisfy: 'satisfy' };
+}
+
+/**
+ * Reasons only a fill's own attempt to run the check can decide (a structure-
+ * runner disposition translated by `classifyRunnerDisposition`) — never a
+ * static drop, so a row carrying one of these ALWAYS names a file also
+ * counted under `enforced`/`advisory` (a real pair exists; see
+ * core/type-visibility.ts's own doc). Rendering such a row under "Attached
+ * but not enforced" would claim the opposite of "Enforced" for the identical
+ * file; `unverifiedCaveat` below states the same fact instead, inline on the
+ * line it actually qualifies, so `renderReasonGroups` skips these reasons.
+ */
+const RUNTIME_ONLY_REASONS = new Set<TypeVisibilityReason>([
+  'read-beyond-architecture',
+  'node-context-required',
+  'companion-context-failed',
+]);
+
+/** `dropped`, minus any reason a fill can only discover by running the check — see `RUNTIME_ONLY_REASONS`. */
+function staticDropped(dropped: TypeVisibilityReport['byType'][number]['dropped']): TypeVisibilityReport['byType'][number]['dropped'] {
+  return dropped.filter((d) => !RUNTIME_ONLY_REASONS.has(d.reason));
+}
+
+/**
+ * Every one of `files` this run's `result.issues` marks `unverified` for
+ * `aspectId` — the same cross-reference the caveat below has always used,
+ * pulled into its own function so both the named-reason path and the
+ * generic fallback start from the identical file set.
+ */
+function unverifiedFiles(result: CheckResult, aspectId: string, files: string[]): string[] {
+  const unverifiedKeys = new Set(
+    result.issues
+      .filter((i) => i.code === 'unverified' && i.aspectId === aspectId && i.unitKey?.startsWith('file:'))
+      .map((i) => i.unitKey!.slice('file:'.length)),
+  );
+  return files.filter((f) => unverifiedKeys.has(f));
+}
+
+/**
+ * The caveat text appended to an `aspectId (N...)` entry for its unverified
+ * files. `enforced/enforcedCounts` name effective STATUS (the architecture
+ * says this aspect blocks on these files); a file can carry that status
+ * while its pair has never once produced a real verdict — exactly the shape
+ * a rule that structurally cannot run on a type-covered file takes.
+ *
+ * A file this run's fill actually attempted and watched fail with a
+ * disposition this module can name (`result.typeVisibility.rows`, populated
+ * only by `yg check --approve`'s in-process handoff — see core/fill.ts) gets
+ * the SPECIFIC reason, in the exact words `describeTypeVisibilityReason`
+ * already prints for a static drop — one vocabulary, not two. Every other
+ * unverified file — a plain read that never filled, an LLM infra failure, a
+ * det disposition this module does not represent — keeps the original,
+ * honest "K unverified" wording: the fallback a run with no sharper answer
+ * must still degrade to.
+ */
+function unverifiedCaveat(result: CheckResult, aspectId: string, files: string[]): string {
+  const unverified = unverifiedFiles(result, aspectId, files);
+  if (unverified.length === 0) return '';
+
+  const reasonByFile = new Map<string, TypeVisibilityReason>();
+  for (const row of result.typeVisibility?.rows ?? []) {
+    if (row.aspectId === aspectId) reasonByFile.set(row.file, row.reason);
+  }
+
+  const countByReason = new Map<TypeVisibilityReason, number>();
+  let plainCount = 0;
+  for (const f of unverified) {
+    const reason = reasonByFile.get(f);
+    if (reason) countByReason.set(reason, (countByReason.get(reason) ?? 0) + 1);
+    else plainCount++;
+  }
+
+  const clauses = [...countByReason.entries()]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([reason, count]) => `${count} cannot run — ${describeTypeVisibilityReason(reason)}`);
+  if (plainCount > 0) clauses.push(`${plainCount} unverified`);
+  return `, ${clauses.join('; ')}`;
+}
+
+/**
+ * Total unverified instances across an `enforcedCounts`/`advisoryCounts`
+ * list — the counts-only render's caveat. Costs nothing extra to
+ * compute: `result.issues` already carries the FULL lock-verification result
+ * regardless of which view is rendering it, so this is the same lock-derived
+ * "no confirmed verdict" fact the full view's `unverifiedCaveat` shows, at
+ * aggregate granularity. What stays genuinely unavailable here is the
+ * fill-only SPECIFIC reason (`cannot run — …`): that fact only ever exists on
+ * a `yg check --approve` run, and `--summary`/`--top` refuse to combine with
+ * `--approve` (source/cli/src/cli/check.ts's own guided error) — so a
+ * counts-only render can never name it, by construction, not by omission here.
+ */
+function unverifiedInstanceTotal(result: CheckResult, entries: Array<{ aspectId: string; count: number }>, files: string[]): number {
+  return entries.reduce((n, e) => n + unverifiedFiles(result, e.aspectId, files).length, 0);
+}
+
+/**
+ * `(aspectId, count)` list → the rendered `aspectId (count)` segments this
+ * block always showed, now with `unverifiedCaveat`'s clause appended whenever
+ * that aspect has unverified files among `block.files`. No caveat (an aspect
+ * whose every file has a real recorded outcome) renders byte-identical to
+ * the pre-caveat text.
+ */
+function renderCountList(
+  result: CheckResult,
+  entries: Array<{ aspectId: string; count: number }>,
+  files: string[],
+): string {
+  return entries
+    .map((e) => `${e.aspectId} (${e.count}${unverifiedCaveat(result, e.aspectId, files)})`)
+    .join(', ');
+}
+
+/**
+ * `countsOnly`: the counts-only triage views (--summary, --top) print this
+ * block ahead of their own narrowed body (same posture as the zero-
+ * classifying-types notice), so it must stay to COUNTS there — never the
+ * per-aspect reason breakdown, half-expanded-bundle names, chain-termination
+ * text, or zero-enforcement file samples a full `yg check` shows. Those views
+ * exist specifically to keep the wall short; this block must not undo that.
+ */
+export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOnly?: boolean }): string {
+  const report = result.typeVisibility;
+  if (!report) return '';
+  const countsOnly = opts?.countsOnly ?? false;
+  const lines: string[] = ['Type coverage:'];
+  for (const block of report.byType) {
+    // A FILE count, never a rule count: resolution never ran for these files,
+    // so how many of the type's declared rules would have ended up unresolved
+    // is unknowable — only how many files hit the cycle is. `g.aspectId`
+    // groups by the aspect at which each file's cascade cycled, but summing
+    // `g.files.length` across groups counts FILES, not distinct rules.
+    const uncomputableTotal = block.uncomputable.reduce((n, g) => n + g.files.length, 0);
+    // Runtime-only reasons render inline on Enforced/Advisory instead (see
+    // RUNTIME_ONLY_REASONS) — excluded here so this total, and the "Attached
+    // but not enforced" list below, never double-count a file that is ALSO
+    // named "Enforced".
+    const droppedForDisplay = staticDropped(block.dropped);
+    if (countsOnly) {
+      const droppedTotal = droppedForDisplay.reduce((n, d) => n + d.count, 0);
+      const uncomputableSuffix = uncomputableTotal > 0
+        ? `, ${uncomputableTotal} file${uncomputableTotal === 1 ? '' : 's'} could not have ${uncomputableTotal === 1 ? 'its' : 'their'} rules worked out (aspect implies cycle)`
+        : '';
+      const enforcedUnverified = unverifiedInstanceTotal(result, block.enforcedCounts, block.files);
+      const advisoryUnverified = unverifiedInstanceTotal(result, block.advisoryCounts, block.files);
+      // "instances", never "rules": the parenthetical counts (rule, file) pairs, and a
+      // rule live on several files contributes one instance per file — the noun must
+      // match `droppedTotal`'s own "instance(s)" a few words later, not the immediately
+      // preceding "N rule(s) enforced" it qualifies.
+      lines.push(
+        `  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered — ` +
+        `${block.enforcedCounts.length} rule${block.enforcedCounts.length === 1 ? '' : 's'} enforced${enforcedUnverified > 0 ? ` (${enforcedUnverified} unverified instance${enforcedUnverified === 1 ? '' : 's'})` : ''}, ` +
+        `${block.advisoryCounts.length} advisory${advisoryUnverified > 0 ? ` (${advisoryUnverified} unverified instance${advisoryUnverified === 1 ? '' : 's'})` : ''}, ${droppedTotal} attached-but-not-enforced instance${droppedTotal === 1 ? '' : 's'}${uncomputableSuffix}`,
+      );
+      continue;
+    }
+    const shown = block.files.slice(0, FILE_LIST_CAP);
+    const overflow = block.files.length > FILE_LIST_CAP ? ` ... and ${block.files.length - FILE_LIST_CAP} more` : '';
+    lines.push(`  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered: ${shown.join(', ')}${overflow}`);
+    if (block.uncomputable.length > 0) {
+      lines.push('    Rules could not be worked out:');
+      for (const line of renderUncomputableGroups(block.uncomputable)) lines.push(`      ${line}`);
+    }
+    const enforcedList = renderCountList(result, block.enforcedCounts, block.files);
+    lines.push(`    Enforced: ${enforcedList.length > 0 ? enforcedList : '(none)'}`);
+    if (block.advisoryCounts.length > 0) {
+      const advisoryList = renderCountList(result, block.advisoryCounts, block.files);
+      lines.push(`    Advisory (runs, never blocks): ${advisoryList}`);
+    }
+    if (droppedForDisplay.length > 0) {
+      lines.push('    Attached but not enforced:');
+      for (const reasonLine of renderReasonGroups(droppedForDisplay)) lines.push(`      ${reasonLine}`);
+    }
+    for (const b of block.halfExpandedBundles) {
+      lines.push(`    ${b.bundleId}: file-level part applies; whole-unit part needs a component`);
+    }
+    lines.push(`    ${describeChainTermination(block.chainTermination)}`);
+  }
+  const uc = report.uncomputable;
+  if (uc.count > 0) {
+    lines.push('');
+    const suffix = countsOnly ? '.' : ':';
+    lines.push(`${uc.count} file${uc.count === 1 ? '' : 's'} matched by a type could not have ${uc.count === 1 ? 'its' : 'their'} rules worked out${suffix}`);
+    if (!countsOnly) {
+      for (const line of renderUncomputableGroups(uc.groups)) lines.push(`  ${line}`);
+    }
+  }
+  const zc = report.zeroEnforcement;
+  if (zc.count > 0) {
+    const g = zeroEnforcementGrammar(zc.count);
+    lines.push('');
+    const suffix = countsOnly ? '.' : ':';
+    lines.push(`${zc.count} file${zc.count === 1 ? '' : 's'} matched by a type ${g.has} no rules that apply to ${g.it} — ${g.subject} ${g.satisfy} coverage with no enforcement${suffix}`);
+    if (!countsOnly) {
+      for (const f of zc.samples) lines.push(`  - ${f}`);
+      if (zc.count > zc.samples.length) lines.push(`  ... and ${zc.count - zc.samples.length} more`);
+    }
+  }
+  return lines.join('\n');
+}

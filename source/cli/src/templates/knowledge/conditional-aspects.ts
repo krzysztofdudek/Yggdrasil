@@ -201,6 +201,50 @@ channel 1 regardless of whether channel 2's filter passes.
 An aspect silently skipped because \`when\` was false does not appear in the
 effective list — that is correct behavior.
 
+## Applicability for a file enforced only by its type
+
+A source file with no explicit component of its own — covered by \`coverage.type_level\`
+through its matched architecture type alone — still answers a \`when:\` predicate,
+against a fixed set of total facts:
+
+- \`node.type\` is the matched type id.
+- \`node.has_mapping\` is always \`true\` — the file maps exactly one subject, itself.
+- \`node.has_port\` is always \`false\` — a file-level unit cannot own a port, so any
+  aspect gated on \`has_port\` is attached-but-never-applicable for it, not silently
+  absent.
+- \`descendants:\` is always \`false\` — a file-level unit has no hierarchy below it.
+- A \`relations:\` atom is answered from a statically-resolved import leaving the
+  file, not from a declared node relation (a type-covered file has none). One
+  resolved import is evidence for \`uses\`, \`calls\`, \`extends\`, and \`implements\`
+  alike — dependency analysis cannot tell calling from using from extending from
+  implementing, so a single import satisfies a \`relations:\` clause naming any of
+  the four the same way. An import is never evidence of an \`emits\` or \`listens\`
+  relation, and never evidence of a \`consumes_port\` — those atoms always read
+  false for a type-covered file, regardless of what it imports.
+
+This makes applicability for such a file volatile in a way a declared component
+is not: a rule whose applicability depends on what a file imports can start or
+stop applying because the OTHER end changed — the imported file was re-typed, or
+gained or lost a component of its own — even though the file itself was not
+edited. When that happens the rule's stored result is discarded, the same way it
+is discarded when an applicability condition is edited. Nothing is lost silently:
+the run that discards it says so.
+
+Matching a type satisfies coverage; it does not by itself mean anything runs.
+A type's whole-unit (\`scope: { per: node }\`) rules can never run on a file
+with no component, a rule's own \`when:\` can still fail against the facts
+above, and a rule can still be draft. \`yg check\` names all of this per
+matched type — files covered, rules actually enforced, rules that run but
+only warn (reported under their own heading, never folded in with the ones
+that block), rules attached but not (with the reason and a count), and — the
+one state that must never be found by accident — every file that matches a
+type yet has nothing at all that can run against it. \`yg context --file\` and
+\`yg owner --file\` on such a file answer the same way for that one file, in
+place of a not-covered error: the matched type, where its inherited chain
+stops and why, both the rules that apply (each with its real status) and the
+ones that do not, and — when nothing at all applies — that fact stated
+plainly rather than left silent or claimed as enforcement that is not there.
+
 ## Cost
 
 \`when\` evaluation is deterministic — no LLM call. It runs at \`yg check\` time

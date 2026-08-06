@@ -24,6 +24,8 @@ import {
   rmSync,
   existsSync,
   cpSync,
+  chmodSync,
+  readFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -38,6 +40,32 @@ import { buildTestGraphForStructure } from '../helpers/build-test-graph-structur
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
+
+/**
+ * Whether this runtime actually enforces a chmod(0o000) restriction on a file
+ * readable by its owner. A privileged process (root, or certain containers)
+ * ignores file mode bits entirely, so a test relying on readFileSync genuinely
+ * failing under 0o000 cannot execute there. Probed ONCE at module load — never
+ * per-test, never inside an assertion — so the one test that depends on it can
+ * be marked SKIPPED for this environment via `it.skipIf`, an honest, explicit
+ * non-execution rather than a passing assertion about a branch never taken.
+ */
+function probeEnforcesFilePermissions(): boolean {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-permcheck-'));
+  const probe = path.join(dir, 'probe.txt');
+  writeFileSync(probe, 'x');
+  chmodSync(probe, 0o000);
+  let enforced = false;
+  try {
+    readFileSync(probe, 'utf8');
+  } catch {
+    enforced = true;
+  }
+  chmodSync(probe, 0o644); // restore so rmSync can remove it
+  rmSync(dir, { recursive: true, force: true });
+  return enforced;
+}
+const ENFORCES_FILE_PERMISSIONS = probeEnforcesFilePermissions();
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'e2e-lifecycle');
 const distExists = existsSync(BIN_PATH);
 
@@ -210,7 +238,7 @@ describe('buildOwnFiles via runStructureAspect — every branch', () => {
   async function listFiles(aspectId: string, nodePath: string, graph: ReturnType<typeof buildTestGraphForStructure>): Promise<string[]> {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects', aspectId),
-      aspectId, nodePath, graph, projectRoot,
+      aspectId, unit: { kind: 'node', nodePath }, graph, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     return r.violations.map((v) => v.message).sort();
@@ -331,50 +359,37 @@ describe('buildOwnFiles via runStructureAspect — every branch', () => {
     expect(files).toEqual(['src/note.txt']);
   });
 
-  it('unreadable skip — a file that stat()s as a file but readFileSync rejects is silently dropped', async () => {
-    // To reach the `try { readFileSync } catch { continue }` branch inside
-    // buildOwnFiles, the path must SURVIVE expandMappingPaths (its stat()
-    // succeeds — the file exists and is enumerated as a regular file) yet FAIL
-    // readFileSync. A chmod-000 file does exactly that: stat() (used by the
-    // directory walk) succeeds, but reading it throws EACCES. We assert the
-    // precondition first so the test self-documents that the catch branch is
-    // genuinely the path taken (and skips cleanly if the runtime can read it,
-    // e.g. under root, rather than silently passing on a different branch).
-    const fsmod = await import('node:fs');
-    const locked = path.join(projectRoot, 'src/locked.ts');
-    writeFileSync(path.join(projectRoot, 'src/a.ts'), 'export const a = 1;');
-    writeFileSync(locked, 'export const l = 1;');
-    fsmod.chmodSync(locked, 0o000);
-
-    // Precondition: confirm readFileSync actually fails for this file in this
-    // environment. If it does not (privileged runtime ignores mode bits), the
-    // catch branch is unreachable here — restore mode, clean up, and skip.
-    let unreadable = false;
-    try {
-      fsmod.readFileSync(locked, 'utf8');
-    } catch {
-      unreadable = true;
-    }
-    if (!unreadable) {
-      fsmod.chmodSync(locked, 0o644); // let afterEach rmSync succeed
-      // Privileged runtime: branch not reachable. Assert nothing false.
-      expect(unreadable).toBe(false);
-      return;
-    }
-
-    try {
-      await writeListAspect('unread');
-      const g = buildTestGraphForStructure({
-        nodes: [{ path: 'N', type: 'module', mapping: ['src'] }],
-      });
-      const files = await listFiles('unread', 'N', g);
-      // locked.ts hit the readFileSync catch -> skipped; a.ts included.
-      expect(files).toEqual(['src/a.ts']);
-    } finally {
-      // Restore mode so afterEach's recursive rmSync can remove the tree.
-      fsmod.chmodSync(locked, 0o644);
-    }
-  });
+  // To reach the `try { readFileSync } catch { continue }` branch inside
+  // buildOwnFiles, the path must SURVIVE expandMappingPaths (its stat()
+  // succeeds — the file exists and is enumerated as a regular file) yet FAIL
+  // readFileSync. A chmod-000 file does exactly that: stat() (used by the
+  // directory walk) succeeds, but reading it throws EACCES — except under a
+  // privileged runtime (root, some containers) that ignores mode bits
+  // entirely, where the branch this test targets is simply unreachable.
+  // ENFORCES_FILE_PERMISSIONS is probed once at module load (not inside the
+  // test) so that case is an honest, explicit SKIP rather than a passing
+  // assertion about a branch this environment never takes.
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)(
+    'unreadable skip — a file that stat()s as a file but readFileSync rejects is silently dropped',
+    async () => {
+      const locked = path.join(projectRoot, 'src/locked.ts');
+      writeFileSync(path.join(projectRoot, 'src/a.ts'), 'export const a = 1;');
+      writeFileSync(locked, 'export const l = 1;');
+      chmodSync(locked, 0o000);
+      try {
+        await writeListAspect('unread');
+        const g = buildTestGraphForStructure({
+          nodes: [{ path: 'N', type: 'module', mapping: ['src'] }],
+        });
+        const files = await listFiles('unread', 'N', g);
+        // locked.ts hit the readFileSync catch -> skipped; a.ts included.
+        expect(files).toEqual(['src/a.ts']);
+      } finally {
+        // Restore mode so afterEach's recursive rmSync can remove the tree.
+        chmodSync(locked, 0o644);
+      }
+    },
+  );
 
   it('included branch records touchedFiles — touchedFiles mirror ctx.files', async () => {
     writeFileSync(path.join(projectRoot, 'src/a.ts'), 'export const a = 1;');
@@ -383,7 +398,7 @@ describe('buildOwnFiles via runStructureAspect — every branch', () => {
     const g = buildTestGraphForStructure({ nodes: [{ path: 'N', type: 'module', mapping: ['src'] }] });
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/touched'),
-      aspectId: 'touched', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'touched', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.succeeded).toBe(true);
     expect([...r.touchedFiles].sort()).toEqual(['src/a.ts', 'src/b.ts']);

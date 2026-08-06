@@ -1,6 +1,17 @@
 name: LockTypes
 type: types
-description: Content-addressed lock file types — LockFile, VerdictEntry, LockNodeEntry, and unit-key helpers for the single committed verdict store that replaces per-node drift-state baselines.
+description: >-
+  Content-addressed lock file types — LockFile, VerdictEntry, LockNodeEntry, and
+  unit-key helpers for the single committed verdict store that replaces per-node
+  drift-state baselines. Every CLI surface that classifies a pair (yg check, yg
+  owner --file, yg context --file, yg tree, the portal) does so through a genuine
+  re-verification (core/verify-lock.ts's verifyPairs, which recomputes a pair's
+  current input hash and so catches a stale entry, not only a missing one) —
+  yg tree and the portal were the last two measured onto that path (bounded, well
+  under yg check's own full-project pass for yg tree; already-held for the
+  portal, which runs that verification anyway for its other counts), so this
+  module now holds only the lock's data shapes, no cheaper presence-only
+  approximation of its own.
 aspects: []
 relations: []
 mapping:

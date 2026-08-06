@@ -1,0 +1,55 @@
+name: Reviewer Dispatch
+type: reviewer-dispatch
+description: "The reviewer-facing half of the fill stage — the only place a
+  verdict is actually asked of a model. Groups a run's fillable LLM pairs by
+  resolved tier so availability is probed once per tier instead of once per
+  pair, stands up one provider per tier, and runs the group through a bounded
+  pool while a single pair's consensus votes stay sequential in-slot. Per pair
+  it loads subject and reference bytes byte-identically to the verifier,
+  resolves companions and this aspect's suppressed line ranges before spending
+  anything, measures the assembled prompt against the tier's ceiling, casts the
+  consensus votes, and folds the result into a content-addressed verdict entry.
+  Fail-closed throughout: an unresolvable tier, an unreachable provider, an
+  unreadable reference, a reasonless suppress marker, a companion that will not
+  resolve, an over-limit prompt, or a provider-sourced error each return a
+  disposition that writes NOTHING and leaves the pair unverified — only a real
+  code judgement becomes a verdict. It owns no lock state of its own: the
+  orchestrator hands it the writer, and each verdict is persisted the moment its
+  pair completes so an interrupted run keeps the work already paid for."
+aspects:
+  - posix-paths-output
+  - what-why-next
+  - diagnostic-logging
+  - provider-redaction-cascade
+relations:
+  - target: cli/core/fill-support
+    type: calls
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/core/reviewer-tiers
+    type: calls
+  - target: cli/core/companion-resolve
+    type: calls
+  - target: cli/core/pair-hash
+    type: calls
+  - target: cli/core/pair-inputs
+    type: calls
+  - target: cli/llm/registry
+    type: calls
+  - target: cli/llm/shared
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/structure
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/lock
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/core/fill-llm-phase.ts
+  - source/cli/src/core/fill-llm.ts

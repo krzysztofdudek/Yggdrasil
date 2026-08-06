@@ -197,6 +197,56 @@ export function tunnelSpans(
     }));
 }
 
+/**
+ * Depth/LCA functions for a WIDENED universe, where some edge endpoints are real
+ * architecture-node ids (measured by their true hierarchy depth) and others are
+ * type-covered file paths that happen to share the same `/`-delimited string
+ * space but carry no architecture position of their own. `depthOfPath` on a file
+ * id would instead measure its INCIDENTAL directory nesting — a different, and
+ * typically much deeper, unit than a node's hierarchy depth (a real project's
+ * node ids stay shallow by design; its source tree does not). Ranking spans
+ * computed from the two units side by side lets filesystem nesting alone
+ * outrank a genuine architectural tunnel, which is exactly the confusion the
+ * tunnels section must not present.
+ *
+ * A file id (anything not in `realNodeIds`) is fixed at depth 1 — the shallowest
+ * meaningful level, the same as any bare top-level node — rather than its raw
+ * segment count. Its LCA with anything is capped at `min(depthOf(a), depthOf(b))`
+ * so the span formula never goes negative (an LCA can never exceed either
+ * endpoint's own depth). When every id in play belongs to `realNodeIds` this
+ * reduces to exactly `depthOfPath` / `lcaDepthOfPaths` — byte-identical spans to
+ * the node-only universe.
+ */
+export function widenedTunnelMetrics(realNodeIds: ReadonlySet<string>): {
+  depthOf: (id: string) => number;
+  lcaDepth: (a: string, b: string) => number;
+} {
+  const depthOf = (id: string): number => (realNodeIds.has(id) ? depthOfPath(id) : 1);
+  const lcaDepth = (a: string, b: string): number =>
+    Math.min(depthOf(a), depthOf(b), lcaDepthOfPaths(a, b));
+  return { depthOf, lcaDepth };
+}
+
+/**
+ * Rank edges by hierarchy span, widest first, ties broken by (from, to) —
+ * the SAME ranking both `yg structure` and the portal's structure panel apply
+ * before slicing to `TOP_TUNNELS`, so the two surfaces can never compute the
+ * tunnels ranking two different ways.
+ */
+export function rankTunnels(
+  edges: StructEdge[],
+  depthOf: (id: string) => number,
+  lcaDepth: (a: string, b: string) => number,
+): Array<StructEdge & { span: number }> {
+  const spanned = tunnelSpans(edges, depthOf, lcaDepth);
+  return [...spanned].sort((a, b) => {
+    if (b.span !== a.span) return b.span - a.span;
+    if (a.from !== b.from) return a.from < b.from ? -1 : 1;
+    if (a.to !== b.to) return a.to < b.to ? -1 : 1;
+    return 0;
+  });
+}
+
 // ---------------------------------------------------------------------------
 // quotientAtDepth
 // ---------------------------------------------------------------------------

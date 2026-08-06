@@ -22,3 +22,11 @@ The waiver-inventory command now derives which files can hold a honored waiver f
 The suppressions command now imports the file-eligibility helper from the focused unit that owns that rule rather than from the scan module, following the split that keeps each backend file to one responsibility. Behavior is unchanged: the command still lists exactly the markers the reviewer can honor, including those in mapped documentation or data files.
 ## [2026-07-10T08:10:36.220Z]
 The suppression inventory command now derives the set of rules labeled as only ever firing on provable violations and passes it into the scan so a waiver that silences one is flagged. Silencing a rule that produces no false positives by design is a footgun worth surfacing to a reader; the command supplies the set and keeps the scan itself free of policy.
+## [2026-07-31T04:22:16.040Z]
+The inventory now classifies the architecture type-level coverage lattice and treats any file it covers as a live waiver site, exempt from the noise filter the same way a mapped node source already is. Previously a marker on a file enforced only by its architecture type, including a documentation file the noise filter would otherwise drop by extension, could silently waive an enforced rule while this command reported no active markers at all.
+## [2026-07-31T12:04:34.229Z]
+Threads the adopter's coverage.excluded config into the audit-universe scan alongside the existing nested-project boundary, so the inventory this command prints agrees with the same exclusion authority enforcement now honors.
+## [2026-08-02T12:05:04.781Z]
+Now calls computeTypeCoverageCached instead of computeTypeCoverage, so yg suppressions benefits from the persistent on-disk type-classification cache instead of paying full classification cost every invocation.
+## [2026-08-03T00:22:38.394Z]
+This command's own repo walk, and the parameter of its type-coverage helper that receives it, were both named gitFiles. Renamed both to repoFiles -- the walk this command runs is a plain, gitignore-aware disk scan, never a git-tracked-file list.

@@ -17,9 +17,10 @@
  *   - BEST-EFFORT — a write failure is swallowed to the debug log; a check never fails
  *     because the index could not be written (the index is attention, not law).
  *   - SPARSE — only files with at least one admitted deviation are written.
- *   - TRACKED-ONLY — it considers only the repository's git-tracked, graph-governed files (the
- *     universe the coverage layer governs); a gitignored / scratch / nested-worktree file that
- *     merely falls under a mapped ancestor directory is never flagged. When no git file set is
+ *   - COVERAGE-VISIBLE-ONLY — it considers only the repository's disk-walked, graph-governed files
+ *     (the same `walkRepoFiles` universe the coverage layer governs, gitignore-aware but
+ *     git-independent); a gitignored / scratch / nested-worktree file that merely falls under a
+ *     mapped ancestor directory is never flagged. When no coverage-visible file list is
  *     available, NO index is written (unknown scoping ≠ an empty or unfiltered one).
  *
  * ## Robust statistics only
@@ -68,6 +69,7 @@ import {
   FEATURE_FIELD_VERSION,
   FEATURE_FIELD_FILENAME,
   type Deviation,
+  type FamilyOwner,
   type FeatureFieldIndex,
 } from './feature-field-schema.js';
 
@@ -76,7 +78,7 @@ import {
 // feature-field-schema.ts — shared with the reader, which may not import this
 // module (the instrument-import fence).
 export { FEATURE_FIELD_VERSION, FEATURE_FIELD_FILENAME };
-export type { Deviation, FeatureFieldIndex };
+export type { Deviation, FamilyOwner, FeatureFieldIndex };
 
 // ── Named admission constants (documented change policy — RZ-21) ─────────────
 
@@ -110,7 +112,8 @@ export const MIN_N = 5;
 
 /** Per-file deviation record produced by {@link computeFamilyDeviations}. */
 export interface FileDeviations {
-  /** `${ownerNodeId}\x00${language}` — the comparison cohort this file belongs to. */
+  /** `${owner.kind}\x00${owner.id}\x00${language}` (see {@link FamilyOwner}) — the
+   *  comparison cohort this file belongs to. */
   family: string;
   /** The file's raw content hash (the pass's hash — the reader's match key). */
   contentHash: string;
@@ -164,11 +167,32 @@ export const DIMS: readonly DimSpec[] = [
   ...ALL_FEATURE_CATEGORIES.map((cat) => ({ dim: cat, get: (fv: FeatureVector) => fv.categories[cat] })),
 ];
 
+/** Plain-language display label per {@link DIMS} dimension, for the calibration
+ *  dump (`core/check.ts`'s `runAttentionDump`) — deliberately NO statistics jargon
+ *  (no "z-score" / "MAD" / "percentile" in any user-facing string). */
+export const DIM_LABEL: Record<string, string> = {
+  nodeCount: 'size',
+  depthQ25: 'nesting (shallow)',
+  depthQ50: 'nesting (middle)',
+  depthQ75: 'nesting (deep)',
+  'function-like': 'functions',
+  'class-like': 'classes',
+  'import-like': 'imports',
+  'branch-like': 'branches',
+  'call-like': 'calls',
+  'literal-like': 'literals',
+};
+
 // ── Family key (single source of truth for the on-disk `family` string) ──────
 
-/** Build the family key: owner node id and extractor language, NUL-joined. */
-export function familyKey(ownerNodeId: string, language: string): string {
-  return `${ownerNodeId}${FAMILY_SEP}${language}`;
+/**
+ * Build the family key: the owner's kind, its id, and the extractor language, all
+ * NUL-joined (see {@link FamilyOwner}). The `kind` segment is what keeps a
+ * node-owned and a type-covered family from ever colliding when the raw node id
+ * and type id happen to be the same string.
+ */
+export function familyKey(owner: FamilyOwner, language: string): string {
+  return `${owner.kind}${FAMILY_SEP}${owner.id}${FAMILY_SEP}${language}`;
 }
 
 /** Round a robust score to 2 decimals for stable, readable storage (admission itself uses
@@ -191,25 +215,28 @@ export interface FamilyMember {
  * ({@link computeFamilyDeviations}) and the calibration dump (`runAttentionDump`) so the two
  * can never drift.
  *
- * `includedPaths` scopes the universe to the repository's TRACKED, graph-governed files (the
- * same set `yg check`'s coverage layer governs — tracked files minus nested-graph subtrees).
- * A file not in that set is skipped even if it has an owner: the relation pass parses every
- * node-mapped file, which can include gitignored scratch or a nested worktree copy that falls
- * under a mapped ancestor directory, and attention must never speak about files the repository
- * does not version. A file with no owner is skipped (uncovered files are a coverage matter, not
- * attention); a file whose extension has no extractor language is skipped (defensive — every
- * `factsByPath` entry has one).
+ * `includedPaths` scopes the universe to the repository's COVERAGE-VISIBLE, graph-governed files
+ * (the same set `yg check`'s coverage layer governs — the `walkRepoFiles` disk walk minus
+ * nested-graph subtrees). A file not in that set is skipped even if it has an owner: the relation
+ * pass parses every node-mapped file, which can include gitignored scratch or a nested worktree
+ * copy that falls under a mapped ancestor directory, and attention must never speak about files
+ * the coverage-visible walk does not surface. `ownerOf` resolves EITHER a node owner or (for a
+ * file no node owns) its matched classifying type (see {@link FamilyOwner}) — a caller that only
+ * ever resolves node ownership (never widened with a type-coverage `covered` map) sees the SAME
+ * node-only universe as before. A file `ownerOf` resolves to neither is skipped
+ * (uncovered/unclassified files are a coverage matter, not attention); a file whose extension has
+ * no extractor language is skipped (defensive — every `factsByPath` entry has one).
  */
 export function groupByFamily(
   factsByPath: Map<string, FileFacts>,
-  ownerOf: (repoRelPosix: string) => string | undefined,
+  ownerOf: (repoRelPosix: string) => FamilyOwner | undefined,
   includedPaths: ReadonlySet<string>,
 ): Map<string, FamilyMember[]> {
   const families = new Map<string, FamilyMember[]>();
   for (const [filePath, facts] of factsByPath) {
-    if (!includedPaths.has(filePath)) continue; // only tracked, graph-governed files
+    if (!includedPaths.has(filePath)) continue; // only coverage-visible, graph-governed files
     const owner = ownerOf(filePath);
-    if (owner === undefined) continue; // uncovered → not attention
+    if (owner === undefined) continue; // no node AND no matched type → not attention
     const language = getLanguageForExtension(path.extname(filePath));
     if (language === null) continue; // no extractor language → cannot form a family (defensive)
     const key = familyKey(owner, language);
@@ -233,12 +260,12 @@ export function groupByFamily(
  * with zero spread within a family is never a deviation.
  *
  * Pure and deterministic: no filesystem access, no clock. `includedPaths` scopes the universe
- * to the repository's tracked, graph-governed files (see {@link groupByFamily}). The
+ * to the repository's coverage-visible, graph-governed files (see {@link groupByFamily}). The
  * synthetic-family unit tests drive this directly.
  */
 export function computeFamilyDeviations(
   factsByPath: Map<string, FileFacts>,
-  ownerOf: (repoRelPosix: string) => string | undefined,
+  ownerOf: (repoRelPosix: string) => FamilyOwner | undefined,
   hashByPath: Map<string, string>,
   includedPaths: ReadonlySet<string>,
 ): Map<string, FileDeviations> {
@@ -279,11 +306,60 @@ export function computeFamilyDeviations(
   return result;
 }
 
+// ── Owner resolution: node first, matched type as fallback ───────────────────
+
+/**
+ * Build the widened owner resolver `writeFeatureIndex` groups families by: a
+ * node-owned file resolves via `nodeOwnerOf` exactly as before; a file `nodeOwnerOf`
+ * cannot resolve falls back to its matched classifying type in `covered` (a
+ * type-covered file, by construction, has no node — that is why it needed a
+ * fallback at all). Neither resolving ⇒ `undefined`, exactly the old contract for
+ * an uncovered/unclassified file. `covered` absent (flag off) ⇒ this degrades to
+ * the SAME node-only resolver as before — no behavior change at flag-off.
+ */
+function combinedOwnerOf(
+  nodeOwnerOf: (repoRelPosix: string) => string | undefined,
+  covered: Map<string, string> | undefined,
+): (repoRelPosix: string) => FamilyOwner | undefined {
+  return (file) => {
+    const nodeId = nodeOwnerOf(file);
+    if (nodeId !== undefined) return { kind: 'node', id: nodeId };
+    const typeId = covered?.get(file);
+    return typeId !== undefined ? { kind: 'type', id: typeId } : undefined;
+  };
+}
+
+/**
+ * Wrap a plain node-only owner resolver (e.g. `buildOwnerIndex(...).ownerOf`) as a
+ * {@link FamilyOwner} resolver that only ever emits `{ kind: 'node', ... }` — for a
+ * caller that deliberately never widens to a type owner (the calibration dump: it
+ * re-calibrates the node-family admission threshold, not the type-covered universe).
+ */
+export function nodeOnlyFamilyOwner(
+  nodeOwnerOf: (repoRelPosix: string) => string | undefined,
+): (repoRelPosix: string) => FamilyOwner | undefined {
+  return (file) => {
+    const nodeId = nodeOwnerOf(file);
+    return nodeId !== undefined ? { kind: 'node', id: nodeId } : undefined;
+  };
+}
+
 // ── Writer (best-effort, atomic, gitignore-self-ensuring) ────────────────────
 
 export interface WriteFeatureIndexOptions {
   /** INJECTED clock stamped into `generatedAt`. Tests pin it; the CLI passes `() => new Date()`. */
   now: () => Date;
+  /**
+   * File → matched classifying type (coverage.type_level), the SAME
+   * `computeTypeCoverage(...).covered` map the type-level lattice already
+   * classified this run. Threaded in so a type-covered file (no owning node) can
+   * still be admitted to a family, keyed by its matched type — without it, the
+   * index silently drops every type-covered file, no matter how structurally
+   * unusual it is, because `buildOwnerIndex` alone can never resolve one. Absent
+   * (flag off, or the caller never classified) ⇒ node-only resolution, exactly
+   * as before — byte-identical to today.
+   */
+  covered?: Map<string, string>;
 }
 
 /**
@@ -301,7 +377,7 @@ export async function writeFeatureIndex(
   opts: WriteFeatureIndexOptions,
 ): Promise<void> {
   try {
-    const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+    const ownerOf = combinedOwnerOf(buildOwnerIndex(graph.nodes).ownerOf, opts.covered);
     const deviations = computeFamilyDeviations(factsByPath, ownerOf, hashByPath, includedPaths);
 
     const files: FeatureFieldIndex['files'] = {};

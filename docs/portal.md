@@ -55,12 +55,35 @@ A row of views down the side, each answering a different question:
 
 - **Overview** — where the repo stands, in one sentence, plus the residue worth a
   look: components with no rule yet, source files not mapped to anything, and any
-  active waivers.
+  active waivers. With `coverage.type_level` on, a file satisfied by the
+  type-level lattice is never counted in "not mapped to anything" — a file whose
+  matched type actually has a rule that applies to it gets its own "satisfied"
+  line instead, so a checked file is never called unguarded. "Satisfied" here
+  means accounted for, not that a verdict has already been reached: the file's
+  own real verdict — verified, refused, or still unverified — sits in the bar on
+  Coverage & audit, not on this line. A type-covered file whose matched
+  type carries no rule at all reads differently again, on its own line, using the
+  same "no rule" treatment as the rest of the unguarded surface — so a file that
+  merely matches a type, with nothing actually checking it, is never shown as
+  satisfied either. A third, rarer case gets its own line too: a file whose
+  matched type's rules an aspect `implies` cycle stopped from ever being resolved
+  is reported as unknown, not as "no rule applies" — the cascade never ran, so
+  the honest answer is that what checks this file could not be worked out, never
+  that nothing does.
 - **Coverage & audit** — the full ledger. Every expected check, every verdict,
   with a single honest bar: the only green is a check a reviewer actually ran and
   approved against the current code. Free local checks and reviewer-judged checks
   are shown apart, and a needs-attention worklist lists what to fix, in priority
-  order.
+  order. With `coverage.type_level` on, every type-covered file is listed by name
+  with the type that covers it — one with an applicable rule under the checked
+  total (its own real verdict sits in the bar above, not on this line), one
+  matched by a type with nothing that applies under its own "checked by nothing"
+  line, and one whose type's rules an aspect `implies` cycle blocked under its
+  own "could not be worked out" line, naming the cycle. Each of these three
+  listings longer than twelve entries is capped, with the remainder summarized as
+  a count. Separately, and regardless of whether `coverage.type_level` is on, a
+  file under a `coverage.excluded` root is listed by name too, in its own,
+  uncapped "deliberately excluded from coverage, never enforced" block.
 
   ![The portal's coverage and audit view — the honest verdict bar over every expected check, with the needs-attention worklist](/portal-coverage.png)
 
@@ -84,7 +107,10 @@ A row of views down the side, each answering a different question:
   component. It is honest about its own limits — if the dependency scan cannot run
   it says the structure is unknown rather than showing an empty graph, and on a
   small project it shows the raw reach figure without over-reading it. Event
-  relations are left out of this picture and the view says so.
+  relations are left out of this picture and the view says so. With
+  `coverage.type_level` on this is the same widened picture `yg structure` prints
+  on the command line — every import touching a type-covered file joins it too,
+  and the reach line says "component or type-covered file" once one does.
 - **Flows** — your business processes, each participant marked with its honest
   state, so a single weak link in a flow is never hidden behind an otherwise-green
   picture.

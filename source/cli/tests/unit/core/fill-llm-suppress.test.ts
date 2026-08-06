@@ -108,7 +108,7 @@ describe('fill-llm: reasonless yg-suppress marker fails closed', () => {
     );
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // Reviewer NEVER called — the marker error fails closed before consensus.
     expect(verifyCalls).toBe(0);
@@ -145,7 +145,7 @@ describe('fill-llm: reasonless yg-suppress marker fails closed', () => {
       }),
     );
 
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     expect(verifyCalls).toBe(1);
     expect(result.reviewerCallsMade).toBe(1);

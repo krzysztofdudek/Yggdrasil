@@ -1,18 +1,22 @@
 import type { Command } from 'commander';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
-import { initDebugLog } from '../utils/debug-log.js';
+import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import type { Graph } from '../model/graph.js';
-import { computeDetectedEdges } from '../portal/api/boundary.js';
+import { computeDetectedEdges, computeTypedEdges } from '../portal/api/boundary.js';
+import { walkRepoFiles } from '../io/repo-scanner.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 import {
   edgeUniverse,
-  tunnelSpans,
   quotientAtDepth,
   changeReach,
   depthOfPath,
-  lcaDepthOfPaths,
   ancestorAtDepth,
+  widenedTunnelMetrics,
+  rankTunnels,
   TOP_TUNNELS,
   type DeclaredRelation,
   type StructEdge,
@@ -111,8 +115,14 @@ export function cyclePhrase(interBlockCount: number, sccOutsideShare: number): s
   );
 }
 
-/** Section 1 — the widest-spanning tunnels, named in words. */
-function renderTunnels(edges: StructEdge[]): string[] {
+/**
+ * Section 1 — the widest-spanning tunnels, named in words. `realNodeIds` is the
+ * graph's own node id set — used to tell a real architecture node apart from a
+ * type-covered file sharing the same widened id space, so the two are ranked in
+ * the SAME comparable unit rather than a node's hierarchy depth against a
+ * file's incidental directory nesting (see `widenedTunnelMetrics`'s own doc).
+ */
+function renderTunnels(edges: StructEdge[], realNodeIds: ReadonlySet<string>): string[] {
   const lines: string[] = [];
   lines.push('Tunnels — dependencies that reach farthest across the hierarchy');
   lines.push('');
@@ -122,14 +132,8 @@ function renderTunnels(edges: StructEdge[]): string[] {
     return lines;
   }
 
-  const spanned = tunnelSpans(edges, depthOfPath, lcaDepthOfPaths);
-  // Widest span first; ties broken by (from, to) so the ranking is stable.
-  const ranked = [...spanned].sort((a, b) => {
-    if (b.span !== a.span) return b.span - a.span;
-    if (a.from !== b.from) return a.from < b.from ? -1 : 1;
-    if (a.to !== b.to) return a.to < b.to ? -1 : 1;
-    return 0;
-  });
+  const { depthOf, lcaDepth } = widenedTunnelMetrics(realNodeIds);
+  const ranked = rankTunnels(edges, depthOf, lcaDepth);
 
   for (const e of ranked.slice(0, TOP_TUNNELS)) {
     const contract = e.viaContract ? 'via declared contract' : 'no declared contract';
@@ -138,14 +142,29 @@ function renderTunnels(edges: StructEdge[]): string[] {
   return lines;
 }
 
-/** Section 2 — how groups at each depth of the tree depend on one another. */
-function renderModules(edges: StructEdge[]): string[] {
+/**
+ * Section 2 — how groups at each depth of the tree depend on one another.
+ * `hasTypeCovered` mirrors `renderChangeReach`'s own flag: once the widened
+ * universe (below) folds a type-covered file's path into these groups, calling
+ * every group a "component" group would name a file a component — this
+ * command's own jargon-free-language rule, applied here the same way it
+ * already is in the change-reach caption. False (the default) renders
+ * byte-identical to today.
+ */
+function renderModules(edges: StructEdge[], hasTypeCovered: boolean): string[] {
   const lines: string[] = [];
-  lines.push('Modules — how component groups at each level depend on one another');
+  const heading = hasTypeCovered
+    ? 'Modules — how groups of components and type-covered files at each level depend on one another'
+    : 'Modules — how component groups at each level depend on one another';
+  lines.push(heading);
   lines.push('');
 
   if (edges.length === 0) {
-    lines.push('  No dependencies between component groups yet.');
+    lines.push(
+      hasTypeCovered
+        ? '  No dependencies between groups yet.'
+        : '  No dependencies between component groups yet.',
+    );
     return lines;
   }
 
@@ -179,32 +198,98 @@ function renderModules(edges: StructEdge[]): string[] {
   return lines;
 }
 
-/** Section 3 — the average forward reachability across the system. */
-function renderChangeReach(edges: StructEdge[], nodeIds: string[]): string[] {
+/**
+ * Section 3 — the average forward reachability across the system. `hasTypeCovered`
+ * is true only when the widened universe (below) actually added a type-covered
+ * file to `nodeIds` — the wording then says so, rather than calling a file a
+ * "component" (this command's own jargon-free-language rule). Flag-off (or a
+ * flag-on run with zero type-covered files) always passes false, so the phrase
+ * stays byte-identical to today.
+ */
+function renderChangeReach(edges: StructEdge[], nodeIds: string[], hasTypeCovered: boolean): string[] {
   const { mean } = changeReach(edges, nodeIds);
   const pct = Math.round(mean * 100);
+  const subject = hasTypeCovered ? 'component or type-covered file' : 'component';
   return [
     'Change reach',
     '',
-    `  From an average component, ${pct}% of the system is reachable through dependencies.`,
+    `  From an average ${subject}, ${pct}% of the system is reachable through dependencies.`,
   ];
+}
+
+/** The type-level augmentation `renderStructure` merges in — see its own doc. */
+export interface StructureTypeWidening {
+  edges: StructEdge[];
+  nodeIds: string[];
+  hasTypeCovered: boolean;
+}
+
+/** A widening with nothing to add — the shared flag-off / zero-classifying-types value. */
+const NO_WIDENING: StructureTypeWidening = { edges: [], nodeIds: [], hasTypeCovered: false };
+
+/**
+ * Compute the type-level widening: at `coverage.type_level` on, the structural
+ * universe gains every statically-resolved import edge touching a type-covered
+ * file (the live type-relation gate's own edge set, translated to the same id
+ * space `edgeUniverse` already uses) and every type-covered file joins
+ * `nodeIds` — file paths are `/`-delimited too, so the hierarchy math
+ * (`depthOfPath` / `ancestorAtDepth` / `lcaDepthOfPaths`) walks them exactly
+ * like a node path, with no separate id space needed. Flag-off (or zero
+ * classifying types matched) returns the shared empty widening, so a caller
+ * that skips this function entirely and a caller that calls it and gets
+ * nothing back render identically.
+ *
+ * `yg structure` is READ-ONLY and never gates (its own doc comment above) —
+ * nothing this function calls may ever crash the command. The known failure
+ * modes degrade UPSTREAM of this try/catch, not inside it: a malformed
+ * `when:` predicate (an invalid regex, for example) is caught by
+ * classification itself, which reports zero matches rather than throwing, so
+ * `coverage.covered.size === 0` above already returns `NO_WIDENING` before
+ * any exception could reach this function's own catch. The try/catch is the
+ * defense-in-depth backstop for a failure neither producer fails closed on —
+ * the SAME fail-open contract `computeDetectedEdges` already applies to the
+ * relation pass — so a future failure mode that DOES throw still degrades to
+ * the node-only view instead of crashing a read-only command.
+ */
+async function computeTypeWidening(graph: Graph, projectRoot: string): Promise<StructureTypeWidening> {
+  if (!graph.config.coverage?.typeLevel) return NO_WIDENING;
+  try {
+    const files = await walkRepoFiles(projectRoot);
+    const uncovered = scanUncoveredFiles(graph, files);
+    const coverage = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
+    if (coverage.covered.size === 0) return NO_WIDENING;
+    const typedEdges = await computeTypedEdges(graph, projectRoot, coverage.covered);
+    return { edges: typedEdges, nodeIds: [...coverage.covered.keys()], hasTypeCovered: true };
+  } catch (err) {
+    debugWrite(`[structure] computeTypeWidening: type-level classification or edge resolution failed, degrading to node-only view: ${err instanceof Error ? err.message : String(err)}`);
+    return NO_WIDENING;
+  }
 }
 
 /**
  * Assemble the full dashboard from the loaded graph and the (possibly empty)
  * detected-edge map. Pure — no I/O — so it is unit-testable and deterministic:
- * every collection the metrics core returns is sorted by node id.
+ * every collection the metrics core returns is sorted by node id. `widened` is
+ * the OPTIONAL type-level augmentation (edges + extra nodeIds + the wording
+ * flag) — omitted, it is exactly today's node-only rendering, byte-identical.
  */
-export function renderStructure(graph: Graph, detected: Map<string, Set<string>>): string {
+export function renderStructure(
+  graph: Graph,
+  detected: Map<string, Set<string>>,
+  widened?: StructureTypeWidening,
+): string {
   const declared = collectDeclaredRelations(graph);
-  const edges = edgeUniverse(declared, detected);
-  const nodeIds = [...graph.nodes.keys()];
+  const baseEdges = edgeUniverse(declared, detected);
+  const baseNodeIds = [...graph.nodes.keys()];
+  const edges = widened ? [...baseEdges, ...widened.edges] : baseEdges;
+  const nodeIds = widened ? [...baseNodeIds, ...widened.nodeIds] : baseNodeIds;
+  const hasTypeCovered = widened?.hasTypeCovered ?? false;
 
   const sections: string[][] = [
     ['Structure', '', EDGE_UNIVERSE_LEGEND],
-    renderTunnels(edges),
-    renderModules(edges),
-    renderChangeReach(edges, nodeIds),
+    renderTunnels(edges, new Set(baseNodeIds)),
+    renderModules(edges, hasTypeCovered),
+    renderChangeReach(edges, nodeIds, hasTypeCovered),
   ];
 
   return sections.map((s) => s.join('\n')).join('\n\n') + '\n';
@@ -234,7 +319,8 @@ export async function computeStructuralEdgeUniverse(
   const declared = collectDeclaredRelations(graph);
   const edges = edgeUniverse(declared, detected);
   const nodeIds = [...graph.nodes.keys()];
-  return { nodeIds, edges };
+  const widening = await computeTypeWidening(graph, projectRoot);
+  return { nodeIds: [...nodeIds, ...widening.nodeIds], edges: [...edges, ...widening.edges] };
 }
 
 export function registerStructureCommand(program: Command): void {
@@ -253,8 +339,9 @@ export function registerStructureCommand(program: Command): void {
         // (still an honest subset of the universe) rather than fail the command.
         const projectRoot = path.dirname(graph.rootPath);
         const detected = (await computeDetectedEdges(graph, projectRoot)) ?? new Map();
+        const widening = await computeTypeWidening(graph, projectRoot);
 
-        process.stdout.write(renderStructure(graph, detected));
+        process.stdout.write(renderStructure(graph, detected, widening));
       } catch (error) {
         abortOnUnexpectedError(error, 'rendering the structural dashboard');
       }

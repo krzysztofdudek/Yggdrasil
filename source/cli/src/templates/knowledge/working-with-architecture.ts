@@ -72,6 +72,20 @@ of this type must satisfy \`when\` — and strict backward — every file in the
 repo matching \`when\` must be in a mapping of this type (and of the right
 type). Closes the type-shopping evasion entirely for the type.
 
+Treat it as a per-type graduation dial, not a repo-wide milestone: flip it
+on the one or two types where an explicit, reviewable node has to exist
+every time, and leave the rest alone. This holds even when
+\`coverage.type_level\` is on for the rest of the architecture — the backward
+scan only ever accepts an explicit node's mapping as proof of coverage,
+never the type-level lattice, so a strict type never lets a matching file
+coast on automatic type coverage the way a non-strict type's files do.
+
+The backward check honors \`coverage.excluded\` like every other coverage
+question: a file under an excluded root is never a \`type-strict-orphan\` or
+\`type-strict-misplaced\` candidate, even when it matches \`when\`. An excluded
+path is gone from this graph's coverage entirely, not merely from the
+ordinary required/advisory tiering.
+
 Don't use \`enforce: strict\` when the \`when\` predicate is broad (e.g.
 \`path: "**"\`) — every repo file would be required in that type's mapping.
 
@@ -112,7 +126,10 @@ yg type-suggest --file src/orders/handler.ts
 \`\`\`
 
 Output shows matching types (✓), closest non-matching types ranked by
-predicate satisfaction fraction, or edge-case messages for files inside
+predicate satisfaction fraction, types whose \`content:\` predicate could not
+be evaluated at all (e.g. the file exceeds the content-scan size limit —
+listed separately as unreadable rather than folded into a non-match, and
+never implying the file is blocked), or edge-case messages for files inside
 \`.yggdrasil/\` or for non-existent files (path-only check).
 
 Run this whenever you add or modify a type's \`when\` predicate and want

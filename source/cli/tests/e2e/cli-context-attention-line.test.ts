@@ -68,6 +68,30 @@ function makeFixture(label: string, opts: { signalsOff?: boolean } = {}): string
   return dir;
 }
 
+/**
+ * A TYPE-COVERED variant of makeFixture: no node at all, just a non-strict
+ * classifying type `svc` matching `src/svc/**` with `coverage.type_level: true` —
+ * the SAME six-file branch-count pattern, so file5 is the identical outlier, but
+ * every file is compared within its matched TYPE'S family, never a node's (there
+ * is none to compare against here).
+ */
+function makeTypeCoveredFixture(label: string): string {
+  const dir = mkdtempSync(path.join(tmpdir(), `yg-ctx-attn-typed-${label}-`));
+  w(
+    dir,
+    '.yggdrasil/yg-architecture.yaml',
+    `node_types:\n  svc:\n    description: 'a non-strict classifying type'\n    log_required: false\n    when:\n      path: "src/svc/**"\n`,
+  );
+  w(
+    dir,
+    '.yggdrasil/yg-config.yaml',
+    `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\ncoverage:\n  type_level: true\n`,
+  );
+  mkdirSync(path.join(dir, '.yggdrasil', 'model'), { recursive: true });
+  [1, 2, 3, 2, 1, 50].forEach((n, i) => w(dir, `src/svc/file${i}.ts`, tsFileWithIfs(n)));
+  return dir;
+}
+
 function gitInit(dir: string): void {
   const git = (args: string[]) => spawnSync('git', args, { cwd: dir, encoding: 'utf-8' });
   git(['init', '-q']);
@@ -142,6 +166,25 @@ describe.skipIf(!distExists)('CLI E2E — yg context --file advisory attention l
       const ctx = run(['context', '--file', 'src/svc/file5.ts'], dir);
       expect(ctx.status).toBe(0);
       expect(ctx.stdout).not.toContain('structurally unusual');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("5. a type-covered file (no owning node) names its matched TYPE, never a node, in the note", () => {
+    const dir = makeTypeCoveredFixture('live');
+    try {
+      gitInit(dir);
+      const check = run(['check'], dir);
+      expect(check.status).toBe(0);
+
+      const ctx = run(['context', '--file', 'src/svc/file5.ts'], dir);
+      expect(ctx.status).toBe(0); // never blocks
+      expect(ctx.stdout).toContain(
+        "This file is structurally unusual among this file's matched type's other TypeScript files — worth a closer read; no action required.",
+      );
+      // Never claims a node owns the comparison — there is none in this fixture.
+      expect(ctx.stdout).not.toContain("this node's other");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

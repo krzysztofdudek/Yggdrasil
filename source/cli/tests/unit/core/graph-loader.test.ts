@@ -33,12 +33,12 @@ describe('loadGraph version gate', () => {
       expect(e).toBeInstanceOf(UnsupportedSchemaVersionError);
       const err = e as UnsupportedSchemaVersionError;
       expect(err.detectedVersion).toBe('6.0.0');
-      expect(err.maxSupportedVersion).toBe('5.1.0');
+      expect(err.maxSupportedVersion).toBe('5.2.0');
     });
   });
 
   it('loads when version equals the supported schema', async () => {
-    writeFileSync(join(tmpRoot, '.yggdrasil', 'yg-config.yaml'), 'version: "5.1.0"\n');
+    writeFileSync(join(tmpRoot, '.yggdrasil', 'yg-config.yaml'), 'version: "5.2.0"\n');
     await expect(loadGraph(tmpRoot)).resolves.toBeDefined();
   });
 
@@ -59,7 +59,7 @@ describe('loadGraph version gate', () => {
   it('does not trip the malformed guard on legitimate pre-release semver', async () => {
     // A pre-release like "5.1.0-beta.1" IS valid semver (valid() accepts it), so
     // it must reach the real gt/lt gates — not the malformed-version guard. Being
-    // a pre-release it sorts below 5.1.0, so it lands on the OUTDATED gate.
+    // a pre-release it sorts below 5.2.0, so it lands on the OUTDATED gate.
     writeFileSync(join(tmpRoot, '.yggdrasil', 'yg-config.yaml'), 'version: "5.1.0-beta.1"\n');
     await expect(loadGraph(tmpRoot)).rejects.toBeInstanceOf(OutdatedSchemaVersionError);
     await expect(loadGraph(tmpRoot)).rejects.not.toBeInstanceOf(MalformedSchemaVersionError);
@@ -74,7 +74,22 @@ describe('loadGraph version gate', () => {
       expect(e).toBeInstanceOf(OutdatedSchemaVersionError);
       const err = e as OutdatedSchemaVersionError;
       expect(err.detectedVersion).toBe('4.3.0');
-      expect(err.minSupportedVersion).toBe('5.1.0');
+      expect(err.minSupportedVersion).toBe('5.2.0');
+    });
+  });
+
+  it('refuses to load a project still pinned to the prior supported schema (5.1.0)', async () => {
+    // The 5.2.0 bump added no transforming migration — a project left at 5.1.0
+    // must be refused by the same older-than-CLI gate as any other outdated
+    // version, pointing at `yg init --upgrade` (which lifts it with no
+    // transformation needed).
+    writeFileSync(join(tmpRoot, '.yggdrasil', 'yg-config.yaml'), 'version: "5.1.0"\n');
+    await expect(loadGraph(tmpRoot)).rejects.toBeInstanceOf(OutdatedSchemaVersionError);
+    await loadGraph(tmpRoot).catch((e: unknown) => {
+      expect(e).toBeInstanceOf(OutdatedSchemaVersionError);
+      const err = e as OutdatedSchemaVersionError;
+      expect(err.detectedVersion).toBe('5.1.0');
+      expect(err.minSupportedVersion).toBe('5.2.0');
     });
   });
 });
@@ -86,7 +101,7 @@ describe('graph-loader', () => {
     await mkdir(yggRoot, { recursive: true });
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'version: "5.1.0"',
+      'version: "5.2.0"',
       'utf-8',
     );
 
@@ -219,7 +234,7 @@ describe('graph-loader', () => {
     await mkdir(path.join(modelDir, 'svc', 'empty-dir'), { recursive: true });
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'version: "5.1.0"',
+      'version: "5.2.0"',
     );
     await writeFile(path.join(modelDir, 'svc', 'yg-node.yaml'), 'name: Svc\ntype: module\n');
     await writeFile(
@@ -246,7 +261,7 @@ describe('graph-loader', () => {
     await writeFile(path.join(yggRoot, 'aspects'), 'not-a-dir', 'utf-8');
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'version: "5.1.0"',
+      'version: "5.2.0"',
     );
     await writeFile(path.join(modelDir, 'yg-node.yaml'), 'name: S\ntype: service\n');
 
@@ -267,7 +282,7 @@ describe('graph-loader', () => {
     await mkdir(modelDir, { recursive: true });
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'version: "5.1.0"',
+      'version: "5.2.0"',
     );
     await writeFile(path.join(modelDir, 'yg-node.yaml'), 'name: S\ntype: service\n');
     // No aspects/, flows/, schemas/ dirs
@@ -291,7 +306,7 @@ describe('graph-loader', () => {
     const drillDir = path.join(aspectDir, 'drills', 'violates-x');
     await mkdir(modelDir, { recursive: true });
     await mkdir(drillDir, { recursive: true });
-    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"');
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"');
     await writeFile(path.join(modelDir, 'yg-node.yaml'), 'name: S\ntype: service\n');
     // A real, fully-valid deterministic aspect — this one MUST register.
     await writeFile(

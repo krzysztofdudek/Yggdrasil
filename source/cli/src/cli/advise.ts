@@ -17,20 +17,24 @@ import {
   type ArchitectureCutCycle,
   type FamilyCandidatesData,
 } from '../core/advise-nominations.js';
-import { countChurnByNode, ownerOfForGraph } from '../core/node-churn.js';
+import { countChurnByNode, countChurnByTypeCoveredFile, ownerOfForGraph, type OwnerOf } from '../core/node-churn.js';
 import { applyDecisions, type VisibleNomination } from '../core/advise-feed.js';
 import { groupUnitsByAspect } from '../core/aspect-health-signals.js';
 import { computeExpectedPairs } from '../core/pairs.js';
+import type { TypeCoverageInput } from '../core/pairs.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { computeTypeCoverageCached } from '../core/type-coverage.js';
+import { FileContentCache } from '../io/file-content-cache.js';
 import { appendDecision, readDecisions, type AdviseDecision } from '../io/advise-decisions-store.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
 import { filterInCorpusDevDrills } from '../core/drill-runner.js';
 import type { DrillResultLine } from '../io/drill-results-store.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { countIncidents } from '../io/incidents-store.js';
-import { walkRepoFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runSuppressionsScan, scanPortalSuppressions } from '../portal/api/suppress-scan.js';
-import { collectMappingEntries } from '../portal/api/suppress-eligibility.js';
-import { computeDetectedEdges } from '../portal/api/boundary.js';
+import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/suppress-eligibility.js';
+import { computePortalBoundary } from '../portal/api/boundary.js';
 import {
   edgeUniverse,
   tunnelSpans,
@@ -103,29 +107,9 @@ function collectDeclaredRelations(graph: Graph): DeclaredRelation[] {
   return out;
 }
 
-/**
- * The C7 tunnel count for the Attention line. `yg structure` ranks the structural
- * edge universe (declared structural relations ∪ statically detected dependencies;
- * event relations excluded) by span and DISPLAYS only the widest TOP_TUNNELS of
- * them. The attention line points the reader straight at that view — "run yg
- * structure to see them" — so it must report exactly what structure lists, not the
- * full edge universe: the count is min(TOP_TUNNELS, number of tunnels), using the
- * SAME shared constant structure slices by, so the two can never drift. Any
- * failure degrades to 0 (the line is simply omitted) so the attention computation
- * can never break the exit-0 invariant (G4).
- */
-async function computeTunnelCount(graph: Graph): Promise<number> {
-  try {
-    const projectRoot = path.dirname(graph.rootPath);
-    const detected = (await computeDetectedEdges(graph, projectRoot)) ?? new Map();
-    const edges = edgeUniverse(collectDeclaredRelations(graph), detected);
-    const tunnels = tunnelSpans(edges, depthOfPath, lcaDepthOfPaths).length;
-    return Math.min(TOP_TUNNELS, tunnels);
-  } catch (error) {
-    debugWrite(`[advise] tunnel-count degraded to 0: ${(error as Error).message}`);
-    return 0;
-  }
-}
+// computeTunnelCount was folded into gatherRelationBoundary (below) so the C7
+// tunnel count and the type-covered-churn cluster edges share ONE relation
+// pass instead of two — see gatherRelationBoundary's own doc.
 
 /**
  * The family-without-law candidates (T2 class A) at the CLI boundary: read the
@@ -223,18 +207,27 @@ interface SuppressData {
   counts: Map<string, number>;
 }
 
-async function gatherSuppressData(graph: Graph, projectRoot: string): Promise<SuppressData | undefined> {
+async function gatherSuppressData(
+  graph: Graph,
+  projectRoot: string,
+  typeCoverage: TypeCoverageInput | undefined,
+): Promise<SuppressData | undefined> {
   try {
-    const gitFiles = await walkRepoFiles(projectRoot);
+    const repoFiles = await walkRepoFiles(projectRoot);
     const knownAspectIds = new Set(graph.aspects.map((a) => a.id));
     const draftAspectIds = new Set(
       graph.aspects.filter((a) => (a.status ?? 'enforced') === 'draft').map((a) => a.id),
     );
     const report = await runSuppressionsScan(
       projectRoot,
-      gitFiles,
+      repoFiles,
       knownAspectIds,
       collectMappingEntries(graph),
+      // No under-approximating warnings wanted here (unchanged) — advise's own
+      // scan only ever consumed anomalies/counts, never `report.warnings`.
+      undefined,
+      collectTypeCoveredFiles(typeCoverage?.covered),
+      graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
     );
     const anomalies: SuppressAnomaly[] = [];
     for (const m of scanPortalSuppressions(report, knownAspectIds, draftAspectIds)) {
@@ -262,14 +255,76 @@ async function gatherSuppressData(graph: Graph, projectRoot: string): Promise<Su
 }
 
 /**
+ * The type-level classification lattice (coverage.type_level), classified ONCE
+ * for this one `yg advise` invocation and shared by every source that needs it
+ * (the decorative-rule signal's expected-pairs pass, the dead-attach source,
+ * and the suppress scan's file eligibility — a live waiver on a file enforced
+ * by its architecture type alone must be inventoried too), so no downstream
+ * caller classifies the repo's files a second time. Undefined when the flag is
+ * off, so a caller's own computeExpectedPairs/checkAspectEffectiveNowhere call
+ * enumerates exactly the component-only universe it always has, and the
+ * suppress scan's noise filter applies to type-covered extensions exactly as
+ * it always has.
+ */
+async function computeTypeCoverageForAdvise(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
+  if (!graph.config.coverage?.typeLevel) return undefined;
+  const repoFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, repoFiles);
+  const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
+  return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
+/**
+ * `computeTypeCoverageForAdvise`, fail-safe: classification is best-effort at
+ * this boundary, so a failure degrades to undefined (the component-only
+ * universe) rather than aborting the whole `yg advise` run — mirroring
+ * `gatherCurrentUnits`'s own degrade-on-failure contract below.
+ */
+async function gatherTypeCoverageForAdvise(graph: Graph, projectRoot: string): Promise<TypeCoverageInput | undefined> {
+  try {
+    return await computeTypeCoverageForAdvise(graph, projectRoot);
+  } catch (error) {
+    debugWrite(`[advise] type coverage classification degraded to component-only: ${(error as Error).message}`);
+    return undefined;
+  }
+}
+
+/** `gatherCurrentUnits`'s result: the decorative-rule attach sets, plus which
+ *  type-covered files their matched type genuinely enforces something on. */
+interface CurrentUnitsResult {
+  /** aspectId → unit keys — the decorative-rule shrinking-attach-set signal's input. */
+  currentUnitsByAspect: Map<string, Set<string>>;
+  /**
+   * Every type-covered file with at least one pair whose `nodePath` is absent —
+   * under a `typeCoverage`-scoped `computeExpectedPairs` call, a pair with no
+   * `nodePath` can only come from the nodeless (type-covered) enumeration, and
+   * only when a real, non-draft, applicable rule survived it. This is the SAME
+   * fact `yg owner --file` computes to say "Enforced by its architecture type"
+   * versus "nothing from it enforces on this file" — see pairs.ts's own
+   * `nodePath` doc. Feeds the type-covered-churn nomination's enforcement gate.
+   */
+  typeEnforcedFiles: Set<string>;
+}
+
+/**
  * The current expected units per aspect (aspectId → unit keys) — the decorative-rule
  * shrinking-attach-set signal compares this against the units the fill telemetry
- * recorded. Fail-safe: any failure degrades to undefined so no demotion is nominated.
+ * recorded — AND, from the SAME `computeExpectedPairs` call, which type-covered
+ * files their matched type actually enforces (see `CurrentUnitsResult`'s own
+ * doc). One call serves both signals; no second classification pass. Fail-safe:
+ * any failure degrades to undefined so no demotion is nominated and no file is
+ * ever claimed enforced or unenforced on evidence this run could not verify.
+ * `typeCoverage` is the SAME classification the caller already gathered
+ * (`gatherTypeCoverageForAdvise`) — never reclassified here.
  */
-async function gatherCurrentUnits(graph: Graph): Promise<Map<string, Set<string>> | undefined> {
+async function gatherCurrentUnits(graph: Graph, typeCoverage: TypeCoverageInput | undefined): Promise<CurrentUnitsResult | undefined> {
   try {
-    const { pairs } = await computeExpectedPairs(graph);
-    return groupUnitsByAspect(pairs);
+    const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
+    const typeEnforcedFiles = new Set<string>();
+    for (const p of pairs) {
+      if (p.nodePath === undefined) typeEnforcedFiles.add(p.unitKey.slice('file:'.length));
+    }
+    return { currentUnitsByAspect: groupUnitsByAspect(pairs), typeEnforcedFiles };
   } catch (error) {
     debugWrite(`[advise] expected-pairs degraded to empty: ${(error as Error).message}`);
     return undefined;
@@ -303,28 +358,26 @@ function parseNameOnlyLog(output: string): string[][] {
 }
 
 /**
- * Assemble the per-node churn signal for the uncovered-hot-spot nomination: run a
- * READ-ONLY `git log` over the recent window, parse it to per-commit touch sets, and
- * count per node via the SAME owner index the checker uses. This is the only impure
- * step in the churn path (the counting core is pure). HONESTY LAW ([RZ-21]): churn is
- * used ONLY when git is present AND the repo has its FULL history; otherwise this
- * returns undefined so the caller OMITS the churn source entirely and the hot-spot
- * class stays SILENT rather than fabricating a signal over history it could not read.
- * Two silence gates:
+ * Fetch and parse the READ-ONLY window of git history BOTH churn sources need —
+ * the uncovered-hot-spot class (per-node) and the type-covered-churn class
+ * (per-file, for a file no node owns). ONE subprocess pair (a shallow probe + one
+ * `git log`) serves both counting functions from the SAME `touchesByCommit`
+ * array, so turning on the type-level tier never doubles the git cost of `yg
+ * advise`. HONESTY LAW ([RZ-21]): churn is used ONLY when git is present AND the
+ * repo has its FULL history; otherwise this returns undefined so BOTH sources
+ * degrade together (never one silent while the other counts a different history
+ * snapshot). Two silence gates:
  *   - shallow clone — `git log -n 200` on a shallow repo exits 0 and returns a
  *     TRUNCATED window, which would undercount churn while the "last 200 commits"
  *     provenance overstates it; `--is-shallow-repository` catches that before any
  *     count is trusted.
- *   - no readable history — git missing, not a repo, or the subprocess fails for any
- *     reason (the shallow probe throwing counts here too: an unconfirmed history is
- *     honest silence).
- * An empty map (git present, full history, but no window commit touched any node) is
- * a DIFFERENT, honest outcome: the class runs and simply produces nothing.
+ *   - no readable history — git missing, not a repo, or the subprocess fails for
+ *     any reason (the shallow probe throwing counts here too: an unconfirmed
+ *     history is honest silence).
+ * An empty array (git present, full history, but zero commits in range) is a
+ * DIFFERENT, honest outcome: both counters run and simply produce nothing.
  */
-function gatherChurnByNode(
-  graph: Graph,
-  projectRoot: string,
-): Map<string, { churn: number; files: string[] }> | undefined {
+function gatherChurnHistory(projectRoot: string): string[][] | undefined {
   const gitOpts = {
     cwd: projectRoot,
     encoding: 'utf-8' as const,
@@ -345,11 +398,140 @@ function gatherChurnByNode(
       ...gitOpts,
       maxBuffer: 64 * 1024 * 1024,
     });
-    return countChurnByNode(parseNameOnlyLog(out), ownerOfForGraph(graph));
+    return parseNameOnlyLog(out);
   } catch (error) {
     debugWrite(`[advise] churn signal silent (no readable git history): ${(error as Error).message}`);
     return undefined;
   }
+}
+
+/**
+ * The per-node half of the churn signal, for the uncovered-hot-spot nomination:
+ * count `touchesByCommit` (already fetched once by `gatherChurnHistory` and
+ * shared with the type-covered-churn source below) via the SAME owner index the
+ * checker uses. `touchesByCommit` undefined ⇒ history unknown ⇒ silent
+ * (mirroring `gatherChurnHistory`'s own contract). A failure resolving the owner
+ * index (a filesystem-walk fault, unrelated to git) also degrades to silence,
+ * named honestly in its own debug line rather than folded into a git-specific one.
+ */
+async function gatherChurnByNode(
+  graph: Graph,
+  touchesByCommit: string[][] | undefined,
+): Promise<Map<string, { churn: number; files: string[] }> | undefined> {
+  if (touchesByCommit === undefined) return undefined;
+  let resolveOwner: OwnerOf;
+  try {
+    resolveOwner = await ownerOfForGraph(graph);
+  } catch (error) {
+    debugWrite(`[advise] churn signal silent (owner resolution failed): ${(error as Error).message}`);
+    return undefined;
+  }
+  return countChurnByNode(touchesByCommit, resolveOwner);
+}
+
+/**
+ * The per-FILE half of the churn signal, for the type-covered-churn nomination: a
+ * type-covered file has no owning node, so `gatherChurnByNode`'s owner-keyed
+ * counter always drops it (see `countChurnByTypeCoveredFile`'s own doc for the
+ * trap this avoids) — this counts `touchesByCommit` directly against the CURRENT
+ * run's `typeCoverage.covered` key set instead. Silent (undefined) whenever
+ * EITHER input is unknown: no readable git history (mirrors `gatherChurnByNode`),
+ * or the type-level tier is off / classification failed (`typeCoverage`
+ * undefined) — never fabricated from a partial view of either. Present (even an
+ * empty map, when git and classification are both known but nothing churned or
+ * classified) ⇒ the class runs.
+ */
+function gatherTypeCoveredChurn(
+  touchesByCommit: string[][] | undefined,
+  typeCoverage: TypeCoverageInput | undefined,
+): Map<string, { churn: number; typeId: string }> | undefined {
+  if (touchesByCommit === undefined || typeCoverage === undefined) return undefined;
+  const typeCoveredFiles = new Set(typeCoverage.covered.keys());
+  const churn = countChurnByTypeCoveredFile(touchesByCommit, typeCoveredFiles);
+  const out = new Map<string, { churn: number; typeId: string }>();
+  for (const [file, { churn: count }] of churn) {
+    const typeId = typeCoverage.covered.get(file);
+    if (typeId !== undefined) out.set(file, { churn: count, typeId });
+  }
+  return out;
+}
+
+/** `gatherRelationBoundary`'s result — see its own doc. */
+interface RelationBoundaryResult {
+  /** The C7 tunnel count for the Attention line. */
+  tunnelCount: number;
+  /** Same-type import edges among type-covered files, or undefined — see gatherRelationBoundary's own doc. */
+  typeCoveredEdges: Array<{ from: string; to: string }> | undefined;
+}
+
+/**
+ * The C7 tunnel count AND the type-covered-churn cluster's same-type edges,
+ * from ONE shared relation pass — `computePortalBoundary` already exists to
+ * fold the live type-relation gate's edge translation into the SAME pass a
+ * plain detected-edge read runs (see its own doc: "keeps the ≤2-relation-pass
+ * invariant intact even when the type-level tier is on"). Before this, `yg
+ * advise` ran its OWN two separate passes whenever the tier classified at
+ * least one file: one unseeded (for the tunnel count, via the since-removed
+ * `computeDetectedEdges`) and one seeded with `typeCoverage.covered` (for the
+ * cluster edges, via the since-removed `computeTypedEdges`) — duplicating the
+ * parse + resolve work `computePortalBoundary` already does once. Seeding
+ * costs nothing when `typeCoverage` is undefined or empty: `typedEdges` comes
+ * back `[]`, byte-identical to a caller that never asked for the widening
+ * (`computePortalBoundary`'s own contract) — so this is a strict consolidation,
+ * not a new cost paid when the tier is off.
+ *
+ * `typeCoveredEdges` mirrors the former `gatherTypeCoveredEdges` contract
+ * exactly: undefined when there is no type-covered file to begin with
+ * (nothing to widen a pass for); otherwise the pass's `typedEdges` restricted
+ * to pairs where BOTH endpoints are type-covered AND share the SAME matched
+ * type (a node-owned endpoint is named by its node id, which can never
+ * collide with a repo-relative file path, so `covered.has(...)` alone
+ * correctly excludes every node-to-node or mixed edge). The tunnel count
+ * degrades to 0 on its own failure (mirroring the former `computeTunnelCount`
+ * exactly); the whole boundary degrades to "pass failed" only when the
+ * relation parse itself throws, in which case `computePortalBoundary` returns
+ * `null` rather than throwing, and both halves degrade together. Never
+ * throws: this is `yg advise`'s own read-only, never-gating contract (G4).
+ */
+async function gatherRelationBoundary(
+  graph: Graph,
+  projectRoot: string,
+  typeCoverage: TypeCoverageInput | undefined,
+): Promise<RelationBoundaryResult> {
+  const wantsTypedEdges = typeCoverage !== undefined && typeCoverage.covered.size > 0;
+  let boundary: Awaited<ReturnType<typeof computePortalBoundary>>;
+  try {
+    boundary = await computePortalBoundary(graph, projectRoot, typeCoverage?.covered);
+  } catch (error) {
+    debugWrite(`[advise] relation boundary degraded (pass threw): ${(error as Error).message}`);
+    boundary = null;
+  }
+  if (boundary === null) {
+    return { tunnelCount: 0, typeCoveredEdges: wantsTypedEdges ? [] : undefined };
+  }
+
+  let tunnelCount = 0;
+  try {
+    const detected = new Map((boundary.detectedEdgesByNode ?? []).map((d) => [d.from, new Set(d.targets)] as const));
+    const edges = edgeUniverse(collectDeclaredRelations(graph), detected);
+    tunnelCount = Math.min(TOP_TUNNELS, tunnelSpans(edges, depthOfPath, lcaDepthOfPaths).length);
+  } catch (error) {
+    debugWrite(`[advise] tunnel-count degraded to 0: ${(error as Error).message}`);
+  }
+
+  let typeCoveredEdges: Array<{ from: string; to: string }> | undefined;
+  if (wantsTypedEdges) {
+    const covered = typeCoverage!.covered;
+    typeCoveredEdges = [];
+    for (const { from, to } of boundary.typedEdges ?? []) {
+      const fromType = covered.get(from);
+      const toType = covered.get(to);
+      if (fromType !== undefined && toType !== undefined && fromType === toType) {
+        typeCoveredEdges.push({ from, to });
+      }
+    }
+  }
+  return { tunnelCount, typeCoveredEdges };
 }
 
 /**
@@ -377,19 +559,42 @@ async function gatherInCorpusDrillResults(
   }
 }
 
+/** `gatherNominationSources`'s result: the nomination sources, plus the C7
+ *  tunnel count `gatherRelationBoundary` derives from the SAME relation pass
+ *  (only the bare `yg advise` action renders it; dismiss/defer ignore it). */
+interface NominationSourcesResult {
+  sources: NominationSources;
+  tunnelCount: number;
+}
+
 /**
  * Gather every non-graph input `buildNominations` needs, at the CLI boundary:
  * risky suppress markers (live scan), drill-result telemetry, verdict-event
- * telemetry, and per-node churn (git history). The core engine imports NONE of
- * these readers — telemetry and history cross the boundary as plain data only.
+ * telemetry, per-node churn (git history), and the relation-pass boundary (the
+ * C7 tunnel count + type-covered-churn's cluster edges, from ONE shared pass —
+ * see `gatherRelationBoundary`). The core engine imports NONE of these readers
+ * — telemetry and history cross the boundary as plain data only.
  */
-async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<NominationSources> {
+async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<NominationSourcesResult> {
   const projectRoot = path.dirname(graph.rootPath);
-  const suppressData = await gatherSuppressData(graph, projectRoot);
+  // Classified once here, then shared by every source below that needs it —
+  // no downstream helper repeats the classification pass. In particular, the
+  // suppress scan below needs it too: a live waiver on a file enforced by its
+  // architecture type alone (no owning component) must be inventoried exactly
+  // like one on a mapped node source.
+  const typeCoverage = await gatherTypeCoverageForAdvise(graph, projectRoot);
+  const suppressData = await gatherSuppressData(graph, projectRoot, typeCoverage);
   const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
-  const currentUnitsByAspect = await gatherCurrentUnits(graph);
-  const churnByNode = gatherChurnByNode(graph, projectRoot);
+  const currentUnits = await gatherCurrentUnits(graph, typeCoverage);
+  // ONE git-history fetch, shared by both churn counters below (per-node and
+  // per-type-covered-file) — see gatherChurnHistory's own doc.
+  const touchesByCommit = gatherChurnHistory(projectRoot);
+  const churnByNode = await gatherChurnByNode(graph, touchesByCommit);
+  const typeCoveredChurnByFile = gatherTypeCoveredChurn(touchesByCommit, typeCoverage);
+  // ONE relation pass serves BOTH the C7 tunnel count and the type-covered-churn
+  // cluster edges — see gatherRelationBoundary's own doc.
+  const { tunnelCount, typeCoveredEdges } = await gatherRelationBoundary(graph, projectRoot, typeCoverage);
   const familyCandidates = readFamilyCandidatesSource(graph);
   const architectureCutCycles = computeArchitectureCutCycles(graph);
 
@@ -398,13 +603,21 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
     suppressAnomalies: suppressData?.anomalies ?? [],
     drillResults,
     verdictEvents,
+    typeCoverage,
   };
   // The decorative-rule source needs BOTH the current attach sets and the suppress
   // counts; supply them only when both resolved, so an unknown suppress state or an
   // unreadable graph can never let a demotion be nominated on incomplete evidence.
-  if (currentUnitsByAspect !== undefined && suppressData !== undefined) {
-    sources.currentUnitsByAspect = currentUnitsByAspect;
+  if (currentUnits !== undefined && suppressData !== undefined) {
+    sources.currentUnitsByAspect = currentUnits.currentUnitsByAspect;
     sources.suppressCountsByAspect = suppressData.counts;
+  }
+  // The type-covered-churn class's enforcement gate needs to know which files
+  // are genuinely enforced; supply it only when resolved, so a failed
+  // classification pass leaves the class silent rather than claiming
+  // enforcement (or its absence) on evidence this run could not verify.
+  if (currentUnits !== undefined) {
+    sources.typeEnforcedFiles = currentUnits.typeEnforcedFiles;
   }
   // The uncovered-hot-spot source needs both the churn map and the window it was
   // measured over; supply them only when churn is KNOWN (git history readable), so a
@@ -412,6 +625,17 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (churnByNode !== undefined) {
     sources.churnByNode = churnByNode;
     sources.churnWindow = CHURN_WINDOW;
+  }
+  // The type-covered-churn source needs the churn-by-file map; supply it only
+  // when KNOWN (git history readable AND the type-level tier classified this
+  // run), so no-git / flag-off leaves the class silent instead of fabricating a
+  // signal. The window is the SAME CHURN_WINDOW both churn sources share.
+  if (typeCoveredChurnByFile !== undefined) {
+    sources.typeCoveredChurnByFile = typeCoveredChurnByFile;
+    sources.churnWindow = CHURN_WINDOW;
+  }
+  if (typeCoveredEdges !== undefined) {
+    sources.typeCoveredEdges = typeCoveredEdges;
   }
   // T2 class A: a FRESH family-candidates payload (present-or-omit + freshness
   // gate) enables the family-without-law class; absent/stale ⇒ left unset ⇒ omitted.
@@ -422,7 +646,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (architectureCutCycles.length > 0) {
     sources.architectureCutCycles = architectureCutCycles;
   }
-  return sources;
+  return { sources, tunnelCount };
 }
 
 // ---------------------------------------------------------------------------
@@ -566,11 +790,10 @@ export function registerAdviseCommand(program: Command): void {
         // Injected UTC clock at the boundary (Task 1 pattern) — the engine keeps
         // no Date.now of its own.
         const now = new Date();
-        const sources = await gatherNominationSources(graph, now);
+        const { sources, tunnelCount } = await gatherNominationSources(graph, now);
         const noms = buildNominations(graph, sources);
         const { visible, hidden } = applyDecisions(noms, readDecisions(graph.rootPath).decisions, now);
 
-        const tunnelCount = await computeTunnelCount(graph);
         // The C8 structural-deviation line points the reader at `yg context --file`,
         // the exact surface that `signals.attention: false` silences (absent `signals`
         // ⇒ ON, mirroring cli/build-context.ts). Honor the SAME off-switch here: when
@@ -616,7 +839,8 @@ export function registerAdviseCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         requireNonEmptyReason(opts.reason, 'dismiss');
         const now = new Date();
-        const noms = buildNominations(graph, await gatherNominationSources(graph, now));
+        const { sources } = await gatherNominationSources(graph, now);
+        const noms = buildNominations(graph, sources);
         const nomination = resolveNominationOrFail(noms, id);
         const decision: AdviseDecision = {
           v: 1,
@@ -654,7 +878,8 @@ export function registerAdviseCommand(program: Command): void {
           });
         }
         const now = new Date();
-        const noms = buildNominations(graph, await gatherNominationSources(graph, now));
+        const { sources } = await gatherNominationSources(graph, now);
+        const noms = buildNominations(graph, sources);
         const nomination = resolveNominationOrFail(noms, id);
         const decision: AdviseDecision = {
           v: 1,

@@ -55,7 +55,14 @@ import {
 
 /** One index entry as returned to a reader: the file's family and its deviations. */
 export interface FeatureFieldEntry {
-  /** `${ownerNodeId}\x00${language}` — the comparison cohort the file belongs to. */
+  /**
+   * `${kind}\x00${ownerId}\x00${language}` — the comparison cohort the file
+   * belongs to. `kind` is `'node'` when `ownerId` is an owning node's path, or
+   * `'type'` when the file has no owning node and `ownerId` is its matched
+   * architecture type instead (see `familyKey` in feature-index-write.ts). This
+   * reader never parses the segments itself — it passes the whole string
+   * through opaquely to its two callers, which do.
+   */
   family: string;
   /** Every dimension on which the file is a robust outlier within its family. */
   deviations: { dim: string; z: number }[];

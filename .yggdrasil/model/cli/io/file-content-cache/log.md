@@ -14,3 +14,5 @@ How to apply: stat/readFile catch blocks now capture err.message into unreadable
 R0.4: file moved from core/ to io/ — engine node mapping updated; type stays engine until Phase 2 reclassification
 ## [2026-05-15T17:44:23.069Z]
 Phase 2: moved graph node from cli/core/file-content-cache to cli/io/file-content-cache. Type reclassified from engine to persistence-adapter (source file is in source/cli/src/io/).
+## [2026-07-27T19:29:42.772Z]
+Binary detection now runs before the size guard, reading only a bounded probe rather than a file's full bytes, so a binary file over the content-scan size limit is correctly reported binary instead of too-large. A content predicate treats a binary file as a deliberate, never-blocking non-match; reporting it too-large instead turned that legitimate non-match into a spurious blocking error.

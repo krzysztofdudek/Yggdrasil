@@ -54,7 +54,35 @@ describe('FileContentCache', () => {
     const cache = new FileContentCache();
     const result = await cache.read(path);
     expect(result.tooLarge).toBe(true);
+    expect(result.isBinary).toBe(false);
     expect(result.content).toBeUndefined();
+  });
+
+  it('detects binary via null bytes even when the file is over 5MB — binary wins over the size guard', async () => {
+    // Before the fix, the size check ran BEFORE binary detection, so a >5MB
+    // binary was reported tooLarge (blocking, unreadable) instead of isBinary
+    // (a deliberate, never-blocking non-match). The null byte sits within the
+    // first probe window (BINARY_PROBE_BYTES), which is all binary detection
+    // ever reads — the multi-megabyte tail is never loaded to answer this.
+    const path = join(tmpDir, 'big.bin');
+    const buf = Buffer.concat([Buffer.from([0x00, 0x01]), Buffer.alloc(5 * 1024 * 1024 + 1, 0x61)]);
+    writeFileSync(path, buf);
+    const cache = new FileContentCache();
+    const result = await cache.read(path);
+    expect(result.isBinary).toBe(true);
+    expect(result.tooLarge).toBe(false);
+    expect(result.unreadable).toBe(false);
+    expect(result.content).toBeUndefined();
+  });
+
+  it('a >5MB file with no null byte anywhere in the probe window is still tooLarge, not binary', async () => {
+    const path = join(tmpDir, 'big-text.txt');
+    // Genuinely text throughout — including the first BINARY_PROBE_BYTES.
+    writeFileSync(path, 'a'.repeat(5 * 1024 * 1024 + 1));
+    const cache = new FileContentCache();
+    const result = await cache.read(path);
+    expect(result.isBinary).toBe(false);
+    expect(result.tooLarge).toBe(true);
   });
 
   it('reports unreadable files', async () => {

@@ -1,0 +1,6 @@
+name: Needs Owned Target
+description: "Attached to consumer with when { relations: { uses: { target: owned } } } — naming an exact node path can only ever be satisfied by an edge into a real component, never by an edge into a type-covered file (which has nothing to name)."
+reviewer:
+  type: deterministic
+scope:
+  per: file

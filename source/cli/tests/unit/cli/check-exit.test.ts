@@ -108,6 +108,7 @@ describe('check --approve always force-exits via exitAfterFlush', () => {
       runtimeErrors: 0,
       companionRuntimeErrors: 0,
       malformedSuppressErrors: 0,
+      runtimeDispositions: [],
     });
     const program = new Command();
     program.exitOverride();
@@ -175,6 +176,7 @@ describe('check --approve --dry-run --quiet: budget still reaches stdout', () =>
         runtimeErrors: 0,
         companionRuntimeErrors: 0,
         malformedSuppressErrors: 0,
+        runtimeDispositions: [],
       };
     }) as never);
     const program = new Command();

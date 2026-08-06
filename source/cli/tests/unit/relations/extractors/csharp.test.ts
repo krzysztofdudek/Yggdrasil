@@ -369,7 +369,8 @@ describe('csharp extractor — uses() emits SYMBOL hints (never path hints)', ()
   });
 
   it('DECISIVE FP (extractor/resolver level): a nearer using-relative split binds and the verbatim is NEVER reached', async () => {
-    // The brief's decisive false positive, at the candidate-walk level. n1 owns
+    // The decisive false-positive case for this resolution order, at the candidate-walk
+    // level. n1 owns
     // `App.Data.Models+Order` (nested) intra-node; n2 owns top-level `Models.Order`. The
     // consumer in `namespace App.Services; using App.Data;` writes `new Models.Order()`.
     // The ordered group [App.Services.Models.Order, App.Data.Models.Order, Models.Order] binds

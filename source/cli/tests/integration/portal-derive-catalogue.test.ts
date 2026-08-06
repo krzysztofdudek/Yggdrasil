@@ -131,6 +131,9 @@ describe('portal catalogue derivation (aspects / flows / types) — real repo', 
     const verification = await verifyLock(graph, lock);
     const byNode = new Map<string, ('verified' | 'refused' | 'unverified')[]>();
     for (const vp of verification.pairs) {
+      // This repo's own coverage.type_level flag is off, so every pair is
+      // node-owned — but the type now admits a nodeless pair, so guard anyway.
+      if (vp.pair.nodePath === undefined) continue;
       const l = byNode.get(vp.pair.nodePath) ?? [];
       l.push(vp.state.kind === 'verified' ? 'verified' : vp.state.kind === 'refused' ? 'refused' : 'unverified');
       byNode.set(vp.pair.nodePath, l);

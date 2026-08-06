@@ -1,0 +1,11 @@
+# yg-architecture.yaml — one non-strict classifying type (svc), matching
+# src/svc/** cleanly with no second type and no ambiguity, so
+# src/svc/handler.ts is silently type-covered until an explicit node claims
+# it (the graduation this fixture's tests exercise).
+node_types:
+  svc:
+    description: "Service-layer source, classified for the graduation-twin fixture."
+    when:
+      path: "src/svc/**"
+    aspects:
+      - svc-file-shape

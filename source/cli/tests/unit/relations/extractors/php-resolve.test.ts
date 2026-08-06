@@ -78,6 +78,49 @@ describe('resolvePhpFqn — FQN → file via PSR-4', () => {
     expect(resolvePhpFqn('Root\\Lib\\Thing', FROM, rootDeps)).toBe('Lib/Thing.php');
   });
 
+  describe('exclusion awareness', () => {
+    // One prefix, two base directories, the same class file present under both —
+    // a genuine PSR-4 ambiguity (2 hits) that stays silent when nothing is
+    // excluded. Marking one hit as graph-excluded must drop it from the ambiguity
+    // count BEFORE the exactly-one-hit decision, the same drop-then-decide rule
+    // the Go/Java package resolvers already apply to a split package's file list.
+    const twoRootPsr4 = new Map<string, string[]>([['App\\', ['src1', 'src2']]]);
+    const twoRootFiles = new Set(['src1/Svc/S1.php', 'src2/Svc/S1.php']);
+
+    it('control: with nothing excluded, two distinct roots stay ambiguous — silent', () => {
+      const deps: PhpResolveDeps = { psr4For: () => twoRootPsr4, exists: (p) => twoRootFiles.has(p) };
+      expect(resolvePhpFqn('App\\Svc\\S1', FROM, deps)).toBeUndefined();
+    });
+
+    it('excluding the root that sorts FIRST resolves to the survivor', () => {
+      // 'src1/Svc/S1.php' < 'src2/Svc/S1.php' lexicographically.
+      const deps: PhpResolveDeps = {
+        psr4For: () => twoRootPsr4,
+        exists: (p) => twoRootFiles.has(p),
+        isExcluded: (p) => p === 'src1/Svc/S1.php',
+      };
+      expect(resolvePhpFqn('App\\Svc\\S1', FROM, deps)).toBe('src2/Svc/S1.php');
+    });
+
+    it('excluding the root that sorts LAST resolves to the survivor', () => {
+      const deps: PhpResolveDeps = {
+        psr4For: () => twoRootPsr4,
+        exists: (p) => twoRootFiles.has(p),
+        isExcluded: (p) => p === 'src2/Svc/S1.php',
+      };
+      expect(resolvePhpFqn('App\\Svc\\S1', FROM, deps)).toBe('src1/Svc/S1.php');
+    });
+
+    it('excluding an UNRELATED file elsewhere leaves a genuinely ambiguous resolution silent', () => {
+      const deps: PhpResolveDeps = {
+        psr4For: () => twoRootPsr4,
+        exists: (p) => twoRootFiles.has(p),
+        isExcluded: (p) => p === 'somewhere/else/entirely.php',
+      };
+      expect(resolvePhpFqn('App\\Svc\\S1', FROM, deps)).toBeUndefined();
+    });
+  });
+
   it('keeps the longest prefix even when a shorter one is encountered after it', () => {
     // Iteration order puts the longer prefix first, then the shorter — the shorter
     // must NOT overwrite the already-chosen longer best.

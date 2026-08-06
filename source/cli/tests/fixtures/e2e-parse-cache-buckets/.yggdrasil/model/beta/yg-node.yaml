@@ -1,0 +1,5 @@
+name: Beta
+type: module
+description: Relation target of alpha — carries no aspect of its own; every one of its files is parsed by alpha's reads-target companion hook.
+mapping:
+  - src/beta/*.ts

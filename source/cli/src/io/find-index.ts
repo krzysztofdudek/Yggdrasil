@@ -8,8 +8,9 @@ const MAX_BODY_BYTES = 1_048_576; // 1 MiB
 
 export interface IndexedDocument {
   id: string;
-  kind: 'node' | 'aspect';
+  kind: 'node' | 'aspect' | 'file';
   path: string;
+  /** For 'node': the node's type. For 'file': the matched classifying type id. Absent for 'aspect'. */
   type?: string;
   name: string;
   description: string;
@@ -18,7 +19,24 @@ export interface IndexedDocument {
   status?: AspectStatus;
 }
 
-export async function buildIndex(graph: Graph): Promise<IndexedDocument[]> {
+/**
+ * A type-covered file's classification, pre-flattened from
+ * `computeTypeCoverage(...).covered` (a `Map<file, typeId>`) into the plain
+ * array shape a caller can build once per invocation. `buildIndex` never
+ * classifies on its own — a caller with the flag off, or one that has not
+ * computed coverage, simply omits this argument.
+ */
+export interface TypeCoveredIndexEntry {
+  file: string;
+  typeId: string;
+}
+
+/**
+ * `typeCoverage` is optional and omitted or empty produces byte-identical
+ * output to today — no 'file' documents at all, so a flag-off or coverage-less
+ * caller pays nothing beyond the argument itself.
+ */
+export async function buildIndex(graph: Graph, typeCoverage?: TypeCoveredIndexEntry[]): Promise<IndexedDocument[]> {
   const projectRoot = path.dirname(graph.rootPath);
   const docs: IndexedDocument[] = [];
 
@@ -80,6 +98,25 @@ export async function buildIndex(graph: Graph): Promise<IndexedDocument[]> {
       description: aspect.description ?? '',
       body,
       status: aspect.status ?? 'enforced',
+    });
+  }
+
+  // Type-covered files: satisfied by the type-level lattice (coverage.type_level),
+  // no yg-node.yaml of their own. Indexed with the MATCHED TYPE's own description
+  // as searchable text (types carry required descriptions) — never a phantom node,
+  // and never routed to `yg context --node`, which has nothing to look up for a
+  // file no node maps. Omitted entirely when `typeCoverage` is absent or empty, so
+  // a flag-off caller's output stays byte-identical to today.
+  for (const entry of typeCoverage ?? []) {
+    const typeDef = graph.architecture.node_types[entry.typeId];
+    docs.push({
+      id: `file:${entry.file}`,
+      kind: 'file',
+      path: entry.file,
+      type: entry.typeId,
+      name: path.basename(entry.file),
+      description: typeDef?.description ?? '',
+      body: '',
     });
   }
 

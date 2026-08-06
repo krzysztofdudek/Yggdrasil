@@ -10,8 +10,9 @@ import {
   resolveRuleAges,
 } from '../../../src/cli/aspects.js';
 import type { VerifiedPair, PairState } from '../../../src/core/verify-lock.js';
+import type { TypeCoverageInput } from '../../../src/core/pairs.js';
 import type { SuppressionsReport } from '../../../src/portal/api/suppress-scan.js';
-import { nodeUnit } from '../../../src/model/lock.js';
+import { nodeUnit, fileUnit } from '../../../src/model/lock.js';
 import type {
   AspectHealthSignal,
   AspectFalsePositiveSignal,
@@ -237,6 +238,58 @@ describe('formatAspectsOutput', () => {
   });
 });
 
+// A rule reachable ONLY through an architecture type (no real component node
+// anywhere) is live law — `yg check` reports it enforced — so `yg aspects`
+// must never call it orphaned. Mirrors the same class of gap the dead-attach
+// linters were fixed for: usage computed from graph.nodes alone cannot see a
+// type-covered file's enforcement.
+function graphWithTypeOnlyDefault(): Graph {
+  return {
+    rootPath: '/fake',
+    config: { version: '1' },
+    architecture: {
+      node_types: {
+        module: { description: 'Module', aspects: [] },
+        leafy: { description: 'Classifies src/leafy/**', aspects: ['type-only-rule'], when: { path: 'src/leafy/**' } },
+      },
+    },
+    nodes: new Map(),
+    aspects: [makeAspect('type-only-rule', { reviewer: 'deterministic', scope: { per: 'file' } })],
+    flows: [],
+  } as Graph;
+}
+
+const TYPE_ONLY_COVERAGE: TypeCoverageInput = { covered: new Map([['src/leafy/f.ts', 'leafy']]), ambiguousPaths: [] };
+
+describe('computeAspectUsage — a rule enforced only through an architecture type', () => {
+  it('counts the type-covered file as usage, separate from node usage', () => {
+    const usage = computeAspectUsage(graphWithTypeOnlyDefault(), TYPE_ONLY_COVERAGE);
+    expect(usage.get('type-only-rule')?.total).toBe(0);
+    expect(usage.get('type-only-rule')?.typeCovered).toBe(1);
+  });
+
+  it('without typeCoverage, stays exactly as before (no typeCovered count)', () => {
+    const usage = computeAspectUsage(graphWithTypeOnlyDefault());
+    expect(usage.get('type-only-rule')?.total).toBe(0);
+    expect(usage.get('type-only-rule')?.typeCovered).toBe(0);
+  });
+});
+
+describe('formatAspectsOutput — a rule enforced only through an architecture type', () => {
+  it('never calls it orphaned, and names the type-covered file count', () => {
+    const output = formatAspectsOutput(graphWithTypeOnlyDefault(), TYPE_ONLY_COVERAGE);
+    const section = output.split('\n\n').find((s) => s.includes('type-only-rule'))!;
+    expect(section).not.toContain('orphaned');
+    expect(section).toContain('1 type-covered file');
+  });
+
+  it('without typeCoverage (flag off), the SAME rule is still reported orphaned — byte-identical to before the tier existed', () => {
+    const output = formatAspectsOutput(graphWithTypeOnlyDefault());
+    const section = output.split('\n\n').find((s) => s.includes('type-only-rule'))!;
+    expect(section).toContain('orphaned');
+  });
+});
+
 // ── --health projection (C3 slice 1) ──────────────────────────────────────
 
 function vp(
@@ -256,6 +309,33 @@ function vp(
     },
     state,
   };
+}
+
+/** A nodeless (type-covered file) VerifiedPair — no owning component, so `pair.nodePath`
+ *  is absent and the unit is keyed by the file itself. Mirrors the shape `verifyLock`
+ *  produces for a file enforced by its architecture type alone. */
+function vpFile(
+  aspectId: string,
+  file: string,
+  state: PairState,
+  kind: 'llm' | 'deterministic' = 'deterministic',
+): VerifiedPair {
+  return {
+    pair: {
+      aspectId,
+      kind,
+      unitKey: fileUnit(file),
+      status: 'enforced',
+      subjectFiles: [file],
+    },
+    state,
+  };
+}
+
+/** Same graph, with the type-level tier turned on (`coverage.type_level: true`) — the only
+ *  signal `computeAspectHealth` reads to decide whether the `files` column has an answer. */
+function withTypeLevel(graph: Graph): Graph {
+  return { ...graph, config: { ...graph.config, coverage: { required: [], excluded: [], typeLevel: true } } };
 }
 
 function report(
@@ -387,13 +467,23 @@ describe('computeAspectHealth', () => {
 });
 
 describe('formatAspectsHealthOutput', () => {
-  it('renders the mandated column order in the header', () => {
+  it('renders the mandated column order in the header, with the type-level tier off (no files column — the question was never asked)', () => {
     const graph = makeGraph([makeAspect('a1')]);
     const out = formatAspectsHealthOutput(computeAspectHealth(graph, [], report()));
     const header = out.split('\n')[0].trim().split(/\s{2,}/);
     expect(header).toEqual([
       'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
       'catch', 'exposure', 'signal', 'fp', 'wrong-rule',
+    ]);
+  });
+
+  it('appends files as the mandated last column once the type-level tier is on', () => {
+    const graph = withTypeLevel(makeGraph([makeAspect('a1')]));
+    const out = formatAspectsHealthOutput(computeAspectHealth(graph, [], report()));
+    const header = out.split('\n')[0].trim().split(/\s{2,}/);
+    expect(header).toEqual([
+      'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
+      'catch', 'exposure', 'signal', 'fp', 'wrong-rule', 'files',
     ]);
   });
 
@@ -438,17 +528,60 @@ describe('formatAspectsHealthOutput', () => {
     expect(out).not.toContain('not yet checked');
   });
 
-  it('renders the rule age in its column when supplied (age is column index 8)', () => {
+  it('renders the rule age in its column when supplied (age is column index 8), type-level tier off', () => {
     const graph = makeGraph([makeAspect('a1', { reviewer: 'deterministic' })]);
     const ages = new Map([['a1', '3mo']]);
     const health = computeAspectHealth(graph, [], report(), ages);
     const out = formatAspectsHealthOutput(health);
     const dataRow = out.split('\n').find((l) => l.trim().split(/\s{2,}/)[0] === 'a1')!;
     const cells = dataRow.trim().split(/\s{2,}/);
-    // age holds its fixed position; the catch/exposure/signal/fp columns follow it,
-    // reading em-dash for a rule with no recorded telemetry.
+    // age holds its fixed position; the catch/exposure/signal/fp/wrong-rule columns
+    // follow it, all reading em-dash for a rule with no recorded telemetry. The
+    // files column is absent entirely here — the tier is off, so the question was
+    // never asked, and there is no sixth cell to read a fabricated 0 from.
     expect(cells[8]).toBe('3mo');
     expect(cells.slice(9)).toEqual(['—', '—', '—', '—', '—']);
+  });
+});
+
+// ── files column: a count only once the question was asked (C3 slice 4 close-out) ──
+//
+// `files` differs from every other on-demand column in one respect: it is not
+// merely absent-of-data when unanswered, it is UNASKED — `verifyLock` never even
+// enumerated type-covered pairs unless `coverage.type_level` is on. Rendering a
+// literal `0` for "unasked" would read as "asked, found none" (the exact
+// zero-is-not-not-applicable conflation this tier exists to police), so the tier
+// being off must render EMPTY_CELL, and the column must not appear in the header
+// at all — byte-identical to a repository that never turned the tier on.
+
+describe('computeAspectHealth — files cell honesty (tier off vs. on)', () => {
+  it('reads em-dash when the type-level tier is off, even though every other rule aggregate is present', () => {
+    const graph = makeGraph([makeAspect('a1', { reviewer: 'deterministic' })]);
+    const pairs = [vp('a1', 'owned', { kind: 'verified' })];
+    const { rows } = computeAspectHealth(graph, pairs, report());
+    const row = rows.find((r) => r.aspectId === 'a1')!;
+    expect(row.filesCell).toBe('—');
+  });
+
+  it('reads a genuine 0 (never em-dash) when the tier is on and no type-covered file carries a pair', () => {
+    const graph = withTypeLevel(makeGraph([makeAspect('a1', { reviewer: 'deterministic' })]));
+    const pairs = [vp('a1', 'owned', { kind: 'verified' })];
+    const { rows } = computeAspectHealth(graph, pairs, report());
+    const row = rows.find((r) => r.aspectId === 'a1')!;
+    expect(row.filesCell).toBe('0');
+  });
+
+  it('reads the real distinct-file count when the tier is on and type-covered files carry pairs', () => {
+    const graph = withTypeLevel(makeGraph([makeAspect('a1', { reviewer: 'deterministic' })]));
+    const pairs = [
+      vp('a1', 'owned', { kind: 'verified' }),
+      vpFile('a1', 'src/leaf/a.ts', { kind: 'verified' }),
+      vpFile('a1', 'src/leaf/b.ts', { kind: 'refused', reason: 'deliberately refuses' }),
+    ];
+    const { rows } = computeAspectHealth(graph, pairs, report());
+    const row = rows.find((r) => r.aspectId === 'a1')!;
+    expect(row.filesCell).toBe('2');
+    expect(row.nodes).toBe(1); // the file pairs never inflate the node count
   });
 });
 
@@ -597,14 +730,14 @@ describe('computeAspectHealth — wrong-rule attribution cell + note', () => {
     expect(rows.find((r) => r.aspectId === 'clean-x')!.wrongRuleCell).toBe('—');
   });
 
-  it('renders the wrong-rule cell in the last column and emits the attribution disclosure note', () => {
+  it('renders the wrong-rule cell in its fixed column and emits the attribution disclosure note', () => {
     const graph = makeGraph([makeAspect('named-x', { reviewer: 'deterministic' })]);
     const health = withWrongRule(graph, new Map([['named-x', 1]]));
     expect(health.hasWrongRuleAttribution).toBe(true);
     const out = formatAspectsHealthOutput(health);
     const dataRow = out.split('\n').find((l) => l.trim().split(/\s{2,}/)[0] === 'named-x')!;
     const cells = dataRow.trim().split(/\s{2,}/);
-    expect(cells[13]).toBe('1 (thin data)'); // wrong-rule is the last column (index 13)
+    expect(cells[13]).toBe('1 (thin data)'); // wrong-rule, index 13 — files (index 14) follows it
     // The disclosure states the honesty boundary: unattributed incidents count in advise, not here.
     expect(out).toContain('Wrong-rule attribution');
     expect(out).toContain('yg incident add --aspect');

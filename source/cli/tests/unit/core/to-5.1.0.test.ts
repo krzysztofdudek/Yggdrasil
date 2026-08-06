@@ -23,14 +23,18 @@ describe('to-5.1.0 migration', () => {
     expect(migration.to).toBe('5.1.0');
   });
 
-  it('targets exactly the CLI-supported schema version', () => {
-    // This is the invariant the `init --upgrade` flow relies on: the latest
-    // registered migration advances an outdated graph to the version the CLI
-    // declares as supported. Pinned here (where importing the constant is
-    // legitimate) so the e2e upgrade test can stay a pure black box — it asserts
-    // only the observable effect (version advanced, schemas/ removed, idempotent)
-    // without importing the constant.
-    expect(migration.to).toBe(CLI_SUPPORTED_SCHEMA);
+  it('now targets a version strictly below the CLI-supported schema — the gap is covered by the version-lift fallback, not a migration', () => {
+    // Every earlier schema bump shipped a migration whose `to` matched
+    // CLI_SUPPORTED_SCHEMA exactly — the registered chain always reached the
+    // declared-supported version on its own. The 5.2.0 bump deliberately
+    // breaks that pairing: it adds no transforming migration, so a project
+    // left at this migration's target (5.1.0) is carried the rest of the way
+    // by the upgrade runner's version-lift fallback (a plain version bump,
+    // since there is nothing to transform), not by a registered migration
+    // step. Pinned here (where importing the constant is legitimate) so the
+    // e2e upgrade test can stay a pure black box.
+    expect(migration.to).toBe('5.1.0');
+    expect(CLI_SUPPORTED_SCHEMA).not.toBe(migration.to);
   });
 
   it('removes an existing schemas/ directory and reports an action', async () => {

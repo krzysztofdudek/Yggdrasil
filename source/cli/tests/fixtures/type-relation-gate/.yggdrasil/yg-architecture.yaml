@@ -1,0 +1,53 @@
+# yg-architecture.yaml — fixture architecture for the live type-relation gate
+# (coverage.type_level's import-edge check). Three types cover the full case matrix:
+#   svc        — non-strict, matches src/svc/** (this also matches the deliberately
+#                ambiguous file below, by design — see its own note). Carries a
+#                deny-default relations table with ONE explicit allow entry
+#                (calls: [util]), so its outgoing edges exercise BOTH the forbidden case
+#                (into owner-type, not listed) and the explicitly-allowed case (into util,
+#                listed) from the SAME source type.
+#   util       — non-strict, matches src/util/** PLUS the ambiguous file (an explicit
+#                any_of clause naming it). NO relations table at all, so its outgoing
+#                edges are a VACUOUS allow (relationDefault undefined -> 'allow') —
+#                distinct from svc's explicit one.
+#   owner-type — matches ONLY src/owner/**, the one directory the explicit node's own
+#                mapped file lives in. A node-mapped type must declare a when (a type
+#                without one is organizational/parent-only and cannot own mapped files at
+#                all), so this is the narrowest predicate that satisfies that requirement
+#                without ever competing as a classifying type for any OTHER file in this
+#                fixture: src/owner/target.ts is always node-owned, so it is never counted
+#                among the uncovered files the classification lattice actually classifies —
+#                owner-type therefore never turns a file into a type-covered endpoint here,
+#                and every edge into it is an explicit-node endpoint.
+# src/svc/ambiguous.ts matches BOTH svc (its path is under src/svc/**) and util (the
+# any_of clause names it explicitly) — deliberately ambiguous (ambiguous-node-type), so
+# an edge into it must never be gated.
+node_types:
+  svc:
+    description: "Service-layer source under src/svc/. A deny-default relations table
+      with one explicit allow entry lets its outgoing edges exercise both the forbidden
+      and the allowed case. Also matches the deliberately ambiguous file in this
+      directory (see that file's own note) — its ambiguity comes from ALSO matching
+      util, not from any exclusion here."
+    when:
+      path: "src/svc/**"
+    relations:
+      calls: [util]
+      default: deny
+
+  util:
+    description: "Shared utility source under src/util/, plus the deliberately ambiguous
+      file (an explicit any_of clause). No relations table at all — its outgoing edges are
+      a vacuous allow, distinct from svc's explicit one."
+    when:
+      any_of:
+        - path: "src/util/**"
+        - path: "src/svc/ambiguous.ts"
+
+  owner-type:
+    description: "Narrowly-scoped type matching only src/owner/**, the explicit node's own
+      directory. Every file under it is always node-mapped, so this type never classifies
+      an uncovered file — it exists to give this fixture an explicit-node edge endpoint
+      distinct from a type-covered one."
+    when:
+      path: "src/owner/**"

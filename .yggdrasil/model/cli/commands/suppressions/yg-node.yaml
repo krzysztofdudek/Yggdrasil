@@ -7,7 +7,11 @@ description: >-
   (cli/portal/engine-api, file portal/api/suppress-scan.ts); this command is a thin shell
   that loads the graph, walks the repo, runs the relocated scan via the facade, and
   renders its output unchanged — so it CALLS the facade rather than the ast / formatter /
-  language-registry subsystems directly.
+  language-registry subsystems directly. Under coverage.type_level it also classifies
+  the type-level lattice itself (uncovered-file scan, type classification, its own
+  content-read cache) so a live waiver on a file enforced by its architecture type
+  alone — no owning node — is exempted from the scan's noise filter the same way a
+  mapped node source already is, and the inventory can never miss it.
 aspects: []
 relations:
   - target: cli/portal/engine-api
@@ -19,6 +23,12 @@ relations:
   - target: cli/preamble
     type: calls
   - target: cli/utils
+    type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/io/file-content-cache
     type: calls
 mapping:
   - source/cli/src/cli/suppressions.ts

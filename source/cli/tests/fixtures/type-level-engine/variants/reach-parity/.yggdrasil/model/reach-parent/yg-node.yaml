@@ -1,0 +1,10 @@
+name: Reach Parent
+type: reach-parent-type
+description: "Maps a whole directory (src/reach/parent) that a nested child
+  component (reach-parent/child) maps one specific file inside of. Exists so a
+  type-covered file's architecture-derived read allowance can be proven to
+  resolve file ownership the same way the live type gate does (child-wins),
+  rather than treating the parent's raw directory mapping entry as a blanket
+  admission over everything textually inside it."
+mapping:
+  - src/reach/parent

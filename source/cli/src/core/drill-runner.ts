@@ -17,6 +17,12 @@
  * exactly as `fill.ts` keeps provider creation at the command boundary. Prompt
  * assembly here is byte-identical to the production filler (core/fill-llm.ts):
  * same `buildPairPrompt`, same suppress-range resolution, same prompt-size gate.
+ * By default every LLM case is assembled with a synthetic `drill:<aspectId>`
+ * node, matching the shape a real COMPONENTED pair produces. `DrillRunContext.
+ * nodeless` switches that off for the whole run, producing the shape a real
+ * NODELESS pair produces instead (a file enforced by its architecture type
+ * alone, no owning component — no `<node .../>` element, the single-file
+ * intro sentence, and the nodeless framing paragraph on a `per: file` aspect).
  */
 
 import path from 'node:path';
@@ -107,6 +113,20 @@ export interface DrillRunContext {
   tierName?: string;
   /** tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS (LLM only). */
   maxPromptChars: number;
+  /**
+   * When true, every LLM unit's prompt is assembled WITHOUT a node: nodePath
+   * and nodeDescription are both omitted, exactly as fill-llm.ts assembles a
+   * real nodeless pair (a file enforced by its architecture type alone, no
+   * owning component — `pair.nodePath === undefined`). This is what makes a
+   * drill case exercise the SAME prompt shape `llm/prompt.ts`'s `hasNode`
+   * branch produces for a real nodeless file (no `<node .../>` element, the
+   * single-file intro sentence, and — for a `per: file` aspect — the nodeless
+   * framing paragraph), rather than the pre-existing synthetic
+   * `drill:<aspectId>` node every prior drill run carried. Absent/false ⇒
+   * unchanged behavior (the synthetic node). Deterministic aspects ignore
+   * this field — drill's det path never assembles a prompt.
+   */
+  nodeless?: boolean;
 }
 
 /** The fixed node description for a drill prompt — a synthetic fixture, not a graph node. */
@@ -379,7 +399,6 @@ export async function runDrills(
   }
 
   const aspectContent = contentFor(aspect, 'content.md');
-  const nodeDescription = drillNodeDescription(aspect.id);
   const perFile = aspect.scope?.per === 'file';
 
   // Budget BEFORE the first reviewer call (upper bound: one call per unit × consensus).
@@ -401,7 +420,6 @@ export async function runDrills(
       const outcome = await reviewOneUnit(
         aspect,
         aspectContent,
-        nodeDescription,
         references,
         unit,
         ctx,
@@ -439,7 +457,6 @@ export async function runDrills(
 async function reviewOneUnit(
   aspect: AspectDef,
   aspectContent: string,
-  nodeDescription: string,
   references: PromptReferenceInput[],
   unit: PromptFileInput[],
   ctx: DrillRunContext,
@@ -463,8 +480,8 @@ async function reviewOneUnit(
   const promptInput = {
     aspect: { id: aspect.id, description: aspect.description ?? '', content: aspectContent },
     references,
-    nodePath: `drill:${aspect.id}`,
-    nodeDescription,
+    nodePath: ctx.nodeless ? undefined : `drill:${aspect.id}`,
+    nodeDescription: ctx.nodeless ? undefined : drillNodeDescription(aspect.id),
     files: unit,
     companions: [],
     suppressedRanges,

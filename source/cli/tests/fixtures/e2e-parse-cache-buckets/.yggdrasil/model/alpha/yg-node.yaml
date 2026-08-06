@@ -1,0 +1,10 @@
+name: Alpha
+type: module
+description: Five-file component reviewed under the reads-target companion aspect, whose companion parses every file of its uses-related target (beta).
+mapping:
+  - src/alpha/*.ts
+relations:
+  - target: beta
+    type: uses
+aspects:
+  - reads-target

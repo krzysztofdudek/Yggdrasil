@@ -92,9 +92,9 @@ describe('resolveApproveMode', () => {
     });
   });
 
-  // ── Specific assertions from the brief ───────────────────────────────
+  // ── Completeness: the remaining config × flag combinations ────────────
 
-  describe('brief-mandated assertions', () => {
+  describe('resolveApproveMode — remaining config × flag combinations', () => {
     it('config full + --no-approve → approve:false', () => {
       expect(resolveApproveMode({ approve: false }, cfg('full'))).toEqual({ approve: false, onlyDeterministic: false });
     });

@@ -47,7 +47,7 @@ describe('runStructureAspect — yg-suppress filtering', () => {
     });
     const result = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/sup1'),
-      aspectId: 'sup1', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'sup1', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(result.violations.map(v => v.message)).toEqual(['on clean line']);
   });
@@ -76,7 +76,7 @@ describe('runStructureAspect — yg-suppress filtering', () => {
     });
     const result = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/sup1'),
-      aspectId: 'sup1', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'sup1', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(result.violations.map(v => v.message)).toEqual([
       'on suppressed line',
@@ -108,7 +108,7 @@ describe('runStructureAspect — yg-suppress filtering', () => {
     try {
       await runStructureAspect({
         aspectDir: path.join('.yggdrasil/aspects/sup1'),
-        aspectId: 'sup1', nodePath: 'N', graph: g, projectRoot,
+        aspectId: 'sup1', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       });
     } catch (e) {
       err = e;
@@ -150,7 +150,7 @@ describe('runStructureAspect — yg-suppress filtering', () => {
     });
     const result = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/sup1'),
-      aspectId: 'sup1', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'sup1', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(result.violations.map(v => v.message)).toEqual(['graph-level']);
   });

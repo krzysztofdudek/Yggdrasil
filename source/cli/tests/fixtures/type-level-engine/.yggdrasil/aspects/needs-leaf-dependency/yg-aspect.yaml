@@ -1,0 +1,6 @@
+name: Needs Leaf Dependency
+description: "Attached to consumer with when { relations: { uses: { target_type: leaf } } } — satisfied by a derived edge into either a real leaf-typed node or a type-covered leaf file (both answer target_type the same way)."
+reviewer:
+  type: deterministic
+scope:
+  per: file

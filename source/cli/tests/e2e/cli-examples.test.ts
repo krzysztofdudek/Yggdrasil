@@ -139,13 +139,11 @@ describe.skipIf(!distExists)('CLI E2E — shipped examples are valid + reproduci
   // --- E11: every shipped example carries the CURRENT universal install ---
   //
   // The thirteen per-platform installers are retired; every example project
-  // must now carry the SAME three artifacts (AGENTS.md digest block matching
+  // now carries the SAME three artifacts (AGENTS.md digest block matching
   // the installed CLI's canonical hash, a CLAUDE.md @AGENTS.md import, and
-  // .clinerules/yggdrasil.md), and `yg check` must never flag them stale or
-  // uncovered. This goes green only once the examples are regenerated under
-  // the new install (a later task in this series) — until then it documents
-  // the target state, kept in its own per-example `it` so a red E11 case
-  // never masks this file's other (currently green) assertions.
+  // .clinerules/yggdrasil.md), and `yg check` never flags them stale or
+  // uncovered — kept in its own per-example `it` so a red E11 case never
+  // masks this file's other assertions.
   for (const name of ALL_EXAMPLES) {
     it(`examples/${name} — carries the universal install artifacts, and yg check never flags them stale or uncovered (E11)`, () => {
       const dir = path.join(REPO_ROOT, 'examples', name);

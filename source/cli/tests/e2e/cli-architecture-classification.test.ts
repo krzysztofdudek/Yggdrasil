@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, renameSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -889,6 +889,92 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       expect(stdout).toContain('service');
     } finally {
       rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('E9: a pure type-declaration reorder never changes WHICH 3 candidate types --file names as closest, warm or cold', () => {
+    // Four equally-scoring (0.00) path-only types, none of which matches the
+    // queried file: a stable sort on score alone leaves ties in whatever
+    // order the architecture happens to declare them in, so .slice(0, 3)
+    // would pick MEMBERSHIP by declaration order, not by anything about the
+    // types themselves — the same failure mode the cache's warm/cold split
+    // exposes, since a fresh (cold) evaluation walks the reordered file while
+    // a cache hit (warm) still serves the pre-reorder shard.
+    const architecture = [
+      'node_types:',
+      '  alpha:',
+      "    description: 'Alpha-layer marker type, path-only'",
+      '    log_required: false',
+      '    when:',
+      '      path: "src/alpha/**"',
+      '  bravo:',
+      "    description: 'Bravo-layer marker type, path-only'",
+      '    log_required: false',
+      '    when:',
+      '      path: "src/bravo/**"',
+      '  charlie:',
+      "    description: 'Charlie-layer marker type, path-only'",
+      '    log_required: false',
+      '    when:',
+      '      path: "src/charlie/**"',
+      '  delta:',
+      "    description: 'Delta-layer marker type, path-only'",
+      '    log_required: false',
+      '    when:',
+      '      path: "src/delta/**"',
+      '',
+    ].join('\n');
+    const dir = archGraph('ts-closest-order', architecture, ({ projectRoot }) => {
+      writeSource(projectRoot, 'src/misc/plain.ts', 'export const p = 1;\n'); // matches none of the four
+    });
+    // archGraph's own config carries no coverage: block, i.e. type_level
+    // defaults off — but this test drives type-suggest --file specifically to
+    // exercise the classification CACHE's warm/cold behavior, and the cache is
+    // never constructed with the tier off. Turn it on for this one test.
+    appendFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'coverage:\n  type_level: true\n');
+    let parked: string | undefined;
+    try {
+      // Warm the cache with this declaration order (alpha, bravo, charlie, delta).
+      const warm = run(['type-suggest', '--file', 'src/misc/plain.ts'], dir);
+      expect(warm.status).toBe(0);
+      expect(warm.stdout).toContain('alpha');
+      expect(warm.stdout).toContain('bravo');
+      expect(warm.stdout).toContain('charlie');
+      expect(warm.stdout).not.toContain('delta'); // canonical top-3 by typeId excludes delta
+
+      // A PURE reorder — move delta's whole block to the front, byte-identical
+      // otherwise. architecturePredicateHash sorts by id before hashing, so
+      // this must never invalidate the shard just written above.
+      const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+      const original = readFileSync(archPath, 'utf-8');
+      const deltaBlock =
+        '  delta:\n    description: \'Delta-layer marker type, path-only\'\n    log_required: false\n    when:\n      path: "src/delta/**"\n';
+      expect(original).toContain(deltaBlock);
+      const withoutDelta = original.replace(deltaBlock, '');
+      const reordered = withoutDelta.replace('node_types:\n', `node_types:\n${deltaBlock}`);
+      expect(reordered).not.toBe(original);
+      writeFileSync(archPath, reordered);
+
+      // Still warm — the on-disk cache is untouched, so this must be a cache
+      // HIT returning the exact same rendered text as the first run.
+      const warmReordered = run(['type-suggest', '--file', 'src/misc/plain.ts'], dir);
+      expect(warmReordered.stdout).toBe(warm.stdout);
+
+      // Move (never delete) the on-disk cache aside so the next run is
+      // genuinely cold — a rename, not a removal.
+      parked = mkdtempSync(path.join(tmpdir(), 'yg-cache-parked-'));
+      renameSync(path.join(dir, '.yggdrasil', '.type-class-cache'), path.join(parked, 'parked'));
+
+      const cold = run(['type-suggest', '--file', 'src/misc/plain.ts'], dir);
+
+      // Same exit code, same rendered TEXT, same candidate SET — a fresh
+      // evaluation under the reordered file must select the identical 3
+      // types the original warm run named, never delta in charlie's place.
+      expect(cold.status).toBe(warm.status);
+      expect(cold.stdout).toBe(warm.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+      if (parked) rmSync(parked, { recursive: true, force: true });
     }
   });
 });

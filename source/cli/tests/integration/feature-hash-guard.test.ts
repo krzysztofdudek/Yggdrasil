@@ -112,7 +112,7 @@ describe('feature vectors never enter a verdict inputHash (G3, via the real fill
 
     // 1. Real fill — warms the AST cache (features written) and persists the deterministic
     //    `probe` verdict, whose inputHash the production pipeline computed over the subject bytes.
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const probeBefore = Object.values(readLock(graph.rootPath).verdicts['probe'] ?? {})
       .map((e) => e.hash)
       .sort();

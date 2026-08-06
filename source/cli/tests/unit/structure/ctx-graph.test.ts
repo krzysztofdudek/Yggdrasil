@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { createCtxGraph, UndeclaredGraphReadError } from '../../../src/structure/ctx-graph.js';
+import { createCtxGraph, createNodelessCtxGraph, StructureNodeContextUnavailableError, UndeclaredGraphReadError } from '../../../src/structure/ctx-graph.js';
 import { ObservationRecorder } from '../../../src/structure/observations.js';
 import { observationKey } from '../../../src/core/pair-hash.js';
 import { buildTestGraphForStructure } from '../helpers/build-test-graph-structure.js';
@@ -402,5 +402,44 @@ describe('ctx.graph', () => {
     expect(file.content).toBe('a');
     const keys = recorder.snapshot().map(([k]) => k);
     expect(keys).not.toContain(observationKey('read', 'src/a.ts'));
+  });
+});
+
+describe('createNodelessCtxGraph — every entry point refuses', () => {
+  // A unit reviewing a file with no owning component has no yg-node.yaml to
+  // resolve any of these calls against, so every CtxGraph method throws the
+  // SAME typed error rather than silently narrowing to an empty result — a
+  // silent empty result would be indistinguishable from "reachable, but
+  // nothing there" and would tempt an author into treating it as such.
+  const dummyNode = { id: 'x', type: 't', mapping: [], files: [], ports: {} };
+
+  it('node() refuses', () => {
+    const g = createNodelessCtxGraph();
+    expect(() => g.node('anything')).toThrow(StructureNodeContextUnavailableError);
+  });
+
+  it('nodesByType() refuses', () => {
+    const g = createNodelessCtxGraph();
+    expect(() => g.nodesByType('module')).toThrow(StructureNodeContextUnavailableError);
+  });
+
+  it('relationsFrom() refuses', () => {
+    const g = createNodelessCtxGraph();
+    expect(() => g.relationsFrom(dummyNode)).toThrow(StructureNodeContextUnavailableError);
+  });
+
+  it('relationsTo() refuses', () => {
+    const g = createNodelessCtxGraph();
+    expect(() => g.relationsTo(dummyNode)).toThrow(StructureNodeContextUnavailableError);
+  });
+
+  it('children() refuses', () => {
+    const g = createNodelessCtxGraph();
+    expect(() => g.children(dummyNode)).toThrow(StructureNodeContextUnavailableError);
+  });
+
+  it('flowParticipants() refuses', () => {
+    const g = createNodelessCtxGraph();
+    expect(() => g.flowParticipants('some-flow')).toThrow(StructureNodeContextUnavailableError);
   });
 });

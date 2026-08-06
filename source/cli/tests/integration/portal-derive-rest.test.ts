@@ -29,10 +29,39 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('the top fan-out hub is cli/core/fill with 22 declared relations', () => {
+  it('cli/core/check, cli/core/fill, and cli/portal/engine-api are a three-way top fan-out tie at 23', () => {
+    // cli/core/check no longer constructs the type-classification cache itself
+    // (core/type-coverage.ts's own computeTypeCoverageCached/
+    // classifySingleFileCached wrappers do, so every caller gets the cache
+    // without hand-threading it) — that relation moved to cli/core/type-coverage
+    // instead, which had 8 spare relations under the global default ceiling
+    // where cli/core/check had none left under ITS OWN reviewed ceiling of 25.
+    // All three of these seams then dropped one further relation each — the
+    // direct cli/relations/extractors edge (extractorForLanguage), once every
+    // relation-pass call site started assembling its deps through
+    // relations/pass.ts's runProjectRelationPass instead of by hand; the
+    // extractor registry is now reached transitively through the
+    // cli/relations/core relation each of them already declares. All three
+    // dropped together, so the tie survives at one lower — 23, not 24.
+    // Tied counts break alphabetically (rankHubs: count desc, then path asc):
+    // 'cli/core/check' < 'cli/core/fill' < 'cli/portal/engine-api'.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
-    expect(data.hubs.fanOut[0].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[0].count).toBe(22);
+    expect(data.hubs.fanOut[0].path).toBe('cli/core/check');
+    expect(data.hubs.fanOut[0].count).toBe(23);
+    expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
+    expect(data.hubs.fanOut[1].count).toBe(23);
+    expect(data.hubs.fanOut[2].path).toBe('cli/portal/engine-api');
+    expect(data.hubs.fanOut[2].count).toBe(23);
+    // Also pins that aspect-test's own extraction (a prior architectural
+    // change) still landed it BELOW the leaders, never re-joining the tie by
+    // accident. Found by path, not by a fixed index — the nodes between the
+    // top and aspect-test in the ranking are unrelated to this change and no
+    // more pinned here than they were before, avoiding the brittle-anchor
+    // failure mode a past dogfood entry recorded for this same test file.
+    const aspectTest = data.hubs.fanOut.find((h) => h.path === 'cli/commands/aspect-test');
+    expect(aspectTest).toBeDefined();
+    expect(aspectTest!.count).toBe(20);
+    expect(aspectTest!.count).toBeLessThan(23);
     // descending order invariant.
     for (let i = 1; i < data.hubs.fanOut.length; i++) {
       expect(data.hubs.fanOut[i - 1].count).toBeGreaterThanOrEqual(data.hubs.fanOut[i].count);
@@ -46,12 +75,21 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     }
   });
 
-  it('the worklist carries no high-fan-out group — both reviewed seams declare an allowance', () => {
-    // cli/core/fill and cli/portal/engine-api each declare a reviewed-seam max_direct_relations
-    // ceiling equal to their exact relation count, so the built-in high-fan-out check no longer
-    // warns on either. The real repo is warning-free, so the worklist has no high-fan-out group.
-    const hfo = data.worklist.find((w) => w.rule === 'high-fan-out');
-    expect(hfo).toBeUndefined();
+  it('the worklist reports high fan-out only for a node over its OWN allowance, so this repo — where every such node declares one — has none', () => {
+    // The check compares a node's declared relation count against its own
+    // max_direct_relations when it sets one, and against the repository default
+    // otherwise. Every node here that exceeds the default carries an explicit
+    // allowance equal to its exact count, each with a written reason for why the
+    // count describes the work rather than a tangle — so no node is over its own
+    // limit and the worklist has nothing to report.
+    //
+    // Asserting the group's ABSENCE is what makes this test worth having: the
+    // moment a node grows past its own stated allowance, or gains relations
+    // without its reason being revisited, the group reappears here and this
+    // fails. A count pinned to whichever node happens to be over today would
+    // instead have to be edited every time the graph legitimately changed,
+    // which teaches the reader nothing.
+    expect(data.worklist.find((w) => w.rule === 'high-fan-out')).toBeUndefined();
   });
 
   it('the boundary is LIVE (computed, never UNKNOWN) on the real parseable repo', () => {
@@ -166,6 +204,7 @@ function mkNode(p: string, outDeg: number, inDeg: number): PortalNode {
     type: 'module',
     parent: null,
     mapping: [],
+    mappingEntryCount: 0,
     sourceFileCount: 0,
     isTest: false,
     checked: false,

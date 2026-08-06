@@ -2,6 +2,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
+import { mkdtempSync, cpSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import vm from 'node:vm';
 import { extractPortalData } from '../../src/portal/extract.js';
 import type { PortalData } from '../../src/portal/contract.js';
@@ -40,6 +42,7 @@ const MODULES = [
   'shell.js',
   'dispatch.js',
   'views/overview-view.js',
+  'views/coverage-typecovered.js',
   'views/coverage-view.js',
   'views/tree-view.js',
   'views/relations-matrix.js',
@@ -420,6 +423,126 @@ describe('Phase-5 frontend — export, file-aware loop, a11y, org guard (real so
     expect(approve.disabled).toBe(true);
     // The chrome states the view-only status.
     expect(textOf(root)).toMatch(/view-only/i);
+  });
+});
+
+// ── 5.1, at coverage.type_level ON — the coverage CSV reconciles ──────────────────────────────
+//
+// portal-basic above never turns the tier on, so its coverage CSV round-trip proves nothing about
+// whether the two type-level terms (typeCoveredCount / excludedFiles) reach the export at all —
+// on that fixture both are zero and their absence from the row set is invisible. A real tier-on
+// fixture is required to prove the identity `coveredFiles + typeCoveredCount + uncoveredFiles ===
+// totalFiles` actually holds IN THE EXPORTED ARTIFACT, not only in the live counts object.
+describe('Phase-5 export — the coverage CSV reconciles at coverage.type_level on (real tier-on fixture)', () => {
+  let typeCovData: PortalData;
+
+  beforeAll(async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-csv-typecov-'));
+    cpSync(path.resolve(__dirname, '../fixtures/portal-type-coverage'), dir, { recursive: true });
+    try {
+      typeCovData = await extractPortalData(dir, { writeEnabled: false });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('the exported coverage CSV carries typeCoveredCount, typeCoveredUnenforced, and excludedFiles, and the four terms sum to totalFiles', async () => {
+    const Yg = await loadYg();
+    const ex = Yg.exporter as { buildCoverageCsv: (d: PortalData) => string };
+    const rows = parseCsv(ex.buildCoverageCsv(typeCovData));
+    const valueOf = (metric: string): number => {
+      const row = rows.find((r) => r[0] === metric);
+      expect(row, `no "${metric}" row in the exported coverage CSV`).toBeTruthy();
+      return Number((row as string[])[1]);
+    };
+    // Sanity-pin the fixture's own shape (see portal-extract.test.ts's identical pin) so a future
+    // edit to it cannot silently invalidate what this test is actually proving.
+    expect(typeCovData.meta.counts.totalFiles).toBe(4);
+    expect(valueOf('coveredFiles') + valueOf('typeCoveredCount') + valueOf('uncoveredFiles')).toBe(
+      valueOf('totalFiles'),
+    );
+    expect(valueOf('typeCoveredUnenforced')).toBe(1);
+    expect(valueOf('excludedFiles')).toBe(1);
+  });
+
+  it('the exported residue CSV names the unenforced type-covered file and the excluded file, not only the checked type-covered one', async () => {
+    const Yg = await loadYg();
+    const ex = Yg.exporter as { buildResidueCsv: (d: PortalData) => string };
+    const rows = parseCsv(ex.buildResidueCsv(typeCovData));
+    expect(rows).toContainEqual(['src/lib/util.ts', 'type-covered-no-enforcement (lib)']);
+    expect(rows).toContainEqual(['vendor/tool.ts', 'excluded-file']);
+    // The CHECKED type-covered file is not a residue item — it has a real verdict.
+    expect(rows.some((r) => r[0] === 'src/svc/handler.ts')).toBe(false);
+  });
+});
+
+// ── 5.1, at a real aspect implies cycle — the uncomputable state reaches the exports ──────────
+//
+// Neither fixture above ever hits an aspect `implies` cycle, so their exports prove nothing
+// about whether "type-covered but the rules could not be worked out" — the third, disjoint
+// state — reaches the CSV/JSON exports at all, or whether it stays distinguishable there from
+// the plain "no rule applies" state once it arrives. On this fixture the two are DIFFERENT
+// files with DIFFERENT causes; relabelling one as the other, or dropping one from the export,
+// puts the exact conflation the three-way split exists to prevent into an artifact an auditor
+// downloads and reads outside the running page.
+describe('Phase-5 export — the uncomputable (aspect implies cycle) state reaches the CSV and JSON exports, never folded into the plain no-rule-applies state', () => {
+  const BASE_FIXTURE = path.resolve(__dirname, '../fixtures/type-level-engine');
+  const CYCLIC_OVERLAY = path.resolve(__dirname, '../fixtures/type-level-engine/variants/cyclic-type');
+  let cyclicData: PortalData;
+
+  beforeAll(async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-csv-cyclic-'));
+    cpSync(BASE_FIXTURE, dir, { recursive: true });
+    cpSync(CYCLIC_OVERLAY, dir, { recursive: true });
+    try {
+      cyclicData = await extractPortalData(dir, { writeEnabled: false });
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
+
+  it('the exported residue CSV keeps the uncomputable row and the unenforced row under DISTINCT kinds — neither name covers the other', async () => {
+    const Yg = await loadYg();
+    const ex = Yg.exporter as { buildResidueCsv: (d: PortalData) => string };
+    const rows = parseCsv(ex.buildResidueCsv(cyclicData));
+    // The cycle file: its own row, its own kind, naming the type.
+    expect(rows).toContainEqual(['src/cyclic/z.ts', 'type-covered-uncomputable (cyclic)']);
+    // The zero-rule file: a DIFFERENT kind string, even though both files satisfy coverage with
+    // no verdict of any kind — relabelling the cycle row with this kind (or vice versa) is
+    // exactly the conflation this split exists to prevent, and would leave this assertion the
+    // only thing standing between it and a passing suite.
+    expect(rows).toContainEqual(['src/ep/e.ts', 'type-covered-no-enforcement (emptyparents)']);
+    expect(rows.some((r) => r[0] === 'src/cyclic/z.ts' && r[1] === 'type-covered-no-enforcement (cyclic)')).toBe(false);
+    expect(rows.some((r) => r[0] === 'src/ep/e.ts' && r[1].indexOf('uncomputable') >= 0)).toBe(false);
+  });
+
+  it('the exported coverage CSV carries a nonzero typeCoveredUncomputable metric, distinct from typeCoveredUnenforced', async () => {
+    const Yg = await loadYg();
+    const ex = Yg.exporter as { buildCoverageCsv: (d: PortalData) => string };
+    const rows = parseCsv(ex.buildCoverageCsv(cyclicData));
+    const valueOf = (metric: string): number => {
+      const row = rows.find((r) => r[0] === metric);
+      expect(row, `no "${metric}" row in the exported coverage CSV`).toBeTruthy();
+      return Number((row as string[])[1]);
+    };
+    // Ground truth independently confirmed against yg check on this fixture combination (see
+    // portal-extract.test.ts's identical pin): 7 type-covered files, 5 enforced, 1 unenforced
+    // (zero rules), 1 uncomputable (the cycle) — never conflated into one split of 2.
+    expect(valueOf('typeCoveredCount')).toBe(7);
+    expect(valueOf('typeCoveredUnenforced')).toBe(1);
+    expect(valueOf('typeCoveredUncomputable')).toBe(1);
+  });
+
+  it('the exported JSON keeps residue.typeCoveredUncomputable as its own array, naming the cycle file and its cycle sentence', async () => {
+    const Yg = await loadYg();
+    const ex = Yg.exporter as { buildExportJson: (d: PortalData) => { residue: PortalData['residue'] } };
+    const round = JSON.parse(JSON.stringify(ex.buildExportJson(cyclicData))) as { residue: PortalData['residue'] };
+    expect(round.residue.typeCoveredUncomputable).toHaveLength(1);
+    expect(round.residue.typeCoveredUncomputable[0].path).toBe('src/cyclic/z.ts');
+    expect(round.residue.typeCoveredUncomputable[0].type).toBe('cyclic');
+    expect(round.residue.typeCoveredUncomputable[0].why).toMatch(/implies cycle/);
+    // Never duplicated into the plain typeCovered list, whose entries carry `enforced`, not `why`.
+    expect(round.residue.typeCovered.some((f) => f.path === 'src/cyclic/z.ts')).toBe(false);
   });
 });
 

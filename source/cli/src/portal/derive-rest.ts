@@ -3,6 +3,8 @@ import type {
   PortalNode,
   PortalSuppression,
   PortalResidue,
+  PortalTypeCoveredFile,
+  PortalTypeCoveredUncomputableFile,
   HubEntry,
   WorklistGroup,
   SuppressionMarkerInput,
@@ -63,9 +65,21 @@ function rankHubs(entries: HubEntry[]): HubEntry[] {
 /**
  * The residue: the honest "what isn't being verified" ledger. no-rule nodes come
  * from the already-built node states; uncovered files are passed in (the engine's
- * own `scanUncoveredFiles` output, adapted by the caller).
+ * own `scanUncoveredFiles` output, adapted by the caller). `typeCovered` (every
+ * COMPUTABLE type-covered file, path + matched type + whether it is enforced — see
+ * `PortalTypeCoveredFile`'s own doc), `typeCoveredUncomputable` (every type-covered
+ * file whose cascade an aspect `implies` cycle stopped from ever resolving — disjoint
+ * from `typeCovered`, see `PortalTypeCoveredUncomputableFile`'s own doc), and
+ * `excludedFiles` (paths under a `coverage.excluded` root) default to `[]` so an
+ * existing caller that has not been updated yet still gets a valid `PortalResidue`.
  */
-export function buildResidue(nodes: PortalNode[], uncoveredFiles: string[]): PortalResidue {
+export function buildResidue(
+  nodes: PortalNode[],
+  uncoveredFiles: string[],
+  typeCovered: PortalTypeCoveredFile[] = [],
+  excludedFiles: string[] = [],
+  typeCoveredUncomputable: PortalTypeCoveredUncomputableFile[] = [],
+): PortalResidue {
   const noRuleNodes = nodes
     .filter((n) => n.state === 'no-rule' && n.mapping.length > 0)
     .map((n) => n.path)
@@ -73,6 +87,9 @@ export function buildResidue(nodes: PortalNode[], uncoveredFiles: string[]): Por
   return {
     noRuleNodes,
     uncoveredFiles: [...uncoveredFiles].sort((a, b) => a.localeCompare(b, 'en')),
+    typeCovered: [...typeCovered].sort((a, b) => a.path.localeCompare(b.path, 'en')),
+    typeCoveredUncomputable: [...typeCoveredUncomputable].sort((a, b) => a.path.localeCompare(b.path, 'en')),
+    excludedFiles: [...excludedFiles].sort((a, b) => a.localeCompare(b, 'en')),
   };
 }
 

@@ -77,6 +77,26 @@ test.describe('§3a SHELL-panel — Node Attestation + global transitions', () =
     await expect(page).toHaveURL(new RegExp('#/node/' + encodeURIComponent(target)));
   });
 
+  test('the panel meta line names the mapping-entry count AND the real source-file count, distinctly', async ({
+    page,
+    repoPage,
+  }) => {
+    // cli/tests/fixtures maps ONE directory entry (source/cli/tests/fixtures/) that expands
+    // to many more real files on disk. The panel must show BOTH numbers, each labeled for
+    // what it is — the one declared entry, and the real file count it resolves to — never
+    // one standing in for the other.
+    await page.goto(repoPage + '#/node/cli%2Ftests%2Ffixtures');
+    const panel = page.locator('.app-panel');
+    await expect(panel).toHaveClass(/open/);
+    const metaText = (await panel.locator('.pan-meta').textContent()) ?? '';
+    expect(metaText).toContain('1 mapping entry');
+    const fileCountMatch = metaText.match(/(\d+) source files?/);
+    expect(fileCountMatch).not.toBeNull();
+    // The real file count must differ from the single declared entry, or the fix would be
+    // indistinguishable from the old, mislabeled single count.
+    expect(Number(fileCountMatch![1])).toBeGreaterThan(5);
+  });
+
   test('a no-rule node panel routes to V6 Type Model (never a terminal shrug)', async ({ page, basicPage }) => {
     // The fixture's `api` node is a no-rule module (no effective aspect).
     await page.goto(basicPage + '#/node/api');

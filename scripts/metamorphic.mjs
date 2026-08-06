@@ -345,7 +345,7 @@ const ARCH_YAML = `node_types:
       path: "source/cli/src/**/*.ts"
 `;
 
-const CONFIG_YAML = `version: "5.1.0"
+const CONFIG_YAML = `version: "5.2.0"
 quality:
   max_direct_relations: 20
 reviewer:

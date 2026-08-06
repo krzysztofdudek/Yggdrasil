@@ -22,6 +22,12 @@ import path from 'node:path';
  * MUST NOT pick one — guessing a root would be a false positive. This mirrors the
  * Java/Go multi-target rule (2+ distinct targets → silence, never first-wins).
  *
+ * `deps.isExcluded`, when supplied, drops an excluded hit from that ambiguity count
+ * BEFORE the exactly-one check runs: an excluded file is graph-told to not exist, so
+ * it can never be the genuine target, and it must not keep a real, surviving hit
+ * silenced merely because the class also used to live under a root the graph no
+ * longer considers. Absent → no hit is ever dropped (today's behavior, unaffected).
+ *
  * Longest-prefix matters because prefixes nest: with `App\` → `src/` and `App\Tests\` →
  * `tests/`, the FQN `App\Tests\UnitTest` must map under `tests/`, not `src/Tests/`.
  *
@@ -42,6 +48,15 @@ export interface PhpResolveDeps {
   psr4For(fromFile: string): ReadonlyMap<string, readonly string[]>;
   /** Does a file exist at this repo-relative POSIX path? */
   exists(repoRelPosix: string): boolean;
+  /**
+   * Optional. True when the graph excludes this repo-relative POSIX path (a nested
+   * project's own boundary, or a `coverage.excluded` root). A PSR-4 base-directory
+   * hit that names an excluded file is dropped from the candidate set BEFORE the
+   * exactly-one-hit ambiguity check runs, so a class the graph no longer considers
+   * cannot keep a real, surviving copy under another root silenced. Absent → no hit
+   * is ever dropped (today's behavior, unaffected).
+   */
+  isExcluded?(repoRelPosix: string): boolean;
 }
 
 export function resolvePhpFqn(
@@ -80,8 +95,13 @@ export function resolvePhpFqn(
     const candidate = joinUnder(baseDir, subPath);
     if (deps.exists(candidate)) hits.add(candidate);
   }
-  if (hits.size !== 1) return undefined;
-  return [...hits][0];
+  // Drop any excluded hit before deciding whether resolution is ambiguous — the
+  // same drop-then-decide rule the Go/Java package resolvers apply to a package's
+  // file list, applied here to the PSR-4 base-directory candidate set.
+  const isExcl = deps.isExcluded ?? ((): boolean => false);
+  const live = [...hits].filter((h) => !isExcl(h));
+  if (live.length !== 1) return undefined;
+  return live[0];
 }
 
 /** Join a repo-relative directory with a sub-path, normalizing. '' → the sub-path itself. */

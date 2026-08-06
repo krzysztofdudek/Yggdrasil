@@ -7,6 +7,17 @@
  */
 
 /**
+ * Standing notice: coverage.type_level is on, but no type in the architecture
+ * declares when:, so the classification lattice can never match a single
+ * file (classifyFile skips every type without when — core/type-classifier.ts)
+ * — the flag is committed but does nothing yet. Shared verbatim between yg
+ * check's coverage-section render and yg init's closing summary so the same
+ * fact reads identically on both surfaces.
+ */
+export const ZERO_CLASSIFYING_TYPES_NOTICE =
+  "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.";
+
+/**
  * Structural validation codes — graph-shape and config errors that always block
  * `yg check` regardless of verification state. Both the summary tally and the
  * rendered grouping read this one set.
@@ -29,11 +40,7 @@ export const STRUCTURAL_CODES = new Set<string>([
   'type-without-when-with-mapping',
   'type-when-mismatch',
   'file-mapping-gitignored',
-  // A git-tracked file is matched by a directory/glob mapping entry (so the
-  // coverage scan counts it covered) but is gitignored — the hash layer drops it
-  // from the node's subject set, so no reviewer ever sees it (a false green).
-  // Blocking, distinct from the plain "not covered" coverage error.
-  'mapped-file-gitignored',
+  'file-mapping-excluded',
   'enforce-strict-without-when',
   'architecture-cycle',
   // A relation allow-list in yg-architecture.yaml names a target type that is
@@ -84,6 +91,17 @@ export const STRUCTURAL_CODES = new Set<string>([
   // a node depends on another node without a declared, sanctioned relation, or its
   // relation verdict could not be confirmed against the current tree.
   'relation-undeclared-dependency',
+  // Live type-to-type relation gate (coverage.type_level): a statically-resolved
+  // import edge between two classified endpoints (an explicit node and/or a
+  // type-covered file) has no allowed relation type under the architecture's
+  // allow-list. Always an error, independent of the endpoints' coverage tier.
+  'type-relation-forbidden',
+  // Type-level coverage (coverage.type_level): an uncovered file matches 2+
+  // non-strict classifying types and no strict type. The classification
+  // lattice (core/type-coverage.ts) refuses to guess which type's rules
+  // apply — always blocking, independent of whether the file sits under a
+  // required or advisory coverage root.
+  'ambiguous-node-type',
 ]);
 
 /**
@@ -126,6 +144,14 @@ export const APPROVE_GATING_CODES = new Set<string>([
   'aspect-tier-on-deterministic',
   'aspect-tier-on-aggregate',
   'aspect-tier-unknown',
+  // A cycle in the aspect `implies` graph makes effective-aspect resolution
+  // undefined for every node the cycle can reach — not just the cycle's own
+  // members, since `implies` composes with type defaults, `when`, and other
+  // channels in ways a fill run cannot cheaply bound. Gate the WHOLE fill
+  // rather than dispatch reviewer calls for pairs that look unrelated: a
+  // narrower gate would still spend money before ending red, and the
+  // resolution the cost was spent on cannot be trusted anyway.
+  'aspect-implies-cycle',
   // Defense-in-depth for the mapping path-traversal hole (belt-and-suspenders;
   // the node-parser's parse-time escapesRepo guard is primary — an escaping
   // mapping fails to load, so the node never reaches the fill stage). If an
@@ -173,6 +199,15 @@ export const APPROVE_GATING_CODES = new Set<string>([
  *     supplies the canonical hash; core does no fs of its own). Pure read-only
  *     warning, deliberately outside every blocking set — it never writes the
  *     lock, changes a verdict, or gates `--approve`. Emitted by checkDigestGate.
+ *
+ *   - coverage-required-shadowed — dead-config-line linter: coverage exclusion is
+ *     absolute, so a coverage.required root that is fully contained in a
+ *     coverage.excluded root can never match a file (exclusion always wins once
+ *     it matches at all), so the required line is dead. Only decided for plain
+ *     roots on both sides — glob-vs-glob containment is not statically
+ *     decidable and is documented rather than warned. Emitted by
+ *     checkRequiredShadowedByExcluded. Pure config check (no file list needed),
+ *     read-only, never blocks, never gates --approve.
  *
  * (Pre-existing warnings such as `orphaned-aspect`, `high-fan-out`, and
  * `aspect-references-empty-array` follow the same convention: warning severity,

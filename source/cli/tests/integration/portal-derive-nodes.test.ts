@@ -7,6 +7,7 @@ import { walkRepoFiles } from '../../src/io/repo-scanner.js';
 import { readLock } from '../../src/io/lock-store.js';
 import { verifyLock } from '../../src/core/verify-lock.js';
 import { readLogContent } from '../../src/core/log/log-gate.js';
+import { computeNodeMappedFiles } from '../../src/core/pairs.js';
 import { buildPortalNodes, type SuppressionsByFile } from '../../src/portal/derive-nodes.js';
 import type { PortalNode, PortalSuppression } from '../../src/portal/contract.js';
 import type { Graph, GraphNode, AspectDef } from '../../src/model/graph.js';
@@ -39,9 +40,61 @@ describe('portal per-node derivation (honest state, effective aspects, relations
     }
     const suppressions: SuppressionsByFile = { byFile: new Map() };
 
-    const nodes = buildPortalNodes(graph, lock, verification, check, logContents, suppressions);
+    // The real per-node file count, computed the SAME exclusion-aware, child-carve-out-aware
+    // way the engine-api facade (computePortalSourceFileCounts) does in production, so this
+    // test drives the actual on-disk answer rather than a stand-in.
+    const sourceFileCountByNode = new Map<string, number>();
+    for (const nodePath of graph.nodes.keys()) {
+      sourceFileCountByNode.set(nodePath, (await computeNodeMappedFiles(graph, nodePath)).length);
+    }
+
+    const nodes = buildPortalNodes(
+      graph,
+      lock,
+      verification,
+      check,
+      logContents,
+      suppressions,
+      new Map(),
+      sourceFileCountByNode,
+    );
     byPath = new Map(nodes.map((n) => [n.path, n]));
   }, 180_000);
+
+  it('cli/tests/fixtures maps ONE directory entry covering hundreds of files — mappingEntryCount counts the ENTRY, never the files it resolves to', () => {
+    const fixtures = byPath.get('cli/tests/fixtures');
+    expect(fixtures).toBeDefined();
+    expect(fixtures!.mapping).toEqual(['source/cli/tests/fixtures/']);
+    // Exactly the mapping array's length, regardless of how many real files that one
+    // directory entry expands to on disk (hundreds, in this repo) — this field answers
+    // "how many entries did the node declare", never "how many files does it own".
+    expect(fixtures!.mappingEntryCount).toBe(fixtures!.mapping.length);
+    expect(fixtures!.mappingEntryCount).toBe(1);
+  });
+
+  it('scripts maps TWO mapping entries — mappingEntryCount counts BOTH, never collapsing a multi-entry mapping to 1', () => {
+    // Distinct from the single-entry pin above: a mapping with more than one declared
+    // entry is the only shape that can distinguish "count the entries" from "always 1".
+    const scripts = byPath.get('scripts');
+    expect(scripts).toBeDefined();
+    expect(scripts!.mapping.length).toBeGreaterThan(1);
+    expect(scripts!.mappingEntryCount).toBe(scripts!.mapping.length);
+  });
+
+  it("cli/tests/fixtures' sourceFileCount is the real, exclusion-aware, on-disk file count mappingEntryCount deliberately does not give", () => {
+    const fixtures = byPath.get('cli/tests/fixtures');
+    expect(fixtures).toBeDefined();
+    // The one declared directory entry resolves to many real loose fixture files directly
+    // under it, PLUS however many more sit outside a nested fixture project's own boundary
+    // (most subdirectories here are self-contained mini-projects with their own .yggdrasil/
+    // or .git, so the SAME nested-project exclusion this branch enforces everywhere else
+    // also keeps their files off this node's own count — sourceFileCount never claims
+    // ownership of files this graph does not actually enforce). Either way the real count
+    // is well above the single declared entry, and never equal to it.
+    expect(fixtures!.mappingEntryCount).toBe(1);
+    expect(fixtures!.sourceFileCount).toBeGreaterThan(5);
+    expect(fixtures!.sourceFileCount).not.toBe(fixtures!.mappingEntryCount);
+  });
 
   it('cli/core/fill is checked and fully verified (its reviewed-seam allowance clears the fan-out warning)', () => {
     const fill = byPath.get('cli/core/fill');
@@ -214,7 +267,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
         // a prompt-too-large gate state must collapse to unverified (never green, never a "no").
         vp('a-gate', 'gate', { kind: 'prompt-too-large', chars: 9, limit: 4, tierName: 't' }, 'llm'),
       ],
-      unreadable: [],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
     };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
@@ -247,7 +300,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     };
     const verification: LockVerification = {
       pairs: [advRefused, vp('a-enf', 'enf', { kind: 'refused', reason: 'enforced no' })],
-      unreadable: [],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
     };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
@@ -282,7 +335,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
         vp('a-ok', 'ok', { kind: 'verified' }),
         vp('a-ref', 'ref', { kind: 'refused', reason: 'rule X violated on line 7' }),
       ],
-      unreadable: [],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
     };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
@@ -310,7 +363,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
       flows: [],
       architecture: { node_types: {} },
     } as unknown as Graph;
-    const verification: LockVerification = { pairs: [vp('a-ref', 'p/c', { kind: 'refused' })], unreadable: [] };
+    const verification: LockVerification = { pairs: [vp('a-ref', 'p/c', { kind: 'refused' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
     );
@@ -336,7 +389,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
       flows: [],
       architecture: { node_types: {} },
     } as unknown as Graph;
-    const verification: LockVerification = { pairs: [vp('a-ref', 'a/b/c', { kind: 'refused' })], unreadable: [] };
+    const verification: LockVerification = { pairs: [vp('a-ref', 'a/b/c', { kind: 'refused' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const out = new Map(
       buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() }).map((n) => [n.path, n]),
     );
@@ -349,11 +402,43 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     expect(out.get('a')!.rollupState).toBe('refused');
   });
 
+  it('sourceFileCountByNode is threaded straight through to PortalNode.sourceFileCount; an absent node defaults to 0', () => {
+    const aDet = aspectDef('a', 'deterministic');
+    const withCount = node('has-count', 'module', ['a'], ['src/**/*.ts']);
+    const withoutCount = node('no-count', 'module', ['a'], ['src/other.ts']);
+    const graph = {
+      nodes: new Map([['has-count', withCount], ['no-count', withoutCount]]),
+      aspects: [aDet],
+      flows: [],
+      architecture: { node_types: {} },
+    } as unknown as Graph;
+    const verification: LockVerification = {
+      pairs: [vp('a', 'has-count', { kind: 'verified' }), vp('a', 'no-count', { kind: 'verified' })],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
+    };
+    const sourceFileCountByNode = new Map<string, number>([['has-count', 42]]);
+    const out = new Map(
+      buildPortalNodes(
+        graph,
+        {} as never,
+        verification,
+        syntheticCheck([]),
+        new Map(),
+        { byFile: new Map() },
+        new Map(),
+        sourceFileCountByNode,
+      ).map((n) => [n.path, n]),
+    );
+    expect(out.get('has-count')!.sourceFileCount).toBe(42);
+    // Never a fabricated count for a node the caller's map has no entry for.
+    expect(out.get('no-count')!.sourceFileCount).toBe(0);
+  });
+
   it('per-node suppressions are filtered to the node mapped files; the log is parsed', () => {
     const aDet = aspectDef('a', 'deterministic');
     const n = node('n', 'module', ['a'], ['src/x.ts']);
     const graph = { nodes: new Map([['n', n]]), aspects: [aDet], flows: [], architecture: { node_types: {} } } as unknown as Graph;
-    const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [] };
+    const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const supp: PortalSuppression = { aspectId: 'a', file: 'src/x.ts', line: 3, reason: 'ok' };
     const byFile = new Map<string, PortalSuppression[]>([['src/x.ts', [supp]], ['other.ts', [{ ...supp, file: 'other.ts' }]]]);
     const logs = new Map([['n', '## [2026-01-01T00:00:00.000Z]\nbody text\n']]);
@@ -369,7 +454,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     const aDet = aspectDef('a', 'deterministic');
     const n = node('n', 'module', ['a'], ['src/**/*.ts']);
     const graph = { nodes: new Map([['n', n]]), aspects: [aDet], flows: [], architecture: { node_types: {} } } as unknown as Graph;
-    const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [] };
+    const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const supp: PortalSuppression = { aspectId: 'a', file: 'src/a.ts', line: 3, reason: 'ok' };
     const byFile = new Map<string, PortalSuppression[]>([
       ['src/a.ts', [supp]],
@@ -387,7 +472,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     const n = node('n', 'module', ['agg'], ['f.ts']);
     const graph = { nodes: new Map([['n', n]]), aspects: [agg, child], flows: [], architecture: { node_types: {} } } as unknown as Graph;
     // child gets a verified pair; agg has no pair (no own verdict).
-    const verification: LockVerification = { pairs: [vp('child', 'n', { kind: 'verified' })], unreadable: [] };
+    const verification: LockVerification = { pairs: [vp('child', 'n', { kind: 'verified' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const out = buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() });
     const portal = out.find((x) => x.path === 'n')!;
     const aggRow = portal.effectiveAspects.find((a) => a.aspectId === 'agg')!;
@@ -416,7 +501,7 @@ describe('per-node derivation — notApplicable + implied-channel origin (synthe
       flows: [],
       architecture: { node_types: {} },
     } as unknown as Graph;
-    const verification: LockVerification = { pairs: [], unreadable: [] };
+    const verification: LockVerification = { pairs: [], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
     const out = buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() });
     const portal = out.find((x) => x.path === 'n')!;
     expect(portal.notApplicable.map((x) => x.aspectId)).toContain('a-when');
@@ -435,7 +520,7 @@ describe('per-node derivation — notApplicable + implied-channel origin (synthe
     const graph = { nodes: new Map([['n', n]]), aspects: [parent, kid], flows: [], architecture: { node_types: {} } } as unknown as Graph;
     const verification: LockVerification = {
       pairs: [vp('parent', 'n', { kind: 'verified' }), vp('kid', 'n', { kind: 'verified' })],
-      unreadable: [],
+      unreadable: [], drops: [], uncomputableTypeCoverage: [],
     };
     const out = buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), new Map(), { byFile: new Map() });
     const portal = out.find((x) => x.path === 'n')!;

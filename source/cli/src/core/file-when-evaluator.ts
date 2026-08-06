@@ -75,6 +75,15 @@ async function evaluatePredicate(
   if ('all_of' in predicate) {
     const children: PredicateTrace[] = [];
     let allPass = true;
+    // A DEFINITIVELY false child (one that resolved false without itself
+    // being unreadable) makes the whole all_of false no matter what any
+    // unreadable sibling would have resolved to — the combination can never
+    // match, so it must be a clean non-match, not an unresolved one. This is
+    // what makes `{ path, content }` (desugared to all_of just below) skip a
+    // content read entirely when the path atom alone already disqualifies
+    // the file: an unreadable/oversized content atom never turns a
+    // path-mismatched file into a blocking file-unreadable error.
+    let hasDefinitiveFalse = false;
     let unreadable = false;
     let unreadableReason: string | undefined;
     let unreadableKind: 'read' | 'too-large' | undefined;
@@ -82,15 +91,17 @@ async function evaluatePredicate(
       const r = await evaluatePredicate(child, ctx);
       children.push(r.trace);
       if (!r.result) allPass = false;
+      if (!r.result && !r.unreadable) hasDefinitiveFalse = true;
       if (r.unreadable) {
         unreadable = true;
         unreadableReason ??= r.unreadableReason;
         unreadableKind ??= r.unreadableKind;
       }
     }
+    const propagateUnreadable = unreadable && !hasDefinitiveFalse;
     return {
       result: allPass,
-      ...(unreadable && { unreadable, unreadableReason, unreadableKind }),
+      ...(propagateUnreadable && { unreadable: true, unreadableReason, unreadableKind }),
       trace: { kind: 'all_of', result: allPass, children },
     };
   }

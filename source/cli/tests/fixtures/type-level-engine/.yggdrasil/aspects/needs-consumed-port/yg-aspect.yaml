@@ -1,0 +1,6 @@
+name: Needs Consumed Port
+description: "Attached to consumer with when { relations: { uses: { consumes_port: some-port } } } — an import is never evidence of a consumed port; a derived relation never carries consumes:, so this must always read false."
+reviewer:
+  type: deterministic
+scope:
+  per: file

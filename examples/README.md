@@ -6,7 +6,7 @@ source code and its own `.yggdrasil/` graph. They fall into two groups: the
 `check.mjs` rules and the built-in relation check), and the **reviewer**
 examples show the LLM layer.
 
-Each of the four keyless examples has its own `README.md` with the one edit that
+Each of the five keyless examples has its own `README.md` with the one edit that
 breaks the rule and the exact refusal you will see. The two reviewer examples are
 described here on this page and have no separate README — their whole point is the
 pair of commands below.
@@ -61,6 +61,20 @@ on the flow, and propagated to every participant.
 
 ```bash
 cd examples/checkout-flow
+yg check --approve --only-deterministic
+yg check    # PASS
+```
+
+### `type-level/` — a rule enforced before anyone writes a component
+
+A checkout backend where three step handlers, and the shared helpers they
+call, carry real rules with **no `yg-node.yaml` of their own** — the file's
+path alone is enough to enforce it. One file that matches two overlapping
+types, and one security-critical type marked `enforce: strict`, still need
+an explicit component; the README walks through why each one does.
+
+```bash
+cd examples/type-level
 yg check --approve --only-deterministic
 yg check    # PASS
 ```

@@ -24,6 +24,7 @@ relations:
   ]
 mapping:
   - source/cli/tests/integration/relation-pass.test.ts
+  - source/cli/tests/integration/relation-pass-multiroot-resolvers.test.ts
   - source/cli/tests/integration/relation-pass-edges.test.ts
   - source/cli/tests/integration/relation-check.test.ts
   - source/cli/tests/integration/relation-fill.test.ts

@@ -48,7 +48,7 @@ const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'e2e-lifecycle');
 const distExists = existsSync(BIN_PATH);
 
 /** Minimal yg-config with the schema version loadGraph expects. */
-const CONFIG = 'version: "5.1.0"\n';
+const CONFIG = 'version: "5.2.0"\n';
 
 type FileSpec = { rel: string; content: string; mode?: number };
 type NodeSpec = { dir: string; yaml: string };
@@ -63,11 +63,13 @@ async function buildProject(opts: {
   architecture: string;
   nodes: NodeSpec[];
   gitignore?: string;
+  /** Overrides the default `version`-only config, e.g. to add a `coverage:` block. */
+  config?: string;
 }): Promise<{ root: string; graph: Awaited<ReturnType<typeof loadGraph>> }> {
   const root = await mkdtemp(path.join(tmpdir(), 'yg-bounty2-'));
   const yggDir = path.join(root, '.yggdrasil');
   await mkdir(path.join(yggDir, 'model'), { recursive: true });
-  await writeFile(path.join(yggDir, 'yg-config.yaml'), CONFIG);
+  await writeFile(path.join(yggDir, 'yg-config.yaml'), opts.config ?? CONFIG);
   await writeFile(path.join(yggDir, 'yg-architecture.yaml'), opts.architecture);
   if (opts.gitignore !== undefined) {
     await writeFile(path.join(root, '.gitignore'), opts.gitignore);
@@ -778,6 +780,86 @@ describe('checkStrictBackwardCoverage — branch coverage', () => {
     try {
       const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
       expect(issues.find((i) => i.code === 'type-strict-orphan')).toBeUndefined();
+    } finally {
+      await cleanup(root);
+    }
+  });
+
+  it('an unmapped file under coverage.excluded satisfies a strict when but raises no orphan — exclusion is invisible to the strict scan too', async () => {
+    // Same shape as the plain orphan case above (a strict-typed, unmapped file
+    // on disk), but the file's directory is excluded. Every other type-level
+    // question (classification, ambiguous-node-type) already skips an excluded
+    // file before ever reaching a verdict; this pins that the strict backward
+    // scan now agrees instead of being the one holdout that still names it.
+    const { root, graph } = await buildProject({
+      architecture: STRICT_ARCH,
+      files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
+      nodes: [],
+      config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - secrets/\n',
+    });
+    try {
+      const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
+      expect(issues.find((i) => i.code === 'type-strict-orphan')).toBeUndefined();
+      expect(issues).toHaveLength(0);
+    } finally {
+      await cleanup(root);
+    }
+  });
+
+  it('control: the identical file OUTSIDE the excluded root still raises the orphan — the exclusion did not silence strict scanning generally', async () => {
+    const { root, graph } = await buildProject({
+      architecture: STRICT_ARCH,
+      files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
+      nodes: [],
+      config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - unrelated/\n',
+    });
+    try {
+      const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
+      const orphan = issues.find((i) => i.code === 'type-strict-orphan');
+      expect(orphan).toBeDefined();
+      expect(orphan?.messageData.what).toContain('secrets/cmd.ts');
+    } finally {
+      await cleanup(root);
+    }
+  });
+
+  // The node's type is 'other', NOT 'command' — the strict type itself — so the
+  // file (mapped, satisfying command's when) would be MISPLACED (owner type !==
+  // matched type) if the exclusion did not remove it from the scan's candidate
+  // set first. Mapping it to 'command' (the strict type) would make neither
+  // orphan nor misplaced possible to fire regardless of exclusion, proving
+  // nothing about the exclusion filter at all.
+  const STRICT_ARCH_WITH_OTHER = `${STRICT_ARCH}\n  other:\n    description: Not a command\n`;
+
+  it('a MAPPED file under coverage.excluded raises no orphan/misplaced either — exclusion removes it from the strict scan\'s candidate set entirely, not just from ownership resolution', async () => {
+    const { root, graph } = await buildProject({
+      architecture: STRICT_ARCH_WITH_OTHER,
+      files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
+      nodes: [{ dir: 'holder', yaml: nodeYaml('holder', 'other', ['secrets/cmd.ts']) }],
+      config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - secrets/\n',
+    });
+    try {
+      const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
+      expect(issues.find((i) => i.code === 'type-strict-orphan')).toBeUndefined();
+      expect(issues.find((i) => i.code === 'type-strict-misplaced')).toBeUndefined();
+    } finally {
+      await cleanup(root);
+    }
+  });
+
+  it('control: the identical mapped-to-the-wrong-type file OUTSIDE the excluded root still raises type-strict-misplaced', async () => {
+    const { root, graph } = await buildProject({
+      architecture: STRICT_ARCH_WITH_OTHER,
+      files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
+      nodes: [{ dir: 'holder', yaml: nodeYaml('holder', 'other', ['secrets/cmd.ts']) }],
+      config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - unrelated/\n',
+    });
+    try {
+      const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
+      const misplaced = issues.find((i) => i.code === 'type-strict-misplaced');
+      expect(misplaced).toBeDefined();
+      expect(misplaced?.nodePath).toBe('holder');
+      expect(misplaced?.messageData.what).toContain('secrets/cmd.ts');
     } finally {
       await cleanup(root);
     }
