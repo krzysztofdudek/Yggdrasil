@@ -1,10 +1,23 @@
 name: Integration Structure Cross-Node and Concurrency Tests
 type: test-suite
-description: Integration tests for advanced structure-aspect drift scenarios — cold-start handling for never-approved or pre-feature baselines, parseCache sharing during concurrent approve, and cross-node drift when a structure aspect reads files owned by another node.
+description: Integration tests for advanced structure-aspect drift scenarios — cold-start handling for never-approved or pre-feature baselines, parseCache sharing across a per:file rule's subjects (both the mapping-expansion cache and the AST parse cache a fill bucket shares), and cross-node drift when a structure aspect reads files owned by another node.
 aspects: []
 relations:
   - target: cli/io/lock-store
     type: uses
+  - target: cli/core/loader
+    type: uses
+  - target: cli/core/pairs
+    type: uses
+  - target: cli/core/companion-resolve
+    type: uses
+  - target: cli/model/graph
+    type: uses
+  - target: cli/ast/runtime
+    type: uses
+  - target: cli/io/stores
+    type: uses
 mapping:
   - source/cli/tests/integration/structure-cold-start.test.ts
   - source/cli/tests/integration/structure-cross-node-drift.test.ts
+  - source/cli/tests/integration/companion-shared-parse-cache.test.ts

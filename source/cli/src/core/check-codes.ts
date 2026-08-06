@@ -144,6 +144,14 @@ export const APPROVE_GATING_CODES = new Set<string>([
   'aspect-tier-on-deterministic',
   'aspect-tier-on-aggregate',
   'aspect-tier-unknown',
+  // A cycle in the aspect `implies` graph makes effective-aspect resolution
+  // undefined for every node the cycle can reach — not just the cycle's own
+  // members, since `implies` composes with type defaults, `when`, and other
+  // channels in ways a fill run cannot cheaply bound. Gate the WHOLE fill
+  // rather than dispatch reviewer calls for pairs that look unrelated: a
+  // narrower gate would still spend money before ending red, and the
+  // resolution the cost was spent on cannot be trusted anyway.
+  'aspect-implies-cycle',
   // Defense-in-depth for the mapping path-traversal hole (belt-and-suspenders;
   // the node-parser's parse-time escapesRepo guard is primary — an escaping
   // mapping fails to load, so the node never reaches the fill stage). If an

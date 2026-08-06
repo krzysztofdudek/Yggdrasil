@@ -28,7 +28,7 @@ description: >-
 aspects:
   - runcheck-injected-input-parity
 max_direct_relations:
-  limit: 24
+  limit: 23
   reason: >-
     Reviewed architectural seam. This node is the portal's SINGLE auditable
     read-only gateway to the engine — its whole purpose is to concentrate the
@@ -47,7 +47,12 @@ max_direct_relations:
     facade computing and threading that classification, readAndVerifyLock and
     computePortalPairs would silently count a component-only universe whenever the
     type tier is on, exactly the drift this ceiling exists to keep visible rather
-    than hidden behind a smaller number.
+    than hidden behind a smaller number. Lowered from 24 to 23: portal/api/boundary.ts's
+    direct cli/relations/extractors dependency (extractorForLanguage) is gone now that
+    every relation-pass call site, including this one, assembles its deps through
+    relations/pass.ts's runProjectRelationPass instead of by hand — the extractor
+    registry is reached transitively through the cli/relations/core relation this
+    facade already declares, so the direct edge was dropped rather than left dead.
 relations:
   - target: cli/preamble
     type: calls
@@ -82,8 +87,6 @@ relations:
   - target: cli/group-issues
     type: calls
   - target: cli/relations/core
-    type: calls
-  - target: cli/relations/extractors
     type: calls
   - target: cli/ast/runtime
     type: calls

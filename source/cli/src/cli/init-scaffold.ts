@@ -98,9 +98,12 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // Deterministic-verdict lock: a local cache rebuilt for free by
   // `yg check --approve --only-deterministic`; never committed.
   '.yg-lock.deterministic.json',
-  // Append-only verdict-events telemetry sidecar: local, write-only, never read by
-  // any check/verify/render path; never committed.
-  '.yg-events.jsonl',
+  // Append-only verdict-events telemetry sidecar: local, never committed. Unlike the
+  // committed stream, this one keeps a refusal's full reason text, so a rotation must
+  // never become committable: the trailing `*` covers the `.1` form the reader already
+  // looks for, matching both the divergence dump's pattern below and what
+  // `yg knowledge read configuration` states is ignored.
+  '.yg-events.jsonl*',
   // Convergence-sentinel evidence dump: local, best-effort forensic log written
   // only when the fill detects a 0-fill divergence; never committed. The trailing
   // `*` also covers the single `.1` rotation. Pattern shared with the writer

@@ -3,6 +3,7 @@ import {
   loadPortalGraph,
   walkPortalFiles,
   resetNestedProjectRootsCache,
+  resetMappedFilesCache,
   runPortalCheck,
   computePortalTypeCoverage,
   toPortalTypeCoverageInput,
@@ -63,6 +64,10 @@ export async function extractPortalData(
   // the separate-project boundary, which would otherwise stay cached from the
   // FIRST refresh of this long-lived server process for as long as it keeps running.
   resetNestedProjectRootsCache();
+  // Same reason, same shape: a node's mapped directory can gain or lose files
+  // between two refreshes, and without this reset the SECOND refresh would
+  // silently keep serving the file list the FIRST refresh's expansion cached.
+  resetMappedFilesCache();
 
   // Committed-only graph load — the portal can provably never read yg-secrets.yaml.
   // The facade is the SOLE gateway to the engine; this module reaches no engine node

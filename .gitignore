@@ -68,3 +68,7 @@ Thumbs.db
 .yggdrasil/.type-class-cache/
 # …including under example/fixture graphs that run the real binary in tests
 **/.yggdrasil/.type-class-cache/
+
+# Per-machine agent settings. These accumulate whatever a local session happened to
+# approve, so a shared copy would hand every future clone permissions nobody reviewed.
+.claude/settings.local.json

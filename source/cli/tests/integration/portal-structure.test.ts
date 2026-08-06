@@ -6,14 +6,18 @@ import { tmpdir } from 'node:os';
 
 // Wrap the REAL relation pass so a single portal render's pass count can be measured — the
 // ≤2-pass invariant (runCheck's relation-conformance pass + the boundary pass, and NO third).
-// `vi.fn(actual.runRelationPass)` still runs the genuine parse (no fabricated data): this is a
-// COUNTER around the real function, not a stand-in for it.
+// `vi.fn(actual.runProjectRelationPass)` still runs the genuine parse (no fabricated data): this
+// is a COUNTER around the real function, not a stand-in for it. Wrapping `runProjectRelationPass`
+// (the one function every production call site — including both passes this test counts —
+// assembles its deps and calls the underlying pass through) rather than `runRelationPass` itself:
+// `runProjectRelationPass` calls `runRelationPass` as a same-module reference, which a mock on
+// `runRelationPass`'s own export could never observe.
 vi.mock('../../src/relations/pass.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/relations/pass.js')>();
-  return { ...actual, runRelationPass: vi.fn(actual.runRelationPass) };
+  return { ...actual, runProjectRelationPass: vi.fn(actual.runProjectRelationPass) };
 });
 
-import { runRelationPass } from '../../src/relations/pass.js';
+import { runProjectRelationPass } from '../../src/relations/pass.js';
 import { extractPortalData } from '../../src/portal/extract.js';
 import { deriveStructure, REACH_CAPTION_MIN_NODES, type StructureTypeWidening } from '../../src/portal/derive-metrics.js';
 import { renderStructure, cyclePhrase } from '../../src/cli/structure.js';
@@ -140,9 +144,9 @@ describe('portal structure panel — real repo, ≤2 relation passes, JSON-flat 
   let passCalls: number;
 
   beforeAll(async () => {
-    vi.mocked(runRelationPass).mockClear();
+    vi.mocked(runProjectRelationPass).mockClear();
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
-    passCalls = vi.mocked(runRelationPass).mock.calls.length;
+    passCalls = vi.mocked(runProjectRelationPass).mock.calls.length;
   }, 180_000);
 
   it('runs the relation pass AT MOST twice across one full render (reuses the boundary pass)', () => {
@@ -197,9 +201,9 @@ describe('portal structure panel — TIER-ON fixture, ≤2 relation passes even 
   beforeAll(async () => {
     tmp = mkdtempSync(path.join(tmpdir(), 'yg-portal-structure-tieron-'));
     cpSync(TIER_ON_FIXTURE, tmp, { recursive: true });
-    vi.mocked(runRelationPass).mockClear();
+    vi.mocked(runProjectRelationPass).mockClear();
     data = await extractPortalData(tmp, { writeEnabled: false });
-    passCalls = vi.mocked(runRelationPass).mock.calls.length;
+    passCalls = vi.mocked(runProjectRelationPass).mock.calls.length;
   }, 60_000);
 
   afterAll(() => {

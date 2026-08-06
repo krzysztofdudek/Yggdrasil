@@ -2,9 +2,15 @@ name: OwnerCommand
 type: command
 description: "Resolves a file path to its owning graph node via yg owner. For
   an unmapped file with a matched architecture type, classifies ONLY that one
-  file (never the whole-repo classification map) and answers with the type
-  instead of 'no graph coverage' — the graph directory itself and a
-  coverage.excluded root both stay exempt. Before computing enforcement,
+  file (never the whole-repo classification map) for the expected-pair set
+  itself, and answers with the type instead of 'no graph coverage' — the
+  graph directory itself and a coverage.excluded root both stay exempt. A
+  `relations:` atom on one of this file's attached rules is answered from a
+  real, statically-resolved import: this DOES pay for classifying the whole
+  repo once per invocation — the only way to recognize an import into some
+  OTHER type-covered file — and runs the same relation pass yg check runs, so
+  the enforcement this command reports always matches what yg check enforces.
+  Before computing enforcement,
   checks whether the matched type's aspect cascade hit an implies cycle; if
   so it reports the cycle by name and stops, instead of computing this one
   file's expected pairs (never the whole-repo enumeration) and saying nothing
@@ -56,6 +62,8 @@ relations:
   - target: cli/core/verify-lock
     type: calls
   - target: cli/io/lock-store
+    type: calls
+  - target: cli/core/check
     type: calls
 mapping:
   - source/cli/src/cli/owner.ts

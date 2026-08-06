@@ -161,6 +161,8 @@ The hook returns `Array<{ path: string, label?: string }>` — whole files only;
 
 **Purity requirement:** Like `check.mjs`, the companion hook must be pure — no file writes, no network calls, no `process.exit`. An impure hook yields non-deterministic observations; the runner retries once and then fails closed (reported as `aspect-companion-runtime-error`).
 
+**Never mutate a tree `ctx.parseAst` hands you.** The runner may reuse one parsed tree across several subjects of the same rule — every subject file of a `per: file` companion on the same component can share a relation target's parsed tree. Calling tree-sitter's own `tree.edit(...)` / `node.edit(...)` mutates that tree in place and silently corrupts it for every other subject that reads it afterward. Read the tree to decide which paths to return; never edit it.
+
 Returned paths may be absolute or repo-root-relative. The runner normalizes them to repo-root-relative POSIX, dedupes, and sorts them — so the prompt and the hash are deterministic regardless of the hook's return order. A path that escapes the repo root is an infra-fail (the existing allowed-reads guard).
 
 **Returning `[]` is valid** — the unit is reviewed with only its subject files, and no companion block appears in the prompt. To signal an error condition (a missing required counterpart, for example), throw an exception — the hook's job is to resolve paths, not to judge.
@@ -269,7 +271,9 @@ interface File {
   path: string;       // repo-relative POSIX path
   content: string;    // raw file content
   ast?: Tree;         // tree-sitter parse tree — undefined for a file whose
-                      // extension has no registered grammar (.md, .sh, …); guard before use
+                      // extension has no registered grammar (.md, .sh, …); guard before use.
+                      // Read-only: this tree may be shared with other subjects — see the
+                      // "Never mutate a tree" note under graph-aware checks below.
   language?: string;  // registry language id ('typescript', …) — undefined when no grammar
 }
 
@@ -484,6 +488,15 @@ interface Violation {
 On this graph-aware path `file` is optional — a graph-level violation that names
 no single file is accepted. On the ad-hoc path (`yg aspect-test --files`, and
 `yg drill`) every violation must carry a `file` that is one of the supplied files.
+
+**Never mutate a tree `ctx.parseAst` (or a subject file's `file.ast`) hands you.**
+The runner may reuse one parsed tree across several subjects of the same rule —
+every subject file of a `per: file` aspect on the same component, or every
+subject that reaches a shared relation target, can receive the SAME tree object.
+Calling tree-sitter's own `tree.edit(...)` / `node.edit(...)` mutates that tree
+in place and silently corrupts it for every other subject that reads it
+afterward — there is no error, just a wrong tree from then on. Read the tree;
+never edit it.
 
 The same helper exports available to parse-tree checks (`walk`, `report`, `inFile`, `closest`, `findComments`) are re-exported from `@chrisdudek/yg/structure` for checks that also inspect parsed trees via `ctx.parseAst`. Most graph-aware checks work purely with `ctx.graph` and `ctx.fs` without parsing any AST.
 

@@ -259,6 +259,15 @@ normalizes each to repo-root-relative POSIX, deduplicates, and sorts. For
 \`scope.per: node\`, a returned path that equals a unit subject file is silently
 skipped and not recorded.
 
+**Never mutate a tree \`ctx.parseAst\` hands you.** As with a deterministic
+\`check.mjs\` (see the \`writing-deterministic-aspects\` doc), the runner may reuse
+one parsed tree across several subjects of the same rule — for a \`per: file\`
+companion, that means every subject file of the same component shares its
+relation targets' trees. Calling tree-sitter's own \`tree.edit(...)\` /
+\`node.edit(...)\` mutates that tree in place and corrupts it for every OTHER
+subject that reads it afterward, silently. Read the tree to decide what to
+return; never edit it.
+
 ### When to use companion files vs references
 
 - **\`references:\`** — static files that apply to ALL units of the aspect

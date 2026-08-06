@@ -56,3 +56,5 @@ Registered the new live type-relation gate's blocking code in the structural set
 Registered the new file-mapping-nested-project structural error code alongside the existing gitignore one, so both render in the same grouped category.
 ## [2026-07-31T12:04:34.900Z]
 The structural code that used to name only a nested-project cause for an unusable mapping entry now also covers the case where an adopter's own coverage.excluded config is what emptied it, so it is renamed to describe the general condition rather than the one cause it originally covered.
+## [2026-08-06T13:56:20.201Z]
+A cycle in rule implications leaves the effective rule set impossible to resolve, yet approval went ahead anyway: it dispatched every unrelated rule first, spending a reviewer call on each, and only then ended red. A cycle now stops approval outright, before anything is dispatched and before anything is recorded, so no work and no cost is spent while it is unknown which rules apply.

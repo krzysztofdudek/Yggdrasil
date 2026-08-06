@@ -10,6 +10,7 @@ aspects: []
 relations:
   [
     { target: cli/core/fill, type: uses },
+    { target: cli/core/fill-support, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/verify-lock, type: uses },
     { target: cli/formatters, type: uses },

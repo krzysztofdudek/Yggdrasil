@@ -16,7 +16,9 @@ import {
   assembleCsharpCandidates,
   type CsharpExtract,
 } from './extractors/csharp.js';
-import { loadFacts, writeFacts, factsKey } from './facts-cache.js';
+import { extractorForLanguage } from './extractors/registry.js';
+import { loadFacts, writeFacts, factsKey, astCacheDir } from './facts-cache.js';
+import { guardedResolve } from './resolve-path.js';
 import { countFeatures, type FeatureVector } from './feature-vector.js';
 import { verifyNodeDeps, type ResolvedDep, type RelationGraphView, type Violation } from './verifier.js';
 import type {
@@ -817,4 +819,35 @@ export async function runRelationPass(
     typedEdges: { edgesFrom: (file: string) => typedEdgesByFile.get(file) ?? [] },
     fileOwnerType,
   };
+}
+
+/**
+ * Assemble `runRelationPass`'s production `RelationPassDeps` for THIS project
+ * and run it — the extractor registry, the guarded path resolver, and this
+ * graph's AST fact-cache directory, every one of them a function of only
+ * `graph`/`projectRoot` and therefore identical at every call site that wants
+ * a live pass over the real project. Before this existed, eight production
+ * call sites (core/check.ts twice, core/fill.ts, cli/build-context.ts,
+ * cli/owner.ts, portal/api/boundary.ts three times) each re-assembled the
+ * same four dependencies by hand — the only thing that ever varied between
+ * them was `typeCoveredFiles` (present, absent, or `undefined`), which stays
+ * a parameter here.
+ *
+ * `relations/audit.ts`'s three-way cache-on/cache-off comparison is the one
+ * deliberate exception: it constructs its own `RelationPassDeps` (twice, with
+ * `disableCache` toggled) to compare the pass's behavior WITH and WITHOUT the
+ * fact cache, so it calls `runRelationPass` directly and must keep doing so —
+ * this wrapper always leaves `disableCache` unset.
+ */
+export async function runProjectRelationPass(
+  graph: Graph,
+  projectRoot: string,
+  typeCoveredFiles?: Map<string, string>,
+): Promise<RelationPassResult> {
+  return runRelationPass(graph, projectRoot, {
+    extractorFor: extractorForLanguage,
+    resolvePathToFile: await guardedResolve(projectRoot, graph),
+    symbolIndexDir: astCacheDir(graph.rootPath),
+    typeCoveredFiles,
+  });
 }

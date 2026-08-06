@@ -3,7 +3,7 @@ yg-secrets.yaml
 .debug.log
 .yg-lock.deterministic.json
 .ast-cache/
-.yg-events.jsonl
+.yg-events.jsonl*
 .drill-results.jsonl*
 .feature-field.json
 .family-candidates.json

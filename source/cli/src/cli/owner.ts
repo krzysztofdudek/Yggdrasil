@@ -17,14 +17,18 @@ import {
   describeExclusionSource,
   describeExclusionCause,
   NO_COVERAGE_EXCLUDED,
+  walkRepoFiles,
 } from '../io/repo-scanner.js';
-import { classifySingleFileCached } from '../core/type-coverage.js';
+import { classifySingleFileCached, computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs } from '../core/pairs.js';
 import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
 import { unverifiedVerdictCaveat } from '../core/type-visibility.js';
 import { verifyPairs } from '../core/verify-lock.js';
 import { readLock } from '../io/lock-store.js';
+import { scanUncoveredFiles } from '../core/check.js';
+import { runProjectRelationPass } from '../relations/pass.js';
+import type { TypedEdgeIndex } from '../relations/pass.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -81,6 +85,25 @@ export async function findOwnerWithinOwnGraph(graph: Graph, projectRoot: string,
     return { file: result.file, nodePath: null };
   }
   return result;
+}
+
+/**
+ * The live type-relation gate's edge index for one `yg owner --file`
+ * invocation, computed ONCE — never per file, never per aspect. Classifies
+ * every uncovered file in the repo (not just the one being queried) so the
+ * relation pass can recognize an import reaching ANY type-covered file as
+ * such, seeds the SAME pass with that classification, and returns its
+ * `typedEdges`. Without this, a `relations:` atom on the queried file's
+ * attached rules would read the conservative always-false a caller with no
+ * edge index falls back to, even though `yg check` — which classifies and
+ * resolves the same way — would answer differently.
+ */
+async function computeRelationEdgesForOwner(graph: Graph, projectRoot: string): Promise<TypedEdgeIndex> {
+  const repoFiles = await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, repoFiles);
+  const typeCoverage = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
+  const relResult = await runProjectRelationPass(graph, projectRoot, typeCoverage.covered);
+  return relResult.typedEdges;
 }
 
 export function registerOwnerCommand(program: Command): void {
@@ -164,6 +187,14 @@ export function registerOwnerCommand(program: Command): void {
               }) + '\n',
             );
           } else if (typeMatch?.bucket === 'covered') {
+            // Run the relation pass exactly once for this invocation — its
+            // typed-edge index is threaded into BOTH the cycle pre-check below
+            // and this file's own type-coverage input, so a `relations:` atom
+            // in an aspect's `when:` is answered from the SAME real,
+            // statically-resolved imports `yg check` enforces against, not the
+            // conservative always-false a caller with no edge index falls
+            // back to.
+            const edges = await computeRelationEdgesForOwner(graph, repoRoot);
             // An aspect `implies` cycle reachable from this type stops the
             // cascade before it can decide what applies — computeTypeAspectCascade
             // absorbs the cycle into a `cycle` marker rather than an empty
@@ -176,7 +207,7 @@ export function registerOwnerCommand(program: Command): void {
             // own separate path. Shares its wording with yg context --file's
             // identical check (and yg check's own report of the same fact)
             // via describeCascadeCycle, so the surfaces cannot disagree.
-            const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId).cycle;
+            const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId, edges).cycle;
             if (cascadeCycle) {
               const cycleMsg = buildIssueMessage({
                 what: `${result.file} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
@@ -186,10 +217,13 @@ export function registerOwnerCommand(program: Command): void {
               process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));
               process.exit(1);
             }
-            // Classifies and enumerates pairs scoped to THIS ONE FILE (a
-            // single-entry covered map), never the whole-repo classification
-            // map — mirrors build-context.ts's own typed-file path.
-            const typeCoverageInput = { covered: new Map([[result.file, typeMatch.typeId]]), ambiguousPaths: [] };
+            // Enumerates pairs scoped to THIS ONE FILE (a single-entry covered
+            // map), never the whole-repo classification map, for the pairs
+            // themselves — mirrors build-context.ts's own typed-file path. The
+            // relation-edge index above is a SEPARATE, wider computation (the
+            // whole repo, so an import into any other type-covered file
+            // resolves correctly) threaded in here only for `edges`.
+            const typeCoverageInput = { covered: new Map([[result.file, typeMatch.typeId]]), ambiguousPaths: [], edges };
             const { pairs } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageInput });
             const nodelessPairs = pairs.filter((p) => p.nodePath === undefined);
             const hasEnforcement = nodelessPairs.length > 0;

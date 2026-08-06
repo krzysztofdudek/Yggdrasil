@@ -1,9 +1,12 @@
 name: SingleSourceGraphQueries
-description: "Engine files must not redefine reserved graph-query helpers — these live only under core/graph/. Prevents future divergent implementations of node-hierarchy walks, flow lookups, aspect resolution, and file enumeration."
+description: "Engine files, and the reviewer-dispatch files beside them, must not redefine reserved graph-query helpers — these live only under core/graph/. Prevents future divergent implementations of node-hierarchy walks, flow lookups, aspect resolution, and file enumeration."
 review_by: 2026-09-04
 errs: under
 reviewer:
   type: deterministic
 when:
-  node:
-    type: engine
+  any_of:
+    - node:
+        type: engine
+    - node:
+        type: reviewer-dispatch

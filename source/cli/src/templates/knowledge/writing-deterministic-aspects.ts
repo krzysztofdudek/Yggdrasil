@@ -317,6 +317,14 @@ the file is not in the aspect's allowed reads set — see the section below. For
 structured data files, prefer \`ctx.parseYaml\`, \`ctx.parseJson\`, or
 \`ctx.parseToml\` — also synchronous, no pre-warming requirement.
 
+**Never mutate a tree \`parseAst\` hands you.** The runner may reuse one parsed
+tree across several subjects of the same rule (e.g. every file of a \`per: file\`
+aspect on the same component, or a relation target every subject reaches) — the
+tree you receive is not necessarily yours alone. Calling tree-sitter's own
+\`tree.edit(...)\` / \`node.edit(...)\` mutates that tree in place and corrupts it
+for every OTHER subject that reads it afterward, silently — there is no error,
+just a wrong tree from then on. Read the tree; never edit it.
+
 ## Allowed reads set (D9=A)
 
 The runner enforces a strict read boundary. Attempting to read outside it raises

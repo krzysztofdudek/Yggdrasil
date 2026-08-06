@@ -10,7 +10,7 @@ import {
 import { createCtxParsers, prewarmupAstCache, enrichFilesWithAst, ParseAstNotPrewarmedError } from './ctx-parsers.js';
 import { collectAllowedReadsForAspect } from './allowed-reads.js';
 import { normalizeMappingPath, isPathInMapping } from './expand-mapping-sync.js';
-import { expandMappingPathsWithinOwnGraph } from '../io/hash.js';
+import { enumerateNodeMappedFilesCached } from '../io/hash.js';
 import { findNestedProjectRoots, NO_COVERAGE_EXCLUDED, describeExclusionCause } from '../io/repo-scanner.js';
 import type { Graph, GraphNode as ModelNode, CoverageConfig } from '../model/graph.js';
 import type { Ctx, CompanionDescriptor, File, Port } from './types.js';
@@ -54,12 +54,19 @@ export class StructureRunnerError extends Error {
  * Returns each file's RAW disk bytes alongside its File view so the caller can
  * fold a byte-symmetric `read:` observation if the check accesses a non-subject
  * sibling's content (spec §3.1, Bug 1).
+ *
+ * `expandedOwnFiles` is the node's mapping ALREADY expanded to concrete files
+ * (gitignore-aware, everything the graph excludes globally dropped) — computed
+ * once by the caller (`buildUnitCtx`, via `enumerateNodeMappedFilesCached`) and
+ * passed in here rather than re-expanded, so this function's own contribution is
+ * only the per-file byte READ (never cached — see that function's doc for why
+ * the disk walk is memoised but the content read is not).
  */
 async function buildOwnFiles(
   node: ModelNode,
   projectRoot: string,
   touchedFiles: string[],
-  coverage: CoverageConfig,
+  expandedOwnFiles: string[],
 ): Promise<Array<{ file: File; bytes: Buffer }>> {
   // Collect mapping entries from ALL strict-descendant nodes (not just direct
   // children) — we exclude any file a descendant maps (glob-aware) to preserve the
@@ -80,15 +87,8 @@ async function buildOwnFiles(
   };
   collectDescendantMappings(node);
 
-  const rawMapping = (node.meta.mapping ?? [])
-    .map(normalizeMappingPath)
-    .filter((p): p is string => p !== '');
-
-  // Expand directories to constituent files (gitignore-aware, everything the graph excludes globally dropped).
-  const expanded = await expandMappingPathsWithinOwnGraph(projectRoot, rawMapping, coverage);
-
   const result: Array<{ file: File; bytes: Buffer }> = [];
-  for (const p of expanded) {
+  for (const p of expandedOwnFiles) {
     // Carve out files owned by descendant nodes.
     if (childMappingEntries.length > 0 && isPathInMapping(p, childMappingEntries)) continue;
     // Skip binary files by extension.
@@ -157,20 +157,19 @@ function wrapNonSubjectFile(
   return wrapped;
 }
 
-/**
- * Async mapping path enumeration for prewarmup. Mapping entries may be files
- * or directories; directories are expanded via expandMappingPathsWithinOwnGraph
- * (gitignore-aware, separate-project subtrees dropped) — this also backs
- * `ctx.graph.node().files`, so a node whose mapping happens to contain a
- * vendored dependency's own graph must not expose that dependency's files
- * as though they belonged to the enumerated node.
- */
-async function enumerateMappedFilesAsync(mappingPaths: string[], projectRoot: string, coverage: CoverageConfig): Promise<string[]> {
-  const normalized = mappingPaths
-    .map(normalizeMappingPath)
-    .filter((p): p is string => p !== '');
-  return expandMappingPathsWithinOwnGraph(projectRoot, normalized, coverage);
-}
+// Mapping enumeration for prewarmup — files or directories, directories
+// expanded via expandMappingPathsWithinOwnGraph (gitignore-aware,
+// separate-project subtrees dropped) — this also backs `ctx.graph.node().files`,
+// so a node whose mapping happens to contain a vendored dependency's own graph
+// must not expose that dependency's files as though they belonged to the
+// enumerated node. The per-run cache that memoises this (keyed by resolved
+// projectRoot then node path, with its explicit reset for the one long-lived
+// process, `yg portal`) lives in io/hash.ts, immediately alongside
+// expandMappingPathsWithinOwnGraph itself — see `enumerateNodeMappedFilesCached`
+// there for the caching contract every call site below relies on: only the
+// directory walk is cached, never a file's bytes, so an edit to an
+// already-expanded file is always seen, and only an add/remove within a mapped
+// directory needs the reset to be picked up.
 
 export interface LoadHookModuleParams {
   aspectDir: string;
@@ -301,10 +300,11 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   // subject set is available when ctxFs/ctxGraph/parsers are created. Separate-project
   // subtrees are dropped the same way `core/pairs.ts` drops them from the fingerprint this
   // subject set stands in for — a foreign file must never be treated as this pair's subject.
-  const ownFilesRaw = (node.meta.mapping ?? [])
-    .map(normalizeMappingPath)
-    .filter((p): p is string => p !== '');
-  const ownFilesExpanded = await expandMappingPathsWithinOwnGraph(projectRoot, ownFilesRaw, coverage);
+  // Cached (enumerateNodeMappedFilesCached, above): a `per: file` rule calls
+  // buildUnitCtx once per subject, and every one of those calls needs this SAME
+  // node's own mapping expanded — the disk walk + .gitignore evaluation happens
+  // once per run per node, not once per subject.
+  const ownFilesExpanded = await enumerateNodeMappedFilesCached(nodePath, node.meta.mapping, projectRoot, coverage);
   // The observation-EXCLUSION set: paths hashed as subject inputs are NOT
   // double-recorded as observations. For a `per: file` pair (subjectScope set)
   // this is exactly that file, so a sibling read folds as an observation
@@ -319,15 +319,20 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   // sees a glob-mapped node's real files. Each graph file's read: observation
   // folds lazily inside ctx.graph (only when the check reads its `.content`), so
   // a path-only check does not widen its verdict to every sibling's bytes.
-  const expandedFilesByNode = new Map<string, string[]>();
+  // The current node's own entry is seeded from ownFilesExpanded above instead of
+  // re-expanded here — computeAllowedNodePaths always includes the node itself,
+  // and re-walking its mapping a second time in this same call would be exactly
+  // the redundant disk walk enumerateNodeMappedFilesCached exists to avoid.
+  const expandedFilesByNode = new Map<string, string[]>([[nodePath, ownFilesExpanded]]);
   for (const id of computeAllowedNodePaths(nodePath, graph)) {
+    if (id === nodePath) continue;
     const m = graph.nodes.get(id);
-    if (m) expandedFilesByNode.set(id, await enumerateMappedFilesAsync(m.meta.mapping ?? [], projectRoot, coverage));
+    if (m) expandedFilesByNode.set(id, await enumerateNodeMappedFilesCached(id, m.meta.mapping, projectRoot, coverage));
   }
   const ctxGraph = createCtxGraph({ currentNodePath: nodePath, graph, projectRoot, touchedFiles, expandedFilesByNode, recorder, subjectFiles });
   const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots, coverage });
 
-  const ownFilesWithBytes = await buildOwnFiles(node, projectRoot, touchedFiles, coverage);
+  const ownFilesWithBytes = await buildOwnFiles(node, projectRoot, touchedFiles, ownFilesExpanded);
   const ownFiles = ownFilesWithBytes.map((x) => x.file);
   // Raw disk bytes per own-file path — used to fold a byte-symmetric read:
   // observation if the check accesses a non-subject sibling's content (Bug 1).
@@ -408,7 +413,20 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   for (const rel of (node.meta.relations ?? [])) {
     const target = graph.nodes.get(rel.target);
     if (!target) continue;
-    for (const p of await enumerateMappedFilesAsync(target.meta.mapping ?? [], projectRoot, coverage)) {
+    // Reuse the SAME expansion the ctx.graph loop above already computed for
+    // this target (computeAllowedNodePaths always includes every direct
+    // relation target) instead of walking its mapping a second time in this
+    // same call. The `??` fallback only matters if a future caller ever narrows
+    // expandedFilesByNode to something other than computeAllowedNodePaths's
+    // full set — today it never does, so this is a pure Map lookup in practice.
+    const targetFiles = expandedFilesByNode.get(target.path)
+      ?? await enumerateNodeMappedFilesCached(target.path, target.meta.mapping, projectRoot, coverage);
+    for (const p of targetFiles) {
+      // Content is read fresh from disk here EVERY call, never cached — only the
+      // PATH LIST above is memoised. A relation-target file edited between two
+      // buildUnitCtx calls sharing that path list must still be re-read with its
+      // current bytes, so prewarmupAstCache's content-equality gate (never the
+      // presence of the path) is what decides whether a re-parse is skipped.
       const abs = path.resolve(projectRoot, p);
       try {
         const content = fs.readFileSync(abs, 'utf8');

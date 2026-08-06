@@ -1,0 +1,6 @@
+name: Never Imports Leaf
+description: "Attached to consumer with when { not: { relations: { uses: { target_type: leaf } } } } — the negated counterpart of needs-leaf-dependency's positive gate. Must attach only to a consumer file whose statically-resolved imports do NOT reach a leaf-typed target, proving the same live edge index answers both directions consistently rather than a phantom always-false read that would make the negation always attach instead."
+reviewer:
+  type: deterministic
+scope:
+  per: file

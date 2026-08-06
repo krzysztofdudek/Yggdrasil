@@ -1,9 +1,6 @@
 import type { Graph } from '../../model/graph.js';
-import { runRelationPass } from '../../relations/pass.js';
+import { runProjectRelationPass } from '../../relations/pass.js';
 import type { RelationPassResult } from '../../relations/pass.js';
-import { extractorForLanguage } from '../../relations/extractors/registry.js';
-import { astCacheDir } from '../../relations/facts-cache.js';
-import { guardedResolve } from '../../relations/resolve-path.js';
 import { buildOwnerIndex } from '../../relations/owner-index.js';
 import type { StructEdge } from '../../core/graph-metrics.js';
 import type { BoundaryInput } from '../contract.js';
@@ -115,12 +112,7 @@ export async function computePortalBoundary(
 ): Promise<BoundaryInput | null> {
   let pass;
   try {
-    pass = await runRelationPass(graph, projectRoot, {
-      extractorFor: extractorForLanguage,
-      resolvePathToFile: await guardedResolve(projectRoot, graph),
-      symbolIndexDir: astCacheDir(graph.rootPath),
-      typeCoveredFiles,
-    });
+    pass = await runProjectRelationPass(graph, projectRoot, typeCoveredFiles);
   } catch {
     return null;
   }
@@ -206,11 +198,7 @@ export async function computeDetectedEdges(
   projectRoot: string,
 ): Promise<Map<string, Set<string>> | null> {
   try {
-    const pass = await runRelationPass(graph, projectRoot, {
-      extractorFor: extractorForLanguage,
-      resolvePathToFile: await guardedResolve(projectRoot, graph),
-      symbolIndexDir: astCacheDir(graph.rootPath),
-    });
+    const pass = await runProjectRelationPass(graph, projectRoot);
     return pass.detectedEdgesByNode;
   } catch {
     return null;
@@ -246,12 +234,7 @@ export async function computeTypedEdges(
   typeCoveredFiles: Map<string, string>,
 ): Promise<StructEdge[]> {
   try {
-    const pass = await runRelationPass(graph, projectRoot, {
-      extractorFor: extractorForLanguage,
-      resolvePathToFile: await guardedResolve(projectRoot, graph),
-      symbolIndexDir: astCacheDir(graph.rootPath),
-      typeCoveredFiles,
-    });
+    const pass = await runProjectRelationPass(graph, projectRoot, typeCoveredFiles);
     return structEdgesFromPass(graph, pass);
   } catch {
     return [];

@@ -447,6 +447,58 @@ describe('structural abort — FillGatingError', () => {
     expect(runnerCallCount).toBe(0);
     expect(providerCalls).toBe(0);
   });
+
+  it('a genuine implies cycle throws FillGatingError, dispatches nothing, and writes no verdict', async () => {
+    // Two real aspects whose `implies` point at each other — checkImpliesNoCycles
+    // walks every aspect in the graph regardless of node attachment, so neither
+    // needs to be attached anywhere to close the cycle. Declaring `implies:` alone
+    // (no content.md/check.mjs) makes each an aggregating aspect, so no reviewer
+    // config is needed to reach the cycle check. A third, unrelated deterministic
+    // aspect on the node proves the abort is total: even a pair with nothing to do
+    // with the cycle never gets dispatched.
+    const { projectRoot, yggRoot } = await setupProject({
+      aspects: [{ id: 'det-a', kind: 'deterministic', status: 'enforced', rule: DET_PASS }],
+    });
+    await mkdir(path.join(yggRoot, 'aspects', 'cyc-a'), { recursive: true });
+    await writeFile(
+      path.join(yggRoot, 'aspects', 'cyc-a', 'yg-aspect.yaml'),
+      'name: cyc-a\ndescription: cycle a\nimplies:\n  - cyc-b\n',
+    );
+    await mkdir(path.join(yggRoot, 'aspects', 'cyc-b'), { recursive: true });
+    await writeFile(
+      path.join(yggRoot, 'aspects', 'cyc-b', 'yg-aspect.yaml'),
+      'name: cyc-b\ndescription: cycle b\nimplies:\n  - cyc-a\n',
+    );
+    const graph = await loadGraph(projectRoot);
+
+    let providerCalls = 0;
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider({
+      async verifyAspect() {
+        providerCalls++;
+        return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const };
+      },
+    }));
+    let runnerCallCount = 0;
+    const real = structureRunnerRealFn!;
+    mockRunStructureAspect.mockImplementation(async (...args) => {
+      runnerCallCount++;
+      return real(...args);
+    });
+
+    const w = makeWriter();
+    await expect(
+      runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue }),
+    ).rejects.toBeInstanceOf(FillGatingError);
+
+    expect(runnerCallCount).toBe(0);
+    expect(providerCalls).toBe(0);
+    // The cycle's own diagnostic — what it is and how to fix it — reaches the
+    // user, not just the generic gating header.
+    expect(w.text()).toContain('Aspect implies cycle:');
+    expect(w.text()).toContain('Break the cycle by removing one implies edge.');
+    // Nothing was written — not even the unrelated deterministic pair.
+    expect(readLock(graph.rootPath).verdicts['det-a']?.['node:svc']).toBeUndefined();
+  });
 });
 
 // =============================================================================
@@ -514,7 +566,7 @@ describe('fill — fail-closed edge branches', () => {
     const graph = await loadGraph(projectRoot);
     const w = makeWriter();
     await expect(runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue })).rejects.toBeInstanceOf(FillGatingError);
-    expect(w.text()).toContain('aborted — configuration errors block tier resolution');
+    expect(w.text()).toContain('aborted — 1 problem must be fixed before anything runs');
     // No lock verdict was written.
     let lockHasEntry: boolean;
     try { lockHasEntry = readLock(graph.rootPath).verdicts['llm-a']?.['node:svc'] !== undefined; } catch { lockHasEntry = false; }

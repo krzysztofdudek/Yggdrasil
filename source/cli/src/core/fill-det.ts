@@ -22,6 +22,7 @@ import { buildOwnerIndex } from '../relations/owner-index.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { readBytesOrEmpty, type DetFillOutcome } from './fill-shared.js';
+import type { ParseCache } from '../structure/index.js';
 
 /**
  * A subject-file-INDEPENDENT sentinel repo-relative path, used only as the
@@ -121,6 +122,15 @@ export async function fillDetPair(
   // Map and passes it to every call) so the per-type reach set above is
   // computed once per fromType, never once per pair.
   reachCache: Map<string, Set<string>> = new Map(),
+  // Shared AST parse cache for the (aspectId, node) bucket this pair belongs to
+  // (fill.ts's own non-pooled dispatch loop groups pairs this way) — see
+  // fillLlmPair's identical parameter for the full rationale. Threaded straight
+  // into runStructure; never destroyed here (the bucket's owner destroys it
+  // once every pair sharing it has settled). Not forwarded into the pooled
+  // worker-thread path (runViaPool) — a worker is a separate isolate with its
+  // own WASM instance, so a cache built on this thread cannot cross that
+  // boundary; that branch is out of scope here (see fill.ts).
+  parseCache?: ParseCache,
 ): Promise<DetFillOutcome> {
   const aspectDirAbs = path.join(projectRoot, '.yggdrasil', 'aspects', aspect.id);
   // The subject is narrowed iff it covers FEWER files than the node's full
@@ -159,6 +169,7 @@ export async function fillDetPair(
         graph,
         projectRoot,
         subjectScope,
+        parseCache,
       }) };
     } catch (e) {
       debugWrite(`[fill] det runtime error for ${aspect.id} on ${pair.nodePath ?? pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);

@@ -100,6 +100,15 @@ export async function walkPortalFiles(projectRoot: string): Promise<string[]> {
 
 export { resetNestedProjectRootsCache } from '../io/repo-scanner.js'; // re-exported, not imported directly by the pipeline (single-seam)
 export { NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js'; // re-exported so the residue derivation's exclusion filter needs no engine import of its own
+// The mapping-expansion cache reset (io/hash.ts) — mirrors
+// resetNestedProjectRootsCache above for the same staleness reason: a node's
+// mapped directory can gain or lose files between two refreshes of this
+// long-lived process, and the cache must not carry the first refresh's
+// (now-stale) file list into the second. Re-exported through this single seam
+// rather than imported directly by the pipeline, same as every other engine
+// read here; costs no new relation beyond the cli/io/stores one this facade
+// already declares for the rest of io/hash.ts and io/repo-scanner.ts.
+export { resetMappedFilesCache } from '../io/hash.js';
 // ── Engine read-only entry points (severities, coverage, pairs, lock) ─────────
 
 /**

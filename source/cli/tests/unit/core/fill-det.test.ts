@@ -870,26 +870,28 @@ describe('Bug 3 — per:node det aspect with scope.files excludes a read file', 
 });
 
 // =============================================================================
-// 7b. Bug 2: GC must NOT prune entries for a node skipped by a transient
-//     effectiveness error (an implies cycle) — those are paid verdicts.
+// 7b. Bug 2: an implies cycle must not cost any recorded verdict — those are
+//     paid work.
 //
-// When a node's effective-aspect computation THROWS (implies cycle), it is
-// silently skipped by computeExpectedPairs and contributes ZERO pairs to the GC
-// universe. The old GC pruned any verdict entry absent from the universe, so it
-// deleted the cycle node's existing entries (data loss; the next run re-pays).
-// The fix retains entries owned by an uncomputable node, while STILL pruning
-// genuinely-detached entries (a different, computable node's removed aspect).
+// A node whose effective-aspect computation THROWS (implies cycle) is
+// unrepresentable in the GC universe, and a cycle now aborts approval outright
+// (aspect-implies-cycle is a gating code — see APPROVE_GATING_CODES): the run
+// stops in step 1, before deterministic/LLM fills, before positive closure, and
+// before the collector that decides what to prune ever runs. That is a
+// stronger guarantee than "the collector special-cases uncomputable nodes" —
+// nothing is collected at all, so nothing recorded, on any node, can be lost to
+// a cycle elsewhere in the graph.
 // =============================================================================
 
-describe('Bug 2 — GC retains entries for an implies-cycle node', () => {
-  it('keeps the cycle node\'s entries and still prunes a genuinely-detached entry', async () => {
+describe('an implies cycle aborts approval before anything is collected', () => {
+  it('leaves every recorded verdict untouched, including one an ordinary run would prune', async () => {
     // Two nodes:
     //   svc      — clean, one enforced det aspect (det-clean).
     //   cyc      — carries det-a, which implies det-b, which implies det-a (cycle).
-    // We seed the lock with verdict entries for BOTH nodes plus one genuinely
-    // detached entry (an aspect no node uses). After fill's GC:
-    //   - the cycle node's entries survive (uncomputable → not provably detached),
-    //   - the detached entry is pruned (computable owner / no owner).
+    // Seed the lock with verdict entries for both nodes plus one genuinely
+    // detached entry (an aspect no node uses, which an ordinary GC pass would
+    // prune). The cycle must stop the run before GC — or anything else — runs,
+    // so every seeded entry, detached one included, must survive byte-for-byte.
     const root = await mkdtemp(path.join(tmpdir(), 'yg-fill-'));
     dirs.push(root);
     const yggRoot = path.join(root, '.yggdrasil');
@@ -952,18 +954,25 @@ describe('Bug 2 — GC retains entries for an implies-cycle node', () => {
       nodes: {},
     }, { scope: 'all', deterministicAspectIds });
 
-    // Run fill. The cycle node throws during effectiveness (skipped by the pair
-    // engine); the clean node fills normally; GC then rewrites the lock.
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    // The cycle (det-a implies det-b implies det-a) is a structural gating
+    // error: runFill must abort in step 1, before any fill or collection.
+    await expect(
+      runFill(graph, { coverageVisibleFiles: null, write: () => {} }),
+    ).rejects.toBeInstanceOf(FillGatingError);
 
     const lock = readLock(graph.rootPath);
-    // The cycle node's entry MUST survive (uncomputable → not provably detached).
-    expect(lock.verdicts['det-a']?.['node:cyc']).toBeDefined();
-    expect(lock.verdicts['det-a']?.['node:cyc']?.hash).toBe('seed-cyc');
-    // The genuinely-detached entry (no node uses ghost-aspect) MUST be pruned.
-    expect(lock.verdicts['ghost-aspect']).toBeUndefined();
-    // The clean node's aspect is in the universe — its entry remains.
-    expect(lock.verdicts['det-clean']?.['node:svc']).toBeDefined();
+    // The cycle node's entry survives — unsurprising on its own, but here it's
+    // a consequence of the run never reaching the collector, not of the
+    // collector choosing to retain it.
+    expect(lock.verdicts['det-a']?.['node:cyc']).toEqual({ verdict: 'approved', hash: 'seed-cyc', touched: [] });
+    // The clean node's entry survives too, even though det-clean has nothing
+    // to do with the cycle — the abort is total, not scoped to the cycle's
+    // own members.
+    expect(lock.verdicts['det-clean']?.['node:svc']).toEqual({ verdict: 'approved', hash: 'seed-svc' });
+    // The genuinely-detached entry — the one a normal GC pass would prune —
+    // ALSO survives: the run stops before the collector runs at all, so it
+    // never gets the chance to decide anything is detached.
+    expect(lock.verdicts['ghost-aspect']?.['node:svc']).toEqual({ verdict: 'approved', hash: 'seed-ghost' });
   });
 });
 

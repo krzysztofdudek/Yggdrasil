@@ -35,3 +35,6 @@ export const FIXTURE_CYCLIC_TYPE = path.join(__dirname, 'cyclic-type');
 
 /** A rule whose check reads ctx.node unconditionally cannot run on a component-free file — yg check --approve must learn this from its own fill and say so plainly. */
 export const FIXTURE_NEEDS_NODE_CONTEXT = path.join(__dirname, 'needs-node-context');
+
+/** A relations: atom must be answered from a real resolved import, both positively and negated — driven through the real CLI, not a hand-built TypedEdgeIndex. */
+export const FIXTURE_LIVE_RELATIONS = path.join(__dirname, 'live-relations');

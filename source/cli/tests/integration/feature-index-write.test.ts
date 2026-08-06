@@ -330,11 +330,25 @@ describe('runAttentionDump — in-process calibration view (writes nothing)', ()
     // and an unguarded construction, so there is nothing to observe from the
     // outside; reading the shipped source is what pins the actual production
     // wiring instead.
+    //
+    // runAttentionDump no longer builds resolvePathToFile inline — it, like
+    // every other production call site, routes through
+    // relations/pass.ts's runProjectRelationPass, which assembles the deps
+    // once for everyone. So the guardedness guarantee is pinned in two parts:
+    // runAttentionDump itself never hand-builds an unguarded resolver (and
+    // still never reads violationsByNode), AND the shared assembler it calls
+    // into is itself wired to the guarded constructor, not the raw one — a
+    // guarantee every one of that function's callers now inherits for free.
     const checkSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'core', 'check.ts'), 'utf-8');
     const attnDumpSrc = checkSrc.slice(checkSrc.indexOf('export async function runAttentionDump'));
     expect(attnDumpSrc).not.toMatch(/resolvePathToFile:\s*makeResolvePathToFile\(/);
-    expect(attnDumpSrc).toMatch(/resolvePathToFile:\s*await guardedResolve\(/);
     expect(attnDumpSrc).not.toContain('violationsByNode');
+    expect(attnDumpSrc).toMatch(/runProjectRelationPass\(/);
+
+    const passSrc = readFileSync(path.join(__dirname, '..', '..', 'src', 'relations', 'pass.ts'), 'utf-8');
+    const wrapperSrc = passSrc.slice(passSrc.indexOf('export async function runProjectRelationPass'));
+    expect(wrapperSrc).toMatch(/resolvePathToFile:\s*await guardedResolve\(/);
+    expect(wrapperSrc).not.toMatch(/resolvePathToFile:\s*makeResolvePathToFile\(/);
   });
 });
 

@@ -13,7 +13,14 @@ description: "Unified check orchestrator — runs validation, coverage, the
   CheckResult.typeVisibility (core/type-visibility.ts) from the lock
   verification's drops and uncomputable-type-coverage list: what a
   type-covered file's type enforces, does not, or could never resolve (an
-  implies cycle), and why."
+  implies cycle), and why. One orchestrator owns the ORDER of those steps —
+  and the injected-input gating that decides which optional checks run at all
+  — and nothing else; each cohesive stage is a module of its own: the public
+  issue/result contract, one pair's verdict translated into its issues, log
+  integrity plus the mandatory-log requirement, everything gated on a readable
+  lock, the uncovered-file and tracked-but-gitignored scans, the coverage
+  tiers plus the type-level lattice, and the single next step a finished check
+  points at."
 max_direct_relations:
   limit: 25
   reason: >-
@@ -68,8 +75,6 @@ relations:
     type: calls
   - target: cli/relations/core
     type: calls
-  - target: cli/relations/extractors
-    type: calls
   - target: cli/language-registry
     type: calls
   - target: cli/io/atomic-write
@@ -85,6 +90,13 @@ relations:
     type: calls
 mapping:
   - source/cli/src/core/check.ts
+  - source/cli/src/core/check-contract.ts
+  - source/cli/src/core/check-pair-issues.ts
+  - source/cli/src/core/check-log-state.ts
+  - source/cli/src/core/check-lock-phase.ts
+  - source/cli/src/core/check-coverage-scan.ts
+  - source/cli/src/core/check-coverage-phase.ts
+  - source/cli/src/core/check-suggested-next.ts
   - source/cli/src/core/feature-index-write.ts
   - source/cli/src/core/feature-index-read.ts
   - source/cli/src/core/feature-field-schema.ts

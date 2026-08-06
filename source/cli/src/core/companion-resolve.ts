@@ -26,6 +26,7 @@ import type { PromptCompanionInput } from '../llm/prompt.js';
 import type { IssueMessage } from '../model/validation.js';
 import { runCompanionHook, type RunCompanionHookResult } from '../structure/hook-loader.js';
 import type { StructureUnit } from '../structure/hook-loader.js';
+import type { ParseCache } from '../structure/index.js';
 import { toPosix, toPosixPath } from '../utils/posix.js';
 import { collectAllowedReadsForAspect, collectArchitectureReach } from '../structure/allowed-reads.js';
 import { resolveAllowedReadPath, UndeclaredFsReadError } from '../structure/ctx-fs.js';
@@ -292,6 +293,16 @@ export interface ResolvedCompanions {
  * Set<string>); a caller filling both deterministic and LLM pairs in the same
  * run MAY pass the SAME Map to both so the type-dependent reach is computed
  * once per type across the whole run, not once per pair per path.
+ *
+ * `parseCache`, when given, is threaded into EVERY `runCompanionHook` call this
+ * function makes — including the A6 taint-guard retry — so a caller resolving
+ * companions for several pairs that share a node (e.g. every subject of a
+ * `per: file` rule) can share ONE parse cache across all of them instead of
+ * each pair building and discarding its own. Absent → `runCompanionHook`'s own
+ * default (a fresh cache per call, destroyed when that call returns) — today's
+ * byte-identical behavior. The cache holds native WASM Tree objects (see
+ * `destroyParseCache`'s own doc) and is never destroyed here — the caller that
+ * built it owns its lifetime.
  */
 export async function resolveCompanionsForPair(
   graph: Graph,
@@ -300,6 +311,7 @@ export async function resolveCompanionsForPair(
   aspect: AspectDef,
   typeCoverage?: TypeCoverageInput,
   reachCache: Map<string, Set<string>> = new Map(),
+  parseCache?: ParseCache,
 ): Promise<{ kind: 'ok'; companions: ResolvedCompanions } | { kind: 'infra'; why: string; messageData: IssueMessage }> {
   const aspectDirAbs = path.join(projectRoot, '.yggdrasil', 'aspects', aspect.id);
 
@@ -342,6 +354,7 @@ export async function resolveCompanionsForPair(
       graph,
       projectRoot,
       subjectScope,
+      parseCache,
     });
 
   // A6 taint guard: run once; a tainted set re-runs once; still tainted → infra.

@@ -32,6 +32,8 @@ import { readLogContent, hasFreshLogEntry } from '../core/log/log-gate.js';
 import type { NodeContextData, NodeAspectSubjects, NodeLogState } from '../formatters/context-node.js';
 import type { Graph } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
+import { runProjectRelationPass } from '../relations/pass.js';
+import type { TypedEdgeIndex } from '../relations/pass.js';
 
 type CandidateNode = { nodePath: string; fileCount: number };
 
@@ -104,6 +106,24 @@ async function computeTypeCoverageForContext(graph: Graph): Promise<TypeCoverage
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }
 
+/**
+ * The live type-relation gate's edge index (coverage.type_level's import-edge
+ * check), computed ONCE for one `yg context --file` invocation on a file
+ * enforced by its type alone — never per file, never per aspect. Seeds the
+ * relation pass with the SAME whole-repo type classification
+ * `computeTypeCoverageForContext` already produces, so an import reaching ANY
+ * type-covered file — not only the one being previewed — resolves to its real
+ * type, exactly as `yg check` resolves it. Without this, a `relations:` atom
+ * on the previewed file's attached rules would read the conservative
+ * always-false a caller with no edge index falls back to, even on the same
+ * file `yg check` answers differently for.
+ */
+async function computeRelationEdgesForContext(graph: Graph, projectRoot: string): Promise<TypedEdgeIndex> {
+  const typeCoverage = await computeTypeCoverageForContext(graph);
+  const relResult = await runProjectRelationPass(graph, projectRoot, typeCoverage?.covered);
+  return relResult.typedEdges;
+}
+
 /** The read-path (deterministic/aggregate/llm) home for one aspect's rule source, same convention buildNodeContextData/buildFileContextData already use. */
 function ruleSourcePathFor(aspectId: string, reviewerType: 'llm' | 'deterministic' | 'aggregate'): string {
   return reviewerType === 'deterministic'
@@ -121,15 +141,18 @@ function ruleSourcePathFor(aspectId: string, reviewerType: 'llm' | 'deterministi
  * Classifies and enumerates pairs/drops scoped to THIS ONE FILE (a
  * single-entry `covered` map), never the whole-repo classification map —
  * `yg context --file` answers about one file, so it must not pay for
- * classifying every uncovered file in the repo to do it. No relation-edge
- * index is built either (that is a whole-repo parse); a `relations:` atom on
- * this file's attached rules therefore reads the conservative false, exactly
- * the documented contract for any caller running before the relation pass —
- * DERIVED_RELATIONS_NOTE says so on the rendered page itself.
+ * classifying every uncovered file in the repo to do it just to decide which
+ * rules apply. `edges` is a SEPARATE, wider computation the caller already ran
+ * once for this invocation (`computeRelationEdgesForContext`, which does
+ * classify the whole repo — the only way to recognize an import into some
+ * OTHER type-covered file) — threading it in here costs nothing more; a
+ * `relations:` atom on this file's attached rules is answered from it, the
+ * same real, statically-resolved imports `yg check` enforces against, exactly
+ * the contract DERIVED_RELATIONS_NOTE states on the rendered page itself.
  */
-async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeId: string): Promise<FileContextData> {
+async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeId: string, edges: TypedEdgeIndex): Promise<FileContextData> {
   const covered = new Map([[file, typeId]]);
-  const typeCoverageInput = { covered, ambiguousPaths: [] };
+  const typeCoverageInput = { covered, ambiguousPaths: [], edges };
   const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageInput });
   // toAppliedPairs narrows to nodeless pairs — `pairs` also carries every REAL
   // node's own pairs (the ordinary per-node loop still runs over the whole
@@ -402,6 +425,14 @@ export function registerBuildCommand(program: Command): void {
             if (graph.config.coverage?.typeLevel) {
               const typeMatch = await classifySingleFileCached(graph, result.file, new FileContentCache());
               if (typeMatch.bucket === 'covered') {
+                // Run the relation pass exactly once for this invocation — its
+                // typed-edge index is threaded into BOTH the cycle pre-check
+                // below and buildTypeCoveredFileContextData's own type-coverage
+                // input, so a `relations:` atom in this file's attached rules'
+                // `when:` is answered from the SAME real, statically-resolved
+                // imports `yg check` enforces against, not the conservative
+                // always-false a caller with no edge index falls back to.
+                const edges = await computeRelationEdgesForContext(graph, repoRoot);
                 // An aspect `implies` cycle reachable from this type stops the
                 // cascade before it can decide what applies — computeTypeAspectCascade
                 // absorbs the cycle into a `cycle` marker rather than an empty
@@ -415,7 +446,7 @@ export function registerBuildCommand(program: Command): void {
                 // with yg owner --file's identical check (and yg check's own
                 // report of the same fact) via describeCascadeCycle, so the
                 // surfaces cannot disagree.
-                const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId).cycle;
+                const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId, edges).cycle;
                 if (cascadeCycle) {
                   const cycleMsg = buildIssueMessage({
                     what: `${displayFile} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
@@ -425,7 +456,7 @@ export function registerBuildCommand(program: Command): void {
                   process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));
                   process.exit(1);
                 }
-                const data = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId);
+                const data = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId, edges);
                 process.stdout.write(formatFileContext(data));
                 if (graph.config.signals?.attention !== false) {
                   await maybeAppendAttentionLine(graph, displayFile);

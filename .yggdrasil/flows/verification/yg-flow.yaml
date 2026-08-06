@@ -3,6 +3,7 @@ description: "Recording verdicts into the content-addressed lock — yg check --
 nodes:
   - cli/commands/check
   - cli/core/fill
+  - cli/core/reviewer-dispatch
   - cli/core/verify-lock
 aspects:
   - provider-redaction

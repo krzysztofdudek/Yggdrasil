@@ -4,7 +4,7 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { toPosix, toPosixPath } from '../utils/posix.js';
-import { isGlobPattern, globMatch } from '../utils/mapping-path.js';
+import { isGlobPattern, globMatch, normalizeMappingPath } from '../utils/mapping-path.js';
 import { findNestedProjectRoots, filterExcludedFromGraph } from '../io/repo-scanner.js';
 import type { CoverageConfig } from '../model/graph.js';
 
@@ -410,4 +410,107 @@ export async function expandMappingPathsWithinOwnGraph(
     findNestedProjectRoots(projectRoot),
   ]);
   return filterExcludedFromGraph(expanded, { nestedRoots, coverage });
+}
+
+/**
+ * Per-run cache of a NODE's mapping expansion (`expandMappingPathsWithinOwnGraph`
+ * above), keyed by resolved projectRoot then node path. That function walks the
+ * real directory tree and re-evaluates the whole `.gitignore` stack on every call
+ * with no memoisation of its own; `buildUnitCtx` (structure/hook-loader.ts) calls
+ * it — via `enumerateNodeMappedFilesCached` below, directly or through
+ * `buildOwnFiles` — for the current node's own mapping AND for every relation
+ * target's mapping on EVERY invocation. A `per: file` rule with N subjects on one
+ * node, whose relation target maps M files, was re-walking that target's M files
+ * N times over — an identical (mapping, root, coverage) triple each time, since
+ * `projectRoot`/`coverage` are constant for a run and a node's `mapping:` array
+ * is immutable in-memory graph data for the life of the `Graph` object that
+ * loaded it.
+ *
+ * Lives here, immediately alongside the function it memoises, rather than in
+ * structure/hook-loader.ts (its only caller): from there, wiring the reset into
+ * the portal's per-refresh re-extraction would have needed a new
+ * cli/portal/engine-api → cli/structure relation just to reach a cache the
+ * portal never otherwise has reason to know lives three layers up in the
+ * structure runtime. Co-located with `expandMappingPathsWithinOwnGraph` instead,
+ * the reset rides the SAME cli/io/stores relation engine-api already declares
+ * for every other io-layer read it re-exports — no new relation, no fan-out cost.
+ *
+ * Keyed by node path NESTED under resolved projectRoot, not by node path alone:
+ * node path is unique only WITHIN one root, and the caller (`buildUnitCtx`) takes
+ * `projectRoot` as an explicit parameter rather than assuming a single fixed root
+ * for the process — a test process (many mkdtemp fixture roots in one worker,
+ * commonly reusing short node names like "svc" or "A" across fixtures) or a
+ * future multi-root caller would otherwise serve one root's file list to a
+ * same-named node in a different root. Scoping under the resolved root first
+ * costs one extra Map hop and closes that hole for free.
+ *
+ * Mirrors `findNestedProjectRoots` (this file's sibling io module,
+ * repo-scanner.ts, imported above): a per-run cache of in-flight Promises in a
+ * module-level Map (so concurrent callers awaiting the SAME node collapse onto
+ * one disk walk instead of racing separate ones), with an explicit reset for the
+ * one long-lived process (`yg portal`) — see `resetMappedFilesCache` below.
+ */
+let mappedFilesCache = new Map<string, Map<string, Promise<string[]>>>();
+
+/**
+ * Drop the mapping-expansion cache above. Call this everywhere
+ * `resetNestedProjectRootsCache` is already called for the same reason: today
+ * that is only the portal server's per-refresh re-extraction (portal/extract.ts)
+ * — a one-shot CLI command's cache starts empty and the process exits before it
+ * could ever go stale. A refresh reloads the graph from disk, and a node's
+ * mapped directory can gain or lose files between refreshes, so this cache must
+ * not outlive the extraction that populated it.
+ */
+export function resetMappedFilesCache(): void {
+  mappedFilesCache = new Map();
+}
+
+/**
+ * Normalize a node's raw mapping entries and expand them through
+ * `expandMappingPathsWithinOwnGraph` above — the uncached primitive
+ * `enumerateNodeMappedFilesCached` memoises. Not exported: every caller reaches
+ * this through the cache below, never directly.
+ */
+async function enumerateMappedFilesAsync(mappingPaths: string[], projectRoot: string, coverage: CoverageConfig): Promise<string[]> {
+  const normalized = mappingPaths
+    .map(normalizeMappingPath)
+    .filter((p): p is string => p !== '');
+  return expandMappingPathsWithinOwnGraph(projectRoot, normalized, coverage);
+}
+
+/**
+ * Cached wrapper around `enumerateMappedFilesAsync`, keyed by (resolved
+ * projectRoot, nodePath) — see `mappedFilesCache` above. Every `buildUnitCtx`
+ * call site that expands a NAMED node's mapping (as opposed to an ad hoc path
+ * list with no owning node) goes through this, not `enumerateMappedFilesAsync`
+ * directly, so repeated expansions of the same node's mapping — across the
+ * ctx.graph pre-expansion loop, the AST prewarm loop, and repeated
+ * `buildUnitCtx` calls for different subjects of the same rule — share one disk
+ * walk instead of repeating it.
+ *
+ * Only the DIRECTORY WALK is cached. Every caller still reads each file's bytes
+ * fresh from disk on every use — this cache never stores content, so an edit to
+ * a file already in a cached path list is picked up the next time anything reads
+ * that file, with no reset required. A reset is only needed to see a file being
+ * ADDED to or REMOVED from a mapped directory after the first expansion (see
+ * `resetMappedFilesCache` above).
+ */
+export async function enumerateNodeMappedFilesCached(
+  nodePath: string,
+  mapping: string[] | undefined,
+  projectRoot: string,
+  coverage: CoverageConfig,
+): Promise<string[]> {
+  const rootKey = path.resolve(projectRoot);
+  let byNode = mappedFilesCache.get(rootKey);
+  if (!byNode) {
+    byNode = new Map();
+    mappedFilesCache.set(rootKey, byNode);
+  }
+  let cached = byNode.get(nodePath);
+  if (!cached) {
+    cached = enumerateMappedFilesAsync(mapping ?? [], projectRoot, coverage);
+    byNode.set(nodePath, cached);
+  }
+  return cached;
 }

@@ -559,4 +559,73 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  // --- 10. implies cycle blocks --approve outright ------------------------
+  // An implies cycle makes the graph's aspect resolution unreliable everywhere,
+  // not only for the cycle's own members — so `check --approve` must refuse
+  // the WHOLE run before dispatching anything, rather than spending reviewer
+  // calls on unrelated pairs (no-todo-comments here) before ending red. This
+  // is the fill-stage counterpart to test 9's plain-`check` read: same cycle,
+  // but through the write path, asserting nothing gets dispatched and no lock
+  // byte changes.
+  it('10: check --approve refuses outright on an implies cycle, dispatching nothing and writing no lock', () => {
+    const dir = impliesFixture('approvecycle');
+    try {
+      // Establish the lock (verified verdicts) while the chain is acyclic.
+      expect(run(['check', '--approve'], dir).status).toBe(0);
+
+      const lockFiles = [
+        'yg-lock.nondeterministic.json',
+        'yg-lock.logs.json',
+        '.yg-lock.deterministic.json',
+      ].map((f) => path.join(dir, '.yggdrasil', f));
+      const before = lockFiles.map((f) => (existsSync(f) ? readFileSync(f, 'utf-8') : null));
+
+      // Close a cycle downstream: no-fixme → no-banned-word (already
+      // no-banned-word → no-fixme), forming no-banned-word ↔ no-fixme.
+      setImplies(
+        path.join(aspectDir(dir, 'no-fixme'), 'yg-aspect.yaml'),
+        [
+          'name: nofixme',
+          'description: Source files must not contain the literal token FIXME.',
+          'reviewer:',
+          '  type: deterministic',
+          'status: enforced',
+        ],
+        ['no-banned-word'],
+      );
+
+      const { status, all } = run(['check', '--approve'], dir);
+      expect(status).toBe(1);
+
+      // The gating header: what happened and where to look next. It stays
+      // generic on purpose (the same header fires for a broken reviewer config
+      // too) so it must not claim a config/tier problem that isn't there for a
+      // cycle — it says only that nothing ran.
+      expect(all).toContain('yg check --approve aborted');
+      expect(all).toContain('must be fixed before anything runs');
+      expect(all).toContain('Fix the errors below, then re-run: yg check --approve');
+      // What actually tells the user THIS run's problem is a cycle — not the
+      // generic header above, which is deliberately silent on specifics — is
+      // the cycle's own diagnostic underneath, not buried: same what/why/next
+      // test 9 sees on a plain `check`, naming both members and the concrete fix.
+      expect(all).toContain('Aspect implies cycle:');
+      expect(all).toContain('no-banned-word');
+      expect(all).toContain('no-fixme');
+      expect(all).toContain('Cycles in implies prevent aspect resolution.');
+      expect(all).toContain('Break the cycle by removing one implies edge.');
+
+      // Nothing was dispatched — not even the unrelated no-todo-comments pair;
+      // the abort happens before the pre-dispatch plan is ever printed.
+      expect(all).not.toContain('[det]');
+      expect(all).not.toContain('[llm]');
+
+      // Nothing was written: every lock file is byte-identical to the
+      // pre-cycle baseline (or still absent, for any that never existed).
+      const after = lockFiles.map((f) => (existsSync(f) ? readFileSync(f, 'utf-8') : null));
+      expect(after).toEqual(before);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });
