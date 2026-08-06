@@ -1,0 +1,16 @@
+name: E2E Tests — Companion Shared Parse-Cache Buckets
+type: test-suite
+description: "Subprocess E2E tests for the fill stage's per-(aspect, node)
+  shared parse-cache bucketing (core/fill-parse-cache.ts, wired through
+  core/fill-llm-phase.ts) as exercised through a real check --approve dispatch:
+  several subjects of one per:file companion rule on one component all get
+  verdicts and re-verify for free on a second run; raising `parallel` so bucket
+  members run concurrently yields verdicts byte-identical to a sequential run;
+  and two independently attached companion rules on two unrelated components
+  both verify in full without cross-talk between their buckets."
+aspects: []
+relations:
+  - target: cli/tests/e2e/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-companion-parse-cache-buckets.test.ts

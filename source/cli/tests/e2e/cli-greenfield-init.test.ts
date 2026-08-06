@@ -196,6 +196,31 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
     }
   });
 
+  it('the ignore rules a real init installs actually hide a rotated verdict-events sidecar from git', () => {
+    // The local sidecar keeps a refusal's full reason text, which the committed
+    // stream deliberately strips — so a rotated copy of it must never become
+    // committable in a project that installed these rules.
+    //
+    // Asking git itself, rather than matching the installed file's text, is what
+    // makes this worth having: a pattern can be written correctly and still fail
+    // to match, and it is the matching that the shipped configuration manual
+    // promises. Both the live name and its rotation are checked, because only
+    // the rotation distinguishes a bare filename from a covering pattern.
+    const dir = bareUpgradeRepo('gitignore-effect');
+    try {
+      expect(run(['init', '--upgrade'], dir).status).toBe(0);
+      spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf-8' });
+
+      for (const name of ['.yg-events.jsonl', '.yg-events.jsonl.1']) {
+        writeFileSync(path.join(dir, '.yggdrasil', name), '{}\n', 'utf-8');
+        const probe = spawnSync('git', ['check-ignore', '-q', path.join('.yggdrasil', name)], { cwd: dir });
+        expect(probe.status, `${name} must be ignored by the installed rules`).toBe(0);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('init --upgrade --platform codex prints a deprecation notice and still writes the SAME universal artifacts (no per-platform file)', () => {
     const dir = bareUpgradeRepo('deprecated-platform');
     try {

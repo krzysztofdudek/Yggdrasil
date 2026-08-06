@@ -1,0 +1,7 @@
+name: ReadsTarget2
+description: The same shape as reads-target on a wholly different node — a second (aspect, node) pair a run may have live at the same time as reads-target's.
+reviewer:
+  type: llm
+status: enforced
+scope:
+  per: file
