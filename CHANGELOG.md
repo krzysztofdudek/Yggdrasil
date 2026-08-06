@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Raised `brace-expansion` to 5.0.9, closing a high-severity denial-of-service advisory that bypasses the mitigation shipped in 5.7.0.** The 5.0.8 bump in 5.7.0 answered an earlier advisory in the same package; this one defeats that fix by exhausting memory through unbounded intermediate arrays instead. The package arrives transitively through `minimatch`, which is a runtime dependency, so the vulnerable path ships. It is reached from glob patterns in a project's own graph and coverage configuration rather than from anything an outside party supplies, which bounds the practical exposure — but the mitigation it bypasses is one this CLI was relying on.
 
+### Changed
+
+- **Routine dependency patches: `minimatch` 10.2.6, `smol-toml` 1.7.1, `@types/node` 26.1.2.** The first two are runtime dependencies, so they reach an install; the third is types only. No behaviour changes.
+
 ## [5.7.0] - 2026-08-06
 
 ### Security
