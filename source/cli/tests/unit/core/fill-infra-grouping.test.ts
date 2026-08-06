@@ -219,7 +219,7 @@ describe('det runtime errors grouped by aspectId', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // 3 pairs all hit runtime-error.
     expect(result.runtimeErrors).toBe(3);
@@ -257,7 +257,7 @@ describe('det runtime errors grouped by aspectId', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     expect(result.runtimeErrors).toBe(1);
     // Single unit â†’ original per-pair message format (includes the unit key).
@@ -315,7 +315,7 @@ describe('det runtime errors grouped by aspectId', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     expect(result.runtimeErrors).toBe(2);
     // TWO separate per-aspect grouped messages â€” one per aspect (each aspect only has
@@ -389,7 +389,7 @@ describe('companion runtime errors grouped by aspectId', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // 2 companion failures.
     expect(result.companionRuntimeErrors).toBe(2);
@@ -437,7 +437,7 @@ describe('pool infra (unresolvable tier) grouped by aspectId', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // 2 infra failures.
     expect(result.infraFailures).toBe(2);
@@ -484,7 +484,7 @@ describe('distinct-reason grouping (lossless): same aspect, different why/next â
     });
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // Both units hit runtime-error.
     expect(result.runtimeErrors).toBe(2);
@@ -547,7 +547,7 @@ describe('distinct-reason grouping (lossless): same aspect, different why/next â
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // 2 infra failures (one per unit).
     expect(result.infraFailures).toBe(2);
@@ -585,7 +585,7 @@ describe('distinct-reason grouping (lossless): same aspect, different why/next â
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     expect(result.runtimeErrors).toBe(2);
 
@@ -626,7 +626,7 @@ describe('provider-unreachable already aggregated', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // 3 pairs all hit provider-unreachable.
     expect(result.infraFailures).toBe(3);

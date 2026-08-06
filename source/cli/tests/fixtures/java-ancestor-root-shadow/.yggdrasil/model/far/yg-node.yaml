@@ -1,0 +1,7 @@
+name: Far
+description: >-
+  Owns the com.a.Zzz copy found at the FARTHER ancestor root (src) — one hop
+  further up than Near's copy, reached only once the nearer copy is excluded.
+type: service
+mapping:
+  - src/com/a/Zzz.java

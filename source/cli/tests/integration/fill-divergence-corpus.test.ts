@@ -80,7 +80,7 @@ describe('convergence sentinel — corpus ship gate (zero fires)', () => {
 
         try {
           await runFill(graph, {
-            gitTrackedFiles: null,
+            coverageVisibleFiles: null,
             onlyDeterministic: true,
             // Record every fire AND exercise the real io writer, so a fire would
             // both be caught here and produce the actual on-disk log we assert is

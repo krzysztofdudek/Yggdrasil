@@ -1,0 +1,7 @@
+name: Bundle
+description: "Aggregate — no content.md, no check.mjs, only implies. Groups a per-file rule and a per-node rule so full expansion (before scope is considered) can be pinned in one place."
+reviewer:
+  type: aggregate
+implies:
+  - own-file-rule
+  - whole-unit-rule

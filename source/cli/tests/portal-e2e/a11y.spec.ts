@@ -105,6 +105,38 @@ test.describe('accessibility — ARIA, keyboard, Canvas mirror, reduced-motion',
     expect(nonNative, 'all sampled interactive controls are native focusable elements').toBe(0);
   });
 
+  test('the tier-on Overview residue chips are native, keyboard-operable controls with a real glyph + aria-label, not colour alone', async ({
+    page,
+    typeCoveragePage,
+  }) => {
+    // Every other portal page in this spec drives an a11y pass; the tier-on page had none —
+    // its two Overview chips (a checked type-covered file's own chip, and the new unenforced
+    // one this fixture exists to exercise) are interactive controls too and must meet the
+    // same bar.
+    await page.goto(typeCoveragePage);
+    const enforcedChip = page.locator('.ov-residue .reslink', { hasText: 'satisfied by their matched type' });
+    const unenforcedChip = page.locator('.ov-residue .reslink', { hasText: 'no rule that applies' });
+    await expect(enforcedChip).toHaveCount(1);
+    await expect(unenforcedChip).toHaveCount(1);
+    // Native <button> elements — focusable and Enter/Space-activatable, never a mouse-only
+    // div with a click handler.
+    await expect(enforcedChip).toHaveJSProperty('tagName', 'BUTTON');
+    await expect(unenforcedChip).toHaveJSProperty('tagName', 'BUTTON');
+
+    // The unenforced chip's glyph carries role="img" + a non-empty aria-label — state is
+    // never colour-only here either.
+    const badge = unenforcedChip.locator('.state-glyph');
+    await expect(badge).toHaveAttribute('role', 'img');
+    const aria = await badge.getAttribute('aria-label');
+    expect((aria ?? '').length, 'the unenforced chip glyph has a non-empty aria-label').toBeGreaterThan(0);
+
+    // Keyboard-only: focus the unenforced chip and activate it with Enter — it routes to
+    // Coverage & Audit, the same as a mouse click would.
+    await unenforcedChip.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.cov-ledger')).toContainText('checked by nothing');
+  });
+
   test('prefers-reduced-motion: reduce collapses transitions to 0s', async ({ page, basicPage }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(basicPage);

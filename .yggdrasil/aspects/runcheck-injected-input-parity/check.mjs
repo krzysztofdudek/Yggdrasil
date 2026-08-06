@@ -107,6 +107,14 @@ const SIDE_EFFECT_ONLY = new Map([
     'now',
     "supplies the clock stamped into that byproduct index's generatedAt; never reaches the issue set.",
   ],
+  [
+    'precomputedTypeCoverage',
+    'supplies a type-coverage classification the caller already ran this run (e.g. runFill, before its own fill/GC steps); only decides whether runCheck classifies again or reuses it, never which issues appear — the classified result is identical either way for an unchanged file set.',
+  ],
+  [
+    'runtimeDispositions',
+    "supplies the (file, aspectId, code) facts runFill's own fill just watched happen this run, translated here into CheckResult.typeVisibility.rows so its post-fill report can name the reason. typeVisibility is its own report field, never folded into the `unverified`/`aspect-violation-*` issue set: the pair this data describes was ALREADY unverified before this option existed (verifyLock decides that from the lock alone), and stays exactly as unverified with it present or absent — this option only changes how that same fact is WORDED in a separate field, never which issues appear or their count.",
+  ],
 ]);
 
 /** tree-sitter counts `comment` as a NAMED child of argument lists, parameter

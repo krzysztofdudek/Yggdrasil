@@ -1,0 +1,6 @@
+name: Classifying Parent Rule
+description: "classifying-parent's own default — reached by consumer through the implicit chain, pinning that a type which can ALSO classify files on its own (it has a when:) still contributes as an ancestor exactly like a purely organizational one."
+reviewer:
+  type: deterministic
+scope:
+  per: file

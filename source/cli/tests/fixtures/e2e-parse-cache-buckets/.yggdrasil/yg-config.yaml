@@ -1,0 +1,11 @@
+version: "5.2.0"
+
+reviewer:
+  default: standard
+  tiers:
+    standard:
+      provider: ollama
+      consensus: 1
+      config:
+        model: "qwen2.5-coder:0.5b"
+        endpoint: "http://host.docker.internal:11434"

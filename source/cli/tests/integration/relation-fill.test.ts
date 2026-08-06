@@ -91,7 +91,7 @@ describe('relation pass wired into runFill (integration)', () => {
 
   it('runFill writes NO relation_verdicts and the live check agrees on the relation result', async () => {
     const graph = await loadGraph(root);
-    const fill = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const fill = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // The lock has no relation cache at all — relations are computed live. Each
     // split file is absent when its section is empty (empty → no file); read

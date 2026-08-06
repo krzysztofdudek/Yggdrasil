@@ -24,7 +24,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -33,6 +33,33 @@ import {
   garbageCollectAndRewrite,
 } from '../../../src/core/fill-gc.js';
 import { buildOwnerIndex } from '../../../src/relations/owner-index.js';
+
+/**
+ * Whether this runtime actually enforces a chmod(0o000) restriction on a file
+ * readable by its owner. A privileged process (root, or certain containers)
+ * ignores file mode bits entirely, so a test relying on the file genuinely
+ * being unreadable under 0o000 cannot execute there — it would exercise the
+ * ordinary "still valid, still mapped" retention path instead of the
+ * unreadable-subject retention path it claims to pin, passing for the wrong
+ * reason. Probed ONCE at module load so the affected tests can be marked
+ * SKIPPED for this environment via `it.skipIf`.
+ */
+function probeEnforcesFilePermissions(): boolean {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-permcheck-'));
+  const probe = path.join(dir, 'probe.txt');
+  writeFileSync(probe, 'x');
+  chmodSync(probe, 0o000);
+  let enforced = false;
+  try {
+    readFileSync(probe, 'utf8');
+  } catch {
+    enforced = true;
+  }
+  chmodSync(probe, 0o644); // restore so rmSync can remove it
+  rmSync(dir, { recursive: true, force: true });
+  return enforced;
+}
+const ENFORCES_FILE_PERMISSIONS = probeEnforcesFilePermissions();
 import { LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
 import type { LockFile } from '../../../src/model/lock.js';
 import { fileUnit, nodeUnit } from '../../../src/model/lock.js';
@@ -414,7 +441,7 @@ describe('garbageCollectAndRewrite', () => {
     expect(persistCalls).toBe(0);
   });
 
-  it('retains a per:node verdict whose only subject file is unreadable this run (not positively detached)', async () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('retains a per:node verdict whose only subject file is unreadable this run (not positively detached)', async () => {
     // The mapped subject is chmod 000 → probeUnreadable flags it, the subject set
     // empties, and no pair is emitted for aspect `live` on node:svc. Without the
     // guard GC would prune the (still-valid, still-mapped) verdict.
@@ -447,7 +474,7 @@ describe('garbageCollectAndRewrite', () => {
     expect(lock.verdicts['ghost-aspect']).toBeUndefined();
   });
 
-  it('retains a per:file verdict whose subject file is unreadable this run', async () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('retains a per:file verdict whose subject file is unreadable this run', async () => {
     writeFile('src/svc.ts', 'export const x = 1;');
     const graph = buildGraph(
       tmpDir,

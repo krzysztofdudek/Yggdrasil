@@ -1,8 +1,11 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import path from 'node:path';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { mkdtemp, mkdir, writeFile, rm, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { findCommand } from '../../src/cli/find.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -17,7 +20,7 @@ async function richGraph(): Promise<string> {
   await mkdir(path.join(ygg, 'model', 'orders', 'place'), { recursive: true });
   await mkdir(path.join(ygg, 'model', 'billing', 'cancel'), { recursive: true });
   await mkdir(path.join(ygg, 'aspects', 'audit-logging'), { recursive: true });
-  await writeFile(path.join(ygg, 'yg-config.yaml'), 'version: "5.1.0"\n');
+  await writeFile(path.join(ygg, 'yg-config.yaml'), 'version: "5.2.0"\n');
   await writeFile(path.join(ygg, 'yg-architecture.yaml'), 'node_types:\n  command:\n    description: cmd\n');
   await writeFile(path.join(ygg, 'model', 'orders', 'yg-node.yaml'), 'name: orders\ntype: command\ndescription: Order management\n');
   await writeFile(path.join(ygg, 'model', 'orders', 'place', 'yg-node.yaml'), 'name: place\ntype: command\ndescription: Place a new order\n');
@@ -88,5 +91,28 @@ describe('yg find integration', () => {
     expect(out.join('')).toContain(
       'Next: read .yggdrasil/aspects/audit-logging — this is a rule, not an entry-point node (do not pass it to --node).',
     );
+  });
+
+  it('a type-covered file surfaces as a Kind: file result with Next: yg context --file, never --node', async () => {
+    // A fresh copy — findCommand is read-only, but this fixture carries pinned
+    // counts other suites rely on, so it is never driven from its committed path.
+    const root = await mkdtemp(path.join(tmpdir(), 'yg-find-typecov-'));
+    dirs.push(root);
+    await cp(path.resolve(__dirname, '../fixtures/type-coverage-basic'), root, { recursive: true });
+
+    const out: string[] = [];
+    const err: string[] = [];
+    // Capture BOTH streams — findCommand's own error path writes to stderr, and a
+    // pin that only watches stdout could pass while stderr silently carries a
+    // warning this test never noticed.
+    vi.spyOn(process.stdout, 'write').mockImplementation((s: unknown) => { out.push(String(s)); return true; });
+    vi.spyOn(process.stderr, 'write').mockImplementation((s: unknown) => { err.push(String(s)); return true; });
+    await findCommand('service-layer source classified', root);
+    const printed = out.join('');
+    expect(printed).toMatch(/Kind: file/);
+    expect(printed).toContain('src/svc/handler.ts');
+    expect(printed).toContain('Next: yg context --file src/svc/handler.ts');
+    expect(printed).not.toContain('Next: yg context --node');
+    expect(err.join('')).toBe('');
   });
 });

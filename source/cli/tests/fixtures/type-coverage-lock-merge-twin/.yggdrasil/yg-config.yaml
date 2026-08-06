@@ -1,0 +1,31 @@
+version: "5.2.0"
+
+# Lock-merge twin: a two-file sibling of the graduation-twin fixture.
+# src/svc/svc-a.ts and src/svc/svc-b.ts are both committed and filled BEFORE
+# any test branches — a git-merge test that needs a THIRD, independently
+# filled file creates it fresh on its own branch (sorting outside the
+# [svc-a, svc-b] pair at both ends so each branch's new lock line lands in
+# its own diff hunk), so two branches can each fill a genuinely different
+# file without either branch ever removing the other's.
+#
+# The fixture's aspect is LLM-reviewed, not deterministic: a deterministic
+# verdict lives in the gitignored, never-committed .yg-lock.deterministic.json
+# and so never reaches a real git merge at all — only the COMMITTED
+# yg-lock.nondeterministic.json (LLM verdicts) participates in the take-a-side
+# git-merge convention this fixture exists to exercise. The endpoint below is
+# a placeholder a test overwrites with its own mock reviewer's ephemeral port.
+coverage:
+  required:
+    - src/
+  excluded: []
+  type_level: true
+
+reviewer:
+  default: standard
+  tiers:
+    standard:
+      provider: ollama
+      consensus: 1
+      config:
+        model: "mock-model"
+        endpoint: "http://127.0.0.1:1"

@@ -2,10 +2,40 @@ import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { mkdtemp, mkdir, writeFile, readFile, rm, chmod } from 'node:fs/promises';
+import { mkdtempSync, writeFileSync, readFileSync, chmodSync, rmSync } from 'node:fs';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runFill } from '../../../src/core/fill.js';
 import { readLock, writeLock } from '../../../src/io/lock-store.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+
+/**
+ * Whether this runtime actually enforces a chmod(0o000) restriction on a file
+ * readable by its owner. A privileged process (root, or certain containers)
+ * ignores file mode bits entirely, so a test relying on a chmod(0o000)'d file
+ * genuinely becoming unreadable cannot execute there — the file would stay
+ * readable, its content (and hence its fingerprint) unchanged, and the
+ * assertion below would pass for that mundane reason instead of exercising the
+ * FileUnreadableError hold-back it claims to pin. Probed ONCE at module load
+ * so the affected test can be marked SKIPPED for this environment via
+ * `it.skipIf`.
+ */
+function probeEnforcesFilePermissions(): boolean {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-permcheck-'));
+  const probe = path.join(dir, 'probe.txt');
+  writeFileSync(probe, 'x');
+  chmodSync(probe, 0o000);
+  let enforced = false;
+  try {
+    readFileSync(probe, 'utf8');
+  } catch {
+    enforced = true;
+  }
+  chmodSync(probe, 0o644); // restore so rmSync can remove it
+  rmSync(dir, { recursive: true, force: true });
+  return enforced;
+}
+const ENFORCES_FILE_PERMISSIONS = probeEnforcesFilePermissions();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Positive-closure unit tests for the log_required-gated source fingerprint and
@@ -66,7 +96,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n', // logRequired defaults to false
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     // The append-only log baseline is recorded (integrity is independent of log_required)…
     expect(lock.nodes['svc']?.log?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
@@ -77,7 +107,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
   it('a non-log_required node with no log.md gets no nodes[] entry at all', async () => {
     const projectRoot = await setupDetNode({});
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).nodes['svc']).toBeUndefined();
   });
 
@@ -88,19 +118,19 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     expect(lock.nodes['svc']?.source).toBeUndefined();
     expect(lock.nodes['svc']?.log?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
   });
 
-  it('a log_required node with an unreadable mapped file is held back at closure (no false-green)', async () => {
+  it.skipIf(!ENFORCES_FILE_PERMISSIONS)('a log_required node with an unreadable mapped file is held back at closure (no false-green)', async () => {
     const projectRoot = await setupDetNode({
       logRequired: true,
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const run1Source = readLock(graph.rootPath).nodes['svc']?.source;
     expect(run1Source).toBeDefined();
 
@@ -110,7 +140,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
       graph = await loadGraph(projectRoot);
       // Closure computes the source fingerprint, hits FileUnreadableError, and
       // declines to advance — the run completes and the prior fingerprint is intact.
-      await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+      await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
       expect(readLock(graph.rootPath).nodes['svc']?.source).toBe(run1Source);
     } finally {
       await chmod(svc, 0o644); // restore so the temp dir can be cleaned up
@@ -127,7 +157,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     const nodeLog = path.join(projectRoot, '.yggdrasil', 'model', 'svc', 'log.md');
 
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const sealed = readLock(graph.rootPath).nodes['svc']?.log;
     expect(sealed?.last_entry_datetime).toBe('2026-05-11T11:00:00.000Z');
     expect(sealed?.prefix_hash).toBeDefined();
@@ -142,7 +172,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     // Re-fill (the standard end-of-work path). Closure must NOT recompute the
     // baseline over the tampered bytes and overwrite the committed anchor.
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const afterTamper = readLock(graph.rootPath).nodes['svc']?.log;
     expect(afterTamper?.prefix_hash).toBe(sealed?.prefix_hash);
@@ -157,7 +187,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     const nodeLog = path.join(projectRoot, '.yggdrasil', 'model', 'svc', 'log.md');
 
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const first = readLock(graph.rootPath).nodes['svc']?.log;
     expect(first?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
 
@@ -165,7 +195,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     // trailing newline, no blank-line separator — leaving historical bytes intact.
     await writeFile(nodeLog, logMd + '## [2026-05-11T12:00:00.000Z]\nsecond entry body\n');
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const advanced = readLock(graph.rootPath).nodes['svc']?.log;
     expect(advanced?.last_entry_datetime).toBe('2026-05-11T12:00:00.000Z');
@@ -182,7 +212,95 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     expect(readLock(graph.rootPath).nodes['svc']?.source).toBe('stale-fingerprint');
     // Re-fill: closure reconciles the non-log_required node → strips the dead
     // source; with no log.md the whole entry is removed.
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).nodes['svc']).toBeUndefined();
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Closure byte-identity with a nodeless (type-covered, componentless) pair
+// present in the SAME run. fill-closure.ts's byNode grouping explicitly skips a
+// pair with no owning component ("a file with no component has no fingerprint
+// and no log baseline to close") — this pins that the skip is TOTAL: a
+// log_required node's own closure outcome does not change by one byte whether
+// or not an unrelated componentless file shares the run.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * `svc` (log_required, one deterministic aspect) plus, optionally, a second
+ * file (src/leaf.ts) mapped by no node. With coverage.type_level on and an
+ * architecture type matching it, that file becomes a nodeless pair. Its own
+ * attached rule need not succeed for this test — a nodeless deterministic
+ * check infra-errors today (structure/hook-loader.ts resolves node identity
+ * before the check body runs, a known, separately-owned limitation) — which is
+ * itself part of what this test proves svc's own closure is indifferent to.
+ */
+async function setupSvcWithOptionalLeaf(withLeaf: boolean): Promise<string> {
+  const root = await mkdtemp(path.join(tmpdir(), 'yg-closure-nodeless-'));
+  dirs.push(root);
+  const ygg = path.join(root, '.yggdrasil');
+  const nodeDir = path.join(ygg, 'model', 'svc');
+  await mkdir(nodeDir, { recursive: true });
+  await mkdir(path.join(root, 'src'), { recursive: true });
+  await writeFile(path.join(ygg, 'yg-config.yaml'), REVIEWER_CONFIG + 'coverage:\n  type_level: true\n');
+  const leafType = withLeaf
+    ? '\n  leaf:\n    description: a type-classified leaf file\n    when:\n      path: "src/leaf.ts"\n    aspects:\n      - own-file-rule\n'
+    : '';
+  await writeFile(
+    path.join(ygg, 'yg-architecture.yaml'),
+    `node_types:\n  service:\n    description: s\n    log_required: true${leafType}\n`,
+  );
+  await writeFile(
+    path.join(nodeDir, 'yg-node.yaml'),
+    'name: svc\ntype: service\ndescription: x\nmapping:\n  - src/svc.ts\naspects:\n  - det-a\n',
+  );
+  await writeFile(path.join(root, 'src', 'svc.ts'), 'export const x = 1;\n');
+  // log_required needs a fresh log entry before the FIRST fill (the all-or-
+  // nothing gate); a fixed timestamp keeps both twin runs' entries byte-equal.
+  await writeFile(path.join(nodeDir, 'log.md'), '## [2026-05-11T10:00:00.000Z]\nfirst.\n');
+  const aspDir = path.join(ygg, 'aspects', 'det-a');
+  await mkdir(aspDir, { recursive: true });
+  await writeFile(
+    path.join(aspDir, 'yg-aspect.yaml'),
+    'name: det-a\ndescription: det-a rule\nreviewer:\n  type: deterministic\nstatus: enforced\n',
+  );
+  await writeFile(path.join(aspDir, 'check.mjs'), DET_PASS);
+  if (withLeaf) {
+    await writeFile(path.join(root, 'src', 'leaf.ts'), 'export const y = 1;\n');
+    const leafAspDir = path.join(ygg, 'aspects', 'own-file-rule');
+    await mkdir(leafAspDir, { recursive: true });
+    await writeFile(
+      path.join(leafAspDir, 'yg-aspect.yaml'),
+      'name: own-file-rule\ndescription: a per-file rule attached to the leaf type\nreviewer:\n  type: deterministic\nstatus: enforced\nscope:\n  per: file\n',
+    );
+    await writeFile(path.join(leafAspDir, 'check.mjs'), DET_PASS);
+  }
+  return root;
+}
+
+describe('positive closure — byte-identical with a nodeless pair present', () => {
+  it("a log_required node's closure entry is identical whether or not a componentless file shares the run", async () => {
+    const withLeafRoot = await setupSvcWithOptionalLeaf(true);
+    const withoutLeafRoot = await setupSvcWithOptionalLeaf(false);
+
+    const withLeafGraph = await loadGraph(withLeafRoot);
+    await runFill(withLeafGraph, {
+      coverageVisibleFiles: await walkRepoFiles(withLeafRoot),
+      write: () => {},
+    });
+    const withLeafEntry = readLock(withLeafGraph.rootPath).nodes['svc'];
+
+    const withoutLeafGraph = await loadGraph(withoutLeafRoot);
+    await runFill(withoutLeafGraph, {
+      coverageVisibleFiles: await walkRepoFiles(withoutLeafRoot),
+      write: () => {},
+    });
+    const withoutLeafEntry = readLock(withoutLeafGraph.rootPath).nodes['svc'];
+
+    // Sanity: svc actually closed (recorded a fingerprint) in both runs — a
+    // false pass below would otherwise be comparing two undefineds.
+    expect(withLeafEntry?.source).toBeDefined();
+    expect(withoutLeafEntry?.source).toBeDefined();
+    expect(withLeafEntry).toEqual(withoutLeafEntry);
   });
 });

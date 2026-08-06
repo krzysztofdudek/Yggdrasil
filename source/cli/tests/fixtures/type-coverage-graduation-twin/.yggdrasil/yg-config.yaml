@@ -1,0 +1,12 @@
+version: "5.2.0"
+
+# Graduation twin: one non-strict classifying type (svc), one default per:file
+# deterministic aspect, and exactly one clean-matching file
+# (src/svc/handler.ts). Exists to exercise a file's transition from
+# type-covered (a virtual file:<path> unit) to node-owned (an explicit
+# yg-node.yaml claims it) — the ONE sanctioned pair-hash re-bill.
+coverage:
+  required:
+    - src/
+  excluded: []
+  type_level: true

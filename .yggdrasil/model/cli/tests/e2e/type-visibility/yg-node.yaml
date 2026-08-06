@@ -1,0 +1,15 @@
+name: E2E Tests — Type Visibility
+type: test-suite
+description: "Subprocess E2E for the type-visibility surfaces: yg check's
+  per-type block (rules enforced, a half-expanded bundle, one fork
+  chain-termination line), the repo-wide zero-applicable-rules honesty line
+  (tests/fixtures/type-level-engine/variants/zero-enforcement), and yg
+  context --file's typed view replacing 'not covered' for a type-covered
+  file. Real spawned binary against the committed
+  tests/fixtures/type-level-engine/ project."
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-type-visibility.test.ts

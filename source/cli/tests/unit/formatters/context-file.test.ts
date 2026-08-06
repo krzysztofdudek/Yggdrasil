@@ -64,6 +64,32 @@ describe('formatFileContext', () => {
     expect(output).not.toContain('Candidate nodes');
   });
 
+  // A type-covered file (enforced by its architecture type alone, no owning
+  // component) must lead with the SAME ownership vocabulary `yg owner --file`
+  // already uses for the identical file ("-> type:X"), not the word
+  // "unmapped" — which is the product's own word for genuinely NOT covered,
+  // contradicted two lines later by "Matched type: X" on the very same file.
+  it('leads with the matched type, not "unmapped", for a type-covered file', () => {
+    const output = formatFileContext({
+      filePath: 'source/cli/src/handlers/reviewCart.ts',
+      ownerPath: undefined,
+      ownerType: undefined,
+      aspects: [],
+      dependencies: [],
+      dependentCount: 0,
+      typeCoverage: {
+        typeId: 'handler',
+        chainTerminationText: "inherited rules stop at 'handler' — it has no parent type to inherit from",
+        applied: [],
+        dropped: [],
+      },
+    });
+
+    expect(output).toContain('Owner: type:handler');
+    expect(output).not.toContain('Owner: unmapped');
+    expect(output).toContain('Matched type: handler');
+  });
+
   it('shows dependents count when > 0', () => {
     const output = formatFileContext({
       filePath: 'source/cli/src/core/validator.ts',

@@ -35,7 +35,7 @@ describe('runDetTask', () => {
 
   it('lowers a clean run to ok:true with the structure result', async () => {
     const dir = writeCheck('a1', 'export function check(ctx) { void ctx; return []; }\n');
-    const reply = await runDetTask({ id: 7, aspectDir: dir, aspectId: 'a1', nodePath: 'N' }, graph(), projectRoot);
+    const reply = await runDetTask({ id: 7, aspectDir: dir, aspectId: 'a1', unit: { kind: 'node', nodePath: 'N' } }, graph(), projectRoot);
     expect(reply.id).toBe(7);
     expect(reply.ok).toBe(true);
     if (reply.ok) {
@@ -46,7 +46,7 @@ describe('runDetTask', () => {
 
   it('carries violations through unchanged', async () => {
     const dir = writeCheck('a2', `export function check(ctx) { void ctx; return [{ message: 'bad', file: 'src/a.ts', line: 1 }]; }\n`);
-    const reply = await runDetTask({ id: 1, aspectDir: dir, aspectId: 'a2', nodePath: 'N' }, graph(), projectRoot);
+    const reply = await runDetTask({ id: 1, aspectDir: dir, aspectId: 'a2', unit: { kind: 'node', nodePath: 'N' } }, graph(), projectRoot);
     expect(reply.ok).toBe(true);
     if (reply.ok) {
       expect(reply.result.violations).toHaveLength(1);
@@ -59,7 +59,7 @@ describe('runDetTask', () => {
     // StructureRunnerError — the reply must carry the code so the parent can
     // reconstruct the class.
     const dir = writeCheck('a3', 'export async function check(ctx) { void ctx; return []; }\n');
-    const reply = await runDetTask({ id: 2, aspectDir: dir, aspectId: 'a3', nodePath: 'N' }, graph(), projectRoot);
+    const reply = await runDetTask({ id: 2, aspectDir: dir, aspectId: 'a3', unit: { kind: 'node', nodePath: 'N' } }, graph(), projectRoot);
     expect(reply.ok).toBe(false);
     if (!reply.ok) {
       expect(reply.error.code).toBeDefined();
@@ -70,7 +70,7 @@ describe('runDetTask', () => {
 
   it('lowers a missing-export validation failure to ok:false with a usable message', async () => {
     const dir = writeCheck('a4', 'export const notCheck = 1;\n');
-    const reply = await runDetTask({ id: 3, aspectDir: dir, aspectId: 'a4', nodePath: 'N' }, graph(), projectRoot);
+    const reply = await runDetTask({ id: 3, aspectDir: dir, aspectId: 'a4', unit: { kind: 'node', nodePath: 'N' } }, graph(), projectRoot);
     expect(reply.ok).toBe(false);
     if (!reply.ok) {
       expect(reply.error.message.length).toBeGreaterThan(0);
@@ -85,7 +85,7 @@ describe('runDetTask', () => {
     // non-StructureRunnerError throw, which no real input reaches — it is marked
     // with a coverage-ignore in det-worker-core.ts.)
     const dir = writeCheck('a5', 'export function check(ctx) { void ctx; return []; }\n');
-    const reply = await runDetTask({ id: 4, aspectDir: dir, aspectId: 'a5', nodePath: 'does/not/exist' }, graph(), projectRoot);
+    const reply = await runDetTask({ id: 4, aspectDir: dir, aspectId: 'a5', unit: { kind: 'node', nodePath: 'does/not/exist' } }, graph(), projectRoot);
     expect(reply.ok).toBe(false);
     if (!reply.ok) {
       expect(reply.error.code).toBeDefined();

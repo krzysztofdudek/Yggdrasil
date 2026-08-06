@@ -1,7 +1,10 @@
 name: FindCommand
 type: command
 description: Natural-language search over graph nodes and aspects via yg find;
-  uses MiniSearch index built from names, descriptions, and log.md content
+  uses MiniSearch index built from names, descriptions, and log.md content. At
+  coverage.type_level on, a type-covered file also joins the index (its matched
+  type's own description as searchable text), pointing to yg context --file
+  rather than a phantom --node target.
 aspects:
   - posix-paths-output
 relations:
@@ -18,6 +21,10 @@ relations:
   - target: cli/preamble
     type: calls
   - target: cli/utils
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/core/check
     type: calls
 mapping:
   - source/cli/src/cli/find.ts

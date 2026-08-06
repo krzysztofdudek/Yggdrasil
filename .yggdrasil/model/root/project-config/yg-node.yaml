@@ -4,7 +4,6 @@ description: "Root-level repository configuration: dev tool settings, CI, editor
 aspects: []
 relations: []
 mapping:
-  - .claude/
   - .clinerules/
   - .devcontainer/
   - .editorconfig

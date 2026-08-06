@@ -1,0 +1,6 @@
+name: Needs Implements Leaf
+description: "Attached to consumer with when { relations: { implements: { target_type: leaf } } } — a resolved import is type-blind evidence among structural kinds, so it must answer 'implements' exactly as it answers 'uses'."
+reviewer:
+  type: deterministic
+scope:
+  per: file

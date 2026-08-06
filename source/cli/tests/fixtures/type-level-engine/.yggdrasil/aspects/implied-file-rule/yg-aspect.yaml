@@ -1,0 +1,7 @@
+name: Implied File Rule
+description: "Reached only through own-file-rule's implies edge, with status_inherit: own-default — pins that the implied aspect keeps its OWN default status rather than inheriting the implier's."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+status: advisory

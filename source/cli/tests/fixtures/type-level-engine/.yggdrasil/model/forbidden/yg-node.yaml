@@ -1,0 +1,7 @@
+name: Forbidden
+type: mid
+description: "A real explicit node declaring its OWN aspect (component-only-rule). It exists only to prove that channel 2 (an ancestor COMPONENT's own aspects) can never reach a type-covered file's cascade — the transient subject's synthesized ancestor chain is built from architecture-type views only, never from real graph nodes, so this node's own aspect declaration is structurally unreachable from any type-covered file's effective-aspect computation."
+mapping:
+  - src/forbidden/x.ts
+aspects:
+  - component-only-rule

@@ -57,12 +57,14 @@ mapping:
 
 `src/db/*Repository.ts` matches `OrderRepository.ts` but not `Helper.ts` and not anything in a subdirectory. `src/**/*.ts` matches every `.ts` file anywhere under `src/`.
 
-Each source file has exactly one owner node. That rule keeps verification unambiguous — there is always one component, and one set of rules, responsible for any given file. When a parent maps a directory and a child node maps a specific file inside it, the child wins: that file is carved out of the parent's set, so the two never conflict. Two nodes mapping the same file any *other* way is an `overlapping-mapping` error.
+Each source file has exactly one owner node, or none at all — a file no node maps can still be enforced automatically by matching exactly one classifying type (see [Coverage and minimal nodes](#coverage-and-minimal-nodes) below). Either way verification stays unambiguous — there is always at most one component and one set of rules responsible for any given file, never two disagreeing about it. When a parent maps a directory and a child node maps a specific file inside it, the child wins: that file is carved out of the parent's set, so the two never conflict. Two nodes mapping the same file any *other* way is an `overlapping-mapping` error.
 
-::: warning A gitignored file inside a mapping is a false green, so it blocks
-A directory or glob mapping entry expands over git-tracked files and skips anything `.gitignore` excludes. So a file that is *both* tracked and matched by a `.gitignore` pattern would be counted as covered while never producing a review subject — an enforced rule would pass over it with no reviewer ever seeing it. Rather than allow that, `yg check` blocks with `mapped-file-gitignored` and tells you the three ways out: un-ignore the file, name it **directly** in the mapping (a direct file entry bypasses gitignore), or stop tracking it.
+::: warning A file that is both tracked and gitignored is invisible everywhere, so it's flagged
+A directory or glob mapping entry expands over a plain directory walk that skips anything `.gitignore` excludes — it never consults git's index. So a file that is *both* tracked by git (for example force-added with `git add -f`) and matched by a `.gitignore` pattern is invisible to coverage and to mapping alike, no matter what directory or glob mapping it falls under: it ships in your repository, yet nothing that governs coverage or enforcement ever sees it. `yg check` catches this as `tracked-file-gitignored`, mirroring your coverage tiers exactly: an error under a `coverage.required` root, a warning elsewhere, and no issue at all under a `coverage.excluded` root — the same exclusion authority the coverage scan itself honors, so an excluded area stays silent here too.
 
-The mirror case blocks too: a mapping entry that names a file directly which is *not* tracked at all is `file-mapping-gitignored` — either the file belongs in the repository, or it does not belong in the mapping.
+One exemption on top of the tiers: a file named *directly* in a mapping entry (not swept in via a directory or glob) is hashed and reviewed no matter what `.gitignore` says, so it was never actually invisible — that's the mirror case below, and `tracked-file-gitignored` leaves it alone rather than raising a second error with a contradictory fix.
+
+The mirror case blocks too: a mapping entry that names a file directly which is *not* tracked at all is `file-mapping-gitignored` — either the file belongs in the repository, or it does not belong in the mapping. If the real reason the file never reaches this check as tracked-and-ordinary is that it is *excluded from the graph* — it sits inside a separate project's own boundary (a nested `.yggdrasil/` graph, or its own `.git` — a checkout, submodule, or worktree), or it matches a `coverage.excluded` root you configured — the error is `file-mapping-excluded` instead, naming that cause directly rather than blaming a `.gitignore` rule that may not even exist. Exclusion is absolute: it cuts that file even though the mapping names it directly, exactly like it cuts a directory or glob entry that only sweeps the file in.
 :::
 
 ## Nesting and inheritance
@@ -84,6 +86,12 @@ mapping:
 A node with no aspects produces no rule verdicts and records nothing in the lock. It satisfies the coverage requirement for free. (One built-in check still runs on any node that maps code: if its files import another node's code, that dependency has to be declared as a relation — see [Relations, flows, ports](/relations-flows-ports).) The point is to get all your code mapped cheaply, then add rules where they matter, one component at a time. When you are ready to enforce something here, add an aspect to the node.
 
 The node's type still has to be one that classifies files — a type with a `when` predicate. A purely organizational type (no `when`) cannot map files at all; `yg check` rejects a mapping on such a type.
+
+### An alternative for files that do not need a node yet
+
+A minimal node still costs something: a YAML file per component, upkeep whenever a file moves, and silence about a *new* file until someone writes it a mapping. If [`coverage.type_level`](/configuration#coverage-config) is on, a file matched by exactly one classifying type's `when` is enforced by that type's per-file rules automatically — no YAML at all, and a brand-new file is covered the moment it matches, not whenever a node catches up with it.
+
+The trade runs the other way too, so this is not a strict upgrade over a minimal node: a type-covered file has no component to attach a `per: node` rule to (only `scope: { per: file }` rules can ever reach it), no log, no flows, and no place to hang a curated relation or a note about *why* the code looks the way it does. A minimal node stays the right call once a file earns any of those — cross-file review, business intent worth logging, participation in a flow. Reach for type-level coverage first for the code that is genuinely uniform and growing (another handler, another repository); reach for a node, minimal or not, the moment one file needs something the type alone cannot say.
 
 Coverage — which files must be mapped, and how strictly — is configured separately. See [Configuration](/configuration).
 
@@ -143,6 +151,8 @@ node_types:
 
 Reach for it on the types where missing the type means missing a rule that matters — security, audit, anything regulatory. Do not reach for it while a predicate is still broad: `enforce: strict` on `path: "**"` demands that every file in the repository sit in that one type's mappings. Run `yg impact --type <id>` before you flip the flag; it previews which files would come out as orphans or misplaced, so you fix the gaps first rather than turning the build red to find them.
 
+The backward scan honors [`coverage.excluded`](/configuration#coverage-config) like every other coverage question does: a file under an excluded root is never a candidate for `type-strict-orphan` or `type-strict-misplaced`, even when it satisfies the type's `when`. A path you have excluded is gone from this graph's coverage entirely — not merely from the ordinary tiering — so the backward scan has nothing to say about it either.
+
 Four errors are specific to strict types, and each blocks `yg check`:
 
 | Code | What it means |
@@ -152,7 +162,9 @@ Four errors are specific to strict types, and each blocks `yg check`:
 | `type-strict-misplaced` | A file matches the predicate but belongs to a node of a *different* type. |
 | `strict-overlap-conflict` | A file matches the `when` of **two** strict types, so neither can own it unambiguously. Narrow one predicate. |
 
-They are reported alongside any `unmapped-files` coverage error, not folded into it — the symptoms are distinct and so are the fixes.
+They are reported alongside any `unmapped-files` coverage error, not folded into it — the symptoms are distinct and so are the fixes. That changes only under [`coverage.type_level`](/configuration#coverage-config): once it is on, a file this table already accounts for (or one `ambiguous-node-type` accounts for) is dropped from the plain `unmapped-files`/`uncovered-advisory` listing — one issue per file, the most-binding one.
+
+A file that matches an `enforce: strict` type is never also reported as ambiguous by `coverage.type_level` — the strict error above owns it, and (with `type_level` on) that error's message lists any other type the file also matches. `type_level`'s own ambiguity error, `ambiguous-node-type`, exists for the same shape of problem among ordinary (non-strict) types.
 
 The architecture file is the foundation of the graph, so changes to it ripple across every node of the affected type. Change it deliberately, and confirm the change before applying it.
 

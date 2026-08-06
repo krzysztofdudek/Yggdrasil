@@ -1,0 +1,6 @@
+name: Refuses On A
+description: "A deterministic rule that refuses ONLY on src/leaf/a.ts, never on any other covered file — pins that one file's refusal must not suppress review of another file matching the same type."
+reviewer:
+  type: deterministic
+scope:
+  per: file

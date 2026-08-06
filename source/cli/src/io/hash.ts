@@ -4,7 +4,9 @@ import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { toPosix, toPosixPath } from '../utils/posix.js';
-import { isGlobPattern, mappingEntryMatchesFile, globMatch } from '../utils/mapping-path.js';
+import { isGlobPattern, globMatch, normalizeMappingPath } from '../utils/mapping-path.js';
+import { findNestedProjectRoots, filterExcludedFromGraph } from '../io/repo-scanner.js';
+import type { CoverageConfig } from '../model/graph.js';
 
 export { loadRootGitignoreStack, isIgnoredByStack, walkRepoFiles } from '../io/repo-scanner.js';
 export type { GitignoreEntry } from '../io/repo-scanner.js';
@@ -53,6 +55,25 @@ export function normalizeLineEndings(bytes: Buffer): Buffer {
 export async function hashFile(filePath: string): Promise<string> {
   const content = await readFile(filePath);
   return hashBytes(content);
+}
+
+/**
+ * sha256 hex of a file's RAW bytes — no line-ending normalization, unlike
+ * {@link hashFile}. Used wherever the hash must track byte-for-byte identity
+ * because a downstream consumer reads the file's raw, un-normalized bytes:
+ * the type-classification cache key (io/type-class-cache.ts), whose
+ * `content:` predicates are evaluated by io/file-content-cache.ts's
+ * `buf.toString('utf8')` — a raw read that never collapses CRLF/CR to LF.
+ * Keying on the normalized hash there would let a CRLF file and its LF twin
+ * (different bytes, different predicate results) share one cache entry.
+ * `hashFile`'s own normalization stays correct and unchanged for its actual
+ * callers (verdict/fingerprint hashing in core/pairs.ts, mapping hashing),
+ * where "the same source, checked out with different line endings" SHOULD
+ * hash identically — that is a different identity question than this one.
+ */
+export async function hashFileRaw(filePath: string): Promise<string> {
+  const content = await readFile(filePath);
+  return createHash('sha256').update(content).digest('hex');
 }
 
 export async function hashPath(targetPath: string, options: HashPathOptions = {}): Promise<string> {
@@ -208,6 +229,13 @@ async function collectDirectoryFilePaths(
   const files: string[] = [];
 
   for (const entry of entries) {
+    // `.git` is never a mappable source, in either form: the directory (a
+    // checkout's own git metadata) or the pointer FILE `gitdir: ...` (a
+    // submodule/worktree checkout). Mirrors repo-scanner.ts's `collectFiles`
+    // skip, so a directory/glob mapping that happens to cover the project
+    // root (or any directory carrying its own `.git`) never hashes or
+    // reviews git's internal object store as though it were source.
+    if (entry.name === '.git') continue;
     const absoluteChildPath = path.join(directoryPath, entry.name);
     if (isIgnoredByStack(absoluteChildPath, stack, entry.isDirectory())) continue;
     if (entry.isDirectory()) dirs.push(absoluteChildPath);
@@ -333,17 +361,156 @@ export async function expandMappingPaths(
 }
 
 /**
- * Expand mapping paths to individual files, excluding paths matched by any
- * child-mapping exclusion entry. Used by pairs/fingerprint computation.
+ * Expand mapping paths to individual files, then drop every file the graph
+ * excludes globally — the one supreme filter (`io/repo-scanner.ts`'s
+ * `isExcludedFromGraph`), which combines two sources: a SEPARATE project's own
+ * boundary (a directory below the mapping carrying its own `.yggdrasil/`
+ * graph, or its own `.git` — a nested checkout, submodule, or linked
+ * worktree; a DEFAULT member of the excluded set, present with or without any
+ * adopter config) and the adopter's own `coverage.excluded` roots (the other
+ * source of members). A file matched by either is governed outside this
+ * graph, and must never be attributed to the graph doing the expanding (not
+ * counted as its pairs, not fed into its fingerprints, not exposed as its
+ * review content, not folded into its read-allowances) — regardless of
+ * whether a mapping entry named it exactly, swept it in via a directory, or
+ * matched it via a glob: exclusion cuts everything it matches, with no
+ * carve-out for an explicit claim.
+ *
+ * The nested-project half is read off the real FILESYSTEM
+ * (`findNestedProjectRoots`), independently of `mappingPaths` — so it gives
+ * the same answer whether the mapping is a directory or a glob (a glob's own
+ * extension filter can strip every path that would otherwise reveal a nested
+ * marker) and regardless of whether a `.gitignore` line hides the marker
+ * itself. It is also the SAME root set every other caller in one run computes
+ * for the same `projectRoot` (cached — see repo-scanner.ts), so two different
+ * mappings — even a whole graph's worth expanded together, as the
+ * suppression-scan audit does — can never draw the boundary in two different
+ * places. `coverage` is the caller's own `graph.config.coverage` (or an
+ * equivalent with an empty `excluded` list when the caller has none), so the
+ * adopter-configured half agrees with every other consumer of the same config
+ * for the same reason.
+ *
+ * This is the ONE place this guard is applied for every caller that turns a
+ * mapping into "the files this graph actually owns" — `expandMappingPaths`
+ * itself stays a neutral, exclusion-unaware primitive (plenty of callers —
+ * mapping validation, the type-when evaluator, the relation-conformance pass
+ * — resolve a mapping for a purpose that has nothing to do with THIS graph's
+ * own enforcement boundary, and must not have that boundary imposed on them
+ * by the shared primitive). Callers that DO mean "the files this graph
+ * enforces / reviews / hashes" should call this instead of composing
+ * `expandMappingPaths` with the exclusion filter themselves.
  */
-export async function expandMappingPathsExcluding(
+export async function expandMappingPathsWithinOwnGraph(
   projectRoot: string,
   mappingPaths: string[],
-  excludePrefixes: string[],
+  coverage: CoverageConfig,
 ): Promise<string[]> {
-  const all = await expandMappingPaths(projectRoot, mappingPaths);
-  if (!excludePrefixes.length) return all;
-  return all.filter(
-    (p) => !excludePrefixes.some((prefix) => mappingEntryMatchesFile(prefix, p)),
-  );
+  const [expanded, nestedRoots] = await Promise.all([
+    expandMappingPaths(projectRoot, mappingPaths),
+    findNestedProjectRoots(projectRoot),
+  ]);
+  return filterExcludedFromGraph(expanded, { nestedRoots, coverage });
+}
+
+/**
+ * Per-run cache of a NODE's mapping expansion (`expandMappingPathsWithinOwnGraph`
+ * above), keyed by resolved projectRoot then node path. That function walks the
+ * real directory tree and re-evaluates the whole `.gitignore` stack on every call
+ * with no memoisation of its own; `buildUnitCtx` (structure/hook-loader.ts) calls
+ * it — via `enumerateNodeMappedFilesCached` below, directly or through
+ * `buildOwnFiles` — for the current node's own mapping AND for every relation
+ * target's mapping on EVERY invocation. A `per: file` rule with N subjects on one
+ * node, whose relation target maps M files, was re-walking that target's M files
+ * N times over — an identical (mapping, root, coverage) triple each time, since
+ * `projectRoot`/`coverage` are constant for a run and a node's `mapping:` array
+ * is immutable in-memory graph data for the life of the `Graph` object that
+ * loaded it.
+ *
+ * Lives here, immediately alongside the function it memoises, rather than in
+ * structure/hook-loader.ts (its only caller): from there, wiring the reset into
+ * the portal's per-refresh re-extraction would have needed a new
+ * cli/portal/engine-api → cli/structure relation just to reach a cache the
+ * portal never otherwise has reason to know lives three layers up in the
+ * structure runtime. Co-located with `expandMappingPathsWithinOwnGraph` instead,
+ * the reset rides the SAME cli/io/stores relation engine-api already declares
+ * for every other io-layer read it re-exports — no new relation, no fan-out cost.
+ *
+ * Keyed by node path NESTED under resolved projectRoot, not by node path alone:
+ * node path is unique only WITHIN one root, and the caller (`buildUnitCtx`) takes
+ * `projectRoot` as an explicit parameter rather than assuming a single fixed root
+ * for the process — a test process (many mkdtemp fixture roots in one worker,
+ * commonly reusing short node names like "svc" or "A" across fixtures) or a
+ * future multi-root caller would otherwise serve one root's file list to a
+ * same-named node in a different root. Scoping under the resolved root first
+ * costs one extra Map hop and closes that hole for free.
+ *
+ * Mirrors `findNestedProjectRoots` (this file's sibling io module,
+ * repo-scanner.ts, imported above): a per-run cache of in-flight Promises in a
+ * module-level Map (so concurrent callers awaiting the SAME node collapse onto
+ * one disk walk instead of racing separate ones), with an explicit reset for the
+ * one long-lived process (`yg portal`) — see `resetMappedFilesCache` below.
+ */
+let mappedFilesCache = new Map<string, Map<string, Promise<string[]>>>();
+
+/**
+ * Drop the mapping-expansion cache above. Call this everywhere
+ * `resetNestedProjectRootsCache` is already called for the same reason: today
+ * that is only the portal server's per-refresh re-extraction (portal/extract.ts)
+ * — a one-shot CLI command's cache starts empty and the process exits before it
+ * could ever go stale. A refresh reloads the graph from disk, and a node's
+ * mapped directory can gain or lose files between refreshes, so this cache must
+ * not outlive the extraction that populated it.
+ */
+export function resetMappedFilesCache(): void {
+  mappedFilesCache = new Map();
+}
+
+/**
+ * Normalize a node's raw mapping entries and expand them through
+ * `expandMappingPathsWithinOwnGraph` above — the uncached primitive
+ * `enumerateNodeMappedFilesCached` memoises. Not exported: every caller reaches
+ * this through the cache below, never directly.
+ */
+async function enumerateMappedFilesAsync(mappingPaths: string[], projectRoot: string, coverage: CoverageConfig): Promise<string[]> {
+  const normalized = mappingPaths
+    .map(normalizeMappingPath)
+    .filter((p): p is string => p !== '');
+  return expandMappingPathsWithinOwnGraph(projectRoot, normalized, coverage);
+}
+
+/**
+ * Cached wrapper around `enumerateMappedFilesAsync`, keyed by (resolved
+ * projectRoot, nodePath) — see `mappedFilesCache` above. Every `buildUnitCtx`
+ * call site that expands a NAMED node's mapping (as opposed to an ad hoc path
+ * list with no owning node) goes through this, not `enumerateMappedFilesAsync`
+ * directly, so repeated expansions of the same node's mapping — across the
+ * ctx.graph pre-expansion loop, the AST prewarm loop, and repeated
+ * `buildUnitCtx` calls for different subjects of the same rule — share one disk
+ * walk instead of repeating it.
+ *
+ * Only the DIRECTORY WALK is cached. Every caller still reads each file's bytes
+ * fresh from disk on every use — this cache never stores content, so an edit to
+ * a file already in a cached path list is picked up the next time anything reads
+ * that file, with no reset required. A reset is only needed to see a file being
+ * ADDED to or REMOVED from a mapped directory after the first expansion (see
+ * `resetMappedFilesCache` above).
+ */
+export async function enumerateNodeMappedFilesCached(
+  nodePath: string,
+  mapping: string[] | undefined,
+  projectRoot: string,
+  coverage: CoverageConfig,
+): Promise<string[]> {
+  const rootKey = path.resolve(projectRoot);
+  let byNode = mappedFilesCache.get(rootKey);
+  if (!byNode) {
+    byNode = new Map();
+    mappedFilesCache.set(rootKey, byNode);
+  }
+  let cached = byNode.get(nodePath);
+  if (!cached) {
+    cached = enumerateMappedFilesAsync(mapping ?? [], projectRoot, coverage);
+    byNode.set(nodePath, cached);
+  }
+  return cached;
 }

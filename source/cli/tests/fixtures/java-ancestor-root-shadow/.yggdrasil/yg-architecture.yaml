@@ -1,0 +1,6 @@
+node_types:
+  service:
+    description: 'unit'
+    log_required: false
+    when:
+      path: "**"

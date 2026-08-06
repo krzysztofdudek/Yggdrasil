@@ -2,10 +2,14 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, cp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, cp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
+import { mkdtempSync, cpSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { Graph } from '../../../src/model/graph.js';
-import { summarizeImpact, renderImpactTotal } from '../../../src/cli/impact-handlers.js';
+import { summarizeImpact, renderImpactTotal, collectInvalidatedPairs } from '../../../src/cli/impact-handlers.js';
+import { loadGraph } from '../../../src/core/graph-loader.js';
+import { readLock } from '../../../src/io/lock-store.js';
+import { FIXTURE_TWO_COVERED_FILES } from '../../fixtures/type-level-engine/variants/index.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -62,6 +66,22 @@ function makeGraphWithReviewer(): Graph {
 const CLI_ROOT = path.join(__dirname, '../../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'sample-project');
+const TYPE_LEVEL_BASE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
+
+/**
+ * The base type-level-engine fixture merged with its two-covered-files variant:
+ * one real node (`owned`, type `leaf`) alongside two componentless files
+ * (src/leaf/{a,b}.ts) matching the SAME type, which also carries llm-leaf-rule
+ * and refuses-on-a. Used to prove computeExpectedPairs is threaded real
+ * type-coverage classification at the `yg impact` call sites, not left
+ * answering about a component-only universe.
+ */
+function mergedTypeLevelFixtureCopy(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'ygg-impact-typelevel-'));
+  cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
+  cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+  return dir;
+}
 
 async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
   const root = await mkdtemp(path.join(tmpdir(), 'ygg-impact-'));
@@ -404,6 +424,71 @@ describe('impact command', () => {
     });
   });
 
+  describe('--file on a path under coverage.excluded', () => {
+    async function plantExcludedNode(cwd: string): Promise<void> {
+      // A node whose mapping directory-sweeps an excluded subdirectory, with a
+      // real deterministic aspect attached — the shape that used to make BOTH
+      // the owner line AND the cost block false: the excluded file textually
+      // matched the node's mapping (a false owner), and with no lock entry yet
+      // (cold), the aspect's allowed-reads text match used to admit the
+      // excluded file as a "may observe this file (cold-start)" candidate (a
+      // false, nonzero cost) even though structure/ctx-fs.ts refuses that
+      // aspect's actual read of the file at runtime.
+      await mkdir(path.join(cwd, '.yggdrasil', 'model', 'excl'), { recursive: true });
+      await writeFile(
+        path.join(cwd, '.yggdrasil', 'model', 'excl', 'yg-node.yaml'),
+        'name: Excl\ndescription: x\ntype: service\naspects:\n  - det-rule\nmapping:\n  - src/excl\n',
+      );
+      await mkdir(path.join(cwd, '.yggdrasil', 'aspects', 'det-rule'), { recursive: true });
+      await writeFile(
+        path.join(cwd, '.yggdrasil', 'aspects', 'det-rule', 'yg-aspect.yaml'),
+        'name: DetRule\ndescription: x\nreviewer:\n  type: deterministic\nstatus: enforced\n',
+      );
+      await writeFile(
+        path.join(cwd, '.yggdrasil', 'aspects', 'det-rule', 'check.mjs'),
+        'export function check() { return []; }\n',
+      );
+      await mkdir(path.join(cwd, 'src', 'excl', 'vendor'), { recursive: true });
+      await writeFile(path.join(cwd, 'src', 'excl', 'own.ts'), 'export const own = 1;\n');
+      await writeFile(path.join(cwd, 'src', 'excl', 'vendor', 'lib.ts'), 'export const lib = 1;\n');
+      const configPath = path.join(cwd, '.yggdrasil', 'yg-config.yaml');
+      const existingConfig = await readFile(configPath, 'utf-8');
+      await writeFile(configPath, existingConfig + '\ncoverage:\n  excluded:\n    - src/excl/vendor/\n');
+    }
+
+    it('reports "excluded from graph coverage by design", never an owner or a re-verification cost', async () => {
+      await withFixtureCopy(async (cwd) => {
+        await plantExcludedNode(cwd);
+        const result = spawnSync(
+          'node',
+          [BIN_PATH, 'impact', '--file', 'src/excl/vendor/lib.ts'],
+          { cwd, encoding: 'utf-8' },
+        );
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('src/excl/vendor/lib.ts is excluded from graph coverage by design.');
+        expect(result.stdout).toContain('No action needed.');
+        // Neither the false owner name nor a re-verification cost block ever appears.
+        expect(result.stdout).not.toContain('-> excl');
+        expect(result.stdout).not.toContain('Total to re-verify');
+        expect(result.stdout).not.toContain('deterministic');
+      });
+    });
+
+    it("control: the node's own (non-excluded) file still resolves to a real owner and a real cost", async () => {
+      await withFixtureCopy(async (cwd) => {
+        await plantExcludedNode(cwd);
+        const result = spawnSync(
+          'node',
+          [BIN_PATH, 'impact', '--file', 'src/excl/own.ts'],
+          { cwd, encoding: 'utf-8' },
+        );
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('src/excl/own.ts -> excl');
+        expect(result.stdout).toContain('Total to re-verify');
+      });
+    });
+  });
+
   describe('error cases', () => {
     it('requires at least one option', async () => {
       await withFixtureCopy(async (cwd) => {
@@ -574,6 +659,37 @@ describe('impact command', () => {
         expect(result.stderr).toContain('Multiple targets specified');
       });
     });
+
+    it("the strict-coverage-gap preview never lists an excluded file as an orphan — it agrees with yg check's own backward scan", async () => {
+      await withFixtureCopy(async (cwd) => {
+        const archPath = path.join(cwd, '.yggdrasil', 'yg-architecture.yaml');
+        await writeFile(
+          archPath,
+          (await readFile(archPath, 'utf-8')).replace(
+            'node_types:\n',
+            'node_types:\n  strictsvc:\n    description: "Strict type for the impact --type exclusion test."\n    enforce: strict\n    when:\n      path: "strictsvc/**"\n',
+          ),
+        );
+        await mkdir(path.join(cwd, 'strictsvc', 'vendor'), { recursive: true });
+        await writeFile(path.join(cwd, 'strictsvc', 'own.ts'), 'export const own = 1;\n');
+        await writeFile(path.join(cwd, 'strictsvc', 'vendor', 'lib.ts'), 'export const lib = 1;\n');
+        const configPath = path.join(cwd, '.yggdrasil', 'yg-config.yaml');
+        await writeFile(
+          configPath,
+          (await readFile(configPath, 'utf-8')) + '\ncoverage:\n  excluded:\n    - strictsvc/vendor/\n',
+        );
+
+        const result = spawnSync(
+          'node',
+          [BIN_PATH, 'impact', '--type', 'strictsvc'],
+          { cwd, encoding: 'utf-8' },
+        );
+        expect(result.status).toBe(0);
+        expect(result.stdout).toContain('Orphans (matching files not in any mapping): 1');
+        expect(result.stdout).toContain('strictsvc/own.ts');
+        expect(result.stdout).not.toContain('strictsvc/vendor/lib.ts');
+      });
+    });
   });
 
   describe('node-cost block', () => {
@@ -647,5 +763,74 @@ describe('summarizeImpact + renderImpactTotal', () => {
     const out = renderImpactTotal(s, 'apps/x/a.ts', { isTTY: false });
     expect(out).toContain('Unresolved');
     expect(out).toContain('scenarios');
+  });
+});
+
+// ===========================================================================
+// Type-level coverage threading — `yg impact --aspect` and `--file` must count
+// the SAME expected-pair universe `yg check` counts, including a file enforced
+// by its architecture type alone (no owning component). Real fixture, real
+// binary / real function call — no fabricated pair data.
+// ===========================================================================
+
+describe('yg impact — type-level coverage threading', () => {
+  it('--aspect counts a componentless file-level pair sharing the aspect-holding type, not just the one node that also has it', () => {
+    const dir = mergedTypeLevelFixtureCopy();
+    try {
+      const result = spawnSync('node', [BIN_PATH, 'impact', '--aspect', 'llm-leaf-rule'], { cwd: dir, encoding: 'utf-8' });
+      expect(result.status).toBe(0);
+      // llm-leaf-rule is attached to type `leaf`. `owned` (a real node of that
+      // type) contributes its own one pair; src/leaf/a.ts and src/leaf/b.ts
+      // (componentless, matched by the same type) contribute one pair each —
+      // 3 total, not 1. Without threading, computeAspectFillCost would only
+      // ever see the 1 node-owned pair. The other 2 are named as file-only
+      // (no owning component) right alongside the total, not folded in silently.
+      expect(result.stdout).toContain('3 pair(s) (2 of them from files enforced by');
+      expect(result.stdout).toContain('3 reviewer call(s)');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('--file (collectInvalidatedPairs) admits a componentless file-level pair by "own" reason, with no owning node', async () => {
+    const dir = mergedTypeLevelFixtureCopy();
+    try {
+      const graph = await loadGraph(dir);
+      const lock = readLock(graph.rootPath);
+      const set = await collectInvalidatedPairs(graph, 'src/leaf/a.ts', lock, dir);
+      const own = set.pairs.filter((p) => p.reasons.includes('own'));
+      const ownAspectIds = own.map((p) => p.aspectId);
+      // The two-covered-files variant's own aspects (the deterministic
+      // refuses-on-a and the LLM llm-leaf-rule) are among the file-level pairs
+      // admitted for src/leaf/a.ts, alongside the base fixture's own leaf-type
+      // attachments (own-file-rule etc.) — none of them have an owning node.
+      expect(ownAspectIds).toContain('llm-leaf-rule');
+      expect(ownAspectIds).toContain('refuses-on-a');
+      expect(own.every((p) => p.nodePath === undefined)).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('--aspect never claims zero impact for a rule with no owning node, when files enforced by its architecture type alone would still be re-verified', () => {
+    // The base fixture's own 'forked' type (src/forked/f.ts) has no real
+    // component node anywhere — forked-own-rule is enforced by that type
+    // alone. "Directly affected" only ever walks graph.nodes, so before this
+    // fix it read "(0): (none)" while the cost line beneath it, in the SAME
+    // output, said a pair WOULD become unverified — a self-contradiction.
+    const dir = mkdtempSync(path.join(tmpdir(), 'ygg-impact-typeonly-'));
+    cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
+    try {
+      const result = spawnSync('node', [BIN_PATH, 'impact', '--aspect', 'forked-own-rule'], { cwd: dir, encoding: 'utf-8' });
+      expect(result.status).toBe(0);
+      // Never a bare "(none)" here — that would claim literally nothing is
+      // affected, false when a type-covered file is.
+      expect(result.stdout).not.toMatch(/Directly affected \(0\):\s*\n\s*\(none\)\s*\n/);
+      expect(result.stdout).toContain('1 file');
+      expect(result.stdout).toContain("architecture type alone");
+      expect(result.stdout).toContain('(1 pair(s)');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

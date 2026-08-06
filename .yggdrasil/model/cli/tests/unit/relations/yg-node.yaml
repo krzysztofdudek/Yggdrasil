@@ -2,7 +2,8 @@ name: Relations Unit Tests
 type: test-suite
 description: "Unit tests for the relation-conformance engine modules: the symbol
   table, owner index, path resolution, the extractor registry, agent-facing
-  messages, and the verifier. The resolver's own unit tests live in the
+  messages, the verifier, and the live type-relation gate's pure decision
+  function (computeTypeGateFindings). The resolver's own unit tests live in the
   resolver-unit child node; per-language extractor tests in the extractors child node."
 aspects: []
 relations:
@@ -13,7 +14,8 @@ relations:
     { target: cli/ast/runtime, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/language-registry, type: uses },
-    { target: cli/tests/unit/helpers, type: uses }
+    { target: cli/tests/unit/helpers, type: uses },
+    { target: cli/core/allowed-relation-types, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/relations/symbol-table.test.ts
@@ -30,3 +32,4 @@ mapping:
   - source/cli/tests/unit/relations/ast-cache-audit.test.ts
   - source/cli/tests/unit/relations/facts-cache-branch-coverage.test.ts
   - source/cli/tests/unit/relations/feature-vector.test.ts
+  - source/cli/tests/unit/relations/type-gate.test.ts

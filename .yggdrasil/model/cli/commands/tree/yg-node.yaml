@@ -1,6 +1,21 @@
 name: TreeCommand
 type: command
-description: Prints flat list of all nodes with path, type, and description via yg tree
+description: >-
+  Prints a flat list of all nodes with path, type, and description via yg
+  tree. With coverage.type_level on, a summary line follows the node listing
+  (never a synthetic tree entry — the listing above stays nodes-only), always
+  repo-wide even under --root since a type-covered file has no place in the
+  hierarchy for that flag to scope it to. It splits the type-level lattice's
+  total into how many files are checked by at least one applicable rule (with
+  a further count, when any exist, of how many of those have no CURRENT valid
+  lock verdict for at least one of their rules — re-verified with the SAME
+  per-pair check `yg check` itself performs, verify-lock.ts's verifyPairs,
+  scoped to just the nodeless pairs already enumerated for this line rather
+  than a second whole-project pair walk, so a stale entry counts exactly as a
+  missing one, the identical fact plain `yg check` already carries for the
+  identical pair), how many matched a type with nothing that applies, and —
+  only when it occurs — how many had their matched type's rules blocked from
+  ever being worked out by an aspect implies cycle.
 aspects: []
 relations:
   - target: cli/core/loader
@@ -16,6 +31,18 @@ relations:
   - target: cli/preamble
     type: calls
   - target: cli/utils
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/io/lock-store
+    type: calls
+  - target: cli/core/verify-lock
     type: calls
 mapping:
   - source/cli/src/cli/tree.ts

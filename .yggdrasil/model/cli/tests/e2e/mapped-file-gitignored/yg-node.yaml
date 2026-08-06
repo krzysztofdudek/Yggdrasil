@@ -1,7 +1,0 @@
-name: E2E Tests — Gitignored File Visibility in Disk Scan
-type: test-suite
-description: "Subprocess E2E proving that gitignored files (even force-tracked by git) are invisible to the disk-based coverage scan (walkRepoFiles): a gitignored file in a directory mapping produces no mapped-file-gitignored error and no false green — the disk scanner simply excludes it. Guards the CLI behavior through the real built binary."
-aspects: []
-relations: [ { target: cli/tests/support, type: uses } ]
-mapping:
-  - source/cli/tests/e2e/cli-mapped-file-gitignored.test.ts

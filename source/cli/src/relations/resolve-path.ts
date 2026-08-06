@@ -8,44 +8,91 @@ import { resolvePhpFqn, parsePsr4, type PhpResolveDeps } from './extractors/php-
 import { resolveRustPath, type RustResolveDeps } from './extractors/rust-resolve.js';
 import { resolveIncludePath } from './extractors/include-resolve.js';
 import { resolveRubyRequireRelative } from './extractors/ruby-resolve.js';
+import { buildOwnerIndex } from './owner-index.js';
+import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import type { Graph } from '../model/graph.js';
 
 /** Production resolvePathToFile: dispatches by language to the per-language path resolver.
  *  Checks existence against the project's files on disk. Symbol-resolved languages (and
- *  not-yet-implemented ones) return undefined here — they resolve via the SymbolTable. */
+ *  not-yet-implemented ones) return undefined here — they resolve via the SymbolTable.
+ *
+ *  `ownerOf` and `isExcluded`, when supplied, feed every resolver below that can face
+ *  MORE THAN ONE candidate file for a single specifier. Go and Java package imports use
+ *  `isExcluded` to drop an excluded file from the package's candidate list BEFORE `ownerOf`
+ *  is ever asked about it — the package's split-or-single-owner status is decided from what
+ *  remains, not from every file the directory happens to hold. Python (multiple ancestor
+ *  source roots matching the same dotted module) and PHP (multiple PSR-4 base directories
+ *  for one prefix) face the same shape of ambiguity without an owner-set to collapse: their
+ *  resolvers use `isExcluded` to drop an excluded match from the candidate SET before
+ *  deciding whether resolution is ambiguous, so an excluded duplicate can no longer keep a
+ *  real, surviving candidate silenced. Java's own ancestor-source-root search (both a precise
+ *  type import and a wildcard package import) is nearest-first-wins rather than
+ *  collect-then-decide, so it applies `isExcluded` differently: an excluded hit is treated as
+ *  though it does not exist, so the walk keeps climbing to the next candidate — same root,
+ *  then further-out roots — instead of letting an excluded nearer copy end the search before
+ *  the farther, still-live copy is ever tried (see java-resolve.ts's own doc comment). Either
+ *  way this is what keeps an exclusion honest about every OTHER file: excluding one file can
+ *  only remove that file's own contribution to the decision — it can never fabricate an owner
+ *  or a target a surviving file never had, and it can never bury a real dependency reached
+ *  through a file that is still there. A caller resolving a specifier fresh from source — the
+ *  specifier can name any file on disk, excluded or not — must build this through
+ *  {@link guardedResolve} instead of calling this directly with `ownerOf` and no `isExcluded`:
+ *  without `isExcluded`, an excluded file still counts toward the ambiguity decision (or, for
+ *  Java, still wins the walk), which can silence a real cross-node dependency reached through
+ *  the surviving, non-excluded, fully enforced candidate. */
 export function makeResolvePathToFile(
   projectRoot: string,
   ownerOf?: (repoRelPosix: string) => string | undefined,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): (specifier: string, fromFile: string, language: string, isPackage?: boolean) => string | undefined {
   const exists = (repoRelPosix: string): boolean => existsSync(path.resolve(projectRoot, repoRelPosix));
-  const goDeps = makeGoResolveDeps(projectRoot, ownerOf);
-  const javaDeps = makeJavaResolveDeps(projectRoot, exists);
-  const phpDeps = makePhpResolveDeps(projectRoot, exists);
+  const goDeps = makeGoResolveDeps(projectRoot, ownerOf, isExcluded);
+  const javaDeps = makeJavaResolveDeps(projectRoot, exists, isExcluded);
+  const phpDeps = makePhpResolveDeps(projectRoot, exists, isExcluded);
   const rustDeps = makeRustResolveDeps(projectRoot);
   return (specifier, fromFile, language, isPackage = false) => {
     if (language === 'typescript' || language === 'tsx' || language === 'javascript') {
       return resolveTsPath(specifier, fromFile, exists);
     }
     if (language === 'python') {
-      return resolvePythonModule(specifier, fromFile, exists);
+      return resolvePythonModule(specifier, fromFile, exists, isExcluded);
     }
     if (language === 'go') {
       return resolveGoImport(specifier, fromFile, goDeps);
     }
     if (language === 'java') {
       if (isPackage) {
-        // Wildcard package import: collect owners of ALL .java in the resolved
-        // package dir. Exactly one distinct owner → attribute (return that file);
-        // zero or 2+ distinct owners → silence (S2/S3 — never guess across a split).
+        // Wildcard package import: `resolveJavaPackageFiles` already committed to the
+        // first ANCESTOR ROOT with at least one LIVE (non-excluded) file — an
+        // excluded-only root is skipped exactly like an empty one (see
+        // java-resolve.ts's own doc comment) — so `files` here is already the live set
+        // to decide ownership over. Exactly one distinct owner among them → attribute
+        // one of its files; 2+ distinct owners → still split → silence.
+        //
+        // No `sole` owner found covers TWO different situations: `files` is empty (the
+        // package was found nowhere live — `files[0]` is naturally `undefined`, the
+        // same silence a wholly-unmapped package gets), or `files` is non-empty but no
+        // node owns any of it (a package that is type-covered only, under
+        // `coverage.type_level`, has no node owner for ANY file — the ordinary case,
+        // not the exception). The fallback picks `files[0]` either way rather than
+        // returning `undefined` outright: a caller that is not the node owner index
+        // (the type-coverage lookup) still needs a live, non-excluded file to find the
+        // package's matched type — silencing unconditionally here made every wildcard
+        // import into a nodeless package invisible to that lookup, exclusion or not.
         const files = resolveJavaPackageFiles(specifier, fromFile, javaDeps);
-        const owners = new Set<string>();
-        let firstFile: string | undefined;
+        let sole: string | undefined;
         for (const f of files) {
           const owner = ownerOf?.(f);
           if (owner === undefined) continue; // unmapped file is not part of the owner set
-          if (owners.size === 0) firstFile = f;
-          owners.add(owner);
+          if (sole === undefined) {
+            sole = owner;
+          } else if (owner !== sole) {
+            return undefined; // 2+ distinct owners among the live set → split package → silence
+          }
         }
-        return owners.size === 1 ? firstFile : undefined;
+        if (sole === undefined) return files[0];
+        const soleOwned = files.filter((f) => ownerOf?.(f) === sole);
+        return soleOwned[0];
       }
       return resolveJavaFqn(specifier, fromFile, javaDeps);
     }
@@ -57,7 +104,10 @@ export function makeResolvePathToFile(
     }
     if (language === 'c' || language === 'cpp') {
       // C and C++ share ONE include resolver: a quoted `#include "header"` resolves
-      // relative to the including file, then against common include roots. The header's
+      // ONLY relative to the including file's own directory — deliberately no probe of
+      // ancestor dirs or common include roots (see include-resolve.ts's own doc comment
+      // for why: such a probe can only match a same-basename decoy the real compiler,
+      // driven by -I flags this resolver cannot see, would never pick). The header's
       // owning node is the dependency target (header/impl share a node).
       return resolveIncludePath(specifier, fromFile, exists);
     }
@@ -69,6 +119,35 @@ export function makeResolvePathToFile(
     }
     return undefined;
   };
+}
+
+/**
+ * Build the production `resolvePathToFile` against the SAME exclusion set (the
+ * nested-project boundary plus the adopter's own `coverage.excluded` roots)
+ * `runRelationPass`'s own file enumeration and ownership re-pointing already honor.
+ * Every caller that resolves an import/reference specifier fresh from source — `yg
+ * check`'s live relation gate (including its hidden `--attention-dump` diagnostic) and
+ * the portal's boundary computation (which backs `yg structure`'s navigation and `yg
+ * advise`'s detected-edge signal) — must build `resolvePathToFile` through this
+ * constructor rather than calling `makeResolvePathToFile` with a raw owner index and no
+ * exclusion awareness. `yg find` never resolves an import specifier at all (it searches
+ * graph documents, not code edges), so it is not among these callers.
+ *
+ * Passes the owner index together with a same-set `isExcluded` predicate, exactly as
+ * `makeResolvePathToFile`'s own doc comment describes: `isExcluded` drops an excluded
+ * file from a package's candidate list before the owner index is ever asked about it,
+ * so the split-or-single-owner decision is made from what remains — an exclusion can
+ * remove its own file from consideration, never rewrite what is true of any other file.
+ */
+export async function guardedResolve(
+  projectRoot: string,
+  graph: Graph,
+): Promise<(specifier: string, fromFile: string, language: string, isPackage?: boolean) => string | undefined> {
+  const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
+  const exclusion = await resolveGraphExclusionSet(projectRoot, coverage);
+  const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+  const isExcluded = (repoRelPosix: string): boolean => isExcludedFromGraph(repoRelPosix, exclusion);
+  return makeResolvePathToFile(projectRoot, ownerOf, isExcluded);
 }
 
 /**
@@ -158,6 +237,7 @@ function makeRustResolveDeps(projectRoot: string): RustResolveDeps {
 function makeGoResolveDeps(
   projectRoot: string,
   ownerOf?: (repoRelPosix: string) => string | undefined,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): GoResolveDeps {
   // Cache: go.mod directory (repo-rel POSIX, '' = root) → module path or undefined.
   const moduleByDir = new Map<string, string | undefined>();
@@ -237,14 +317,17 @@ function makeGoResolveDeps(
     return out;
   }
 
-  return { modulePathFor, dirExists, goFilesIn, ownerOf };
+  return { modulePathFor, dirExists, goFilesIn, ownerOf, isExcluded };
 }
 
 /**
  * Build the disk-backed Java resolution capabilities for a project root. Java
  * resolution is pure file/directory existence (the package = directory convention),
  * so `exists` is shared with the other resolvers; the only extra capability is
- * listing a package directory's `.java` files for a wildcard import.
+ * listing a package directory's `.java` files for a wildcard import. `isExcluded`
+ * flows straight through to `JavaResolveDeps` so both `resolveType` and
+ * `resolveJavaPackageFiles` can skip an excluded hit and keep walking the
+ * ancestor-source-root chain — see java-resolve.ts's own doc comment.
  *
  * NOTE: makeResolvePathToFile's deps are pure filesystem access;
  * readdirSync is fine there — it lists files, it does not parse.
@@ -252,6 +335,7 @@ function makeGoResolveDeps(
 function makeJavaResolveDeps(
   projectRoot: string,
   exists: (repoRelPosix: string) => boolean,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): JavaResolveDeps {
   function javaFilesIn(repoRelDir: string): string[] {
     const abs = path.resolve(projectRoot, repoRelDir);
@@ -269,7 +353,7 @@ function makeJavaResolveDeps(
     }
     return out;
   }
-  return { exists, javaFilesIn };
+  return { exists, javaFilesIn, isExcluded };
 }
 
 /**
@@ -290,6 +374,7 @@ function makeJavaResolveDeps(
 function makePhpResolveDeps(
   projectRoot: string,
   exists: (repoRelPosix: string) => boolean,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): PhpResolveDeps {
   // Cache: composer.json directory (repo-rel POSIX, '' = root) → parsed PSR-4 map.
   const psr4ByDir = new Map<string, Map<string, string[]>>();
@@ -329,7 +414,7 @@ function makePhpResolveDeps(
     }
   }
 
-  return { psr4For, exists };
+  return { psr4For, exists, isExcluded };
 }
 
 function toPosix(p: string): string {

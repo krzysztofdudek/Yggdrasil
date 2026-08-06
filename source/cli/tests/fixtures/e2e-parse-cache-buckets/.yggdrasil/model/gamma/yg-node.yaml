@@ -1,0 +1,8 @@
+name: Gamma
+type: module
+description: A second, independent component (unrelated to alpha/beta) reviewed under the reads-target-2 companion aspect, whose companion parses every file of its uses-related target (delta). Carries no aspect by default — a test attaches reads-target-2 to make its (aspect, node) pairs live alongside alpha's.
+mapping:
+  - src/gamma/*.ts
+relations:
+  - target: delta
+    type: uses

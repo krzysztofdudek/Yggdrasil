@@ -94,3 +94,13 @@ The structural validation pass now also composes the incident-ledger ordering ch
 Wires the new per-type dead-attach linter into the validation pass alongside the existing effective-nowhere linter, so a default aspect that its own when filters off its own type is surfaced as a warning during yg check.
 ## [2026-07-15T08:27:07.026Z]
 Wires the new relation-target-type integrity check into the architecture-level validation stage alongside the existing undefined-parent check, so a dangling relation target type blocks like the other architecture-shape errors.
+## [2026-07-28T13:56:15.998Z]
+validate() gained an optional third parameter accepting a caller-supplied FileContentCache, defaulting to a fresh instance when omitted — this lets a caller that already holds a cache (the check orchestrator) share it instead of paying a second read for a file both consumers need.
+## [2026-07-28T19:45:58.963Z]
+Validation now accepts the same file-type classification the read-only check computes once per run, so the reviewer-required check correctly counts a judgment rule that only ever runs on files enforced by their architecture type, not only rules attached to components.
+## [2026-07-30T13:40:12.688Z]
+Threads the same type-coverage classification already used for the reviewer-presence check into the two dead-law linters, so both see a rule or a type instance that exists only through type coverage.
+## [2026-07-30T19:19:44.912Z]
+A parameter's doc comment claimed the shared enforcement classification was threaded into only one check, but it has also fed two dead-attach warnings for some time, letting them tell a rule reachable through an architecture type apart from one that is genuinely never enforced. The comment was stale; it now names all three consumers.
+## [2026-07-30T21:02:13.136Z]
+Reworded two comments describing the threaded type-coverage classification parameter so each explains, in its own words, that it is computed once by the caller and passed through to the dead-attach checks rather than recomputed, instead of leaning on a short internal code with no meaning to a reader of this repository.

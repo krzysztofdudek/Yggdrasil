@@ -15,7 +15,7 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(__dirname, '..', '..', 'dist', 'bin.js');
 const distExists = existsSync(BIN);
 
-const YG_CONFIG = `version: "5.1.0"
+const YG_CONFIG = `version: "5.2.0"
 quality:
   max_direct_relations: 10
 reviewer:
@@ -154,7 +154,8 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
     );
     const { stderr, status } = run(['aspect-test', '--aspect', 'clean'], projectRoot);
     expect(status).toBe(1);
-    expect(stderr).toContain('Neither --node nor --files');
+    // --node/--file/--files are a three-way exactly-one-mode contract.
+    expect(stderr).toContain('None of --node, --file, --files was provided');
   });
 
   it('exits 1 when BOTH --node and --files are provided', () => {
@@ -169,7 +170,7 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stderr).toContain('Both --node and --files');
+    expect(stderr).toContain('More than one of --node, --file, --files was provided');
   });
 
   it('--dry-run is rejected for a deterministic aspect (no prompt to print)', () => {

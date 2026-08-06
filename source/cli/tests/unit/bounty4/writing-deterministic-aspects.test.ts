@@ -53,7 +53,7 @@ function run(aspectId: string, nodePath: string, graph: ReturnType<typeof buildT
   return runStructureAspect({
     aspectDir: path.join('.yggdrasil/aspects', aspectId),
     aspectId,
-    nodePath,
+    unit: { kind: 'node', nodePath },
     graph,
     projectRoot,
   });
@@ -332,12 +332,17 @@ describe('contract: violation file must be in context', () => {
 // ===========================================================================
 
 describe('allowed reads: ctx.fs boundary', () => {
-  it('ctx.fs.read on a path outside the allowed set -> structure-aspect-undeclared-fs-read', async () => {
+  it('ctx.fs.read on a path outside the allowed set -> thrown STRUCTURE_UNDECLARED_FS_READ (never a returned violation)', async () => {
     writeFileSync(path.join(projectRoot, 'src/secret.ts'), 'export const s = 1;\n');
     writeAspect('s-fsread', `export function check(ctx) { ctx.fs.read('src/secret.ts'); return []; }`);
-    const r = await run('s-fsread', 'N', oneNode());
-    expect(r.succeeded).toBe(false);
-    expect(r.violations[0].kind).toBe('structure-aspect-undeclared-fs-read');
+    let caught: unknown;
+    try {
+      await run('s-fsread', 'N', oneNode());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    expect((caught as StructureRunnerError).code).toBe('STRUCTURE_UNDECLARED_FS_READ');
   });
 
   it('ctx.fs.read of an own-mapping file is permitted', async () => {
@@ -366,7 +371,7 @@ describe('allowed reads: ctx.fs boundary', () => {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/s-anc'),
       aspectId: 's-anc',
-      nodePath: 'Parent/Child',
+      unit: { kind: 'node', nodePath: 'Parent/Child' },
       graph: g,
       projectRoot,
     });
@@ -421,7 +426,7 @@ describe('allowed reads: ctx.graph boundary', () => {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/s-children'),
       aspectId: 's-children',
-      nodePath: 'P',
+      unit: { kind: 'node', nodePath: 'P' },
       graph: g,
       projectRoot,
     });
@@ -462,12 +467,11 @@ describe('allowed reads: ctx.parseAst pre-warm boundary', () => {
 // ===========================================================================
 
 describe('reserved kinds: runtime emits the documented structure-aspect-* kinds', () => {
-  it('the three documented runtime kinds all begin with structure-aspect-', async () => {
-    // Drive each of the three runtime emissions and confirm their kind prefix.
-    writeFileSync(path.join(projectRoot, 'src/secret.ts'), 'export const s = 1;\n');
-    writeAspect('k-fs', `export function check(ctx) { ctx.fs.read('src/secret.ts'); return []; }`);
-    const fsR = await run('k-fs', 'N', oneNode());
-
+  it('the two documented VIOLATION runtime kinds both begin with structure-aspect-', async () => {
+    // Drive each of the two runtime-emitted-Violation kinds and confirm their
+    // kind prefix. An undeclared ctx.fs read is NOT among them — it is thrown
+    // as a structured infra fault (see the next test), never returned as a
+    // Violation with a `kind`.
     writeAspect('k-graph', `export function check(ctx) { ctx.graph.node('Other'); return []; }`);
     const gGraph = buildTestGraphForStructure({
       nodes: [
@@ -482,10 +486,23 @@ describe('reserved kinds: runtime emits the documented structure-aspect-* kinds'
     }`);
     const prewarmR = await run('k-prewarm', 'N', oneNode());
 
-    for (const r of [fsR, graphR, prewarmR]) {
+    for (const r of [graphR, prewarmR]) {
       expect(r.succeeded).toBe(false);
       expect(r.violations[0].kind?.startsWith('structure-aspect-')).toBe(true);
     }
+  });
+
+  it('an undeclared ctx.fs read is thrown (STRUCTURE_UNDECLARED_FS_READ), not a structure-aspect-* Violation', async () => {
+    writeFileSync(path.join(projectRoot, 'src/secret.ts'), 'export const s = 1;\n');
+    writeAspect('k-fs', `export function check(ctx) { ctx.fs.read('src/secret.ts'); return []; }`);
+    let caught: unknown;
+    try {
+      await run('k-fs', 'N', oneNode());
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(StructureRunnerError);
+    expect((caught as StructureRunnerError).code).toBe('STRUCTURE_UNDECLARED_FS_READ');
   });
 });
 
@@ -677,7 +694,7 @@ describe('cookbook: child-type composition via ctx.graph.children', () => {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/cb-compose'),
       aspectId: 'cb-compose',
-      nodePath: 'E',
+      unit: { kind: 'node', nodePath: 'E' },
       graph: g,
       projectRoot,
     });

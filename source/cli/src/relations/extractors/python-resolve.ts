@@ -9,9 +9,30 @@ import path from 'node:path';
  *
  * `exists(repoRelPosix)` reports whether a candidate file exists in the resolution
  * universe (disk at --approve time; a fixed known-set in unit tests). PURE except
- * through `exists`. Resolution is a pure file-existence search — no directory
- * listing, no graph access. The owner index downstream maps the resolved file to a
- * node; an unmapped resolved file is simply not a known target.
+ * through `exists` and `isExcluded`. Resolution is a pure file-existence search — no
+ * directory listing, no graph access. The owner index downstream maps the resolved
+ * file to a node; an unmapped resolved file is simply not a known target.
+ *
+ * `isExcluded`, when supplied, makes an excluded candidate act as though it does not
+ * exist, in BOTH resolvers. In the absolute resolver this happens at two levels: per
+ * ancestor source root, the priority list (a package, then a same-named module-as-file
+ * — CPython's own precedence) no longer stops at the first EXISTING candidate — an
+ * excluded one is skipped so a live candidate further down the SAME root's list (a
+ * module-as-file surviving its own excluded same-named package) still reaches the
+ * per-root match; and across roots, an excluded root's match is dropped from the
+ * ambiguity count before deciding whether a dotted module resolved to one file or
+ * several — the search probes every ancestor source root and treats 2+ DISTINCT live
+ * matches as genuinely ambiguous (ANOTHER root or a same-named shadow really might be
+ * the target, so a static tool must not guess which), while a single live match is
+ * unambiguous even when a second, now-excluded match also exists. The relative
+ * resolver has no cross-root ambiguity to decide — only the same per-root priority
+ * list — so it applies the same "skip an excluded hit, try the next candidate" rule
+ * to that one list. Either way an excluded file is graph-told to not exist for this
+ * purpose: it can never BE the real target, so its match must not keep a real,
+ * surviving candidate silenced merely because it once shared a name or a dotted
+ * module with a file the graph no longer considers. This mirrors the Go/Java package
+ * resolvers' drop-then-decide rule. Absent → no candidate is ever dropped (today's
+ * behavior, unaffected).
  *
  * RESOLUTION MISS → undefined. This fail-to-silence is the single most important
  * false-positive guard: a stdlib/third-party module, a mis-climbed relative import,
@@ -21,11 +42,12 @@ export function resolvePythonModule(
   specifier: string,
   fromFile: string,
   exists: (repoRelPosix: string) => boolean,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): string | undefined {
   if (specifier.startsWith('.')) {
-    return resolveRelative(specifier, fromFile, exists);
+    return resolveRelative(specifier, fromFile, exists, isExcluded);
   }
-  return resolveAbsolute(specifier, fromFile, exists);
+  return resolveAbsolute(specifier, fromFile, exists, isExcluded);
 }
 
 /**
@@ -38,11 +60,17 @@ export function resolvePythonModule(
  * root (the importer's own/intermediate dirs are not genuine roots, so they must
  * not shadow the real source root): a single distinct matching file is returned;
  * 2+ distinct matches are ambiguous and resolve to undefined (silence).
+ *
+ * An excluded match is dropped BEFORE that ambiguity count. It is graph-told to
+ * not exist, so it can never be the genuine target and must not keep a real,
+ * surviving match silenced merely because it once shared a dotted module name
+ * with a file the graph no longer considers.
  */
 function resolveAbsolute(
   specifier: string,
   fromFile: string,
   exists: (repoRelPosix: string) => boolean,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): string | undefined {
   const segments = specifier.split('.').filter((s) => s.length > 0);
   if (segments.length === 0) return undefined;
@@ -54,30 +82,38 @@ function resolveAbsolute(
   // The importing file's own dir and the intermediate dirs are NOT genuine
   // absolute-import roots, so a same-named module sitting in the importer's own
   // package must not shadow the real source root. Resolving the same dotted
-  // module to 2+ distinct files means we cannot tell which root is genuine —
-  // silence (undefined) per the zero-false-positive rule. A single distinct
+  // module to 2+ distinct LIVE files means we cannot tell which root is genuine —
+  // silence (undefined) per the zero-false-positive rule. A single distinct live
   // file is an unambiguous resolution and is returned.
   //
   // Per-root, the candidate priority order is preserved (module-as-file/package
-  // first, then the parentPath longest-match): only the first hit at each root
-  // is added to the set, so a root that matches both the full module and its
-  // parent still contributes just one file (the stronger match wins).
+  // first, then the parentPath longest-match): only the first LIVE hit at each
+  // root is added to the set, so a root that matches both the full module and its
+  // parent still contributes just one file (the stronger match wins) — but an
+  // EXCLUDED hit does not stop the search at that root: it is skipped exactly
+  // like a genuine miss, so a live candidate further down the SAME root's list
+  // (a package outranking its own excluded same-named module, matching CPython's
+  // real precedence) still reaches the match set.
+  const isExcl = isExcluded ?? ((): boolean => false);
   const matches = new Set<string>();
   for (const dir of ancestorDirs(path.posix.dirname(toPosix(fromFile)))) {
     const candidates: string[] = [
-      // module-as-file / package at this root
-      joinUnder(dir, modulePath + '.py'),
+      // package / module-as-file at this root — CPython imports a regular
+      // package over a same-named module file (verified against the real
+      // interpreter: `import lib.mod` loads lib/mod/__init__.py even when
+      // lib/mod.py also exists at the same root).
       joinUnder(dir, modulePath + '/__init__.py'),
+      joinUnder(dir, modulePath + '.py'),
     ];
     // `from a.b import c` longest-match: last segment is a symbol in module a.b.
     if (parentPath.length > 0) {
-      candidates.push(joinUnder(dir, parentPath + '.py'));
       candidates.push(joinUnder(dir, parentPath + '/__init__.py'));
+      candidates.push(joinUnder(dir, parentPath + '.py'));
     }
     for (const cand of candidates) {
-      if (cand !== undefined && exists(cand)) {
+      if (cand !== undefined && exists(cand) && !isExcl(cand)) {
         matches.add(cand);
-        break; // only the strongest match per root contributes to the set
+        break; // only the strongest LIVE match per root contributes to the set
       }
     }
   }
@@ -88,12 +124,17 @@ function resolveAbsolute(
  * Relative module: a leading run of `k` dots then an optional dotted tail. CPython
  * semantics: 1 dot = the importing file's own package (its directory), each extra
  * dot climbs one parent. So climb `(k - 1)` directories from the importing file's
- * directory, append the tail path, then try `<base>.py` and `<base>/__init__.py`.
+ * directory, append the tail path, then try `<base>/__init__.py` and `<base>.py`
+ * (a package before a same-named module-as-file, the same priority order the
+ * absolute resolver uses). An excluded candidate is skipped exactly like a genuine miss, so
+ * a live package sitting right next to its own excluded same-named module still
+ * resolves — there is only one base here, so no cross-root ambiguity to decide.
  */
 function resolveRelative(
   specifier: string,
   fromFile: string,
   exists: (repoRelPosix: string) => boolean,
+  isExcluded?: (repoRelPosix: string) => boolean,
 ): string | undefined {
   const dotMatch = specifier.match(/^\.+/);
   if (dotMatch === null) return undefined;
@@ -115,11 +156,12 @@ function resolveRelative(
 
   const candidates =
     tailPath.length > 0
-      ? [normalized + '.py', path.posix.join(normalized, '__init__.py')]
+      ? [path.posix.join(normalized, '__init__.py'), normalized + '.py']
       : [path.posix.join(normalized, '__init__.py')]; // bare dots → the package's __init__
 
+  const isExcl = isExcluded ?? ((): boolean => false);
   for (const cand of candidates) {
-    if (exists(cand)) return cand;
+    if (exists(cand) && !isExcl(cand)) return cand;
   }
   return undefined;
 }

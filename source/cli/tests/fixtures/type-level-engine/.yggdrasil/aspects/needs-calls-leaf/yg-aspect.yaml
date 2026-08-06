@@ -1,0 +1,6 @@
+name: Needs Calls Leaf
+description: "Attached to consumer with when { relations: { calls: { target_type: leaf } } } — a resolved import is type-blind evidence among structural kinds, so it must answer 'calls' exactly as it answers 'uses'."
+reviewer:
+  type: deterministic
+scope:
+  per: file

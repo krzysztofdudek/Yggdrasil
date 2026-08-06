@@ -1,4 +1,4 @@
-import type { Graph, NodeMeta, Relation, PortDef, RelationType } from '../../../src/model/graph.js';
+import type { Graph, NodeMeta, Relation, PortDef, RelationType, YggConfig } from '../../../src/model/graph.js';
 import { buildTestGraph, type TestNodeInput, type TestAspectInput, type TestTypeInput, type TestFlowInput } from './build-test-graph.js';
 
 /**
@@ -21,6 +21,8 @@ export interface StructureGraphInput {
   types?: TestTypeInput[];
   flows?: TestFlowInput[];
   rootPath?: string;
+  /** Pass-through to buildTestGraph's own `config` — e.g. `{ coverage: { required: [], excluded: [...], typeLevel: false } }` for a fixture that needs a real coverage.excluded root. Omitted → the empty-config default every other structure test already gets. */
+  config?: YggConfig;
 }
 
 export function buildTestGraphForStructure(input: StructureGraphInput): Graph {
@@ -30,6 +32,7 @@ export function buildTestGraphForStructure(input: StructureGraphInput): Graph {
     types: input.types,
     flows: input.flows,
     rootPath: input.rootPath,
+    config: input.config,
   });
   // Patch meta with mapping/relations/ports
   for (const inputNode of input.nodes ?? []) {

@@ -42,7 +42,7 @@ describe('runCompanionHook', () => {
     }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/async-ok'),
-      aspectId: 'async-ok', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'async-ok', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -55,7 +55,7 @@ describe('runCompanionHook', () => {
     }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/sync-ok'),
-      aspectId: 'sync-ok', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'sync-ok', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -66,7 +66,7 @@ describe('runCompanionHook', () => {
     writeCompanion('empty-ok', `export function companion(ctx) { return []; }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/empty-ok'),
-      aspectId: 'empty-ok', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'empty-ok', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -77,7 +77,7 @@ describe('runCompanionHook', () => {
     writeCompanion('throw-infra', `export function companion(ctx) { throw new Error('boom'); }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/throw-infra'),
-      aspectId: 'throw-infra', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'throw-infra', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -90,7 +90,7 @@ describe('runCompanionHook', () => {
     writeCompanion('async-reject', `export async function companion(ctx) { throw new Error('async boom'); }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/async-reject'),
-      aspectId: 'async-reject', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'async-reject', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -104,7 +104,7 @@ describe('runCompanionHook', () => {
     }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/thenable-ok'),
-      aspectId: 'thenable-ok', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'thenable-ok', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('ok');
     if (r.kind !== 'ok') return;
@@ -115,7 +115,7 @@ describe('runCompanionHook', () => {
     writeCompanion('bad-nonarray', `export function companion(ctx) { return 'oops'; }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/bad-nonarray'),
-      aspectId: 'bad-nonarray', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'bad-nonarray', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -126,7 +126,7 @@ describe('runCompanionHook', () => {
     writeCompanion('bad-entry', `export function companion(ctx) { return [{ notPath: 'x' }]; }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/bad-entry'),
-      aspectId: 'bad-entry', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'bad-entry', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -137,7 +137,7 @@ describe('runCompanionHook', () => {
     writeCompanion('bad-label', `export function companion(ctx) { return [{ path: 'src/a.ts', label: 42 }]; }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/bad-label'),
-      aspectId: 'bad-label', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'bad-label', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -151,7 +151,7 @@ describe('runCompanionHook', () => {
     }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/undeclared-fs'),
-      aspectId: 'undeclared-fs', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'undeclared-fs', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -173,7 +173,7 @@ describe('runCompanionHook', () => {
     });
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/undeclared-graph'),
-      aspectId: 'undeclared-graph', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'undeclared-graph', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -187,7 +187,7 @@ describe('runCompanionHook', () => {
     }`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/parseast-infra'),
-      aspectId: 'parseast-infra', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'parseast-infra', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -200,7 +200,7 @@ describe('runCompanionHook', () => {
     mkdirSync(aspectDir, { recursive: true });
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/no-companion'),
-      aspectId: 'no-companion', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'no-companion', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -211,7 +211,7 @@ describe('runCompanionHook', () => {
     writeCompanion('not-fn', `export const companion = 42;`);
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/not-fn'),
-      aspectId: 'not-fn', nodePath: 'N', graph: graphN(), projectRoot,
+      aspectId: 'not-fn', unit: { kind: 'node', nodePath: 'N' }, graph: graphN(), projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -223,7 +223,7 @@ describe('runCompanionHook', () => {
     const g = buildTestGraphForStructure({ nodes: [] });
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/node-missing'),
-      aspectId: 'node-missing', nodePath: 'nonexistent', graph: g, projectRoot,
+      aspectId: 'node-missing', unit: { kind: 'node', nodePath: 'nonexistent' }, graph: g, projectRoot,
     });
     expect(r.kind).toBe('infra');
     if (r.kind !== 'infra') return;
@@ -242,7 +242,7 @@ describe('runCompanionHook', () => {
     });
     const r = await runCompanionHook({
       aspectDir: path.join('.yggdrasil/aspects/records'),
-      aspectId: 'records', nodePath: 'N', graph: g, projectRoot,
+      aspectId: 'records', unit: { kind: 'node', nodePath: 'N' }, graph: g, projectRoot,
       subjectScope: ['src/a.ts'],
     });
     expect(r.kind).toBe('ok');

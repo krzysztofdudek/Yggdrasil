@@ -1,0 +1,13 @@
+name: Draft Own When Gate
+description: "Attached directly to consumer. status: draft AND its own aspect-global when: carries a relations atom. Correctly recognizing it as draft (so it legitimately blocks propagation into blocked-by-draft-gate) depends on computeEffectiveAspects's OWN internal call to computeEffectiveAspectStatuses seeing the derived-relation overrides — if that internal call ever silently dropped them, this aspect's own-when would wrongly read false there, it would appear absent (not merely non-draft) to the draft gate, and the gate's `!== 'draft'` check would then wrongly let its implied aspect through."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+status: draft
+when:
+  relations:
+    uses:
+      target_type: leaf
+implies:
+  - blocked-by-draft-gate

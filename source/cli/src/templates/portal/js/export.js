@@ -43,27 +43,47 @@
     return csvRows(rows);
   }
 
-  /** CSV of the no-rule residue: nodes that own source but carry no effective rule. */
+  /** CSV of the no-rule residue: nodes that own source but carry no effective rule, plus the type-covered and excluded file ledgers. */
   function buildResidueCsv(data) {
     var rows = [['node', 'kind']];
-    var res = (data.residue || { noRuleNodes: [], uncoveredFiles: [] });
+    var res = (data.residue || { noRuleNodes: [], uncoveredFiles: [], typeCovered: [], typeCoveredUncomputable: [], excludedFiles: [] });
     (res.noRuleNodes || []).forEach(function (p) {
       rows.push([p, 'no-rule-node']);
     });
     (res.uncoveredFiles || []).forEach(function (f) {
       rows.push([f, 'uncovered-file']);
     });
+    // Only the UNENFORCED type-covered files are a residue item (checked by nothing); an
+    // enforced one has a real verdict and belongs in the coverage bar, not this ledger.
+    (res.typeCovered || []).forEach(function (t) {
+      if (!t.enforced) rows.push([t.path, 'type-covered-no-enforcement (' + t.type + ')']);
+    });
+    // A file whose matched type's rules an aspect implies cycle stopped from ever resolving is
+    // its own, disjoint residue kind — never folded into 'type-covered-no-enforcement' above,
+    // which would claim a resolved "nothing applies" fact the cascade never actually reached.
+    (res.typeCoveredUncomputable || []).forEach(function (t) {
+      rows.push([t.path, 'type-covered-uncomputable (' + t.type + ')']);
+    });
+    (res.excludedFiles || []).forEach(function (f) {
+      rows.push([f, 'excluded-file']);
+    });
     return csvRows(rows);
   }
 
-  /** CSV of the coverage summary: each count from the honest ledger, one metric per row. */
+  /**
+   * CSV of the coverage summary: each count from the honest ledger, one metric per row.
+   * Includes the type-level terms (typeCoveredCount / excludedFiles / typeCoveredUnenforced /
+   * typeCoveredUncomputable) so `coveredFiles + typeCoveredCount + uncoveredFiles === totalFiles`
+   * is visible and checkable in the exported artifact itself, not only in the live page.
+   */
   function buildCoverageCsv(data) {
     var c = data.meta.counts;
     var rows = [['metric', 'value']];
     var keys = [
       'nodes', 'aspects', 'flows', 'pairsTotal', 'pairsLLM', 'pairsDet',
       'verified', 'verifiedDet', 'verifiedLlm', 'refused', 'advisoryRefused', 'unverified', 'noRule', 'draft', 'notApplicable',
-      'suppressed', 'coveredFiles', 'uncoveredFiles', 'totalFiles', 'errors', 'warnings',
+      'suppressed', 'coveredFiles', 'uncoveredFiles', 'typeCoveredCount', 'typeCoveredUnenforced', 'typeCoveredUncomputable',
+      'excludedFiles', 'totalFiles', 'errors', 'warnings',
     ];
     for (var i = 0; i < keys.length; i += 1) rows.push([keys[i], c[keys[i]]]);
     return rows.length ? csvRows(rows) : '';
@@ -85,7 +105,7 @@
       },
       coverage: c,
       suppressions: (data.suppressions || []).slice(),
-      residue: data.residue || { noRuleNodes: [], uncoveredFiles: [] },
+      residue: data.residue || { noRuleNodes: [], uncoveredFiles: [], typeCovered: [], typeCoveredUncomputable: [], excludedFiles: [] },
     };
   }
 

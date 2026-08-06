@@ -35,6 +35,7 @@ import {
   checkAspectEffectiveNowhere,
   checkArchitectureDefaultAspectUnreachable,
 } from './checks/aspect-contracts.js';
+import type { TypeCoverageInput } from './pairs.js';
 import { checkIncidentLedger } from './checks/incident-ledger.js';
 import {
   checkFileMappingGitignored,
@@ -62,7 +63,22 @@ const ARCHITECTURE_FATAL_CODES = new Set<string>([
   'when-predicate-invalid',
 ]);
 
-export async function validate(graph: Graph, scope: string = 'all'): Promise<ValidationResult> {
+export async function validate(
+  graph: Graph,
+  scope: string = 'all',
+  suppliedCache?: FileContentCache,
+  /**
+   * The SAME type-coverage classification the caller computed once for this run,
+   * threaded through rather than recomputed. Passed into `checkReviewerPresence` (whose
+   * own `computeExpectedPairs` call would otherwise answer about a component-only
+   * universe) and into the two dead-attach linters, `checkAspectEffectiveNowhere`
+   * / `checkArchitectureDefaultAspectUnreachable` (so a rule effective only on
+   * files enforced by their architecture type reads as live, not dead). Absent ⇒
+   * the feature is off or the caller has none (e.g. `runFill`'s structural gate,
+   * `yg context`'s validation) — behaves exactly as before the tier existed.
+   */
+  typeCoverage?: TypeCoverageInput,
+): Promise<ValidationResult> {
   const issues: ValidationIssue[] = [];
 
   if (graph.configError) {
@@ -136,7 +152,7 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     issues.push(...checkImpliesNoCycles(graph));
     issues.push(...checkHighFanOut(graph));
     issues.push(...checkMissingDescriptions(graph));
-    issues.push(...(await checkReviewerPresence(graph)));
+    issues.push(...(await checkReviewerPresence(graph, typeCoverage)));
     // Incident-ledger integrity (spec §3.2): a NON-blocking WARNING when the
     // committed incidents.md datetimes are not strictly ascending. Config-
     // independent and absence-tolerant; never gates `yg check` (severity warning,
@@ -160,8 +176,10 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
     return { issues, nodesScanned: 0 };
   }
 
-  // Shared cache for file-content reads in Stage 4/5.
-  const cache = new FileContentCache();
+  // Shared cache for file-content reads in Stage 4/5. A caller (runCheck) may
+  // supply its own cache so a file read here is not re-read by a sibling
+  // consumer (e.g. computeTypeCoverage) within the same check run.
+  const cache = suppliedCache ?? new FileContentCache();
 
   // Stage 4: per-node checks.
   issues.push(...checkTypeWithoutWhenWithMapping(graph));
@@ -189,8 +207,10 @@ export async function validate(graph: Graph, scope: string = 'all'): Promise<Val
   // Dead-attach linter (warning): a rule source effective on zero nodes after
   // the full cascade + when. Runs here (post arch-fatal short-circuit) because it
   // evaluates `when` predicates, which require a structurally-valid architecture.
-  issues.push(...checkAspectEffectiveNowhere(graph));
-  issues.push(...checkArchitectureDefaultAspectUnreachable(graph));
+  // `typeCoverage`: the SAME classification threaded into checkReviewerPresence
+  // above — a rule effective only on files enforced by their type is live law too.
+  issues.push(...checkAspectEffectiveNowhere(graph, typeCoverage));
+  issues.push(...checkArchitectureDefaultAspectUnreachable(graph, typeCoverage));
 
   // Stage 5: global checks.
   issues.push(...checkFileDuplicateMapping(graph));

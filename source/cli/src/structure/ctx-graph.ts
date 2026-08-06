@@ -13,6 +13,27 @@ export class UndeclaredGraphReadError extends Error {
 }
 
 /**
+ * Thrown by every method of the nodeless `ctx.graph` (a unit reviewing a file
+ * enforced by its architecture type alone, with no owning component) and by
+ * the nodeless `ctx.node` Proxy in hook-loader.ts. `member` names the accessed
+ * property/method (e.g. `'graph.node'`, `'node.type'`) so the boundary
+ * translation (structure/runner.ts) can build one specific message naming it.
+ *
+ * A local class, not `StructureRunnerError` itself: `StructureRunnerError`
+ * lives in hook-loader.ts, which already imports FROM this module — importing
+ * it back here would create the exact circular import hook-loader.ts's own
+ * comment on `StructureRunnerError` was written to avoid. Mirrors
+ * `UndeclaredGraphReadError` above: a local error class thrown from the ctx
+ * layer, translated to a typed `StructureRunnerError` at the runner boundary.
+ */
+export class StructureNodeContextUnavailableError extends Error {
+  constructor(public readonly member: string) {
+    super(`structure-node-context-unavailable: ${member}`);
+    this.name = 'StructureNodeContextUnavailableError';
+  }
+}
+
+/**
  * Build a File view of a graph-reachable node's mapped file whose `content` is
  * available immediately but whose read: OBSERVATION is folded LAZILY — recorded
  * only the first time the check reads `.content`. This is the invalidation-width
@@ -152,6 +173,43 @@ export function computeAllowedNodePaths(currentPath: string, graph: Graph): Set<
     stack.push(...n.children);
   }
   return allowed;
+}
+
+/**
+ * `ctx.graph` for a unit with no owning component (a file enforced by its
+ * architecture type alone). Every method refuses — there is no yg-node.yaml to
+ * resolve `currentNodePath` against, no ancestors/descendants, and no declared
+ * relations to walk. This is not a narrower VIEW of the graph (which would
+ * produce graph:/graph-children:/graph-bytype:/graph-flow: observations the
+ * verifier's `reObserve` cannot reproduce without knowing the unit's type —
+ * see verify-lock.ts's `reObserve`, which only ever re-reads disk-backed
+ * read:/list:/exists: keys and recomputes graph-* keys from a real node path)
+ * — it is an unconditional refusal, so NONE of those observation kinds can
+ * ever be recorded for a nodeless unit, and re-verification needs no
+ * component. Every entry point `CtxGraph` exposes is enumerated here; a new
+ * method added to the interface must be added here too.
+ */
+export function createNodelessCtxGraph(): CtxGraph {
+  return {
+    node(): GraphNode | undefined {
+      throw new StructureNodeContextUnavailableError('graph.node');
+    },
+    nodesByType(): GraphNode[] {
+      throw new StructureNodeContextUnavailableError('graph.nodesByType');
+    },
+    relationsFrom(): Relation[] {
+      throw new StructureNodeContextUnavailableError('graph.relationsFrom');
+    },
+    relationsTo(): Relation[] {
+      throw new StructureNodeContextUnavailableError('graph.relationsTo');
+    },
+    children(): GraphNode[] {
+      throw new StructureNodeContextUnavailableError('graph.children');
+    },
+    flowParticipants(): GraphNode[] {
+      throw new StructureNodeContextUnavailableError('graph.flowParticipants');
+    },
+  };
 }
 
 export function createCtxGraph(params: CtxGraphParams): CtxGraph {

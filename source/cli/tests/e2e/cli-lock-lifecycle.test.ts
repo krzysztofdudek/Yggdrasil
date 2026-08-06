@@ -357,8 +357,49 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       const lock = readLock(dir);
       expect(lock.nodes['services/payments']).toBeUndefined();
       expect(lock.verdicts['no-todo-comments']?.['node:services/payments']).toBeUndefined();
-      // No leftover unverified for the deleted node.
-      expect(refill.all).not.toContain('node:services/payments');
+      // No leftover UNVERIFIED reference to the deleted node (the original
+      // failure mode this test guards against — a dangling pair the run
+      // thinks still needs review). The writer's own prune summary DOES name
+      // the deleted node's pruned entries — that is the intended, informative
+      // report of what GC just did, not a leftover.
+      expect(refill.all).not.toMatch(/unverified[^\n]*services\/payments|services\/payments[^\n]*unverified/);
+      expect(refill.all).toContain('node:services/payments — node deleted');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('(11d) --quiet suppresses the prune summary on a REAL --approve fill (no leak into quiet mode)', () => {
+    const dir = deterministicFixture('gc-quiet');
+    try {
+      // Same attach/detach setup as (11a) — give the next --approve something
+      // real to prune, so a passing assertion below is not vacuous.
+      const extraDir = path.join(dir, '.yggdrasil', 'aspects', 'extra-rule');
+      cpSync(path.join(dir, '.yggdrasil', 'aspects', 'no-todo-comments'), extraDir, { recursive: true });
+      writeFileSync(
+        path.join(extraDir, 'yg-aspect.yaml'),
+        ['name: ExtraRule', 'description: A second deterministic rule for GC testing.', 'reviewer:', '  type: deterministic', 'status: enforced', ''].join('\n'),
+        'utf-8',
+      );
+      const oy = nodeYaml(dir, 'services/orders');
+      writeFileSync(oy, readFileSync(oy, 'utf-8').replace(/^aspects:\n/m, 'aspects:\n  - extra-rule\n'), 'utf-8');
+
+      expect(run(['check', '--approve'], dir).status).toBe(0);
+      expect(readLock(dir).verdicts['extra-rule']['node:services/orders'].verdict).toBe('approved');
+
+      // Detach the aspect, then re-fill under --quiet.
+      writeFileSync(oy, readFileSync(oy, 'utf-8').replace('  - extra-rule\n', ''), 'utf-8');
+      rmSync(extraDir, { recursive: true, force: true });
+
+      const refill = run(['check', '--approve', '--quiet'], dir);
+      expect(refill.status).toBe(0);
+      // The prune genuinely happened this run...
+      expect(readLock(dir).verdicts['extra-rule']).toBeUndefined();
+      // ...but --quiet suppressed the writer's report of it — the summary text
+      // must not leak into stdout or stderr just because something was pruned.
+      expect(refill.all).not.toContain('Pruned');
+      expect(refill.all).not.toContain('stale verdict');
+      expect(refill.all).not.toContain('extra-rule');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

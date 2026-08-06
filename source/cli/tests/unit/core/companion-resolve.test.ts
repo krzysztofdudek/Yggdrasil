@@ -16,6 +16,15 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { resolveCompanionDescriptors, companionOutsideAllowedReads, resolveCompanionsForPair } from '../../../src/core/companion-resolve.js';
 import type { Graph, AspectDef } from '../../../src/model/graph.js';
 import type { ExpectedPair } from '../../../src/core/pairs.js';
+import type { ExclusionSource } from '../../../src/io/repo-scanner.js';
+
+/** No exclusion in effect — the shape every existing (pre-exclusion-aware) test in this
+ *  file passes so `companionOutsideAllowedReads`'s original owner-lookup behavior is
+ *  unaffected by the exclusion check ahead of it. A real caller determines this by
+ *  reading it off the caught UndeclaredFsReadError (see core/companion-resolve.ts's
+ *  own resolveCompanionDescriptors); these tests call the function directly, so they
+ *  supply the already-determined value instead of a path to re-derive it from. */
+const NO_EXCLUSION: ExclusionSource | null = null;
 
 // ── Mock runCompanionHook — control the exact sequence of hook results across
 // the A6 taint-guard's two possible calls (resolveCompanionsForPair only). ──
@@ -292,7 +301,7 @@ describe('companionOutsideAllowedReads', () => {
     const pair = makePair({ nodePath: 'orders/handler', unitKey: 'node:orders/handler' });
     const aspect = makeAspect('correlation-tracking');
 
-    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/payments/svc.ts');
+    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/payments/svc.ts', NO_EXCLUSION);
 
     // NEXT should tell the user to declare a relation FROM the pair node TO the owner
     expect(result.messageData.next).toContain('orders/handler');
@@ -305,10 +314,60 @@ describe('companionOutsideAllowedReads', () => {
     const pair = makePair({ nodePath: 'orders/handler', unitKey: 'node:orders/handler' });
     const aspect = makeAspect('correlation-tracking');
 
-    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/unknown/file.ts');
+    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/unknown/file.ts', NO_EXCLUSION);
 
     expect(result.messageData.next).toContain('unmapped');
     expect(result.messageData.next).toContain('orders/handler');
+  });
+
+  it('says the path is excluded from graph coverage, never naming a relation to declare, when the companion is under coverage.excluded — even though a node\'s mapping textually covers it', () => {
+    // Node 'payments/service' maps a path that textually SWEEPS IN the excluded
+    // file too (a directory mapping), so the pre-exclusion-check owner lookup
+    // would find an owner and print "declare a relation" — advice that cannot
+    // work, since the path is gone from graph coverage regardless of any
+    // relation. The exclusion check must win before the owner lookup ever runs.
+    const nodes = new Map<string, import('../../../src/model/graph.js').GraphNode>();
+    nodes.set('payments/service', {
+      meta: { name: 'payments-service', type: 'service', description: 'x', mapping: ['src/payments'] },
+      parent: undefined,
+      children: [],
+      aspects: [],
+    } as unknown as import('../../../src/model/graph.js').GraphNode);
+
+    const graph = makeGraph({ nodes });
+    const pair = makePair({ nodePath: 'orders/handler', unitKey: 'node:orders/handler' });
+    const aspect = makeAspect('correlation-tracking');
+    // A real caller determines this by reading resolveAllowedReadPath's thrown
+    // UndeclaredFsReadError.exclusionSource — 'coverage-excluded' is exactly
+    // what it would be for 'src/payments/vendored/lib.ts' under
+    // `coverage.excluded: ['src/payments/vendored']`.
+    const exclusionSource: ExclusionSource = 'coverage-excluded';
+
+    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/payments/vendored/lib.ts', exclusionSource);
+
+    expect(result.messageData.what).toContain('excluded from graph coverage by design');
+    expect(result.messageData.why).toContain('coverage.excluded root');
+    expect(result.messageData.next).not.toContain('declare a relation');
+    expect(result.messageData.next).not.toContain('payments/service');
+  });
+
+  it('control: when the caller says the path is NOT excluded, the SAME node mapping still gets the owner-lookup NEXT (the exclusion branch does not fire generally)', () => {
+    const nodes = new Map<string, import('../../../src/model/graph.js').GraphNode>();
+    nodes.set('payments/service', {
+      meta: { name: 'payments-service', type: 'service', description: 'x', mapping: ['src/payments'] },
+      parent: undefined,
+      children: [],
+      aspects: [],
+    } as unknown as import('../../../src/model/graph.js').GraphNode);
+
+    const graph = makeGraph({ nodes });
+    const pair = makePair({ nodePath: 'orders/handler', unitKey: 'node:orders/handler' });
+    const aspect = makeAspect('correlation-tracking');
+
+    const result = companionOutsideAllowedReads(graph, pair, aspect, 'src/payments/svc.ts', null);
+
+    expect(result.messageData.what).not.toContain('excluded from graph coverage by design');
+    expect(result.messageData.next).toContain('declare a relation from orders/handler to payments/service');
   });
 });
 

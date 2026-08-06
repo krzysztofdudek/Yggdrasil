@@ -1,0 +1,7 @@
+name: Two Level Rule
+description: "Attached at both leaf (its own default status) and mid (bumped to enforced) — pins that the effective status is the max across every level that delivers the rule."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+status: advisory

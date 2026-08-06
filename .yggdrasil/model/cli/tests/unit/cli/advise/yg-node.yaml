@@ -17,3 +17,4 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/cli/advise.test.ts
+  - source/cli/tests/unit/cli/advise-type-coverage.test.ts

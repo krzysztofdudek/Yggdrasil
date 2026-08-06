@@ -1,11 +1,13 @@
 name: Type Classifier
 type: engine
-description: Classifies a file against all architecture node types that have a `when` predicate. Returns full matches (types whose when evaluates to true) and top-3 closest non-matching types ranked by satisfied-fraction (all_of average, any_of max, not invert, atom 0/1, exempt 1.0). Powers yg type-suggest.
+description: "Classifies a file against all architecture node types that have a `when` predicate. Returns full matches (types whose when evaluates to true), top-3 closest non-matching types ranked by satisfied-fraction (all_of average, any_of max, not invert, atom 0/1, exempt 1.0), and types whose when could not be evaluated at all (e.g. a content predicate on a file over the size limit) so an unevaluated rule is never folded into an ordinary non-match. Powers yg type-suggest. Also computes each file's RAW, un-normalized content hash (io/hash.ts's hashFileRaw — not the line-ending-normalized hashFile used for verdict hashing elsewhere) together with the file's own repository-relative path, to consult an optional injected TypeClassCache before running the when-predicate loop at all. Both the path and the raw-byte hash are folded into the cache lookup because a path predicate is evaluated against the file's own path and a content predicate is evaluated against raw bytes — omitting either would let two different files share one cached verdict."
 aspects: []
 relations:
   - target: cli/model/file-when
     type: uses
   - target: cli/core/file-when-evaluator
+    type: calls
+  - target: cli/io/stores
     type: calls
 mapping:
   - source/cli/src/core/type-classifier.ts

@@ -1,0 +1,16 @@
+# yg-architecture.yaml — fixture architecture for the type-level classification
+# lattice's PASS-twin (tests/fixtures/type-coverage-basic-pass/). A single
+# classifying type, deliberately non-overlapping and non-strict, so every file
+# in the fixture is silently satisfied and the run is a clean PASS:
+#   svc — matches src/svc/**, satisfied by src/svc/handler.ts (the
+#         "type-covered" row the check header's split counts).
+# vendor/tool.ts matches no type at all, but sits under vendor/, a
+# coverage.excluded root — the excluded-mute rule counts it toward the check
+# header's own "excluded" term (still folded into the legacy coveredFiles
+# metric for the flag-off header, but never "node-owned" — no node maps it)
+# without ever entering an issue.
+node_types:
+  svc:
+    description: "Service-layer source under src/svc/. The fixture's only classifying type — deliberately non-overlapping so every file resolves silently rather than ambiguously."
+    when:
+      path: "src/svc/**"

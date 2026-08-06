@@ -1,5 +1,5 @@
 name: SourceHygiene
-description: "Named bundle of the baseline source-hygiene and safety rules every source file must satisfy: POSIX-only path separators (posix-paths-source), no direct minimatch import (no-direct-minimatch), no shell-injection surface (no-shell-injection — no dynamically-built exec command and no shell: true), prototype-safe registry lookup (prototype-safe-registry-lookup — a dynamic read of a module-const object-literal lookup table must guard against inherited Object.prototype keys), and single-source owner resolution (owner-resolution-single-source — the child-precedence comparator isBetterMappingOwner may be imported only by relations/owner-index; every other module resolves file ownership via ownerOf/ownerEntryOf). A single attach point keeps the rules bound together so they cannot silently diverge across node types. Aggregate only — it has no own reviewer and produces no own verdict; it expands to its children on every node where it is effective."
+description: "Named bundle of the baseline source-hygiene and safety rules every source file must satisfy: POSIX-only path separators (posix-paths-source), no direct minimatch import (no-direct-minimatch), no shell-injection surface (no-shell-injection — no dynamically-built exec command and no shell: true), prototype-safe registry lookup (prototype-safe-registry-lookup — a dynamic read of a module-const object-literal lookup table must guard against inherited Object.prototype keys), single-source owner resolution (owner-resolution-single-source — the child-precedence comparator isBetterMappingOwner may be imported only by relations/owner-index; every other module resolves file ownership via ownerOf/ownerEntryOf), and self-contained comments (self-contained-references — a comment must not cite a vague or bare reference to an external planning artifact a reader cannot resolve from this repository). A single attach point keeps the rules bound together so they cannot silently diverge across node types. Aggregate only — it has no own reviewer and produces no own verdict; it expands to its children on every node where it is effective."
 reviewer:
   type: aggregate
 status: enforced
@@ -10,3 +10,4 @@ implies:
   - no-shell-injection
   - prototype-safe-registry-lookup
   - owner-resolution-single-source
+  - self-contained-references

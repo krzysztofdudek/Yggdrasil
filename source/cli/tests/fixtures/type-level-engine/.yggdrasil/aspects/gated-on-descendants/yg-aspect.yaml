@@ -1,0 +1,9 @@
+name: Gated On Descendants
+description: "Gated on descendants — a file-level unit has no hierarchy below it, so this must always read false regardless of the rest of the graph."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+when:
+  descendants:
+    type: leaf

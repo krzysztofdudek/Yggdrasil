@@ -44,6 +44,23 @@ function copyFixture(label: string): string {
   cpSync(FIXTURE, dir, { recursive: true });
   return dir;
 }
+/**
+ * Isolated copy of THIS repository's own real, committed graph (.yggdrasil/
+ * only — yg drill loads the graph via loadGraph, which never needs source/
+ * to exist, and drills a candidate through the graphless AST runner, which
+ * needs no node/component context either) — so drilling the actually-shipped
+ * corpus never runs against, or writes into, the real repository. The
+ * gitignored AST-cache scratch dir is excluded (large, and irrelevant to a
+ * fresh loadGraph call).
+ */
+function copyRepoGraphOnly(label: string): string {
+  const dir = mkdtempSync(path.join(tmpdir(), `yg-drill-repo-${label}-`));
+  cpSync(yggRoot(REPO_ROOT), yggRoot(dir), {
+    recursive: true,
+    filter: (src) => !src.split(path.sep).includes('.ast-cache'),
+  });
+  return dir;
+}
 function pointReviewer(dir: string, endpoint: string): void {
   const p = cfgPath(dir);
   writeFileSync(p, readFileSync(p, 'utf-8').replace(/endpoint:\s*["']?[^"'\n]+["']?/, `endpoint: "${endpoint}"`), 'utf-8');
@@ -141,7 +158,10 @@ describe.skipIf(!distExists)('CLI E2E — yg drill', () => {
         expect(e.kind).toBe('llm');
         expect(String(e.unitKey).startsWith('drill:has-doc-comment/')).toBe(true);
         expect(e.tier).toBe('standard');
-        expect(e.promptRev).toBe(1);
+        // PROMPT_FORMAT_REV bumped 1 -> 2 for the nodeless prompt variant
+        // (llm/prompt.ts) — a component-owned prompt is byte-identical, only
+        // the recorded revision marker moved.
+        expect(e.promptRev).toBe(2);
         expect((e.judge as { provider?: string }).provider).toBe('ollama');
       }
       const dispositions = drillEvents.map((e) => e.disposition).sort();
@@ -155,6 +175,35 @@ describe.skipIf(!distExists)('CLI E2E — yg drill', () => {
       // The lock was NEVER written by the drill.
       const lockAfter = existsSync(lockPath(dir)) ? readFileSync(lockPath(dir), 'utf-8') : '';
       expect(lockAfter).toBe(lockBefore);
+    } finally {
+      await mock.close();
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('(2b) --nodeless: the prompt the real reviewer receives has no <node> element and the single-file framing — the shape a file enforced by its architecture type alone (no owning component) actually gets', async () => {
+    const dir = copyFixture('llm-nodeless');
+    const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'mock' }) });
+    try {
+      pointReviewer(dir, mock.endpoint);
+      // A nodeless pair only ever arises for a per:file aspect (a whole-unit
+      // aspect is dropped entirely for a file with no component to run it
+      // on) — give the fixture aspect that scope so this exercises the same
+      // shape a real nodeless pair would.
+      const aspectYaml = path.join(yggRoot(dir), 'aspects', 'has-doc-comment', 'yg-aspect.yaml');
+      writeFileSync(aspectYaml, readFileSync(aspectYaml, 'utf-8') + 'scope:\n  per: file\n', 'utf-8');
+      writeCase(dir, 'has-doc-comment', 'satisfies-doc/good.ts', '// This file documents itself.\nexport const ok = true;\n');
+
+      const r = await runAsync(['drill', '--aspect', 'has-doc-comment', '--nodeless'], dir);
+      expect(r.status).toBe(0);
+      expect(r.all).toContain('1 pass · 0 MISS · 0 FALSE-ALARM');
+      expect(mock.chatCount()).toBe(1);
+
+      const prompt = mock.chatRequests[0].prompt;
+      expect(prompt).not.toContain('<node ');
+      expect(prompt).not.toContain('a node (component)');
+      expect(prompt).toContain('Below is a single source file with its content and one aspect (rule set).');
+      expect(prompt).toContain('You are reviewing this file on its own. It has no owning component');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -184,14 +233,22 @@ describe.skipIf(!distExists)('CLI E2E — yg drill', () => {
   });
 
   it('(4) the shipped in-repo deterministic corpus (wasm-tree-lifecycle) → all pass, exit 0, no source leak', () => {
-    const r = run(['drill', '--aspect', 'wasm-tree-lifecycle'], REPO_ROOT);
-    expect(r.status).toBe(0);
-    expect(r.all).toContain("yg drill 'wasm-tree-lifecycle':");
-    expect(r.all).toContain('0 MISS · 0 FALSE-ALARM');
-    // Honesty frame: the case files contain real code (`import { … }`,
-    // `export function`); the report shows only labels + hashes + verdicts.
-    expect(r.all).not.toContain('import {');
-    expect(r.all).not.toContain('export function');
+    // Isolated copy of the real graph (see copyRepoGraphOnly) — drills the
+    // SAME actually-shipped corpus without running against, or writing into,
+    // the real repository's own .yggdrasil/ state.
+    const dir = copyRepoGraphOnly('wasm-tree');
+    try {
+      const r = run(['drill', '--aspect', 'wasm-tree-lifecycle'], dir);
+      expect(r.status).toBe(0);
+      expect(r.all).toContain("yg drill 'wasm-tree-lifecycle':");
+      expect(r.all).toContain('0 MISS · 0 FALSE-ALARM');
+      // Honesty frame: the case files contain real code (`import { … }`,
+      // `export function`); the report shows only labels + hashes + verdicts.
+      expect(r.all).not.toContain('import {');
+      expect(r.all).not.toContain('export function');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('(5) unknown aspect → what/why/next error, exit 1', () => {

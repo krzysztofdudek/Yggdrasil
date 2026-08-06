@@ -6,6 +6,7 @@ import { evaluateFileWhen } from '../file-when-evaluator.js';
 import { renderTrace } from '../../formatters/predicate-trace.js';
 import { issueMsg } from './shared.js';
 import { expandMappingPaths } from '../../io/hash.js';
+import { resolveGraphExclusionSet, filterExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../../io/repo-scanner.js';
 import { isGlobPattern, mappingEntryMatchesFile } from '../../utils/mapping-path.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { getChildMappingExclusions } from '../pairs.js';
@@ -197,6 +198,19 @@ export async function checkTypeWhenMismatch(
   const issues: ValidationIssue[] = [];
   const unreadable: ValidationIssue[] = [];
   const projectRoot = path.dirname(graph.rootPath);
+  // This check decides whether a node's OWN mapped files satisfy its type's
+  // contract — a blocking judgment about what belongs to THIS graph's
+  // enforcement surface, same as expandMappingPathsWithinOwnGraph's other
+  // callers. A file the graph excludes globally (a nested project's own
+  // boundary, or a `coverage.excluded` root) is not this node's source and
+  // never reaches the `when` evaluation below — evaluating it would attribute
+  // an excluded file's shape to the first-party node whose mapping happened
+  // to name or sweep it in, exactly the false `type-when-mismatch` this guard
+  // prevents. This applies uniformly to every entry kind: a directory or glob
+  // that sweeps the file in, or the node's own mapping naming it exactly —
+  // exclusion cuts everything it matches, with no carve-out for an explicit
+  // claim.
+  const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
 
   for (const [nodePath, node] of graph.nodes) {
     const typeDef = graph.architecture.node_types[node.meta.type];
@@ -212,20 +226,26 @@ export async function checkTypeWhenMismatch(
     const mapping = node.meta.mapping ?? [];
     const pathsToCheck: string[] = [];
     for (const entry of mapping) {
-      const expanded = (await expandMappingPaths(projectRoot, [entry])).map(toPosixPath);
+      const normalizedEntry = toPosixPath(entry);
+      const unguarded = (await expandMappingPaths(projectRoot, [entry])).map(toPosixPath);
+      // The one supreme exclusion filter, applied uniformly regardless of
+      // whether this entry swept in a whole result set or names one path
+      // exactly — an excluded file is dropped from `pathsToCheck` either way.
+      const expanded = filterExcludedFromGraph(unguarded, exclusion);
       if (expanded.length > 0) {
         pathsToCheck.push(...expanded);
-      } else if (!isGlobPattern(entry)) {
+      } else if (unguarded.length === 0 && !isGlobPattern(entry)) {
         // A non-glob entry that resolves to nothing on disk is a MISSING exact
         // file. Check it as-is so a content-predicate `when` still reports
         // file-unreadable on a file it cannot open (expandMappingPaths silently
         // drops missing paths, which would otherwise swallow that diagnostic).
         // An empty GLOB, by contrast, legitimately matches no files here — its
         // empty match is reported by checkMappingPathsExist, so push nothing.
-        // Normalize the raw entry to POSIX form (as the sibling branch does for
-        // expandMappingPaths' output) because it flows on into CLI-facing
-        // diagnostic strings below as `relPath`.
-        pathsToCheck.push(toPosixPath(entry));
+        // A non-glob entry that DOES exist but resolved to nothing after the
+        // exclusion filter above (unguarded.length > 0, expanded.length === 0)
+        // is excluded, not missing — pushing nothing here is correct: the file
+        // is gone from this check the same way it is gone everywhere else.
+        pathsToCheck.push(normalizedEntry);
       }
     }
     // Apply the child-precedence (child-wins) carve-out to the assembled path

@@ -43,11 +43,34 @@ import { walk, report } from '@chrisdudek/yg/ast';
  *       static import- or export-from; a statement-level type-only import is exempt.
  */
 
-/** Files whose imports decide the build outcome (exit code / issues / suggestedNext). */
+/**
+ * Files whose imports decide the build outcome (exit code / issues / suggestedNext).
+ * check-render-header.ts / check-render-groups.ts / check-render-views.ts are the
+ * check command's render units (split out of cli/check.ts) — check-render-views.ts
+ * in particular owns nextPointer/residualAfterNext and consumes issuePriorityRank,
+ * the same suggestedNext-shaping role that puts group-issues.ts on this list, so
+ * all three are gated for the same reason.
+ *
+ * The core/check-*.ts entries are the check engine's own stages, split out of
+ * core/check.ts. Each one produces issues the run's exit code is computed from,
+ * or (check-suggested-next.ts) owns the single next step a finished check points
+ * at — the same outcome-deciding role that gates the orchestrator itself, so the
+ * fence has to follow the code rather than stay behind on the file it left.
+ */
 const GATING_MODULES = new Set([
   'source/cli/src/cli/check.ts',
   'source/cli/src/core/check.ts',
   'source/cli/src/cli/group-issues.ts',
+  'source/cli/src/cli/check-render-header.ts',
+  'source/cli/src/cli/check-render-groups.ts',
+  'source/cli/src/cli/check-render-views.ts',
+  'source/cli/src/core/check-contract.ts',
+  'source/cli/src/core/check-coverage-phase.ts',
+  'source/cli/src/core/check-coverage-scan.ts',
+  'source/cli/src/core/check-lock-phase.ts',
+  'source/cli/src/core/check-log-state.ts',
+  'source/cli/src/core/check-pair-issues.ts',
+  'source/cli/src/core/check-suggested-next.ts',
 ]);
 
 /** Module specifiers no gating module may import (resolved, alias-proof). */

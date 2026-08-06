@@ -109,6 +109,22 @@
 .reslink-arrow {
   color: var(--accent-text);
 }
+/* The type-covered accounting chip's glyph: neutral, not borrowed from any
+   pass/fail state — a type-covered file's own verdict may be verified,
+   refused, or unverified, so this mark never claims one of those for it. */
+.reslink-neutral {
+  color: var(--text-muted);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+}
+/* The type-covered "rules could not be worked out" marker: its own glyph, never the
+   no-rule badge's colour (that would claim a resolved "nothing applies" fact) and never
+   the neutral mark above (nothing was found to be satisfied — the cascade never ran). */
+.reslink-unknown {
+  color: var(--unverified);
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+}
 .ov-precise {
   width: 100%;
   justify-content: flex-start;
@@ -217,6 +233,26 @@
 .cov-nptag {
   color: var(--text-muted);
   font-size: 11px;
+}
+.cov-typelist {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 6px;
+  font-size: 12px;
+}
+.cov-typerow {
+  color: var(--text-secondary);
+}
+.cov-typelist-bad .cov-typerow {
+  color: var(--refused);
+}
+.cov-typelist-unknown .cov-typerow {
+  color: var(--unverified);
+}
+.cov-typerow-more {
+  color: var(--text-muted);
+  font-style: italic;
 }
 .cov-live {
   display: inline-flex;

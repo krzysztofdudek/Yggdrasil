@@ -1,0 +1,33 @@
+# yg-architecture.yaml — the portal's one tier-on fixture. Three types:
+#   gateway — the fixture's single explicit node's own type, scoped to its own
+#             directory so it never competes as a classifying type for
+#             anything else.
+#   svc     — a classifying type with no node of its own. Its one default
+#             aspect (no-todo-comments) is deterministic and REAL: the fixture's
+#             one type-covered file ships a marker that fails it, so this
+#             fixture carries a genuine refused verdict on a file no node maps
+#             — the exact shape the portal must never call "unguarded".
+#   lib     — a classifying type with no node of its own AND no `aspects:` at
+#             all — its one type-covered file matches a type, satisfies
+#             coverage, and has NOTHING that checks it: zero pairs, zero
+#             verdicts, the state `yg check` names under "satisfy coverage
+#             with no enforcement". Distinct from svc on purpose: a repo can
+#             have both a checked and an unchecked type-covered file at once,
+#             and the portal must render the two differently, never the same.
+node_types:
+  gateway:
+    description: "Entry-point source with an explicit owning node."
+    when:
+      path: "src/gateway/**"
+
+  svc:
+    description: "Service-layer source classified by type alone — satisfied without a node of its own, and still checked: it carries a real deterministic aspect."
+    when:
+      path: "src/svc/**"
+    aspects:
+      - no-todo-comments
+
+  lib:
+    description: "Shared library source classified by type alone — satisfied without a node of its own, but carrying no rule at all: nothing enforces on a file matched by this type."
+    when:
+      path: "src/lib/**"

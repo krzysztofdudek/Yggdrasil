@@ -241,6 +241,18 @@ const CROSS_GRAPH_READ_CHECK = `export function check(ctx) {
 }
 `;
 
+// Allowed-reads boundary violation via ctx.fs: reach a SIBLING file that is
+// NOT in the allowed set (no relation, not ancestor/descendant, not own
+// mapping). ctx.fs.read throws UndeclaredFsReadError -> the runner's own
+// translation of it (structure/runner.ts).
+const CROSS_FS_READ_CHECK = `export function check(ctx) {
+  // 'services/payments.ts' is a sibling file of 'services/orders' — outside
+  // the allowed reads boundary. This throws and the runner surfaces it.
+  ctx.fs.read('src/services/payments.ts');
+  return [];
+}
+`;
+
 // ctx.parseAst rule: parse the node's own files and count export_statement
 // nodes via the re-exported tree-sitter `walk` helper. Flags a file with none.
 const AST_EXPORTS_CHECK = `import { walk } from '@chrisdudek/yg/structure';
@@ -463,6 +475,39 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
     }
   });
 
+  it('S2-fs: ctx.fs.read on an out-of-boundary sibling file surfaces its OWN remedy, never the generic "fix check.mjs" fallback', () => {
+    const dir = deterministicFixture('s2-fs');
+    try {
+      writeAspect(dir, 'cross-fs-read', 'Reads a sibling file outside the allowed boundary on purpose.', CROSS_FS_READ_CHECK);
+      attachAspectToNode(dir, 'services/orders', 'cross-fs-read');
+
+      // services/payments.ts is a SIBLING of services/orders — not ancestor,
+      // descendant, relation target, or own mapping — so it is outside the
+      // allowed reads set. aspect-test --node renders the boundary breach.
+      const test = run(['aspect-test', '--aspect', 'cross-fs-read', '--node', 'services/orders'], dir);
+      expect(test.status).toBe(1);
+      expect(test.all).toContain("Aspect tried to read undeclared path 'src/services/payments.ts'");
+      expect(test.all).toContain('Add a relation in yg-node.yaml');
+
+      // The same boundary error blocks the fill (exit 1): the check crashed on
+      // the undeclared read, so its pair is classified aspect-check-runtime-error
+      // and left unverified. The remedy is a GRAPH change (declare the relation)
+      // — there is nothing wrong with check.mjs, so the generic "fix check.mjs"
+      // fallback must never be the printed NEXT step for this disposition.
+      const fill = run(['check', '--approve'], dir);
+      expect(fill.status).toBe(1);
+      expect(fill.all).toContain('cross-fs-read');
+      expect(fill.all).toContain('aspect-check-runtime-error');
+      expect(fill.all).toContain("Aspect tried to read undeclared path 'src/services/payments.ts'");
+      expect(fill.all).toContain('Add a relation in yg-node.yaml to the node owning this path.');
+      expect(fill.all).not.toContain('Fix the check.mjs, then re-run: yg check --approve');
+      // No verdict was written for the crashing pair.
+      expect(lockVerdict(dir, 'cross-fs-read', 'services/orders')).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   // -------------------------------------------------------------------------
   // Scenario 3: ctx.parseAst inspects the node's own files.
   // -------------------------------------------------------------------------
@@ -611,7 +656,9 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
         dir,
       );
       expect(test.status).toBe(1);
-      expect(test.all).toContain('Both --node and --files were provided');
+      // --node/--file/--files are a three-way exactly-one-mode contract; the
+      // wording names all three.
+      expect(test.all).toContain('More than one of --node, --file, --files was provided');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -622,7 +669,7 @@ describe.skipIf(!distExists)('CLI E2E — graph-aware deterministic ctx surface 
     try {
       const test = run(['aspect-test', '--aspect', 'no-todo-comments'], dir);
       expect(test.status).toBe(1);
-      expect(test.all).toContain('Neither --node nor --files was provided');
+      expect(test.all).toContain('None of --node, --file, --files was provided');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

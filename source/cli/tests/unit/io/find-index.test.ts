@@ -1,15 +1,35 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
-import { mkdtemp, mkdir, writeFile, rm, chmod } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { mkdtemp, mkdir, writeFile, rm, chmod, cp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import MiniSearch from 'minisearch';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { buildIndex, createMiniSearch } from '../../../src/io/find-index.js';
+import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
+import { scanUncoveredFiles } from '../../../src/core/check.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { FileContentCache } from '../../../src/io/file-content-cache.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const TYPE_COVERAGE_FIXTURE = path.resolve(__dirname, '../../fixtures/type-coverage-basic');
 
 const dirs: string[] = [];
 afterEach(async () => {
   for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
 });
+
+/**
+ * A fresh copy of type-coverage-basic — this fixture carries pinned counts other suites rely
+ * on (see tests/integration/find.test.ts), so it is never driven from its committed path, even
+ * for a read-only load.
+ */
+async function freshTypeCoverageFixture(): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'yg-find-idx-typecov-'));
+  dirs.push(dir);
+  await cp(TYPE_COVERAGE_FIXTURE, dir, { recursive: true });
+  return dir;
+}
 
 async function setupGraph(opts: { logContent?: string; aspectContent?: string }): Promise<{ projectRoot: string }> {
   const root = await mkdtemp(path.join(tmpdir(), 'yg-find-idx-'));
@@ -18,7 +38,7 @@ async function setupGraph(opts: { logContent?: string; aspectContent?: string })
   const nodeDir = path.join(yggRoot, 'model', 'billing', 'cancel');
   await mkdir(nodeDir, { recursive: true });
   await mkdir(path.join(yggRoot, 'aspects', 'cancel-end-of-period'), { recursive: true });
-  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n');
+  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n');
   await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), 'node_types:\n  command:\n    description: cmd\n');
   await writeFile(
     path.join(yggRoot, 'model', 'billing', 'yg-node.yaml'),
@@ -109,7 +129,7 @@ describe('buildIndex', () => {
     const yggRoot = path.join(root, '.yggdrasil');
     await mkdir(path.join(yggRoot, 'model', 'nodesc'), { recursive: true });
     await mkdir(path.join(yggRoot, 'aspects', 'nodesc-asp'), { recursive: true });
-    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.1.0"\n');
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n');
     await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), 'node_types:\n  command:\n    description: cmd\n');
     await writeFile(path.join(yggRoot, 'model', 'nodesc', 'yg-node.yaml'), 'name: nodesc\ntype: command\n');
     await writeFile(path.join(yggRoot, 'aspects', 'nodesc-asp', 'yg-aspect.yaml'), 'name: nodesc-asp\nreviewer:\n  type: llm\n');
@@ -167,5 +187,38 @@ describe('buildIndex', () => {
     } finally {
       await chmod(logPath, 0o644); // restore so afterEach's rm can clean up
     }
+  });
+
+  it("at flag-on, a type-covered file is indexed with the matched type's description as searchable text, and points at yg context --file, never a phantom node", async () => {
+    const projectRoot = await freshTypeCoverageFixture();
+    const graph = await loadGraph(projectRoot);
+    const files = await walkRepoFiles(projectRoot);
+    const uncovered = scanUncoveredFiles(graph, files);
+    const coverage = await computeTypeCoverage(graph, uncovered, new FileContentCache());
+    const flattened = [...coverage.covered.entries()].map(([file, typeId]) => ({ file, typeId }));
+    const docs = await buildIndex(graph, flattened);
+
+    const fileDoc = docs.find((d) => d.kind === 'file' && d.path === 'src/svc/handler.ts');
+    expect(fileDoc).toBeDefined();
+    expect(fileDoc!.type).toBe('svc');
+    expect(fileDoc!.description).toBe(graph.architecture.node_types['svc'].description);
+    expect(fileDoc!.id).toBe('file:src/svc/handler.ts');
+
+    // Never a phantom node — no 'node' document exists for a file no node maps.
+    expect(docs.find((d) => d.kind === 'node' && d.path.includes('handler.ts'))).toBeUndefined();
+  });
+
+  it('at flag-off (typeCoverage omitted), buildIndex output is byte-identical to today — no file documents at all', async () => {
+    const projectRoot = await freshTypeCoverageFixture();
+    const graph = await loadGraph(projectRoot);
+    const docs = await buildIndex(graph);
+    expect(docs.every((d) => d.kind !== 'file')).toBe(true);
+  });
+
+  it('an empty typeCoverage array is the same as omitting it — no file documents', async () => {
+    const projectRoot = await freshTypeCoverageFixture();
+    const graph = await loadGraph(projectRoot);
+    const docs = await buildIndex(graph, []);
+    expect(docs.every((d) => d.kind !== 'file')).toBe(true);
   });
 });

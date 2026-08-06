@@ -9,8 +9,8 @@ describe('DEFAULT_CONFIG', () => {
     expect(typeof parsed).toBe('object');
   });
 
-  it('version is 5.1.0', () => {
-    expect(DEFAULT_CONFIG).toMatch(/version: "5\.1\.0"/);
+  it('version is 5.2.0', () => {
+    expect(DEFAULT_CONFIG).toMatch(/version: "5\.2\.0"/);
   });
 
   it('DEFAULT_CONFIG contains required keys', () => {
@@ -34,6 +34,13 @@ describe('DEFAULT_CONFIG', () => {
   it('DEFAULT_CONFIG auto_approve parses to false', () => {
     const parsed = parseYaml(DEFAULT_CONFIG) as Record<string, unknown>;
     expect(parsed.auto_approve).toBe(false);
+  });
+
+  it('DEFAULT_CONFIG turns coverage.type_level on, with a self-contained comment explaining it does nothing until a type declares `when:`', () => {
+    const parsed = parseYaml(DEFAULT_CONFIG) as { coverage: { type_level: boolean } };
+    expect(parsed.coverage.type_level).toBe(true);
+    expect(DEFAULT_CONFIG).toMatch(/Type-level coverage:/);
+    expect(DEFAULT_CONFIG).toMatch(/Does\n\s*#\s*NOTHING until a type in yg-architecture\.yaml declares `when:`/);
   });
 });
 

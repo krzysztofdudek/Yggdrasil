@@ -56,7 +56,7 @@ function scaffold(label: string, opts: { mapping: string; extraSvcFile?: boolean
   writeFileSync(
     path.join(ygRoot, 'yg-config.yaml'),
     [
-      'version: "5.1.0"',
+      'version: "5.2.0"',
       'coverage:',
       '  required:',
       '    - src/svc/',
@@ -89,7 +89,7 @@ function scaffold(label: string, opts: { mapping: string; extraSvcFile?: boolean
   writeFileSync(path.join(dir, 'lib', 'u.ts'), '', 'utf-8');
   writeFileSync(path.join(dir, 'vendor', 'v.ts'), '', 'utf-8');
   writeFileSync(path.join(dir, 'apps', 'web', 'main.ts'), '', 'utf-8');
-  writeFileSync(path.join(dir, 'apps', '.yggdrasil', 'yg-config.yaml'), 'version: "5.1.0"\n', 'utf-8');
+  writeFileSync(path.join(dir, 'apps', '.yggdrasil', 'yg-config.yaml'), 'version: "5.2.0"\n', 'utf-8');
   git(['init', '-q'], dir);
   git(['config', 'user.email', 't@t.t'], dir);
   git(['config', 'user.name', 't'], dir);

@@ -1,0 +1,43 @@
+name: Fill Support
+type: engine
+description: "The fill stage's phase-agnostic substrate — the leaf primitives
+  every part of a --approve run builds on, owned by none of them. Four things
+  live here: the stage's public contract (what a caller passes in, what it gets
+  back, the sentinel thrown when nothing ran) plus the pure per-pair gate
+  predicates both phases decide with; the shared outcome shapes and the
+  read-bytes-or-empty helper the per-kind fillers return and use; the bounded
+  worker pool that runs pairs at a fixed concurrency with per-item throw
+  isolation and input-order-preserving results; and the per-(rule, subject)
+  parse-cache buckets that let every subject of one rule on one node share a
+  single parsed view instead of building and discarding one each. None of it
+  decides anything about a run: it holds no lock state, writes nothing, and
+  calls no reviewer. Separating it is what keeps the stage acyclic — the
+  orchestrator and the reviewer-dispatch code both stand on these primitives, so
+  a home inside either one would force the other to depend back on it. The
+  modules themselves already said as much in their own words before the graph
+  did."
+aspects:
+  - posix-paths-output
+  - what-why-next
+  - diagnostic-logging
+  - provider-redaction-cascade
+relations:
+  - target: cli/core/check
+    type: calls
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/llm/shared
+    type: calls
+  - target: cli/structure
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/lock
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/core/fill-contract.ts
+  - source/cli/src/core/fill-shared.ts
+  - source/cli/src/core/fill-pool.ts
+  - source/cli/src/core/fill-parse-cache.ts

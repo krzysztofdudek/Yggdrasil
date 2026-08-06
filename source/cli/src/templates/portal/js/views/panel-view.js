@@ -3,7 +3,8 @@
  *
  * Turns an opaque checkmark into a citable attestation (§3.2, §3a SHELL-panel). Co-present
  * with any view on node selection, it shows: identity (type + description + mapped globs +
- * live source-file count); the effective-aspects table (per row: aspect, reviewer kind +
+ * mapping-entry count + the real source-file count those entries resolve to); the
+ * effective-aspects table (per row: aspect, reviewer kind +
  * tier/consensus, cost, status, the channel-provenance, the honest verdict state, and the
  * folded input set behind a VERIFIED green / the reason behind a REFUSED); relations BOTH
  * directions; the when-filtered-OUT (not-applicable) set as its own list; the per-node log
@@ -205,7 +206,22 @@
     title.appendChild(dom.el('b', null, node.name || node.path));
     head.appendChild(title);
     head.appendChild(dom.el('div', 'pan-path mono', node.path));
-    head.appendChild(dom.el('div', 'pan-meta', node.type + ' · ' + node.sourceFileCount + ' source files'));
+    // Two DIFFERENT quantities, each labeled for what it is: `mappingEntryCount` counts
+    // mapping DECLARATIONS (a directory, a glob, or an exact path) — never resolved files,
+    // so it must never be rendered as a file count. `sourceFileCount` is the real, on-disk
+    // answer to "how many files does this node own" — the same exclusion-aware,
+    // child-carve-out-aware expansion the node's own source fingerprint uses. One directory
+    // entry can cover any number of files, which is exactly why both numbers are shown side
+    // by side rather than either one standing in for the other.
+    var entryWord = node.mappingEntryCount === 1 ? ' mapping entry' : ' mapping entries';
+    var fileWord = node.sourceFileCount === 1 ? ' source file' : ' source files';
+    head.appendChild(
+      dom.el(
+        'div',
+        'pan-meta',
+        node.type + ' · ' + node.mappingEntryCount + entryWord + ' · ' + node.sourceFileCount + fileWord,
+      ),
+    );
     if (node.description) head.appendChild(dom.el('p', 'pan-desc', node.description));
 
     // The file-aware loop: a node whose source changed since the last reviewer pass reads

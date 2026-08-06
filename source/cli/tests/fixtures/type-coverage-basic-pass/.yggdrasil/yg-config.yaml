@@ -1,0 +1,12 @@
+version: "5.2.0"
+
+# Companion to type-coverage-basic/: this fixture is a genuine PASS twin — every
+# file here is silently satisfied (excluded root or type-covered), with no
+# ambiguous, strict-claimed, or unmatched file anywhere. It exists to exercise
+# the check header's node-owned/type-covered split on a clean, error-free run.
+coverage:
+  required:
+    - src/
+  excluded:
+    - vendor/
+  type_level: true

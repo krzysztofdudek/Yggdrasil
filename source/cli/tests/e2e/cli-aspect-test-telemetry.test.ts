@@ -51,7 +51,7 @@ function writeTwoTierConfig(dir: string, endpoint: string): void {
   writeFileSync(
     cfgPath(dir),
     [
-      'version: "5.1.0"',
+      'version: "5.2.0"',
       '',
       'quality:',
       '  max_direct_relations: 10',
@@ -106,7 +106,10 @@ describe.skipIf(!distExists)('CLI E2E — yg aspect-test diagnostic telemetry', 
         expect(e.kind).toBe('llm');
         expect(e.disposition).toBe('approved');
         expect(e.tier).toBe('standard');
-        expect(e.promptRev).toBe(1);
+        // PROMPT_FORMAT_REV bumped 1 -> 2 for the nodeless prompt variant
+        // (llm/prompt.ts) — a component-owned prompt is byte-identical, only
+        // the recorded revision marker moved.
+        expect(e.promptRev).toBe(2);
         expect(e.votes).toEqual({ satisfied: 1, total: 1 });
         expect(e.judge).toEqual({ provider: 'ollama', model: STANDARD_MODEL });
       }

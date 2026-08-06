@@ -8,19 +8,35 @@ import { aspectStatusDowngradeMessage } from '../../formatters/aspect-status-mes
 import { issueMsg } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { computeExpectedPairs } from '../pairs.js';
+import type { TypeCoverageInput } from '../pairs.js';
+import {
+  computeTypeAspectCascade,
+  isReachableForTypeCoveredFile,
+  walkTypeParentChain,
+  computeDeclaredAttachedAspects,
+  describeCascadeCycle,
+  type TypeEffectiveAspect,
+  type TypeAspectDrop,
+  type TypeCascadeCycle,
+} from '../type-effective.js';
+
+/** Shared `next` clause for a dead-attach warning whose real cause is an absorbed aspect `implies` cycle — points at the SAME blocking error and fix every other cycle-naming surface (`yg owner --file`, `yg context --file`, `yg check`'s own rollup) already points at. */
+const CYCLE_NEXT = 'Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/.';
 
 // --- aspect-rule-sources: content.md vs check.mjs mutual exclusion ---
 
 function companionWithCheckIssue(aspectId: string): ValidationIssue {
+  const msgData: IssueMessage = {
+    what: `Aspect '${aspectId}' has companion.mjs together with check.mjs.`,
+    why: `companion.mjs is an add-on for LLM aspects only; it is incompatible with the deterministic check.mjs runner.`,
+    next: `Remove companion.mjs from .yggdrasil/aspects/${aspectId}/ or convert the aspect to an LLM aspect (replace check.mjs with content.md).`,
+  };
   return {
     severity: 'error',
     code: 'aspect-companion-with-check',
     rule: 'aspect-rule-sources',
-    ...issueMsg({
-      what: `Aspect '${aspectId}' has companion.mjs together with check.mjs.`,
-      why: `companion.mjs is an add-on for LLM aspects only; it is incompatible with the deterministic check.mjs runner.`,
-      next: `Remove companion.mjs from .yggdrasil/aspects/${aspectId}/ or convert the aspect to an LLM aspect (replace check.mjs with content.md).`,
-    }),
+    ...issueMsg(msgData),
+    messageData: msgData,
   };
 }
 
@@ -43,42 +59,30 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
         const present = [hasContentMd ? 'content.md' : null, hasCheckMjs ? 'check.mjs' : null]
           .filter((f): f is string => f !== null)
           .join(' and ');
-        issues.push({
-          severity: 'error',
-          code: 'aspect-unexpected-rule-source',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
-            what: `Aspect '${aspect.id}' is an aggregating aspect (no reviewer.type declared, only implies) but ships ${present}.`,
-            why: `Aggregating aspects bundle implied aspects and have no own reviewer; a rule source here is never read.`,
-            next: `Remove .yggdrasil/aspects/${aspect.id}/${present} to keep it aggregating, or declare reviewer.type explicitly to make it an LLM/deterministic aspect.`,
-          }),
-        });
+        const msgData: IssueMessage = {
+          what: `Aspect '${aspect.id}' is an aggregating aspect (no reviewer.type declared, only implies) but ships ${present}.`,
+          why: `Aggregating aspects bundle implied aspects and have no own reviewer; a rule source here is never read.`,
+          next: `Remove .yggdrasil/aspects/${aspect.id}/${present} to keep it aggregating, or declare reviewer.type explicitly to make it an LLM/deterministic aspect.`,
+        };
+        issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }
       // companion.mjs is an LLM-only add-on; it is never valid on an aggregate.
       if (hasCompanionMjs) {
-        issues.push({
-          severity: 'error',
-          code: 'aspect-companion-without-content',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
-            what: `Aspect '${aspect.id}' has companion.mjs but no content.md.`,
-            why: `companion.mjs is an add-on for LLM aspects; it requires content.md as the primary rule source.`,
-            next: `Add content.md to .yggdrasil/aspects/${aspect.id}/ or remove companion.mjs.`,
-          }),
-        });
+        const msgData: IssueMessage = {
+          what: `Aspect '${aspect.id}' has companion.mjs but no content.md.`,
+          why: `companion.mjs is an add-on for LLM aspects; it requires content.md as the primary rule source.`,
+          next: `Add content.md to .yggdrasil/aspects/${aspect.id}/ or remove companion.mjs.`,
+        };
+        issues.push({ severity: 'error', code: 'aspect-companion-without-content', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }
       // An aggregate must actually bundle something — otherwise it does nothing.
       if (!aspect.implies || aspect.implies.length === 0) {
-        issues.push({
-          severity: 'error',
-          code: 'aspect-empty',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
-            what: `Aspect '${aspect.id}' has no content.md, no check.mjs, and no implies — it does nothing.`,
-            why: `An aspect must ship a rule source (content.md or check.mjs) or aggregate others via implies; an empty aspect can never produce a verdict.`,
-            next: `Add a content.md (llm) or check.mjs (deterministic), or add 'implies:' to .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml to bundle existing aspects.`,
-          }),
-        });
+        const msgData: IssueMessage = {
+          what: `Aspect '${aspect.id}' has no content.md, no check.mjs, and no implies — it does nothing.`,
+          why: `An aspect must ship a rule source (content.md or check.mjs) or aggregate others via implies; an empty aspect can never produce a verdict.`,
+          next: `Add a content.md (llm) or check.mjs (deterministic), or add 'implies:' to .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml to bundle existing aspects.`,
+        };
+        issues.push({ severity: 'error', code: 'aspect-empty', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }
       continue;
     }
@@ -86,41 +90,25 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
     if (reviewer !== 'deterministic' && reviewer !== 'llm') continue; // covered by enum check
 
     if (hasContentMd && hasCheckMjs) {
-      issues.push({
-        severity: 'error',
-        code: 'aspect-both-rule-sources',
-        rule: 'aspect-rule-sources',
-        ...issueMsg({
-          what: `Aspect '${aspect.id}' has both content.md and check.mjs.`,
-          why: `Exactly one rule source is allowed per aspect; the validator cannot infer intent.`,
-          next: `Remove the file that does not match aspect's reviewer field (currently '${reviewer}').`,
-        }),
-      });
+      const bothMsgData: IssueMessage = {
+        what: `Aspect '${aspect.id}' has both content.md and check.mjs.`,
+        why: `Exactly one rule source is allowed per aspect; the validator cannot infer intent.`,
+        next: `Remove the file that does not match aspect's reviewer field (currently '${reviewer}').`,
+      };
+      issues.push({ severity: 'error', code: 'aspect-both-rule-sources', rule: 'aspect-rule-sources', ...issueMsg(bothMsgData), messageData: bothMsgData });
       // Also flag the wrong file type for the declared reviewer
-      if (reviewer === 'llm') {
-        issues.push({
-          severity: 'error',
-          code: 'aspect-unexpected-rule-source',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
+      const wrongTypeMsgData: IssueMessage = reviewer === 'llm'
+        ? {
             what: `Aspect '${aspect.id}' has reviewer 'llm' but check.mjs is present.`,
             why: `LLM aspects must not ship check.mjs (that's the deterministic reviewer's input).`,
             next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs or change reviewer to 'deterministic'.`,
-          }),
-        });
-      } else {
-        // reviewer === 'deterministic'
-        issues.push({
-          severity: 'error',
-          code: 'aspect-unexpected-rule-source',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
+          }
+        : {
             what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but content.md is present.`,
             why: `Deterministic aspects must not ship content.md (that's the LLM reviewer's input).`,
             next: `Remove .yggdrasil/aspects/${aspect.id}/content.md or change reviewer to 'llm'.`,
-          }),
-        });
-      }
+          };
+      issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(wrongTypeMsgData), messageData: wrongTypeMsgData });
       // companion+check is the more-specific conflict; emit it here before the continue.
       if (hasCompanionMjs) {
         issues.push(companionWithCheckIssue(aspect.id));
@@ -130,54 +118,38 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
 
     if (reviewer === 'llm') {
       if (!hasContentMd) {
-        issues.push({
-          severity: 'error',
-          code: 'aspect-missing-rule-source',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
-            what: `Aspect '${aspect.id}' has reviewer 'llm' but content.md is missing.`,
-            why: `LLM aspects need content.md as the rule definition the reviewer reads.`,
-            next: `Create .yggdrasil/aspects/${aspect.id}/content.md describing the rule.`,
-          }),
-        });
+        const msgData: IssueMessage = {
+          what: `Aspect '${aspect.id}' has reviewer 'llm' but content.md is missing.`,
+          why: `LLM aspects need content.md as the rule definition the reviewer reads.`,
+          next: `Create .yggdrasil/aspects/${aspect.id}/content.md describing the rule.`,
+        };
+        issues.push({ severity: 'error', code: 'aspect-missing-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }
       if (hasCheckMjs) {
-        issues.push({
-          severity: 'error',
-          code: 'aspect-unexpected-rule-source',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
-            what: `Aspect '${aspect.id}' has reviewer 'llm' but check.mjs is present.`,
-            why: `LLM aspects must not ship check.mjs (that's the deterministic reviewer's input).`,
-            next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs or change reviewer to 'deterministic'.`,
-          }),
-        });
+        const msgData: IssueMessage = {
+          what: `Aspect '${aspect.id}' has reviewer 'llm' but check.mjs is present.`,
+          why: `LLM aspects must not ship check.mjs (that's the deterministic reviewer's input).`,
+          next: `Remove .yggdrasil/aspects/${aspect.id}/check.mjs or change reviewer to 'deterministic'.`,
+        };
+        issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }
     } else {
       // reviewer === 'deterministic'
       if (!hasCheckMjs) {
-        issues.push({
-          severity: 'error',
-          code: 'aspect-missing-rule-source',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
-            what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but check.mjs is missing.`,
-            why: `Deterministic aspects need check.mjs as the rule definition the structure runner executes.`,
-            next: `Create .yggdrasil/aspects/${aspect.id}/check.mjs exporting a check function.`,
-          }),
-        });
+        const msgData: IssueMessage = {
+          what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but check.mjs is missing.`,
+          why: `Deterministic aspects need check.mjs as the rule definition the structure runner executes.`,
+          next: `Create .yggdrasil/aspects/${aspect.id}/check.mjs exporting a check function.`,
+        };
+        issues.push({ severity: 'error', code: 'aspect-missing-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }
       if (hasContentMd) {
-        issues.push({
-          severity: 'error',
-          code: 'aspect-unexpected-rule-source',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
-            what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but content.md is present.`,
-            why: `Deterministic aspects must not ship content.md (that's the LLM reviewer's input).`,
-            next: `Remove .yggdrasil/aspects/${aspect.id}/content.md or change reviewer to 'llm'.`,
-          }),
-        });
+        const msgData: IssueMessage = {
+          what: `Aspect '${aspect.id}' has reviewer '${reviewer}' but content.md is present.`,
+          why: `Deterministic aspects must not ship content.md (that's the LLM reviewer's input).`,
+          next: `Remove .yggdrasil/aspects/${aspect.id}/content.md or change reviewer to 'llm'.`,
+        };
+        issues.push({ severity: 'error', code: 'aspect-unexpected-rule-source', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }
     }
 
@@ -188,16 +160,12 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
       if (hasCheckMjs) {
         issues.push(companionWithCheckIssue(aspect.id));
       } else if (!hasContentMd) {
-        issues.push({
-          severity: 'error',
-          code: 'aspect-companion-without-content',
-          rule: 'aspect-rule-sources',
-          ...issueMsg({
-            what: `Aspect '${aspect.id}' has companion.mjs but no content.md.`,
-            why: `companion.mjs is an add-on for LLM aspects; it requires content.md as the primary rule source.`,
-            next: `Add content.md to .yggdrasil/aspects/${aspect.id}/ or remove companion.mjs.`,
-          }),
-        });
+        const msgData: IssueMessage = {
+          what: `Aspect '${aspect.id}' has companion.mjs but no content.md.`,
+          why: `companion.mjs is an add-on for LLM aspects; it requires content.md as the primary rule source.`,
+          next: `Add content.md to .yggdrasil/aspects/${aspect.id}/ or remove companion.mjs.`,
+        };
+        issues.push({ severity: 'error', code: 'aspect-companion-without-content', rule: 'aspect-rule-sources', ...issueMsg(msgData), messageData: msgData });
       }
     }
   }
@@ -207,7 +175,10 @@ export function checkAspectRuleSources(graph: Graph): ValidationIssue[] {
 
 // --- config-reviewer-missing: reviewer section must exist in yg-config.yaml ---
 
-export async function checkReviewerPresence(graph: Graph): Promise<ValidationIssue[]> {
+export async function checkReviewerPresence(
+  graph: Graph,
+  typeCoverage?: TypeCoverageInput,
+): Promise<ValidationIssue[]> {
   if (graph.configError) return [];
   if (graph.config.reviewer) return [];
   // Cheap necessary-condition guard: with no LLM aspect defined at all there can
@@ -221,7 +192,11 @@ export async function checkReviewerPresence(graph: Graph): Promise<ValidationIss
   // effective. Compute effective, non-draft pairs through the canonical
   // single-source query (draft is excluded by default) and stay silent when no
   // LLM pair exists — a script-only / empty graph is a legal keyless state.
-  const { pairs } = await computeExpectedPairs(graph);
+  // `typeCoverage` is the SAME classification the caller already computed once
+  // for this run, threaded through rather than recomputed: a repo with
+  // reviewer unconfigured and an LLM rule effective ONLY on type-covered files
+  // (zero component LLM pairs) must still be caught here.
+  const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
   if (!pairs.some((p) => p.kind === 'llm')) return [];
   const msgData: IssueMessage = {
     what: 'A judgment rule has no judge: yg-config.yaml has no reviewer: section.',
@@ -255,17 +230,36 @@ export async function checkReviewerPresence(graph: Graph): Promise<ValidationIss
  *     and is intentionally parked; nothing to warn about.
  *   - the aspect id is in NO node's effective-aspect set.
  *
- * Bootstrap carve-out: while the model tree has zero nodes this is COMPLETELY
- * silent — a graph-before-code project legitimately authors aspects before any
- * node exists, and every rule source would otherwise light up at once.
+ * Bootstrap carve-out: while the model tree has zero nodes AND no file is
+ * enforced by its architecture type either, this is COMPLETELY silent — a
+ * graph-before-code project legitimately authors aspects before any node or
+ * type-covered file exists, and every rule source would otherwise light up
+ * at once.
+ *
+ * `typeCoverage` (optional): the classification the caller already computed
+ * once for this run, threaded through rather than recomputed here. With the
+ * feature on, a rule effective SOLELY on files enforced by their type is live
+ * law and must not be reported dead; absent ⇒ today's behavior exactly (the
+ * one-argument call every existing caller makes stays byte-identical).
  */
-export function checkAspectEffectiveNowhere(graph: Graph): ValidationIssue[] {
-  // Bootstrap carve-out: with no nodes, every aspect is trivially effective
-  // nowhere. A greenfield graph authoring aspects before any code must stay
-  // silent, so short-circuit before computing anything.
-  if (graph.nodes.size === 0) return [];
+export function checkAspectEffectiveNowhere(graph: Graph, typeCoverage?: TypeCoverageInput): ValidationIssue[] {
+  // Bootstrap carve-out: with no real nodes and nothing type-covered either,
+  // every aspect is trivially effective nowhere. A greenfield graph authoring
+  // aspects before any code must stay silent, so short-circuit before
+  // computing anything. A file enforced by its type alone is also code that
+  // exists, so it lifts this carve-out exactly like a real node would.
+  if (graph.nodes.size === 0 && (!typeCoverage || typeCoverage.covered.size === 0)) return [];
 
   const projectRoot = path.dirname(graph.rootPath);
+
+  // Every type with at least one REAL component node (never a type-covered
+  // file) — used below to tell apart the two reasons an aspect can be absent
+  // from `effectiveSomewhere` for a type-covered-only type: a genuine `when`
+  // mismatch needs a real node to have been filtered off; a type with NO real
+  // node can never have suffered that, so an aspect missing there is
+  // necessarily the whole-unit/no-component case tracked below.
+  const typeHasRealNode = new Set<string>();
+  for (const node of graph.nodes.values()) typeHasRealNode.add(node.meta.type);
 
   // Union of effective aspect ids across every node (7-channel cascade + when),
   // via the verifier's own engine. A node whose effectiveness throws (an implies
@@ -277,6 +271,62 @@ export function checkAspectEffectiveNowhere(graph: Graph): ValidationIssue[] {
       for (const id of computeEffectiveAspects(node, graph)) effectiveSomewhere.add(id);
     } catch {
       // ImpliesCycleError or similar structural error — skip this node.
+    }
+  }
+  // Files enforced by their architecture type alone (no component): unioned in
+  // exactly like the node loop above, but ONLY the ids that could actually
+  // produce a pair there (isReachableForTypeCoveredFile) — a whole-unit (per:
+  // node) rule is cascade-effective yet has no component to run on for a
+  // nodeless file, so it must not count as "live" just because a file matched
+  // its type. Absent typeCoverage ⇒ this loop never runs at all.
+  //
+  // The raw (unfiltered) cascade is computed ONCE per file here — rather than
+  // calling computeTypeReachableAspects (which would re-run the same cascade
+  // internally via its own computeTypeEffectiveAspects call) — so the SAME
+  // pass that builds `effectiveSomewhere` also learns, for free, which ids
+  // were excluded specifically because they are whole-unit with no component
+  // to run on (`wholeUnitBlockedType`, below): the real cause behind the
+  // message this check emits when the type's only instances are type-covered
+  // files, never a nonexistent `when` predicate.
+  const wholeUnitBlockedType = new Map<string, string>(); // aspectId -> a type it was blocked on
+  // A type whose cascade absorbed an implies cycle for a type-covered file —
+  // keyed by type id (first cycle seen), since the cycle aborts resolution for
+  // the WHOLE file, not one aspect: every id declared-attached to that type
+  // (below) is equally unresolved, never narrowed by a `when` that was never
+  // evaluated.
+  const cycleByType = new Map<string, TypeCascadeCycle>();
+  for (const [file, typeId] of typeCoverage?.covered ?? []) {
+    let cascade: { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[]; cycle?: TypeCascadeCycle };
+    try {
+      cascade = computeTypeAspectCascade(graph, file, typeId, typeCoverage?.edges);
+    } catch {
+      // An unexpected structural error (NOT an implies cycle — that is absorbed
+      // inside computeTypeAspectCascade itself, handled via cascade.cycle
+      // below) must not abort enumeration for every OTHER type-covered file.
+      continue;
+    }
+    if (cascade.cycle) {
+      if (!typeHasRealNode.has(typeId) && !cycleByType.has(typeId)) cycleByType.set(typeId, cascade.cycle);
+      continue;
+    }
+    for (const { aspectId } of cascade.effective) {
+      if (isReachableForTypeCoveredFile(graph, aspectId)) {
+        effectiveSomewhere.add(aspectId);
+      } else if (!typeHasRealNode.has(typeId) && !wholeUnitBlockedType.has(aspectId)) {
+        wholeUnitBlockedType.set(aspectId, typeId);
+      }
+    }
+  }
+  // Expand each cycle-blocked type's declared-attached closure (own defaults +
+  // chain + implies) ONCE, so an aspect reachable only through that type is
+  // named by the real cause (the cycle) below, instead of falling through to
+  // the genuine-predicate message — which a type with no real node could never
+  // actually have produced, since there was no node for a `when` to filter.
+  const cycleBlockedType = new Map<string, string>(); // aspectId -> the type its cycle was attributed to
+  for (const typeId of cycleByType.keys()) {
+    const { chainTypeIds } = walkTypeParentChain(graph, typeId);
+    for (const id of computeDeclaredAttachedAspects(graph, typeId, chainTypeIds)) {
+      if (!cycleBlockedType.has(id)) cycleBlockedType.set(id, typeId);
     }
   }
 
@@ -296,11 +346,33 @@ export function checkAspectEffectiveNowhere(graph: Graph): ValidationIssue[] {
 
     if (effectiveSomewhere.has(aspect.id)) continue;
 
-    const msgData: IssueMessage = {
-      what: `Aspect '${aspect.id}' has a rule source but is effective on zero nodes.`,
-      why: `Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.`,
-      next: `Check the attach sites and 'when' predicate (yg impact --aspect ${aspect.id}). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.`,
-    };
+    // The type this rule was blocked on has NO real component of its own —
+    // its only instances are type-covered files, so there is no `when` to
+    // have filtered it off; it is whole-unit with nothing to run on.
+    const blockedOnType = wholeUnitBlockedType.get(aspect.id);
+    // Distinct from the whole-unit case above: here the type's ONLY instance's
+    // cascade never resolved at all (an implies cycle), so there is no `when`
+    // outcome to report either way — the real cause is the cycle, not a
+    // predicate that filtered a (nonexistent) real node off.
+    const cycleType = blockedOnType ? undefined : cycleBlockedType.get(aspect.id);
+    const cycleInfo = cycleType ? cycleByType.get(cycleType) : undefined;
+    const msgData: IssueMessage = blockedOnType
+      ? {
+          what: `Aspect '${aspect.id}' has a rule source but is effective on zero nodes.`,
+          why: `It is whole-unit (scope: { per: 'node' }), and the only instances of type '${blockedOnType}' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never verify anywhere.`,
+          next: `Give a file of type '${blockedOnType}' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml.`,
+        }
+      : cycleInfo
+        ? {
+            what: `Aspect '${aspect.id}' has a rule source but is effective on zero nodes.`,
+            why: `${describeCascadeCycle(cycleInfo)} The only instances of type '${cycleType}' are files enforced by their type alone (no component of their own), so there is no real node this rule could have been filtered off of — it was never resolved.`,
+            next: CYCLE_NEXT,
+          }
+        : {
+            what: `Aspect '${aspect.id}' has a rule source but is effective on zero nodes.`,
+            why: `Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.`,
+            next: `Check the attach sites and 'when' predicate (yg impact --aspect ${aspect.id}). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.`,
+          };
     issues.push({
       severity: 'warning',
       code: 'aspect-effective-nowhere',
@@ -329,22 +401,34 @@ export function checkAspectEffectiveNowhere(graph: Graph): ValidationIssue[] {
  * (so it is not dead everywhere), yet still unreachable on T specifically.
  *
  * Fires iff ALL hold, per (type T, default-aspect A):
- *   - T has at least one node in the model (no bootstrap noise, and a type with no
- *     instances legitimately has no effective aspects yet).
+ *   - T has at least one INSTANCE — a real node of type T, or a file enforced
+ *     as type T by its architecture type alone (no bootstrap noise, and a
+ *     type with no instances at all legitimately has no effective aspects yet).
  *   - A is a declared aspect (an undefined id is a separate aspect-undefined error).
- *   - A is in the effective-aspect set of NO node of type T.
+ *   - A is in the effective-aspect set of NO instance of type T.
  * Non-blocking (warning): it surfaces a graph-authoring mistake without failing CI.
+ *
+ * `typeCoverage` (optional): the same already-computed classification
+ * `checkAspectEffectiveNowhere` accepts above, threaded through rather than
+ * recomputed; absent ⇒ today's behavior exactly.
  */
-export function checkArchitectureDefaultAspectUnreachable(graph: Graph): ValidationIssue[] {
-  if (graph.nodes.size === 0) return [];
+export function checkArchitectureDefaultAspectUnreachable(graph: Graph, typeCoverage?: TypeCoverageInput): ValidationIssue[] {
+  if (graph.nodes.size === 0 && (!typeCoverage || typeCoverage.covered.size === 0)) return [];
 
   const definedAspectIds = new Set(graph.aspects.map((a) => a.id));
 
-  // For each type, the set of aspect ids effective on ANY node of that type.
+  // For each type, the set of aspect ids effective on ANY instance of that
+  // type — a real node, or (below) a file enforced by the type alone.
   const effectiveByType = new Map<string, Set<string>>();
   const typeHasNodes = new Set<string>();
+  // Types with at least one REAL component node — never a type-covered file.
+  // Distinguishes a genuine `when` mismatch (needs a real node to have been
+  // filtered off) from the whole-unit/no-component case below, which can only
+  // arise when a type's ONLY instances are type-covered files.
+  const typesWithRealNodes = new Set<string>();
   for (const node of graph.nodes.values()) {
     typeHasNodes.add(node.meta.type);
+    typesWithRealNodes.add(node.meta.type);
     let set = effectiveByType.get(node.meta.type);
     if (!set) {
       set = new Set<string>();
@@ -356,20 +440,89 @@ export function checkArchitectureDefaultAspectUnreachable(graph: Graph): Validat
       // ImpliesCycleError or similar — surfaced separately; skip this node.
     }
   }
+  // A type with zero components but at least one matching file has instances
+  // too — union its per-file cascade in exactly like the node loop above, but
+  // ONLY the ids isReachableForTypeCoveredFile says could actually produce a
+  // pair there (see that function's own doc for why the raw cascade-effective
+  // set overstates reachability for a nodeless file).
+  //
+  // The raw cascade is computed ONCE per file (computeTypeEffectiveAspects)
+  // rather than via computeTypeReachableAspects (which would re-run it
+  // internally) so this same pass also records, per type, which ids were
+  // excluded specifically for being whole-unit with no component to run on
+  // (`wholeUnitBlockedByType`) — the real cause the message below needs to
+  // tell apart from a `when` mismatch.
+  const wholeUnitBlockedByType = new Map<string, Set<string>>();
+  // A type whose cascade absorbed an implies cycle for a type-covered file —
+  // keyed by type name (first cycle seen). Recorded unconditionally (mirrors
+  // wholeUnitBlockedByType above); the message loop below gates its READ on
+  // the type having no real node, same as the whole-unit map.
+  const cycleByType = new Map<string, TypeCascadeCycle>();
+  for (const [file, typeId] of typeCoverage?.covered ?? []) {
+    typeHasNodes.add(typeId);
+    let set = effectiveByType.get(typeId);
+    if (!set) {
+      set = new Set<string>();
+      effectiveByType.set(typeId, set);
+    }
+    let cascade: { effective: TypeEffectiveAspect[]; drops: TypeAspectDrop[]; cycle?: TypeCascadeCycle };
+    try {
+      cascade = computeTypeAspectCascade(graph, file, typeId, typeCoverage?.edges);
+    } catch {
+      // Mirrors the component loop's own catch above: an unexpected structural
+      // error must not abort enumeration for every OTHER type-covered file.
+      continue;
+    }
+    if (cascade.cycle) {
+      if (!cycleByType.has(typeId)) cycleByType.set(typeId, cascade.cycle);
+      continue;
+    }
+    for (const { aspectId } of cascade.effective) {
+      if (isReachableForTypeCoveredFile(graph, aspectId)) {
+        set.add(aspectId);
+      } else {
+        let blocked = wholeUnitBlockedByType.get(typeId);
+        if (!blocked) {
+          blocked = new Set<string>();
+          wholeUnitBlockedByType.set(typeId, blocked);
+        }
+        blocked.add(aspectId);
+      }
+    }
+  }
 
   const issues: ValidationIssue[] = [];
   for (const [typeName, typeConfig] of Object.entries(graph.architecture.node_types)) {
     if (!typeHasNodes.has(typeName)) continue; // no instances — nothing to reach.
     const defaults = typeConfig.aspects ?? [];
     const effective = effectiveByType.get(typeName) ?? new Set<string>();
+    // The type's ONLY instances are type-covered files (no real component) —
+    // there is no `when` that could have filtered a real node off, so an
+    // aspect this type blocked for being whole-unit is the real cause.
+    const wholeUnitOnly = !typesWithRealNodes.has(typeName) ? wholeUnitBlockedByType.get(typeName) : undefined;
+    // Same gate: only a type with no real node can ever hit this branch,
+    // since a real node's cascade never goes through this loop at all.
+    const cascadeCycle = !typesWithRealNodes.has(typeName) ? cycleByType.get(typeName) : undefined;
     for (const aspectId of defaults) {
       if (!definedAspectIds.has(aspectId)) continue; // aspect-undefined handles this.
       if (effective.has(aspectId)) continue;
-      const msgData: IssueMessage = {
-        what: `Aspect '${aspectId}' is a default aspect of type '${typeName}' but is effective on zero nodes of that type.`,
-        why: `The architecture attaches it to '${typeName}', but its own 'when' (or the attach-site 'when') filters it back off every '${typeName}' node — so the rule looks enforced for this type yet verifies nothing there.`,
-        next: `Widen or remove the aspect's 'when' so it reaches '${typeName}' nodes (yg impact --aspect ${aspectId}), or drop the default from the '${typeName}' type in yg-architecture.yaml if it should not apply there.`,
-      };
+      const msgData: IssueMessage = wholeUnitOnly?.has(aspectId)
+        ? {
+            what: `Aspect '${aspectId}' is a default aspect of type '${typeName}' but is effective on zero nodes of that type.`,
+            why: `It is whole-unit (scope: { per: 'node' }), and the only instances of '${typeName}' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never enforce here.`,
+            next: `Give a file of type '${typeName}' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/${aspectId}/yg-aspect.yaml.`,
+          }
+        : cascadeCycle
+          ? {
+              what: `Aspect '${aspectId}' is a default aspect of type '${typeName}' but is effective on zero nodes of that type.`,
+              why: `${describeCascadeCycle(cascadeCycle)} The only instances of '${typeName}' are files enforced by their type alone (no component of their own), so there is no real node this default could have been filtered off of — it was never resolved.`,
+              next: CYCLE_NEXT,
+            }
+          : {
+              what: `Aspect '${aspectId}' is a default aspect of type '${typeName}' but is effective on zero nodes of that type.`,
+              why: `The architecture attaches it to '${typeName}', but its own 'when' (or the attach-site 'when') filters it back off every '${typeName}' node — so the rule looks enforced for this type yet verifies nothing there.`,
+              next: `Widen or remove the aspect's 'when' so it reaches '${typeName}' nodes (yg impact --aspect ${aspectId}), or drop the default from the '${typeName}' type in yg-architecture.yaml if it should not apply there.`,
+            };
       issues.push({
         severity: 'warning',
         code: 'architecture-default-aspect-unreachable',

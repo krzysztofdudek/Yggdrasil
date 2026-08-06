@@ -1,10 +1,13 @@
 name: Scoped Coverage Unit Tests
 type: test-suite
 description: "Unit tests for scoped/precise coverage: required/excluded tier
-  partitioning (root normalization, longest-match precedence, empty-required
+  partitioning (root normalization, absolute-exclusion precedence, empty-required
   require-nothing) in the coverage scan, plus the blocking-unmapped prediction
-  the init command asks the same primitives for."
+  the init command asks the same primitives for. Also pins the SCOPE GUARD: an
+  explicitly-mapped file under coverage.excluded keeps enforcing across pair
+  enumeration and --approve, since exclusion gates the nodeless tier only."
 aspects: []
-relations: [ { target: cli/core/check, type: uses }, { target: cli/core/check-coverage-tiers, type: uses } ]
+relations: [ { target: cli/core/check, type: uses }, { target: cli/core/check-coverage-tiers, type: uses }, { target: cli/core/pairs, type: uses }, { target: cli/core/fill, type: uses }, { target: cli/core/loader, type: uses }, { target: cli/io/lock-store, type: uses }, { target: cli/io/stores, type: uses } ]
 mapping:
   - source/cli/tests/unit/core/check-coverage-tiers.test.ts
+  - source/cli/tests/unit/core/coverage-exclusion-scope.test.ts

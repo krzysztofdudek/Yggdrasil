@@ -1,0 +1,7 @@
+name: ReadsTarget
+description: A per-file rule whose companion parses every file of the node's uses-related target through ctx.parseAst, so every subject of this rule on the same node shares one parse of the target's files.
+reviewer:
+  type: llm
+status: enforced
+scope:
+  per: file

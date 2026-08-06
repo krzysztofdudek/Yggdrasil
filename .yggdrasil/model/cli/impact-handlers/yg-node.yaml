@@ -8,6 +8,10 @@ relations:
     type: calls
   - target: cli/core/pairs
     type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
   - target: cli/core/companion-resolve
     type: calls
   - target: cli/core/reviewer-tiers

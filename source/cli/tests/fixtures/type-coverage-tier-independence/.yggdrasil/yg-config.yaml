@@ -1,0 +1,12 @@
+version: "5.2.0"
+
+# yg-config.yaml — deliberately narrower coverage.required than
+# type-coverage-basic/ so docs/ falls in NEITHER required nor excluded (the
+# "middle"/advisory tier partitionByCoverageTier computes) — the one tier
+# combination the shared fixture never exercises.
+coverage:
+  required:
+    - src/
+  excluded:
+    - vendor/
+  type_level: true

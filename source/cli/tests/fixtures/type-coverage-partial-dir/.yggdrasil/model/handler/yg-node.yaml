@@ -1,0 +1,5 @@
+name: Handler
+type: svc
+description: "The one explicit node in this fixture. Maps ONLY src/svc/handler.ts, leaving its directory sibling src/svc/sibling.ts unclaimed — the directory has an owner-in-progress, but this one file is not part of it."
+mapping:
+  - src/svc/handler.ts

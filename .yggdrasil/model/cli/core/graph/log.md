@@ -125,3 +125,13 @@ Removed a dead, unreferenced graph-file-path helper (yggPrefixOf) and its now-un
 Corrected a stale internal documentation comment on the implies-cycle error class. It named a function that was removed when the per-node drift-baseline system was retired and replaced by the content-addressed verdict lock, pointing a future reader at code that no longer exists. The comment now names the actual call sites that catch this error to skip a structurally-invalid node. Comment-only — no behavior change.
 ## [2026-07-20T20:42:31.763Z]
 The blast-radius analysis carried its own byte-identical copy of the file-ownership rule to avoid a dependency on a command module. Duplicating the rule is what lets ownership answers drift apart across the tool. The analysis now uses the single shared ownership resolver directly, removing the duplicate so every part of the tool answers "who owns this file" the same way.
+## [2026-07-28T17:23:54.967Z]
+Both the when-predicate evaluator and the aspect cascade gain one optional resolution override, letting a caller answer a relation's target type from something other than a declared graph node — specifically, from an import edge whose other end is a source file enforced purely by its type and therefore has no node entry of its own to look up. Left unsupplied, every existing caller's behavior is unchanged: the override is consulted only when a caller explicitly hands one in.
+## [2026-07-28T19:46:04.370Z]
+The impact-estimate types now admit a subject with no owning component, and the estimate skips the cold-start read-set check for such a subject explicitly rather than relying on an empty result falling through.
+## [2026-07-30T23:24:03.209Z]
+Corrected a stale doc-comment: the async companion resolution it deferred to already exists (collectInvalidatedPairs in cli/impact-handlers.ts), so the comment now names that caller instead of pointing at unspecified future work.
+## [2026-07-31T19:30:11.163Z]
+A refused verdict recorded against a file the graph has since excluded from coverage is no longer shown as a live refusal in the aspect blast-radius view, agreeing with the ownership answer every other surface already gives for the same excluded path.
+## [2026-08-01T06:56:37.893Z]
+Added a shared depth/LCA function and a shared tunnel-ranking function: a type-covered file has no real position in the architecture hierarchy, so measuring it by its own on-disk directory nesting mixed two incompatible units in the same ranked list, letting an incidentally deep file outrank a genuine cross-module dependency. Both consumers of the ranking (the CLI dashboard and the portal panel) now call the identical shared function, so the two can never rank tunnels two different ways.

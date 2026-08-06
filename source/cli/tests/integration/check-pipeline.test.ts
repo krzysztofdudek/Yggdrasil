@@ -10,7 +10,7 @@ const FIXTURE_PROJECT = path.join(__dirname, '../fixtures/sample-project');
 describe('check-pipeline', () => {
   it('load fixture graph → runCheck → returns structured result', async () => {
     const graph = await loadGraph(FIXTURE_PROJECT);
-    // Pass null for gitTrackedFiles (fixtures aren't git repos)
+    // Pass null for coverageVisibleFiles (fixtures aren't git repos)
     const result = await runCheck(graph, null);
 
     expect(result.nodeCount).toBeGreaterThan(0);

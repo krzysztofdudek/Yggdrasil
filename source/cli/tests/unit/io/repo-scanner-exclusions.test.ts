@@ -1,5 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { isCoverageExcludedPath } from '../../../src/io/repo-scanner.js';
+import { describe, it, expect, afterEach } from 'vitest';
+import path from 'node:path';
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { isCoverageExcludedPath, countMappedButExcludedFiles } from '../../../src/io/repo-scanner.js';
+import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 describe('isCoverageExcludedPath', () => {
   it('returns false for an empty or dot path (both guard branches)', () => {
@@ -30,5 +34,69 @@ describe('isCoverageExcludedPath', () => {
     expect(isCoverageExcludedPath('git')).toBe(false); // not `.git`
     expect(isCoverageExcludedPath('src/.gitkeep')).toBe(false); // segment is `.gitkeep`, not `.git`
     expect(isCoverageExcludedPath('.yggdrasil-notes/x.md')).toBe(false); // prefix, not the dir
+  });
+});
+
+describe('countMappedButExcludedFiles', () => {
+  const tmpRoots: string[] = [];
+  afterEach(async () => {
+    while (tmpRoots.length > 0) {
+      await rm(tmpRoots.pop()!, { recursive: true, force: true });
+    }
+  });
+
+  async function makeProject(): Promise<{ projectRoot: string; yggRoot: string }> {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-repo-scanner-count-'));
+    tmpRoots.push(projectRoot);
+    const yggRoot = path.join(projectRoot, '.yggdrasil');
+    await mkdir(yggRoot, { recursive: true });
+    return { projectRoot, yggRoot };
+  }
+
+  async function writeFileEnsuringDir(abs: string, content: string): Promise<void> {
+    await mkdir(path.dirname(abs), { recursive: true });
+    await writeFile(abs, content);
+  }
+
+  function buildGraph(yggRoot: string, mapping: string[], excluded: string[]): Graph {
+    const node = {
+      path: 'svc',
+      meta: { name: 'svc', type: 'service', mapping },
+      children: [],
+      parent: null,
+    } as unknown as GraphNode;
+    return {
+      config: { coverage: { required: [], excluded, typeLevel: false } },
+      architecture: { node_types: { service: { description: 'x' } } },
+      nodes: new Map([['svc', node]]),
+      aspects: [],
+      flows: [],
+      rootPath: yggRoot,
+    } as unknown as Graph;
+  }
+
+  it('counts a file a directory mapping sweeps in that an excluded root removes from enforcement', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'src/svc/kept.ts'), 'export const kept = 1;\n');
+    await writeFileEnsuringDir(path.join(projectRoot, 'src/svc/vendor/lib.ts'), 'export const lib = 1;\n');
+    const graph = buildGraph(yggRoot, ['src/svc'], ['src/svc/vendor/']);
+    const count = await countMappedButExcludedFiles(graph, ['src/svc/kept.ts', 'src/svc/vendor/lib.ts']);
+    expect(count).toBe(1);
+  });
+
+  it('does not count a file that is excluded but never textually mapped by any node', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'src/svc/kept.ts'), 'export const kept = 1;\n');
+    const graph = buildGraph(yggRoot, ['src/svc'], ['other/']);
+    const count = await countMappedButExcludedFiles(graph, ['src/svc/kept.ts', 'other/file.ts']);
+    expect(count).toBe(0);
+  });
+
+  it('control: with no coverage.excluded roots at all, nothing is counted', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'src/svc/kept.ts'), 'export const kept = 1;\n');
+    const graph = buildGraph(yggRoot, ['src/svc'], []);
+    const count = await countMappedButExcludedFiles(graph, ['src/svc/kept.ts']);
+    expect(count).toBe(0);
   });
 });

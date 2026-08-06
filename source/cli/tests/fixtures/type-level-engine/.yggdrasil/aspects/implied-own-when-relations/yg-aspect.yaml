@@ -1,0 +1,11 @@
+name: Implied Own When Relations
+description: "Reached ONLY via own-when-relations-gate's implies edge (status_inherit: own-default) — never attached directly anywhere. Its OWN aspect-global when: also carries a relations atom, so its presence in the effective set depends on the implies-expansion re-check (visit's own-when check) seeing the derived-relation overrides for an IMPLIED id, and its correct status (advisory, its own default — distinct from the 'enforced' fallback a caller would wrongly see if its status-fixpoint entry silently went missing) depends on the status fix-point's own globalWhen check seeing them too."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+when:
+  relations:
+    uses:
+      target_type: leaf
+status: advisory

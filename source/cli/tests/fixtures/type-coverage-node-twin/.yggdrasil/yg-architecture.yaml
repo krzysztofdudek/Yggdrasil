@@ -1,0 +1,15 @@
+# yg-architecture.yaml — one classifying type, shared by an explicit node and
+# plain, componentless source files. `owned`'s own mapped file
+# (src/leaf/owned.ts) satisfies this type's own when, so the graph has no
+# type-when-mismatch — unlike a node whose type is borrowed for convenience
+# without its file living under that type's own pattern.
+node_types:
+  leaf:
+    description: "Matches src/leaf/**. Both the explicit 'owned' node and any
+      plain sibling file under src/leaf/ carry this type, so a node's own
+      context/aspect-test view can be compared with and without those plain
+      siblings present."
+    when:
+      path: "src/leaf/**"
+    aspects:
+      - llm-leaf-rule

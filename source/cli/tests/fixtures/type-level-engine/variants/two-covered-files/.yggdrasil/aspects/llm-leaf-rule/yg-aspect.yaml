@@ -1,0 +1,6 @@
+name: Llm Leaf Rule
+description: "An LLM-reviewed rule attached to leaf, alongside the deterministic refuses-on-a — pins that a covered file's review set is not limited to deterministic rules alone."
+reviewer:
+  type: llm
+scope:
+  per: file

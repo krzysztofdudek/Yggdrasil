@@ -132,6 +132,21 @@ export function readLock(yggRoot: string): LockFile {
 }
 
 /**
+ * The aspectIds whose verdicts currently live in the gitignored deterministic
+ * file, read directly from disk. {@link readLock} merges the committed and
+ * gitignored verdict files into one map and discards which file each aspect
+ * came from; this reads that provenance back out, independent of the current
+ * graph. An aspect's verdicts stay in whichever file they were written to
+ * until something rewrites or deletes them, so this is still correct even for
+ * an aspect that no longer exists in the graph at all — the one case a
+ * graph-derived `reviewer.type` lookup cannot answer.
+ */
+export function readDetLockAspectIds(yggRoot: string): Set<string> {
+  const { verdicts } = readOneLockFile(detLockPath(yggRoot), { fileName: LOCK_DET_FILE_NAME, committed: false });
+  return new Set(Object.keys(verdicts));
+}
+
+/**
  * Read the LEGACY single-file lock (pre-5.1.0), validated, as a unified LockFile —
  * or null if it is absent. Used ONLY by the 5.1.0 split migration; the live runtime
  * reads the triad via {@link readLock}.

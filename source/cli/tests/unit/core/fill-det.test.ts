@@ -12,20 +12,28 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import {
   mkdtemp, mkdir, writeFile, rm, readFile,
 } from 'node:fs/promises';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, cpSync, appendFileSync } from 'node:fs';
 import { readBytesOrEmpty } from '../../../src/core/fill-shared.js';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { runFill, FillGatingError } from '../../../src/core/fill.js';
+import { runFill, FillGatingError, detGateKey } from '../../../src/core/fill.js';
+import type { ExpectedPair } from '../../../src/core/pairs.js';
 import { buildIssueMessage } from '../../../src/formatters/message-builder.js';
 import type { IssueMessage } from '../../../src/model/validation.js';
 import { readLock, writeLock } from '../../../src/io/lock-store.js';
 import { verifyLock } from '../../../src/core/verify-lock.js';
 import type { LlmProvider } from '../../../src/llm/types.js';
 import type { RunStructureAspectResult } from '../../../src/structure/runner.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+import { FIXTURE_TWO_COVERED_FILES } from '../../fixtures/type-level-engine/variants/index.js';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+/** Base type-level-engine fixture the two-covered-files variant is merged over. */
+const TWO_COVERED_FILES_BASE = path.join(__dirname, '..', '..', 'fixtures', 'type-level-engine');
 
 // ── Mock the LLM provider factory (no real reviewer) ──────────────────────────
 vi.mock('../../../src/llm/index.js', () => ({
@@ -50,7 +58,7 @@ vi.mock('../../../src/structure/runner.js', async (importOriginal) => {
     runStructureAspect: vi.fn(actual.runStructureAspect),
   };
 });
-import { runStructureAspect } from '../../../src/structure/runner.js';
+import { runStructureAspect, StructureRunnerError } from '../../../src/structure/runner.js';
 const mockRunStructureAspect = vi.mocked(runStructureAspect);
 
 function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
@@ -196,7 +204,7 @@ describe('deterministic-first ordering + det gate', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // The det check refused → the LLM reviewer was never asked.
     expect(verifyCalls).toBe(0);
@@ -219,7 +227,7 @@ describe('deterministic-first ordering + det gate', () => {
     // First run records the det refusal.
     let graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Second run: the det refusal is cached-valid. The LLM pair is still skipped.
     graph = await loadGraph(projectRoot);
@@ -227,11 +235,138 @@ describe('deterministic-first ordering + det gate', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { verifyCalls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(verifyCalls).toBe(0);
     expect(result.reviewerCallsMade).toBe(0);
     const lock = readLock(graph.rootPath);
     expect(lock.verdicts['llm-a']?.['node:svc']).toBeUndefined();
+  });
+});
+
+// =============================================================================
+// 2b. detGateKey — the det-gate keying function, pinned directly
+// =============================================================================
+//
+// detGateKey is a pure function of one pair: the owning component's path when
+// the pair has one, or the pair's own unit key when it does not. These tests
+// exercise it directly, independent of a full fill run, so a regression back
+// to keying on `pair.nodePath` alone (which makes `undefined` a single shared
+// bucket across every unit with no component) is caught here even when no
+// fixture happens to drive a full fill through the affected branch.
+
+describe('detGateKey — pure-function pin', () => {
+  const base = { aspectId: 'a', kind: 'deterministic' as const, status: 'enforced' as const, subjectFiles: ['x'] };
+
+  it('keys a component pair by its owning node path', () => {
+    const pair: ExpectedPair = { ...base, unitKey: 'node:svc', nodePath: 'svc' };
+    expect(detGateKey(pair)).toBe('svc');
+  });
+
+  it('keys a pair with no owning component by its file unit key', () => {
+    const pair: ExpectedPair = { ...base, unitKey: 'file:src/leaf/a.ts', nodePath: undefined };
+    expect(detGateKey(pair)).toBe('file:src/leaf/a.ts');
+  });
+
+  it('gives two componentless pairs on DIFFERENT files different keys', () => {
+    const a: ExpectedPair = { ...base, unitKey: 'file:src/leaf/a.ts', nodePath: undefined };
+    const b: ExpectedPair = { ...base, unitKey: 'file:src/leaf/b.ts', nodePath: undefined };
+    expect(detGateKey(a)).not.toBe(detGateKey(b));
+  });
+
+  it('never collides a componentless pair with a component pair, even for the same base name', () => {
+    // The componentless key is always `file:<path>`-prefixed (the pair's own
+    // unit key); the component key is the bare node path — the prefix alone
+    // keeps the two key spaces disjoint even when the names otherwise match.
+    const componentless: ExpectedPair = { ...base, unitKey: 'file:svc', nodePath: undefined };
+    const component: ExpectedPair = { ...base, unitKey: 'node:svc', nodePath: 'svc' };
+    expect(detGateKey(componentless)).not.toBe(detGateKey(component));
+  });
+});
+
+// =============================================================================
+// 2c. detGateKey cross-contamination, driven through a real fill run
+// =============================================================================
+//
+// The pure-function tests above pin detGateKey in isolation; this test pins
+// that runFill actually WIRES detEnforcedRefusedNodes/llmSkippedByDetGate
+// through it. It targets a pair with no owning component specifically —
+// before this fix, `pair.nodePath` alone (always undefined for such a pair)
+// would make every componentless unit in the run share ONE gate bucket, so a
+// refusal on one file would silently skip paid review on every other one.
+//
+// A fresh deterministic fill for a componentless pair cannot be driven
+// through this repo's structure runner today (it resolves the owning
+// component by path before it builds anything else, so a request with no
+// component fails before check.mjs ever runs) — so this test pre-seeds a
+// CACHED, correctly-hashed refusal instead of relying on a fresh one. That
+// cached refusal is exactly what populates detEnforcedRefusedNodes
+// (core/fill.ts's own cached-refusal seed loop), so the gate this test pins
+// is exercised for real, without needing a working fresh fill for a
+// componentless deterministic pair.
+
+describe('detGateKey cross-contamination — real fill run, componentless pairs', () => {
+  it('a cached refusal on one file does not stop the LLM fill of an unrelated file matching the same type', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-det-gate-'));
+    dirs.push(dir);
+    cpSync(TWO_COVERED_FILES_BASE, dir, { recursive: true });
+    cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+    // The fixture ships no reviewer config — LLM aspects need a resolvable
+    // tier even though createLlmProvider itself is mocked below.
+    appendFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), `\n${V5_REVIEWER_CONFIG}`);
+
+    const graph = await loadGraph(dir);
+    const projectRoot = path.dirname(graph.rootPath);
+    const { computeDetInputHash } = await import('../../../src/core/pair-hash.js');
+    const { ruleHashFor } = await import('../../../src/core/pair-inputs.js');
+    const { hashFile } = await import('../../../src/io/hash.js');
+
+    const refusesOnA = graph.aspects.find((a) => a.id === 'refuses-on-a')!;
+    const ruleHash = ruleHashFor(refusesOnA, 'check.mjs');
+    const hashFor = async (rel: string, verdict: 'approved' | 'refused'): Promise<string> =>
+      computeDetInputHash({
+        aspectId: 'refuses-on-a',
+        scope: refusesOnA.scope,
+        ruleHash,
+        files: [[rel, await hashFile(path.join(projectRoot, rel))]],
+        touched: [],
+        verdict,
+      });
+
+    // Pre-seed refuses-on-a as CACHED-valid for both files: refused on a.ts
+    // (matching check.mjs's own real behavior), approved on b.ts. Only
+    // refuses-on-a is seeded — every other deterministic aspect this fixture
+    // attaches to leaf/mid/top is left unverified and will infra-error at
+    // fill time (the known limitation this suite's E2E documents); that
+    // noise is orthogonal to the gate this test pins, which only depends on
+    // refuses-on-a's own cached verdicts.
+    let lock = readLock(graph.rootPath);
+    lock.verdicts['refuses-on-a'] = {
+      'file:src/leaf/a.ts': { verdict: 'refused', hash: await hashFor('src/leaf/a.ts', 'refused'), reason: 'Deliberately refuses only on a.ts.' },
+      'file:src/leaf/b.ts': { verdict: 'approved', hash: await hashFor('src/leaf/b.ts', 'approved') },
+    };
+    await writeLock(graph.rootPath, lock, {
+      scope: 'all',
+      deterministicAspectIds: new Set(graph.aspects.filter((a) => a.reviewer.type === 'deterministic').map((a) => a.id)),
+    });
+
+    const seenPrompts: string[] = [];
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider({
+      async verifyAspect(prompt) { seenPrompts.push(prompt); return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
+    }));
+
+    const w = makeWriter();
+    const visibleFiles = await walkRepoFiles(dir);
+    await runFill(await loadGraph(dir), { coverageVisibleFiles: visibleFiles, write: w.write, emitIssue: w.emitIssue });
+
+    lock = readLock(graph.rootPath);
+    // b.ts's llm-leaf-rule was filled — its own file's cached refusal never
+    // applied to it, and a.ts's cached refusal did not leak onto it either.
+    expect(lock.verdicts['llm-leaf-rule']?.['file:src/leaf/b.ts']?.verdict).toBe('approved');
+    // a.ts's llm-leaf-rule was correctly skipped by ITS OWN file's refusal.
+    expect(lock.verdicts['llm-leaf-rule']?.['file:src/leaf/a.ts']).toBeUndefined();
+    // The skip notice names the FILE, never a phantom component.
+    expect(w.text()).toContain("LLM fills for file 'src/leaf/a.ts' skipped — an enforced deterministic check already refused it.");
+    expect(w.text()).not.toMatch(/component 'undefined'|node 'undefined'/);
   });
 });
 
@@ -252,7 +387,7 @@ describe('positive closure', () => {
     });
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     expect(lock.nodes['svc']?.source).toBeDefined();
     expect(lock.nodes['svc']?.log?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
@@ -265,7 +400,7 @@ describe('positive closure', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     expect(lock.nodes['svc']?.source).toBeUndefined();
   });
@@ -277,7 +412,7 @@ describe('positive closure', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     // Advisory refusal does not block closure → fingerprint recorded.
     expect(lock.nodes['svc']?.source).toBeDefined();
@@ -301,7 +436,7 @@ describe('positive closure', () => {
     // Run 1: provider approves → pair approved, node closes.
     let graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const run1Fingerprint = readLock(graph.rootPath).nodes['svc']?.source;
     expect(run1Fingerprint).toBeDefined();
     expect(readLock(graph.rootPath).verdicts['llm-a']?.['node:svc']?.verdict).toBe('approved');
@@ -319,7 +454,7 @@ describe('positive closure', () => {
     graph = await loadGraph(projectRoot);
     // Run 2: provider unreachable → the LLM fill writes NOTHING (infra disposition).
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({ isAvailable: async () => false }));
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const after = readLock(graph.rootPath);
     // The stored token is still 'approved' (run 1's verdict was never overwritten).
@@ -349,7 +484,7 @@ describe('positive closure', () => {
     });
     let graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const run1Fingerprint = readLock(graph.rootPath).nodes['svc']?.source;
     expect(run1Fingerprint).toBeDefined();
 
@@ -357,7 +492,7 @@ describe('positive closure', () => {
     // (subject = src/svc.ts, binary excluded) stays valid → zero unverified pairs.
     await writeFile(path.join(projectRoot, 'assets', 'logo.png'), 'PNGDATA-v2-CHANGED\n');
     graph = await loadGraph(projectRoot);
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Zero reviewer calls (nothing was unverified) — proves the node never entered
     // the fill set, so the step-4 gate did not run for it.
@@ -384,14 +519,14 @@ describe('positive closure', () => {
     });
     let graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves (advisory)
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const run1Fingerprint = readLock(graph.rootPath).nodes['svc']?.source;
     expect(run1Fingerprint).toBeDefined();
 
     // Edit ONLY the binary, no fresh log entry.
     await writeFile(path.join(projectRoot, 'assets', 'logo.png'), 'PNGDATA-v2-CHANGED\n');
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // The fingerprint must NOT advance — vacuous closure (zero enforced pairs) is
     // refused for a drifted log_required node lacking a fresh entry.
@@ -412,7 +547,7 @@ describe('log gate (§9)', () => {
     });
     // First fill closes the node (records fingerprint + log baseline).
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const preEditFingerprint = readLock(graph.rootPath).nodes['svc']?.source;
     expect(preEditFingerprint).toBeDefined();
 
@@ -424,7 +559,7 @@ describe('log gate (§9)', () => {
     // (FillGatingError) — nothing is approved — but the per-node "no fresh log
     // entry" message is emitted first so the user knows what to add.
     await expect(
-      runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue }),
+      runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue }),
     ).rejects.toBeInstanceOf(FillGatingError);
     expect(w.text()).toMatch(/no fresh log entry|mandatory/i);
 
@@ -446,7 +581,7 @@ describe('log gate (§9)', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Edit source + add a fresh log entry — the gate passes.
     await writeFile(path.join(projectRoot, 'src', 'svc.ts'), 'export const x = 2;\n');
@@ -455,7 +590,7 @@ describe('log gate (§9)', () => {
       '## [2026-05-11T10:00:00.000Z]\nfirst.\n## [2026-05-11T11:00:00.000Z]\nfix.\n',
     );
     graph = await loadGraph(projectRoot);
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Gate passed → the pair re-filled and the node re-closed with the new entry.
     const lock = readLock(graph.rootPath);
@@ -470,7 +605,7 @@ describe('log gate (§9)', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     // Edit the aspect's check.mjs (upstream cascade) — source fingerprint
     // UNCHANGED. The gate must NOT fire.
@@ -480,7 +615,7 @@ describe('log gate (§9)', () => {
     );
     graph = await loadGraph(projectRoot);
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     expect(w.text()).not.toMatch(/no fresh log entry|mandatory/i);
     // The det pair re-verified (free) and the check is clean.
@@ -501,7 +636,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       ],
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).verdicts['det-b']?.['node:svc']).toBeDefined();
 
     // Detach det-b from the node mapping.
@@ -510,7 +645,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       'name: svc\ntype: service\ndescription: x\nmapping:\n  - src/svc.ts\naspects:\n  - det-a\n',
     );
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     // det-b's entry is pruned; det-a survives.
@@ -528,7 +663,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       ],
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).verdicts['det-draft']?.['node:svc']).toBeDefined();
 
     // Flip det-draft to draft. Its pair leaves the non-draft universe but the GC
@@ -538,7 +673,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       'name: det-draft\ndescription: d\nreviewer:\n  type: deterministic\nstatus: draft\n',
     );
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     // The draft pair's entry survives GC (draft pairs are retained).
@@ -551,7 +686,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     // Closure recorded a nodes[] entry.
     expect(readLock(graph.rootPath).nodes['svc']).toBeDefined();
 
@@ -562,7 +697,7 @@ describe('GC + canonical rewrite (§3.2)', () => {
     raw.nodes['ghost/node'] = { source: 'deadbeef' };
     await writeFile(logsLockPath, JSON.stringify(raw));
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     expect(lock.nodes['ghost/node']).toBeUndefined();
@@ -587,7 +722,7 @@ describe('incremental writeLock', () => {
     const detLockPath = path.join(graph.rootPath, '.yg-lock.deterministic.json');
     // After a full run both det entries are on disk (the serialized writer
     // flushed each entry). Reading the file back proves the writes landed.
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     const onDisk = JSON.parse(await readFile(detLockPath, 'utf-8'));
     expect(onDisk.verdicts['det-a']['node:svc'].verdict).toBe('approved');
     expect(onDisk.verdicts['det-b']['node:svc'].verdict).toBe('approved');
@@ -615,7 +750,7 @@ describe('tainted observation set', () => {
       files: { 'src/sibling.ts': 'export const x = 1;\n' },
     });
     const graph = await loadGraph(projectRoot);
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
     expect(result.runtimeErrors).toBe(0);
     const lock = readLock(graph.rootPath);
     expect(lock.verdicts['det-sib']?.['node:svc']?.verdict).toBe('approved');
@@ -640,7 +775,7 @@ describe('per-file deterministic pair — contract #8', () => {
       files: { 'src/other.ts': 'export const y = 2;\n' },
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const lock = readLock(graph.rootPath);
     // One pair per subject file: file:src/svc.ts and file:src/other.ts.
@@ -655,7 +790,7 @@ describe('per-file deterministic pair — contract #8', () => {
     // (its observation changed), proving the fold is load-bearing.
     await writeFile(path.join(projectRoot, 'src', 'other.ts'), 'export const y = 999;\n');
     const graph2 = await loadGraph(projectRoot);
-    const result2 = await runFill(graph2, { gitTrackedFiles: null, write: () => {} });
+    const result2 = await runFill(graph2, { coverageVisibleFiles: null, write: () => {} });
     // The sibling change invalidated and re-filled the pair (no error remains).
     expect(result2.checkResult.issues.some((i) => i.code === 'unverified')).toBe(false);
     // The for-file pair for the OTHER file is its own subject — sanity.
@@ -704,7 +839,7 @@ describe('Bug 3 — per:node det aspect with scope.files excludes a read file', 
       files: { 'src/excluded.ts': 'export const ok = 1;\n' },
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
 
     const entry = readLock(graph.rootPath).verdicts['det-scoped']?.['node:svc'];
     expect(entry).toBeDefined();
@@ -735,26 +870,28 @@ describe('Bug 3 — per:node det aspect with scope.files excludes a read file', 
 });
 
 // =============================================================================
-// 7b. Bug 2: GC must NOT prune entries for a node skipped by a transient
-//     effectiveness error (an implies cycle) — those are paid verdicts.
+// 7b. Bug 2: an implies cycle must not cost any recorded verdict — those are
+//     paid work.
 //
-// When a node's effective-aspect computation THROWS (implies cycle), it is
-// silently skipped by computeExpectedPairs and contributes ZERO pairs to the GC
-// universe. The old GC pruned any verdict entry absent from the universe, so it
-// deleted the cycle node's existing entries (data loss; the next run re-pays).
-// The fix retains entries owned by an uncomputable node, while STILL pruning
-// genuinely-detached entries (a different, computable node's removed aspect).
+// A node whose effective-aspect computation THROWS (implies cycle) is
+// unrepresentable in the GC universe, and a cycle now aborts approval outright
+// (aspect-implies-cycle is a gating code — see APPROVE_GATING_CODES): the run
+// stops in step 1, before deterministic/LLM fills, before positive closure, and
+// before the collector that decides what to prune ever runs. That is a
+// stronger guarantee than "the collector special-cases uncomputable nodes" —
+// nothing is collected at all, so nothing recorded, on any node, can be lost to
+// a cycle elsewhere in the graph.
 // =============================================================================
 
-describe('Bug 2 — GC retains entries for an implies-cycle node', () => {
-  it('keeps the cycle node\'s entries and still prunes a genuinely-detached entry', async () => {
+describe('an implies cycle aborts approval before anything is collected', () => {
+  it('leaves every recorded verdict untouched, including one an ordinary run would prune', async () => {
     // Two nodes:
     //   svc      — clean, one enforced det aspect (det-clean).
     //   cyc      — carries det-a, which implies det-b, which implies det-a (cycle).
-    // We seed the lock with verdict entries for BOTH nodes plus one genuinely
-    // detached entry (an aspect no node uses). After fill's GC:
-    //   - the cycle node's entries survive (uncomputable → not provably detached),
-    //   - the detached entry is pruned (computable owner / no owner).
+    // Seed the lock with verdict entries for both nodes plus one genuinely
+    // detached entry (an aspect no node uses, which an ordinary GC pass would
+    // prune). The cycle must stop the run before GC — or anything else — runs,
+    // so every seeded entry, detached one included, must survive byte-for-byte.
     const root = await mkdtemp(path.join(tmpdir(), 'yg-fill-'));
     dirs.push(root);
     const yggRoot = path.join(root, '.yggdrasil');
@@ -817,18 +954,25 @@ describe('Bug 2 — GC retains entries for an implies-cycle node', () => {
       nodes: {},
     }, { scope: 'all', deterministicAspectIds });
 
-    // Run fill. The cycle node throws during effectiveness (skipped by the pair
-    // engine); the clean node fills normally; GC then rewrites the lock.
-    await runFill(graph, { gitTrackedFiles: null, write: () => {} });
+    // The cycle (det-a implies det-b implies det-a) is a structural gating
+    // error: runFill must abort in step 1, before any fill or collection.
+    await expect(
+      runFill(graph, { coverageVisibleFiles: null, write: () => {} }),
+    ).rejects.toBeInstanceOf(FillGatingError);
 
     const lock = readLock(graph.rootPath);
-    // The cycle node's entry MUST survive (uncomputable → not provably detached).
-    expect(lock.verdicts['det-a']?.['node:cyc']).toBeDefined();
-    expect(lock.verdicts['det-a']?.['node:cyc']?.hash).toBe('seed-cyc');
-    // The genuinely-detached entry (no node uses ghost-aspect) MUST be pruned.
-    expect(lock.verdicts['ghost-aspect']).toBeUndefined();
-    // The clean node's aspect is in the universe — its entry remains.
-    expect(lock.verdicts['det-clean']?.['node:svc']).toBeDefined();
+    // The cycle node's entry survives — unsurprising on its own, but here it's
+    // a consequence of the run never reaching the collector, not of the
+    // collector choosing to retain it.
+    expect(lock.verdicts['det-a']?.['node:cyc']).toEqual({ verdict: 'approved', hash: 'seed-cyc', touched: [] });
+    // The clean node's entry survives too, even though det-clean has nothing
+    // to do with the cycle — the abort is total, not scoped to the cycle's
+    // own members.
+    expect(lock.verdicts['det-clean']?.['node:svc']).toEqual({ verdict: 'approved', hash: 'seed-svc' });
+    // The genuinely-detached entry — the one a normal GC pass would prune —
+    // ALSO survives: the run stops before the collector runs at all, so it
+    // never gets the chance to decide anything is detached.
+    expect(lock.verdicts['ghost-aspect']?.['node:svc']).toEqual({ verdict: 'approved', hash: 'seed-ghost' });
   });
 });
 
@@ -855,7 +999,7 @@ describe('tainted re-run-once → runtime-error fail-closed (unit-pinned)', () =
     mockRunStructureAspect.mockResolvedValue(taintedResult);
 
     const w = makeWriter();
-    const result = await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // The runner was called exactly twice for this pair (initial + re-run-once).
     expect(mockRunStructureAspect).toHaveBeenCalledTimes(2);
@@ -869,6 +1013,82 @@ describe('tainted re-run-once → runtime-error fail-closed (unit-pinned)', () =
 
     // The runtime-error class notice line was printed.
     expect(w.text()).toContain('deterministic check(s) failed to run at fill time');
+  });
+});
+
+// =============================================================================
+// 12b. Every StructureRunnerError thrown at fill time must surface its OWN
+//      `next` in the actual printed diagnostic, not a generic "fix check.mjs"
+//      fallback that is often simply wrong for the failure it names. This is a
+//      RENDERER-level fix (detRuntimeNotice threads the original messageData
+//      through), not a per-error-code special case, so it covers every code
+//      the structure runner can throw — not only the one below.
+// =============================================================================
+
+describe('a check with no owning component that touches ctx.node — the printed notice names both exits', () => {
+  it('prints the rewrite-to-ctx.subject/ctx.fs exit AND the give-it-a-component exit, not just what/why', async () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'yg-nodeless-render-'));
+    dirs.push(root);
+    const yggRoot = path.join(root, '.yggdrasil');
+    mkdirSync(path.join(yggRoot, 'aspects', 'touches-ctx-node'), { recursive: true });
+    mkdirSync(path.join(yggRoot, 'model'), { recursive: true });
+    mkdirSync(path.join(root, 'src', 'leafy'), { recursive: true });
+    writeFileSync(
+      path.join(yggRoot, 'yg-config.yaml'),
+      `${V5_REVIEWER_CONFIG}\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
+    );
+    writeFileSync(
+      path.join(yggRoot, 'yg-architecture.yaml'),
+      'node_types:\n  leafy:\n    description: x\n    when:\n      path: "src/leafy/**"\n    aspects:\n      - touches-ctx-node\n',
+    );
+    writeFileSync(
+      path.join(yggRoot, 'aspects', 'touches-ctx-node', 'yg-aspect.yaml'),
+      'name: touches-ctx-node\ndescription: touches ctx.node on a file with no owning component\nreviewer:\n  type: deterministic\nscope:\n  per: file\n',
+    );
+    writeFileSync(
+      path.join(yggRoot, 'aspects', 'touches-ctx-node', 'check.mjs'),
+      'export function check(ctx) { void ctx.node.id; return []; }\n',
+    );
+    writeFileSync(path.join(root, 'src', 'leafy', 'a.ts'), 'export const a = 1;\n');
+
+    const graph = await loadGraph(root);
+    const w = makeWriter();
+    await runFill(graph, { coverageVisibleFiles: ['src/leafy/a.ts'], write: w.write, emitIssue: w.emitIssue });
+
+    // Infra disposition: no verdict entry written, pair stays unverified.
+    const lock = readLock(graph.rootPath);
+    expect(lock.verdicts['touches-ctx-node']?.['file:src/leafy/a.ts']).toBeUndefined();
+
+    // The RENDERED text an agent actually sees names both exits — not merely
+    // what broke (ctx.node is unavailable), but how to fix it either way.
+    expect(w.text()).toMatch(/ctx\.subject|ctx\.fs/);
+    expect(w.text()).toMatch(/component of its own/);
+  });
+
+  it('a component-missing failure (STRUCTURE_NODE_MISSING) prints its OWN next, never the generic "fix check.mjs" fallback', async () => {
+    // The check.mjs content is irrelevant — the structure runner is mocked to
+    // reject with the SAME error the real runner throws when a pair's node
+    // path no longer resolves in the graph (structure/hook-loader.ts), so this
+    // pins the renderer's handling of that disposition directly.
+    const { projectRoot } = await setupProject({
+      aspects: [{ id: 'det-node-missing', kind: 'deterministic', status: 'enforced', rule: DET_PASS }],
+    });
+    const graph = await loadGraph(projectRoot);
+
+    mockRunStructureAspect.mockRejectedValueOnce(new StructureRunnerError('STRUCTURE_NODE_MISSING', {
+      what: `Node 'svc' not in graph.`,
+      why: `The runner resolves the node by path to load its mapped files and aspects.`,
+      next: `Pass an existing node path, or add the node to the graph.`,
+    }));
+
+    const w = makeWriter();
+    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+
+    const lock = readLock(graph.rootPath);
+    expect(lock.verdicts['det-node-missing']?.['node:svc']).toBeUndefined();
+
+    expect(w.text()).toMatch(/pass an existing node path/i);
+    expect(w.text()).not.toContain('Fix the check.mjs, then re-run: yg check --approve');
   });
 });
 
@@ -900,7 +1120,7 @@ describe('dry-run cost preview (no writes)', () => {
 
     const w = makeWriter();
     const result = await runFill(graph, {
-      gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue, dryRun: true,
+      coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue, dryRun: true,
     });
 
     // No reviewer was ever invoked.
@@ -942,7 +1162,7 @@ describe('dry-run cost preview (no writes)', () => {
 
     const w = makeWriter();
     const result = await runFill(graph, {
-      gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue,
+      coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue,
       dryRun: true, onlyDeterministic: true,
     });
 
@@ -968,7 +1188,7 @@ describe('dry-run cost preview (no writes)', () => {
     });
     const graph = await loadGraph(projectRoot);
     const w = makeWriter();
-    await runFill(graph, { gitTrackedFiles: null, write: w.write, emitIssue: w.emitIssue, dryRun: true });
+    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue, dryRun: true });
 
     const out = w.text();
     expect(out).toContain('[det] det-a on node:svc — free');
@@ -1002,7 +1222,7 @@ describe('--only-deterministic fill (in-process)', () => {
       async verifyAspect() { verifyCalls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
 
-    const result = await runFill(graph, { gitTrackedFiles: null, write: () => {}, onlyDeterministic: true });
+    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {}, onlyDeterministic: true });
 
     // The reviewer was never asked — onlyDeterministic empties the LLM fill set.
     expect(verifyCalls).toBe(0);

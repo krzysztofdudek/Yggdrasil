@@ -1,9 +1,8 @@
 import type { Graph } from '../../model/graph.js';
-import { runRelationPass } from '../../relations/pass.js';
-import { extractorForLanguage } from '../../relations/extractors/registry.js';
-import { astCacheDir } from '../../relations/facts-cache.js';
-import { makeResolvePathToFile } from '../../relations/resolve-path.js';
+import { runProjectRelationPass } from '../../relations/pass.js';
+import type { RelationPassResult } from '../../relations/pass.js';
 import { buildOwnerIndex } from '../../relations/owner-index.js';
+import type { StructEdge } from '../../core/graph-metrics.js';
 import type { BoundaryInput } from '../contract.js';
 
 /**
@@ -27,6 +26,13 @@ import type { BoundaryInput } from '../contract.js';
  *
  * `computePortalBoundary` returns `null` ONLY when the relation parse genuinely throws —
  * the caller maps `null` to `unknown: true` and never fabricates a clean boundary.
+ *
+ * A caller may also seed the SAME pass with a type-coverage classification
+ * (`typeCoveredFiles`), in which case the return value additionally carries `typedEdges` —
+ * the live type-relation gate's own edges, translated to plain `StructEdge`s (see
+ * `structEdgesFromPass`). This keeps the ≤2-relation-pass invariant (`runCheck`'s own pass +
+ * this one) intact even when the type-level tier is on: the structure panel's widening reuses
+ * this same call instead of a dedicated third pass.
  */
 
 /** Structural relation types — the only ones a static code dependency can back. */
@@ -66,21 +72,47 @@ function isLineage(a: string, b: string): boolean {
 }
 
 /**
+ * Translate the relation pass's live type-relation-gate index (`RelationPassResult.typedEdges`,
+ * `fileOwnerType`) into the plain `StructEdge[]` shape both `yg structure` and the portal
+ * structure panel consume — the SAME translation `computeTypedEdges` below performs for its own,
+ * separate (second) pass. Factored out so `computePortalBoundary` can fold the identical
+ * translation into the ONE pass it already runs when a caller seeds `typeCoveredFiles`, instead
+ * of paying for a second pass just to obtain this. `pass.typedEdges.edgesFrom` returns `[]` for
+ * every file when the pass was not seeded with a classification, so this is `[]` in that case —
+ * never a special-cased branch here.
+ */
+function structEdgesFromPass(graph: Graph, pass: Pick<RelationPassResult, 'fileOwnerType' | 'typedEdges'>): StructEdge[] {
+  const ownerIndex = buildOwnerIndex(graph.nodes);
+  const edges: StructEdge[] = [];
+  for (const fromFile of pass.fileOwnerType.keys()) {
+    const fromId = ownerIndex.ownerOf(fromFile) ?? fromFile;
+    for (const edge of pass.typedEdges.edgesFrom(fromFile)) {
+      const toId = edge.toOwner.kind === 'node' ? edge.toOwner.path : edge.toFile;
+      edges.push({ from: fromId, to: toId, viaContract: false, origin: 'detected' });
+    }
+  }
+  return edges;
+}
+
+/**
  * Compute the FULL live boundary by running the relation pass once and joining its
  * outputs with the architecture matrix. Returns `null` iff the relation pass throws
  * (the only honest "unknown" — never a fabricated clean boundary).
+ *
+ * `typeCoveredFiles`, when passed, seeds the SAME pass with the caller's type-coverage
+ * classification, so the returned `typedEdges` (the live type-relation gate's edges,
+ * translated to plain `StructEdge`s — see `structEdgesFromPass`) come from this ONE pass
+ * rather than a second, dedicated one. Omitted (or empty), `typedEdges` is simply `[]` —
+ * byte-identical to a caller that never asks for the widening at all.
  */
 export async function computePortalBoundary(
   graph: Graph,
   projectRoot: string,
+  typeCoveredFiles?: Map<string, string>,
 ): Promise<BoundaryInput | null> {
   let pass;
   try {
-    pass = await runRelationPass(graph, projectRoot, {
-      extractorFor: extractorForLanguage,
-      resolvePathToFile: makeResolvePathToFile(projectRoot, buildOwnerIndex(graph.nodes).ownerOf),
-      symbolIndexDir: astCacheDir(graph.rootPath),
-    });
+    pass = await runProjectRelationPass(graph, projectRoot, typeCoveredFiles);
   } catch {
     return null;
   }
@@ -138,7 +170,11 @@ export async function computePortalBoundary(
   }
   detectedEdgesByNode.sort((a, b) => (a.from < b.from ? -1 : a.from > b.from ? 1 : 0));
 
-  return { phantom, declaredOnly, forbiddenType, detectedEdgesByNode };
+  // The live type-relation gate's own edges, from the SAME pass above — `[]` when
+  // `typeCoveredFiles` was not seeded (see `structEdgesFromPass`'s own doc).
+  const typedEdges = structEdgesFromPass(graph, pass);
+
+  return { phantom, declaredOnly, forbiddenType, detectedEdgesByNode, typedEdges };
 }
 
 /**
@@ -162,13 +198,45 @@ export async function computeDetectedEdges(
   projectRoot: string,
 ): Promise<Map<string, Set<string>> | null> {
   try {
-    const pass = await runRelationPass(graph, projectRoot, {
-      extractorFor: extractorForLanguage,
-      resolvePathToFile: makeResolvePathToFile(projectRoot, buildOwnerIndex(graph.nodes).ownerOf),
-      symbolIndexDir: astCacheDir(graph.rootPath),
-    });
+    const pass = await runProjectRelationPass(graph, projectRoot);
     return pass.detectedEdgesByNode;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Additive, READ-ONLY accessor over the relation pass: run it ONCE, seeded with
+ * the caller's own type-coverage classification, and return the live
+ * type-relation gate's edges (`TypedEdgeIndex`) — every statically-resolved
+ * import edge with at LEAST ONE type-covered endpoint — already translated into
+ * the same plain `StructEdge` shape `edgeUniverse` produces, so a caller (`yg
+ * structure`) can merge them into its existing universe without a second,
+ * drifting implementation of "what is this edge's component id".
+ *
+ * The translation: a node-owned endpoint is named by its owning node's id (the
+ * SAME id space `edgeUniverse`'s node-to-node edges already use); a
+ * type-covered endpoint is named by its own file path (it has no node id to
+ * borrow — this mirrors how the type-relation gate itself names it). By
+ * `TypedEdgeIndex`'s own contract every edge here has at least one type-covered
+ * endpoint, so the two translated ids are never BOTH real node ids — this can
+ * never collide with or duplicate a node-to-node edge `computeDetectedEdges`
+ * already reports.
+ *
+ * Fails open to an empty array on any relation-pass failure — matching
+ * `computeDetectedEdges`'s own fail-open contract — so a malformed
+ * architecture or a parse throw degrades `yg structure` to its
+ * node-only view rather than crashing a read-only, never-gating command.
+ */
+export async function computeTypedEdges(
+  graph: Graph,
+  projectRoot: string,
+  typeCoveredFiles: Map<string, string>,
+): Promise<StructEdge[]> {
+  try {
+    const pass = await runProjectRelationPass(graph, projectRoot, typeCoveredFiles);
+    return structEdgesFromPass(graph, pass);
+  } catch {
+    return [];
   }
 }

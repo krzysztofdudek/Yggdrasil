@@ -40,3 +40,21 @@ Registers relation-target-type-unknown in the structural code set so a relation 
 An out-of-repository file's bytes must never flow into a reviewer prompt. The primary defense rejects a mapping that escapes the project root at parse time, so such a node never loads. As defense in depth, the fill-and-approve stage now also treats an escaping mapping as a gating condition: if one ever reached a loaded graph by another route, the approve run aborts before any subject file is read rather than sending its contents to a reviewer.
 ## [2026-07-24T12:09:09.255Z]
 A new category of non-blocking finding needed a single shared name so that the two places a repository's problems are tallied and grouped, the running summary counts and the detailed per-issue grouping, can never quietly diverge on how many of this kind of issue exist or how it gets labeled. Recording it once in the shared category list, rather than inline in each caller, is what keeps that guarantee automatic instead of something that has to be remembered every time a caller changes.
+## [2026-07-27T14:26:40.134Z]
+Removes the retired coverage-conflict code from the structural code set now that its detector is gone. Its replacement varies in severity by where the offending file lives in the repository, so it does not belong in a set reserved for codes that always block regardless of state.
+## [2026-07-27T15:57:02.746Z]
+ambiguous-node-type joins the structural code set: it always blocks yg check, like the other architecture-shape codes, and the summary tally and the check command's error grouping now agree on that without either needing its own copy of the rule.
+## [2026-07-28T12:11:38.315Z]
+Documents the new coverage-required-shadowed warning code: it flags a required coverage root that can never match a file because it is fully contained in an excluded root, a consequence of coverage exclusion becoming absolute rather than a longest-match comparison.
+## [2026-07-28T12:25:31.449Z]
+Reworded the coverage-required-shadowed warning-code doc comment so it reads as a self-contained description of the absolute-exclusion rule rather than referencing an external planning label.
+## [2026-07-28T13:56:14.420Z]
+Gained the zero-classifying-types standing notice constant, moved here from core/check.ts — it is a shared user-facing string read by two unrelated command files (yg check's coverage-section render and yg init's closing summary), which belongs beside the other shared issue-code constants rather than living inside the check orchestrator.
+## [2026-07-28T15:37:23.450Z]
+Registered the new live type-relation gate's blocking code in the structural set so the summary tally and the rendered error grouping count it consistently, the same single source every other blocking code already shares.
+## [2026-07-31T08:26:04.808Z]
+Registered the new file-mapping-nested-project structural error code alongside the existing gitignore one, so both render in the same grouped category.
+## [2026-07-31T12:04:34.900Z]
+The structural code that used to name only a nested-project cause for an unusable mapping entry now also covers the case where an adopter's own coverage.excluded config is what emptied it, so it is renamed to describe the general condition rather than the one cause it originally covered.
+## [2026-08-06T13:56:20.201Z]
+A cycle in rule implications leaves the effective rule set impossible to resolve, yet approval went ahead anyway: it dispatched every unrelated rule first, spending a reviewer call on each, and only then ended red. A cycle now stops approval outright, before anything is dispatched and before anything is recorded, so no work and no cost is spent while it is unknown which rules apply.

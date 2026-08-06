@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runGitFixture } from '../support/git-fixture.js';
 import { detLockPath } from './support/read-lock.js';
+import { FIXTURE_TWO_COVERED_FILES } from '../fixtures/type-level-engine/variants/index.js';
 
 // ---------------------------------------------------------------------------
 // CLI E2E — `yg aspects --health` (C3 slice 1).
@@ -90,10 +91,10 @@ function healthRow(output: string, aspectId: string): string[] {
 }
 
 // Column indices for the fixed order:
-//   aspect | kind | status | nodes | pairs | refused | suppresses | errs | age | catch | exposure | signal | fp | wrong-rule
+//   aspect | kind | status | nodes | pairs | refused | suppresses | errs | age | catch | exposure | signal | fp | wrong-rule | files
 const COL = {
   aspect: 0, kind: 1, status: 2, nodes: 3, pairs: 4, refused: 5, suppresses: 6, errs: 7, age: 8,
-  catch: 9, exposure: 10, signal: 11, fp: 12, wrongRule: 13,
+  catch: 9, exposure: 10, signal: 11, fp: 12, wrongRule: 13, files: 14,
 };
 
 /** Append well-formed synthetic telemetry lines to a gitignored sidecar under `.yggdrasil/`. */
@@ -413,7 +414,8 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(health.status).toBe(0); // informational, never blocks
       const out = health.stdout;
 
-      // Header gains fp as the LAST column.
+      // Header carries the fp column, followed by wrong-rule; this fixture never
+      // turns coverage.type_level on, so files stays absent from the header too.
       const header = out.split('\n').find((l) => l.includes('aspect') && l.includes('fp'));
       expect(header!.trim().split(/\s{2,}/)).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
@@ -546,7 +548,8 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(health.status).toBe(0); // informational, never blocks
       const out = health.stdout;
 
-      // Header gains wrong-rule as the LAST column.
+      // Header carries the wrong-rule column, and stops there — this fixture never
+      // turns coverage.type_level on, so files stays absent from the header too.
       const header = out.split('\n').find((l) => l.includes('aspect') && l.includes('wrong-rule'));
       expect(header!.trim().split(/\s{2,}/)).toEqual([
         'aspect', 'kind', 'status', 'nodes', 'pairs', 'refused', 'suppresses', 'errs', 'age',
@@ -572,6 +575,151 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const advise = run(['advise'], dir);
       expect(advise.status).toBe(0);
       expect(advise.stdout).toContain('2 wrong-rule incidents recorded — rules may be miscalibrated; see incidents.md');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ── type-level coverage threading: `--health` must count the SAME expected-pair
+// universe `yg check` counts, including a file enforced by its architecture type
+// alone (no owning component) — real fixture, real binary, no fabricated pair
+// data. Uses the shared tests/fixtures/type-level-engine/ project merged with its
+// two-covered-files variant (the same real fixture cli-type-coverage-fill.test.ts
+// drives through the fill stage): one real node (`owned`, type `leaf`) alongside
+// two componentless files matching the same type (src/leaf/{a,b}.ts), carrying a
+// deterministic rule that refuses ONLY on a.ts (refuses-on-a) and an LLM rule
+// attached to the whole type (llm-leaf-rule).
+const TYPE_LEVEL_BASE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
+
+function copyMergedTypeLevelFixture(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-aspects-health-typelevel-'));
+  cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
+  cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+  return dir;
+}
+
+/**
+ * Append a reviewer: block so tier resolution succeeds (the base fixture ships
+ * none, and `yg check --approve` refuses to run at all without one). The
+ * endpoint is never actually dialed — every pinning run below stays
+ * `--only-deterministic`, so the LLM tier is resolved but not called.
+ */
+function addUnusedReviewer(dir: string): void {
+  appendFileSync(
+    path.join(dir, '.yggdrasil', 'yg-config.yaml'),
+    '\nreviewer:\n  default: standard\n  tiers:\n    standard:\n      provider: ollama\n' +
+      '      consensus: 1\n      config:\n        model: "unused"\n        endpoint: "http://127.0.0.1:1"\n',
+  );
+}
+
+describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts type-covered files', () => {
+  it("a refusal on a type-covered file shows in --health's refused column, and pairs/files match the universe yg check counts", () => {
+    const dir = copyMergedTypeLevelFixture();
+    try {
+      addUnusedReviewer(dir);
+
+      // Populate the lock for free: refuses-on-a (deterministic) is attached to
+      // type `leaf`, live on the real node `owned` AND the two componentless
+      // files matching the same type — a real refusal on a.ts, no reviewer call.
+      const fill = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(fill.all).toContain('[det] refuses-on-a on file:src/leaf/a.ts — refused');
+
+      // `yg check` itself still fails on that refusal — the ground truth
+      // `--health` must agree with.
+      const check = run(['check'], dir);
+      expect(check.status).toBe(1);
+      expect(check.stdout).toContain("src/leaf/a.ts  Violations:");
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0); // informational, never blocks
+
+      // refuses-on-a: 1 real node (owned) + 2 type-covered files (a.ts, b.ts) —
+      // the SAME universe `yg check` just failed on — 3 pairs total, ONE of
+      // them refused (a.ts). Before threading the type-coverage classification
+      // into verifyLock, --health read nodes=1, pairs=1, refused=0: the
+      // node-only universe, with the type-covered file's own refusal invisible.
+      const refusesOnA = healthRow(health.stdout, 'refuses-on-a');
+      expect(refusesOnA[COL.nodes]).toBe('1');
+      expect(refusesOnA[COL.pairs]).toBe('3');
+      expect(refusesOnA[COL.refused]).toBe('1');
+      expect(refusesOnA[COL.files]).toBe('2');
+
+      // llm-leaf-rule shares the same 3-pair universe (1 node + 2 files); none
+      // of its pairs were touched by --only-deterministic, so all 3 read
+      // unverified — never a `0`, and never a `1` that silently drops the two
+      // type-covered files from the count.
+      const llmLeafRule = healthRow(health.stdout, 'llm-leaf-rule');
+      expect(llmLeafRule[COL.pairs]).toBe('3');
+      expect(llmLeafRule[COL.refused]).toBe('unverified');
+      expect(llmLeafRule[COL.files]).toBe('2');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+// ── the suppresses column must count a marker wherever the reviewer honors one,
+// not only where an ordinary git-tracked-file walk happens to look. Three files,
+// two real aspects: a type-covered file with no owning component (src/pics/
+// readme.md, aspect prose-rule — a `.md` subject, so the count actually depends
+// on the type-coverage exemption reaching the noise filter, unlike a `.ts`
+// subject that was never noise to begin with), and two files the real 'owned'
+// node maps directly, both carrying own-file-rule — one under `.yggdrasil/`
+// (pruned from the coverage walk) and one a `.gitignore` excludes (an exact
+// mapping entry is reviewed regardless of ignore status). The deterministic
+// runner honors a marker on all three; the suppresses column must count all
+// three too.
+
+function copyMergedTypeLevelFixtureWithBinarySubject(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-aspects-health-waiverhosts-'));
+  cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
+  cpSync(path.join(TYPE_LEVEL_BASE, 'variants', 'binary-subject'), dir, { recursive: true });
+  return dir;
+}
+
+describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts a marker wherever it is honored, whatever file hosts it', () => {
+  it('the suppresses column counts the type-covered file, the .yggdrasil/-mapped file, and the gitignored mapped file', () => {
+    const dir = copyMergedTypeLevelFixtureWithBinarySubject();
+    try {
+      addUnusedReviewer(dir);
+
+      const nodeYamlPath = path.join(dir, '.yggdrasil', 'model', 'owned', 'yg-node.yaml');
+      const original = readFileSync(nodeYamlPath, 'utf-8');
+      const updated = original.replace(
+        'mapping:\n  - src/owned/o.ts\n',
+        'mapping:\n  - src/owned/o.ts\n  - .yggdrasil/meta/notes.md\n  - generated/g.ts\n',
+      );
+      expect(updated).not.toBe(original);
+      writeFileSync(nodeYamlPath, updated);
+
+      mkdirSync(path.join(dir, '.yggdrasil', 'meta'), { recursive: true });
+      writeFileSync(
+        path.join(dir, '.yggdrasil', 'meta', 'notes.md'),
+        '# design notes\n\n<!-- yg-suppress(own-file-rule) mapped under .yggdrasil -->\n',
+      );
+
+      writeFileSync(path.join(dir, '.gitignore'), 'generated/\n');
+      mkdirSync(path.join(dir, 'generated'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'generated', 'g.ts'),
+        'export const G = 1;\n// yg-suppress(own-file-rule) mapped but gitignored\n',
+      );
+
+      appendFileSync(
+        path.join(dir, 'src', 'pics', 'readme.md'),
+        '\n<!-- yg-suppress(prose-rule) type-covered, no component -->\n',
+      );
+
+      run(['check', '--approve', '--only-deterministic'], dir);
+
+      const health = run(['aspects', '--health'], dir);
+      expect(health.status).toBe(0);
+
+      const ownFileRule = healthRow(health.stdout, 'own-file-rule');
+      expect(ownFileRule[COL.suppresses]).toBe('2');
+      const proseRule = healthRow(health.stdout, 'prose-rule');
+      expect(proseRule[COL.suppresses]).toBe('1');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

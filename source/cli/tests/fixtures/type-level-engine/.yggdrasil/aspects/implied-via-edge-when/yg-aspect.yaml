@@ -1,0 +1,7 @@
+name: Implied Via Edge When
+description: "Reached ONLY via edge-relations-gate's implies edge. Carries NO own when: of its own — its applicability is gated entirely by the IMPLIES EDGE's impliesWhens relations clause declared on edge-relations-gate, not by anything on this aspect. Its correct status (advisory, its own default via status_inherit: own-default — distinct from the 'enforced' fallback) depends on the status fix-point's own per-edge impliesWhens check seeing the derived-relation overrides."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+status: advisory

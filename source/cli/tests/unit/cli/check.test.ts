@@ -452,7 +452,7 @@ describe('check command', () => {
         await mkdir(path.join(ygg, 'aspects'), { recursive: true });
         await mkdir(path.join(ygg, 'flows'), { recursive: true });
         await writeFile(path.join(ygg, 'yg-config.yaml'),
-          'version: "5.1.0"\n' +
+          'version: "5.2.0"\n' +
           'quality:\n  max_direct_relations: 10\n' +
           'reviewer:\n  default: standard\n  tiers:\n    standard:\n' +
           '      provider: ollama\n      consensus: 1\n' +
@@ -495,7 +495,7 @@ describe('check command', () => {
         await mkdir(path.join(ygg, 'flows'), { recursive: true });
         await writeFile(
           path.join(ygg, 'yg-config.yaml'),
-          `version: "5.1.0"\n` +
+          `version: "5.2.0"\n` +
           `auto_approve: "${autoApprove}"\n` +
           `quality:\n  max_direct_relations: 10\n` +
           `reviewer:\n  default: standard\n  tiers:\n    standard:\n` +

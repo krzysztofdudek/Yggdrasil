@@ -50,7 +50,7 @@ import {
 import { computeAllowedNodePaths } from '../structure/ctx-graph.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
 import { ruleHashFor, contentFor, nodeDescriptionFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
-import type { ExpectedPair, UnreadableSubject } from './pairs.js';
+import type { ExpectedPair, UnreadableSubject, TypeCoverageInput, PairDrop, UncomputableTypeCoverage } from './pairs.js';
 import { computeExpectedPairs } from './pairs.js';
 import { selectTierForAspect } from './tier-selection.js';
 import { assembledPromptChars, DEFAULT_MAX_PROMPT_CHARS } from '../llm/prompt.js';
@@ -92,6 +92,10 @@ export interface LockVerification {
   pairs: VerifiedPair[];
   /** From PairComputation — callers MUST render as blocking file-unreadable errors. */
   unreadable: UnreadableSubject[];
+  /** From PairComputation — every reason a rule attached to a type-covered file does not run on it (core/type-visibility.ts's static half). */
+  drops: PairDrop[];
+  /** From PairComputation — type-covered files an aspect `implies` cycle stopped from being resolved at all (core/type-visibility.ts's "could not be worked out" half — distinct from `drops`). */
+  uncomputableTypeCoverage: UncomputableTypeCoverage[];
 }
 
 // ============================================================
@@ -102,9 +106,43 @@ export interface LockVerification {
  * Verify a loaded graph against a lock file. Pure read — no writes, no LLM
  * calls, no check.mjs execution. Returns a per-pair classification plus the
  * unreadable-subject list from pair computation.
+ *
+ * `typeCoverage` (CRITICAL): the SAME classification the caller already
+ * computed once for this run, threaded through rather than recomputed here.
+ * Without it, this builds a component-only pair universe while the lock may
+ * already hold `file:` verdict entries: those entries would have no pair to
+ * attach to, so they render as unexpected and the run goes red even though it
+ * should be green.
  */
-export async function verifyLock(graph: Graph, lock: LockFile): Promise<LockVerification> {
-  const { pairs, unreadable } = await computeExpectedPairs(graph);
+export async function verifyLock(
+  graph: Graph,
+  lock: LockFile,
+  typeCoverage?: TypeCoverageInput,
+): Promise<LockVerification> {
+  const { pairs, unreadable, drops, uncomputableTypeCoverage } = await computeExpectedPairs(graph, { typeCoverage });
+  const verified = await verifyPairs(graph, lock, pairs, typeCoverage);
+  return { pairs: verified, unreadable, drops, uncomputableTypeCoverage };
+}
+
+/**
+ * The per-pair re-verification loop `verifyLock` runs over EVERY expected
+ * pair in the graph, factored out so a caller that already holds a SMALL,
+ * pre-filtered slice of `ExpectedPair[]` (a single file's own nodeless pairs
+ * — `yg owner --file`, `yg context --file`) can pay for exactly that slice's
+ * re-hash instead of a second whole-project `computeExpectedPairs` walk on
+ * top of the one it (or its caller) already ran to get `pairs` in the first
+ * place. Same classification `verifyLock` produces for the identical pair —
+ * this IS the engine `yg check` itself runs, not a cheaper approximation of
+ * it: a stored entry that no longer matches its current input hash comes
+ * back `{ kind: 'unverified' }` here exactly as it would from a full
+ * `verifyLock` call, never only a missing-entry check.
+ */
+export async function verifyPairs(
+  graph: Graph,
+  lock: LockFile,
+  pairs: ExpectedPair[],
+  typeCoverage?: TypeCoverageInput,
+): Promise<VerifiedPair[]> {
   const projectRoot = path.dirname(graph.rootPath);
 
   // Index aspect defs by id for O(1) lookup.
@@ -132,6 +170,12 @@ export async function verifyLock(graph: Graph, lock: LockFile): Promise<LockVeri
 
   const verified: VerifiedPair[] = [];
 
+  // The architecture-reach cache for a nodeless (component-free) LLM pair's
+  // companion resolution — shared across every pair THIS call reviews,
+  // computed once per matched type rather than once per pair. Mirrors
+  // core/fill.ts's own per-run cache (same contract: fromType -> Set<string>).
+  const reachCache = new Map<string, Set<string>>();
+
   for (const pair of pairs) {
     const aspect = aspectById.get(pair.aspectId);
     // Defensive: pairs come from the same graph, so the aspect always exists.
@@ -142,7 +186,7 @@ export async function verifyLock(graph: Graph, lock: LockFile): Promise<LockVeri
 
     if (pair.kind === 'llm') {
       verified.push(
-        await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached),
+        await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached, typeCoverage, reachCache),
       );
     } else {
       verified.push(
@@ -151,7 +195,7 @@ export async function verifyLock(graph: Graph, lock: LockFile): Promise<LockVeri
     }
   }
 
-  return { pairs: verified, unreadable };
+  return verified;
 }
 
 // ============================================================
@@ -167,6 +211,8 @@ async function verifyLlmPair(
   storedEntry: VerdictEntry | undefined,
   readBytes: (absPath: string) => Promise<Buffer | null>,
   hashCached: (absPath: string, bytes: Buffer) => string,
+  typeCoverage: TypeCoverageInput | undefined,
+  reachCache: Map<string, Set<string>>,
 ): Promise<VerifiedPair> {
   // ── Resolve the tier (needed for both validity recompute and the gate). ──
   const reviewer = graph.config.reviewer;
@@ -202,7 +248,7 @@ async function verifyLlmPair(
   // ── ruleHash = sha256(content.md bytes). Artifacts carry the loaded text. ──
   const ruleHash = ruleHashFor(aspect, 'content.md');
 
-  // ── Companion symmetry (Task 6). companionHash folds UNCONDITIONALLY: undefined
+  // ── Companion symmetry. companionHash folds UNCONDITIONALLY: undefined
   //    for a plain aspect → not folded → the hash is byte-identical to the
   //    pre-feature contract. A companion aspect (any artifact named companion.mjs,
   //    even a []-resolving one) folds its companion.mjs digest, so a hook edit
@@ -215,11 +261,17 @@ async function verifyLlmPair(
   //    disk/graph exactly as verifyDetPair does (seeded with pair.nodePath so the
   //    two runners agree on graph visibility). A changed/vanished value yields a
   //    mismatch ⇒ unverified, never a throw. A plain aspect stored no touched, so
-  //    touchedNow stays [] and is NOT folded (the hash guards on length). ──
+  //    touchedNow stays [] and is NOT folded (the hash guards on length). A
+  //    nodeless unit seeds reObserve with the empty component context (''); its
+  //    stored set can never carry a graph-bytype/-children/-flow key (a
+  //    nodeless unit's ctx.graph refuses every call, so those observation
+  //    kinds can never be recorded for one in the first place), so
+  //    reObserve's component-scoped branches are unreachable here — pinned by a
+  //    test, no new branch needed. ──
   const stored = storedEntry?.touched ?? [];
   const touchedNow: Array<[string, string]> = [];
   for (const [key] of stored) {
-    touchedNow.push([key, await reObserve(key, graph, pair.nodePath, projectRoot, readBytes)]);
+    touchedNow.push([key, await reObserve(key, graph, pair.nodePath ?? '', projectRoot, readBytes)]);
   }
 
   // ── Prompt-size gate (§4): active whenever a tier resolves (an omitted
@@ -246,7 +298,7 @@ async function verifyLlmPair(
     const limit = tierResult.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS;
     let gateCompanions: PromptCompanionInput[] = [];
     if (aspect.hasCompanion === true) {
-      const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect);
+      const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect, typeCoverage, reachCache);
       if (resolved.kind === 'infra') {
         return { pair, state: { kind: 'companion-error', messageData: resolved.messageData } };
       }
@@ -339,7 +391,8 @@ async function verifyDetPair(
     const stored = storedEntry.touched ?? [];
     const touchedNow: Array<[string, string]> = [];
     for (const [key] of stored) {
-      const nowHash = await reObserve(key, graph, pair.nodePath, projectRoot, readBytes);
+      // Empty component context for a nodeless unit — see verifyLlmPair's twin comment.
+      const nowHash = await reObserve(key, graph, pair.nodePath ?? '', projectRoot, readBytes);
       touchedNow.push([key, nowHash]);
     }
 

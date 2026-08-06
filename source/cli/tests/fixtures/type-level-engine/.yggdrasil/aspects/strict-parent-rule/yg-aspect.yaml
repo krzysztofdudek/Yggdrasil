@@ -1,0 +1,6 @@
+name: Strict Parent Rule
+description: "strictparent's own default — pins that an enforce:strict type still participates when it appears as an implicit ancestor (underStrict's parent)."
+reviewer:
+  type: deterministic
+scope:
+  per: file

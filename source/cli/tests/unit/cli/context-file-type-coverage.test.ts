@@ -1,0 +1,277 @@
+/**
+ * `yg context --file` on a file enforced by its architecture type alone (no
+ * owning component) — the typed view (build-context.ts / formatters/
+ * context-file.ts) that REPLACES today's "not covered by any node" error for
+ * such a file. Real spawned binary, real tests/fixtures/type-level-engine/.
+ */
+import { describe, it, expect } from 'vitest';
+import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { spawnSync } from 'node:child_process';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const CLI_ROOT = path.join(__dirname, '../../..');
+const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
+const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
+const FIXTURE_BINARY_SUBJECT = path.join(FIXTURE, 'variants', 'binary-subject');
+const FIXTURE_ZERO_ENFORCEMENT = path.join(FIXTURE, 'variants', 'zero-enforcement');
+const FIXTURE_CYCLIC_TYPE = path.join(FIXTURE, 'variants', 'cyclic-type');
+const FIXTURE_NEEDS_NODE_CONTEXT = path.join(FIXTURE, 'variants', 'needs-node-context');
+const distExists = existsSync(BIN_PATH);
+
+function copyFixture(...overlays: string[]): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-context-file-typecov-'));
+  cpSync(FIXTURE, dir, { recursive: true });
+  for (const overlay of overlays) cpSync(overlay, dir, { recursive: true });
+  return dir;
+}
+
+function run(args: string[], cwd: string): { stdout: string; stderr: string; status: number | null } {
+  const r = spawnSync('node', [BIN_PATH, ...args], { cwd, encoding: 'utf-8' });
+  return { stdout: r.stdout ?? '', stderr: r.stderr ?? '', status: r.status };
+}
+
+describe.skipIf(!distExists)('yg context --file — typed view for a type-covered file', () => {
+  it('shows the matched type, chain termination, applied and dropped rules, the derived-relations note, and the graduation next-step', () => {
+    const dir = copyFixture();
+    try {
+      const { stdout, status } = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(status).toBe(0);
+      // The matched type.
+      expect(stdout).toContain('Matched type: leaf');
+      // The inherited chain, where and why it stops (leaf -> mid -> top, absent parents).
+      expect(stdout).toMatch(/inherited rules stop at 'top' — it has no parent type to inherit from/);
+      // A rule that DOES apply.
+      expect(stdout).toContain('own-file-rule');
+      // A rule attached to the type that does NOT apply, with its reason.
+      expect(stdout).toContain('drafty');
+      expect(stdout).toMatch(/drafty.*draft/);
+      expect(stdout).toContain('never-here');
+      // The derived-relations honesty note.
+      expect(stdout).toMatch(/worked out from this file's own imports/);
+      // The graduation next-step.
+      expect(stdout).toMatch(/give this file a component of its own/);
+      // The OLD not-covered text must be gone for this file.
+      expect(stdout).not.toContain('This file is not covered by any node.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A binary file whose only attached rule is an LLM (prose) aspect must show
+  // the SAME reason context-file.ts's "Attached but not enforced" section
+  // already gives every other drop — a silently missing drop here would
+  // render the rule as [enforced] with no reason, which is false: a prose
+  // rule can never review bytes it cannot read as text.
+  it('a binary file whose only attached rule is an LLM aspect reports it as not enforced, with the binary-subject reason — never [enforced]', () => {
+    const dir = copyFixture(FIXTURE_BINARY_SUBJECT);
+    try {
+      const { stdout, status } = run(['context', '--file', 'src/pics/logo.png'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Matched type: pics');
+      // Never listed as a rule this file must satisfy.
+      expect(stdout).not.toContain('Must satisfy:');
+      expect(stdout).not.toMatch(/prose-rule \[enforced\]/);
+      // Listed under "attached but not enforced", with the real reason.
+      expect(stdout).toContain('Attached to this type but not enforced here:');
+      expect(stdout).toMatch(/prose-rule — a binary file cannot be reviewed by a prose rule/);
+      // The zero-rules statement fires for this file too — a binary subject
+      // dropping its only attached rule still leaves it with no applicable
+      // rule at all.
+      expect(stdout).toContain('No rules from this type apply to this file — it satisfies coverage with no enforcement.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // The SAME type's text file: prose-rule genuinely enforces there.
+  it('the same type\'s text file shows prose-rule as a rule that DOES apply', () => {
+    const dir = copyFixture(FIXTURE_BINARY_SUBJECT);
+    try {
+      const { stdout, status } = run(['context', '--file', 'src/pics/readme.md'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Must satisfy:');
+      // A cold, never-filled project also carries the "unverified" caveat
+      // here — orthogonal to what this test pins (real status, not binary
+      // exemption), so the match tolerates it rather than asserting on it.
+      expect(stdout).toMatch(/prose-rule \[enforced(?:, unverified)?\]/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // An advisory rule must render its real status, not a hardcoded [enforced].
+  // src/leaf/a.ts's own-file-rule implies
+  // implied-file-rule (status: advisory, status_inherit: own-default) — a
+  // rule that genuinely runs on this file but only warns.
+  it('an advisory rule shows [advisory], never a hardcoded [enforced]', () => {
+    const dir = copyFixture();
+    try {
+      const { stdout, status } = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(status).toBe(0);
+      // A cold, never-filled project also carries the "unverified" caveat
+      // here — orthogonal to what this test pins (real status, never a
+      // hardcoded one), so the match tolerates it rather than asserting on it.
+      expect(stdout).toMatch(/implied-file-rule \[advisory(?:, unverified)?\]/);
+      expect(stdout).not.toMatch(/implied-file-rule \[enforced/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // `[enforced]` names architecture-level status, never a recorded verdict —
+  // a cold, never-filled project must say so, the same qualified caveat
+  // plain `yg check` already carries for the identical pair, and the caveat
+  // must disappear once the pair genuinely has one — then reappear if the
+  // file changes again with no re-approve, since a present-but-stale entry
+  // is just as much a gap as a missing one.
+  it('names a rule with no recorded lock entry as [enforced, unverified], drops the caveat once the lock actually holds a valid one, and puts it back once that entry goes stale', () => {
+    const dir = copyFixture(FIXTURE_NEEDS_NODE_CONTEXT);
+    try {
+      const before = run(['context', '--file', 'src/crashy/a.ts'], dir);
+      expect(before.status).toBe(0);
+      expect(before.stdout).toMatch(/needs-node-context \[enforced, unverified\] —/);
+
+      // A DIFFERENT, well-behaved pair on the same project (src/leaf/a.ts,
+      // own-file-rule) starts with the identical caveat before any fill —
+      run(['check', '--approve', '--only-deterministic'], dir);
+      // — and loses it entirely once its own fill genuinely wrote a verdict,
+      // while src/crashy/a.ts's own pair (fails closed every attempt — its
+      // check.mjs reads ctx.node unconditionally, a structurally impossible
+      // ask for a component-free file) keeps the caveat, since no verdict
+      // was ever written for it.
+      const after = run(['context', '--file', 'src/crashy/a.ts'], dir);
+      expect(after.stdout).toMatch(/needs-node-context \[enforced, unverified\] —/);
+      const leafAfter = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(leafAfter.stdout).toMatch(/own-file-rule \[enforced\] —/);
+      expect(leafAfter.stdout).not.toContain('unverified');
+
+      // A plain source edit, no re-approve: the lock still holds an entry
+      // for every one of src/leaf/a.ts's own rules, but none of them match
+      // its current bytes any more. The tag must come back — a PRESENT
+      // entry that no longer matches current input is exactly as much a gap
+      // as no entry at all, and reading only presence would silently miss it.
+      writeFileSync(path.join(dir, 'src', 'leaf', 'a.ts'), 'export const a = 2;\n');
+      const leafStale = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(leafStale.stdout).toMatch(/own-file-rule \[enforced, unverified\] —/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A type-covered file with ZERO applicable rules must state the zero case
+  // plainly, not say nothing at all — a silent gap here reads as "not worth
+  // mentioning" rather than the honest "nothing enforces here" fact an agent
+  // needs from the one surface it actually consults for this file.
+  it('a type-covered file with zero applicable rules states the zero case plainly', () => {
+    const dir = copyFixture(FIXTURE_ZERO_ENFORCEMENT);
+    try {
+      const { stdout, status } = run(['context', '--file', 'src/ep/e.ts'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('Matched type: emptyparents');
+      expect(stdout).not.toContain('Must satisfy:');
+      expect(stdout).toContain('No rules from this type apply to this file — it satisfies coverage with no enforcement.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // src/unclassified/x.ts matches no architecture type's when: at all, so
+  // the real, live "no graph coverage" error (not context-file.ts's own
+  // long-dead "This file is not covered by any node." branch, which no
+  // build-context.ts call site has ever reached) still fires, unchanged —
+  // pinned here so type-level coverage work can never silently change it.
+  it('an ordinary unmapped, unclassified file keeps today\'s "no graph coverage" error unchanged', () => {
+    const dir = copyFixture();
+    try {
+      const { stderr, status } = run(['context', '--file', 'src/unclassified/x.ts'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('has no graph coverage.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // `.yggdrasil/model/owned/yg-node.yaml` is a graph-internal path, never a
+  // classification candidate — the ordinary coverage walk never enumerates
+  // it. This pins that `yg context --file` on such a path stays exempt even
+  // against a classifying type broad enough to match every .yaml file in the
+  // repository, including the graph's own — the same discriminating check
+  // `yg owner --file` gets, at the OTHER call site design §3 names ("any
+  // classify call NOT behind the walk filter would match every type").
+  it('a .yggdrasil/-internal path stays exempt even against a classifying type that would vacuously match everything', () => {
+    const dir = copyFixture();
+    try {
+      const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+      const arch = readFileSync(archPath, 'utf-8').replace(
+        'node_types:',
+        'node_types:\n  anyyaml:\n    description: "Vacuously matches every .yaml file in the repository, including the graph\'s own."\n    when:\n      path: "**/*.yaml"\n',
+      );
+      writeFileSync(archPath, arch, 'utf-8');
+      const { stdout, stderr, status } = run(['context', '--file', '.yggdrasil/model/owned/yg-node.yaml'], dir);
+      expect(status).toBe(0);
+      expect(stdout + stderr).not.toMatch(/Matched type:|type:anyyaml/);
+      expect(stdout).toContain('is excluded from graph coverage by design.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A path excluded by an adopter's own coverage.excluded root — as opposed
+  // to the structurally-exempt case above (git internals / the graph's own
+  // directory) — must name that ONE real cause, the same way `yg owner
+  // --file` already does for the identical path via describeExclusionSource.
+  // Before this fix, context --file instead guessed at three possible causes
+  // ("is never scanned for coverage ... , sits inside a separate project's
+  // own boundary, or matches a coverage.excluded root"), leaving the reader
+  // to check both their config and their filesystem to learn something the
+  // CLI already knew for certain.
+  it('a coverage.excluded root names that exact cause, not a three-way guess', () => {
+    const dir = copyFixture();
+    try {
+      const configPath = path.join(dir, '.yggdrasil', 'yg-config.yaml');
+      const config = readFileSync(configPath, 'utf-8').replace('excluded: []', 'excluded:\n    - src/leaf/');
+      writeFileSync(configPath, config, 'utf-8');
+      const { stdout, status } = run(['context', '--file', 'src/leaf/a.ts'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('src/leaf/a.ts is excluded from graph coverage by design.');
+      expect(stdout).toContain('it matches a coverage.excluded root in yg-config.yaml');
+      expect(stdout).not.toContain("separate project's own boundary");
+      expect(stdout).not.toContain('git internals / the graph directory itself');
+      expect(stdout).not.toContain('Matched type:');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // A type-covered file whose matched type's rules hit an implies cycle
+  // (cyclic-a <-> cyclic-b, variants/cyclic-type) must never be told "No
+  // rules from this type apply to this file — it satisfies coverage with no
+  // enforcement": that reads as a clean, verified state, but the rules could
+  // not be worked out at all. yg check independently reports the cycle as
+  // aspect-implies-cycle and exits non-zero — this pins that the per-file
+  // surface an agent actually consults for src/cyclic/z.ts tells the truth
+  // too, naming the cycle instead of asserting nothing applies.
+  it('a type-covered file whose type hit an implies cycle says so, naming it — never "nothing applies"', () => {
+    const dir = copyFixture(FIXTURE_CYCLIC_TYPE);
+    try {
+      const { stdout, stderr, status } = run(['context', '--file', 'src/cyclic/z.ts'], dir);
+      expect(status).toBe(1);
+      expect(stdout).not.toContain('No rules from this type apply to this file');
+      expect(stdout).not.toContain('it satisfies coverage with no enforcement');
+      expect(stderr).toContain("matches type 'cyclic'");
+      expect(stderr).toMatch(/implies cycle/);
+      expect(stderr).toMatch(/cyclic-a|cyclic-b/);
+
+      // yg check independently reports the SAME structural fault and stays red —
+      // this fix must not touch that path.
+      const checked = run(['check'], dir);
+      expect(checked.status).toBe(1);
+      expect(checked.stdout).toContain('aspect-implies-cycle');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});

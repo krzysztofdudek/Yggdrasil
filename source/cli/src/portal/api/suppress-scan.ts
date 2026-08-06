@@ -8,7 +8,9 @@ import { getLanguageForExtension } from '../../utils/language-registry.js';
 import { buildIssueMessage } from '../../formatters/message-builder.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { debugWrite } from '../../utils/debug-log.js';
-import { isNoiseFile, isMappedSource } from './suppress-eligibility.js';
+import { isNoiseFile, isMappedSource, isTypeCoveredSource, computeSuppressionScanUniverse } from './suppress-eligibility.js';
+import { NO_COVERAGE_EXCLUDED } from '../../io/repo-scanner.js';
+import type { CoverageConfig } from '../../model/graph.js';
 import type { SuppressionMarkerInput } from '../contract.js';
 
 /**
@@ -107,10 +109,12 @@ async function scanMarkersForFile(relFile: string, text: string): Promise<Suppre
 
 export async function runSuppressionsScan(
   projectRoot: string,
-  gitTrackedFiles: string[],
+  walkedFiles: string[],
   knownAspectIds: Set<string>,
   mappingEntries: string[] = [],
   underApproximatingAspectIds: Set<string> = new Set(),
+  typeCoveredFiles: Set<string> = new Set(),
+  coverage: CoverageConfig = NO_COVERAGE_EXCLUDED,
 ): Promise<SuppressionsReport> {
   const fileEntries: FileMarkers[] = [];
   const warnings: string[] = [];
@@ -120,13 +124,29 @@ export async function runSuppressionsScan(
   // Map<file, Map<aspectId, disableLineNum[]>>
   const openDisables = new Map<string, Map<string, number[]>>();
 
-  for (const relFile of gitTrackedFiles) {
-    // Skip generated rules mirrors, per-node logs, and UNMAPPED prose docs — they
-    // only MENTION the marker syntax and never carry a real, reviewer-honored
-    // waiver. A MAPPED node source is exempt: the honoring path raw-scans any
-    // mapped grammarless file, so a marker there is a LIVE waiver that MUST be
-    // inventoried (parity — no silent waiver site).
-    if (!isMappedSource(relFile, mappingEntries) && isNoiseFile(relFile)) continue;
+  // `walkedFiles` is an ordinary repo walk — it answers "what needs
+  // coverage", not "what file can a live marker be on". Widen it to the
+  // scan's real candidate universe (see `computeSuppressionScanUniverse`'s
+  // own comment for exactly what that adds and why) before the noise filter
+  // below ever runs, so a mapped file the walk cannot see is never silently
+  // dropped before it gets a chance to be recognized as a live waiver site.
+  const scanFiles = await computeSuppressionScanUniverse(projectRoot, walkedFiles, mappingEntries, coverage);
+
+  for (const relFile of scanFiles) {
+    // Skip generated rules mirrors, per-node logs, and prose docs that carry no
+    // live waiver — they only MENTION the marker syntax. A file that IS a live
+    // waiver site is exempt from that noise filter regardless of extension: a
+    // MAPPED node source (the honoring path raw-scans any mapped grammarless
+    // file) or a TYPE-COVERED file (the type-level classification lattice's
+    // `covered` bucket — a file enforced by its architecture type alone runs
+    // that type's aspects exactly like a mapped source runs its node's). Either
+    // way a marker there is a LIVE waiver that MUST be inventoried (parity — no
+    // silent waiver site).
+    if (
+      !isMappedSource(relFile, mappingEntries) &&
+      !isTypeCoveredSource(relFile, typeCoveredFiles) &&
+      isNoiseFile(relFile)
+    ) continue;
 
     const absFile = path.join(projectRoot, relFile);
     if (!existsSync(absFile)) continue;

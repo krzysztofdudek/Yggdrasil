@@ -1,0 +1,13 @@
+name: Own When Relations Gate
+description: "Attached directly to consumer with its OWN aspect-global when: (not an attach-site when) carrying a relations atom — pins that the OWN-when check fires with the derived-relation overrides both on the direct channel-3 path and on the implies-expansion re-check every visited id (direct or implied) goes through. Non-draft, implies implied-own-when-relations with status_inherit: own-default."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+when:
+  relations:
+    uses:
+      target_type: leaf
+implies:
+  - id: implied-own-when-relations
+    status_inherit: own-default

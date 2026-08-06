@@ -1,0 +1,5 @@
+name: ModPkgRel
+description: The package app/mod/__init__.py — the live package AppRel's relative import falls through to once the module file is excluded.
+type: service
+mapping:
+  - app/mod/__init__.py

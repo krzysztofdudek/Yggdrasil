@@ -8,7 +8,10 @@ description: "Re-runs an aspect's rule over its violates-*/satisfies-* case corp
   written — only the gitignored .drill-results.jsonl sidecar and, for LLM cases,
   a source:'drill' verdict-event. Drills are regression fixtures for sharpening a
   rule, not a sensitivity/specificity measurement; failure output shows only the
-  corpus label, content hashes, and pass/fail — never the case source."
+  corpus label, content hashes, and pass/fail — never the case source. The
+  --nodeless flag switches an LLM run's assembled prompts to the shape a file
+  enforced by its architecture type alone (no owning component) receives from
+  the real reviewer, instead of the default synthetic node."
 aspects:
   - provider-redaction-cascade
 relations:

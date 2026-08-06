@@ -4,9 +4,9 @@ import { computeSuggestedNext } from '../../../src/core/check.js';
 /**
  * Branch-coverage tests for the `suggestedNext` priority cascade — the single line
  * `yg check` prints to point an agent at the highest-priority fix. Each error category
- * (log integrity/format, gitignored-mapped, structural with the coverage "Then" rider,
- * coverage, completeness, and the architecture "other" fallback) must render its own
- * remedy in the documented precedence, and a warnings-only run must surface the advisory.
+ * (log integrity/format, structural with the coverage "Then" rider, coverage,
+ * completeness, and the architecture "other" fallback) must render its own remedy in
+ * the documented precedence, and a warnings-only run must surface the advisory.
  */
 
 interface Issue {
@@ -87,8 +87,12 @@ describe('computeSuggestedNext', () => {
     expect(next).toContain('1 log format violation');
   });
 
-  it('surfaces the file-specific remedy for a gitignored mapped file', () => {
-    const issues: Issue[] = [{ severity: 'error', code: 'mapped-file-gitignored', messageData: md('UNIGNORE-THE-FILE') }];
+  it('surfaces the file-specific remedy for a tracked∩gitignored anomaly via the "any other error" fallback', () => {
+    // tracked-file-gitignored carries no dedicated branch (unlike the retired
+    // mapped-file-gitignored) — it is neither structural, unmapped-files, nor
+    // completeness, so as the sole error it falls through to the final "any
+    // remaining error" step and its own `next` still surfaces directly.
+    const issues: Issue[] = [{ severity: 'error', code: 'tracked-file-gitignored', messageData: md('UNIGNORE-THE-FILE') }];
     expect(run(issues)).toBe('UNIGNORE-THE-FILE');
   });
 

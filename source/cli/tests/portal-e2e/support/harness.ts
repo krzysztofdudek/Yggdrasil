@@ -129,3 +129,14 @@ export function runCheck(cwd: string): { out: string; status: number | null } {
   const res = spawnSync('node', [BIN_PATH, 'check'], { cwd, encoding: 'utf-8' });
   return { out: (res.stdout ?? '') + (res.stderr ?? ''), status: res.status };
 }
+
+/**
+ * Spawn `yg check --approve --only-deterministic` over `cwd` — a real, live,
+ * keyless fill of every deterministic pair (no reviewer call, no committed
+ * lock needed beforehand). Used to give a fixture a genuine refused/verified
+ * verdict before a spec reads the portal or the CLI header over it.
+ */
+export function approveDeterministic(cwd: string): { out: string; status: number | null } {
+  const res = spawnSync('node', [BIN_PATH, 'check', '--approve', '--only-deterministic'], { cwd, encoding: 'utf-8' });
+  return { out: (res.stdout ?? '') + (res.stderr ?? ''), status: res.status };
+}

@@ -76,7 +76,7 @@ function secretsProject(provider: KeyProvider, apiKey: string): string {
   const tierConfig: Record<string, unknown> = { model: 'test-model', temperature: 0 };
   if (provider === 'openai-compatible') tierConfig.endpoint = 'https://example.test/v1';
   const config = {
-    version: '5.1.0',
+    version: '5.2.0',
     quality: { max_direct_relations: 10 },
     reviewer: {
       default: BOOTSTRAP_TIER,

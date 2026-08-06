@@ -1,0 +1,6 @@
+name: Mid File Rule
+description: "mid's own default — reached by leaf only through the implicit parent chain, never directly declared on leaf."
+reviewer:
+  type: deterministic
+scope:
+  per: file

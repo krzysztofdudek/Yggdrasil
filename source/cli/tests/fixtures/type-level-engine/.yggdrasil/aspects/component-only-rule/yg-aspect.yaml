@@ -1,0 +1,6 @@
+name: Component Only Rule
+description: "Declared directly on the explicit 'forbidden' node (channel 1 for that real component). Never attached through any architecture type — it exists to prove that an ancestor COMPONENT's own aspects (channel 2) can never reach a type-covered file's cascade, since the transient subject's synthesized ancestor chain never points at a real graph node."
+reviewer:
+  type: deterministic
+scope:
+  per: file

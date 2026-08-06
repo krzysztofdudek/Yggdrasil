@@ -4,14 +4,22 @@ description: "Unit tests for the fill stage's garbage collection and canonical
   lock rewrite (fill-gc) — owner-node attribution by longest-mapping-wins,
   node:/file: unit-key routing, pruning of detached verdicts and vanished
   nodes[] entries, retention of uncomputable (implies-cycle) and draft pairs,
-  lock-version stamping, and single-persist."
+  lock-version stamping, single-persist, and type-coverage threading: the
+  nodeless universe, the ambiguous-path retain family, the prune summary,
+  and the graduation twin proving a unit key survives a file gaining a real
+  owning component."
 aspects: []
 relations:
   [
     { target: cli/core/fill, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/model/graph, type: uses },
-    { target: cli/relations/core, type: uses }
+    { target: cli/relations/core, type: uses },
+    { target: cli/core/pair-hash, type: uses },
+    { target: cli/core/pair-inputs, type: uses },
+    { target: cli/io/stores, type: uses },
+    { target: cli/core/verify-lock, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/fill-gc.test.ts
+  - source/cli/tests/unit/core/fill-gc-type-coverage.test.ts

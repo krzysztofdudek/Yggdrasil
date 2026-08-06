@@ -5,11 +5,19 @@ import { resolve } from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { classifyFile } from '../core/type-classifier.js';
 import { FileContentCache } from '../io/file-content-cache.js';
+import { TypeClassCache } from '../io/type-class-cache.js';
 import { renderTrace } from '../formatters/predicate-trace.js';
-import { loadRootGitignoreStack, isIgnoredByStack } from '../io/repo-scanner.js';
+import {
+  loadRootGitignoreStack,
+  isIgnoredByStack,
+  resolveGraphExclusionSet,
+  describeExclusionSource,
+  NO_COVERAGE_EXCLUDED,
+} from '../io/repo-scanner.js';
 import { projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
+import { buildIssueMessage } from '../formatters/message-builder.js';
 
 /**
  * Core logic for `yg type-suggest --file <path>`.
@@ -21,6 +29,20 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   const repoRelPath = toPosixPath(resolveFileArg(repoRoot, file.trim()));
   const absPath = resolve(repoRoot, repoRelPath);
   const cache = new FileContentCache();
+  // A single-file, one-off diagnostic command: the persistent on-disk cache still
+  // pays off across REPEATED invocations against the same file (e.g. an agent
+  // probing a path, editing it, and re-running), so it is wired the same way
+  // `yg owner --file` / `yg context --file` are — see core/type-coverage.ts's
+  // classifySingleFile, which this command bypasses (it needs the path-only
+  // pre-existence-check branch below, which classifySingleFile does not offer).
+  // Gated on graph.config.coverage?.typeLevel, the same check every other
+  // TypeClassCache-touching call site makes before constructing one — with the
+  // tier off, `classifyFile` below still runs (path/content predicates are
+  // pure and need no cache to evaluate), it just does so without ever
+  // touching `.yggdrasil/.type-class-cache/`: no directory, no read, no write.
+  const classCache = graph.config.coverage?.typeLevel
+    ? new TypeClassCache(repoRoot, graph.architecture)
+    : undefined;
 
   if (repoRelPath.startsWith('.yggdrasil/')) {
     process.stdout.write(
@@ -30,7 +52,36 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     return;
   }
 
-  const gitignoreStack = await loadRootGitignoreStack(projectRoot);
+  // A path the one supreme exclusion filter cuts — a separate project's own
+  // boundary (a nested .yggdrasil/ graph, or its own .git), or a
+  // coverage.excluded root an adopter configured — is never a classification
+  // candidate either, exactly like every other ownership/coverage command
+  // already answers for the same path (`yg owner --file`, `yg context --file`,
+  // `yg impact --file`, `yg aspect-test --file`). Without this, --file would be
+  // the one command left disagreeing: it would classify the path, and on an
+  // architecture with overlapping `when` predicates, send the adopter to
+  // resolve an overlap `yg check` never reports and that has no consequence
+  // for a path nothing enforces.
+  const exclusion = await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
+  const exclusionSource = describeExclusionSource(repoRelPath, exclusion);
+  if (exclusionSource !== null) {
+    // Names WHICH of the two independent sources caused this — the same
+    // distinction `file-mapping-excluded` already draws — instead of a
+    // disjunction the adopter has to check both halves of.
+    const cause = exclusionSource === 'nested-project'
+      ? `it sits inside a separate project's own boundary (a nested .yggdrasil/ graph, or its own .git — a checkout, submodule, or worktree)`
+      : `it matches a coverage.excluded root in yg-config.yaml`;
+    process.stdout.write(
+      buildIssueMessage({
+        what: `${repoRelPath} is excluded from graph coverage by design.`,
+        why: `This path is never matched against any architecture type because ${cause}.`,
+        next: `No action needed.`,
+      }) + '\n',
+    );
+    return;
+  }
+
+  const gitignoreStack = await loadRootGitignoreStack(repoRoot);
   if (existsSync(absPath) && isIgnoredByStack(absPath, gitignoreStack)) {
     process.stderr.write(
       chalk.yellow(
@@ -43,7 +94,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
 
   if (!existsSync(absPath)) {
     process.stdout.write(`\n(File does not exist — evaluating path predicates only)\n\n`);
-    const result = await classifyFile(absPath, repoRelPath, graph, cache);
+    const result = await classifyFile(absPath, repoRelPath, graph, cache, classCache);
     if (result.matches.length > 0) {
       process.stdout.write(`Matching types (path-only check):\n`);
       for (const m of result.matches) {
@@ -60,7 +111,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     return;
   }
 
-  const result = await classifyFile(absPath, repoRelPath, graph, cache);
+  const result = await classifyFile(absPath, repoRelPath, graph, cache, classCache);
 
   if (result.matches.length === 0) {
     process.stdout.write(`\nNo type's \`when\` matches this file.\n\n`);
@@ -74,6 +125,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
         if (traced) process.stdout.write(traced + '\n');
       }
     }
+    printUnreadableTypes(result.unreadable);
     process.stdout.write(
       `\nNEXT\n  Three options:\n` +
         `  1. Move file under a path matching an existing type's when\n` +
@@ -88,6 +140,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     process.stdout.write(`  ${chalk.green('✓')} ${result.matches[0].typeId}\n`);
     const traced = renderTrace(result.matches[0].trace, '      ');
     if (traced) process.stdout.write(traced + '\n');
+    printUnreadableTypes(result.unreadable);
     process.stdout.write('\n');
     return;
   }
@@ -96,10 +149,24 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   for (const m of result.matches) {
     process.stdout.write(`  ${chalk.green('✓')} ${m.typeId} — full when satisfied\n`);
   }
+  printUnreadableTypes(result.unreadable);
   process.stdout.write(
     `\nNEXT\n  Architecture has overlapping when between types.\n` +
       `  Check each type's description and aspects in yg-architecture.yaml.\n\n`,
   );
+}
+
+/**
+ * Print types whose `when` could not be evaluated on this file at all (e.g. a
+ * `content:` predicate on a file over the size limit). Distinct from a plain
+ * non-match: the predicate was never actually applied to this file's content.
+ */
+function printUnreadableTypes(unreadable: { typeId: string; reason: string }[]): void {
+  if (unreadable.length === 0) return;
+  process.stdout.write(`\nCould not be evaluated (predicate unreadable):\n`);
+  for (const u of unreadable) {
+    process.stdout.write(`  ${chalk.yellow('?')} ${u.typeId} — ${u.reason}\n`);
+  }
 }
 
 export function registerTypeSuggestCommand(program: Command): void {

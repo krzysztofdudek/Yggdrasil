@@ -4,7 +4,7 @@ export const content = `# yg-config.yaml — Schema for the Yggdrasil project co
 # Located at .yggdrasil/yg-config.yaml — one per project.
 # Edit this after running yg init to describe your project.
 
-version: "5.1.0"                  # managed by CLI — do not edit manually. Records the graph SCHEMA
+version: "5.2.0"                  # managed by CLI — do not edit manually. Records the graph SCHEMA
                                   # version this config conforms to (advances only when the graph
                                   # format changes; NOT the CLI/package release version).
 
@@ -41,6 +41,14 @@ coverage:                         # optional — scopes the unmapped-files gate.
   excluded: []                    #   roots where an uncovered file is SILENT (no warning).
                                   # Files outside required and excluded are a non-blocking WARNING.
                                   # Subtrees containing their own nested .yggdrasil/ are auto-skipped by every check.
+  type_level: false               #   optional — boolean, default false. A fresh \`yg init\` writes true.
+                                  # When true: a file matched by exactly one classifying type's \`when\`
+                                  # counts as covered by that type, with no node of its own — only a
+                                  # \`scope: { per: file }\` rule can ever produce a verdict on such a
+                                  # file (a per: node rule has no whole unit to run against there).
+                                  # Committed-config only: a yg-secrets.yaml overlay can never change
+                                  # this key, since it changes what counts as covered for everyone.
+                                  # Does nothing until some type declares \`when:\`.
 
 signals:                          # optional — attention-layer switches. Absent = every signal at its default.
   attention: true                 #   attention (default true): the advisory "structurally unusual" note in

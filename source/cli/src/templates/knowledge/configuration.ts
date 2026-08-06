@@ -12,7 +12,7 @@ version bookkeeping to the current schema.
 Full annotated example:
 
 \`\`\`yaml
-version: "5.1.0"                   # Managed by the CLI — never set or edit by hand; not your concern.
+version: "5.2.0"                   # Managed by the CLI — never set or edit by hand; not your concern.
 
 reviewer:
   default: standard               # Tier name used when an aspect doesn't declare one.
@@ -233,14 +233,15 @@ coverage:
     - "**/*.generated.ts"   # glob: drop generated files anywhere
 \`\`\`
 
-Controls which git-tracked files must be mapped to a node.
+Controls which coverage-visible files must be mapped to a node.
 
 - \`required\` — roots where unmapped files are a blocking \`unmapped-files\` error. Default: \`["/"]\` (whole repo — the previous always-map-everything behavior). An explicit empty list \`[]\` means require nothing: every uncovered file (outside \`excluded\`/nested) becomes a non-blocking \`uncovered-advisory\` warning and nothing blocks (pure-advisory adoption). Empty only counts when written explicitly; omitting the \`coverage\` block keeps the \`["/"]\` default.
-- \`excluded\` — roots that are silently ignored. Default: \`[]\`.
+- \`excluded\` — roots that are silently ignored. Default: \`[]\`. This is a supreme, global filter, not just a coverage-tiering rule: a path it matches is gone everywhere — no coverage complaint, no review pair, no fingerprint contribution, no dependency check, no type classification, no rule read (including one reached through a symlink), no ownership lookup, no suppression-audit entry, no portal row — and this holds even when a node's own \`mapping:\` entry names that exact path directly. An explicit mapping claim does not outrank an exclusion; there is no seam between a directory/glob entry sweeping a file in and an entry naming it exactly, exclusion cuts both the same way.
 - Roots accept the same forms as a node \`mapping:\` entry: an exact file, a directory prefix (e.g. \`src/\` covers everything beneath it), or a glob (\`*\` within a segment, \`**\` across) — so \`excluded: ["**/*.generated.ts"]\` drops generated files anywhere and \`required: ["services/*/api/**"]\` scopes the blocking tier to a pattern. \`/\` still means the whole repo.
 - Files that match neither a required nor an excluded root produce a non-blocking \`uncovered-advisory\` warning.
-- Subtrees containing their own nested \`.yggdrasil/\` are auto-skipped by all repo-walking checks (they are governed by their own graph).
-- Longest-match wins (by normalized root/pattern length); on a tie between required and excluded, excluded wins.
+- The excluded set has a second source beyond the config list above: a subtree that is its own separate project — carrying its own nested \`.yggdrasil/\` graph, or its own \`.git\` (a checkout, submodule, or linked worktree) — is a DEFAULT member of the excluded set, whether or not any \`excluded\` line mentions it; membership is read off the real filesystem, not guessed from a directory name, so an ordinary dependency directory (e.g. \`node_modules\`) with no graph or git checkout of its own is never skipped by name alone — exclude it explicitly via \`excluded\` if desired.
+- A mapping entry that resolves to nothing because everything it would have reached is excluded says so, naming exclusion as the reason: \`file-mapping-excluded\` fires for an entry naming one file exactly; the aggregate \`mapping-path-missing\` check fires when a node's mapping entries, taken as a whole, resolve to nothing this node can enforce because every file they reached is excluded — the same code a stale glob or a deleted file produces. A glob or exact entry's own per-entry existence check stays silent when it resolves to real, on-disk content that happens to be excluded — that content is not stale or broken, so blaming it there would be wrong; the aggregate check is what reports the "nothing left to enforce" fact.
+- Exclusion is absolute: any excluded-root match drops a file before it is ever sorted into the blocking or advisory tier, independent of whether a more specific required root also matches it; \`yg check\` warns (\`coverage-required-shadowed\`) when a plain required root sits fully inside a plain excluded root.
 
 ## Quality thresholds
 
@@ -309,6 +310,7 @@ to the \`.yggdrasil/\` directory):
 yg-secrets.yaml               # provider API keys
 .symbols-cache/               # the relation pass's legacy per-language symbol-index cache
 .ast-cache/                   # the relation pass's content-addressed per-file AST fact cache
+.type-class-cache/            # the type-level classification lattice's path-and-content-keyed cache
 .debug.log                    # the opt-in command debug log
 .yg-lock.deterministic.json   # the free deterministic-verdict cache (rebuilt keyless)
 .yg-events.jsonl              # the local verdict-events telemetry sidecar

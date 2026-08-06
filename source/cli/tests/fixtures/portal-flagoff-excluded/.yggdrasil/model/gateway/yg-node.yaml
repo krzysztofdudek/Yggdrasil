@@ -1,0 +1,5 @@
+name: Gateway
+type: gateway
+description: "The fixture's one explicit node — owns src/gateway/gateway.ts, so a node-owned file and a genuinely unmapped file are both present alongside the excluded one."
+mapping:
+  - src/gateway/gateway.ts

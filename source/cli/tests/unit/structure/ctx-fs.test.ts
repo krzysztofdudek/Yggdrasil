@@ -144,4 +144,45 @@ describe('ctx.fs', () => {
     // 'src/lib' is the glob's literal leading prefix — a directory the check may probe.
     expect(fs.exists('src/lib')).toBe('dir');
   });
+
+  // A directory (or glob) allowed-reads entry can textually cover a path that
+  // actually belongs to a SEPARATE project (a nested `.yggdrasil/` graph, or a
+  // nested `.git` checkout/submodule/worktree) — nestedProjectRoots is the
+  // caller-supplied boundary that must win over the textual allow-set match.
+  describe('nestedProjectRoots — a separate project inside an otherwise-allowed directory', () => {
+    it('read()/exists()/list() reject a path under a separate-project root even though the directory entry textually allows it', () => {
+      mkdirSync(path.join(root, 'src/lib/vendor'), { recursive: true });
+      writeFileSync(path.join(root, 'src/lib/vendor/secret.ts'), 'SECRET');
+      const fs = createCtxFs({
+        allowedSet: new Set(['src/lib']),
+        projectRoot: root,
+        touchedFiles: touched,
+        nestedProjectRoots: new Set(['src/lib/vendor']),
+      });
+      expect(() => fs.read('src/lib/vendor/secret.ts')).toThrow(UndeclaredFsReadError);
+      expect(() => fs.exists('src/lib/vendor/secret.ts')).toThrow(UndeclaredFsReadError);
+      expect(() => fs.list('src/lib/vendor')).toThrow(UndeclaredFsReadError);
+      // A sibling OUTSIDE the separate project, under the same allowed directory, is unaffected.
+      expect(fs.read('src/lib/baz.ts')).toBe('baz-content');
+    });
+
+    it('a glob allowed-set entry matching a file inside a separate-project root is also rejected', () => {
+      mkdirSync(path.join(root, 'src/lib/vendor'), { recursive: true });
+      writeFileSync(path.join(root, 'src/lib/vendor/FooRepository.ts'), 'vendored');
+      const fs = createCtxFs({
+        allowedSet: new Set(['src/lib/**/*Repository.ts']),
+        projectRoot: root,
+        touchedFiles: touched,
+        nestedProjectRoots: new Set(['src/lib/vendor']),
+      });
+      expect(() => fs.read('src/lib/vendor/FooRepository.ts')).toThrow(UndeclaredFsReadError);
+    });
+
+    it('omitting nestedProjectRoots (default) admits a path a caller with nothing to say about nested projects never excluded', () => {
+      mkdirSync(path.join(root, 'src/lib/vendor'), { recursive: true });
+      writeFileSync(path.join(root, 'src/lib/vendor/inner.ts'), 'inner');
+      const fs = createCtxFs({ allowedSet: new Set(['src/lib']), projectRoot: root, touchedFiles: touched });
+      expect(fs.read('src/lib/vendor/inner.ts')).toBe('inner');
+    });
+  });
 });

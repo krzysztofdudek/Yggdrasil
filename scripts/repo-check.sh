@@ -2,6 +2,16 @@
 
 set -uo pipefail
 
+# The test step spawns the built CLI and asserts on its stdout/stderr BYTES —
+# exact "Errors (N):" headers, a literal unwrapped "✓" glyph, no stray ANSI escape
+# codes. FORCE_COLOR is a Node/chalk convention that OVERRIDES TTY auto-detection,
+# so a spawned child writing to a pipe (which would normally disable color) still
+# emits color codes when the invoking shell exports FORCE_COLOR — turning a clean
+# tree into a false-red gate failure that has nothing to do with the code under
+# test. Force it off here so the gate's outcome depends only on the code, never on
+# the calling shell's environment.
+export FORCE_COLOR=0
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 FAILED=()
@@ -175,6 +185,13 @@ run_step "Rules: digest freshness (root + examples)" "$REPO_ROOT" "
   done
   exit \$fail
 "
+# Standing measurement, never a gate on its own: reports the largest LLM reviewer
+# prompt this repo's own graph currently assembles and its margin under the
+# configured tier ceiling, so a shrinking margin is visible on every run instead of
+# discovered only once an edit finally breaches it (the "Graph: check" step right
+# below this one is what actually fails on a genuine breach). Restores its own
+# temporary, gitignored reviewer-config override before it exits either way.
+run_step "Graph: reviewer prompt-size headroom (measurement)" "$REPO_ROOT" "node scripts/prompt-headroom.mjs"
 run_step "Graph: check" "$REPO_ROOT" "node source/cli/dist/bin.js check --approve --only-deterministic"
 
 if [ ${#FAILED[@]} -gt 0 ]; then

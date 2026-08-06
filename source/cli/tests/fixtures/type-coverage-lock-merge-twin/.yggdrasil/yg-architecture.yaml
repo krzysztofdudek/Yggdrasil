@@ -1,0 +1,18 @@
+# yg-architecture.yaml — one non-strict classifying type (svc), matching
+# src/svc/** cleanly, shared by every file a lock-merge test fills
+# (src/svc/svc-a.ts and src/svc/svc-b.ts, both committed; a third file a
+# branch adds fresh). svc carries two attached rules on purpose: svc-review
+# (LLM) is what a lock-merge test actually exercises — its verdicts are the
+# only ones that land in the COMMITTED yg-lock.nondeterministic.json file a
+# real git merge can conflict over. svc-file-shape (deterministic) verifies
+# the OTHER half of the same fact: its verdicts land in the GITIGNORED
+# .yg-lock.deterministic.json, which is never committed and so never
+# reaches a git merge at all — see svc-review/yg-aspect.yaml.
+node_types:
+  svc:
+    description: "Service-layer source, classified for the lock-merge-twin fixture."
+    when:
+      path: "src/svc/**"
+    aspects:
+      - svc-review
+      - svc-file-shape

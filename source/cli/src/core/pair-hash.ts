@@ -28,7 +28,15 @@ import { hashString, hashBytes } from '../io/hash.js';
 export interface CommonHashInput {
   aspectId: string;
   scope: ScopeDef | undefined;          // normalized internally: undefined → {per:'node'}
-  nodePath: string;                     // owning node — pins per-file units to their review context
+  /**
+   * The owning component — pins per-file units to their review context. Omitted
+   * entirely for a file enforced by its architecture type alone: there is no
+   * component, and a placeholder would be a fabricated identity that a real
+   * component could later be given (and would then collide with). Omission
+   * relies on codePointCanonicalJson's existing undefined-value drop — no other
+   * logic in this module changes for the omitted case.
+   */
+  nodePath?: string;
   ruleHash: string;                     // sha256 of content.md or check.mjs bytes
   files: Array<[string, string]>;       // subject [posixPath, sha256(bytes)] — sorted internally
   verdict: Verdict;

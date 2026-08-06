@@ -77,6 +77,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
  *    - `yg-secrets.yaml`  — provider API keys
  *    - `.symbols-cache/`  — the relation pass's legacy per-language symbol-index cache
  *    - `.ast-cache/`      — the relation pass's content-addressed per-file AST fact cache
+ *    - `.type-class-cache/` — the type-level classification lattice's path-and-content-keyed cache
  *    - `.debug.log`       — the opt-in command debug log
  *    - `.yg-events.jsonl` — the fill stage's append-only verdict-events telemetry sidecar
  *    - `.yg-fill-divergence.log` — the fill stage's convergence-sentinel evidence dump
@@ -90,13 +91,19 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // Content-addressed per-file AST fact cache: a local speed cache the relation pass rebuilds
   // free on the next run; never committed.
   '.ast-cache/',
+  // Path-and-content-keyed classification cache for the type-level lattice: a local
+  // speed cache the coverage pass rebuilds free on the next run; never committed.
+  '.type-class-cache/',
   '.debug.log',
   // Deterministic-verdict lock: a local cache rebuilt for free by
   // `yg check --approve --only-deterministic`; never committed.
   '.yg-lock.deterministic.json',
-  // Append-only verdict-events telemetry sidecar: local, write-only, never read by
-  // any check/verify/render path; never committed.
-  '.yg-events.jsonl',
+  // Append-only verdict-events telemetry sidecar: local, never committed. Unlike the
+  // committed stream, this one keeps a refusal's full reason text, so a rotation must
+  // never become committable: the trailing `*` covers the `.1` form the reader already
+  // looks for, matching both the divergence dump's pattern below and what
+  // `yg knowledge read configuration` states is ignored.
+  '.yg-events.jsonl*',
   // Convergence-sentinel evidence dump: local, best-effort forensic log written
   // only when the fill detects a 0-fill divergence; never committed. The trailing
   // `*` also covers the single `.1` rotation. Pattern shared with the writer

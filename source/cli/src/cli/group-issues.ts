@@ -16,6 +16,17 @@ export interface IssueGroup {
    * drop the node-shaped framing entirely.
    */
   nodeCount: number;
+  /**
+   * How many DISTINCT type-covered FILES the group's members name — a member
+   * with no `nodePath` but a `file:`-prefixed `unitKey` (a nodeless pair-derived
+   * issue; core/check.ts's emitPairIssue sets `unitKey` from `pair.unitKey`).
+   * Deduped by unitKey (several aspects can share one file's unit key), so a
+   * shared file counts once, not once per aspect. Zero when the feature is off
+   * or no member is file-level — the header then keeps its pre-existing
+   * "N pairs  M nodes" wording untouched (see the renderer's own byte-identical
+   * contract).
+   */
+  fileCount: number;
   sharedWhy: string;
   sharedNext: string;
   perMemberReason: boolean;
@@ -75,6 +86,11 @@ export const FULL_WHAT_CODES = new Set([
   // first; truncating to line 1 would hide which import in which file drives
   // the refusal — the very thing the agent needs to declare or remove.
   'relation-undeclared-dependency',
+  // The live type-relation gate's `what` carries its sample-edges list (each
+  // `<fromFile> -> <toFile>`, up to five, plus a remainder count) on lines
+  // after the first; truncating to line 1 would hide exactly which imports
+  // the agent needs to allow, graduate, or remove.
+  'type-relation-forbidden',
 ]);
 
 /**
@@ -92,20 +108,21 @@ const ERROR_CODE_PRIORITY: string[] = [
   'log-conflict',
   'log-integrity',
   'log-format',
-  'mapped-file-gitignored',
 ];
 
 export function issuePriorityRank(issue: CheckIssue): number {
   const idx = ERROR_CODE_PRIORITY.indexOf(issue.code);
   if (idx >= 0) return idx;
   // Unranked errors sub-rank by the SAME category cascade computeSuggestedNext
-  // uses (core/check.ts §6 steps 7→9): structural → coverage → completeness →
-  // any other error, so the group bare `--top` renders is the group the `Next:`
-  // line names. Within a category, groupIssues tie-breaks alphabetically by
-  // label (= code); computeSuggestedNext mirrors that same tie-break, so the two
-  // surfaces cannot drift. (lock-invalid / mapped-file-gitignored are structural
-  // AND explicitly ranked above — the idx>=0 branch already caught them, so they
-  // never fall into the structural bucket here.)
+  // uses (core/check.ts §6 steps 6→8): structural → coverage → completeness →
+  // any other error (this last bucket is where a variable-severity code like
+  // tracked-file-gitignored lands when it is an error — it carries no dedicated
+  // rank, same as unverified's non-ERROR_CODE_PRIORITY siblings), so the group
+  // bare `--top` renders is the group the `Next:` line names. Within a category,
+  // groupIssues tie-breaks alphabetically by label (= code); computeSuggestedNext
+  // mirrors that same tie-break, so the two surfaces cannot drift. (lock-invalid
+  // is structural AND explicitly ranked above — the idx>=0 branch already caught
+  // it, so it never falls into the structural bucket here.)
   const base = ERROR_CODE_PRIORITY.length;
   if (issue.severity === 'error') {
     if (STRUCTURAL_CODES.has(issue.code)) return base;       // structural
@@ -146,12 +163,21 @@ export function groupIssues(issues: CheckIssue[]): IssueGroup[] {
   }
   const groups: IssueGroup[] = [];
   for (const members of byKey.values()) {
+    // Sort key: nodePath when present, else the nodeless member's OWN unitKey
+    // (never collapsed to '' — file members then sort among themselves by
+    // path, rather than all comparing equal and falling back to insertion
+    // order). A genuinely repo-level member (neither) still sorts to ''.
     const sorted = [...members].sort((a, b) =>
-      (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'));
+      (a.nodePath ?? a.unitKey ?? '').localeCompare(b.nodePath ?? b.unitKey ?? '', 'en'));
     const rep = sorted[0];
     // Only members that actually name a node count toward nodeCount; a
     // repo-level group scores 0 rather than 1-for-nothing.
     const nodes = new Set(sorted.filter((m) => m.nodePath).map((m) => m.nodePath));
+    // Nodeless members with a `file:`-prefixed unitKey count toward fileCount
+    // instead — deduped by unitKey (several aspects can share one file).
+    const files = new Set(
+      sorted.filter((m) => m.nodePath === undefined && m.unitKey?.startsWith('file:')).map((m) => m.unitKey),
+    );
     // For code-only groups the aspectId spans multiple aspects — set to
     // undefined so the group header does NOT print `aspect '<id>'`.
     const isCodeOnly = CODE_ONLY_GROUP_CODES.has(rep.code);
@@ -167,6 +193,7 @@ export function groupIssues(issues: CheckIssue[]): IssueGroup[] {
       label: getIssueLabel(rep),
       pairCount: sorted.length,
       nodeCount: nodes.size,
+      fileCount: files.size,
       sharedWhy: rep.messageData.why,
       sharedNext: rep.messageData.next,
       perMemberReason: FULL_WHAT_CODES.has(rep.code),

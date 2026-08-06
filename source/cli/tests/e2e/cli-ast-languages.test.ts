@@ -87,7 +87,7 @@ function makeProject(): string {
   mkdirSync(path.join(dir, 'src'), { recursive: true });
   writeFileSync(
     path.join(ygg, 'yg-config.yaml'),
-    'version: "5.1.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      model: llama\n      endpoint: http://localhost:11434\n',
+    'version: "5.2.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      model: llama\n      endpoint: http://localhost:11434\n',
   );
   writeFileSync(
     path.join(ygg, 'yg-architecture.yaml'),

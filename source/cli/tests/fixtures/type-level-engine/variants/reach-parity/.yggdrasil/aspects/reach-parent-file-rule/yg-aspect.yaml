@@ -1,0 +1,8 @@
+name: Reach Parent File Rule
+description: "Reads a file genuinely owned by reach-parent-type (a type
+  reach-leaf may depend on) — proves the architecture-derived read allowance
+  admits it."
+reviewer:
+  type: deterministic
+scope:
+  per: file

@@ -1,0 +1,5 @@
+name: RefundHandler
+type: admin-handler
+description: "Admin-only refund step — its path also matches the ordinary handler type, so it needs a component of its own to say which one it actually is"
+mapping:
+  - src/handlers/admin/refundOrder.ts

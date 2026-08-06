@@ -21,7 +21,7 @@ import { findYggRoot } from '../io/paths.js';
 import { detectVersion } from './migrator.js';
 import { toPosixPath } from '../utils/posix.js';
 
-export const CLI_SUPPORTED_SCHEMA = '5.1.0';
+export const CLI_SUPPORTED_SCHEMA = '5.2.0';
 
 /**
  * Thrown when the project's yg-config.yaml declares a schema version newer than

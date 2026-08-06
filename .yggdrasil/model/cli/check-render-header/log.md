@@ -1,0 +1,4 @@
+## [2026-07-28T13:55:58.602Z]
+New file created by splitting the check command's output rendering into single-responsibility modules — this one owns only the verdict/metrics header line and the emoji accessibility gate, with no behavior change from the code it was cut from.
+## [2026-08-03T07:58:42.635Z]
+This node's rendered block now names, inline on the Enforced/Advisory line, when a file's rules have no confirmed verdict in the lock -- the qualified count for an ordinary not-yet-approved pair, or the specific structural reason when the same run's own fill just watched a component-free check.mjs fail, so the reader is never told architecture enforces a rule that has, in fact, never produced a verdict. The counts-only summary views carry the same qualified count too, though never the specific reason, since only a full fill run can discover that reason and a counts-only view can never combine with the writer that fills.

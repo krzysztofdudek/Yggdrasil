@@ -1,0 +1,8 @@
+node_types:
+  module:
+    description: 'A plain source module, used only to give the shared-parse-cache-bucket fixture something to map files onto.'
+    log_required: false
+    when:
+      path: "src/**"
+    relations:
+      uses: [module]

@@ -5,7 +5,12 @@ import type { Graph } from '../../model/graph.js';
 import type { LockFile } from '../../model/lock.js';
 import type { ExpectedPair } from '../pairs.js';
 import { toPosix } from '../../utils/posix.js';
-import { buildOwnerIndex } from '../../relations/owner-index.js';
+import { buildOwnerIndex, guardOwnerIndex } from '../../relations/owner-index.js';
+// Type-only: repo-scanner's GraphExclusionSet is a value the caller (cli/impact-handlers.ts,
+// which already declares a relation to cli/io/stores) resolves; spelling its TYPE here
+// creates no code edge for the relation-conformance pass to see, so this module needs no
+// new relation just to name it.
+import type { GraphExclusionSet } from '../../io/repo-scanner.js';
 
 /**
  * Pure graph blast-radius / reverse-dependency algorithms for `yg impact`.
@@ -18,6 +23,12 @@ import { buildOwnerIndex } from '../../relations/owner-index.js';
 
 const STRUCTURAL_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
 
+/** No exclusion in effect — the default `nodesWithRefusedVerdict` uses when a caller
+ *  passes none, so every existing call site keeps today's raw-lookup behavior
+ *  byte-for-byte. Spelled as a literal (not imported) so this module never needs a
+ *  value dependency on repo-scanner.ts just to name the empty case. */
+const NO_EXCLUSION: GraphExclusionSet = { nestedRoots: new Set(), coverage: { required: [], excluded: [], typeLevel: false } };
+
 /**
  * Node paths that currently hold a `refused` verdict for `aspectId` in the lock.
  *
@@ -27,15 +38,28 @@ const STRUCTURAL_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
  *     (no per-node file IO — the lock + graph are enough).
  *
  * Returns a Set of model-relative node paths. Entries whose file maps to no node
- * (stale lock line, pruned by the next fill GC) are skipped.
+ * (stale lock line, pruned by the next fill GC) are skipped — and so is an entry
+ * whose file the graph now EXCLUDES (a nested project's own boundary, or a
+ * `coverage.excluded` root added after the verdict was recorded): `exclusion`,
+ * when supplied, guards the lookup the same way every other ownership answer in
+ * the graph does, so a stale refused verdict on a now-excluded file can never be
+ * shown here as a live refusal `yg owner --file` calls excluded on the same run.
+ * Defaults to no exclusion (this module stays a pure graph algorithm; the caller
+ * resolves the exclusion set — a filesystem walk — and hands it in).
  */
-export function nodesWithRefusedVerdict(graph: Graph, lock: LockFile, aspectId: string): Set<string> {
+export function nodesWithRefusedVerdict(
+  graph: Graph,
+  lock: LockFile,
+  aspectId: string,
+  exclusion: GraphExclusionSet = NO_EXCLUSION,
+): Set<string> {
   const refused = new Set<string>();
   const unitMap = lock.verdicts[aspectId];
   if (!unitMap) return refused;
 
-  // The canonical hierarchy-first file→owner resolver, built once for this scan.
-  const ownerOf = buildOwnerIndex(graph.nodes).ownerOf;
+  // The canonical hierarchy-first file→owner resolver, guarded against `exclusion`,
+  // built once for this scan.
+  const ownerOf = guardOwnerIndex(buildOwnerIndex(graph.nodes), exclusion).ownerOf;
 
   for (const unitKey of Object.keys(unitMap)) {
     if (unitMap[unitKey].verdict !== 'refused') continue;
@@ -286,20 +310,23 @@ export type ImpactReason =
 export interface InvalidatedPair {
   aspectId: string;
   unitKey: string;
-  nodePath: string;
+  /** Absent for a nodeless (type-covered-file) pair — follows ExpectedPair's optionality. */
+  nodePath?: string;
   kind: 'llm' | 'deterministic';
   reasons: ImpactReason[];
   mode: 'precise' | 'potential';
 }
 
-export interface UnresolvedUnit { aspectId: string; unitKey: string; nodePath: string; why: string }
+export interface UnresolvedUnit { aspectId: string; unitKey: string; nodePath?: string; why: string }
 
 export interface ImpactSet { pairs: InvalidatedPair[]; unresolved: UnresolvedUnit[] }
 
 /**
- * Sync classification. Returns admitted pairs + the cold companion-LLM pairs that need
- * async resolution (a later task). A pair is a cold candidate ONLY if nothing else already
- * admitted it (no point running the resolver for a pair already known invalidated).
+ * Sync classification. Returns admitted pairs + the cold companion-LLM pairs that still need
+ * async companion resolution — the caller (`collectInvalidatedPairs`, cli/impact-handlers.ts)
+ * resolves each one and folds a hit back into admitted pairs. A pair is a cold candidate ONLY
+ * if nothing else already admitted it (no point running the resolver for a pair already known
+ * invalidated).
  */
 export function classifyInvalidations(
   pairs: ExpectedPair[],
@@ -323,8 +350,13 @@ export function classifyInvalidations(
       if (touchedReferencesFile(entry.touched, repoRelative)) {
         reasons.push(p.kind === 'llm' ? 'observe-companion' : 'observe-deterministic');
       }
-    } else if (reasons.length === 0) {
-      // cold (no lock entry) and not yet admitted by subject/reference
+    } else if (reasons.length === 0 && p.nodePath !== undefined) {
+      // cold (no lock entry) and not yet admitted by subject/reference. Skipped
+      // entirely for a nodeless pair: there is no component whose allowed-reads
+      // apply (collectAllowedReadsForAspect would return ∅ for an absent path —
+      // the safe reading — but this makes the skip explicit rather than relying
+      // on that fall-through). A nodeless pair can still be admitted above
+      // (own/reference/observe), just never through this cold-start estimate.
       if (p.kind === 'deterministic') {
         const allowed = collectAllowedReadsForAspect(p.nodePath, graph);
         if (isPathInMapping(repoRelative, [...allowed])) { reasons.push('cold-potential-deterministic'); mode = 'potential'; }

@@ -1,0 +1,9 @@
+name: Touches Node
+description: "A rule with no owning component that reads ctx.node — pins the
+  typed, fail-closed refusal and its two named exits: make the rule file-local
+  to files the architecture already permits this type to reach, or give the
+  file a component of its own."
+reviewer:
+  type: deterministic
+scope:
+  per: file

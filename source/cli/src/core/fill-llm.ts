@@ -1,4 +1,3 @@
-// yg-suppress-disable(deterministic) the fill stage exists to invoke the configured LLM reviewer; non-determinism is inherent to its purpose, and every verdict it records is content-addressed so reproducibility is enforced at the lock layer instead
 /**
  * source/cli/src/core/fill-llm.ts — the LLM-pair filler for the fill stage (spec
  * §7 step 6). Loads subject + reference bytes byte-identically to the verifier,
@@ -12,7 +11,7 @@ import path from 'node:path';
 
 import type { Graph, AspectDef, LlmConfig } from '../model/graph.js';
 import type { VerdictEntry, Verdict } from '../model/lock.js';
-import type { ExpectedPair } from './pairs.js';
+import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { computeLlmInputHash } from './pair-hash.js';
 import { ruleHashFor, contentFor, nodeDescriptionFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
 import { hashBytes } from '../io/hash.js';
@@ -28,6 +27,7 @@ import { resolveCompanionsForPair } from './companion-resolve.js';
 import { readBytesOrEmpty, type LlmFillOutcome } from './fill-shared.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
 import type { PromptSuppressedRangesInput } from '../llm/prompt.js';
+import type { ParseCache } from '../structure/index.js';
 
 /**
  * Fill one LLM pair: load references (a MISSING reference is a LOUD infra
@@ -46,6 +46,23 @@ export async function fillLlmPair(
   mergedTier: LlmConfig,
   provider: LlmProvider,
   referencesCache: Map<string, Buffer | null>,
+  // Type-level coverage facts for this run (absent ⇒ no nodeless pairs exist —
+  // the feature-off contract every other type-coverage consumer follows).
+  // Only consulted when this pair's aspect has a companion AND the pair is
+  // nodeless (resolveCompanionsForPair ignores both for a component pair).
+  typeCoverage?: TypeCoverageInput,
+  // Shared across every fillLlmPair AND fillDetPair call this run (the caller
+  // constructs one Map and passes it to both) so the architecture-reach for a
+  // nodeless pair's matched type is computed once per type, not once per pair.
+  reachCache?: Map<string, Set<string>>,
+  // Shared AST parse cache for the (aspectId, node) bucket this pair belongs to
+  // (fill.ts groups pairs this way before dispatch) — a `per: file` rule with N
+  // subjects on one node shares ONE cache instead of building and discarding N,
+  // so a relation target's mapped files are parsed once per bucket rather than
+  // once per subject. Absent → resolveCompanionsForPair's own default (a fresh,
+  // call-scoped cache) — today's byte-identical behavior. Never destroyed here;
+  // the bucket's owner (fill.ts) destroys it once every pair sharing it settles.
+  parseCache?: ParseCache,
 ): Promise<LlmFillOutcome> {
   // ── Load subject file bytes (sorted by path is the pair's contract). ──
   const subjects: Array<{ path: string; bytes: Buffer }> = [];
@@ -100,7 +117,7 @@ export async function fillLlmPair(
   let companions: PromptCompanionInput[] = [];
   let observations: Array<[string, string]> = [];
   if (aspect.hasCompanion === true) {
-    const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect);
+    const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect, typeCoverage, reachCache, parseCache);
     if (resolved.kind === 'infra') {
       // Companion hook/resolution runtime failure — fail closed, NOTHING written,
       // reviewer never called (callsMade: 0). Counted and summarized as

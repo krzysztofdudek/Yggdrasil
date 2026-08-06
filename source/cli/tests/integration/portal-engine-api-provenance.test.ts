@@ -9,6 +9,7 @@ import {
   readGitCommitRef,
   computePortalLockHash,
   computePortalFreshness,
+  computePortalSourceFileCounts,
   runPortalCheck,
 } from '../../src/portal/engine-api.js';
 import { readRulesArtifacts } from '../../src/cli/rules-artifacts.js';
@@ -25,6 +26,7 @@ import type { LockFile } from '../../src/model/lock.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASIC_FIXTURE = path.resolve(__dirname, '../fixtures/portal-basic');
+const RUNCHECK_PARITY_FIXTURE = path.resolve(__dirname, '../fixtures/runcheck-parity');
 
 const tmpDirs: string[] = [];
 afterAll(() => {
@@ -219,6 +221,46 @@ describe('computePortalFreshness — the baseline branches (real graph)', () => 
     const fresh = await computePortalFreshness(graph, lock);
     const apiNode = fresh.find((f) => f.nodePath === 'api')!;
     expect(apiNode.sourceChanged).toBe(false);
+  });
+});
+
+describe('computePortalSourceFileCounts — the panel\'s real per-node file count (real graph)', () => {
+  it('reports the real file count for a single-file mapping and 0 for a mapping-less node', async () => {
+    const graph = await loadGraph(BASIC_FIXTURE);
+    const counts = await computePortalSourceFileCounts(graph);
+    const orders = counts.find((c) => c.nodePath === 'api/orders')!;
+    // api/orders maps exactly one file (src/orders/orders.service.ts).
+    expect(orders.sourceFileCount).toBe(1);
+    const users = counts.find((c) => c.nodePath === 'api/users')!;
+    expect(users.sourceFileCount).toBe(1);
+    // The 'api' module node declares no mapping at all — never a fabricated count.
+    const api = counts.find((c) => c.nodePath === 'api')!;
+    expect(api.sourceFileCount).toBe(0);
+  });
+
+  it('agrees with computeNodeMappedFiles — the same expansion the source fingerprint uses', async () => {
+    const graph = await loadGraph(BASIC_FIXTURE);
+    const counts = await computePortalSourceFileCounts(graph);
+    const { computeNodeMappedFiles } = await import('../../src/core/pairs.js');
+    for (const nodePath of graph.nodes.keys()) {
+      const files = await computeNodeMappedFiles(graph, nodePath);
+      const marker = counts.find((c) => c.nodePath === nodePath)!;
+      expect(marker.sourceFileCount).toBe(files.length);
+    }
+  });
+
+  it('reports the real expanded file count, not the raw mapping-entry count, for a directory mapping', async () => {
+    // BASIC_FIXTURE's own nodes each map exactly one file, so mapping.length already
+    // equals the real file count for every node there — a facade that quietly
+    // returned mapping.length instead of the real expansion would pass the two tests
+    // above unnoticed. The committed `runcheck-parity` fixture's `cli/callers` node has
+    // ONE mapping entry (a directory, `src/callers/`) that expands to SEVEN files on
+    // disk, so the two numbers can only agree here if the facade is actually doing the
+    // real expansion.
+    const graph = await loadGraph(RUNCHECK_PARITY_FIXTURE);
+    const counts = await computePortalSourceFileCounts(graph);
+    const callers = counts.find((c) => c.nodePath === 'cli/callers')!;
+    expect(callers.sourceFileCount).toBe(7); // real expansion, not the single mapping entry
   });
 });
 

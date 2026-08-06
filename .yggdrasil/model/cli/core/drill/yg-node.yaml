@@ -5,7 +5,10 @@ description: "yg drill orchestrator — discovers an aspect's per-aspect case co
   outcome as pass / MISS / FALSE-ALARM / unrun / unsupported. Deterministic
   execution and the network reviewer are INJECTED by the command layer, so this
   engine module stays deterministic and ast-free while assembling LLM prompts
-  byte-identically to the production filler. Never touches the lock."
+  byte-identically to the production filler. The run context's nodeless switch
+  makes an LLM case's assembled prompt omit the node entirely — the shape a real
+  pair with no owning component receives — instead of the default synthetic
+  node every prior case carried. Never touches the lock."
 relations:
   - target: cli/model/graph
     type: uses

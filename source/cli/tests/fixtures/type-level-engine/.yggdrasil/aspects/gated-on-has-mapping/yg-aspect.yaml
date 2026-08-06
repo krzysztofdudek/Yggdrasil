@@ -1,0 +1,9 @@
+name: Gated On Has Mapping
+description: "Gated on node.has_mapping — a file enforced by its type owns exactly one subject (itself), so this must read true."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+when:
+  node:
+    has_mapping: true

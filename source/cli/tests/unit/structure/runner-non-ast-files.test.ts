@@ -74,7 +74,7 @@ describe('runStructureAspect — non-AST files in mapping (fix 3d)', () => {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/no-banned-call-guarded'),
       aspectId: 'no-banned-call-guarded',
-      nodePath: 'N',
+      unit: { kind: 'node', nodePath: 'N' },
       graph: g,
       projectRoot,
     });
@@ -127,7 +127,7 @@ describe('runStructureAspect — non-AST files in mapping (fix 3d)', () => {
       runStructureAspect({
         aspectDir: path.join('.yggdrasil/aspects/no-banned-call-unguarded'),
         aspectId: 'no-banned-call-unguarded',
-        nodePath: 'N',
+        unit: { kind: 'node', nodePath: 'N' },
         graph: g,
         projectRoot,
       }),
@@ -166,7 +166,7 @@ describe('runStructureAspect — non-AST files in mapping (fix 3d)', () => {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/no-todo-comments'),
       aspectId: 'no-todo-comments',
-      nodePath: 'N',
+      unit: { kind: 'node', nodePath: 'N' },
       graph: g,
       projectRoot,
     });
@@ -214,7 +214,7 @@ describe('runStructureAspect — non-AST files in mapping (fix 3d)', () => {
     const r = await runStructureAspect({
       aspectDir: path.join('.yggdrasil/aspects/no-select-star'),
       aspectId: 'no-select-star',
-      nodePath: 'N',
+      unit: { kind: 'node', nodePath: 'N' },
       graph: g,
       projectRoot,
     });

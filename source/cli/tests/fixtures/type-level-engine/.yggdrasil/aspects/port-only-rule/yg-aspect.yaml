@@ -1,0 +1,6 @@
+name: Port Only Rule
+description: "Attached only to a port on the explicit 'owned' node. Exists to prove channel 6 (port) never delivers to a type-covered file's cascade — a derived relation never carries consumes:, so it can never satisfy iterateAttachments' port-consumption requirement."
+reviewer:
+  type: deterministic
+scope:
+  per: file

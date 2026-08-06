@@ -1,0 +1,7 @@
+name: Near
+description: >-
+  Owns the com.a.Zzz copy found at the NEARER ancestor root (src/main/java) —
+  the copy the ancestor-root search finds first and wins whenever it is live.
+type: service
+mapping:
+  - src/main/java/com/a/Zzz.java

@@ -476,7 +476,7 @@ describe('buildNominations — injection hygiene (repo text is quoted data, neve
     const noms = buildNominations(graph, { todayUtc: TODAY, suppressAnomalies: [anomaly] });
     const supp = noms.find((n) => n.id === 'suppress-anomaly:src/x.ts:5')!;
     expect(supp).toBeDefined();
-    // Provenance-quoted, exactly as the brief specifies.
+    // Provenance-quoted: names the marker, its file:line, and the reason text.
     expect(supp.why).toContain("marker '*' at src/x.ts:5");
     expect(supp.why).toContain('suppress reason: "');
     // The hostile payload is neutralized: no raw newline, no ESC byte survives into
@@ -890,6 +890,268 @@ describe('buildNominations — T1 uncovered hot spot: defensive unknown-node ski
     const hot = noms.find((n) => n.id === 'uncovered-hot-spot:checkout/controller');
     expect(hot).toBeDefined();
     expect(hot!.next).toContain('Evidence: last 200 commits, from git history.');
+  });
+});
+
+// ── type-covered-churn (a churning type-covered file, no owning node) ──
+
+describe('buildNominations — T1.5 type-covered churn (a churning file the type tier alone carries)', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(os.tmpdir(), 'yg-advise-typechurn-'));
+    cpSync(FIXTURE, projectRoot, { recursive: true });
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('sits below uncovered-hot-spot (T1) and above family-without-law (T2)', () => {
+    // Pure rank check — no graph/source needed.
+    expect(90).toBeLessThan(95);
+    expect(95).toBeLessThan(100);
+  });
+
+  it('nominates graduation for a churning, type-enforced file, naming the file, its churn count, and its matched type', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 5, typeId: 'svc' }]]),
+      typeEnforcedFiles: new Set(['src/svc/handler.ts']),
+    });
+    const n = noms.find((x) => x.id.startsWith('type-covered-churn:'));
+    expect(n).toBeDefined();
+    expect(n!.classRank).toBe(95);
+    expect(n!.what).toContain('handler.ts');
+    expect(n!.why).toContain('5');
+    expect(n!.why).toContain('svc');
+    expect(n!.next).toMatch(/create an explicit node|requires.*approval/i);
+    expect(n!.evidenceHash).toMatch(HEX64);
+  });
+
+  it('upgrades the evidence from "one churning file" to "a cluster" when 2+ same-type files import each other', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/a.ts', { churn: 3, typeId: 'svc' }],
+        ['src/svc/b.ts', { churn: 2, typeId: 'svc' }],
+      ]),
+      typeCoveredEdges: [{ from: 'src/svc/a.ts', to: 'src/svc/b.ts' }],
+      typeEnforcedFiles: new Set(['src/svc/a.ts', 'src/svc/b.ts']),
+    });
+    const a = noms.find((x) => x.id === 'type-covered-churn:src/svc/a.ts');
+    const b = noms.find((x) => x.id === 'type-covered-churn:src/svc/b.ts');
+    expect(a).toBeDefined();
+    expect(b).toBeDefined();
+    expect(a!.why).toMatch(/cluster|both files|import(s|ing) each other/i);
+    expect(b!.why).toMatch(/cluster|both files|import(s|ing) each other/i);
+  });
+
+  it('names "both files" at exactly 2 partners, and "all N files" at 3 or more — matching the real count', async () => {
+    const graph = await loadGraph(projectRoot);
+    const two = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/a.ts', { churn: 3, typeId: 'svc' }],
+        ['src/svc/b.ts', { churn: 2, typeId: 'svc' }],
+      ]),
+      typeCoveredEdges: [{ from: 'src/svc/a.ts', to: 'src/svc/b.ts' }],
+      typeEnforcedFiles: new Set(['src/svc/a.ts', 'src/svc/b.ts']),
+    });
+    expect(two.find((n) => n.id === 'type-covered-churn:src/svc/a.ts')!.why).toContain(
+      'both files carrying real weight',
+    );
+
+    const three = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/a.ts', { churn: 4, typeId: 'svc' }],
+        ['src/svc/b.ts', { churn: 3, typeId: 'svc' }],
+        ['src/svc/c.ts', { churn: 2, typeId: 'svc' }],
+      ]),
+      typeCoveredEdges: [
+        { from: 'src/svc/a.ts', to: 'src/svc/b.ts' },
+        { from: 'src/svc/a.ts', to: 'src/svc/c.ts' },
+      ],
+      typeEnforcedFiles: new Set(['src/svc/a.ts', 'src/svc/b.ts', 'src/svc/c.ts']),
+    });
+    const aWhy = three.find((n) => n.id === 'type-covered-churn:src/svc/a.ts')!.why;
+    expect(aWhy).toContain('all 3 files carrying real weight');
+    expect(aWhy).not.toContain('both files');
+  });
+
+  it('does NOT upgrade to a cluster when the edge partner does not churn this window, or matches a different type', async () => {
+    const graph = await loadGraph(projectRoot);
+    // Partner not in the churn map at all.
+    const noEdgePartner = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/a.ts', { churn: 3, typeId: 'svc' }]]),
+      typeCoveredEdges: [{ from: 'src/svc/a.ts', to: 'src/svc/ghost.ts' }],
+      typeEnforcedFiles: new Set(['src/svc/a.ts']),
+    });
+    expect(noEdgePartner.find((x) => x.id === 'type-covered-churn:src/svc/a.ts')!.why).not.toMatch(
+      /cluster|both files/i,
+    );
+    // Partner present but classified under a DIFFERENT type — never a same-type cluster.
+    const mismatchedType = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/a.ts', { churn: 3, typeId: 'svc' }],
+        ['src/util/b.ts', { churn: 2, typeId: 'util' }],
+      ]),
+      typeCoveredEdges: [{ from: 'src/svc/a.ts', to: 'src/util/b.ts' }],
+      typeEnforcedFiles: new Set(['src/svc/a.ts', 'src/util/b.ts']),
+    });
+    expect(mismatchedType.find((x) => x.id === 'type-covered-churn:src/svc/a.ts')!.why).not.toMatch(
+      /cluster|both files/i,
+    );
+  });
+
+  it('does NOT name a same-type import partner whose own churn sits at the floor — a churn-1 partner never carried weight of its own', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/busy.ts', { churn: 5, typeId: 'svc' }],
+        // Churn 1: never touched beyond the commit that created it — the exact
+        // shape MIN_TYPE_COVERED_CHURN refuses to nominate on its own.
+        ['src/svc/untouched.ts', { churn: 1, typeId: 'svc' }],
+      ]),
+      typeCoveredEdges: [{ from: 'src/svc/busy.ts', to: 'src/svc/untouched.ts' }],
+      typeEnforcedFiles: new Set(['src/svc/busy.ts', 'src/svc/untouched.ts']),
+    });
+    const busy = noms.find((n) => n.id === 'type-covered-churn:src/svc/busy.ts');
+    expect(busy).toBeDefined();
+    // The nominee still fires on its own evidence...
+    expect(busy!.why).toContain("touched 'src/svc/busy.ts'");
+    // ...but a partner that would never qualify as a nominee in its own right is
+    // never cited as evidence for one either.
+    expect(busy!.why).not.toContain('untouched.ts');
+    expect(busy!.why).not.toMatch(/cluster|both files/i);
+    // And, as already pinned above, the sub-floor file is never nominated on its own.
+    expect(noms.some((n) => n.id === 'type-covered-churn:src/svc/untouched.ts')).toBe(false);
+  });
+
+  it('does NOT name a same-type import partner whose matched type enforces nothing on it', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/busy.ts', { churn: 5, typeId: 'svc' }],
+        // Plenty of churn, but its matched type carries no enforcement on it —
+        // the exact fact yg owner --file would report as "nothing from it
+        // enforces on this file".
+        ['src/svc/unenforced.ts', { churn: 5, typeId: 'svc' }],
+      ]),
+      typeCoveredEdges: [{ from: 'src/svc/busy.ts', to: 'src/svc/unenforced.ts' }],
+      typeEnforcedFiles: new Set(['src/svc/busy.ts']),
+    });
+    const busy = noms.find((n) => n.id === 'type-covered-churn:src/svc/busy.ts');
+    expect(busy).toBeDefined();
+    expect(busy!.why).not.toContain('unenforced.ts');
+    expect(busy!.why).not.toMatch(/cluster|both files/i);
+    expect(noms.some((n) => n.id === 'type-covered-churn:src/svc/unenforced.ts')).toBe(false);
+  });
+
+  it('graduating the file (a node now claims it) makes the nomination disappear on the next run — self-clearing', async () => {
+    const graph = await loadGraph(projectRoot);
+    // No entry for the graduated file this run — the CLI boundary naturally stops
+    // supplying one the moment computeTypeCoverage no longer classifies it (a real
+    // node owns it now, so it is never "uncovered" in the first place). 'other.ts'
+    // otherwise qualifies (churn 2, enforced), proving the absence is self-clearing
+    // and not an incidental threshold/gate miss.
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/other.ts', { churn: 2, typeId: 'svc' }]]),
+      typeEnforcedFiles: new Set(['src/svc/other.ts']),
+    });
+    expect(noms.some((x) => x.id === 'type-covered-churn:src/svc/other.ts')).toBe(true);
+    expect(noms.some((x) => x.id === 'type-covered-churn:src/svc/handler.ts')).toBe(false);
+  });
+
+  it('is silent when the churn source is entirely absent (no git / flag off) — never fabricated', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, { todayUtc: TODAY });
+    expect(noms.some((x) => x.id.startsWith('type-covered-churn:'))).toBe(false);
+  });
+
+  it('does NOT nominate a file whose churn is 0 in the window', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 0, typeId: 'svc' }]]),
+      typeEnforcedFiles: new Set(['src/svc/handler.ts']),
+    });
+    expect(noms.some((x) => x.id.startsWith('type-covered-churn:'))).toBe(false);
+  });
+
+  it('does NOT nominate a file whose only touch is the commit that created it (churn = 1)', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 1, typeId: 'svc' }]]),
+      typeEnforcedFiles: new Set(['src/svc/handler.ts']),
+    });
+    expect(noms.some((x) => x.id.startsWith('type-covered-churn:'))).toBe(false);
+  });
+
+  it('DOES nominate once churn reaches 2 — at least one edit beyond the creating commit', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 2, typeId: 'svc' }]]),
+      typeEnforcedFiles: new Set(['src/svc/handler.ts']),
+    });
+    expect(noms.some((x) => x.id === 'type-covered-churn:src/svc/handler.ts')).toBe(true);
+  });
+
+  it('does NOT nominate a churning file whose matched type enforces nothing on it', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 5, typeId: 'svc' }]]),
+      typeEnforcedFiles: new Set(), // the type carries nothing on this file
+    });
+    expect(noms.some((x) => x.id.startsWith('type-covered-churn:'))).toBe(false);
+  });
+
+  it('is silent (never fabricated) when the enforcement classification itself is absent, even with known churn', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 5, typeId: 'svc' }]]),
+      // typeEnforcedFiles omitted entirely — classification unresolved this run.
+    });
+    expect(noms.some((x) => x.id.startsWith('type-covered-churn:'))).toBe(false);
+  });
+
+  it('ranks nominations WITHIN the class by churn descending, not by file path alphabetically', async () => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      typeCoveredChurnByFile: new Map([
+        ['src/svc/aaa.ts', { churn: 2, typeId: 'svc' }],
+        ['src/svc/zzz.ts', { churn: 10, typeId: 'svc' }],
+        ['src/svc/mmm.ts', { churn: 5, typeId: 'svc' }],
+      ]),
+      typeEnforcedFiles: new Set(['src/svc/aaa.ts', 'src/svc/zzz.ts', 'src/svc/mmm.ts']),
+    });
+    const ids = noms.filter((n) => n.id.startsWith('type-covered-churn:')).map((n) => n.id);
+    // Alphabetical order would be aaa, mmm, zzz — the reverse of this.
+    expect(ids).toEqual([
+      'type-covered-churn:src/svc/zzz.ts',
+      'type-covered-churn:src/svc/mmm.ts',
+      'type-covered-churn:src/svc/aaa.ts',
+    ]);
+  });
+
+  it('moves the evidence hash when the matched type changes even though churn stays the same — a stale dismiss must not survive a re-bucketing', async () => {
+    const graph = await loadGraph(projectRoot);
+    const hashFor = (typeId: string) =>
+      buildNominations(graph, {
+        todayUtc: TODAY,
+        typeCoveredChurnByFile: new Map([['src/svc/handler.ts', { churn: 4, typeId }]]),
+        typeEnforcedFiles: new Set(['src/svc/handler.ts']),
+      }).find((n) => n.id === 'type-covered-churn:src/svc/handler.ts')!.evidenceHash;
+    expect(hashFor('util')).not.toBe(hashFor('svc'));
   });
 });
 

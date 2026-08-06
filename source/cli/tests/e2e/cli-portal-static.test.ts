@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, readFileSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, appendFileSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -143,5 +143,71 @@ describe.skipIf(!distExists)('CLI E2E — yg portal --static (self-contained off
     expect(help).toMatch(/--static/);
     expect(help).toMatch(/--port/);
     expect(help).toMatch(/--no-write/);
+  });
+});
+
+// Public-surface E2E: the portal's live suppression inventory (embedded in the static
+// payload the extraction pipeline emits) must reach every file a `yg-suppress` marker is
+// actually honored in — not only an ordinary git-tracked-file walk. Three files, two real
+// aspects (tests/fixtures/type-level-engine merged with its binary-subject variant): a
+// type-covered file with no owning component (src/pics/readme.md, aspect prose-rule — a
+// `.md` subject, so listing it actually depends on the type-coverage exemption reaching
+// the noise filter, unlike a `.ts` subject that was never noise to begin with), and two
+// files the real 'owned' node maps directly, both carrying own-file-rule — one under
+// `.yggdrasil/` (pruned from the coverage walk) and one a `.gitignore` excludes (an exact
+// mapping entry is reviewed regardless of ignore status). The deterministic runner honors
+// a marker on all three; the portal's read-only inventory (engine-api.ts's
+// scanPortalSuppressions, feeding extract.ts) must list all three too, or an operator
+// reading the portal sees a clean waiver surface that is not.
+const TYPE_LEVEL_FIXTURE_ROOT = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
+
+describe.skipIf(!distExists)('CLI E2E — yg portal --static lists a marker wherever it is honored, whatever file hosts it', () => {
+  it('the embedded suppression inventory names the type-covered file, the .yggdrasil/-mapped file, and the gitignored mapped file', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typelevel-'));
+    try {
+      cpSync(TYPE_LEVEL_FIXTURE_ROOT, dir, { recursive: true });
+      cpSync(path.join(TYPE_LEVEL_FIXTURE_ROOT, 'variants', 'binary-subject'), dir, { recursive: true });
+
+      const nodeYamlPath = path.join(dir, '.yggdrasil', 'model', 'owned', 'yg-node.yaml');
+      const original = readFileSync(nodeYamlPath, 'utf-8');
+      const updated = original.replace(
+        'mapping:\n  - src/owned/o.ts\n',
+        'mapping:\n  - src/owned/o.ts\n  - .yggdrasil/meta/notes.md\n  - generated/g.ts\n',
+      );
+      expect(updated).not.toBe(original);
+      writeFileSync(nodeYamlPath, updated);
+
+      mkdirSync(path.join(dir, '.yggdrasil', 'meta'), { recursive: true });
+      writeFileSync(
+        path.join(dir, '.yggdrasil', 'meta', 'notes.md'),
+        '# design notes\n\n<!-- yg-suppress(own-file-rule) portal waiver under dot-yggdrasil -->\n',
+      );
+
+      writeFileSync(path.join(dir, '.gitignore'), 'generated/\n');
+      mkdirSync(path.join(dir, 'generated'), { recursive: true });
+      writeFileSync(
+        path.join(dir, 'generated', 'g.ts'),
+        'export const G = 1;\n// yg-suppress(own-file-rule) portal waiver on a gitignored file\n',
+      );
+
+      appendFileSync(
+        path.join(dir, 'src', 'pics', 'readme.md'),
+        '\n<!-- yg-suppress(prose-rule) portal waiver on a type-covered file -->\n',
+      );
+
+      const outPath = path.join(dir, 'portal.html');
+      const result = spawnSync('node', [BIN_PATH, 'portal', '--static', '--out', outPath], {
+        cwd: dir,
+        encoding: 'utf-8',
+      });
+      expect(result.status).toBe(0);
+      const out = readFileSync(outPath, 'utf-8');
+
+      expect(out).toContain('portal waiver under dot-yggdrasil');
+      expect(out).toContain('portal waiver on a gitignored file');
+      expect(out).toContain('portal waiver on a type-covered file');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

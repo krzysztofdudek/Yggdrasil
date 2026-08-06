@@ -1,0 +1,13 @@
+version: "5.2.0"
+
+# coverage.type_level stays OFF (the default) while coverage.excluded still names a
+# root. An excluded file is excluded rather than unguarded regardless of whether the
+# type-level tier is on — this fixture is the one committed project that exercises
+# that combination: exclusion still moves a file out of the unguarded residue when
+# nothing about the type lattice is in play at all.
+coverage:
+  required:
+    - src/
+  excluded:
+    - vendor/
+  type_level: false

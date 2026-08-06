@@ -6,3 +6,4 @@ yg-secrets.yaml
 .ast-cache/
 .yg-events.jsonl
 .yg-fill-divergence.log*
+.type-class-cache/
