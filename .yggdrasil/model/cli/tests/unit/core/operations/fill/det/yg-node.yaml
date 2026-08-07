@@ -4,12 +4,17 @@ description: "Unit tests for deterministic fills — det-first ordering, det gat
   skipping LLM (pinned directly on detGateKey plus a real cross-file fill
   run), positive closure, log gate, GC, incremental writeLock,
   taint/re-run-once, per-file pair contract, the append-only verdict-events
-  telemetry sidecar, and the same-process fill→check handoff that lets a
-  component-free file's disposition reach that same run's own report."
+  telemetry sidecar, the same-process fill→check handoff that lets a
+  component-free file's disposition reach that same run's own report, and the
+  step that records an assembled prompt's size onto verdicts written before
+  that field existed — the only thing that ever writes one onto a verdict that
+  is already valid, and so the only reason a repository with nothing to fill
+  ever reaches the fast path at all."
 aspects: []
 relations:
   [
     { target: cli/core/fill, type: uses },
+    { target: cli/model/lock, type: uses },
     { target: cli/core/fill-support, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/verify-lock, type: uses },
@@ -40,3 +45,4 @@ mapping:
   - source/cli/tests/unit/core/fill-prune-summary.test.ts
   - source/cli/tests/unit/core/fill-classify-once.test.ts
   - source/cli/tests/unit/core/fill-runtime-disposition-handoff.test.ts
+  - source/cli/tests/unit/core/fill-prompt-size-backfill.test.ts

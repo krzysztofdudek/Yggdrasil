@@ -49,13 +49,20 @@ import {
 } from './pair-hash.js';
 import { computeAllowedNodePaths } from '../structure/ctx-graph.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
-import { ruleHashFor, contentFor, nodeDescriptionFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
+import { ruleHashFor, contentFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
 import type { ExpectedPair, UnreadableSubject, TypeCoverageInput, PairDrop, UncomputableTypeCoverage } from './pairs.js';
 import { computeExpectedPairs } from './pairs.js';
 import { selectTierForAspect } from './tier-selection.js';
 import { assembledPromptChars, DEFAULT_MAX_PROMPT_CHARS } from '../llm/prompt.js';
 import type { PromptReferenceInput, PromptFileInput, PromptCompanionInput, PromptSuppressedRangesInput } from '../llm/prompt.js';
 import { resolveCompanionsForPair } from './companion-resolve.js';
+import {
+  buildParseCacheBuckets,
+  parseCacheBucketKey,
+  releaseParseCacheBucket,
+  destroyRemainingParseCaches,
+} from './parse-cache-buckets.js';
+import type { ParseCache } from '../structure/index.js';
 import type { IssueMessage } from '../model/validation.js';
 
 // ============================================================
@@ -86,6 +93,21 @@ export interface VerifiedPair {
   state: PairState;
   /** Valid-verdict-but-oversized: gate error data to surface alongside the verdict. */
   oversized?: { chars: number; limit: number; tierName: string };
+  /**
+   * Set ONLY when this call assembled the prompt live for a pair whose stored
+   * verdict is still VALID but carries no recorded `promptChars` — i.e. an entry
+   * written by a CLI from before that field existed.
+   *
+   * It exists so `--approve` can record the number without re-reviewing
+   * anything (core/fill-prompt-size-backfill.ts). Without that, a repository
+   * whose verdicts are all still valid would never record a single size — there
+   * is nothing to re-fill, so nothing would ever write one — and every check
+   * would keep paying the full assembly cost the field exists to remove.
+   *
+   * Left undefined whenever the number came from the lock (nothing to write) or
+   * the pair is not valid (a re-fill will write its own).
+   */
+  backfillPromptChars?: number;
 }
 
 export interface LockVerification {
@@ -176,23 +198,61 @@ export async function verifyPairs(
   // core/fill.ts's own per-run cache (same contract: fromType -> Set<string>).
   const reachCache = new Map<string, Set<string>>();
 
-  for (const pair of pairs) {
-    const aspect = aspectById.get(pair.aspectId);
-    // Defensive: pairs come from the same graph, so the aspect always exists.
-    /* v8 ignore next */
-    if (!aspect) continue;
+  // Shared parse caches for the companion hooks the §4 size gate may run, in
+  // the SAME per-(aspect, node/unit) buckets the fill stage uses — see
+  // core/parse-cache-buckets.ts for why that grouping is the right one (a
+  // `per: file` rule builds one unit ctx PER SUBJECT, and every one of those
+  // prewarms the identical set of trees for the identical node). Without a
+  // shared cache each pair's `runCompanionHook` took its own `ownCache` branch:
+  // build a Map, prewarm the whole unit, run the hook, destroy it — re-parsing
+  // the same files once per subject and discarding every result. The fill path
+  // has always passed a cache here; lock verification was the side that did not.
+  //
+  // Bucketed rather than one run-wide cache because a `ParseCache` holds native
+  // WASM Trees that JS GC never reclaims (see `destroyParseCache`): a bucket is
+  // destroyed the moment its last pair settles, so peak footprint tracks the
+  // largest single unit instead of the whole repository. Only companion-bearing
+  // LLM pairs can reach a hook, so only those are counted into a bucket — and
+  // with a valid, size-recording verdict most of them no longer run one at all.
+  const companionPairs = pairs.filter(
+    (p) => p.kind === 'llm' && aspectById.get(p.aspectId)?.hasCompanion === true,
+  );
+  const parseCacheBuckets = buildParseCacheBuckets(companionPairs);
+  const isCompanionPair = new Set(companionPairs);
 
-    const storedEntry = lock.verdicts[pair.aspectId]?.[pair.unitKey];
+  try {
+    for (const pair of pairs) {
+      const aspect = aspectById.get(pair.aspectId);
+      // Defensive: pairs come from the same graph, so the aspect always exists.
+      /* v8 ignore next */
+      if (!aspect) continue;
 
-    if (pair.kind === 'llm') {
-      verified.push(
-        await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached, typeCoverage, reachCache),
-      );
-    } else {
-      verified.push(
-        await verifyDetPair(pair, aspect, graph, projectRoot, storedEntry, readBytes, hashCached),
-      );
+      const storedEntry = lock.verdicts[pair.aspectId]?.[pair.unitKey];
+
+      if (pair.kind === 'llm') {
+        const bucket = isCompanionPair.has(pair)
+          ? parseCacheBuckets.get(parseCacheBucketKey(pair))
+          : undefined;
+        try {
+          verified.push(
+            await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached, typeCoverage, reachCache, bucket?.cache),
+          );
+        } finally {
+          // Release even when the pair threw: the bucket's countdown must reach
+          // zero for its trees to be freed, and the backstop below only runs
+          // once for whatever is left.
+          if (isCompanionPair.has(pair)) releaseParseCacheBucket(parseCacheBuckets, pair);
+        }
+      } else {
+        verified.push(
+          await verifyDetPair(pair, aspect, graph, projectRoot, storedEntry, readBytes, hashCached),
+        );
+      }
     }
+  } finally {
+    // Backstop only — the per-pair release above empties every bucket in the
+    // common case, so this normally iterates nothing.
+    destroyRemainingParseCaches(parseCacheBuckets);
   }
 
   return verified;
@@ -213,6 +273,7 @@ async function verifyLlmPair(
   hashCached: (absPath: string, bytes: Buffer) => string,
   typeCoverage: TypeCoverageInput | undefined,
   reachCache: Map<string, Set<string>>,
+  parseCache: ParseCache | undefined,
 ): Promise<VerifiedPair> {
   // ── Resolve the tier (needed for both validity recompute and the gate). ──
   const reviewer = graph.config.reviewer;
@@ -230,19 +291,20 @@ async function verifyLlmPair(
   }
 
   // ── Load reference bytes (sorted by path is handled inside the hash fn). ──
+  //    Only the HASH view is built here: it is needed on every pair. The PROMPT
+  //    view — the same bytes decoded to UTF-8 text — is built lazily by the live
+  //    gate below, which is the sole consumer and no longer runs on a valid pair
+  //    with a recorded size. The bytes themselves stay in `readBytes`'s per-run
+  //    cache either way, so the lazy build re-reads nothing.
   const refInputs = aspect.references ?? [];
   const referencesForHash: Array<[string, string, string]> = [];
-  const referencesForPrompt: PromptReferenceInput[] = [];
+  const refBytesByPath = new Map<string, Buffer>();
   for (const ref of refInputs) {
     const absRef = path.resolve(projectRoot, ref.path);
     const bytes = await readBytes(absRef);
     const refBytes = bytes ?? Buffer.alloc(0);
+    refBytesByPath.set(ref.path, refBytes);
     referencesForHash.push([ref.path, hashCached(absRef, refBytes), ref.description ?? '']);
-    referencesForPrompt.push({
-      path: ref.path,
-      description: ref.description,
-      content: refBytes.toString('utf8'),
-    });
   }
 
   // ── ruleHash = sha256(content.md bytes). Artifacts carry the loaded text. ──
@@ -274,23 +336,86 @@ async function verifyLlmPair(
     touchedNow.push([key, await reObserve(key, graph, pair.nodePath ?? '', projectRoot, readBytes)]);
   }
 
+  // ── Validity recompute. Requires a resolvable tier; if the tier cannot be
+  //    resolved we cannot reproduce the stored hash, so the pair is unverified
+  //    (the fill stage would have failed closed and written nothing).
+  //
+  //    This runs BEFORE the prompt-size gate below, and the order is the whole
+  //    point: everything above is cheap (bytes already in `readBytes`'s cache,
+  //    hashes already memoized), while the gate can cost a companion hook run
+  //    and a full prompt assembly. Deciding validity first is what lets a valid
+  //    pair take the stored-size path and never pay that. The classification the
+  //    two produce together is unchanged — `classifyWithGate` sees the same
+  //    (valid, gate) pair it always did, just computed in the other order. ──
+  let valid = false;
+  if (storedEntry !== undefined && tierResult?.ok) {
+    const expectedHash = computeLlmInputHash({
+      aspectId: aspect.id,
+      aspectDescription: aspect.description ?? '',
+      scope: aspect.scope,
+      nodePath: pair.nodePath,
+      ruleHash,
+      files: subjects.map((s) => [s.path, hashCached(path.resolve(projectRoot, s.path), s.bytes)] as [string, string]),
+      references: referencesForHash,
+      tier: tierHashViewFromTier(tierResult.tierName),
+      // companionHash + touched fold only-when-present (the hash guards): a plain
+      // aspect passes companionHash=undefined and touched=[] → byte-identical to
+      // the pre-feature hash, so existing plain verdicts stay valid.
+      companionHash,
+      touched: touchedNow,
+      verdict: storedEntry.verdict,
+    });
+    valid = expectedHash === storedEntry.hash;
+  }
+
   // ── Prompt-size gate (§4): active whenever a tier resolves (an omitted
   // max_prompt_chars is gated at DEFAULT_MAX_PROMPT_CHARS — there is no
-  // "unlimited" tier). For a companion aspect the companion set is resolved LIVE
-  // here (the same resolver fill / --dry-run use), NOT reconstructed from the
-  // stored `touched` read: keys: those conflate the hook's DECISION reads
-  // (ctx.fs / ctx.graph) with the files it actually INJECTS, so they would size
-  // the prompt at the whole reachable set instead of the few returned companions.
-  // Suppressed line ranges are also resolved LIVE (the same resolver fill uses)
-  // so the assembled-prompt size MATCHES what fill / the reviewer see — otherwise
-  // a plain LLM aspect (verify-lock is its only gate) whose <suppressed-ranges>
-  // block tips it over the limit would slip past unflagged. This is why plain
-  // `yg check` MAY run companion.mjs / the suppress resolver (never a judge) — it
-  // still runs no check.mjs and calls no reviewer. Inputs that cannot resolve
-  // here (a companion that fails, a reasonless suppress marker) cannot be
-  // assembled or sized → fail closed (companion-error / unverified).
+  // "unlimited" tier).
+  //
+  // A pair whose stored entry is VALID and carries a recorded `promptChars`
+  // takes it at its word and assembles nothing. That is sound because the size
+  // is fully determined by inputs the hash folds: the aspect's id, description
+  // and body; every reference's path, description and content; the node path;
+  // every subject file's content; every companion's content (each folded as a
+  // `read:` observation in `touched`, re-observed above); and the suppressed
+  // ranges, which are derived from subject content. A valid hash therefore
+  // implies an unchanged prompt, and an unchanged prompt has an unchanged size.
+  // (This became true when the node `description:` — the one prompt ingredient
+  // the hash did not cover — stopped reaching the prompt at all; see
+  // llm/prompt.ts's `nodeElement`.) The two live resolutions skipped along the
+  // way cannot change the answer either: a companion whose hook, inputs and
+  // read set are all unchanged resolves to what it resolved at fill time, and a
+  // suppress marker set living in unchanged subject bytes resolves the same way
+  // too — in both cases the fill would have written no verdict at all had they
+  // failed, so a stored entry is itself evidence they succeeded.
+  //
+  // Everything else — a pair with no stored entry, a stale one, or one written
+  // before `promptChars` existed — resolves LIVE, exactly as before. For a
+  // companion aspect the companion set is resolved here (the same resolver fill
+  // / --dry-run use), NOT reconstructed from the stored `touched` read: keys:
+  // those conflate the hook's DECISION reads (ctx.fs / ctx.graph) with the files
+  // it actually INJECTS, so they would size the prompt at the whole reachable
+  // set instead of the few returned companions. Suppressed line ranges are also
+  // resolved live so the assembled-prompt size MATCHES what fill / the reviewer
+  // see — otherwise a plain LLM aspect (verify-lock is its only gate) whose
+  // <suppressed-ranges> block tips it over the limit would slip past unflagged.
+  // This is why plain `yg check` MAY run companion.mjs / the suppress resolver
+  // (never a judge) — it still runs no check.mjs and calls no reviewer. Inputs
+  // that cannot resolve here (a companion that fails, a reasonless suppress
+  // marker) cannot be assembled or sized → fail closed (companion-error /
+  // unverified).
+  //
+  // The LIMIT is read live in both branches. `max_prompt_chars` is excluded
+  // from the verdict hash by design, so lowering a tier's ceiling must re-gate
+  // verdicts that are otherwise still valid — which is exactly what comparing a
+  // stored SIZE against the current limit does.
   let gate: { chars: number; limit: number; tierName: string } | undefined;
-  if (tierResult?.ok) {
+  if (tierResult?.ok && valid && storedEntry?.promptChars !== undefined) {
+    const limit = tierResult.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS;
+    if (storedEntry.promptChars > limit) {
+      gate = { chars: storedEntry.promptChars, limit, tierName: tierResult.tierName };
+    }
+  } else if (tierResult?.ok) {
     // A tier that OMITS max_prompt_chars is gated at DEFAULT_MAX_PROMPT_CHARS
     // (the §4 gate is always active — there is no "unlimited" tier). The guard
     // is therefore always-true; it is unwrapped, the body kept. This is the
@@ -298,7 +423,7 @@ async function verifyLlmPair(
     const limit = tierResult.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS;
     let gateCompanions: PromptCompanionInput[] = [];
     if (aspect.hasCompanion === true) {
-      const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect, typeCoverage, reachCache);
+      const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect, typeCoverage, reachCache, parseCache);
       if (resolved.kind === 'infra') {
         return { pair, state: { kind: 'companion-error', messageData: resolved.messageData } };
       }
@@ -326,9 +451,12 @@ async function verifyLlmPair(
         description: aspect.description ?? '',
         content: contentFor(aspect, 'content.md'),
       },
-      references: referencesForPrompt,
+      references: refInputs.map<PromptReferenceInput>((ref) => ({
+        path: ref.path,
+        description: ref.description,
+        content: (refBytesByPath.get(ref.path) ?? Buffer.alloc(0)).toString('utf8'),
+      })),
       nodePath: pair.nodePath,
-      nodeDescription: nodeDescriptionFor(graph, pair.nodePath),
       files: subjects.map<PromptFileInput>((s) => ({
         path: s.path,
         content: s.bytes.toString('utf8'),
@@ -340,30 +468,13 @@ async function verifyLlmPair(
     if (chars > limit) {
       gate = { chars, limit, tierName: tierResult.tierName };
     }
-  }
-
-  // ── Validity recompute. Requires a resolvable tier; if the tier cannot be
-  //    resolved we cannot reproduce the stored hash, so the pair is unverified
-  //    (the fill stage would have failed closed and written nothing). ──
-  let valid = false;
-  if (storedEntry !== undefined && tierResult?.ok) {
-    const expectedHash = computeLlmInputHash({
-      aspectId: aspect.id,
-      aspectDescription: aspect.description ?? '',
-      scope: aspect.scope,
-      nodePath: pair.nodePath,
-      ruleHash,
-      files: subjects.map((s) => [s.path, hashCached(path.resolve(projectRoot, s.path), s.bytes)] as [string, string]),
-      references: referencesForHash,
-      tier: tierHashViewFromTier(tierResult.tierName),
-      // companionHash + touched fold only-when-present (the hash guards): a plain
-      // aspect passes companionHash=undefined and touched=[] → byte-identical to
-      // the pre-feature hash, so existing plain verdicts stay valid.
-      companionHash,
-      touched: touchedNow,
-      verdict: storedEntry.verdict,
-    });
-    valid = expectedHash === storedEntry.hash;
+    // A pair that is VALID and reached this branch had no recorded size — an
+    // entry from before the field existed. Hand the number up so `--approve` can
+    // record it (see `backfillPromptChars`); the next check then takes the fast
+    // path instead of reassembling this prompt forever.
+    if (valid) {
+      return { ...classifyWithGate(pair, storedEntry, valid, gate), backfillPromptChars: chars };
+    }
   }
 
   return classifyWithGate(pair, storedEntry, valid, gate);

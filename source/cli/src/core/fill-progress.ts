@@ -18,6 +18,16 @@
 export interface ProgressOptions {
   isTTY: boolean;
   now: () => number;
+  /**
+   * Terminal width in columns, for the single rewritten TTY line. A status line
+   * longer than this WRAPS, and `\r` only returns to the start of the last
+   * visual row — so every redraw leaves the wrapped rows behind and a line that
+   * was meant to update in place scrolls the screen instead. Truncating to the
+   * width is what keeps it one line. Injected (never read off the process here)
+   * so the engine stays free of environment reads; defaults to a conservative
+   * 80 when the caller has no width to give.
+   */
+  columns?: number;
   /** Milestone threshold: emit a milestone line every N completed pairs (non-TTY mode).
    *  Default: 25% of total, minimum 1. */
   milestoneInterval?: number;
@@ -37,6 +47,19 @@ export interface ProgressState {
   lastCompletionTime: number;
 }
 
+/**
+ * Cut `text` to at most `width` columns, marking the cut with a single ellipsis
+ * so it reads as shortened rather than as a path that mysteriously ends early.
+ * Plain text only — the status line carries no colour codes, so counting
+ * characters is counting columns.
+ */
+function truncateToWidth(text: string, width: number): string {
+  if (width <= 0) return '';
+  if (text.length <= width) return text;
+  if (width === 1) return '…';
+  return `${text.slice(0, width - 1)}…`;
+}
+
 // ============================================================
 // ProgressTracker
 // ============================================================
@@ -47,6 +70,7 @@ export class ProgressTracker {
   private readonly milestoneInterval: number;
   private readonly stillWorkingIntervalMs: number;
   private readonly startTime: number;
+  private readonly columns: number;
 
   readonly state: ProgressState;
 
@@ -54,6 +78,9 @@ export class ProgressTracker {
     this.isTTY = opts.isTTY;
     this.now = opts.now;
     this.stillWorkingIntervalMs = opts.stillWorkingIntervalMs ?? 30000;
+    // A width of 0 (some non-interactive sinks report that) would truncate the
+    // line to nothing, so treat anything implausible as "unknown" and fall back.
+    this.columns = opts.columns !== undefined && opts.columns >= 20 ? opts.columns : 80;
     const startTime = opts.now();
     this.startTime = startTime;
 
@@ -173,12 +200,34 @@ export class ProgressTracker {
   // Private helpers
   // ============================================================
 
+  /**
+   * Rewrite the single in-place status line.
+   *
+   * Two things keep it to ONE line rather than a scrolling log:
+   *
+   *  - The line is CLEARED (`\x1b[2K`) before it is rewritten. Returning the
+   *    cursor with `\r` alone overwrites only as many characters as the new
+   *    line has, so a shorter line left the tail of the previous, longer one on
+   *    screen — a component path from a moment ago trailing behind the current
+   *    one.
+   *  - It is TRUNCATED to the terminal width. This is the one that actually
+   *    made it scroll: unit keys are full repository paths, so the line
+   *    routinely ran past the width and wrapped, and `\r` returns only to the
+   *    start of the LAST visual row. Every redraw then left its wrapped rows
+   *    behind, turning an update-in-place line into several new lines every
+   *    tick.
+   *
+   * The counts come first and the pair name last, so what gets cut on a narrow
+   * terminal is the part that changes constantly rather than the progress.
+   */
   private _writeTTYLine(write: (s: string) => void): void {
     const { completed, total, approved, refused, currentPair } = this.state;
     const elapsedSeconds = Math.floor((this.now() - this.startTime) / 1000);
-    write(
-      `filling... ${completed}/${total} · ok ${approved} · refused ${refused} · waiting on ${currentPair} (${elapsedSeconds}s)\r`,
-    );
+    const head = `filling ${completed}/${total} · ok ${approved} · refused ${refused} · ${elapsedSeconds}s`;
+    const full = currentPair === '' ? head : `${head} · ${currentPair}`;
+    // Leave one column spare: a line filling the very last column makes some
+    // terminals wrap to the next row on their own.
+    write(`\r\x1b[2K${truncateToWidth(full, this.columns - 1)}\r`);
   }
 
   private _writeMilestoneLine(write: (s: string) => void): void {

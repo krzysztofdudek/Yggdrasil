@@ -279,7 +279,9 @@ function throwMalformed(detail: string, ctx: ParseCtx): never {
  *   file carries all three keys; the section it does not own is an empty object.
  * - verdicts: plain object; every value is a plain object (aspectId → unitKey → entry); every
  *   entry is a plain object with string `verdict` ∈ {approved, refused} and string `hash`;
- *   optional string `reason`; optional `touched` = array of [string, string] pairs.
+ *   optional string `reason`; optional `touched` = array of [string, string] pairs; optional
+ *   non-negative integer `promptChars` (LLM only — the size of the prompt that produced the
+ *   verdict; absent on a deterministic entry and on any entry written before the field existed).
  * - nodes: plain object; every value is a plain object with optional string `source` and optional
  *   `log` = plain object { last_entry_datetime: string, prefix_hash: string }.
  */
@@ -317,9 +319,9 @@ function validateLockShape(obj: Record<string, unknown>, ctx: ParseCtx): void {
 function validateVerdictEntry(entry: unknown, at: string, ctx: ParseCtx): void {
   if (!isPlainObject(entry)) throwMalformed(`"${at}" must be a JSON object (found ${describe(entry)})`, ctx);
 
-  const ENTRY_KEYS = new Set(['verdict', 'hash', 'reason', 'touched']);
+  const ENTRY_KEYS = new Set(['verdict', 'hash', 'reason', 'touched', 'promptChars']);
   for (const key of Object.keys(entry)) {
-    if (!ENTRY_KEYS.has(key)) throwMalformed(`"${at}" has unexpected key "${key}" (allowed: verdict, hash, reason, touched)`, ctx);
+    if (!ENTRY_KEYS.has(key)) throwMalformed(`"${at}" has unexpected key "${key}" (allowed: verdict, hash, reason, touched, promptChars)`, ctx);
   }
 
   if (entry.verdict !== 'approved' && entry.verdict !== 'refused') {
@@ -345,6 +347,16 @@ function validateVerdictEntry(entry: unknown, at: string, ctx: ParseCtx): void {
       ) {
         throwMalformed(`"${at}.touched[${i}]" must be a [string, string] pair (found ${describe(pair)})`, ctx);
       }
+    }
+  }
+  // LLM only: the size of the prompt that produced this verdict. A non-negative
+  // integer — it is a character count, so a fraction or a negative would mean
+  // the entry was written by something other than this CLI, and a check that
+  // then trusted it could gate the wrong way. Absent on every deterministic
+  // entry and on any entry written before the field existed.
+  if (entry.promptChars !== undefined) {
+    if (typeof entry.promptChars !== 'number' || !Number.isInteger(entry.promptChars) || entry.promptChars < 0) {
+      throwMalformed(`"${at}.promptChars" must be a non-negative integer when present (found ${describe(entry.promptChars)})`, ctx);
     }
   }
 }
@@ -455,6 +467,11 @@ function serializeEntry(entry: VerdictEntry): string {
   if (entry.reason !== undefined) obj.reason = entry.reason;
   // Pre-sorting touched (and the observation-key order) is the PRODUCER's contract — the store serializes the array as given.
   if (entry.touched !== undefined) obj.touched = entry.touched;
+  // LLM only: the size of the prompt that produced this verdict. Enumerated here
+  // like every other field because this serializer is an explicit allow-list, not
+  // a pass-through — a field the producer sets but this function does not name is
+  // silently dropped on write, and the round-trip then loses it without a word.
+  if (entry.promptChars !== undefined) obj.promptChars = entry.promptChars;
 
   // Sort keys by code-point
   const sortedKeys = Object.keys(obj).sort();

@@ -427,6 +427,14 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
       // buildUnitCtx calls sharing that path list must still be re-read with its
       // current bytes, so prewarmupAstCache's content-equality gate (never the
       // presence of the path) is what decides whether a re-parse is skipped.
+      //
+      // This read looks like obvious waste when a `per: file` rule rebuilds the
+      // same unit once per subject, and memoising it measurably speeds that up —
+      // but the memo is what the gate above is guarding against, and the saving
+      // is on the CHEAP half: the read exists to supply the bytes the gate
+      // compares, and the parse it may then skip is the expensive part, already
+      // shared through the caller's parse cache. Pinning content for a bucket's
+      // lifetime buys the small half at the cost of the guarantee.
       const abs = path.resolve(projectRoot, p);
       try {
         const content = fs.readFileSync(abs, 'utf8');

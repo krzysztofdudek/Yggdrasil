@@ -26,8 +26,14 @@ import { escapeXmlText } from './xml-escape.js';
  * shipped in a release — that revision stays rev 2, not rev 3: no released
  * build ever recorded an event against the earlier wording, so there is no
  * shipped shape for a new number to distinguish it from.
+ *
+ * Bumped 2 -> 3: the `<node>` element lost its `description` attribute (see
+ * `nodeElement` below for why). Rev 2 DID ship, and every componented verdict
+ * it produced was judged against a prompt carrying that text, so the two
+ * shapes need distinct numbers for the record to stay honest. Like the 1 -> 2
+ * bump this is not a hash ingredient, so it invalidates nothing on its own.
  */
-export const PROMPT_FORMAT_REV = 2;
+export const PROMPT_FORMAT_REV = 3;
 
 /**
  * Default prompt-size limit applied when a tier OMITS `max_prompt_chars`.
@@ -67,8 +73,6 @@ export interface PairPromptInput {
    * byte-identical to before this variant existed.
    */
   nodePath?: string;
-  /** Omitted together with nodePath — there is no component description to show. */
-  nodeDescription?: string;
   files: PromptFileInput[];           // per-node: whole subject set; per-file: exactly one
   companions?: PromptCompanionInput[];   // resolved per-unit by companion.mjs; absent for plain aspects
   suppressedRanges?: PromptSuppressedRangesInput; // pre-resolved per-file suppress spans; absent ≙ no waivers
@@ -114,7 +118,7 @@ const PER_FILE_FRAMING_NODELESS =
  * receiving several. Enforcing this constraint is the caller's responsibility.
  */
 export function buildPairPrompt(input: PairPromptInput): string {
-  const { aspect, references, nodePath, nodeDescription, files, companions, suppressedRanges, scope } = input;
+  const { aspect, references, nodePath, files, companions, suppressedRanges, scope } = input;
 
   const isPerFile = scope?.per === 'file';
 
@@ -170,8 +174,24 @@ ${escapeXmlText(c.content, { attribute: false })}
   // component — no element, no blank line where it was (the template below
   // interpolates this directly after </task>, so an empty string collapses
   // the two blank lines around it into exactly one).
+  //
+  // The element carries the component's PATH and nothing else. It deliberately
+  // does NOT carry the node's `description:`, even though that text exists and
+  // reads like useful context, because the description is not a verdict input:
+  // `computeLlmInputHash` never folds it, so editing a description re-verifies
+  // nothing. An input that can move the reviewer's judgment but cannot
+  // invalidate the verdict it moved is a stale-green generator — and it was
+  // also the one prompt ingredient that made the assembled prompt's SIZE
+  // unpredictable from the pair hash, which is what lets `core/verify-lock.ts`
+  // trust a stored size (see `VerdictEntry.promptChars`). Every remaining
+  // ingredient below — the aspect id/description/body, each reference's
+  // path/description/content, the node path, every subject file's content,
+  // every companion's content (folded through `touched`), and the suppressed
+  // ranges (derived from subject content) — IS folded into that hash. The
+  // description stays what it always was on paper: documentation for people
+  // reading the graph, and the text `yg context` / `yg find` show them.
   const nodeElement = hasNode
-    ? `\n\n<node path="${escapeXmlText(nodePath, { attribute: true })}" description="${escapeXmlText(nodeDescription ?? '', { attribute: true })}" />`
+    ? `\n\n<node path="${escapeXmlText(nodePath, { attribute: true })}" />`
     : '';
 
   // Pre-resolved suppress spans (computed deterministically from yg-suppress

@@ -1,5 +1,5 @@
 /**
- * source/cli/src/core/fill-parse-cache.ts — per-(aspect, node) parse-cache
+ * source/cli/src/core/parse-cache-buckets.ts — per-(aspect, node) parse-cache
  * buckets for the fill stage (spec §7).
  *
  * A deterministic check.mjs or an LLM companion.mjs runs buildUnitCtx once per

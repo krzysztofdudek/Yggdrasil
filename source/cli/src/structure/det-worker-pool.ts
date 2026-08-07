@@ -61,6 +61,24 @@ interface PendingEntry {
 }
 
 /**
+ * Pick an idle worker for `req`, preferring one that already holds the parse
+ * cache for the task's bucket (see DetWorkerCacheSlot). A hit means the worker
+ * reuses its parsed trees; a miss just costs a re-parse. Purely a wall-clock
+ * heuristic — which worker runs a task never enters a verdict, and the picked
+ * worker is removed from `idle` either way.
+ *
+ * Falls back to the FIRST idle worker (index 0) when there is no affinity to
+ * honor, which is the behavior every task had before affinity existed.
+ */
+function takeIdleWorker(idle: Worker[], lastBucketByWorker: Map<Worker, string>, bucketKey: string | undefined): Worker {
+  if (bucketKey !== undefined) {
+    const hit = idle.findIndex((w) => lastBucketByWorker.get(w) === bucketKey);
+    if (hit !== -1) return idle.splice(hit, 1)[0]!;
+  }
+  return idle.shift()!;
+}
+
+/**
  * A fixed-size pool of persistent deterministic worker threads. `run` returns a
  * reply for exactly one task; `destroy` terminates every worker. Each worker
  * processes one task at a time — concurrency equals the worker count.
@@ -71,6 +89,8 @@ export class DetWorkerPool {
   private readonly idle: Worker[] = [];
   private readonly queue: PendingEntry[] = [];
   private readonly pending = new Map<Worker, PendingEntry>();
+  /** Last bucket key dispatched to each worker — drives cache affinity only. */
+  private readonly lastBucketByWorker = new Map<Worker, string>();
   private nextId = 1;
   private destroyed = false;
 
@@ -117,6 +137,9 @@ export class DetWorkerPool {
 
   private onExit(worker: Worker, code: number): void {
     this.workers.delete(worker);
+    // A dead worker's cache died with its isolate — drop the affinity record so
+    // a replacement is never credited with trees it does not hold.
+    this.lastBucketByWorker.delete(worker);
     const idleIdx = this.idle.indexOf(worker);
     if (idleIdx !== -1) this.idle.splice(idleIdx, 1);
     const entry = this.pending.get(worker);
@@ -140,8 +163,9 @@ export class DetWorkerPool {
 
   private pump(): void {
     while (this.idle.length > 0 && this.queue.length > 0) {
-      const worker = this.idle.shift()!;
       const entry = this.queue.shift()!;
+      const worker = takeIdleWorker(this.idle, this.lastBucketByWorker, entry.req.bucketKey);
+      if (entry.req.bucketKey !== undefined) this.lastBucketByWorker.set(worker, entry.req.bucketKey);
       this.pending.set(worker, entry);
       worker.postMessage(entry.req);
     }
@@ -171,6 +195,7 @@ export class DetWorkerPool {
     const workers = [...this.workers];
     this.workers.clear();
     this.idle.length = 0;
+    this.lastBucketByWorker.clear();
     await Promise.all(workers.map((w) => w.terminate()));
   }
 }

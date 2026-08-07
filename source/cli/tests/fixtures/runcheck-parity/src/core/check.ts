@@ -5,10 +5,11 @@
  * runcheck-injected-input-parity rule derives from:
  *   - two ISSUE-GATING options written as `options?.<key> ? <issues> : []`
  *     (nowUtc, rulesArtifacts) — absent input silently skips a check;
- *   - four SIDE-EFFECT members (writeFeatureIndex, now, precomputedTypeCoverage,
- *     runtimeDispositions) — the first two written as an if-statement, the
- *     other two referenced nowhere in the body at all — so none of them derive
- *     as gating and all four must be classified by the rule's allowlist instead;
+ *   - six SIDE-EFFECT members (writeFeatureIndex, now, precomputedTypeCoverage,
+ *     precomputedRelationPass, precomputedVerification, runtimeDispositions) —
+ *     the first two written as an if-statement, the rest referenced nowhere in
+ *     the body at all — so none of them derive as gating and all six must be
+ *     classified by the rule's allowlist instead;
  *   - a same-file helper carrying its OWN `options?.<key> ? … : []` ternary,
  *     which a derivation scoped to the whole file (rather than to runCheck's
  *     own body) would wrongly turn into a required call-site key.
@@ -25,6 +26,10 @@ export interface RunCheckOptions {
   rulesArtifacts?: string[];
   /** INJECTED already-classified result — reused instead of a fresh classify; never reaches the issue set. */
   precomputedTypeCoverage?: unknown;
+  /** An import-resolution pass the caller already ran — decides only whether it is run again. */
+  precomputedRelationPass?: unknown;
+  /** A lock verification the caller already computed against the same lock bytes. */
+  precomputedVerification?: unknown;
   /** A same-run fill's own handoff facts — reused for a report field, never reaches the issue set. */
   runtimeDispositions?: unknown;
 }

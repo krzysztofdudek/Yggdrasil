@@ -29,6 +29,7 @@ import type { TypeCoverageInput } from './pairs.js';
 import { readLock, LockInvalidError } from '../io/lock-store.js';
 import { fileUnit } from '../model/lock.js';
 import { verifyLock } from './verify-lock.js';
+import type { LockVerification } from './verify-lock.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { FileFacts, RelationPassResult } from '../relations/pass.js';
 import { relationRefusedMessage, typeGateForbiddenMessage } from '../relations/messages.js';
@@ -61,8 +62,17 @@ export async function runLockPhase(args: {
   relResult: RelationPassResult;
   /** The caller's own fill→check handoff for this run, if it had one. */
   runtimeDispositions: Array<{ file: string; aspectId: string; code: string }> | undefined;
+  /**
+   * A verification the caller already computed against the SAME lock bytes, to
+   * be reported instead of re-deriving one. See `RunCheckOptions`'s own field
+   * for the single caller allowed to pass it and why every other must not.
+   * The lock is still READ here regardless — log integrity and the mandatory-log
+   * requirement below both need it, and reading it is also what keeps a garbled
+   * lock failing closed on this path exactly as on any other.
+   */
+  precomputedVerification: LockVerification | undefined;
 }): Promise<LockPhaseResult> {
-  const { graph, projectRoot, typeCoverageInput, earlyTypeCoverage, relResult, runtimeDispositions } = args;
+  const { graph, projectRoot, typeCoverageInput, earlyTypeCoverage, relResult, runtimeDispositions, precomputedVerification } = args;
 
   // Captured from the relation pass (run once by the orchestrator, ahead of
   // validate()) for the optional feature-field index write. Stays null if the
@@ -84,7 +94,7 @@ export async function runLockPhase(args: {
   let typeVisibility: TypeVisibilityReport | undefined;
   try {
     const lock = readLock(graph.rootPath);
-    const verification = await verifyLock(graph, lock, typeCoverageInput);
+    const verification = precomputedVerification ?? await verifyLock(graph, lock, typeCoverageInput);
     const runtimeRows = toRuntimeVisibilityRows(runtimeDispositions ?? []);
     typeVisibility = earlyTypeCoverage
       ? buildTypeVisibility(graph, earlyTypeCoverage.covered, verification.drops, runtimeRows, toAppliedPairs(verification.pairs.map((vp) => vp.pair)), verification.uncomputableTypeCoverage)

@@ -32,7 +32,7 @@ import {
   destroyRemainingParseCaches,
   parseCacheBucketKey,
   releaseParseCacheBucket,
-} from './fill-parse-cache.js';
+} from './parse-cache-buckets.js';
 import { selectTierForAspect } from './tier-selection.js';
 import { createLlmProvider } from '../llm/index.js';
 import { debugWrite } from '../utils/debug-log.js';

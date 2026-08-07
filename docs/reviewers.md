@@ -185,7 +185,9 @@ The companion hook is bounded by the same allowed-reads set as `check.mjs`: the 
 
 ### How companion files are injected
 
-Resolved companion files appear in a distinct `<companions>` block in the reviewer prompt, separate from the `<references>` block (static references) and `<source-files>` (the unit's own source). The companions block is absent when the hook returns `[]`. Companion files count toward the tier's `max_prompt_chars` gate, exactly like subject and reference files. On a companion-bearing pair the prompt-size check runs wherever the pair is evaluated: at fill time (before the reviewer is called), and on a plain `yg check` too, which resolves the companion hook live to recompute the assembled size. The companion bytes are only known once the hook resolves, so a too-large companion prompt is caught and billed nothing.
+Resolved companion files appear in a distinct `<companions>` block in the reviewer prompt, separate from the `<references>` block (static references) and `<source-files>` (the unit's own source). The companions block is absent when the hook returns `[]`. Companion files count toward the tier's `max_prompt_chars` gate, exactly like subject and reference files. The companion bytes are only known once the hook resolves, so a too-large companion prompt is caught and billed nothing.
+
+The prompt-size check runs wherever a pair is evaluated: at fill time, before the reviewer is called, and on a plain `yg check` as well. On a check, a pair whose verdict is still valid is answered from the size recorded alongside that verdict — the hook is not run and no prompt is assembled. Only a pair that is missing, stale, or was verified by a version too old to have recorded a size resolves the hook live to measure it. That is what keeps a check on an unchanged project from re-running every companion hook in the graph just to count characters; see [/the-lock](/the-lock).
 
 **`yg-suppress` is honored only from the `<source-files>` block.** A suppress marker inside a companion file is ignored — companions are read-only reference material, not the unit under judgment.
 

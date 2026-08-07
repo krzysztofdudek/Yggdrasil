@@ -108,7 +108,7 @@ function setStandardLimit(dir: string, chars: number): void {
   );
 }
 
-type Verdicts = Record<string, Record<string, { hash: string; touched?: Array<[string, string]>; verdict: string; reason?: string }>>;
+type Verdicts = Record<string, Record<string, { hash: string; touched?: Array<[string, string]>; verdict: string; reason?: string; promptChars?: number }>>;
 const verdicts = (d: string, aspectId: string): Verdicts[string] => (readLock(d).verdicts as Verdicts)[aspectId] ?? {};
 const touchedKeys = (entry: { touched?: Array<[string, string]> } | undefined): string[] => (entry?.touched ?? []).map(([k]) => k);
 
@@ -309,7 +309,12 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (integration)
         // No touched key, and the serialized entry never carries companionHash.
         expect('touched' in entry).toBe(false);
         expect(JSON.stringify(entry)).not.toContain('companionHash');
-        expect(Object.keys(entry).sort()).toEqual(['hash', 'verdict']);
+        // `promptChars` IS present: every LLM verdict records the size of the
+        // prompt that produced it, plain or companion-backed alike. It is not a
+        // hash ingredient — see the cross-node edit below, which still leaves
+        // this pair verified.
+        expect(Object.keys(entry).sort()).toEqual(['hash', 'promptChars', 'verdict']);
+        expect(typeof entry.promptChars).toBe('number');
       }
 
       // Edit a cross-node spec file — the plain aspect has no companion, so it never

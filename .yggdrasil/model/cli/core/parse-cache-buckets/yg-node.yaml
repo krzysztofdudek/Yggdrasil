@@ -1,0 +1,28 @@
+name: Parse Cache Buckets
+type: engine
+description: "Per-(rule, component) shared parse caches, with the countdown that
+  frees one the moment its last pair settles. A rule that judges one file at a
+  time builds a unit context once per SUBJECT, and every one of those contexts
+  parses the same component and the same relation targets, so without grouping
+  each subject built and discarded its own parsed view of identical files.
+  Grouping by (rule, component) — or, for a file enforced by its architecture
+  type alone, by its own unit key, there being no component to group by — gives
+  every subject of one rule on one component a single shared view. Freeing a
+  bucket as soon as its members are done is what keeps the trees, which are
+  native allocations the garbage collector never reclaims, from accumulating for
+  the length of a whole run.
+
+  Owned separately from the rest of the fill stage's substrate because the
+  callers no longer live only there: lock verification uses these buckets for the
+  companion hooks its prompt-size gate may run, and it cannot reach anything that
+  depends back on the check report. These helpers depend on nothing but the pair
+  shape and the parse cache itself, so a home of their own is what lets both
+  sides stand on them without a cycle — the same reason the substrate was split
+  out of the orchestrator in the first place."
+relations:
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/structure
+    type: calls
+mapping:
+  - source/cli/src/core/parse-cache-buckets.ts

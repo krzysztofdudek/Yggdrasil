@@ -8,3 +8,5 @@ Derive the resolver-source fingerprint from the loaded aspect so the review prod
 The node-description helper now answers safely when there is no owning component (a file enforced by its architecture type alone) instead of assuming one always exists.
 ## [2026-07-30T19:19:39.512Z]
 Comment text referenced a planning label that only makes sense with access to material outside the repository, which conflicts with this project's own rule that a source comment must stand on its own. Reworded the affected comment to state what the code does and why in its own terms; no behavior changed.
+## [2026-08-07T11:03:20.529Z]
+The helper that read a component's description for the prompt is gone, along with the description's presence in the prompt. Every ingredient a prompt is assembled from is now folded into the verdict hash; leaving the helper exported would have left a way for a future caller to reintroduce the one asymmetry that made a prompt's size unpredictable from its verdict.

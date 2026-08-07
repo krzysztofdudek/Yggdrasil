@@ -20,7 +20,6 @@ const input1: PairPromptInput = {
     description: 'A "quoted" description with <xml> & ampersand',
     content: '# Rules\n\nMust do X.\n\n- Rule 1\n- Rule 2',
   },
-  nodeDescription: 'A component that handles <orders> & "payments"',
   nodePath: 'billing/order-handler',
   files: [
     { path: 'src/billing/handler.ts', content: 'export function handleOrder(x: string) {\n  return x;\n}' },
@@ -35,7 +34,6 @@ const input1: PairPromptInput = {
 
 const input2: PairPromptInput = {
   aspect: { id: 'simple', description: '', content: 'Simple rule' },
-  nodeDescription: '',
   nodePath: 'core/loader',
   files: [{ path: 'src/loader.ts', content: 'const x = 1;' }],
   references: [],
@@ -48,7 +46,6 @@ const inputPerFile: PairPromptInput = {
     description: 'A "quoted" description with <xml> & ampersand',
     content: '# Rules\n\nMust do X.\n\n- Rule 1\n- Rule 2',
   },
-  nodeDescription: 'A component that handles <orders> & "payments"',
   nodePath: 'billing/order-handler',
   files: [
     { path: 'src/billing/handler.ts', content: 'export function handleOrder(x: string) {\n  return x;\n}' },
@@ -60,7 +57,7 @@ const inputPerFile: PairPromptInput = {
 };
 
 // A file enforced by its architecture type alone — no owning component, so
-// nodePath/nodeDescription are both omitted entirely (never rendered as an
+// nodePath is omitted entirely (never rendered as an
 // empty '' component under a header announcing one).
 const inputNodeless: PairPromptInput = {
   aspect: { id: 'a', description: 'd', content: 'rule body' },
@@ -162,12 +159,13 @@ describe('buildPairPrompt — nodeless (a file with no component)', () => {
     );
   });
 
-  it('nodeDescription may also be omitted when nodePath is present without one (defensive)', () => {
-    // Not a real caller shape (every real per-node caller supplies both), but
-    // the type is now optional — must not throw or render "undefined".
+  it('a component element renders from the path alone — nothing else is needed to build it', () => {
+    // The element carries only the path now, so a caller supplying a path and
+    // nothing more produces a complete element rather than one with a hole in
+    // it. Must not throw or render "undefined".
     const p = buildPairPrompt({ ...inputNodeless, nodePath: 'n' });
     expect(p).not.toContain('undefined');
-    expect(p).toContain('<node path="n"');
+    expect(p).toContain('<node path="n" />');
   });
 
   // The framing sentence must stay true across all four shapes a nodeless
@@ -233,7 +231,7 @@ describe('assembledPromptChars', () => {
 describe('buildPairPrompt — companions block', () => {
   const BASE = {
     aspect: { id: 'a', description: 'd', content: 'RULE' },
-    references: [], nodePath: 'n', nodeDescription: '', scope: undefined,
+    references: [], nodePath: 'n', scope: undefined,
     files: [{ path: 'src/x.ts', content: 'X' }],
   };
 
@@ -275,7 +273,7 @@ describe('buildPairPrompt — companions block', () => {
 describe('assembledPromptChars — label-free gate (D6)', () => {
   const BASE = {
     aspect: { id: 'a', description: 'd', content: 'RULE' },
-    references: [], nodePath: 'n', nodeDescription: '', scope: undefined,
+    references: [], nodePath: 'n', scope: undefined,
     files: [{ path: 'src/x.ts', content: 'X' }],
   };
 
@@ -297,7 +295,7 @@ describe('assembledPromptChars — label-free gate (D6)', () => {
 describe('buildPairPrompt — suppressed-ranges block', () => {
   const BASE: PairPromptInput = {
     aspect: { id: 'a', description: 'd', content: 'RULE' },
-    references: [], nodePath: 'n', nodeDescription: '', scope: undefined,
+    references: [], nodePath: 'n', scope: undefined,
     files: [{ path: 'src/x.ts', content: 'X' }],
   };
 
@@ -390,14 +388,22 @@ describe('buildPairPrompt — XML escaping (adopter-controlled fields)', () => {
     expect(prompt).toContain('&amp;');
   });
 
-  it('escapes < and & and " in nodeDescription attribute', () => {
+  it('carries no component description at all — the <node> element is path-only', () => {
+    // A component's `description:` is NOT folded into the verdict hash, so a
+    // description edit re-verifies nothing. It therefore must not reach the
+    // reviewer either: an input that can move a judgment but cannot invalidate
+    // the verdict it moved produces a stale green. Passing one through the
+    // structurally-impossible route (an extra property) must still not surface.
     const prompt = buildPairPrompt({
       ...input2,
-      nodeDescription: 'A <handler> with "quotes" & ampersands',
+      ...({ nodeDescription: 'A <handler> with "quotes" & ampersands' } as Record<string, unknown>),
     });
-    expect(prompt).toContain('&lt;handler&gt;');
-    expect(prompt).toContain('&quot;quotes&quot;');
-    expect(prompt).toContain('&amp; ampersands');
+    // The <aspect> element legitimately carries its own description (that one IS
+    // hashed), so the assertion is scoped to the <node> element alone.
+    expect(prompt).toContain(`<node path="${input2.nodePath}" />`);
+    expect(prompt).not.toMatch(/<node[^>]*description=/);
+    expect(prompt).not.toContain('handler');
+    expect(prompt).not.toContain('ampersands');
   });
 
   it('inserts aspect content RAW (XML-like content.md is NOT escaped)', () => {

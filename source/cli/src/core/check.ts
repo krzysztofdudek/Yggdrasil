@@ -65,9 +65,11 @@ import { checkDigestGate } from './checks/digest-gate.js';
 import type { RulesArtifacts } from './checks/digest-gate.js';
 // ── Relation-conformance (computed live, parse + resolve every run) ──
 import { runProjectRelationPass } from '../relations/pass.js';
+import type { RelationPassResult } from '../relations/pass.js';
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import type { CheckIssue, CheckResult } from './check-contract.js';
 import { runLockPhase } from './check-lock-phase.js';
+import type { LockVerification } from './verify-lock.js';
 import { runCoveragePhase } from './check-coverage-phase.js';
 import { scanUncoveredFiles, scanTrackedButIgnored } from './check-coverage-scan.js';
 import { computeSuggestedNext } from './check-suggested-next.js';
@@ -150,6 +152,38 @@ export interface RunCheckOptions {
   trackedFiles?: string[] | null;
   /** INJECTED already-classified result — skips a second classify when a caller (runFill) already ran one. Absent ⇒ classified here. */
   precomputedTypeCoverage?: TypeCoverageResult;
+  /**
+   * INJECTED already-computed import-resolution pass — skips a second parse of
+   * every mapped source file when a caller (runFill) already ran one in the same
+   * process. Absent ⇒ run here, as on every plain `yg check`.
+   *
+   * Sound on both fill paths for the same reason: this pass reads SOURCE, and a
+   * fill writes only lock and log files. Whatever it resolved before the fill it
+   * would resolve identically after, so re-running it can only reproduce the
+   * result already in hand. (`precomputedTypeCoverage` above is injected for the
+   * same reason and by the same caller — these two travel together, since the
+   * lattice feeds this pass and this pass feeds the type-coverage input built
+   * from it.)
+   */
+  precomputedRelationPass?: RelationPassResult;
+  /**
+   * INJECTED already-computed lock verification — skips re-hashing every
+   * expected pair when the caller already did it against the SAME lock bytes in
+   * this process. Absent ⇒ verified here, as on every plain `yg check`.
+   *
+   * ONLY safe for a caller that has written NOTHING since it computed this. That
+   * is exactly one caller: `runFill`'s `--dry-run` preview, which is structurally
+   * incapable of writing (it returns before the verdict writer is even
+   * constructed) and so is reporting on a lock byte-identical to the one it
+   * classified moments earlier. Re-hashing it was most of what made a preview
+   * documented as free cost roughly what a real run costs.
+   *
+   * A REAL fill must NOT pass this: it writes verdicts between the two points,
+   * and reporting the pre-fill classification afterwards would describe a lock
+   * that no longer exists — every pair it just filled would still read as
+   * unverified. That path deliberately re-verifies.
+   */
+  precomputedVerification?: LockVerification;
   /** runFill's own fill→check handoff, this run only. Absent ⇒ none (a plain read never fills). */
   runtimeDispositions?: Array<{ file: string; aspectId: string; code: string }>;
 }
@@ -191,7 +225,11 @@ export async function runCheck(
   // readable (the lock phase's own try block).
   // Undefined at flag-off or no-git (earlyTypeCoverage above) -> the pass's own
   // type-covered enumeration loop does nothing, zero added parse cost (R3).
-  const relResult = await runProjectRelationPass(graph, projectRoot, earlyTypeCoverage?.covered);
+  // Reused from options.precomputedRelationPass when a caller already ran the
+  // identical pass in this process — see that option for why a fill cannot have
+  // invalidated it.
+  const relResult = options?.precomputedRelationPass
+    ?? await runProjectRelationPass(graph, projectRoot, earlyTypeCoverage?.covered);
 
   const typeCoverageInput: TypeCoverageInput | undefined = earlyTypeCoverage
     ? {
@@ -249,6 +287,7 @@ export async function runCheck(
     earlyTypeCoverage,
     relResult,
     runtimeDispositions: options?.runtimeDispositions,
+    precomputedVerification: options?.precomputedVerification,
   });
 
   // 3. Coverage scan (unmapped-files / uncovered-advisory), plus the

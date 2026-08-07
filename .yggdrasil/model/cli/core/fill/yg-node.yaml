@@ -20,11 +20,13 @@ description: "Fill stage behind yg check --approve — the single producer of
   held to. Keeping the two apart lets this orchestrator be judged deterministic
   in full, with no suppressed island inside it. The primitives both of them stand
   on — the stage's contract and gate predicates, the shared outcome shapes, the
-  bounded worker pool, the per-(rule, subject) parse caches — belong to neither
-  and are owned by a substrate node instead, so neither has to depend back on the
-  other to reach them."
+  bounded worker pool — belong to neither and are owned by a substrate node
+  instead, so neither has to depend back on the other to reach them. The
+  per-(rule, component) parse caches sit lower still, in a node of their own, so
+  that lock verification can share them without reaching anything that depends
+  back on the check report."
 max_direct_relations:
-  limit: 23
+  limit: 24
   reason: >-
     Reviewed architectural seam. This node is the SINGLE producer of verdict-lock
     entries and the fill orchestrator — it fans out to every subsystem a
@@ -59,6 +61,13 @@ max_direct_relations:
     the substrate node. The ceiling tracks the reviewed count down as well as up;
     leaving it at 24 would have banked a unit of unearned headroom and let a
     future dependency arrive unreviewed.
+    Raised from 23 to 24 when the per-(rule, component) parse caches moved out of
+    that substrate node into one of their own. This stage's dependency on them is
+    not new — it already reached them through the substrate — but the edge is now
+    its own and therefore counted. The split was forced rather than chosen: lock
+    verification began sharing the same caches, and it cannot depend on the
+    substrate, which reaches back to the check report. Nothing this stage calls
+    changed; only which node owns the code it was already calling.
 aspects:
   - deterministic
   - posix-paths-output
@@ -67,6 +76,8 @@ aspects:
   - provider-redaction-cascade
   - runcheck-injected-input-parity
 relations:
+  - target: cli/core/parse-cache-buckets
+    type: calls
   - target: cli/core/check
     type: calls
   - target: cli/core/pairs
@@ -116,6 +127,7 @@ relations:
 mapping:
   - source/cli/src/core/fill.ts
   - source/cli/src/core/fill-classify.ts
+  - source/cli/src/core/fill-prompt-size-backfill.ts
   - source/cli/src/core/fill-writer.ts
   - source/cli/src/core/fill-report.ts
   - source/cli/src/core/fill-dry-run.ts

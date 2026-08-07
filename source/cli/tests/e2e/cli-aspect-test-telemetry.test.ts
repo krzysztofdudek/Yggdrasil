@@ -106,10 +106,12 @@ describe.skipIf(!distExists)('CLI E2E — yg aspect-test diagnostic telemetry', 
         expect(e.kind).toBe('llm');
         expect(e.disposition).toBe('approved');
         expect(e.tier).toBe('standard');
-        // PROMPT_FORMAT_REV bumped 1 -> 2 for the nodeless prompt variant
-        // (llm/prompt.ts) — a component-owned prompt is byte-identical, only
-        // the recorded revision marker moved.
-        expect(e.promptRev).toBe(2);
+        // PROMPT_FORMAT_REV is at 3: bumped 1 -> 2 for the nodeless prompt
+        // variant, then 2 -> 3 when the <node> element lost its description
+        // attribute (llm/prompt.ts). The marker exists so a recorded event
+        // still says which prompt shape produced it; it is not a hash
+        // ingredient, so moving it invalidates no verdict.
+        expect(e.promptRev).toBe(3);
         expect(e.votes).toEqual({ satisfied: 1, total: 1 });
         expect(e.judge).toEqual({ provider: 'ollama', model: STANDARD_MODEL });
       }

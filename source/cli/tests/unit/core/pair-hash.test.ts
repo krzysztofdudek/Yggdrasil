@@ -9,12 +9,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash } from 'node:crypto';
 import type { LlmHashInput, DetHashInput } from '../../../src/core/pair-hash.js';
-import type { Graph, AspectDef } from '../../../src/model/graph.js';
+import type { AspectDef } from '../../../src/model/graph.js';
 import {
   contentFor,
   ruleHashFor,
   companionHashFor,
-  nodeDescriptionFor,
+
   tierHashViewFromTier,
 } from '../../../src/core/pair-inputs.js';
 import {
@@ -552,20 +552,11 @@ describe('companionHashFor', () => {
   });
 });
 
-describe('nodeDescriptionFor', () => {
-  it("returns the node's description when the node exists", () => {
-    const nodes = new Map([
-      ['svc', { meta: { description: 'the svc node' } } as unknown as ReturnType<Graph['nodes']['get']>],
-    ]) as Graph['nodes'];
-    const graph = { nodes } as Graph;
-    expect(nodeDescriptionFor(graph, 'svc')).toBe('the svc node');
-  });
-
-  it('returns "" when the node path is unknown', () => {
-    const graph = { nodes: new Map() } as unknown as Graph;
-    expect(nodeDescriptionFor(graph, 'nope')).toBe('');
-  });
-});
+// The helper that read a component's `description:` for the prompt is gone
+// along with the description's presence in the prompt itself (llm/prompt.ts).
+// What replaced these two cases is the assertion in tests/unit/llm/prompt.test.ts
+// that the <node> element is path-only: that is the property worth pinning, and
+// it holds no matter how a description might be sourced.
 
 describe('tierHashViewFromTier', () => {
   it('folds ONLY the tier name — the resolved provider/model config is not a verdict input', () => {

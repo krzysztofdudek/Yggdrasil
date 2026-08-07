@@ -135,7 +135,6 @@ function emptyLock(): LockFile {
 function llmHash(params: {
   aspect: TestAspect;
   nodePath: string;
-  nodeDescription?: string;
   subjectFiles: string[];
   verdict: 'approved' | 'refused';
   tier?: LlmConfig;
@@ -780,6 +779,85 @@ describe('verifyLock — prompt-size gate', () => {
     expect(result.pairs[0].oversized!.limit).toBe(SMALL_LIMIT);
   });
 
+  // ── The recorded prompt size (VerdictEntry.promptChars) ────────────────────
+  // A valid entry carrying one is answered from the lock instead of by
+  // assembling the prompt; one written before the field existed is assembled
+  // live, and the size it produced is handed up so --approve can record it.
+
+  it('a valid entry with a RECORDED size is gated from that number, not from a fresh assembly', async () => {
+    const { graph, aspect } = gatedGraph();
+    const tier = graph.config.reviewer!.tiers.default;
+    const hash = await llmHash({ aspect, nodePath: 'svc', subjectFiles: ['src/a.ts'], verdict: 'approved', tier });
+
+    // Under the limit → no gate. The recorded number is deliberately a value the
+    // live assembly could never produce for this pair (whose real prompt is well
+    // over SMALL_LIMIT), which is what proves the stored one was used.
+    const under = emptyLock();
+    setEntry(under, 'asp', nodeUnit('svc'), { verdict: 'approved', hash, promptChars: SMALL_LIMIT - 1 });
+    const underResult = await verifyLock(graph, under);
+    expect(underResult.pairs[0].state.kind).toBe('verified');
+    expect(underResult.pairs[0].oversized).toBeUndefined();
+    // Nothing to write back — the number came from the lock.
+    expect(underResult.pairs[0].backfillPromptChars).toBeUndefined();
+
+    // Over the limit → gate trips, reporting the RECORDED size.
+    const over = emptyLock();
+    setEntry(over, 'asp', nodeUnit('svc'), { verdict: 'approved', hash, promptChars: SMALL_LIMIT + 1 });
+    const overResult = await verifyLock(graph, over);
+    expect(overResult.pairs[0].state.kind).toBe('verified');
+    expect(overResult.pairs[0].oversized).toBeDefined();
+    expect(overResult.pairs[0].oversized!.chars).toBe(SMALL_LIMIT + 1);
+  });
+
+  it('the tier limit is still read LIVE, so lowering a ceiling re-gates a verdict that is otherwise untouched', async () => {
+    // max_prompt_chars is excluded from the verdict hash by design, so a tier
+    // edit leaves every verdict valid. Comparing the STORED size against the
+    // CURRENT limit is what keeps such an edit from silently going unenforced.
+    const { graph, aspect } = gatedGraph();
+    const tier = graph.config.reviewer!.tiers.default;
+    const lock = emptyLock();
+    setEntry(lock, 'asp', nodeUnit('svc'), {
+      verdict: 'approved',
+      hash: await llmHash({ aspect, nodePath: 'svc', subjectFiles: ['src/a.ts'], verdict: 'approved', tier }),
+      promptChars: 100,
+    });
+
+    graph.config.reviewer!.tiers.default.max_prompt_chars = 200;
+    expect((await verifyLock(graph, lock)).pairs[0].oversized).toBeUndefined();
+
+    graph.config.reviewer!.tiers.default.max_prompt_chars = 99;
+    const tightened = await verifyLock(graph, lock);
+    expect(tightened.pairs[0].state.kind).toBe('verified');
+    expect(tightened.pairs[0].oversized).toBeDefined();
+    expect(tightened.pairs[0].oversized!.limit).toBe(99);
+  });
+
+  it('a valid entry with NO recorded size is assembled live and hands the number up for recording', async () => {
+    const { graph, aspect } = gatedGraph();
+    const tier = graph.config.reviewer!.tiers.default;
+    const lock = emptyLock();
+    // No promptChars — an entry written before the field existed.
+    setEntry(lock, 'asp', nodeUnit('svc'), {
+      verdict: 'approved',
+      hash: await llmHash({ aspect, nodePath: 'svc', subjectFiles: ['src/a.ts'], verdict: 'approved', tier }),
+    });
+    const result = await verifyLock(graph, lock);
+    // Classification is exactly what it was before the field existed.
+    expect(result.pairs[0].state.kind).toBe('verified');
+    expect(result.pairs[0].oversized).toBeDefined();
+    // …and the live-computed size is offered for the fill to persist.
+    expect(result.pairs[0].backfillPromptChars).toBe(result.pairs[0].oversized!.chars);
+  });
+
+  it('an INVALID entry offers nothing to record — a re-fill will write its own size', async () => {
+    const { graph } = gatedGraph();
+    const lock = emptyLock();
+    setEntry(lock, 'asp', nodeUnit('svc'), { verdict: 'approved', hash: 'stale'.repeat(13) });
+    const result = await verifyLock(graph, lock);
+    expect(result.pairs[0].state.kind).toBe('prompt-too-large');
+    expect(result.pairs[0].backfillPromptChars).toBeUndefined();
+  });
+
   // NOTE: this test INVERTS the prior assertion. Before v5.2.0 a tier omitting
   // max_prompt_chars skipped the gate entirely (effectively unlimited), so an
   // oversized prompt classified `unverified`. The previous test here asserted
@@ -815,7 +893,6 @@ describe('verifyLock — prompt-size gate', () => {
       aspect: { id: 'asp', description: '', content: 'rule' },
       references: [],
       nodePath: 'svc',
-      nodeDescription: '',
       files: [{ path: 'src/a.ts', content: '' }],
       scope: undefined,
     };
@@ -868,7 +945,6 @@ describe('verifyLock — prompt-size gate', () => {
       aspect: { id: 'asp', description: '', content: 'rule' },
       references: [],
       nodePath: 'svc',
-      nodeDescription: '',
       files: [{ path: 'src/a.ts', content: subject }],
       // suppressedRanges intentionally OMITTED → no <suppressed-ranges> block (old behavior).
       scope: undefined,
@@ -881,7 +957,6 @@ describe('verifyLock — prompt-size gate', () => {
       aspect: { id: 'asp', description: '', content: 'rule' },
       references: [],
       nodePath: 'svc',
-      nodeDescription: '',
       files: [{ path: 'src/a.ts', content: subject }],
       suppressedRanges: { byFile: [{ path: 'src/a.ts', ranges: [{ startLine: 2, endLine: 2 }] }] },
       scope: undefined,

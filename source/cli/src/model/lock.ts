@@ -32,6 +32,32 @@ export interface VerdictEntry {
   /** deterministic only: sorted [observationKey, observationHash] pairs for
    *  OUT-OF-SUBJECT observations (read:/list:/exists:/graph: keys, spec §3.1). */
   touched?: Array<[string, string]>;
+  /**
+   * LLM only: the size, in characters, of the gate-canonical prompt that
+   * produced this verdict (`assembledPromptChars`, label-free — the exact
+   * measurement the §4 prompt-size gate compares against a tier's
+   * `max_prompt_chars`).
+   *
+   * NOT a hash ingredient — it is a RECORD of an input set the hash already
+   * covers, never an input of its own, so writing/reading it invalidates
+   * nothing. That containment is what makes it trustworthy: every ingredient
+   * `llm/prompt.ts` assembles a prompt from is folded into `hash`, so an
+   * entry whose hash still validates cannot have a different prompt size than
+   * when it was written. `core/verify-lock.ts` relies on exactly that to skip
+   * resolving companions and re-assembling the prompt on a valid pair — the
+   * work that used to dominate a green `yg check`.
+   *
+   * Absent on a lock written before this field existed (and on every
+   * deterministic entry, which has no prompt): the reader falls back to
+   * assembling and measuring live, so an old lock keeps working untouched and
+   * simply pays what it always paid until its pairs are next re-verified.
+   *
+   * The tier LIMIT is deliberately not stored alongside it. `max_prompt_chars`
+   * is excluded from the verdict hash by design, so lowering a tier's ceiling
+   * must re-gate existing verdicts — comparing this stored SIZE against the
+   * CURRENT limit is what makes that happen.
+   */
+  promptChars?: number;
 }
 
 export interface LockNodeEntry {

@@ -1,7 +1,7 @@
 // =============================================================================
 // SHARED PARSE-CACHE BUCKETS — companion.mjs E2E, through the real dispatch path.
 //
-// The fill stage's per-(aspect, node) parse-cache bucketing (core/fill-parse-cache.ts,
+// The fill stage's per-(aspect, node) parse-cache bucketing (core/parse-cache-buckets.ts,
 // wired through core/fill-llm-phase.ts) shares ONE ParseCache across every subject of
 // the same `per: file` rule on the same component, instead of building and destroying
 // one per subject. That bucket holds native WebAssembly Tree objects, freed explicitly

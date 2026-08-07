@@ -49,6 +49,12 @@ Change any folded input and the pair goes unverified. Edit a source file, edit t
 
 One thing is deliberately **not** an input: the aspect's status. Flipping `draft ↔ advisory ↔ enforced` changes how a verdict renders, never whether it's valid. A verdict survives every status flip, including a full `draft` round-trip. See [/aspect-status](/aspect-status).
 
+A node's `description:` is not an input either — and it is not sent to the reviewer at all. It is documentation for people reading the graph, so editing one changes nothing that was judged and re-verifies nothing. (The *aspect's* description is a different matter: it is part of the rule, so it is both sent and folded.) The node's path is sent, and is folded.
+
+That leaves the hash covering every ingredient a prompt is built from, which is what lets an LLM entry also record the **size** of the prompt that produced it. The size is not an input — it is a record of inputs the hash already covers — so a `yg check` on a still-valid verdict answers the prompt-size gate from that number instead of resolving companions and re-assembling the whole prompt just to count its characters. On a large project where nothing has changed, that reassembly was most of what a check spent its time on. A tier's `max_prompt_chars` is still read live, so lowering a ceiling still re-gates verdicts that are otherwise untouched.
+
+Entries written by an older version carry no size and are measured the old way; the first `yg check --approve` after upgrading records what it measured, at no reviewer cost.
+
 ## `yg check` vs `yg check --approve`
 
 These are two different jobs.

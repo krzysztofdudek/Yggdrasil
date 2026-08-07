@@ -1,15 +1,13 @@
 name: Fill Support
 type: engine
 description: "The fill stage's phase-agnostic substrate — the leaf primitives
-  every part of a --approve run builds on, owned by none of them. Four things
+  every part of a --approve run builds on, owned by none of them. Three things
   live here: the stage's public contract (what a caller passes in, what it gets
   back, the sentinel thrown when nothing ran) plus the pure per-pair gate
   predicates both phases decide with; the shared outcome shapes and the
   read-bytes-or-empty helper the per-kind fillers return and use; the bounded
   worker pool that runs pairs at a fixed concurrency with per-item throw
-  isolation and input-order-preserving results; and the per-(rule, subject)
-  parse-cache buckets that let every subject of one rule on one node share a
-  single parsed view instead of building and discarding one each. None of it
+  isolation and input-order-preserving results. None of it
   decides anything about a run: it holds no lock state, writes nothing, and
   calls no reviewer. Separating it is what keeps the stage acyclic — the
   orchestrator and the reviewer-dispatch code both stand on these primitives, so
@@ -40,4 +38,3 @@ mapping:
   - source/cli/src/core/fill-contract.ts
   - source/cli/src/core/fill-shared.ts
   - source/cli/src/core/fill-pool.ts
-  - source/cli/src/core/fill-parse-cache.ts

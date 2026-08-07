@@ -10,7 +10,8 @@ import type { CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
-import { availableParallelism } from 'node:os';
+import { detConcurrencyForThisMachine } from './det-concurrency.js';
+import { sweepStaleTempFiles } from '../io/atomic-write.js';
 import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from '../io/repo-scanner.js';
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
@@ -108,6 +109,12 @@ export function registerCheckCommand(program: Command): void {
         const graph = await loadGraphOrAbort(cwd, { tolerateInvalidConfig: true });
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
         const projectRoot = path.dirname(graph.rootPath);
+        // Clear any half-finished atomic write a previously KILLED run left beside
+        // the locks — an out-of-memory abort or a SIGKILL skips the writer's own
+        // cleanup, so the temp survives and reads as untracked repository noise.
+        // Best-effort and silent; see sweepStaleTempFiles for how narrowly it is
+        // scoped so it can never touch a file that is not one of ours.
+        await sweepStaleTempFiles(graph.rootPath, () => Date.now());
         const repoFiles = await walkRepoFiles(projectRoot);
         // Tracked-file list for the anomaly check below; null (no git) skips it.
         const tracked = listGitTrackedFiles(projectRoot);
@@ -354,15 +361,20 @@ export function registerCheckCommand(program: Command): void {
               // it the identical repo printed one fewer warning under --approve. Core
               // reads no files itself; read-only, never gates the fill.
               rulesArtifacts: await readRulesArtifacts(projectRoot),
-              // Core count resolved in the CLI layer (engine stays deterministic);
-              // deterministic checks run across this many worker threads.
-              detConcurrency: Math.max(1, availableParallelism() - 1),
+              // Worker ceiling resolved in the CLI layer (engine stays
+              // deterministic): cores AND this machine's memory, since every
+              // worker carries its own copy of the graph and its own ASTs. See
+              // cli/det-concurrency.ts.
+              detConcurrency: detConcurrencyForThisMachine(),
               write: isDryRun
                 ? (s: string) => { process.stdout.write(s); }
                 : isQuiet
                   ? () => {}
                   : (s: string) => { process.stderr.write(s); },
               isTTY: !isQuiet && (process.stderr.isTTY ?? false),
+              // Width for the single rewritten progress line, so it stays one
+              // line instead of wrapping into a new row on every redraw.
+              columns: process.stderr.columns,
               emitIssue: (m) => { process.stderr.write(buildIssueMessage(m) + '\n'); },
               // Best-effort, synchronous io writer for the convergence sentinel's
               // evidence dump — wired here so the engine takes no core → io

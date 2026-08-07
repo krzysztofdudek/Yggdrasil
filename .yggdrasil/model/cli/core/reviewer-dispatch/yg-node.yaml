@@ -22,6 +22,8 @@ aspects:
   - diagnostic-logging
   - provider-redaction-cascade
 relations:
+  - target: cli/core/parse-cache-buckets
+    type: calls
   - target: cli/core/fill-support
     type: calls
   - target: cli/core/pairs

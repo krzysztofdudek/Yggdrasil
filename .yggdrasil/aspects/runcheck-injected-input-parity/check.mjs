@@ -112,6 +112,14 @@ const SIDE_EFFECT_ONLY = new Map([
     'supplies a type-coverage classification the caller already ran this run (e.g. runFill, before its own fill/GC steps); only decides whether runCheck classifies again or reuses it, never which issues appear — the classified result is identical either way for an unchanged file set.',
   ],
   [
+    'precomputedRelationPass',
+    'supplies an import-resolution pass the caller already ran this run (runFill, which needs the same edge index before its own structural gate); only decides whether runCheck parses every mapped source file again or reuses that result, never which issues appear. The pass reads SOURCE and a fill writes only lock and log files, so re-running it in the same process could only reproduce what was handed in.',
+  ],
+  [
+    'precomputedVerification',
+    'supplies a lock verification the caller already computed against the SAME lock bytes, for a caller that has written nothing since (only the --dry-run cost preview, which returns before the verdict writer exists). It decides whether every expected pair is re-hashed or the identical result is reused, never which issues appear — the classification is the same object either way. A caller that HAS written must not pass it, and the real fill path deliberately does not.',
+  ],
+  [
     'runtimeDispositions',
     "supplies the (file, aspectId, code) facts runFill's own fill just watched happen this run, translated here into CheckResult.typeVisibility.rows so its post-fill report can name the reason. typeVisibility is its own report field, never folded into the `unverified`/`aspect-violation-*` issue set: the pair this data describes was ALREADY unverified before this option existed (verifyLock decides that from the lock alone), and stays exactly as unverified with it present or absent — this option only changes how that same fact is WORDED in a separate field, never which issues appear or their count.",
   ],

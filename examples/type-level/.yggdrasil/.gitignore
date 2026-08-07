@@ -7,3 +7,5 @@ yg-secrets.yaml
 .yg-events.jsonl
 .yg-fill-divergence.log*
 .feature-field.json
+.yg-events.jsonl*
+*.tmp

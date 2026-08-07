@@ -522,6 +522,76 @@ describe('lock-store', () => {
     );
   });
 
+  it('every VerdictEntry field survives a write/read round-trip', () => {
+    // serializeEntry is an explicit allow-list, not a pass-through: a field the
+    // producer sets but the serializer does not name is dropped on write, with
+    // nothing to notice — the value is simply gone the next time it is read.
+    // This asserts on the TYPE's own field set, so adding a field to VerdictEntry
+    // without teaching the serializer about it fails here rather than in the
+    // field's absence months later.
+    const entry: Required<import('../../../src/model/lock.js').VerdictEntry> = {
+      verdict: 'refused',
+      hash: 'abc123',
+      reason: 'a violation at src/a.ts:3',
+      touched: [['read:src/b.ts', 'deadbeef']],
+      promptChars: 4211,
+    };
+    const serialized = serializeLock({
+      version: LOCK_FORMAT_VERSION,
+      verdicts: { asp: { 'node:svc': entry } },
+      nodes: {},
+    });
+    const parsed = JSON.parse(serialized) as { verdicts: Record<string, Record<string, unknown>> };
+    expect(parsed.verdicts['asp']['node:svc']).toEqual(entry);
+  });
+
+  it('readLock accepts a verdict entry carrying a recorded prompt size, and one without', async () => {
+    // The size is written onto LLM entries; a deterministic entry, and any entry
+    // written before the field existed, simply has none. Both must read back.
+    const tmpDir = await writeRawLock(
+      'tmp-lock-entry-prompt-chars',
+      JSON.stringify({
+        version: LOCK_FORMAT_VERSION,
+        verdicts: {
+          'my-aspect': {
+            'node:with-size': { verdict: 'approved', hash: 'h', promptChars: 4211 },
+            'node:without-size': { verdict: 'approved', hash: 'h' },
+          },
+        },
+        nodes: {},
+      }),
+    );
+    const lock = readLock(tmpDir);
+    expect(lock.verdicts['my-aspect']['node:with-size'].promptChars).toBe(4211);
+    expect(lock.verdicts['my-aspect']['node:without-size'].promptChars).toBeUndefined();
+  });
+
+  it('readLock throws LockInvalidError when a recorded prompt size is not a non-negative integer', async () => {
+    // A character count that is fractional, negative, or not a number cannot have
+    // come from this CLI, and a check that trusted it could gate the wrong way —
+    // so the lock fails closed rather than reading it.
+    for (const [label, bad] of [['fraction', 12.5], ['negative', -1], ['string', '900']] as const) {
+      const tmpDir = await writeRawLock(
+        `tmp-lock-entry-prompt-chars-${label}`,
+        JSON.stringify({
+          version: LOCK_FORMAT_VERSION,
+          verdicts: { 'my-aspect': { 'node:x': { verdict: 'approved', hash: 'h', promptChars: bad } } },
+          nodes: {},
+        }),
+      );
+      let thrown: unknown;
+      try {
+        readLock(tmpDir);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown, label).toBeInstanceOf(LockInvalidError);
+      expect((thrown as InstanceType<typeof LockInvalidError>).messageData.what).toMatch(
+        /promptChars.*non-negative integer/,
+      );
+    }
+  });
+
   it('readLock throws LockInvalidError when a verdict entry reason is a non-string', async () => {
     const tmpDir = await writeRawLock(
       'tmp-lock-entry-bad-reason',

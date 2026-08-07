@@ -21,7 +21,7 @@ import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../struct
 import { verifyWithConsensus } from '../llm/aspect-verifier.js';
 import { createLlmProvider } from '../llm/index.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
-import { contentFor, nodeDescriptionFor } from '../core/pair-inputs.js';
+import { contentFor } from '../core/pair-inputs.js';
 import { readTextFile } from '../io/graph-fs.js';
 import { toPosixPath } from '../utils/posix.js';
 import { runCompanionHook } from '../structure/hook-loader.js';
@@ -865,12 +865,10 @@ async function runLlmAspectTest(
     referencesForPrompt.push({ path: ref.path, description: ref.description, content });
   }
 
-  // nodePath/nodeDescription are both undefined for a --file target — the
-  // prompt's own nodeless variant (llm/prompt.ts) omits the <node> element
-  // entirely whenever nodePath is undefined; nodeDescriptionFor already
-  // returns '' for an undefined nodePath, so this needs no extra branching.
+  // nodePath is undefined for a --file target — the prompt's own nodeless
+  // variant (llm/prompt.ts) omits the <node> element entirely whenever
+  // nodePath is undefined, so this needs no extra branching.
   const targetNodePath = target.kind === 'node' ? target.nodePath : undefined;
-  const nodeDescription = nodeDescriptionFor(graph, targetNodePath);
   const aspectContent = contentFor(aspect, 'content.md');
 
   if (!dryRun) {
@@ -978,7 +976,6 @@ async function runLlmAspectTest(
         aspect: { id: aspect.id, description: aspect.description ?? '', content: aspectContent },
         references: referencesForPrompt,
         nodePath: targetNodePath,
-        nodeDescription,
         files,
         companions,
         suppressedRanges,
@@ -1155,7 +1152,6 @@ async function runLlmAspectTest(
         aspect: { id: aspect.id, description: aspect.description ?? '', content: aspectContent },
         references: referencesForPrompt,
         nodePath: targetNodePath,
-        nodeDescription,
         files,
         companions,
         suppressedRanges,

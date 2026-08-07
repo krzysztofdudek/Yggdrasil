@@ -6,7 +6,8 @@ description: "Unit tests for I/O adapters that read/write runtime state —
   verdict-events telemetry sidecar, the instrument-import fence guard
   (feature-field reader/writer import boundary), and the
   rules-artifact-names single-source guard (installed-artifact-name
-  literal boundary)
+  literal boundary), and the sweep that clears a half-finished atomic write
+  left behind by a process killed between writing its temp and renaming it
   (config-parser and lock-store tests live in child nodes)"
 aspects: []
 relations:
@@ -15,6 +16,7 @@ relations:
     { target: cli/core/loader, type: uses },
     { target: cli/io/parsers/config, type: uses },
     { target: cli/io/stores, type: uses },
+    { target: cli/io/atomic-write, type: uses, consumes: [write-atomic] },
     { target: cli/tests/support, type: uses },
     { target: cli/core/check, type: uses },
     { target: cli/core/type-coverage, type: uses },
@@ -41,3 +43,4 @@ mapping:
   - source/cli/tests/unit/io/secrets-parser.test.ts
   - source/cli/tests/unit/io/read-or-default.test.ts
   - source/cli/tests/unit/io/type-class-cache.test.ts
+  - source/cli/tests/unit/io/atomic-write-sweep.test.ts

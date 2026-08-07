@@ -19,6 +19,8 @@ aspects:
   - posix-paths-output
   - what-why-next
 relations:
+  - target: cli/core/parse-cache-buckets
+    type: calls
   - target: cli/core/pairs
     type: calls
   - target: cli/core/pair-hash

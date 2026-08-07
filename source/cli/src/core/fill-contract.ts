@@ -73,6 +73,11 @@ export interface RunFillOptions {
    *  When true, the progress tracker rewrites a single line with \r instead of emitting
    *  milestone lines. */
   isTTY?: boolean;
+  /** Terminal width for that single rewritten line. Without it the line wraps and
+   *  each redraw leaves its wrapped rows on screen, so an in-place status turns
+   *  into a scrolling log. Injected by the CLI (process.stderr.columns); absent ⇒
+   *  a conservative 80. Ignored when isTTY is false. */
+  columns?: number;
   /** Clock function for progress/heartbeat (injectable for tests). Defaults to Date.now. */
   now?: () => number;
   /** Milestone threshold for non-TTY progress (emit every N pairs). Default: 25% of total, min 1. */

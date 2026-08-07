@@ -18,6 +18,13 @@ export interface VerifyAspectsParams {
   consensus?: number;
 }
 
+/**
+ * `nodeDescription` is accepted and IGNORED. The prompt no longer carries a
+ * component's description (see `llm/prompt.ts`'s `nodeElement` for why: it is
+ * not folded into the verdict hash, so it could sway a judgment it could never
+ * invalidate). The parameter is kept in the signature so this legacy
+ * positional helper's remaining callers need no edit; drop it when they go.
+ */
 export function buildPrompt(
   aspect: { id: string; description: string; content: string },
   nodeDescription: string,
@@ -25,9 +32,9 @@ export function buildPrompt(
   sourceFiles: Array<{ path: string; content: string }>,
   references: Array<{ path: string; description?: string; content: string }> = [],
 ): string {
+  void nodeDescription;
   return buildPairPrompt({
     aspect,
-    nodeDescription,
     nodePath,
     files: sourceFiles,
     references,

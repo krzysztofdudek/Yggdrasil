@@ -208,14 +208,26 @@ costs at worst one free re-run; a missed one yields a stale-green verdict.
 - **\`status\`** — \`advisory ↔ enforced ↔ draft\` flips never invalidate a verdict
   (rendering only).
 - **\`reason\`** / free-text output — only the discrete verdict token is folded.
-- **Node description** — prompt garnish, not hashed (the aspect description IS
-  hashed for LLM pairs).
+- **Node description** — not hashed, AND not sent to the reviewer. It is
+  documentation for people reading the graph; editing one re-verifies nothing
+  because nothing that was judged changed. (The ASPECT description IS both
+  hashed and sent — that one is part of the rule.) The node's PATH is sent, and
+  is hashed. Every other prompt ingredient is folded too, which is what lets a
+  verdict record its prompt's size and be believed — see the size note below.
 - **Tier config** — provider, model, endpoint, temperature, consensus, api_key,
   and timeout. Only the tier NAME folds into the hash; the resolved config is the
   reviewer's private business, so re-pointing a named tier at a different model or
   provider does not invalidate a verdict.
 - **\`max_prompt_chars\`** — a gate, not an input; lowering it can trip the gate on
-  an already-verified pair without invalidating the verdict.
+  an already-verified pair without invalidating the verdict. An LLM verdict
+  records the SIZE of the prompt that produced it (\`promptChars\`), which is
+  likewise not hashed: it is a record of inputs the hash already covers, so a
+  still-valid verdict's size is answered from the lock instead of by resolving
+  companions and re-assembling the prompt just to count it. The tier's limit is
+  still read live, so lowering a ceiling re-gates verdicts that are otherwise
+  untouched. An entry written before this field existed simply has none and is
+  measured the old way; the next \`yg check --approve\` records what it measured,
+  costing no reviewer call.
 - **\`when\` / \`implies\` / port declarations** — applicability is recomputed live
   each run and acts through the expected-pair set, not through invalidation.
 - **CLI version / prompt scaffold** — upgrading Yggdrasil must not invalidate

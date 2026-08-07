@@ -249,18 +249,53 @@ describe('ProgressTracker — TTY mode', () => {
     expect(lines[0]).not.toMatch(/\n/);
   });
 
-  it('TTY line contains filling... with counters and current pair', () => {
+  it('TTY line carries counters and the current pair, cleared before each rewrite', () => {
     const clk = fakeClock(0);
-    const tracker = new ProgressTracker(5, { isTTY: true, now: clk.now });
+    // Wide enough that nothing is truncated — truncation has its own cases below.
+    const tracker = new ProgressTracker(5, { isTTY: true, now: clk.now, columns: 200 });
     const { write, lines } = collectLines();
 
     tracker.onPairStart('det', 'aspect-a', 'node:svc', write);
 
     const line = lines[lines.length - 1];
-    expect(line).toContain('filling...');
+    expect(line).toContain('filling');
     expect(line).toContain('0/5');
     expect(line).toContain('aspect-a on node:svc');
+    // Cleared before rewriting: without this a shorter line leaves the tail of
+    // the previous, longer one on screen.
+    expect(line.startsWith('\r\x1b[2K')).toBe(true);
     expect(line).toMatch(/\r$/);
+  });
+
+  it('TTY line never exceeds the terminal width — a wrapped line would scroll instead of updating', () => {
+    const clk = fakeClock(0);
+    const columns = 40;
+    const tracker = new ProgressTracker(5, { isTTY: true, now: clk.now, columns });
+    const { write, lines } = collectLines();
+
+    // A unit key long enough to run well past the width, which is the ordinary
+    // case: unit keys are full repository paths.
+    tracker.onPairStart('det', 'some-rather-long-aspect-id', 'file:source/cli/src/core/deeply/nested/module.ts', write);
+
+    const rendered = lines[lines.length - 1]
+      .replace('\r\x1b[2K', '')
+      .replace(/\r$/, '');
+    expect(rendered.length).toBeLessThan(columns);
+    // The counts survive; the constantly-changing pair name is what gets cut.
+    expect(rendered).toContain('0/5');
+    expect(rendered.endsWith('…')).toBe(true);
+  });
+
+  it('TTY line falls back to a conservative width when the caller reports none or a nonsense one', () => {
+    const clk = fakeClock(0);
+    for (const columns of [undefined, 0, 3]) {
+      const tracker = new ProgressTracker(5, { isTTY: true, now: clk.now, columns });
+      const { write, lines } = collectLines();
+      tracker.onPairStart('det', 'aspect-a', 'file:source/cli/src/core/deeply/nested/module.ts', write);
+      const rendered = lines[lines.length - 1].replace('\r\x1b[2K', '').replace(/\r$/, '');
+      expect(rendered.length).toBeLessThan(80);
+      expect(rendered).toContain('0/5');
+    }
   });
 
   it('approved pair in TTY mode: NO permanent line, updates the TTY line', () => {

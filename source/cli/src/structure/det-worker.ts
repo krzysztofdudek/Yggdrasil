@@ -17,7 +17,7 @@
 
 import { parentPort, workerData } from 'node:worker_threads';
 
-import { runDetTask, type DetTaskRequest } from './det-worker-core.js';
+import { runDetTask, createDetWorkerCacheSlot, type DetTaskRequest } from './det-worker-core.js';
 import type { Graph } from '../model/graph.js';
 
 interface DetWorkerData {
@@ -30,8 +30,12 @@ interface DetWorkerData {
 if (parentPort) {
   const { graph, projectRoot } = workerData as DetWorkerData;
   const port = parentPort;
+  // This thread's single parse-cache slot: one bucket's trees at a time, reused
+  // across consecutive tasks the pool routes here for the same bucket. See
+  // det-worker-core.ts's DetWorkerCacheSlot for the bound this keeps.
+  const slot = createDetWorkerCacheSlot();
   port.on('message', (req: DetTaskRequest) => {
-    void runDetTask(req, graph, projectRoot).then((reply) => {
+    void runDetTask(req, graph, projectRoot, slot).then((reply) => {
       port.postMessage(reply);
     });
   });

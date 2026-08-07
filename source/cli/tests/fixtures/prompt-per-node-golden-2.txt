@@ -18,7 +18,7 @@ Respond with EXACTLY this JSON, nothing else:
 {"satisfied": true|false, "reason": "explanation with file:line references"}
 </task>
 
-<node path="core/loader" description="" />
+<node path="core/loader" />
 
 <aspect id="simple" description="">
 Simple rule

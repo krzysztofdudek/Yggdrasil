@@ -18,7 +18,7 @@ Respond with EXACTLY this JSON, nothing else:
 {"satisfied": true|false, "reason": "explanation with file:line references"}
 </task>
 
-<node path="billing/order-handler" description="A component that handles &lt;orders&gt; &amp; &quot;payments&quot;" />
+<node path="billing/order-handler" />
 
 <aspect id="test-aspect" description="A &quot;quoted&quot; description with &lt;xml&gt; &amp; ampersand">
 # Rules

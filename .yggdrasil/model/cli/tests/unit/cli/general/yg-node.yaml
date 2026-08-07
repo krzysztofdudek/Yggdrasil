@@ -1,13 +1,17 @@
 name: CLI Build & Check Command Tests
 type: test-suite
-description: Unit tests for build and check CLI commands — build-command,
+description: "Unit tests for build and check CLI commands — build-command,
   build-context, check, the check render layer split across
   check-render-header/check-render-groups/check-render-views, check-exit (the
   command-exit force-exit path), init, init/upgrade, the shared
   exit-after-flush command-exit helper, and the rules-artifacts reader that
   feeds the committed-digest gate — which must see exactly what the installer
   wrote, including a repo whose agent-rules file carries a non-canonical
-  capitalization.
+  capitalization. It also covers the worker-thread ceiling the check injects
+  into the free deterministic fill: sized from cores AND the machine's memory,
+  because every worker carries its own copy of the graph and its own parsed
+  trees, and sizing on cores alone let a large machine multiply the two until a
+  large repository could not rebuild its deterministic verdicts at all."
 aspects: []
 max_direct_relations:
   limit: 25
@@ -22,6 +26,7 @@ relations:
   [
     { target: cli/commands/build-context, type: uses },
     { target: cli/commands/check, type: uses },
+    { target: cli/det-concurrency, type: uses },
     { target: cli/check-render-header, type: uses },
     { target: cli/check-render-groups, type: uses },
     { target: cli/check-render-views, type: uses },
@@ -59,5 +64,6 @@ mapping:
   - source/cli/tests/unit/cli/check-exit.test.ts
   - source/cli/tests/unit/cli/check-disk-scan.test.ts
   - source/cli/tests/unit/cli/resolve-approve-mode.test.ts
+  - source/cli/tests/unit/cli/det-concurrency.test.ts
   - source/cli/tests/unit/cli/group-issues.test.ts
   - source/cli/tests/unit/cli/rules-artifacts.test.ts

@@ -6,6 +6,12 @@ description: Unified graph gate CLI command — combines drift, validation,
 aspects:
   - runcheck-injected-input-parity
 relations:
+  - target: cli/det-concurrency
+    type: calls
+  - target: cli/io/atomic-write
+    type: calls
+    consumes:
+      - write-atomic
   - target: cli/core/loader
     type: calls
   - target: cli/core/check

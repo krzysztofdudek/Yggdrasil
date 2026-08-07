@@ -422,7 +422,6 @@ describe('drill-runner — runDrills (LLM path, ctx.nodeless)', () => {
       aspect: { id: 'nl', description: 'a rule', content: '# Rule\nThe file must be fine.' },
       references: [],
       nodePath: undefined,
-      nodeDescription: undefined,
       files: [{ path: caseFilePath, content: 'GOOD' }],
       companions: [],
       suppressedRanges,

@@ -12,8 +12,11 @@
  *   - tierHashViewFromTier — folds ONLY the tier name into the hash; the tier's
  *     resolved config (provider/model/endpoint/temperature/consensus/api_key/
  *     timeout/custom) is deliberately not a verdict input (contract #3).
- *   - nodeDescriptionFor — the node description that garnishes the prompt (NOT
- *     hashed; exposed here only so both sides assemble the prompt identically).
+ *
+ * Every ingredient a prompt is assembled from is now folded into the hash. The
+ * one that was not — a node's `description:` — no longer reaches the prompt at
+ * all (llm/prompt.ts), so the helper that read it is gone rather than left
+ * exposed for a future caller to reintroduce the asymmetry through.
  *
  * The IO policy DIFFERS between the two sides and therefore stays at the call
  * site: check substitutes empty bytes for a missing reference/subject (a change
@@ -23,7 +26,7 @@
  * policy.
  */
 
-import type { Graph, AspectDef } from '../model/graph.js';
+import type { AspectDef } from '../model/graph.js';
 import { hashBytes } from '../io/hash.js';
 import { tierHashView } from './pair-hash.js';
 import type { LlmHashInput } from './pair-hash.js';
@@ -52,15 +55,6 @@ export function ruleHashFor(aspect: AspectDef, filename: 'content.md' | 'check.m
 export function companionHashFor(aspect: AspectDef): string | undefined {
   const art = aspect.artifacts.find((a) => a.filename === 'companion.mjs');
   return art === undefined ? undefined : hashBytes(Buffer.from(art.content, 'utf8'));
-}
-
-/**
- * The node's description (prompt garnish — not hashed; spec §3.1). Absent
- * `nodePath` (a nodeless, type-covered-file pair — no dedicated prompt variant
- * exists for it here yet) reads as '', the same as any other unknown path.
- */
-export function nodeDescriptionFor(graph: Graph, nodePath: string | undefined): string {
-  return (nodePath !== undefined ? graph.nodes.get(nodePath) : undefined)?.meta.description ?? '';
 }
 
 /**

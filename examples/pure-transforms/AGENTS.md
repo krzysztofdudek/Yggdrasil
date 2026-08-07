@@ -1,5 +1,5 @@
 <!-- yggdrasil:start -->
-<!-- yggdrasil:digest cli=5.6.0 sha256=a94d3f23a66367520d042063e75e36f6ef1ad1ab5d131592f5f34160912c506f -->
+<!-- yggdrasil:digest cli=5.7.1 sha256=a94d3f23a66367520d042063e75e36f6ef1ad1ab5d131592f5f34160912c506f -->
 ## Yggdrasil
 
 This repository is managed by Yggdrasil — continuous architecture enforcement.

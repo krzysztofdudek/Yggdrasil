@@ -82,6 +82,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
  *    - `.yg-events.jsonl` — the fill stage's append-only verdict-events telemetry sidecar
  *    - `.yg-fill-divergence.log` — the fill stage's convergence-sentinel evidence dump
  *    - `.feature-field.json` — `yg check`'s silent structural-deviation attention index
+ *    - `*.tmp`            — an atomic write's half-finished temp file, orphaned by a hard kill
  *  This is the single source of truth for what init writes into the local
  *  gitignore (both fresh init and every --upgrade). Paths are relative to the
  *  `.yggdrasil/` directory the file lives in. */
@@ -113,6 +114,13 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // maintains (files structurally unusual among their node's same-language peers); never
   // committed. The writer (core/feature-index-write) self-ensures this same line as a backstop.
   '.feature-field.json',
+  // Half-finished atomic write (io/atomic-write.ts writes `<target>.<pid>-<n>-<hex>.tmp`
+  // then renames). Its own cleanup covers a thrown error, but nothing can run on a hard
+  // kill — a SIGKILL, an out-of-memory abort, a machine losing power — so a temp can
+  // outlive the run that made it. `yg check` sweeps stale ones on startup; this line
+  // keeps one from showing up as untracked noise in the window before that, and covers
+  // any left by a run of an older CLI.
+  '*.tmp',
 ] as const;
 
 /**

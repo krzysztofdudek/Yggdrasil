@@ -29,7 +29,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/core/check, cli/core/fill, and cli/portal/engine-api are a three-way top fan-out tie at 23', () => {
+  it('cli/core/fill and cli/tests/unit/cli/general tie for top fan-out at 24, over a two-way tie at 23', () => {
     // cli/core/check no longer constructs the type-classification cache itself
     // (core/type-coverage.ts's own computeTypeCoverageCached/
     // classifySingleFileCached wrappers do, so every caller gets the cache
@@ -43,15 +43,28 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // extractor registry is now reached transitively through the
     // cli/relations/core relation each of them already declares. All three
     // dropped together, so the tie survives at one lower — 23, not 24.
-    // Tied counts break alphabetically (rankHubs: count desc, then path asc):
-    // 'cli/core/check' < 'cli/core/fill' < 'cli/portal/engine-api'.
+    // The tie then BROKE: cli/core/fill gained one edge when the per-(rule,
+    // component) parse caches moved into a node of their own. That dependency
+    // is not new — the fill stage already reached those helpers through the
+    // substrate node that used to own them — but the edge is now its own and
+    // therefore counted. The split was forced: lock verification began sharing
+    // the same caches and cannot depend on the substrate, which reaches back to
+    // the check report.
+    // The test-suite umbrella for the check command's own unit tests reached 24
+    // in the same change, by testing the new worker-ceiling helper — a test node
+    // depending on one more thing it tests, which is what a test node is for.
+    // Tied counts break alphabetically (rankHubs: count desc, then path asc), so
+    // 'cli/core/fill' < 'cli/tests/unit/cli/general' at 24, and
+    // 'cli/core/check' < 'cli/portal/engine-api' at 23.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
-    expect(data.hubs.fanOut[0].path).toBe('cli/core/check');
-    expect(data.hubs.fanOut[0].count).toBe(23);
-    expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[1].count).toBe(23);
-    expect(data.hubs.fanOut[2].path).toBe('cli/portal/engine-api');
+    expect(data.hubs.fanOut[0].path).toBe('cli/core/fill');
+    expect(data.hubs.fanOut[0].count).toBe(24);
+    expect(data.hubs.fanOut[1].path).toBe('cli/tests/unit/cli/general');
+    expect(data.hubs.fanOut[1].count).toBe(24);
+    expect(data.hubs.fanOut[2].path).toBe('cli/core/check');
     expect(data.hubs.fanOut[2].count).toBe(23);
+    expect(data.hubs.fanOut[3].path).toBe('cli/portal/engine-api');
+    expect(data.hubs.fanOut[3].count).toBe(23);
     // Also pins that aspect-test's own extraction (a prior architectural
     // change) still landed it BELOW the leaders, never re-joining the tie by
     // accident. Found by path, not by a fixed index — the nodes between the

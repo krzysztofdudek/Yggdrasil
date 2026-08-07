@@ -9,3 +9,4 @@ yg-secrets.yaml
 .family-candidates.json
 .yg-fill-divergence.log*
 .type-class-cache/
+*.tmp

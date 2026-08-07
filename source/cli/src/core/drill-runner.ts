@@ -115,7 +115,7 @@ export interface DrillRunContext {
   maxPromptChars: number;
   /**
    * When true, every LLM unit's prompt is assembled WITHOUT a node: nodePath
-   * and nodeDescription are both omitted, exactly as fill-llm.ts assembles a
+   * is omitted, exactly as fill-llm.ts assembles a
    * real nodeless pair (a file enforced by its architecture type alone, no
    * owning component — `pair.nodePath === undefined`). This is what makes a
    * drill case exercise the SAME prompt shape `llm/prompt.ts`'s `hasNode`
@@ -127,11 +127,6 @@ export interface DrillRunContext {
    * this field — drill's det path never assembles a prompt.
    */
   nodeless?: boolean;
-}
-
-/** The fixed node description for a drill prompt — a synthetic fixture, not a graph node. */
-function drillNodeDescription(aspectId: string): string {
-  return `Drill case corpus for aspect '${aspectId}' — a synthetic fixture exercising the rule, not a graph node.`;
 }
 
 // ── Verbatim CLI lines (built here as plain strings so the command renders them;
@@ -481,7 +476,6 @@ async function reviewOneUnit(
     aspect: { id: aspect.id, description: aspect.description ?? '', content: aspectContent },
     references,
     nodePath: ctx.nodeless ? undefined : `drill:${aspect.id}`,
-    nodeDescription: ctx.nodeless ? undefined : drillNodeDescription(aspect.id),
     files: unit,
     companions: [],
     suppressedRanges,

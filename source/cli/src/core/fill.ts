@@ -37,6 +37,8 @@
  * This module is the orchestrator: it owns the ORDER above and nothing else.
  * The cohesive stages live in sibling files and are wired in here:
  *   - fill-classify.ts    — pair classification + cost budget (step 2)
+ *   - fill-prompt-size-backfill.ts — records the assembled prompt's size onto
+ *                           verdicts written before that field existed
  *   - fill-report.ts      — header, prune summary, grouped diagnostics, summary
  *   - fill-dry-run.ts     — the --dry-run cost preview
  *   - fill-writer.ts      — the serialized lock writer + verdict telemetry
@@ -51,7 +53,7 @@
  *   - fill-contract.ts    — the public options/result contract + gate predicates
  *   - fill-shared.ts      — shared outcome types + readBytesOrEmpty
  *   - fill-pool.ts        — the bounded worker pool (step 6)
- *   - fill-parse-cache.ts — per-(aspect, node) shared parse caches
+ *   - parse-cache-buckets.ts — per-(aspect, node) shared parse caches
  *
  * Step 6 is the one part that is NOT a sibling of this stage. The code that
  * actually talks to the reviewer — fill-llm-phase.ts (the tier-grouped phase)
@@ -83,6 +85,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import type { RunFillOptions, RunFillResult } from './fill-contract.js';
 import { FillGatingError, detGateKey } from './fill-contract.js';
 import { classifyFillPairs } from './fill-classify.js';
+import { backfillPromptSizes } from './fill-prompt-size-backfill.js';
 import { createVerdictWriter } from './fill-writer.js';
 import { previewPruneSummary, writeDryRunBreakdown } from './fill-dry-run.js';
 import {
@@ -102,6 +105,7 @@ import { ProgressTracker } from './fill-progress.js';
 // ── Relation pass (parse + resolve) — same index runCheck's own pass builds,
 //    so a `relations:` applicability atom is answered identically here. ──
 import { runProjectRelationPass } from '../relations/pass.js';
+import type { RelationPassResult } from '../relations/pass.js';
 
 // ============================================================
 // Public surface
@@ -147,6 +151,12 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   const coverage = graph.config.coverage ?? DEFAULT_COVERAGE;
   let typeCoverageInput: TypeCoverageInput | undefined;
   let typeCoverageResult: TypeCoverageResult | undefined;
+  // The import-resolution pass this call made, if it made one. Held so the
+  // report below can be handed it instead of parsing every mapped source file a
+  // second time — see runCheck's `precomputedRelationPass`. Stays undefined when
+  // type-level coverage is off, in which case this stage never needed the pass
+  // and the report runs the run's ONLY one.
+  let relPassResult: RelationPassResult | undefined;
   if (opts.coverageVisibleFiles !== null && coverage.typeLevel) {
     const uncoveredForGate = scanUncoveredFiles(graph, opts.coverageVisibleFiles);
     typeCoverageResult = await computeTypeCoverageCached(graph, uncoveredForGate, new FileContentCache());
@@ -159,12 +169,12 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     // computation (which pairs get filled) would silently disagree with a
     // separate `yg check`'s (which pairs are expected) — a positively-gated
     // rule never filled, a negated one always filled.
-    const relResult = await runProjectRelationPass(graph, projectRoot, typeCoverageResult.covered);
+    relPassResult = await runProjectRelationPass(graph, projectRoot, typeCoverageResult.covered);
 
     typeCoverageInput = {
       covered: typeCoverageResult.covered,
       ambiguousPaths: typeCoverageResult.ambiguous.map((a) => a.file),
-      edges: relResult.typedEdges,
+      edges: relPassResult.typedEdges,
     };
   }
 
@@ -223,12 +233,32 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       rulesArtifacts: opts.rulesArtifacts,
       trackedFiles: opts.trackedFiles,
       precomputedTypeCoverage: typeCoverageResult,
+      // A preview writes nothing — it returns before the verdict writer is even
+      // constructed — so both of these still describe exactly what this call
+      // classified moments ago. Handing them over is what makes a cost preview
+      // cost like the read it is, instead of re-hashing every pair and
+      // re-parsing every mapped source file to rediscover what is already here.
+      precomputedRelationPass: relPassResult,
+      precomputedVerification: verification,
     });
     return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0, runtimeDispositions: [] };
   }
 
   // ── Serialized lock writer (interruption-safe, §7) + verdict telemetry. ────
   const writer = createVerdictWriter({ graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds });
+
+  // Record the assembled prompt's size on any still-valid verdict that predates
+  // the field. Placed BEFORE the log gate below on purpose: this writes no
+  // verdict and re-decides nothing — it only stores a number the classification
+  // above already computed — so it must not be withheld from a repository whose
+  // real fills are blocked pending a justification entry. Without it a
+  // repository with nothing to fill would never record a size at all, and the
+  // fast path it unlocks would stay permanently out of reach. Skipped under
+  // --only-deterministic, whose writer is scoped to the gitignored deterministic
+  // file and could not persist a committed LLM entry anyway.
+  if (!onlyDeterministic) {
+    await backfillPromptSizes(lock, verification.pairs, writer.persistLock);
+  }
 
   // ── Step 4: Log gate per node (§9). A node owning unverified pairs whose
   // log_required type drifted (or first verification) with no fresh entry needs
@@ -260,6 +290,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   const tracker = new ProgressTracker(totalPairs, {
     isTTY,
     now,
+    columns: opts.columns,
     milestoneInterval: opts.milestoneInterval,
     stillWorkingIntervalMs: opts.stillWorkingIntervalMs,
   });
@@ -372,6 +403,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     rulesArtifacts: opts.rulesArtifacts,
     trackedFiles: opts.trackedFiles,
     precomputedTypeCoverage: typeCoverageResult,
+    // Same pass, reused: a fill writes lock and log files, never source, so what
+    // it resolved before the fill it would resolve identically now. Deliberately
+    // NOT accompanied by precomputedVerification — this run DID write verdicts,
+    // so the lock must be re-verified for the report to describe it.
+    precomputedRelationPass: relPassResult,
     // The in-process fill→check handoff (core/type-visibility.ts's own module
     // comment names this the missing piece): THIS run's own runtimeDispositions,
     // so the report it is about to build can name a component-free disposition

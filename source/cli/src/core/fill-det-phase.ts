@@ -30,7 +30,7 @@ import {
   destroyRemainingParseCaches,
   parseCacheBucketKey,
   releaseParseCacheBucket,
-} from './fill-parse-cache.js';
+} from './parse-cache-buckets.js';
 import { DetWorkerPool } from '../structure/det-worker-pool.js';
 import { StructureRunnerError, runStructureAspect } from '../structure/runner.js';
 import type { RunStructureAspectParams, RunStructureAspectResult } from '../structure/runner.js';
@@ -179,12 +179,16 @@ export async function runDeterministicPhase({
     // A pool-backed structure runner: execute the check on a worker and
     // RECONSTRUCT StructureRunnerError on this thread so fillDetPair's catch (its
     // malformed-suppress branch + taint re-run) behaves exactly as in-process.
-    const runViaPool = async (params: RunStructureAspectParams): Promise<RunStructureAspectResult> => {
+    // `bucketKey` rides along so the worker can reuse one bucket's parsed trees
+    // across consecutive tasks (structure/det-worker-core.ts); it never reaches
+    // the check itself and never enters a verdict.
+    const runViaPool = (bucketKey: string) => async (params: RunStructureAspectParams): Promise<RunStructureAspectResult> => {
       const reply = await pool.run({
         aspectDir: params.aspectDir,
         aspectId: params.aspectId,
         unit: params.unit,
         subjectScope: params.subjectScope,
+        bucketKey,
       });
       if (reply.ok) return reply.result;
       if (reply.error.code !== undefined && reply.error.messageData !== undefined) {
@@ -193,29 +197,53 @@ export async function runDeterministicPhase({
       throw new Error(reply.error.message);
     };
     try {
-      // Dispatch every pair; the pool bounds concurrency to its worker count. Live
-      // side effects apply as each completes; diagnostics land in index-keyed slots
-      // flattened in pair order below, so grouped output is completion-order-independent.
+      // Live side effects apply as each pair completes; diagnostics land in
+      // index-keyed slots flattened in pair order below, so grouped output stays
+      // completion-order-independent.
       const diagSlots: DetDiag[] = new Array<DetDiag>(activeDetPairs.length);
-      await Promise.all(
-        activeDetPairs.map(async ({ pair, aspect }, i) => {
-          tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
-          const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runViaPool, typeCoverage, reachCache);
-          diagSlots[i] = await applyDetOutcome(pair, outcome);
-        }),
-      );
+      // Dispatch in BOUNDED waves rather than handing the whole pair list to
+      // Promise.all. The pool already bounded how many tasks RUN at once, but a
+      // single Promise.all over every pair still materialized every request
+      // object, every pending promise, and every closure up front — on a large
+      // repository that is tens of thousands of live objects in the parent
+      // before the first verdict is written, and it grows with repo size rather
+      // than with worker count. A wave of `detPoolSize` keeps exactly as many
+      // tasks in flight as there are workers to run them, so the parent's
+      // footprint is flat in the number of pairs.
+      //
+      // Waves are cut along the existing pair order — sorted by (aspectId,
+      // unitKey), so one rule's subjects on one node land adjacent — which puts
+      // same-bucket tasks in the same or neighbouring waves, where the workers'
+      // cache affinity can act on them. Neither the wave boundaries nor the
+      // affinity affect any verdict: they decide only how much re-parsing
+      // happens, and a miss simply parses again.
+      for (let start = 0; start < activeDetPairs.length; start += detPoolSize) {
+        const wave = activeDetPairs.slice(start, start + detPoolSize);
+        await Promise.all(
+          wave.map(async ({ pair, aspect }, offset) => {
+            tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
+            const outcome = await fillDetPair(
+              graph, projectRoot, pair, aspect, runViaPool(parseCacheBucketKey(pair)), typeCoverage, reachCache,
+            );
+            diagSlots[start + offset] = await applyDetOutcome(pair, outcome);
+          }),
+        );
+      }
       for (const diag of diagSlots) collectDetDiag(diag);
     } finally {
       await pool.destroy();
     }
   } else {
-    // In-process (sequential) branch ONLY — the pooled worker-thread branch
-    // above is deliberately excluded from parse-cache sharing (see
-    // fill-parse-cache.ts's own module doc): each worker is a separate isolate
-    // with its own WASM instance, so a cache built on this thread cannot cross
-    // that boundary. One bucket per (aspectId, node/unit) covers every subject
-    // of the same rule on the same node, destroyed as soon as the LAST such
-    // pair settles.
+    // In-process (sequential) branch. THIS thread's parse-cache buckets: one per
+    // (aspectId, node/unit), covering every subject of the same rule on the same
+    // node, destroyed as soon as the LAST such pair settles.
+    //
+    // The pooled branch above cannot use these objects — each worker is a
+    // separate isolate with its own WASM instance, so a cache built on this
+    // thread cannot cross that boundary — but it is no longer without a cache of
+    // its own: it sends the same bucket KEY along with each task and every
+    // worker keeps one bucket's trees at a time (structure/det-worker-core.ts).
+    // Same grouping, same one-bucket-at-a-time bound, built on the far side.
     const parseCacheBuckets = buildParseCacheBuckets(activeDetPairs.map(({ pair }) => pair));
     try {
       for (const { pair, aspect } of activeDetPairs) {

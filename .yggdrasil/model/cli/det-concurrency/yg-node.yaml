@@ -1,0 +1,18 @@
+name: CLI Deterministic Worker Ceiling
+type: command-support
+description: "Command-layer support helper that decides how many worker threads
+  the deterministic fill may spawn on the machine it is running on. The engine's
+  worker pool deliberately reads no system state so its verdicts stay
+  hardware-independent, which means the size has to be injected from here.
+  Sizing on cores alone was unsafe: each worker is a full isolate carrying its
+  own structured-clone copy of the graph plus the ASTs for whatever unit it is
+  checking, so a large machine multiplied a large per-worker footprint by a
+  large worker count and a big repository could not rebuild its deterministic
+  verdicts at all — failing in exactly the keyless gate CI and the pre-commit
+  hook depend on. The ceiling is therefore the lesser of the core count and what
+  a memory budget affords, with the per-worker estimate taken from this
+  process's own resident size (a real measurement of one loaded graph, scaling
+  with the repository on its own) rather than a tuned constant. Imports only
+  node:os, so it declares no relations."
+mapping:
+  - source/cli/src/cli/det-concurrency.ts

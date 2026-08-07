@@ -13,7 +13,7 @@ import type { Graph, AspectDef, LlmConfig } from '../model/graph.js';
 import type { VerdictEntry, Verdict } from '../model/lock.js';
 import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import { computeLlmInputHash } from './pair-hash.js';
-import { ruleHashFor, contentFor, nodeDescriptionFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
+import { ruleHashFor, contentFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
 import { hashBytes } from '../io/hash.js';
 import { buildPairPrompt, assembledPromptChars, DEFAULT_MAX_PROMPT_CHARS } from '../llm/prompt.js';
 import type { PromptReferenceInput, PromptFileInput, PromptCompanionInput } from '../llm/prompt.js';
@@ -164,12 +164,21 @@ export async function fillLlmPair(
     aspect: { id: aspect.id, description: aspect.description ?? '', content: contentFor(aspect, 'content.md') },
     references: referencesForPrompt,
     nodePath: pair.nodePath,
-    nodeDescription: nodeDescriptionFor(graph, pair.nodePath),
     files: subjects.map<PromptFileInput>((s) => ({ path: s.path, content: s.bytes.toString('utf8') })),
     companions,
     suppressedRanges,
     scope: aspect.scope,
   };
+
+  // The gate-canonical (label-free) size of the prompt this fill is about to
+  // send. Measured ONCE here and reused twice: by the first-fill companion gate
+  // just below, and — recorded on the entry — by every later `yg check`, which
+  // reads it back instead of resolving companions and re-assembling the prompt
+  // only to count its characters (see VerdictEntry.promptChars). Deliberately
+  // NOT `prompt.length`: `buildPairPrompt` renders companion labels and the
+  // gate's measurement does not, so the two strings differ by design and only
+  // this one is comparable with what verify-lock computes.
+  const promptChars = assembledPromptChars(promptInput);
 
   // ── Fill-time size gate for companion pairs (§4, first-fill). ──
   // verify-lock gates a STORED entry against max_prompt_chars, but on a pair's
@@ -187,7 +196,7 @@ export async function fillLlmPair(
     // (the §4 gate is always active — there is no "unlimited" tier). The guard
     // is therefore always-true; it is unwrapped, the body kept.
     const limit = mergedTier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS;
-    const chars = assembledPromptChars(promptInput);
+    const chars = promptChars;
     if (chars > limit) {
       const unitKeyPosix = toPosixPath(pair.unitKey);
       return {
@@ -265,7 +274,7 @@ export async function fillLlmPair(
     verdict,
   });
 
-  const entry: VerdictEntry = { verdict, hash };
+  const entry: VerdictEntry = { verdict, hash, promptChars };
   // Persist touched ONLY when the companion recorded out-of-subject observations —
   // a []-resolving companion writes NO touched but still folded companionHash.
   if (observations.length > 0) entry.touched = observations;
