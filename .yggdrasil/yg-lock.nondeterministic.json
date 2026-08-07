@@ -874,7 +874,7 @@
       "file:source/cli/tests/unit/io/aspect-parser-scope.test.ts": {"hash":"b1504fac32562f6b20920280baecf47f072e6336e5e3113cde0b9bdbb207f0fa","promptChars":20605,"verdict":"approved"},
       "file:source/cli/tests/unit/io/aspect-parser.test.ts": {"hash":"4388a0b69395a141c0d8488376bf77cba13e0c47e40fc96a314fc241dc0ba71e","promptChars":27044,"verdict":"approved"},
       "file:source/cli/tests/unit/io/aspect-status-parsing.test.ts": {"hash":"11402593c82dfce44b8b8f0995ec9ce9edd5eb036bd24c517f9343add57bdb8b","promptChars":10046,"verdict":"approved"},
-      "file:source/cli/tests/unit/io/atomic-write-sweep.test.ts": {"hash":"6010c2f0c5f4cd7186e3a6209705d367068308a3075248264d45903caeb4f50c","promptChars":8365,"verdict":"approved"},
+      "file:source/cli/tests/unit/io/atomic-write-sweep.test.ts": {"hash":"c99d28d37213cccbc2b2607e0beeabb1d2aa82f374120a7b83679173c1ecd8a7","promptChars":10172,"verdict":"approved"},
       "file:source/cli/tests/unit/io/config-parser-branch-coverage.test.ts": {"hash":"961b2f6484335e59de26dd3a9e6bf814794d748b55167c2075b4a88f1678d2df","promptChars":8172,"verdict":"approved"},
       "file:source/cli/tests/unit/io/config-parser-prompt-chars.test.ts": {"hash":"e03b63618680c02c46681969ee418546c6edcb10604b16f7f01fe5662e9a8a0b","promptChars":8030,"verdict":"approved"},
       "file:source/cli/tests/unit/io/config-parser.test.ts": {"hash":"7d6f6e5c3e94dd48308473eb28865019041d74808487c0c995bb5677ce199791","promptChars":47405,"verdict":"approved"},

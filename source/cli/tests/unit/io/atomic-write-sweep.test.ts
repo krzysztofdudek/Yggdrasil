@@ -10,7 +10,7 @@
  * mid-write on.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, utimesSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync, utimesSync, readdirSync, chmodSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -84,6 +84,36 @@ describe('sweepStaleTempFiles', () => {
     expect(existsSync(nested)).toBe(true);
   });
 
+  it('leaves a DIRECTORY whose name matches the temp pattern — the sweep removes files only', async () => {
+    const dirNamedLikeTemp = path.join(dir, 'out.json.77-2-a1b2c3d4.tmp');
+    mkdirSync(dirNamedLikeTemp);
+    const seconds = (NOW - 5 * HOUR_MS) / 1000;
+    utimesSync(dirNamedLikeTemp, seconds, seconds);
+
+    await sweepStaleTempFiles(dir, now);
+
+    expect(existsSync(dirNamedLikeTemp)).toBe(true);
+  });
+
+  it('keeps going when one entry cannot be removed, rather than abandoning the sweep', async () => {
+    // A read-only containing directory makes the unlink fail. The sweep must
+    // log and move on: a leftover it cannot clear is not a reason to fail the
+    // command that ran it, and it must not stop the sweep either.
+    const sub = path.join(dir, 'locked');
+    mkdirSync(sub);
+    const stuck = path.join(sub, 'out.json.55-1-aabbccdd.tmp');
+    writeFileSync(stuck, 'x');
+    const seconds = (NOW - 5 * HOUR_MS) / 1000;
+    utimesSync(stuck, seconds, seconds);
+    chmodSync(sub, 0o500);
+    try {
+      await expect(sweepStaleTempFiles(sub, now)).resolves.toBeUndefined();
+      expect(existsSync(stuck)).toBe(true);
+    } finally {
+      chmodSync(sub, 0o700);
+    }
+  });
+
   it('is silent on a directory it cannot read — a sweep must never fail the command that ran it', async () => {
     await expect(sweepStaleTempFiles(path.join(dir, 'does-not-exist'), now)).resolves.toBeUndefined();
   });
@@ -101,6 +131,21 @@ describe('atomicWriteFile', () => {
     const target = path.join(dir, 'nested', 'out.json');
     await atomicWriteFile(target, '{"a":1}');
     expect(readdirSync(path.dirname(target))).toEqual(['out.json']);
+  });
+
+  it('removes its own temp and rethrows when the write fails', async () => {
+    // The half-written temp must not survive a failure — otherwise every failed
+    // write leaves exactly the litter the sweep above exists to clean up, and
+    // the target must be left untouched either way.
+    const sub = path.join(dir, 'readonly');
+    mkdirSync(sub);
+    chmodSync(sub, 0o500);
+    try {
+      await expect(atomicWriteFile(path.join(sub, 'out.json'), '{}')).rejects.toThrow();
+      expect(readdirSync(sub)).toEqual([]);
+    } finally {
+      chmodSync(sub, 0o700);
+    }
   });
 
   it('produces a temp name the sweep recognises', async () => {
