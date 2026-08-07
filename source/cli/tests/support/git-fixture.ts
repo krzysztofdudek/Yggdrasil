@@ -48,6 +48,34 @@ const INHERITED_DISCOVERY_VARS = [
 ] as const;
 
 /**
+ * Default committer/author identity for every fixture git operation.
+ *
+ * WHY THIS IS A DEFAULT AND NOT A PER-CALL ARGUMENT: git needs an identity to
+ * write a commit, and with none configured it tries to guess one from the user
+ * and hostname — which it then REFUSES on a machine whose hostname carries no
+ * domain, failing with `fatal: unable to auto-detect email address` and exit
+ * 128. A developer's box almost always has a global identity, so a fixture that
+ * relies on finding one passes locally and fails on a CI runner, which has
+ * none. That is not a hermetic fixture, and hermeticity is this module's whole
+ * job — the same reason it pins GIT_DIR rather than trusting discovery.
+ *
+ * It bites hardest where the commit is implicit. A caller writing `git commit`
+ * tends to remember the identity; a caller writing `git merge` does not think
+ * of itself as committing at all, right up until the merge is a real one and
+ * needs a commit for it.
+ *
+ * Supplied as env rather than config so it applies without touching the
+ * fixture's `.git/config`, and merged before `extraEnv` so a caller that wants a
+ * specific identity (or a fixed author date) still wins.
+ */
+const FIXTURE_IDENTITY: NodeJS.ProcessEnv = {
+  GIT_AUTHOR_NAME: 'yg-test',
+  GIT_AUTHOR_EMAIL: 'yg-test@fixture.test',
+  GIT_COMMITTER_NAME: 'yg-test',
+  GIT_COMMITTER_EMAIL: 'yg-test@fixture.test',
+};
+
+/**
  * Build a scrubbed, fixture-pinned environment for a git command that must act on
  * `fixtureDir` and ONLY `fixtureDir`.
  *
@@ -60,7 +88,7 @@ export function gitFixtureEnv(
   extraEnv: NodeJS.ProcessEnv = {},
 ): NodeJS.ProcessEnv {
   const abs = path.resolve(fixtureDir);
-  const env: NodeJS.ProcessEnv = { ...process.env, ...extraEnv };
+  const env: NodeJS.ProcessEnv = { ...process.env, ...FIXTURE_IDENTITY, ...extraEnv };
   // Remove any inherited discovery vars so the child cannot auto-locate the real
   // repo through a leaked env.
   for (const v of INHERITED_DISCOVERY_VARS) delete env[v];

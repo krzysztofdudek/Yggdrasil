@@ -33,7 +33,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { mkdtempSync, rmSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { tmpdir, devNull } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -165,5 +165,56 @@ describe('GUARD: git-fixture isolation — a test git op can never touch the rea
       if (savedIdx === undefined) delete process.env.GIT_INDEX_FILE;
       else process.env.GIT_INDEX_FILE = savedIdx;
     }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Hermetic identity: a fixture must not depend on the machine's git config.
+  // ---------------------------------------------------------------------------
+
+  it('commits without any ambient git identity — the fixture supplies its own', () => {
+    // A developer's machine almost always has a global user.name/user.email, so
+    // a fixture that relies on finding one passes locally and fails on a CI
+    // runner, which has none: git tries to guess an identity from user@hostname
+    // and REFUSES when the hostname carries no domain, exiting 128. Pointing
+    // git's global and system config at an empty file reproduces that machine
+    // here, and the fixture must still be able to commit.
+    const fixture = freshDir('identity');
+    const noAmbientConfig = { GIT_CONFIG_GLOBAL: devNull, GIT_CONFIG_SYSTEM: devNull };
+    writeFileSync(path.join(fixture, 'a.txt'), 'hello\n');
+
+    expect(runGitFixture(fixture, ['init', '-q', '-b', 'main'], { extraEnv: noAmbientConfig }).status).toBe(0);
+    expect(runGitFixture(fixture, ['add', '-A'], { extraEnv: noAmbientConfig }).status).toBe(0);
+    const commit = runGitFixture(fixture, ['commit', '-qm', 'seed'], { extraEnv: noAmbientConfig });
+    expect(commit.status, commit.stderr).toBe(0);
+  });
+
+  it('MERGES without any ambient git identity — the case that has no `commit` in it to remind you', () => {
+    // A real (non-fast-forward) merge writes a commit, so it needs an identity
+    // just as much as `git commit` does — but the caller never typed the word,
+    // which is exactly how a fixture ends up committing with whatever the
+    // machine happens to have configured.
+    const fixture = freshDir('identity-merge');
+    const noAmbientConfig = { GIT_CONFIG_GLOBAL: devNull, GIT_CONFIG_SYSTEM: devNull };
+    const git = (args: string[]) => runGitFixture(fixture, args, { extraEnv: noAmbientConfig });
+
+    writeFileSync(path.join(fixture, 'base.txt'), 'base\n');
+    git(['init', '-q', '-b', 'main']);
+    git(['add', '-A']);
+    git(['commit', '-qm', 'base']);
+
+    git(['checkout', '-q', '-b', 'branch-a']);
+    writeFileSync(path.join(fixture, 'a.txt'), 'a\n');
+    git(['add', '-A']);
+    git(['commit', '-qm', 'a']);
+
+    git(['checkout', '-q', 'main']);
+    git(['checkout', '-q', '-b', 'branch-b']);
+    writeFileSync(path.join(fixture, 'b.txt'), 'b\n');
+    git(['add', '-A']);
+    git(['commit', '-qm', 'b']);
+
+    git(['checkout', '-q', 'branch-a']);
+    const merged = git(['merge', '-q', '--no-edit', 'branch-b']);
+    expect(merged.status, merged.stderr).toBe(0);
   });
 });
