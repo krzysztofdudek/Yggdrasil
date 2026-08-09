@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.7.2] - 2026-08-09
+
+### Fixed
+
+- **Six agent-facing reference texts no longer contradict the CLI or each other.** The onboarding playbook still warned agents off directory-form mapping entries, citing a limitation fixed several releases ago — both forms classify by the files they own. `writing-llm-aspects` implied plain LLM aspects could use `yg aspect-test --files`, when that mode is deterministic-only for every LLM aspect, companion or not. The `configuration` topic never mentioned `coverage.type_level`, although the config schema documents it and four other topics depend on it. `aspect-status` called `draft` "the only keyless way to stop a pair from blocking CI", although demoting to advisory un-blocks keylessly too — the corrected text names both exits. The manual and `verification-and-lock` described `file-mapping-gitignored` as firing on an *untracked* file, when it actually fires on a literally-mapped *gitignored* file, tracked or not. And the `yg aspects --health` reference described two different columns as the last one.
+
 ## [5.7.1] - 2026-08-07
 
 ### Fixed

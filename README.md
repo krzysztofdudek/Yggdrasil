@@ -22,7 +22,7 @@ If you have ever been the only thing standing between an agent and production, s
 
 If you work somewhere that pays for quality, you have probably never hit that wall. Review, QA and the rhythm of a sprint sit between you and it. Those same things mean you have never seen your own unconstrained speed either.
 
-Nobody measures this in either direction. The best study available put experienced developers **19% slower** on real tasks with AI assistance, while they believed they had been 20% faster ([METR, 2025](https://arxiv.org/abs/2507.09089)). Neither the people who feel fast nor the people who feel careful have an instrument.
+Nobody measures this in either direction. The best-known study measured experienced developers **19% slower** on real tasks with AI assistance, while they believed they had been 20% faster ([METR, 2025](https://arxiv.org/abs/2507.09089)). Its 2026 follow-up moved the measured effect toward zero, with confidence intervals crossing it. The part that held is the perception gap: nobody's feeling about their own speed survived contact with a measurement. Neither the people who feel fast nor the people who feel careful have an instrument.
 
 Scaffolding is not there to stop you falling. It is there so that the brake does not have to be a person.
 

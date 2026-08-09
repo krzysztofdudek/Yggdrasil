@@ -377,7 +377,7 @@
       "file:source/cli/src/migrations/to-5.1.0.ts": {"hash":"80f76af2b241d275af85ed2cc38583ee85a0b0cf194d4b3765df2a76fd4e1ca3","promptChars":6068,"verdict":"approved"},
       "file:source/cli/src/portal/serializer.ts": {"hash":"9b731e384e96e3722893be99fd9ab08a420208cdd598f78949a48fb269e547cb","promptChars":37845,"verdict":"approved"},
       "file:source/cli/src/templates/digest.ts": {"hash":"dd9064eb465cb9d9ad7d4c310f0d1504b22249a0799c771f891047c20256d17a","promptChars":8109,"verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"hash":"7446c650b5737bbdb1a45d7713368088809ca28e39e336b152408e306ded5f3b","promptChars":62593,"verdict":"approved"},
+      "file:source/cli/src/templates/rules.ts": {"hash":"0a00aae17dc58ef6ec7da08d62abe3f34d43b117749ef18cc8bd194969994319","promptChars":62660,"verdict":"approved"},
       "file:source/cli/src/utils/binary-check.ts": {"hash":"9a901d564b54bfb64faf222f3d4a0df67bfc1e0198c7eed7c01bba1dbb2b49c7","promptChars":5739,"verdict":"approved"},
       "file:source/cli/src/utils/binary-extensions.ts": {"hash":"e7db4d4c5ccbeeb221b6a2af9f5ff921c8b947f83afadc0f247428386025ab1b","promptChars":5343,"verdict":"approved"},
       "file:source/cli/src/utils/coverage-exclusion.ts": {"hash":"30f0f6dcd252d4a80fbc5a6652e8a7b8b4f30cf6c575f7283c0112bd2c4a955f","promptChars":6885,"verdict":"approved"},
@@ -1118,7 +1118,7 @@
       "file:source/cli/src/templates/default-config.ts": {"hash":"9449c686f272320f60966e2f9ae38879ff72864b7d967ccb7547d5d0add250b2","promptChars":7558,"verdict":"approved"},
       "file:source/cli/src/templates/digest.ts": {"hash":"70e163116b1e84a998b3a7d2417d571a552dae7f1e236deb690940a6ecf1dcbe","promptChars":9065,"verdict":"approved"},
       "file:source/cli/src/templates/platform.ts": {"hash":"c15b8a75688a7af3cfb5f826ef50847535050f33df05771ac6cad0b27af2bba5","promptChars":24329,"verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"hash":"4727ebc3c1107c5411df8477b13685347d68a4cc2f8fee213219c487792c92e3","promptChars":63549,"verdict":"approved"}
+      "file:source/cli/src/templates/rules.ts": {"hash":"006beff9a2b1f3b88e24fb4aa01251183e94b1ee26bfb442941d68f3f2ac29d9","promptChars":63616,"verdict":"approved"}
     }
   },
   "nodes": {

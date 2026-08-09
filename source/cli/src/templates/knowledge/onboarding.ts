@@ -163,10 +163,9 @@ this on later?"
   require-nothing (nothing blocks). First covered area and first rule come
   from the user's own words about their own code. C2 scaffolding notes:
   author the first node type + node yourself, silently, narrating only the
-  outcome. Known tool limitation: write mapping entries as file globs
-  (\`src/emails/**/*.ts\`), not bare directories — directory-form entries
-  currently mismatch extension-glob type predicates. If you export
-  \`yg portal --static\`, gitignore the emitted file.
+  outcome. Mapping entries may be file globs (\`src/emails/**/*.ts\`) or bare
+  directories (\`src/emails/\`) — both classify by the files they own. If you
+  export \`yg portal --static\`, gitignore the emitted file.
 - **C3 — no repo**: scaffold the practice project yourself (recipe below).
   Narrate the story, not the scaffolding.
 

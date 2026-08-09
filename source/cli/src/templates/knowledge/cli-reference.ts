@@ -494,7 +494,7 @@ catching things), \`quiet\` (little exercised), or \`decorative?\` (enforceable 
 never violated). A \`decorative?\` rule whose own examples still pass is reported as
 *possibly deterring the very violations it would catch* rather than assumed
 useless — and a rule is only ever suggested for demotion when several independent
-signals agree, never on the catch count alone. The final column, **fp**, is the
+signals agree, never on the catch count alone. The next column, **fp**, is the
 false-block signal — how many of this rule's refusals a human LATER waived or
 overturned (a live \`yg-suppress\` waiver now covers the refused code, or the block
 was re-approved after a waiver moved rather than a genuine code fix — a real fix,

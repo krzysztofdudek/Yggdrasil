@@ -33,6 +33,9 @@ coverage:                           # Optional — controls which files must be 
   required:                         # Unmapped files under these roots are a blocking error
     - "/"                           # Default: whole repo
   excluded: []                      # Files under these roots are silently ignored
+  type_level: false                 # Optional — default false; a fresh yg init writes true.
+                                    # When true, a file matched by exactly one classifying type's
+                                    # when counts as covered by that type, with no node of its own.
 
 quality:
   max_direct_relations: 10        # Max out-edges per node before high-fan-out warning
@@ -231,6 +234,7 @@ coverage:
   excluded:
     - vendor/               # silently ignored
     - "**/*.generated.ts"   # glob: drop generated files anywhere
+  type_level: true          # a file matched by exactly one classifying type counts as covered
 \`\`\`
 
 Controls which coverage-visible files must be mapped to a node.
@@ -239,6 +243,7 @@ Controls which coverage-visible files must be mapped to a node.
 - \`excluded\` — roots that are silently ignored. Default: \`[]\`. This is a supreme, global filter, not just a coverage-tiering rule: a path it matches is gone everywhere — no coverage complaint, no review pair, no fingerprint contribution, no dependency check, no type classification, no rule read (including one reached through a symlink), no ownership lookup, no suppression-audit entry, no portal row — and this holds even when a node's own \`mapping:\` entry names that exact path directly. An explicit mapping claim does not outrank an exclusion; there is no seam between a directory/glob entry sweeping a file in and an entry naming it exactly, exclusion cuts both the same way.
 - Roots accept the same forms as a node \`mapping:\` entry: an exact file, a directory prefix (e.g. \`src/\` covers everything beneath it), or a glob (\`*\` within a segment, \`**\` across) — so \`excluded: ["**/*.generated.ts"]\` drops generated files anywhere and \`required: ["services/*/api/**"]\` scopes the blocking tier to a pattern. \`/\` still means the whole repo.
 - Files that match neither a required nor an excluded root produce a non-blocking \`uncovered-advisory\` warning.
+- \`type_level\` — boolean, default \`false\` (a fresh \`yg init\` writes \`true\`). When on, a file matched by exactly ONE classifying type's \`when\` counts as covered by that type, with no node of its own — only a \`scope: { per: file }\` rule can ever produce a verdict on such a file (a \`per: node\` rule has no whole unit to run against there). Committed-config only: a \`yg-secrets.yaml\` overlay can never change this key, since it changes what counts as covered for everyone. Does nothing until some type declares \`when:\`. Applicability facts and volatility for type-covered files: \`yg knowledge read conditional-aspects\`.
 - The excluded set has a second source beyond the config list above: a subtree that is its own separate project — carrying its own nested \`.yggdrasil/\` graph, or its own \`.git\` (a checkout, submodule, or linked worktree) — is a DEFAULT member of the excluded set, whether or not any \`excluded\` line mentions it; membership is read off the real filesystem, not guessed from a directory name, so an ordinary dependency directory (e.g. \`node_modules\`) with no graph or git checkout of its own is never skipped by name alone — exclude it explicitly via \`excluded\` if desired.
 - A mapping entry that resolves to nothing because everything it would have reached is excluded says so, naming exclusion as the reason: \`file-mapping-excluded\` fires for an entry naming one file exactly; the aggregate \`mapping-path-missing\` check fires when a node's mapping entries, taken as a whole, resolve to nothing this node can enforce because every file they reached is excluded — the same code a stale glob or a deleted file produces. A glob or exact entry's own per-entry existence check stays silent when it resolves to real, on-disk content that happens to be excluded — that content is not stale or broken, so blaming it there would be wrong; the aggregate check is what reports the "nothing left to enforce" fact.
 - Exclusion is absolute: any excluded-root match drops a file before it is ever sorted into the blocking or advisory tier, independent of whether a more specific required root also matches it; \`yg check\` warns (\`coverage-required-shadowed\`) when a plain required root sits fully inside a plain excluded root.

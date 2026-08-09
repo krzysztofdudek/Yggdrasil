@@ -24,9 +24,10 @@ Status colors verdicts that exist; it never substitutes for verification.
   is emitted at error severity regardless of status. An advisory LLM pair whose
   assembled prompt exceeds the resolved tier's \`max_prompt_chars\` blocks
   \`yg check\` all the same — it can never be verified, so status cannot soften it.
-- Only **\`draft\`** removes a pair from the expected set entirely — it is the only
-  keyless way to stop a pair from blocking CI (relevant in a keyless-CI
-  emergency).
+- Only **\`draft\`** removes a pair from the expected set entirely. Both keyless
+  exits from a blocking pair are status flips (relevant in a keyless-CI
+  emergency): \`draft\` removes the pair altogether; demoting to \`advisory\`
+  keeps it visible as a warning.
 - Draft dormancy applies to \`yg check\` / \`--approve\` only. Status never gates
   \`yg aspect-test\`: a draft aspect still runs there live (diagnostic only, the
   lock is never written) — the authoring ladder "start at draft, iterate with

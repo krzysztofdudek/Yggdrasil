@@ -393,8 +393,8 @@ Use \`yg aspect-test --aspect <id> --node <path> --dry-run\` (or, for a file
 enforced by its architecture type alone, \`--file <path> --dry-run\`) to run
 the hook live and inspect the resolved companion paths and assembled prompt
 without making a reviewer call or writing the lock. (The ad-hoc \`--files\`
-mode is unavailable for companion aspects — they need a node's relations, or
-an architecture-derived reach, to resolve; always use \`--node\` or \`--file\`.)
+mode is deterministic-only — no LLM aspect can use it, companion or not;
+always use \`--node\` or \`--file\`.)
 
 ### Cost
 

@@ -68,9 +68,10 @@ only consults \`.gitignore\` when expanding a directory or glob, never for a
 literal file entry — so it was never actually invisible, and
 \`tracked-file-gitignored\` leaves it to the mirror case instead of also
 flagging it. The mirror case, \`file-mapping-gitignored\` (a mapping entry
-names a file directly that is not tracked at all — either it belongs in the
-repo, or it does not belong in the mapping), stays a blocking structural
-error. Both are live on every \`yg check\`, no \`--approve\` needed.
+names a gitignored file directly — tracked or not; the literal entry keeps
+the file reviewed, but the claim conflicts with \`.gitignore\`: either
+un-ignore the file, or it does not belong in the mapping), stays a blocking
+structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
 
 ## Lock format
 
