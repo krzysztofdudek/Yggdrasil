@@ -47,6 +47,12 @@ describe('portal Phase-4 view modules (real source, real fixture data) — compo
     }
     // The boundary section labels declared-only as legitimate / never red.
     expect(text).toMatch(/legitimate, never red|never red/i);
+    // The greyed diagonal (same-kind-to-same-kind cells, never drawn as allowed or forbidden)
+    // gets its own legend key — without it the grey square reads exactly like the "empty cell =
+    // forbidden" key right next to it, which is backwards on a permissive project where a
+    // same-kind dependency IS allowed.
+    expect(classesIn(stage).has('mtx-swatch-diag')).toBe(true);
+    expect(text).toMatch(/grey diagonal.*not a restriction/i);
   });
 
   /** The `.ty-card` whose `.ty-name` textContent is exactly `id` — never a substring match on
@@ -241,6 +247,10 @@ describe('portal Phase-4 view modules (real source, real fixture data) — compo
     expect(leadAll && textOf(leadAll)).toContain(
       'this architecture declares no relation restrictions yet — every dependency is currently allowed',
     );
+    // The "allowed, not actual" caveat is APPENDED to the unrestricted lead sentence, never
+    // dropped in favor of it — "every dependency is currently allowed" is what the architecture
+    // permits, not a claim about what the code actually does.
+    expect(leadAll && textOf(leadAll)).toContain('This is allowed, not actual');
     expect(walk(stageAll).filter((n) => n.classList && n.classList.contains('mtx-mirror-row')).length).toBe(0);
     const emptyAll = walk(stageAll).find((n) => n.classList && n.classList.contains('mtx-empty'));
     expect(emptyAll && textOf(emptyAll)).toContain('every dependency is currently allowed');

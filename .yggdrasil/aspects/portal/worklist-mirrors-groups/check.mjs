@@ -13,34 +13,26 @@ import { walk, report } from '@chrisdudek/yg/ast';
  * forced it to keep up. This check makes that drift a build failure instead of a stale
  * screen a human happens to notice two releases later.
  *
- * CORRECTION (fix round 1): an earlier version of this file only checked the pinned
- * MIRROR pairs in ONE direction (a pinned `IssueGroup` field present with no
- * `WorklistGroup` counterpart) and made NO provision for a field the CLI adds that is
- * not pinned at all — so a brand-new `IssueGroup` field (exactly the drift that caused
- * the original defect this round fixed) was invisible to it and passed silently. That
- * version's own doc comment claimed otherwise; the claim is corrected here by making it
- * true: MIRROR exhaustiveness is now checked in BOTH directions (see the two loops after
- * the per-pin comparison below) — every `IssueGroup` field must be either pinned or
+ * MIRROR exhaustiveness is checked in BOTH directions (see the two loops after the
+ * per-pin comparison below): every `IssueGroup` field must be either pinned or
  * explicitly recorded as CLI-only (`CLI_ONLY`), and every pinned `IssueGroup` field name
  * must still exist for real (a pin naming a renamed/removed field is a DEAD pin, refused
- * on its own — this also catches a "consistent rename" on both sides, which the
- * single-direction version passed silently: the old field's dead pin fires even when a
- * same-named new field on both sides would otherwise look fine).
+ * on its own). This also catches a "consistent rename" on both sides: the old field's
+ * dead pin fires even when a same-named new field on both sides would otherwise look
+ * fine.
  *
- * CORRECTION (fix round 2): the fix-round-1 pin-liveness check (b) read only the FIRST
- * `interface IssueGroup { ... }` block it found, so a second legal declaration of the
- * same name in the same file (TypeScript declaration merging — the compiler unions their
- * members into one logical type) made every field declared solely in the second block
- * look ABSENT, producing spurious dead-pin refusals for fields that were genuinely
- * present and genuinely mirrored — with a NEXT that, if followed, would have told a
- * maintainer to delete a live pin and drop a field WorklistGroup still needs. Fixed at
- * the source (`findInterface` now unions members across every same-named declaration,
- * matching what the language itself does) rather than guarded around — see its doc
- * comment. Also in this round: `errs:` changed from `under` to `over` (the heritage
- * guard below refuses a state that is not provably wrong, which `under` does not permit
- * — see that guard's own comment), and the aspect description was corrected to state
- * precisely what is and is not guaranteed (a WorklistGroup-only addition, with no
- * IssueGroup counterpart, is NOT checked — see yg-aspect.yaml).
+ * `findInterface` unions members across every same-named `interface IssueGroup { ... }`
+ * declaration in the file rather than reading only the first one it finds. TypeScript's
+ * declaration-merging rule treats two `interface X { ... }` blocks sharing a name in one
+ * file as ONE logical type (the compiler unions their members); reading only the first
+ * block would make a field declared solely in a later block look ABSENT, producing a
+ * spurious DEAD-PIN refusal for a field that is genuinely present and genuinely mirrored
+ * — with a NEXT that, if followed, would tell a maintainer to delete a live pin and drop
+ * a field WorklistGroup still needs. See `findInterface`'s own doc comment.
+ *
+ * The aspect runs `errs: over`, not `under`: the heritage guard below refuses a state
+ * that is not provably wrong, which `under` does not permit — see that guard's own
+ * comment.
  *
  * COVERAGE NOTE: `CLI_ONLY`'s two branches (the exemption skip in the forward-
  * exhaustiveness loop, and its own liveness loop, both below) have NO drill-corpus
@@ -157,11 +149,11 @@ function heritageNames(interfaceNode) {
  * Unioning across every same-named declaration is required for correctness, not just
  * generosity: TypeScript's own declaration-merging rule treats two `interface X { ... }`
  * blocks sharing a name in one file as ONE logical type (the compiler unions their
- * members) — reading only the first block, as an earlier version of this file did, made a
- * field declared solely in the second block invisible to this check and produced a
- * spurious DEAD-PIN refusal (fix round 2) for a field that was genuinely present and
- * genuinely mirrored. Reading all declarations and unioning is simply reading the shape
- * correctly, matching what the language itself does — not a guard bolted on afterward.
+ * members) — reading only the first block would make a field declared solely in a later
+ * block invisible to this check and produce a spurious DEAD-PIN refusal for a field that
+ * is genuinely present and genuinely mirrored. Reading all declarations and unioning is
+ * simply reading the shape correctly, matching what the language itself does — not a
+ * guard bolted on afterward.
  */
 function findInterface(tree, name) {
   if (!tree || !tree.rootNode) return undefined;

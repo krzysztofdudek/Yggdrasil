@@ -69,12 +69,12 @@ describe('portal Phase-4 view modules (real source, real fixture data) — needs
     expect(badgeState({ code: 'aspect-violation-advisory', severity: 'warning' })).toBe('warning');
     expect(badgeState({ code: 'unverified', severity: 'warning' })).toBe('warning');
     // A code colliding with an inherited Object.prototype member name must not read as
-    // unverified via the prototype chain (M1: hasOwnProperty-guarded lookup).
+    // unverified via the prototype chain — badgeState guards the lookup with hasOwnProperty.
     expect(badgeState({ code: 'constructor', severity: 'error' })).toBe('refused');
     expect(badgeState({ code: 'toString', severity: 'error' })).toBe('refused');
   });
 
-  it('a coverage-only red build (empty worklist, nonempty worklistCoverage) never reads "All clear" — regression lock for C1', async () => {
+  it('a coverage-only red build (empty worklist, nonempty worklistCoverage) never reads "All clear"', async () => {
     const Yg = await loadYg();
     const stage = makeNode('div');
     const coverageOnly: PortalData = {
@@ -103,7 +103,7 @@ describe('portal Phase-4 view modules (real source, real fixture data) — needs
     expect(textOf(stage)).toContain('src/b.ts');
   });
 
-  it('a repo-level member\'s own "what" text renders — never an empty row — regression lock for C2', async () => {
+  it('a repo-level member\'s own "what" text renders — never an empty row', async () => {
     const Yg = await loadYg();
     const stage = makeNode('div');
     Yg.views.coverage(stage, { view: 'coverage' }, data, { navigate: () => undefined });
@@ -204,7 +204,7 @@ describe('portal Phase-4 view modules (real source, real fixture data) — needs
     expect(textOf(fileText as FakeNode)).toContain('src/leaf.ts');
   });
 
-  it('member rows are siblings of the group header, never nested inside its single-line flex row (I2 layout fix)', async () => {
+  it('member rows are siblings of the group header, never nested inside its single-line flex row', async () => {
     const Yg = await loadYg();
     const stage = makeNode('div');
     Yg.views.coverage(stage, { view: 'coverage' }, data, { navigate: () => undefined });

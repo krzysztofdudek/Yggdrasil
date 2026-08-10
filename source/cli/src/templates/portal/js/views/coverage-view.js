@@ -222,8 +222,8 @@
       } else {
         // Not calm, but no group carries a component to jump to (every group is
         // repository-level or file-only, e.g. a coverage-only red build). Never say
-        // "clear" here — that would be the exact "All clear on a failing build" defect
-        // this round exists to remove, just relocated from the panel to the button.
+        // "clear" here — that would repeat the "All clear on a failing build" lie this
+        // button must never tell, just relocated from the panel to the button.
         jump.textContent = 'No component to jump to — see the findings below';
       }
     }

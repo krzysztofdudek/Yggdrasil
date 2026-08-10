@@ -155,18 +155,22 @@ const FIXTURES_ROOT = path.resolve(__dirname, '../fixtures');
 
 /** Load + scan one fixture's live suppression inventory via the SAME facade the
  *  portal pipeline calls (`scanPortalSuppressions` in engine-api.ts) — never a
- *  hand-built report. */
-async function scanFixture(name: string): Promise<SuppressionMarkerInput[]> {
+ *  hand-built report. Returns both the adapted markers and the scan's raw
+ *  `totalMarkers`, so callers can pin `counts.suppressionMarkers` (extract.ts
+ *  fills it straight from `totalMarkers`) against the SAME live scan the
+ *  adapted marker list comes from, instead of a synthetic count. */
+async function scanFixture(
+  name: string,
+): Promise<{ markers: SuppressionMarkerInput[]; totalMarkers: number }> {
   const root = path.join(FIXTURES_ROOT, name);
   const graph = await loadPortalGraph(root);
   const repoFiles = await walkPortalFiles(root);
-  const { markers } = await scanPortalSuppressions(graph, root, repoFiles);
-  return markers;
+  return scanPortalSuppressions(graph, root, repoFiles);
 }
 
 describe('portal suppression inventory — real fixture (form + errs-under risk)', () => {
   it('suppression inventory carries form and the errs-under risk', async () => {
-    const markers = await scanFixture('portal-suppress-forms');
+    const { markers, totalMarkers } = await scanFixture('portal-suppress-forms');
     const byFile = Object.fromEntries(markers.map((m) => [m.file, m]));
     // src/whole.ts: an unclosed disable(no-todo) at the file head — the sanctioned
     // whole-file waiver. Classified `file-level`, so it is NO-RISK: file-level is
@@ -183,6 +187,14 @@ describe('portal suppression inventory — real fixture (form + errs-under risk)
     // src/under.ts: a single-line marker naming `no-console` (errs: under) — the
     // footgun risk: it waives a check that cannot itself false-alarm.
     expect(byFile['src/under.ts']).toMatchObject({ form: 'line', risk: 'errs-under' });
+    // `counts.suppressionMarkers` (extract.ts) is filled straight from the scan's raw
+    // `totalMarkers`, NOT from `markers.length` — this fixture proves the two diverge:
+    // range.ts's disable/enable pair is TWO raw markers but adapts into ONE `form: 'range'`
+    // entry above. Pinning totalMarkers > markers.length here is the only thing standing
+    // between `counts.suppressionMarkers` and silently regressing to 0 (or to markers.length,
+    // undercounting every closed range) with no test failing.
+    expect(markers.length).toBe(4);
+    expect(totalMarkers).toBe(5);
   });
 });
 

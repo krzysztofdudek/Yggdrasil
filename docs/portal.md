@@ -12,9 +12,9 @@ verified against the code as it stands right now.
 It is built for a glance and for a drill-down. The overview gives you a
 plain-language verdict — "no failures, a few advisories worth a look" — and the
 counts behind it. From there you can open any component to see why it passed (or
-what it still needs) — rule by rule, each one marked as either blocking the build
-or only advisory — or open any rule to read its actual text and every place it
-lands.
+what it still needs) — rule by rule, each one marked with its enforcement level
+(blocking the build, advisory only, or still in draft and not yet enforced) — or
+open any rule to read its actual text and every place it lands.
 
 ## Open it
 
@@ -138,14 +138,17 @@ A row of views down the side, each answering a different question:
   state, so a single weak link in a flow is never hidden behind an otherwise-green
   picture.
 - **Suppressions** — every deliberate waiver, sorted riskiest first, with the
-  reason and a flag on the risky ones (a wildcard, an unbounded range, or one
-  placed on a rule that by design can never raise a false alarm, so it is not
-  actually silencing anything that could have fired) — because a waived check is
-  not a pass. A clean waiver names its real reach — a single line, a range, or
-  the whole file — instead of calling every waiver "bounded" alike, and when the
-  suppression markers found on disk outnumber the waivers actually listed, the
-  page says so too: a range's closing marker is not itself a waiver, so the two
-  totals can genuinely differ.
+  reason and a flag on the risky ones: a wildcard that silences every rule on
+  its line, an aspect id that names no known rule (likely a typo or a rename
+  that outlived the field it renamed), an aspect that is still draft (the
+  reviewer never runs there, so the waiver is a no-op), a rule that by design
+  can never raise a false alarm (so the waiver is not actually silencing
+  anything that could have fired), or a range that runs unbounded — because a
+  waived check is not a pass. A clean waiver names its real reach — a single
+  line, a range, or the whole file — instead of calling every waiver "bounded"
+  alike, and when the suppression markers found on disk outnumber the waivers
+  actually listed, the page says so too: a range's closing marker is not
+  itself a waiver, so the two totals can genuinely differ.
 - **Structure** and **Start here** — the component tree with a filter, and a short
   guided walk for someone seeing the project for the first time.
 

@@ -1,14 +1,7 @@
 /* Worklist member/divergence rendering + the coverage block + bar minimums.
    Split from views.css (enforced 400-line cap). */
 .cov-seg { min-width: 6px; } /* every non-zero bar segment stays visible; zero segs never render */
-/* The card frame around the whole worklist — same shape as .cov-card (views.css), which
-   this list replaced; kept here rather than there since .cov-cardlist is this module's own. */
-.cov-cardlist {
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-1);
-  overflow: hidden;
-}
+/* .cov-cardlist's frame rule lives in views.css, shared with .cov-calm. */
 .cov-member { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 2px 0 2px 14px; }
 .cov-member .mono { font-size: 12px; }
 .cov-member-file { color: var(--text-secondary); } /* named, not navigable — no file surface */

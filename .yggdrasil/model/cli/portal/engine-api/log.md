@@ -106,3 +106,12 @@ that no longer exists. That direction is the one that matters, because the copy
 was maintained by hand and every refinement made on the gate side had to be
 carried across by someone remembering to — which is precisely how the two came
 to disagree without anyone noticing.
+## [2026-08-10T19:48:22.178Z]
+The waiver-inventory adaptation moved out of the scan module into a focused
+sibling, because the scan file had grown past the size budget every file in
+this area is held to and the adaptation is a separable concern: the scan finds
+markers, the adaptation decides how each one should be presented and how risky
+it is. The scan module re-exports the adaptation so existing callers are
+unaffected. A redundant guard was dropped in the same pass — range-closing
+markers are already filtered out before the risk decision runs, so testing for
+them again there could never be false.

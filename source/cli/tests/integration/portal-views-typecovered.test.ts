@@ -277,11 +277,56 @@ describe('portal Phase-4 view modules (real source, real fixture data) — type-
     // 12 real file rows + one "... and N more" summary row — never 20 (one per file).
     expect(rows.length).toBe(13);
     expect(textOf(stage)).toContain('... and 8 more');
-    // The capped rows are the FIRST 12 of the given (already path-sorted) list, not an
-    // arbitrary slice — src/file00..src/file11 shown, src/file12 and beyond summarized.
+    // The capped rows are sorted worst-pairState-first, path as the tie-break (see
+    // coverage-typecovered.js's `pairStateRank`). None of these entries carry a `pairState`
+    // (all `enforced: false`, the unenforced list), so every entry ties and the sort falls
+    // straight through to path order — src/file00..src/file11 shown, src/file12 and beyond
+    // summarized, same as a plain path-ordered cap would give.
     expect(textOf(stage)).toContain('src/file00.ts');
     expect(textOf(stage)).toContain('src/file11.ts');
     expect(textOf(stage)).not.toContain('src/file12.ts');
+  });
+
+  it('a refused row sorts into view instead of being cut by the cap, even when its path would place it last', async () => {
+    const Yg = await loadYg();
+    // 13 enforced, type-covered files — one cap's worth plus one. In raw path order the
+    // single refused file (src/z-refused.ts) sorts LAST and would be the one row the 12-row
+    // cap cuts, while 12 verified rows show — the exact "refused row invisible, verified
+    // rows visible" defect this sort exists to prevent.
+    const typeCovered: PortalTypeCoveredFile[] = [];
+    for (let i = 0; i < 12; i += 1) {
+      typeCovered.push({
+        path: 'src/a-verified' + String(i).padStart(2, '0') + '.ts',
+        type: 'svc',
+        enforced: true,
+        pairState: 'verified',
+      });
+    }
+    typeCovered.push({
+      path: 'src/z-refused.ts',
+      type: 'svc',
+      enforced: true,
+      pairState: 'refused',
+      reasons: ['does not satisfy the matched type\'s aspect'],
+    });
+    const withRefused: PortalData = {
+      ...data,
+      meta: { ...data.meta, counts: { ...data.meta.counts, typeCoveredCount: 13 } },
+      residue: { ...data.residue, typeCovered },
+    };
+    const stage = makeNode('div');
+    Yg.views.coverage(stage, { view: 'coverage' }, withRefused, { navigate: () => undefined });
+    const rows = walk(stage).filter((n) => n.classList && n.classList.contains('cov-typerow'));
+    expect(rows.length).toBe(13); // 12 shown + one "... and 1 more" summary row
+    expect(textOf(stage)).toContain('... and 1 more');
+    // The refused row is IN the shown 12, not summarized away.
+    expect(textOf(stage)).toContain('src/z-refused.ts');
+    // Exactly one verified row was bumped past the fold to make room for it — which one is
+    // unasserted (path tie-break among equal-ranked verified rows), only that some was.
+    const shownVerifiedCount = typeCovered
+      .slice(0, 12)
+      .filter((f) => textOf(stage).includes(f.path)).length;
+    expect(shownVerifiedCount).toBe(11);
   });
 
   it('Overview never lets a type-covered-but-uncomputable file leak into the "accounted for" chip — the enforced count subtracts BOTH the unenforced and the uncomputable split', async () => {

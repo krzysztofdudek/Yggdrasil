@@ -87,24 +87,51 @@
   var TYPE_COVERED_LIST_CAP = 12;
 
   /**
+   * Sort priority for `typeCoveredList`'s pre-cap ordering: refused first, then an advisory
+   * warning, then no-recorded-verdict, then a clean verified row last. Worse-first so that on a
+   * project with more type-covered files than the cap, a real refusal can never be the row that
+   * gets pushed past the fold by a run of verified rows ahead of it in raw path order — per-row
+   * verdict visibility is the whole point of this listing. An entry with no `pairState` at all
+   * (the unenforced and uncomputable lists, which carry no per-row verdict to prioritize) ranks
+   * last of all and ties with every other such entry, so those two lists fall straight through to
+   * the path tie-break below and render exactly as before.
+   */
+  function pairStateRank(state) {
+    switch (state) {
+      case 'refused': return 0;
+      case 'warning': return 1;
+      case 'unverified': return 2;
+      case 'verified': return 3;
+      default: return 4;
+    }
+  }
+
+  /**
    * One row per entry (capped at `TYPE_COVERED_LIST_CAP`, with a trailing "... and N more" row
-   * beyond that), in a plain mono list. `formatRow` renders one entry's text; defaults to the
-   * `path — type-covered as <type>` form the enforced/unenforced lists use — the uncomputable
-   * list passes its own formatter to also name the cycle on every row. `buildRow`, when given,
-   * replaces the plain text row entirely with a caller-built DOM node (the enforced list's
-   * `enforcedRow` below, which needs a real state badge — never a plain-text row can carry
+   * beyond that), in a plain mono list. Entries are sorted worst-`pairState`-first (see
+   * `pairStateRank`) before the cap is applied, with path as the tie-break, so the ordering stays
+   * stable rather than shuffling on every render. `formatRow` renders one entry's text; defaults
+   * to the `path — type-covered as <type>` form the enforced/unenforced lists use — the
+   * uncomputable list passes its own formatter to also name the cycle on every row. `buildRow`,
+   * when given, replaces the plain text row entirely with a caller-built DOM node (the enforced
+   * list's `enforcedRow` below, which needs a real state badge — never a plain-text row can carry
    * that) — `formatRow` is ignored for the shown rows in that case, but the "... and N more"
    * summary row always stays plain text regardless of which one was passed.
    */
   function typeCoveredList(cls, entries, formatRow, buildRow) {
     var render = formatRow || function (e) { return e.path + ' — type-covered as ' + e.type; };
     var list = dom.el('div', 'cov-typelist ' + cls);
-    var shown = entries.slice(0, TYPE_COVERED_LIST_CAP);
+    var sorted = entries.slice().sort(function (a, b) {
+      var byState = pairStateRank(a.pairState) - pairStateRank(b.pairState);
+      if (byState !== 0) return byState;
+      return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+    });
+    var shown = sorted.slice(0, TYPE_COVERED_LIST_CAP);
     for (var i = 0; i < shown.length; i += 1) {
       list.appendChild(buildRow ? buildRow(shown[i]) : dom.el('div', 'cov-typerow mono', render(shown[i])));
     }
-    if (entries.length > TYPE_COVERED_LIST_CAP) {
-      list.appendChild(dom.el('div', 'cov-typerow cov-typerow-more', '... and ' + (entries.length - TYPE_COVERED_LIST_CAP) + ' more'));
+    if (sorted.length > TYPE_COVERED_LIST_CAP) {
+      list.appendChild(dom.el('div', 'cov-typerow cov-typerow-more', '... and ' + (sorted.length - TYPE_COVERED_LIST_CAP) + ' more'));
     }
     return list;
   }

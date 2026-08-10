@@ -58,7 +58,8 @@
    * here"); a data gap is not that answer, and callers must not paint the two the same way (an
    * empty cell / "forbidden" reading). Unreachable today — `allowed` is a required, always-
    * populated contract field — this is hardening against a future field rename silently falling
-   * through to the forbidding branch, which is exactly how the defect this task fixes arose.
+   * through to the forbidding branch, which would misrender an absent allow-list as a real
+   * "forbidden" answer instead of the data gap it is.
    */
   Yg.matrix.allowedBetween = function (typesById, rowType, colType) {
     var row = typesById[rowType];
@@ -71,18 +72,24 @@
     return out;
   };
 
-  /** True when `type.allowed` is the full six-entries-all-'any' shape: no restriction declared. */
-  function isUnrestricted(type) {
-    return !!type && !!type.allowed && type.allowed.length === REL_TYPE_COUNT && type.allowed.every(function (a) {
+  /**
+   * True when `allowed` (a `PortalTypeAllowed[]`) is the full six-entries-all-'any' shape: no
+   * restriction declared. Published on the shared namespace — this module loads first and is the
+   * one place both this matrix and the type model page (types-view.js) get the answer, so the two
+   * user-visible "unrestricted" sentences can never disagree about what the condition is.
+   */
+  Yg.matrix.isUnrestricted = function (allowed) {
+    return !!allowed && allowed.length === REL_TYPE_COUNT && allowed.every(function (a) {
       return a.targets === 'any';
     });
-  }
+  };
 
   /** True when EVERY type on the axis is unrestricted — the architecture declares no relation restrictions at all. */
   function allUnrestricted(axis, typesById) {
     if (!axis.length) return false;
     for (var i = 0; i < axis.length; i += 1) {
-      if (!isUnrestricted(typesById[axis[i]])) return false;
+      var t = typesById[axis[i]];
+      if (!t || !Yg.matrix.isUnrestricted(t.allowed)) return false;
     }
     return true;
   }
@@ -181,7 +188,7 @@
         mirror.appendChild(gapLine);
         continue;
       }
-      if (isUnrestricted(rowType)) {
+      if (Yg.matrix.isUnrestricted(rowType.allowed)) {
         any = true;
         var anyLine = dom.el('div', 'mtx-mirror-row');
         anyLine.appendChild(dom.el('span', 'mono', axis[ri]));
@@ -229,6 +236,14 @@
     // distinct from the "empty cell" note above so the two can never be conflated.
     var gap = dom.el('span', 'mtx-legend-k mtx-legend-empty', '? = data gap, not a restriction');
     box.appendChild(gap);
+    // The greyed diagonal (drawCanvas's `ri === ci` fill) is neither drawn as allowed nor as
+    // forbidden — it is simply not evaluated by this grid at all. On a permissive project a
+    // same-kind-to-same-kind dependency IS allowed; without this key the grey square reads like
+    // the "empty cell = forbidden" note above, which is exactly backwards for that case.
+    var diag = dom.el('span', 'mtx-legend-k mtx-legend-empty');
+    diag.appendChild(dom.el('span', 'mtx-swatch mtx-swatch-diag'));
+    diag.appendChild(dom.el('span', null, 'grey diagonal = same-kind pairs, not drawn here — not a restriction'));
+    box.appendChild(diag);
     return box;
   }
 
@@ -244,8 +259,12 @@
     // painting a grid's worth of identical "everything is allowed" text.
     var unrestricted = allUnrestricted(axis, typesById);
 
+    // The "allowed, not actual" caveat applies just as much to the unrestricted case — "every
+    // dependency is currently allowed" is still only what the architecture PERMITS, not a claim
+    // about what the code actually does — so it is APPENDED here, never dropped in favor of the
+    // shorter sentence.
     var leadText = unrestricted
-      ? 'this architecture declares no relation restrictions yet — every dependency is currently allowed'
+      ? 'this architecture declares no relation restrictions yet — every dependency is currently allowed. This is allowed, not actual: conformance is the live boundary check below.'
       : "What's allowed to depend on what — the architecture's node-type × node-type rules. An empty cell means no relation is permitted there. This is allowed, not actual: conformance is the live boundary check below.";
     mount.appendChild(dom.el('p', 'view-lead', leadText));
 

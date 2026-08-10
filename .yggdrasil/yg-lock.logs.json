@@ -95,7 +95,7 @@
     "cli/model/graph": {"log":{"last_entry_datetime":"2026-06-12T14:17:35.026Z","prefix_hash":"3aa682544c082b133a9e2148dc08d8088ef240ef92274620d0dc44384f7cf0e6"}},
     "cli/model/lock": {"log":{"last_entry_datetime":"2026-08-07T11:02:32.282Z","prefix_hash":"dd82de2d96ffe14071f8a131430d42b76681c5bf336fe7c08d8c6256bac0a853"}},
     "cli/portal/contract": {"log":{"last_entry_datetime":"2026-08-03T12:48:16.319Z","prefix_hash":"5bd4ac22674b9ebafe4daa7fbb2e5f421d7ab4cc2204bd2b807ac5162c81e42f"}},
-    "cli/portal/engine-api": {"log":{"last_entry_datetime":"2026-08-10T18:25:12.260Z","prefix_hash":"2cd0c1239bbf8d9377ed8b5e7fc9a6c0aa35ce679baae0753134cd5d8b407b7f"},"source":"ef9fabb8bb4df3586239bd7df9e27fd2e3cd18fd1563fc4414732eac4a05ab16"},
+    "cli/portal/engine-api": {"log":{"last_entry_datetime":"2026-08-10T19:48:22.178Z","prefix_hash":"bd674d8ed5964dd7206ab2ba242408e388f1252cc6db613015b1f47123b62f40"},"source":"2abd303838926269096b611a54f8f66f4d53e2c9b9db4da25180b1d4ce9f81f3"},
     "cli/portal/pipeline": {"log":{"last_entry_datetime":"2026-08-10T18:25:11.912Z","prefix_hash":"0ee3a7acd82d096eb4c6a611d95f503ecb53506391bc520a860710cd0ae4a598"},"source":"eb12edb6b862409556ea63b7b7bfc538548644cc0c0c60115a812659a4bd5b15"},
     "cli/portal/serializer": {"log":{"last_entry_datetime":"2026-08-10T18:25:12.612Z","prefix_hash":"d98ecd21cd2a226d3f2f354cb86bb75b2b16b2200e91b198cb27fdeca8a3d640"},"source":"48ec2d2b82761ecc64aa671f15c8622a4bfd04bebf19c7023d3030be37972c26"},
     "cli/portal/server": {"log":{"last_entry_datetime":"2026-07-16T12:58:03.595Z","prefix_hash":"a4322b53116228fb1abd8a2b9d671edfcc5380c2c113932814fc94800128e56d"},"source":"05a7527a4ff70f53bb320520e0689f331a6eec0f5ff80f4ed7d5278506d2d4b3"},

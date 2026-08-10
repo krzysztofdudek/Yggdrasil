@@ -104,7 +104,10 @@ function resolveRisk(
   if (m.wildcard) return 'wildcard';
   if (!knownAspectIds.has(m.aspectId)) return 'typo';
   if (draftAspectIds.has(m.aspectId)) return 'inert';
-  if (m.kind !== 'enable' && underApproximatingAspectIds.has(m.aspectId)) return 'errs-under';
+  // No `m.kind !== 'enable'` guard here: the only call site (above) already skips every
+  // 'enable' marker before calling this function, so every `m` reaching this point is
+  // already 'single' or 'disable'.
+  if (underApproximatingAspectIds.has(m.aspectId)) return 'errs-under';
   if (m.kind === 'disable' && openLines?.has(m.line)) {
     // A file-head unclosed disable is the sanctioned whole-file waiver: `yg suppressions`
     // classifies it `file-level` and does NOT warn "Unbounded". Honor the SAME signal

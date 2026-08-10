@@ -253,8 +253,14 @@ describe('Phase-5 frontend — export, file-aware loop, a11y, org guard (real so
     // Suppressions CSV: header + one row per marker; quoted-field parse recovers the values.
     const supCsv = ex.buildSuppressionsCsv(data);
     const supRows = parseCsv(supCsv);
-    expect(supRows[0]).toEqual(['file', 'line', 'aspect', 'risk', 'reason']);
+    expect(supRows[0]).toEqual(['file', 'line', 'aspect', 'form', 'risk', 'reason']);
     expect(supRows.length - 1).toBe(data.suppressions.length);
+    // The export must not show less than the page: a whole-file waiver's `form` survives into
+    // its own CSV column, distinguishable from a single-line waiver — not folded away.
+    const formIdx = supRows[0].indexOf('form');
+    const exportedForms = new Set(supRows.slice(1).map((r) => r[formIdx]));
+    const realForms = new Set(data.suppressions.map((s) => s.form));
+    expect(exportedForms).toEqual(realForms);
 
     // Residue CSV: one row per no-rule node + per uncovered file.
     const resRows = parseCsv(ex.buildResidueCsv(data));
@@ -267,6 +273,26 @@ describe('Phase-5 frontend — export, file-aware loop, a11y, org guard (real so
     const verifiedRow = covRows.find((r) => r[0] === 'verified');
     expect(verifiedRow).toBeTruthy();
     expect(Number(verifiedRow![1])).toBe(data.meta.counts.verified);
+  });
+
+  it('5.1 — the suppressions CSV names each waiver\'s real span, not just its risk', async () => {
+    // portal-basic carries no waivers, so the round-trip test above only proves the header and
+    // row count — never that a real `form` value survives into its own column. Synthetic rows
+    // (still through the real buildSuppressionsCsv) prove that: a whole-file waiver and a
+    // single-line one must export distinguishably, not both collapsed to the same blank column.
+    const Yg = await loadYg();
+    const ex = Yg.exporter as { buildSuppressionsCsv: (d: PortalData) => string };
+    const synthetic = {
+      ...data,
+      suppressions: [
+        { file: 'src/whole.ts', line: 1, aspectId: 'no-todo', reason: 'legacy file', form: 'file' as const },
+        { file: 'src/line.ts', line: 4, aspectId: 'no-todo', reason: 'tracked', form: 'line' as const },
+      ],
+    } as PortalData;
+    const rows = parseCsv(ex.buildSuppressionsCsv(synthetic));
+    const formIdx = rows[0].indexOf('form');
+    expect(rows[1][formIdx]).toBe('file');
+    expect(rows[2][formIdx]).toBe('line');
   });
 
   it('5.1 — the JSON export round-trips and pins the lock hash + commit ref', async () => {

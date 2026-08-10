@@ -31,20 +31,6 @@
     listens: '#d6409f',
   };
 
-  // How many distinct relation types the engine resolves per type (uses / calls / extends /
-  // implements / emits / listens — core/allowed-relation-types.ts RELATION_TYPES.length). A
-  // browser module has no import of that engine constant, so it is mirrored here as a literal;
-  // it is what makes "every one of the six entries is 'any'" a real, checkable condition rather
-  // than an assumption about array length.
-  var REL_TYPE_COUNT = 6;
-
-  /** True when `allowed` is the full six-entries-all-'any' shape: no restriction declared at all. */
-  function isUnrestricted(allowed) {
-    return !!allowed && allowed.length === REL_TYPE_COUNT && allowed.every(function (a) {
-      return a.targets === 'any';
-    });
-  }
-
   /**
    * The "may depend on" line: `allowed` is the engine's ALREADY-RESOLVED allow-list
    * (`PortalTypeAllowed[]`) — an omitted relation type is forbidden, `targets === 'any'` means
@@ -57,8 +43,8 @@
     // empty-array check below: `[]` is the engine's real, resolved "every relation type
     // forbidden" answer, but a missing `allowed` is not an answer at all. Rendering it as
     // "structural parent only (no code dependency permitted)" would repeat, on a data gap, the
-    // exact false "nothing is permitted" claim this task exists to remove — never collapse the
-    // two. Unreachable today (the contract field is required and always populated by the
+    // exact false "nothing is permitted" claim a data gap must never be read as — never collapse
+    // the two. Unreachable today (the contract field is required and always populated by the
     // pipeline); this is hardening against a future field rename silently falling through here.
     if (!allowed) {
       wrap.appendChild(dom.el('span', 'ty-rel-none', 'allow-list unavailable — data missing, not a restriction'));
@@ -68,7 +54,7 @@
       wrap.appendChild(dom.el('span', 'ty-rel-none', '— structural parent only (no code dependency permitted)'));
       return wrap;
     }
-    if (isUnrestricted(allowed)) {
+    if (Yg.matrix.isUnrestricted(allowed)) {
       wrap.appendChild(dom.el('span', 'ty-rel-none', 'no restriction declared — may depend on any component type'));
       return wrap;
     }

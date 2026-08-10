@@ -150,6 +150,22 @@
   border-radius: 4px;
   padding: 0 4px;
 }
+/* Enforcement-level modifiers (enforced / advisory / draft) — a SEPARATE axis from the verdict
+   badge (Yg.states), so these deliberately never borrow a verdict color (verified/refused/
+   unverified/...): that would make an enforcement level misreadable as a verdict. Differentiated
+   by weight and border style only. */
+.pan-status-enforced {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+.pan-status-advisory {
+  border-style: dashed;
+}
+.pan-status-draft {
+  border-style: dotted;
+  color: var(--text-muted);
+  font-style: italic;
+}
 .pan-chan {
   font-size: 10px;
   color: var(--text-muted);

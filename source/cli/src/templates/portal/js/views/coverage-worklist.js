@@ -74,8 +74,8 @@
     // A divergent why is NOT a shared reason — `group.why` is only the first member's
     // rationale (group-issues.ts's `sharedWhy`), so printing it here would show one
     // member's reason as the group's, on top of each member's own (already rendered
-    // below when `divergentWhy`) — the exact "one component's reason for everyone"
-    // defect this round exists to remove. Mirrors check-render-groups.ts's own guard.
+    // below when `divergentWhy`) — the exact "one component's reason for everyone" this
+    // guard must never show. Mirrors check-render-groups.ts's own guard.
     if (!group.divergentWhy && group.why) id.appendChild(dom.el('span', 'cov-worow-reason', group.why));
     row.appendChild(id);
     var meta = dom.el('span', 'cov-worow-meta');

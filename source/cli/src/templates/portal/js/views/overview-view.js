@@ -34,7 +34,9 @@
           ' blocking item(s) — ' +
           c.refused +
           ' refusal(s), ' +
-          (c.errors - c.refused) +
+          // `errors` and `refused` are two separately-computed counts (see the comment above);
+          // clamp at 0 so they disagreeing can never print a negative "other blocker(s)" count.
+          Math.max(0, c.errors - c.refused) +
           ' other blocker(s) — and ' +
           c.warnings +
           ' advisory signal(s). Blockers stop the build; advisories do not.',

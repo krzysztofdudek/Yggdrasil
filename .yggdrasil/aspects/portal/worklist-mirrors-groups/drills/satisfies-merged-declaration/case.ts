@@ -3,11 +3,11 @@
 // IssueGroup is declared as TWO separate `interface IssueGroup { ... }` blocks in this
 // file — legal TypeScript declaration merging; the compiler unions their members into one
 // logical type. Every field is genuinely present (split across the two blocks) and
-// genuinely mirrored to WorklistGroup. Must be SATISFIED: reading a merged declaration
-// correctly (fix round 2's findInterface, which unions members across every same-named
-// declaration) produces zero violations — not the 3 spurious dead-pin refusals an earlier
-// version of this check produced by reading only the FIRST block and treating every field
-// declared solely in the second block as absent.
+// genuinely mirrored to WorklistGroup. Must be SATISFIED: `findInterface` unions members
+// across every same-named declaration, so reading a merged declaration correctly produces
+// zero violations here — not the 3 spurious dead-pin refusals that reading only the FIRST
+// block and treating every field declared solely in the second block as absent would
+// produce.
 
 export interface IssueGroup {
   code: string;

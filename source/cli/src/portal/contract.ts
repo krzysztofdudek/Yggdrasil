@@ -464,8 +464,20 @@ export interface WorklistMember {
    * Differs from `whatLines` in both shape and trigger: `whatLines` is the TAIL (every line
    * AFTER the first) of a FULL_WHAT code's `what`, carrying the reviewer's detailed reason
    * alongside a subject that already identifies the member; `what` is a STAND-IN identifier for
-   * a member no other field identifies. The two never both populate on the same member — a
-   * FULL_WHAT code never sets `what`, and this field is never set once `aspectId` is.
+   * a member no other field identifies. `what` and `whatLines` never both populate on the same
+   * member — a FULL_WHAT code never sets `what`.
+   *
+   * `what` and `aspectId` are NOT unconditionally exclusive at this seam (`toGroup`/`toMember`,
+   * derive-rest.ts): the second case above only sets `what` when `aspectId` is absent, but the
+   * first (repo-level) case sets `what` whenever `node`/`file` are both absent, with no check on
+   * `aspectId` at all. The two never actually co-occur on today's real data only because of an
+   * invariant this file does not itself enforce and cannot see: every issue whose `aspectId` can
+   * end up on a member (a `CODE_ONLY_GROUP_CODES` code — currently only `unverified`,
+   * cli/group-issues.ts) is pair-derived, and a pair's `unitKey` is always a real node or file
+   * subject (`nodeUnit`/`fileUnit`, model/lock.ts) — so a member with an `aspectId` is always
+   * subject-bearing today, never repo-level. A future `CODE_ONLY_GROUP_CODES` addition that is
+   * NOT pair-derived could produce a repo-level member with both fields set; nothing here would
+   * refuse it.
    */
   what?: string;
 }

@@ -66,6 +66,22 @@ describe('portal Phase-4 view modules (real source, real fixture data) — overv
     expect(text).toMatch(/4 advisory signal\(s\)/);
   });
 
+  it('"other blocker(s)" never goes negative when refused outruns errors (two separately-computed counts can drift)', async () => {
+    const Yg = await loadYg();
+    const stage = makeNode('div');
+    // errors and refused are two separately-computed engine results (see the verdict()
+    // comment) — nothing in the type system stops refused from exceeding errors on a genuine
+    // drift. Without a clamp, errors - refused here would print "-1 other blocker(s)".
+    const drifted: PortalData = {
+      ...data,
+      meta: { ...data.meta, counts: { ...data.meta.counts, errors: 2, refused: 3, warnings: 0 } },
+    };
+    Yg.views.overview(stage, { view: 'overview' }, drifted, { navigate: () => undefined });
+    const text = textOf(stage);
+    expect(text).toMatch(/0 other blocker\(s\)/);
+    expect(text).not.toMatch(/-1 other blocker\(s\)/);
+  });
+
   it('a project whose only failure is a coverage finding still reports a non-zero blocking count (never derived from the worklist)', async () => {
     const Yg = await loadYg();
     const stage = makeNode('div');
