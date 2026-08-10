@@ -1,0 +1,14 @@
+# yg-architecture.yaml — one classifying type ("leaf") whose `when` matches every
+# TypeScript file under src/, carrying two independent deterministic aspects: one
+# under-approximating (no-console, errs: under — flags only the literal token, no
+# false positives by design) and one plain (no-todo, no errs label at all) — so a
+# single real scan over the one node below produces both the sanctioned 'errs-under'
+# risk and its absence.
+node_types:
+  leaf:
+    description: "Leaf TypeScript source — carries the two aspects this fixture's suppression inventory is scanned against."
+    when:
+      path: "src/**/*.ts"
+    aspects:
+      - no-console
+      - no-todo

@@ -168,89 +168,76 @@
     stage.appendChild(ledger);
   }
 
+  /**
+   * The first node-bearing member across every group, in group/member order — the jump
+   * target for "Jump to next unresolved". `undefined` when no group carries a component
+   * member (e.g. every group is repository-level or file-only), in which case the button
+   * falls back to the residue link below rather than navigating nowhere.
+   */
+  function firstNodeMember(worklist) {
+    for (var gi = 0; gi < worklist.length; gi += 1) {
+      var members = worklist[gi].members || [];
+      for (var mi = 0; mi < members.length; mi += 1) {
+        if (members[mi].node) return members[mi].node;
+      }
+    }
+    return undefined;
+  }
+
   function renderWorklist(stage, data, ctx) {
     var nav = ctx && ctx.navigate ? ctx.navigate : function () {};
     var worklist = data.worklist || [];
+    var coverageBlocks = data.worklistCoverage || [];
+    // Coverage findings are never grouped into `worklist` (they render as their own
+    // blocks, outside the rule groups) — folding them out of this count would let a
+    // project whose ONLY failure is e.g. unmapped files show "Needs attention (0)" on
+    // a failing build.
+    var count = worklist.length + coverageBlocks.length;
+    // The ONE honest gate for BOTH the calm panel and the jump button below — computed
+    // once from the LIVE error/warning counts (== yg check), never from list emptiness.
+    // A group excluded from `worklist` (coverage codes) can still be a failing build even
+    // when `worklist` itself is empty, so a second, list-shaped proxy for "is this calm"
+    // (e.g. "does any group have a node member") must never be allowed to drift from this
+    // one and independently decide to say "clear".
+    var calm = data.meta.counts.errors === 0 && data.meta.counts.warnings === 0;
 
     var title = dom.el('div', 'cov-section');
     title.appendChild(dom.el('span', null, 'Needs attention'));
-    title.appendChild(dom.el('span', 'cov-section-count', '(' + worklist.length + ')'));
+    title.appendChild(dom.el('span', 'cov-section-count', '(' + count + ')'));
     var jump = dom.el('button', 'cov-jump');
     jump.type = 'button';
-    if (worklist.length > 0) {
-      jump.textContent = 'Jump to next unresolved →';
-      jump.addEventListener('click', function () {
-        var first = worklist[0];
-        if (first && first.nodes && first.nodes[0]) nav({ view: 'tree', node: first.nodes[0] });
-      });
-    } else {
+    if (calm) {
       jump.textContent = 'All clear — view the residue →';
       jump.classList.add('cov-jump-residue');
       jump.addEventListener('click', function () {
         nav({ view: 'suppressions' });
       });
+    } else {
+      var jumpNode = firstNodeMember(worklist);
+      if (jumpNode) {
+        jump.textContent = 'Jump to next unresolved →';
+        jump.addEventListener('click', function () {
+          nav({ view: 'tree', node: jumpNode });
+        });
+      } else {
+        // Not calm, but no group carries a component to jump to (every group is
+        // repository-level or file-only, e.g. a coverage-only red build). Never say
+        // "clear" here — that would be the exact "All clear on a failing build" defect
+        // this round exists to remove, just relocated from the panel to the button.
+        jump.textContent = 'No component to jump to — see the findings below';
+      }
     }
     title.appendChild(jump);
     stage.appendChild(title);
 
-    if (worklist.length === 0) {
-      var calm = dom.el('div', 'cov-calm');
-      calm.appendChild(dom.el('p', null, 'No refusals and nothing unverified on current inputs. Absence of red is not a pass — the residue above (no-rule nodes, unmapped files, waivers) is still worth a look.'));
-      stage.appendChild(calm);
+    if (calm) {
+      var calmEl = dom.el('div', 'cov-calm');
+      calmEl.appendChild(dom.el('p', null, 'No refusals and nothing unverified on current inputs. Absence of red is not a pass — the residue above (no-rule nodes, unmapped files, waivers) is still worth a look.'));
+      stage.appendChild(calmEl);
       return;
     }
 
-    var card = dom.el('div', 'cov-card');
-    for (var i = 0; i < worklist.length; i += 1) {
-      card.appendChild(worklistRow(worklist[i], nav));
-    }
-    stage.appendChild(card);
-  }
-
-  function worklistRow(group, nav) {
-    var sevState = group.severity === 'error' ? (group.rule === 'unverified' ? 'unverified' : 'refused') : 'warning';
-    var row = dom.el('div', 'cov-worow');
-    var pill = dom.el('span', 'cov-pill ' + Yg.states.cssClass(sevState));
-    pill.appendChild(Yg.states.badge(sevState));
-    pill.appendChild(dom.el('span', null, group.severity));
-    row.appendChild(pill);
-
-    var id = dom.el('span', 'cov-worow-id');
-    id.appendChild(dom.el('b', 'mono', group.rule));
-    id.appendChild(dom.el('span', 'cov-worow-reason', group.why));
-    row.appendChild(id);
-
-    // A group with no components is a repository-level finding (the committed
-    // agent-rules digest, a flow naming a participant that does not exist).
-    // Saying "0 components" and offering an open button that cannot go
-    // anywhere would describe a dimension the finding does not have; name the
-    // scope instead.
-    var meta = dom.el('span', 'cov-worow-meta');
-    if (group.nodes.length === 0) {
-      meta.appendChild(dom.el('span', null, 'repository-level'));
-    } else {
-      meta.appendChild(dom.el('span', null, group.nodes.length + (group.nodes.length === 1 ? ' node' : ' nodes')));
-      var link = dom.el('button', 'cov-deeplink');
-      link.type = 'button';
-      link.textContent = 'open →';
-      link.addEventListener('click', function () {
-        nav({ view: 'tree', node: group.nodes[0] });
-      });
-      meta.appendChild(link);
-    }
-    row.appendChild(meta);
-
-    var ruleHdr = dom.el('button', 'cov-rulehdr');
-    ruleHdr.type = 'button';
-    ruleHdr.setAttribute('aria-label', 'open rule ' + group.rule);
-    ruleHdr.textContent = '› fix: ' + group.fix;
-    ruleHdr.addEventListener('click', function () {
-      nav({ view: 'rulebook', aspect: group.rule });
-    });
-    var wrap = dom.el('div', 'cov-worow-wrap');
-    wrap.appendChild(row);
-    wrap.appendChild(ruleHdr);
-    return wrap;
+    Yg.views.coverageWorklist.renderRows(stage, data, nav);
   }
 
   /** A keyboard-operable export trigger (a native <button>, focusable + Enter/Space-activatable). */

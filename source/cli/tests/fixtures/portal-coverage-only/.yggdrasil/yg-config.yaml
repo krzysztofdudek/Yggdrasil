@@ -1,0 +1,25 @@
+version: "5.2.0"
+
+# The one committed fixture whose ONLY failure is a coverage gap: one node maps
+# src/a.ts (zero aspects — zero pairs, so it can never itself produce an
+# unverified/refused finding), and src/b.ts sits unmapped under the required
+# root. `yg check`'s only ERROR is unmapped-files — the worst failure mode a
+# portal can render: a page must never say "All clear" while a required file
+# has no coverage at all.
+#
+# This fixture carries its OWN agent-rules install (AGENTS.md / CLAUDE.md /
+# .clinerules/yggdrasil.md) and .gitattributes so its own worklist can be made
+# EMPTY (no rules-digest-stale finding) while staying red — the one state that
+# distinguishes the round's fixed panel logic from the pre-round one. Those
+# four installed files belong to no component, so they are excluded here
+# rather than mapped — mapping them to the one node would give it aspects to
+# pass/fail and reintroduce a pair, defeating the "zero pairs anywhere" design
+# above. Excluding them keeps src/b.ts as the ONLY unmapped file.
+coverage:
+  required:
+    - "/"
+  excluded:
+    - AGENTS.md
+    - CLAUDE.md
+    - .clinerules/yggdrasil.md
+    - .gitattributes

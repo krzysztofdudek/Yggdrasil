@@ -5,16 +5,30 @@ import { loadGraph } from '../../src/core/graph-loader.js';
 import { readLock } from '../../src/io/lock-store.js';
 import { verifyLock } from '../../src/core/verify-lock.js';
 import { buildAspects, buildFlows, buildTypes } from '../../src/portal/derive-catalogue.js';
+import { resolveAllowedRelations } from '../../src/portal/engine-api.js';
 import { readPortalAsset } from '../../src/portal/serializer.js';
 import { displayPairState } from '../../src/portal/derive-nodes.js';
-import type { PortalAspect } from '../../src/portal/contract.js';
+import type { PortalAspect, PortalType } from '../../src/portal/contract.js';
 import type { Graph, AspectDef, FlowDef, GraphNode } from '../../src/model/graph.js';
 import type { VerifiedPair, PairState } from '../../src/core/verify-lock.js';
 import { nodeUnit } from '../../src/model/lock.js';
+// The cross-check oracle: the (fromType, toType)-PAIR reference implementation
+// resolveAllowedRelations mirrors (see its doc comment in engine-api.ts) — imported
+// straight from its owning module here so the comparison below is genuine, not a
+// re-import of the same function under a different name.
+import { allowedRelationTypes, RELATION_TYPES } from '../../src/relations/allowed-types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // The REAL repo root (real .yggdrasil/ graph + real source).
 const REPO_ROOT = path.resolve(__dirname, '../../../..');
+
+/** Load a committed fixture project's graph and derive its type catalogue —
+ *  read-only (loadGraph never writes), so no tmp-dir copy is needed, mirroring
+ *  the other integration tests that read portal-basic straight off disk. */
+async function typesOf(fixtureName: string): Promise<PortalType[]> {
+  const graph = await loadGraph(path.resolve(__dirname, '../fixtures', fixtureName));
+  return buildTypes(graph);
+}
 
 // Aspect catalogue + flows + type model, derived from the REAL repo graph and the
 // already-verified pairs. The three HONEST renderings (normal V/R/U, aggregating
@@ -107,19 +121,63 @@ describe('portal catalogue derivation (aspects / flows / types) — real repo', 
       // NOT the engine directly. The engine coupling moved to the portal-engine-api type.
       const pipeline = types.find((t) => t.id === 'portal-pipeline');
       expect(pipeline).toBeDefined();
-      expect(pipeline!.allowedRelations['calls']).toContain('portal-engine-api');
-      expect(pipeline!.allowedRelations['calls']).not.toContain('engine');
+      const pipelineCalls = pipeline!.allowed.find((a) => a.type === 'calls')!;
+      expect(pipelineCalls.targets).toContain('portal-engine-api');
+      expect(pipelineCalls.targets).not.toContain('engine');
       expect(pipeline!.strict).toBe(true);
       expect(pipeline!.logRequired).toBe(true);
 
       // The facade type IS the seam: it calls the engine (the coupling concentrated here).
       const facade = types.find((t) => t.id === 'portal-engine-api');
       expect(facade).toBeDefined();
-      expect(facade!.allowedRelations['calls']).toContain('engine');
-      expect(facade!.allowedRelations['calls']).toContain('relations-adapter');
+      const facadeCalls = facade!.allowed.find((a) => a.type === 'calls')!;
+      expect(facadeCalls.targets).toContain('engine');
+      expect(facadeCalls.targets).toContain('relations-adapter');
       expect(facade!.strict).toBe(true);
     });
   });
+
+  it('resolves default-deny lists, wildcard, empty list, and default-allow', async () => {
+    const graph = await loadGraph(REPO_ROOT);
+    const types = buildTypes(graph);
+    // THIS repo: every type declares default: deny. command type: calls list + uses list.
+    const command = types.find((t) => t.id === 'command')!;
+    const calls = command.allowed.find((a) => a.type === 'calls')!;
+    expect(Array.isArray(calls.targets) && calls.targets.includes('engine')).toBe(true);
+    expect(command.allowed.some((a) => a.type === 'emits')).toBe(false); // unlisted under deny → omitted
+    expect(command.classifying).toBe(true);
+    // portal-basic: NO relations table → allow-all, all six types 'any'; module has no when.
+    const basicTypes = await typesOf('portal-basic');
+    const service = basicTypes.find((t) => t.id === 'service')!;
+    expect(service.allowed).toHaveLength(6);
+    expect(service.allowed.every((a) => a.targets === 'any')).toBe(true);
+    expect(service.classifying).toBe(true);
+    expect(basicTypes.find((t) => t.id === 'module')!.classifying).toBe(false);
+  }, 180_000);
+
+  it('resolveAllowedRelations is single-sourced with allowedRelationTypes over EVERY ordered type pair', async () => {
+    // The real single-sourcing lock: resolveAllowedRelations reads def.relations/relationDefault
+    // directly (a per-TYPE target-list view the (from,to)-PAIR function allowedRelationTypes cannot
+    // express — the matrix needs a row per type, not a single yes/no per pair), so nothing but this
+    // direct, exhaustive comparison enforces the two never drift apart. Cheap at ~38x38 real types
+    // x 6 relation types. Every fromType here comes from graph.architecture.node_types, i.e. is
+    // always DECLARED — allowedRelationTypes' own "unknown fromType -> []" branch is therefore
+    // never exercised by this loop, which is the intended, documented divergence (resolveAllowedRelations
+    // has no analogous branch: buildTypes only ever calls it with an id straight from node_types).
+    const graph = await loadGraph(REPO_ROOT);
+    const typeIds = Object.keys(graph.architecture.node_types);
+    for (const fromType of typeIds) {
+      const resolved = resolveAllowedRelations(graph, fromType);
+      for (const toType of typeIds) {
+        const expected = new Set(allowedRelationTypes(graph.architecture, fromType, toType));
+        for (const rt of RELATION_TYPES) {
+          const entry = resolved.find((a) => a.type === rt);
+          const actual = entry !== undefined && (entry.targets === 'any' || entry.targets.includes(toType));
+          expect(actual).toBe(expected.has(rt));
+        }
+      }
+    }
+  }, 180_000);
 
   // Re-loads the whole real graph and re-hashes the lock (loadGraph + verifyLock over
   // every node), the same heavy whole-repo work the beforeAll budgets 180s for. On a
@@ -328,7 +386,7 @@ describe('catalogue — tally + flow-state honest branches (synthetic)', () => {
     expect(flows[0].state).toBe('nothing-checked');
   });
 
-  it('buildTypes surfaces a type description, allowed relations, parents, and node count', () => {
+  it('buildTypes surfaces a type description, resolved allow-list, parents, and node count', () => {
     const graph = {
       nodes: new Map([['n', gnode('n', [], [])]]),
       aspects: [],
@@ -343,7 +401,7 @@ describe('catalogue — tally + flow-state honest branches (synthetic)', () => {
     expect(t.id).toBe('module');
     expect(t.description).toBe('mod');
     expect(t.parents).toEqual(['root']);
-    expect(t.allowedRelations['calls']).toEqual(['engine']);
+    expect(t.allowed.find((a) => a.type === 'calls')!.targets).toEqual(['engine']);
     expect(t.defaultAspects).toEqual(['x']);
     expect(t.strict).toBe(true);
     expect(t.logRequired).toBe(true);
@@ -367,18 +425,33 @@ describe('catalogue — tally + flow-state honest branches (synthetic)', () => {
     expect(built.state).toBe('nothing-checked'); // computeFlowState skips the missing node
   });
 
-  it('buildTypes handles no description, null relation targets, and zero nodes; and no node_types', () => {
+  it('buildTypes handles no description, an explicit empty relation list, a literal wildcard, and zero nodes; and no node_types', () => {
     const graph = {
       nodes: new Map(),
       aspects: [],
       flows: [],
-      architecture: { node_types: { bare: { relations: { calls: null } } } },
+      architecture: {
+        node_types: {
+          bare: { relations: { calls: [] } },
+          // A real `'*'` in a relation list — the exhaustive cross-check test above can
+          // never drive this branch (no type in THIS repo's own architecture declares a
+          // wildcard, so the (from,to) comparison never observes one), so it is proven
+          // here instead, directly and deliberately.
+          wildcard: { relations: { calls: ['*'], uses: ['engine'] } },
+        },
+      },
     } as unknown as Graph;
-    const [t] = buildTypes(graph);
-    expect(t.description).toBeUndefined(); // def.description ? {} : {} false arm
-    expect(t.allowedRelations['calls']).toEqual([]); // targets ?? []
-    expect(t.parents).toEqual([]); // def.parents ?? []
-    expect(t.nodeCount).toBe(0); // countByType.get(id) ?? 0
+    const [bareType, wildcardType] = buildTypes(graph);
+    expect(bareType.description).toBeUndefined(); // def.description ? {} : {} false arm
+    expect(bareType.allowed.find((a) => a.type === 'calls')).toBeUndefined(); // explicit [] = forbidden → entry omitted
+    expect(bareType.parents).toEqual([]); // def.parents ?? []
+    expect(bareType.nodeCount).toBe(0); // countByType.get(id) ?? 0
+    // The wildcard resolves to 'any' for the relation type that declares it...
+    expect(wildcardType.allowed.find((a) => a.type === 'calls')!.targets).toBe('any');
+    // ...and does NOT leak into a sibling relation type on the SAME node type: 'uses' keeps
+    // its own explicit, literal list — proving the wildcard branch is scoped to the one
+    // relation type that actually contains '*', not the whole type's row.
+    expect(wildcardType.allowed.find((a) => a.type === 'uses')!.targets).toEqual(['engine']);
     const empty = { nodes: new Map(), aspects: [], flows: [], architecture: {} } as unknown as Graph;
     expect(buildTypes(empty)).toEqual([]); // node_types ?? {}
   });

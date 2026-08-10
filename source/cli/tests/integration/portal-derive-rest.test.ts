@@ -2,6 +2,7 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { extractPortalData } from '../../src/portal/extract.js';
+import { loadPortalGraph, walkPortalFiles, scanPortalSuppressions } from '../../src/portal/engine-api.js';
 import { buildSuppressions, buildHubs, buildResidue, buildWorklist } from '../../src/portal/derive-rest.js';
 import { buildBoundary } from '../../src/portal/derive-boundary.js';
 import type {
@@ -10,7 +11,7 @@ import type {
   BoundaryInput,
   SuppressionMarkerInput,
 } from '../../src/portal/contract.js';
-import type { CheckResult } from '../../src/core/check.js';
+import type { CheckResult, CheckIssue } from '../../src/core/check.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // The REAL repo root (real .yggdrasil/ graph + real source).
@@ -141,6 +142,50 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
   });
 });
 
+// ── Suppression inventory — form + errs-under risk, off a REAL fixture scan ────
+//
+// `portal-suppress-forms` is a real, working project (its own `.yggdrasil/` graph +
+// real source, loaded and scanned exactly like the portal would) with one node
+// (`code`, mapping the whole `src/` tree) whose architecture type carries two
+// deterministic aspects: `no-console` (errs: under) and `no-todo` (no errs label).
+// Each of its four files carries a DIFFERENT waiver shape, proving `form` and the
+// `errs-under` risk resolution off the facade's real scan+adapt path — never a
+// synthetic `SuppressionMarkerInput[]` literal.
+const FIXTURES_ROOT = path.resolve(__dirname, '../fixtures');
+
+/** Load + scan one fixture's live suppression inventory via the SAME facade the
+ *  portal pipeline calls (`scanPortalSuppressions` in engine-api.ts) — never a
+ *  hand-built report. */
+async function scanFixture(name: string): Promise<SuppressionMarkerInput[]> {
+  const root = path.join(FIXTURES_ROOT, name);
+  const graph = await loadPortalGraph(root);
+  const repoFiles = await walkPortalFiles(root);
+  const { markers } = await scanPortalSuppressions(graph, root, repoFiles);
+  return markers;
+}
+
+describe('portal suppression inventory — real fixture (form + errs-under risk)', () => {
+  it('suppression inventory carries form and the errs-under risk', async () => {
+    const markers = await scanFixture('portal-suppress-forms');
+    const byFile = Object.fromEntries(markers.map((m) => [m.file, m]));
+    // src/whole.ts: an unclosed disable(no-todo) at the file head — the sanctioned
+    // whole-file waiver. Classified `file-level`, so it is NO-RISK: file-level is
+    // sanctioned, never `unbounded`.
+    expect(byFile['src/whole.ts']).toMatchObject({ form: 'file' });
+    expect(byFile['src/whole.ts'].risk).toBeUndefined();
+    // src/range.ts: a CLOSED disable(no-todo)/enable(no-todo) pair — a bounded block,
+    // never open, so it is no-risk too.
+    expect(byFile['src/range.ts']).toMatchObject({ form: 'range' });
+    expect(byFile['src/range.ts'].risk).toBeUndefined();
+    // src/line.ts: a single-line marker on a known, non-draft, non-under aspect — clean.
+    expect(byFile['src/line.ts']).toMatchObject({ form: 'line' });
+    expect(byFile['src/line.ts'].risk).toBeUndefined();
+    // src/under.ts: a single-line marker naming `no-console` (errs: under) — the
+    // footgun risk: it waives a check that cannot itself false-alarm.
+    expect(byFile['src/under.ts']).toMatchObject({ form: 'line', risk: 'errs-under' });
+  });
+});
+
 // ── Pure-builder branch coverage (synthetic inputs, real builder functions) ───
 
 describe('portal rest builders — honest branches', () => {
@@ -166,16 +211,17 @@ describe('portal rest builders — honest branches', () => {
     expect(b.forbiddenType).toEqual([{ source: 'c', target: 'z' }]);
   });
 
-  it('buildSuppressions carries the risk flag and sorts by file then line', () => {
+  it('buildSuppressions carries the risk flag and form, and sorts by file then line', () => {
     const markers: SuppressionMarkerInput[] = [
-      { file: 'src/b.ts', line: 10, aspectId: 'a1', reason: 'r' },
-      { file: 'src/a.ts', line: 30, aspectId: '*', reason: 'silence all', risk: 'wildcard' },
-      { file: 'src/a.ts', line: 5, aspectId: 'a2', reason: 'r2', risk: 'unbounded' },
+      { file: 'src/b.ts', line: 10, aspectId: 'a1', reason: 'r', form: 'line' },
+      { file: 'src/a.ts', line: 30, aspectId: '*', reason: 'silence all', risk: 'wildcard', form: 'file' },
+      { file: 'src/a.ts', line: 5, aspectId: 'a2', reason: 'r2', risk: 'unbounded', form: 'range' },
     ];
     const out = buildSuppressions(markers);
     expect(out.map((s) => `${s.file}:${s.line}`)).toEqual(['src/a.ts:5', 'src/a.ts:30', 'src/b.ts:10']);
     const wildcard = out.find((s) => s.aspectId === '*')!;
     expect(wildcard.risk).toBe('wildcard');
+    expect(wildcard.form).toBe('file');
     expect(out.filter((s) => s.risk).length).toBe(2);
   });
 
@@ -206,7 +252,7 @@ describe('portal rest builders — honest branches', () => {
 
   it('buildWorklist reuses groupIssues — empty issues yield an empty worklist', () => {
     const check = { issues: [] } as unknown as CheckResult;
-    expect(buildWorklist(check)).toEqual([]);
+    expect(buildWorklist(check)).toEqual({ groups: [], coverage: [] });
   });
 });
 
@@ -250,7 +296,7 @@ describe('portal rest builders — additional honest branches', () => {
     ]);
   });
 
-  it('buildWorklist maps grouped issues to rule/why/fix/nodes (deduped, sorted)', () => {
+  it('buildWorklist maps grouped issues to rule/why/fix/members (deduped, sorted)', () => {
     const check = {
       issues: [
         {
@@ -269,12 +315,110 @@ describe('portal rest builders — additional honest branches', () => {
         },
       ],
     } as unknown as CheckResult;
-    const wl = buildWorklist(check);
-    expect(wl).toHaveLength(1);
-    expect(wl[0].rule).toBe('unverified');
-    expect(wl[0].severity).toBe('error');
-    expect(wl[0].why).toBe('shared why');
-    expect(wl[0].fix).toBe('yg check --approve');
-    expect(wl[0].nodes).toEqual(['node-a', 'node-b']); // sorted, deduped
+    const { groups } = buildWorklist(check);
+    expect(groups).toHaveLength(1);
+    expect(groups[0].rule).toBe('unverified');
+    expect(groups[0].severity).toBe('error');
+    expect(groups[0].why).toBe('shared why');
+    expect(groups[0].fix).toBe('yg check --approve');
+    // sorted, deduped — mirrors groupIssues' own nodePath sort.
+    expect(groups[0].members.map((m) => m.node)).toEqual(['node-a', 'node-b']);
+  });
+
+  it('buildWorklist splits severities, mirrors members, and partitions coverage', () => {
+    const mk = (over: Partial<CheckIssue>): CheckIssue => ({
+      severity: 'error', code: 'unverified', rule: 'unverified',
+      messageData: { what: 'w', why: 'shared why', next: 'yg check --approve' }, ...over,
+    } as CheckIssue);
+    const issues = [
+      mk({ nodePath: 'a', aspectId: 'x',
+           messageData: { what: 'w\nextra detail line', why: 'shared why', next: 'yg check --approve' } }),
+      mk({ nodePath: 'a', aspectId: 'y' }),
+      mk({ severity: 'warning', nodePath: 'a', aspectId: 'z' }),                    // same code, other severity
+      mk({ code: 'aspect-violation-enforced', rule: 'enforced', aspectId: 'r',
+           unitKey: 'file:src/f.ts',
+           // A trailing whitespace-only tail line must be trimmed then dropped (Minor 1),
+           // not survive as a fake "non-empty" continuation line.
+           messageData: { what: 'head\nsrc/f.ts:3 detail\n   \nsrc/f.ts:9 detail2', why: 'w2', next: 'n2' } }),
+      // No aspectId on either member: exercises the `what`-first-line fallback (Finding 2)
+      // AND divergent per-member why/next (Minor 3d) on the SAME group.
+      mk({ code: 'log-entry-missing', rule: 'log-entry-missing', nodePath: 'b',
+           messageData: { what: 'no log for node\nextra internal detail', why: 'why-b', next: 'yg log add --node b' } }),
+      mk({ code: 'log-entry-missing', rule: 'log-entry-missing', nodePath: 'c',
+           messageData: { what: 'no log for node c', why: 'why-c', next: 'yg log add --node c' } }),
+      // Repo-level (no nodePath, no unitKey): exercises the full-`what` fallback (Finding 1).
+      mk({ code: 'lock-invalid', rule: 'lock-invalid',
+           messageData: { what: 'Lock file corrupt \nDetails: bad json at line 4   ', why: 'w3', next: 'n3' } }),
+      mk({ code: 'unmapped-files', messageData: { what: 'w', why: 'cov why', next: 'cov fix' },
+           uncoveredFiles: ['src/u.ts'] }),
+      // A second coverage code (warning severity) — Minor 3c: both blocks must surface.
+      mk({ code: 'uncovered-advisory', severity: 'warning',
+           messageData: { what: 'w', why: 'adv why', next: 'adv fix' },
+           uncoveredFiles: ['src/v.ts'] }),
+    ];
+    const { groups, coverage } = buildWorklist({ issues } as unknown as CheckResult);
+
+    // (Minor 3a) Real priority-ranked order — errors first, never sorted away by a `.sort()`
+    // that would let a warnings-before-errors bug through.
+    expect(groups.map((g) => g.code)).toEqual([
+      'lock-invalid', 'log-entry-missing', 'unverified', 'aspect-violation-enforced', 'unverified',
+    ]);
+    expect(groups.map((g) => g.severity)).toEqual(['error', 'error', 'error', 'error', 'warning']);
+
+    const unverifiedGroups = groups.filter((g) => g.code === 'unverified');
+    expect(unverifiedGroups).toHaveLength(2);                       // severity split
+    expect(unverifiedGroups.map((g) => g.severity).sort()).toEqual(['error', 'warning']);
+    const err = unverifiedGroups.find((g) => g.severity === 'error')!;
+    expect(err.members.map((m) => m.aspectId).sort()).toEqual(['x', 'y']);
+
+    const refusal = groups.find((g) => g.code === 'aspect-violation-enforced')!;
+    expect(refusal.aspectId).toBe('r');
+    expect(refusal.members[0]).toMatchObject({
+      file: 'src/f.ts',
+      whatLines: ['src/f.ts:3 detail', 'src/f.ts:9 detail2'],
+    });
+    expect(refusal.members[0].what).toBeUndefined();  // FULL_WHAT code: whatLines, never what
+    expect(refusal.fileCount).toBe(1);
+
+    expect(groups.some((g) => g.code === 'unmapped-files')).toBe(false);     // partitioned out
+    expect(groups.some((g) => g.code === 'uncovered-advisory')).toBe(false); // partitioned out
+    // (Minor 3c) Both coverage codes surfaced, each with its own severity.
+    expect(coverage).toEqual([
+      { code: 'unmapped-files', severity: 'error', files: ['src/u.ts'], why: 'cov why', fix: 'cov fix' },
+      { code: 'uncovered-advisory', severity: 'warning', files: ['src/v.ts'], why: 'adv why', fix: 'adv fix' },
+    ]);
+
+    // (Minor 3b) non-FULL_WHAT gate: a MULTI-LINE `what` on a non-FULL_WHAT code never
+    // becomes whatLines (the fixture's old single-line 'w' made this assertion vacuous).
+    const memberX = err.members.find((m) => m.aspectId === 'x')!;
+    expect(memberX.whatLines).toBeUndefined();
+    // memberX carries an aspectId, so `what` never fires either — aspectId already
+    // identifies it, and `what`/`aspectId` never both populate on the same member.
+    expect(memberX.what).toBeUndefined();
+    expect(err.members.every((m) => m.whatLines === undefined)).toBe(true);
+
+    // (Minor 3d) Divergent per-member why/next, synthetically forced (previously only
+    // incidental via the real-repo path).
+    const logGroup = groups.find((g) => g.code === 'log-entry-missing')!;
+    expect(logGroup.divergentWhy).toBe(true);
+    expect(logGroup.divergentNext).toBe(true);
+    const memberB = logGroup.members.find((m) => m.node === 'b')!;
+    const memberC = logGroup.members.find((m) => m.node === 'c')!;
+    expect(memberB.why).toBe('why-b');
+    expect(memberB.next).toBe('yg log add --node b');
+    expect(memberC.why).toBe('why-c');
+    expect(memberC.next).toBe('yg log add --node c');
+
+    // (Minor 3e / Finding 2) subject-bearing member, no aspectId: `what` is the FIRST
+    // line only (the second line, 'extra internal detail', is dropped).
+    expect(memberB.what).toBe('no log for node');
+    expect(memberB.aspectId).toBeUndefined();
+
+    // (Minor 3e / Finding 1) repo-level member (no node, no file): `what` is the FULL
+    // text, every line, trailing whitespace trimmed per line but no line dropped.
+    const lockGroup = groups.find((g) => g.code === 'lock-invalid')!;
+    expect(lockGroup.members[0].node).toBeUndefined();
+    expect(lockGroup.members[0].file).toBeUndefined();
+    expect(lockGroup.members[0].what).toBe('Lock file corrupt\nDetails: bad json at line 4');
   });
 });

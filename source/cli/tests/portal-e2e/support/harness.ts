@@ -140,3 +140,13 @@ export function approveDeterministic(cwd: string): { out: string; status: number
   const res = spawnSync('node', [BIN_PATH, 'check', '--approve', '--only-deterministic'], { cwd, encoding: 'utf-8' });
   return { out: (res.stdout ?? '') + (res.stderr ?? ''), status: res.status };
 }
+
+/**
+ * Spawn `yg suppressions` over `cwd` and return its raw stdout+stderr + exit code — the
+ * one CLI-derived source of truth a spec reads to de-pin a suppression-inventory
+ * assertion (e.g. the whole-file waiver count) instead of pinning it to a literal.
+ */
+export function runSuppressions(cwd: string): { out: string; status: number | null } {
+  const res = spawnSync('node', [BIN_PATH, 'suppressions'], { cwd, encoding: 'utf-8' });
+  return { out: (res.stdout ?? '') + (res.stderr ?? ''), status: res.status };
+}

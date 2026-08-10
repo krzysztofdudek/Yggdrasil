@@ -94,6 +94,14 @@ export const FULL_WHAT_CODES = new Set([
 ]);
 
 /**
+ * Coverage issue codes the grouped SECTION renderers exclude from groupIssues and
+ * render as their own file-list blocks (renderUnmappedBlock). Single-sourced here so
+ * the portal worklist partitions identically. NOTE: renderTopBody deliberately does
+ * NOT use this set — the --top view renders coverage inside its cascade.
+ */
+export const COVERAGE_GROUP_EXCLUDED_CODES = new Set(['unmapped-files', 'uncovered-advisory']);
+
+/**
  * Priority rank for an issue, mirroring computeSuggestedNext's §6 cascade so the
  * --top view surfaces the same issues the suggestedNext line points at, in the
  * same order. Lower rank = higher priority. Errors always outrank warnings.

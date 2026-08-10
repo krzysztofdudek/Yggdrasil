@@ -1,0 +1,7 @@
+name: Svc
+type: service
+description: "Maps only src/a.ts, the fixture's one covered file. No aspects at all, so it produces zero verdict pairs — the fixture's only real failure is the coverage gap on the unmapped src/b.ts."
+aspects: []
+relations: []
+mapping:
+  - src/a.ts

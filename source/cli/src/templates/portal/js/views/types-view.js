@@ -31,26 +31,58 @@
     listens: '#d6409f',
   };
 
-  /** The "may depend on" line: each allowed relation type with its permitted target types. */
+  // How many distinct relation types the engine resolves per type (uses / calls / extends /
+  // implements / emits / listens — core/allowed-relation-types.ts RELATION_TYPES.length). A
+  // browser module has no import of that engine constant, so it is mirrored here as a literal;
+  // it is what makes "every one of the six entries is 'any'" a real, checkable condition rather
+  // than an assumption about array length.
+  var REL_TYPE_COUNT = 6;
+
+  /** True when `allowed` is the full six-entries-all-'any' shape: no restriction declared at all. */
+  function isUnrestricted(allowed) {
+    return !!allowed && allowed.length === REL_TYPE_COUNT && allowed.every(function (a) {
+      return a.targets === 'any';
+    });
+  }
+
+  /**
+   * The "may depend on" line: `allowed` is the engine's ALREADY-RESOLVED allow-list
+   * (`PortalTypeAllowed[]`) — an omitted relation type is forbidden, `targets === 'any'` means
+   * that relation type may target every component kind. There is no `'deny'`/`'default'` token
+   * left to filter; the array itself is the truth.
+   */
   function dependsOn(allowed) {
     var wrap = dom.el('div', 'ty-rels');
-    var any = false;
-    for (var rel in allowed) {
-      if (!Object.prototype.hasOwnProperty.call(allowed, rel)) continue;
-      var targets = (allowed[rel] || []).filter(function (t) {
-        return t !== 'deny' && t !== 'default';
-      });
-      if (!targets.length) continue;
-      any = true;
+    // ABSENT data (undefined/null — the field never arrived) is a GAP, checked before the
+    // empty-array check below: `[]` is the engine's real, resolved "every relation type
+    // forbidden" answer, but a missing `allowed` is not an answer at all. Rendering it as
+    // "structural parent only (no code dependency permitted)" would repeat, on a data gap, the
+    // exact false "nothing is permitted" claim this task exists to remove — never collapse the
+    // two. Unreachable today (the contract field is required and always populated by the
+    // pipeline); this is hardening against a future field rename silently falling through here.
+    if (!allowed) {
+      wrap.appendChild(dom.el('span', 'ty-rel-none', 'allow-list unavailable — data missing, not a restriction'));
+      return wrap;
+    }
+    if (!allowed.length) {
+      wrap.appendChild(dom.el('span', 'ty-rel-none', '— structural parent only (no code dependency permitted)'));
+      return wrap;
+    }
+    if (isUnrestricted(allowed)) {
+      wrap.appendChild(dom.el('span', 'ty-rel-none', 'no restriction declared — may depend on any component type'));
+      return wrap;
+    }
+    for (var i = 0; i < allowed.length; i += 1) {
+      var a = allowed[i];
       var group = dom.el('span', 'ty-relgroup');
       var label = dom.el('b', 'ty-reltype');
-      label.style.color = REL_COLOR[rel] || 'var(--text-secondary)';
-      label.textContent = rel;
+      label.style.color = REL_COLOR[a.type] || 'var(--text-secondary)';
+      label.textContent = a.type;
       group.appendChild(label);
-      group.appendChild(dom.el('span', 'ty-reltargets', ' ' + targets.join(' · ')));
+      var targetsText = a.targets === 'any' ? 'any component type' : a.targets.join(' · ');
+      group.appendChild(dom.el('span', 'ty-reltargets', ' ' + targetsText));
       wrap.appendChild(group);
     }
-    if (!any) wrap.appendChild(dom.el('span', 'ty-rel-none', '— structural parent only (no code dependency permitted)'));
     return wrap;
   }
 
@@ -80,8 +112,11 @@
 
     var head = dom.el('div', 'ty-head');
     head.appendChild(dom.el('b', 'mono ty-name', type.id));
-    var classifying = (type.parents && type.parents.length >= 0) && hasRelationsOrAspects(type);
-    head.appendChild(dom.el('span', 'ty-badge ' + (type.nodeCount >= 0 && classifying ? 'ty-badge-cls' : 'ty-badge-org'), classifying ? 'classifying' : 'organizational'));
+    // The classifying/organizational badge keys off `type.classifying` (the type's own file-
+    // classification predicate, `def.when !== undefined`) — NEVER off the resolved `allowed`
+    // relations. Deriving it from relations would flip every kind to "classifying" on a
+    // permissive project, where every relation type resolves to 'any'.
+    head.appendChild(dom.el('span', 'ty-badge ' + (type.classifying ? 'ty-badge-cls' : 'ty-badge-org'), type.classifying ? 'classifying' : 'organizational'));
     if (type.strict) head.appendChild(dom.el('span', 'ty-badge ty-badge-strict', 'strict'));
     if (type.logRequired) head.appendChild(dom.el('span', 'ty-badge ty-badge-log', 'log'));
 
@@ -103,7 +138,10 @@
 
     kv.appendChild(dom.el('dt', null, 'may depend on'));
     var dd = dom.el('dd');
-    dd.appendChild(dependsOn(type.allowedRelations || {}));
+    // No `|| []` — `dependsOn` itself distinguishes ABSENT (a data gap) from an empty array (a
+    // real, resolved "forbidden" answer); collapsing the two here would erase that distinction
+    // before it ever reaches the branch that cares about it.
+    dd.appendChild(dependsOn(type.allowed));
     kv.appendChild(dd);
 
     kv.appendChild(dom.el('dt', null, 'default rules'));
@@ -113,19 +151,6 @@
     card.appendChild(kv);
 
     return card;
-  }
-
-  /** A type that defines relations or default aspects classifies files; otherwise organizational. */
-  function hasRelationsOrAspects(type) {
-    var rels = type.allowedRelations || {};
-    for (var rel in rels) {
-      if (!Object.prototype.hasOwnProperty.call(rels, rel)) continue;
-      var targets = (rels[rel] || []).filter(function (t) {
-        return t !== 'deny' && t !== 'default';
-      });
-      if (targets.length) return true;
-    }
-    return (type.defaultAspects && type.defaultAspects.length > 0) || type.strict === true;
   }
 
   function summary(types) {

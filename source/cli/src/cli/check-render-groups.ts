@@ -1,18 +1,18 @@
 // yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import chalk from 'chalk';
 import type { CheckIssue } from '../core/check.js';
-import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES } from './group-issues.js';
+import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES } from './group-issues.js';
 import { useEmoji } from './check-render-header.js';
 
 /** Code sets for grouping errors by category. STRUCTURAL_CODES and
  *  COMPLETENESS_CODES are shared with the check engine via core/check-codes.ts
  *  so the rendered grouping and the summary tally cannot drift apart. */
-// `unmapped-files` renders through renderUnmappedBlock (count + file list).
+// `unmapped-files` / `uncovered-advisory` render through renderUnmappedBlock
+// (count + file list) — see COVERAGE_GROUP_EXCLUDED_CODES in group-issues.ts.
 // `mapping-path-missing` is NOT a coverage code: it carries a nodePath and
 // structured messageData, so it falls through to the normal validation-error
 // renderer (code + node path + what/why/next) — renderUnmappedBlock would
 // otherwise drop both the code and the offending node path.
-const COVERAGE_CODES = new Set(['unmapped-files']);
 
 // ── Details view: ungrouped, one block per issue ──────────
 
@@ -57,8 +57,8 @@ const GROUP_CAP = 12;
  * line is appended after the 12th.
  */
 export function renderErrorSection(errors: CheckIssue[], opts: { isTTY: boolean }, emoji = useEmoji): string {
-  const unmapped = errors.filter(i => COVERAGE_CODES.has(i.code));
-  const rest = errors.filter(i => !COVERAGE_CODES.has(i.code));
+  const unmapped = errors.filter(i => COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
+  const rest = errors.filter(i => !COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
   const groups = groupIssues(rest);
   const M = groups.length;
   const N = errors.length;
@@ -100,8 +100,8 @@ export function renderErrorSection(errors: CheckIssue[], opts: { isTTY: boolean 
  *   - M === 1 (or zero non-coverage warnings) → `Warnings (N):`
  */
 export function renderWarningSection(warnings: CheckIssue[], opts: { isTTY: boolean }, emoji = useEmoji): string {
-  const coverage = warnings.filter(i => i.code === 'uncovered-advisory');
-  const rest = warnings.filter(i => i.code !== 'uncovered-advisory');
+  const coverage = warnings.filter(i => COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
+  const rest = warnings.filter(i => !COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
   const groups = groupIssues(rest);
   const M = groups.length;
   const N = warnings.length;

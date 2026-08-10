@@ -82,3 +82,27 @@ Corrected the doc comment on the re-exported pairsMissingFromLock: it claimed to
 Dropped the pairsMissingFromLock re-export: extractPortalData no longer needs a presence-only check now that its unverified flag for a type-covered file is read straight off the full lock verification the pipeline already computes. No behavior change to any function this facade still exposes.
 ## [2026-08-06T13:56:35.067Z]
 The portal serves repeated renders from one process that outlives any single run of the engine, so a cache the engine keeps only for the length of a run has to be cleared between refreshes or it silently becomes permanent. This seam now exposes the reset for the mapping cache the same way it already exposes the one for nested-project detection, so the two are cleared together and neither can be forgotten on its own.
+## [2026-08-10T18:25:12.260Z]
+Allowed-dependency questions are now answered behind this read-only boundary
+using the same rules the dependency validator itself applies, covering the
+default policy, the any-target wildcard, and an explicitly empty list. Previously
+the raw declarations were handed onward untouched and the consumer inferred
+meaning from their absence — which inverts the answer for any architecture that
+declares no restrictions at all, the state a fresh setup produces: it reported
+that nothing may depend on anything when in fact everything was permitted.
+
+The waiver inventory assembled here now carries each marker's real span, so a
+waiver covering an entire file is no longer described as a narrow one. It also
+receives the set of rules that by design cannot raise a false alarm, so a waiver
+aimed at one of those is flagged exactly as the command-line audit flags it; that
+signal was previously computed and then discarded at this boundary. The count of
+markers found is surfaced alongside the waiver list, because a range-closing
+marker is not itself a waiver and the two numbers legitimately differ.
+
+A mechanical rule now holds the shape handed onward from here against the shape
+the build gate's own grouping produces: it refuses when the gate's shape gains a
+field with no counterpart recorded, and when a recorded pairing names a field
+that no longer exists. That direction is the one that matters, because the copy
+was maintained by hand and every refinement made on the gate side had to be
+carried across by someone remembering to — which is precisely how the two came
+to disagree without anyone noticing.

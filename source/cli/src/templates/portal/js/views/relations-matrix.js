@@ -34,6 +34,11 @@
     listens: '#d6409f',
   };
 
+  // How many distinct relation types the engine resolves per type (uses / calls / extends /
+  // implements / emits / listens — core/allowed-relation-types.ts RELATION_TYPES.length),
+  // mirrored here as a literal since a browser module cannot import the engine constant.
+  var REL_TYPE_COUNT = 6;
+
   /** The sorted union of every type that appears as a relation source or target. */
   Yg.matrix.axisTypes = function (types) {
     var ids = (types || []).map(function (t) {
@@ -42,18 +47,45 @@
     return ids.slice().sort();
   };
 
-  /** The relation types allowed from `rowType` to `colType`, by the architecture matrix. */
+  /**
+   * The relation types allowed from `rowType` to `colType`. `typesById[rowType].allowed` is the
+   * engine's ALREADY-RESOLVED allow-list (`PortalTypeAllowed[]`): an omitted entry is forbidden,
+   * `targets === 'any'` means that relation type may target every component kind — membership,
+   * not a raw-row lookup.
+   *
+   * Returns `null` — NEVER `[]` — when the row type or its allow-list data is ABSENT. `[]` stays
+   * reserved for a real, resolved answer ("this row's allow-list is present and permits nothing
+   * here"); a data gap is not that answer, and callers must not paint the two the same way (an
+   * empty cell / "forbidden" reading). Unreachable today — `allowed` is a required, always-
+   * populated contract field — this is hardening against a future field rename silently falling
+   * through to the forbidding branch, which is exactly how the defect this task fixes arose.
+   */
   Yg.matrix.allowedBetween = function (typesById, rowType, colType) {
     var row = typesById[rowType];
-    if (!row || !row.allowedRelations) return [];
+    if (!row || !row.allowed) return null;
     var out = [];
-    for (var rel in row.allowedRelations) {
-      if (!Object.prototype.hasOwnProperty.call(row.allowedRelations, rel)) continue;
-      var targets = row.allowedRelations[rel] || [];
-      if (targets.indexOf(colType) !== -1) out.push(rel);
+    for (var i = 0; i < row.allowed.length; i += 1) {
+      var a = row.allowed[i];
+      if (a.targets === 'any' || a.targets.indexOf(colType) !== -1) out.push(a.type);
     }
     return out;
   };
+
+  /** True when `type.allowed` is the full six-entries-all-'any' shape: no restriction declared. */
+  function isUnrestricted(type) {
+    return !!type && !!type.allowed && type.allowed.length === REL_TYPE_COUNT && type.allowed.every(function (a) {
+      return a.targets === 'any';
+    });
+  }
+
+  /** True when EVERY type on the axis is unrestricted — the architecture declares no relation restrictions at all. */
+  function allUnrestricted(axis, typesById) {
+    if (!axis.length) return false;
+    for (var i = 0; i < axis.length; i += 1) {
+      if (!isUnrestricted(typesById[axis[i]])) return false;
+    }
+    return true;
+  }
 
   function cssVar(name, fallback) {
     try {
@@ -104,7 +136,12 @@
           continue;
         }
         var rels = Yg.matrix.allowedBetween(typesById, axis[ri], axis[ci]);
-        if (rels.length) {
+        if (rels === null) {
+          // A data gap — a distinct "unknown" glyph, never a blank (forbidden) cell and never a
+          // colored (allowed) dot.
+          ctx.fillStyle = muted;
+          ctx.fillText('?', x + CELL / 2, y + CELL / 2);
+        } else if (rels.length) {
           ctx.fillStyle = REL_COLOR[rels[0]] || muted;
           ctx.beginPath();
           ctx.arc(x + CELL / 2, y + CELL / 2, 4, 0, Math.PI * 2);
@@ -114,16 +151,49 @@
     }
   }
 
-  /** A DOM-list mirror of the matrix: every allowed (row → rel → col) edge, screen-reader-legible. */
-  function buildMirror(axis, typesById) {
+  /**
+   * A DOM-list mirror of the matrix: every allowed (row → rel → col) edge, screen-reader-legible.
+   * Two collapses keep this legible on a permissive project instead of emitting near-identical
+   * rows: (1) `unrestricted` — EVERY type on the axis is the full six-entries-all-'any' shape, so
+   * the whole mirror collapses to one sentence instead of an (axis.length² - axis.length)-row
+   * grid; (2) per-row — a row type that is itself all-'any' emits ONE line instead of the N-1
+   * column rows it would otherwise take (still checked even when the axis as a whole is mixed).
+   */
+  function buildMirror(axis, typesById, unrestricted) {
     var mirror = dom.el('div', 'mtx-mirror');
     mirror.setAttribute('aria-label', 'Allowed relations, as a list');
+    if (unrestricted) {
+      mirror.appendChild(dom.el('p', 'mtx-empty', 'this architecture declares no relation restrictions yet — every dependency is currently allowed'));
+      return mirror;
+    }
     var any = false;
     for (var ri = 0; ri < axis.length; ri += 1) {
+      var rowType = typesById[axis[ri]];
+      if (!rowType || !rowType.allowed) {
+        // A data gap for this row — a visible gap, never silently skipped (indistinguishable
+        // from "every relation type forbidden") and never folded into the collapsed 'any' line
+        // below (also false — a missing allow-list is not "no restriction").
+        any = true;
+        var gapLine = dom.el('div', 'mtx-mirror-row');
+        gapLine.appendChild(dom.el('span', 'mono', axis[ri]));
+        gapLine.appendChild(dom.el('span', 'mtx-arrow', ' → '));
+        gapLine.appendChild(dom.el('span', 'mtx-rels', 'allow-list unavailable — data missing, not a restriction'));
+        mirror.appendChild(gapLine);
+        continue;
+      }
+      if (isUnrestricted(rowType)) {
+        any = true;
+        var anyLine = dom.el('div', 'mtx-mirror-row');
+        anyLine.appendChild(dom.el('span', 'mono', axis[ri]));
+        anyLine.appendChild(dom.el('span', 'mtx-arrow', ' → '));
+        anyLine.appendChild(dom.el('span', 'mtx-rels', 'any component type (no restriction declared)'));
+        mirror.appendChild(anyLine);
+        continue;
+      }
       for (var ci = 0; ci < axis.length; ci += 1) {
         if (ri === ci) continue;
         var rels = Yg.matrix.allowedBetween(typesById, axis[ri], axis[ci]);
-        if (!rels.length) continue;
+        if (!rels || !rels.length) continue;
         any = true;
         var line = dom.el('div', 'mtx-mirror-row');
         line.appendChild(dom.el('span', 'mono', axis[ri]));
@@ -150,8 +220,15 @@
       k.appendChild(dom.el('span', null, rel === 'emits' ? 'emits/listens' : rel));
       box.appendChild(k);
     }
-    var empty = dom.el('span', 'mtx-legend-k mtx-legend-empty', 'empty = forbidden by architecture');
+    // Scoped to the grid CELL, not to a collapsed mirror row: a row that collapses to "any
+    // component type (no restriction declared)" is not empty — it says so explicitly — so this
+    // note must never be read as applying to it.
+    var empty = dom.el('span', 'mtx-legend-k mtx-legend-empty', 'empty cell = forbidden by architecture');
     box.appendChild(empty);
+    // The '?' glyph is a data gap (allow-list data absent), never a forbidding claim — kept
+    // distinct from the "empty cell" note above so the two can never be conflated.
+    var gap = dom.el('span', 'mtx-legend-k mtx-legend-empty', '? = data gap, not a restriction');
+    box.appendChild(gap);
     return box;
   }
 
@@ -162,8 +239,15 @@
       typesById[t.id] = t;
     });
     var axis = Yg.matrix.axisTypes(data.types);
+    // Computed once, shared by the lead paragraph and the mirror below — a fresh project with no
+    // relations table declares no restriction anywhere, so both surfaces say so ONCE instead of
+    // painting a grid's worth of identical "everything is allowed" text.
+    var unrestricted = allUnrestricted(axis, typesById);
 
-    mount.appendChild(dom.el('p', 'view-lead', "What's allowed to depend on what — the architecture's node-type × node-type rules. An empty cell means no relation is permitted there. This is allowed, not actual: conformance is the live boundary check below."));
+    var leadText = unrestricted
+      ? 'this architecture declares no relation restrictions yet — every dependency is currently allowed'
+      : "What's allowed to depend on what — the architecture's node-type × node-type rules. An empty cell means no relation is permitted there. This is allowed, not actual: conformance is the live boundary check below.";
+    mount.appendChild(dom.el('p', 'view-lead', leadText));
 
     // The dense grid keeps its intrinsic pixel size and scrolls WITHIN its own container
     // (overflow-x on .mtx-scroll), so a wide matrix never pushes the page into a horizontal
@@ -180,6 +264,6 @@
     drawCanvas(canvas, axis, typesById);
 
     mount.appendChild(legend());
-    mount.appendChild(buildMirror(axis, typesById));
+    mount.appendChild(buildMirror(axis, typesById, unrestricted));
   };
 })();

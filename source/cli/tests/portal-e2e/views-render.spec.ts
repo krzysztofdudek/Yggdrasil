@@ -135,8 +135,11 @@ test.describe('§3a views V1–V9 — render real data + honest palette', () => 
     await page.goto(typeCoverageUnverifiedPage);
     await navTo(page, 'Coverage & audit');
     await expect(page.locator('.cov-ledger')).toContainText('with no recorded verdict');
+    // The row's real state is a badge from the shared state model, not row text — assert
+    // the badge's accessible name (its `aria-label`), the same pattern file-aware-loop.spec.ts
+    // already uses for a node's own state badge.
     const enforcedRow = page.locator('.cov-typelist-ok .cov-typerow', { hasText: 'src/svc/handler.ts' });
-    await expect(enforcedRow).toContainText('unverified');
+    await expect(enforcedRow.locator('.state-glyph')).toHaveAttribute('aria-label', 'unverified');
     await expectHonestPalette(page);
   });
 

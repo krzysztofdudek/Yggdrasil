@@ -20,15 +20,24 @@
   /** A plain-language verdict derived honestly from the live counts. */
   function verdict(c) {
     if (c.errors > 0) {
+      // Blocking and advisory are reported as SEPARATE counts, both from meta.counts (the same
+      // numbers `yg check` reports) — never derived from the worklist, which deliberately
+      // excludes coverage findings and would then disagree with this page's own errors figure.
+      // c.errors - c.refused covers unverified-ENFORCED rows and any other blocker (e.g. a
+      // coverage finding) that is not itself an enforced refusal — honest without enumerating
+      // every issue code.
       return {
         state: c.refused > 0 ? 'refused' : 'unverified',
         head: c.refused > 0 ? 'Some code broke a rule.' : 'Some code is waiting to be checked.',
         sub:
-          'A reviewer found ' +
+          c.errors +
+          ' blocking item(s) — ' +
           c.refused +
-          ' refusal(s) and ' +
-          c.unverified +
-          ' thing(s) not yet confirmed against the current code. These block until resolved.',
+          ' refusal(s), ' +
+          (c.errors - c.refused) +
+          ' other blocker(s) — and ' +
+          c.warnings +
+          ' advisory signal(s). Blockers stop the build; advisories do not.',
       };
     }
     if (c.warnings > 0) {

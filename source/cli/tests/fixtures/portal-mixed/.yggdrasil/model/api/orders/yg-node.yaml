@@ -1,0 +1,9 @@
+name: OrdersService
+type: service
+description: "Orders service — creates and reads orders. Depends on the users service."
+aspects: []
+relations:
+  - target: api/users
+    type: uses
+mapping:
+  - src/orders/orders.service.ts

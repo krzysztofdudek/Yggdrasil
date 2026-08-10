@@ -1,0 +1,45 @@
+// Drill case for portal/worklist-mirrors-groups — satisfies-merged-declaration.
+//
+// IssueGroup is declared as TWO separate `interface IssueGroup { ... }` blocks in this
+// file — legal TypeScript declaration merging; the compiler unions their members into one
+// logical type. Every field is genuinely present (split across the two blocks) and
+// genuinely mirrored to WorklistGroup. Must be SATISFIED: reading a merged declaration
+// correctly (fix round 2's findInterface, which unions members across every same-named
+// declaration) produces zero violations — not the 3 spurious dead-pin refusals an earlier
+// version of this check produced by reading only the FIRST block and treating every field
+// declared solely in the second block as absent.
+
+export interface IssueGroup {
+  code: string;
+  aspectId?: string;
+  severity: 'error' | 'warning';
+  label: string;
+  pairCount: number;
+  nodeCount: number;
+  fileCount: number;
+}
+
+export interface IssueGroup {
+  sharedWhy: string;
+  sharedNext: string;
+  perMemberReason: boolean;
+  divergentNext: boolean;
+  divergentWhy: boolean;
+  members: CheckIssue[];
+}
+
+export interface WorklistGroup {
+  code: string;
+  rule: string;
+  aspectId?: string;
+  severity: 'error' | 'warning';
+  pairCount: number;
+  nodeCount: number;
+  fileCount: number;
+  why: string;
+  fix: string;
+  divergentWhy: boolean;
+  divergentNext: boolean;
+  perMemberReason: boolean;
+  members: WorklistMember[];
+}

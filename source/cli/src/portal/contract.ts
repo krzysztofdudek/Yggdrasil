@@ -110,6 +110,14 @@ export interface PortalCounts {
   // Severities — equal to what `yg check` reports.
   errors: number;
   warnings: number;
+  /**
+   * Total suppression markers the scan found (`SuppressionsReport.totalMarkers`), INCLUDING
+   * enable/terminator markers that close or reopen scope rather than waive anything. Always
+   * `>= suppressions.length`; the delta is how many markers on disk are not themselves
+   * waivers, so a consumer can print "K markers on disk (a closing marker is not a waiver)"
+   * instead of conflating marker count with waiver count.
+   */
+  suppressionMarkers: number;
 }
 
 export interface PortalMeta {
@@ -282,12 +290,30 @@ export interface PortalFlow {
   state: PortalFlowState;
 }
 
+/** One relation type's resolved allow-list for a `PortalType` — a single row of the architecture matrix. */
+export interface PortalTypeAllowed {
+  /** Relation type (all six). */
+  type: string;
+  /** `'any'` ⇔ resolved allow-all for this relation type. */
+  targets: string[] | 'any';
+}
+
 export interface PortalType {
   id: string;
   description?: string;
   parents: string[];
-  /** Allowed relation targets per relation type (the architecture matrix row). */
-  allowedRelations: Record<string, string[]>;
+  /**
+   * Resolved allow-list per relation type: `default`/`'*'`/`[]` already settled by the engine
+   * primitive (`allowedRelationTypes`) — never re-derive an allow/deny reading from raw matrix
+   * rows downstream, or a default-allow graph renders inverted.
+   */
+  allowed: PortalTypeAllowed[];
+  /**
+   * `def.when !== undefined` — the classifying/organizational badge keys off THIS, never off
+   * `allowed`: deriving it from resolved relations would flip every type to "classifying" on a
+   * default-allow graph.
+   */
+  classifying: boolean;
   /** Default aspects applied to every node of this type (channel 3). */
   defaultAspects: string[];
   /** enforce: strict (backward classification enforced). */
@@ -344,16 +370,31 @@ export interface BoundaryInput {
 
 /**
  * Portal-local suppression marker — the producer/consumer seam for the live inventory.
- * The facade PRODUCES these (adapting the suppression scan, resolving each marker's risk);
- * `buildSuppressions` in the pipeline CONSUMES them. `risk` is the resolved risk flag
- * (wildcard / unbounded / inert / typo), or absent when the marker is clean.
+ * The facade PRODUCES these (adapting the suppression scan, resolving each marker's form
+ * and risk); `buildSuppressions` in the pipeline CONSUMES them. `risk` is the resolved risk
+ * flag (wildcard / unbounded / inert / typo / errs-under), or absent when the marker is
+ * clean. BOTH this interface and `PortalSuppression` below change together — this is the
+ * producer seam `scanPortalSuppressions` returns and `buildSuppressions` consumes, so a
+ * field added to one without the other silently stops propagating.
  */
 export interface SuppressionMarkerInput {
   file: string;
   line: number;
   aspectId: string;
   reason: string;
-  risk?: 'wildcard' | 'unbounded' | 'inert' | 'typo';
+  /**
+   * Suppression scope shape — 'line' (single marker line), 'range' (start/end block), or
+   * 'file' (whole-file marker, no per-line/range scope). Drives the listing's scope label;
+   * independent of `risk`, which flags WHY the waiver itself is suspect, not its shape.
+   */
+  form: 'line' | 'range' | 'file';
+  /**
+   * Resolved risk flag, or absent when the marker is clean. `'errs-under'` flags a waiver
+   * on an aspect whose status can never itself error (`errs: 'under'`) — it waives nothing
+   * that could actually fire. Precedence when a marker could read more than one: wildcard >
+   * typo > inert > errs-under > unbounded.
+   */
+  risk?: 'wildcard' | 'unbounded' | 'inert' | 'typo' | 'errs-under';
 }
 
 export interface PortalSuppression {
@@ -361,7 +402,10 @@ export interface PortalSuppression {
   file: string;
   line: number;
   reason: string;
-  risk?: 'wildcard' | 'unbounded' | 'inert' | 'typo';
+  /** See `SuppressionMarkerInput.form` — carried through unchanged. */
+  form: 'line' | 'range' | 'file';
+  /** See `SuppressionMarkerInput.risk` — carried through unchanged. */
+  risk?: 'wildcard' | 'unbounded' | 'inert' | 'typo' | 'errs-under';
 }
 
 /**
@@ -392,12 +436,78 @@ export interface HubEntry {
   count: number;
 }
 
+/** One member (a single pair) inside a `WorklistGroup` — the per-row detail the group's shared why/fix cannot carry. */
+export interface WorklistMember {
+  /** Subject component (nodePath). */
+  node?: string;
+  /** Subject file (nodeless `file:` unit) — exactly one of `node`/`file` is set. */
+  file?: string;
+  /** Per-line annotation for code-only groups (unverified). */
+  aspectId?: string;
+  /** Present ONLY when `group.divergentWhy`. */
+  why?: string;
+  /** Present ONLY when `group.divergentNext`. */
+  next?: string;
+  /** `messageData.what.split('\n').slice(1)` — tail only; present ONLY for FULL_WHAT codes. */
+  whatLines?: string[];
+  /**
+   * The member's own distinguishing text — carried when NEITHER the subject (`node`/`file`)
+   * NOR `aspectId` already tells this member apart from its siblings, mirroring the terminal's
+   * own fallback (`renderRepoLevelGroup`'s per-member `what`; `renderGroup`'s member-bullet
+   * `aspectId`-or-first-line fallback). Two disjoint cases, never both:
+   *   - A REPO-LEVEL member (`node` and `file` both absent — a stale committed digest, an
+   *     unreadable lock): the FULL `messageData.what`, every line. For a repo-level finding
+   *     that text IS the entire content — nothing is dropped, not even line 0.
+   *   - A subject-bearing member with no `aspectId` to annotate it with (neither the group nor
+   *     the member itself carries one — a broken mapping entry, a missing log entry): the
+   *     FIRST line of `messageData.what` only, enough to tell two same-code members apart.
+   * Differs from `whatLines` in both shape and trigger: `whatLines` is the TAIL (every line
+   * AFTER the first) of a FULL_WHAT code's `what`, carrying the reviewer's detailed reason
+   * alongside a subject that already identifies the member; `what` is a STAND-IN identifier for
+   * a member no other field identifies. The two never both populate on the same member — a
+   * FULL_WHAT code never sets `what`, and this field is never set once `aspectId` is.
+   */
+  what?: string;
+}
+
+/**
+ * One severity-homogeneous, code-homogeneous group of issues — the portal's mirror of the
+ * CLI's `IssueGroup` (via `groupIssues`), split by severity BEFORE grouping so a group never
+ * mixes errors and warnings under one badge.
+ */
 export interface WorklistGroup {
+  /** Badge state keys off THIS (never the display label `rule`). */
+  code: string;
+  /** Display label (`getIssueLabel`). */
   rule: string;
+  /** Rulebook deep-link target; absent for code-only groups (no link). */
+  aspectId?: string;
   severity: 'error' | 'warning';
+  pairCount: number;
+  nodeCount: number;
+  fileCount: number;
+  /** `sharedWhy`. */
+  why: string;
+  /** `sharedNext`. */
+  fix: string;
+  divergentWhy: boolean;
+  divergentNext: boolean;
+  perMemberReason: boolean;
+  members: WorklistMember[];
+}
+
+/**
+ * The coverage block the CLI renders OUTSIDE groups (`renderUnmappedBlock`). Without this,
+ * excluding coverage codes from grouping would silently drop them from the worklist — the
+ * exact "All clear on a red build" honesty regression the portal exists to prevent.
+ */
+export interface WorklistCoverageBlock {
+  /** `'unmapped-files' | 'uncovered-advisory'`. */
+  code: string;
+  severity: 'error' | 'warning';
+  files: string[];
   why: string;
   fix: string;
-  nodes: string[];
 }
 
 /**
@@ -415,20 +525,23 @@ export interface PortalTypeCoveredFile {
   type: string;
   enforced: boolean;
   /**
-   * `enforced` names architecture-level status, never a recorded verdict —
-   * true when the lock holds no CURRENT valid entry for at least one of this
-   * file's nodeless pairs. Always false when `enforced` is false: a file with
-   * no real pair has nothing to have a verdict for in the first place. Read
-   * straight off `LockVerification.pairs` — the full re-verification the
-   * extraction already runs for every other count it reports (`core/verify-
-   * lock.ts#verifyPairs`, the same engine `yg check` itself runs), so this
-   * costs no second pass. Catches a pair the lock has never recorded at all
-   * AND one whose recorded verdict has gone stale since a source edit — the
-   * same "no valid verdict on record" fact `yg check`, `yg owner --file`, and
-   * `yg context --file` already name for the identical pair, so this can
-   * never read false for a file those surfaces would call unverified.
+   * ABSENT iff `enforced === false` (zero pairs — `worstPairState`'s empty-seed would
+   * fabricate green; the unenforced listing keeps its no-rule badge untouched instead of
+   * reading a fake verified/unverified). When `enforced` is true: worst-state-wins over the
+   * file's nodeless pairs — refused > unverified > warning > verified — reusing
+   * `worstPairState` on a guaranteed-non-empty list, with each pair read through
+   * `displayPairState` first so an advisory refusal still renders as `warning`, never a
+   * blocking `refused`. This REPLACES the old `unverified: boolean` field: a refused pair
+   * is a valid lock entry, so the old boolean rendered a refusal indistinguishable from
+   * verified — `pairState` names the real outcome instead.
    */
-  unverified: boolean;
+  pairState?: Exclude<PortalPairState, 'n/a'>;
+  /**
+   * Refusal reasons; rendered for BOTH `refused` and `warning` pairState — an advisory
+   * refusal's reason must not be dropped just because it renders as a warning, not a block.
+   * Absent when `pairState` is absent or carries no refusal (`verified`/`unverified`).
+   */
+  reasons?: string[];
 }
 
 /**
@@ -567,5 +680,12 @@ export interface PortalData {
   suppressions: PortalSuppression[];
   hubs: { fanIn: HubEntry[]; fanOut: HubEntry[] };
   worklist: WorklistGroup[];
+  /**
+   * Coverage-only issues (`unmapped-files` / `uncovered-advisory`) — rendered OUTSIDE
+   * `worklist`, mirroring the CLI's `renderUnmappedBlock` placement. Excluding these codes
+   * from grouping must never silently drop them from "needs attention": every consumer that
+   * counts or renders the worklist must fold this array in too.
+   */
+  worklistCoverage: WorklistCoverageBlock[];
   residue: PortalResidue;
 }

@@ -1,0 +1,7 @@
+name: NoConsole
+description: "Source files must not ship a console.log call — deterministic content check. errs: under, because the check only ever flags the literal token it searched for: it cannot over-approximate, so a waiver against it silences nothing that could actually false-alarm."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+errs: under

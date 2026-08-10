@@ -79,7 +79,7 @@ describe('portal extraction — count parity with yg check (the trust core)', ()
     // The live boundary + suppression inventory, derived from the SAME facade functions
     // the pipeline calls — so the asserted counts come from the engine, not a literal.
     liveBoundary = await computePortalBoundary(graph, REPO_ROOT);
-    const liveMarkers = await scanPortalSuppressions(graph, REPO_ROOT, gitFiles);
+    const { markers: liveMarkers } = await scanPortalSuppressions(graph, REPO_ROOT, gitFiles);
     liveSuppressionCount = liveMarkers.length;
   }, 180_000);
 
@@ -185,7 +185,7 @@ describe('portal extraction — count parity with yg check (the trust core)', ()
     // the portal must report zero phantom edges — never fabricate an undeclared dependency.
     const relationErrors = data.worklist
       .filter((g) => g.rule === 'relation-undeclared-dependency')
-      .reduce((n, g) => n + g.nodes.length, 0);
+      .reduce((n, g) => n + g.nodeCount, 0);
     expect(data.boundary.phantom.length).toBe(relationErrors);
   });
 
@@ -550,15 +550,23 @@ describe('extractPortalData over a real tier-on fixture — a checked file is ne
   it('residue.typeCovered names BOTH type-covered files, each with its matched type and real enforcement state — the checked one and the unchecked one are never rendered the same way', async () => {
     const { data, dir } = await extractWithRealRefusal();
     try {
-      expect(data.residue.typeCovered).toEqual([
-        { path: 'src/lib/util.ts', type: 'lib', enforced: false, unverified: false },
-        // The fill above genuinely wrote its refused verdict to the lock
-        // (`write` there only stubs the printed progress lines, not
-        // persistence) — the lock holds a real entry for this pair, so
-        // `unverified` is false even though the verdict itself is `refused`:
-        // this field names lock PRESENCE, never the verdict outcome.
-        { path: 'src/svc/handler.ts', type: 'svc', enforced: true, unverified: false },
-      ]);
+      expect(data.residue.typeCovered).toHaveLength(2);
+      // buildResidue path-sorts this list — pin that ordering here too (no other
+      // test in this suite covers it).
+      expect(data.residue.typeCovered.map((f) => f.path)).toEqual(['src/lib/util.ts', 'src/svc/handler.ts']);
+      // src/lib/util.ts matches a type with NO aspects at all — zero pairs, so
+      // `pairState` is ABSENT (never a computed 'unverified'/'verified' from an
+      // empty fold — see extract.ts's own guard against that).
+      const util = data.residue.typeCovered.find((f) => f.path === 'src/lib/util.ts');
+      expect(util).toEqual({ path: 'src/lib/util.ts', type: 'lib', enforced: false });
+      // The fill above genuinely wrote its refused verdict to the lock (`write`
+      // there only stubs the printed progress lines, not persistence) — the
+      // lock holds a real REFUSED entry for this pair, so `pairState` names the
+      // verdict itself, not merely "a verdict is on record".
+      const handler = data.residue.typeCovered.find((f) => f.path === 'src/svc/handler.ts');
+      expect(handler!.enforced).toBe(true);
+      expect(handler!.pairState).toBe('refused');
+      expect(handler!.reasons?.some((r) => r.includes('FIXME'))).toBe(true);
       // The post-pass count is derived from this SAME list, so the two can never disagree.
       expect(data.meta.counts.typeCoveredUnenforced).toBe(
         data.residue.typeCovered.filter((f) => !f.enforced).length,
@@ -624,7 +632,7 @@ describe('extractPortalData over a fixture with a real aspect implies cycle — 
       expect(data.residue.typeCovered.map((f) => f.path)).not.toContain('src/cyclic/z.ts');
       expect(data.residue.typeCovered).toHaveLength(6);
       const unenforced = data.residue.typeCovered.filter((f) => !f.enforced);
-      expect(unenforced).toEqual([{ path: 'src/ep/e.ts', type: 'emptyparents', enforced: false, unverified: false }]);
+      expect(unenforced).toEqual([{ path: 'src/ep/e.ts', type: 'emptyparents', enforced: false }]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

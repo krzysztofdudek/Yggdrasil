@@ -1,0 +1,12 @@
+# yg-architecture.yaml — one classifying type with no node of its own, carrying
+# TWO independent deterministic aspects. src/leaf.ts ships a TODO marker but no
+# FIXME marker, so no-todo genuinely refuses it while no-fixme genuinely
+# verifies it — one type-covered file, one refused pair, one verified pair.
+node_types:
+  leaf:
+    description: "Leaf source, classified by type alone — carries two independent deterministic aspects so a single type-covered file produces one refused pair alongside one verified pair, proving the portal folds worst-state-wins across both instead of showing only one."
+    when:
+      path: "src/**/*.ts"
+    aspects:
+      - no-todo
+      - no-fixme

@@ -87,6 +87,7 @@ const MODULE_ORDER = [
   // by the bootstrap's panel slot. All before the bootstrap, which orchestrates the rest.
   'js/views/overview-view.js',
   'js/views/coverage-typecovered.js',
+  'js/views/coverage-worklist.js',
   'js/views/coverage-view.js',
   'js/views/tree-view.js',
   'js/views/relations-matrix.js',
@@ -113,6 +114,7 @@ const CSS_ORDER = [
   'app.css',
   'views.css',
   'views-audit.css',
+  'views-worklist.css',
   'views-panel.css',
   'views-relations.css',
   'views-structure.css',

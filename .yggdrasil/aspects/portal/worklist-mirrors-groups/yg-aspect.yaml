@@ -1,0 +1,17 @@
+name: WorklistMirrorsIssueGroups
+description: >-
+  Guards the CLI's IssueGroup (cli/group-issues.ts) from silently outrunning the portal
+  worklist's WorklistGroup (portal/contract.ts). What is guaranteed, precisely: every
+  IssueGroup field must be pinned to a named WorklistGroup counterpart or explicitly
+  recorded as CLI-only (a new CLI field cannot go unrecorded); a pin can never go stale
+  (it must still name a real IssueGroup field); and a pinned counterpart can never be
+  dropped from WorklistGroup. What is NOT checked, on purpose: a WorklistGroup field added
+  with no IssueGroup counterpart (the portal adding something the CLI never had) is out of
+  this rule's scope — see check.mjs for why. When either interface extends another type in
+  the same file, this check refuses rather than risk comparing an incomplete member set —
+  a deliberate false positive (errs: over), not a bug: the fields may in fact be in sync,
+  but this check cannot show that, so it fails closed instead of guessing. WorklistMember
+  (portal/contract.ts) is also out of scope — it is a conditionally-populated derivation
+  from CheckIssue, not a field-for-field mirror of a single source type, so this rule's
+  shape does not apply to it.
+errs: over

@@ -143,6 +143,13 @@
 .pan-badge-llm {
   color: var(--accent-text);
 }
+.pan-status {
+  font-size: 10px;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: 4px;
+  padding: 0 4px;
+}
 .pan-chan {
   font-size: 10px;
   color: var(--text-muted);

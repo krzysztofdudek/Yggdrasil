@@ -439,7 +439,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     const n = node('n', 'module', ['a'], ['src/x.ts']);
     const graph = { nodes: new Map([['n', n]]), aspects: [aDet], flows: [], architecture: { node_types: {} } } as unknown as Graph;
     const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
-    const supp: PortalSuppression = { aspectId: 'a', file: 'src/x.ts', line: 3, reason: 'ok' };
+    const supp: PortalSuppression = { aspectId: 'a', file: 'src/x.ts', line: 3, reason: 'ok', form: 'line' };
     const byFile = new Map<string, PortalSuppression[]>([['src/x.ts', [supp]], ['other.ts', [{ ...supp, file: 'other.ts' }]]]);
     const logs = new Map([['n', '## [2026-01-01T00:00:00.000Z]\nbody text\n']]);
     const out = buildPortalNodes(graph, {} as never, verification, syntheticCheck([]), logs, { byFile });
@@ -455,7 +455,7 @@ describe('per-node derivation — honest states on synthetic inputs', () => {
     const n = node('n', 'module', ['a'], ['src/**/*.ts']);
     const graph = { nodes: new Map([['n', n]]), aspects: [aDet], flows: [], architecture: { node_types: {} } } as unknown as Graph;
     const verification: LockVerification = { pairs: [vp('a', 'n', { kind: 'verified' })], unreadable: [], drops: [], uncomputableTypeCoverage: [] };
-    const supp: PortalSuppression = { aspectId: 'a', file: 'src/a.ts', line: 3, reason: 'ok' };
+    const supp: PortalSuppression = { aspectId: 'a', file: 'src/a.ts', line: 3, reason: 'ok', form: 'line' };
     const byFile = new Map<string, PortalSuppression[]>([
       ['src/a.ts', [supp]],
       ['other/b.ts', [{ ...supp, file: 'other/b.ts' }]],

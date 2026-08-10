@@ -2,6 +2,7 @@ import type { Graph, AspectDef, FlowDef } from '../model/graph.js';
 import {
   collectDescendants,
   computeEffectiveAspects,
+  resolveAllowedRelations,
   type VerifiedPair,
 } from './engine-api.js';
 import { displayPairState } from './derive-nodes.js';
@@ -208,15 +209,19 @@ export function buildTypes(graph: Graph): PortalType[] {
 
   const types: PortalType[] = [];
   for (const [id, def] of Object.entries(graph.architecture?.node_types ?? {})) {
-    const allowedRelations: Record<string, string[]> = {};
-    for (const [relType, targets] of Object.entries(def.relations ?? {})) {
-      allowedRelations[relType] = [...(targets ?? [])];
-    }
     types.push({
       id,
       ...(def.description ? { description: def.description } : {}),
       parents: def.parents ?? [],
-      allowedRelations,
+      // Resolved allow-list — default/'*'/[] already settled by the SAME engine primitive
+      // semantics the relation-target-forbidden validator uses (see resolveAllowedRelations's
+      // doc). Never re-derive an allow/deny reading from the raw `def.relations` rows here: a
+      // default-allow type (no `relations` table) would render as allow-NOTHING instead.
+      allowed: resolveAllowedRelations(graph, id),
+      // The classifying/organizational badge keys off `when` alone, never off `allowed` —
+      // deriving it from resolved relations would flip every type to "classifying" on a
+      // default-allow graph (see PortalType.classifying's own doc in contract.ts).
+      classifying: def.when !== undefined,
       defaultAspects: def.aspects ?? [],
       strict: def.enforce === 'strict',
       logRequired: def.log_required === true,

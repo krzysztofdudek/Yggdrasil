@@ -1,0 +1,8 @@
+version: "5.2.0"
+
+# The one committed fixture proving the suppression inventory's `form` field and the
+# 'errs-under' risk resolution off a REAL scan (not a synthetic report literal): four
+# files under one real node, each carrying a different waiver shape — a file-head
+# unclosed disable (form: file), a closed disable/enable pair (form: range), a single
+# marker (form: line), and a single marker naming an under-approximating aspect
+# (form: line, risk: errs-under).
