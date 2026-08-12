@@ -47,6 +47,7 @@
       "file:.yggdrasil/aspects/owner-resolution-single-source/check.mjs": {"hash":"1aa157b786832e56fc082df679dbbfa3a2b456bcb56ef3e27d661316eb7beb37","promptChars":12877,"verdict":"approved"},
       "file:.yggdrasil/aspects/parser-yaml-guard/check.mjs": {"hash":"fe9de91733e32e73e5b687d6b4b5c2209c602b5a5d78e9518c4a49e19ad769c9","promptChars":4221,"verdict":"approved"},
       "file:.yggdrasil/aspects/posix-paths-source/check.mjs": {"hash":"f11a932784823b76ac912fa03dcef4b358f23d94986e443e55f8cbefe14f2927","promptChars":4585,"verdict":"approved"},
+      "file:.yggdrasil/aspects/progressive-tier-partition/check.mjs": {"hash":"f19c4ac74c3c695352651bdda8003d16e5da9a3c3b61431c333c3042acb7b530","promptChars":12668,"verdict":"approved"},
       "file:.yggdrasil/aspects/prototype-safe-registry-lookup/check.mjs": {"hash":"d3a582d552279a7b98805febe57a297f6088ab032569f78e52b0382c44433ce6","promptChars":17470,"verdict":"approved"},
       "file:.yggdrasil/aspects/provider-redaction/check.mjs": {"hash":"658b808dc11adaa7c042dbca349d3a28d19e55dc7064669a527b9dbf07869d8b","promptChars":6018,"verdict":"approved"},
       "file:.yggdrasil/aspects/read-or-default-via-helper/check.mjs": {"hash":"7938d3ceff98c6121119272b4968a1f63e0c8aa53223f270ec309fe27e8a566e","promptChars":4980,"verdict":"approved"},

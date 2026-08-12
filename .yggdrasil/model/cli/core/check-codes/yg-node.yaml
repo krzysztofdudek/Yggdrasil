@@ -1,7 +1,8 @@
 name: Check Codes
 type: engine
 description: "Single source of truth for issue-code categories (structural, completeness) shared between the check engine's summary tally and the check command's error grouping, so the two can never diverge."
-aspects: []
+aspects:
+  - progressive-tier-partition
 relations: []
 mapping:
   - source/cli/src/core/check-codes.ts

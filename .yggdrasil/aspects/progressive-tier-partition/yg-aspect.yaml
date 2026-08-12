@@ -1,0 +1,25 @@
+name: ProgressiveTierPartition
+description: >-
+  Guards the SCOPED_CODES partition in check-codes.ts — the declaration of
+  which issue codes progressive mode may ever consider downgrading from a
+  blocking error to a non-blocking warning. Refuses four ways that
+  declaration can quietly drift: (1) a STRUCTURAL_CODES member entering
+  SCOPED_CODES without being one of the file's own documented carve-outs —
+  membership with no stated reason is the drift this rule exists to catch;
+  (2) any overlap between SCOPED_CODES and APPROVE_GATING_CODES, since a
+  fill-abort reason can never be a downgrade candidate; (3) OUTSIDE_CODES
+  hand-listed as a literal array instead of derived from SCOPED_CODES via
+  outsideTwin, which lets the two sets drift apart the next time only one is
+  edited; (4) a second spelling of the '-outside' suffix anywhere in the file
+  outside outsideTwin(), the file's own sanctioned single spelling site.
+  Everything is derived from a live parse of check-codes.ts itself — the
+  carve-out set is read off the array's own trailing documented run, not
+  hand-copied here — so a declaration this check cannot confidently
+  recognize is skipped rather than guessed at (errs: under). Ships as
+  status: draft — inert until the progressive-mode feature it protects is
+  complete.
+errs: under
+reviewer:
+  type: deterministic
+status: draft
+review_by: 2027-02-12
