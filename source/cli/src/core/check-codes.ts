@@ -162,6 +162,93 @@ export const APPROVE_GATING_CODES = new Set<string>([
 ]);
 
 /**
+ * Wide-tier scoped codes — the codes progressive mode is ever allowed to consider
+ * downgrading from a blocking error to a non-blocking warning when a change cannot
+ * be honestly held accountable for them. Nothing consumes this set yet; declaring
+ * it is the whole of this module's job here. Everything NOT in this set keeps
+ * blocking unconditionally, forever, regardless of what a future consumer does —
+ * so membership is doctrine, not convenience. Adding a code requires its own
+ * documented policy rationale, the same bar as every entry below; it must never
+ * be added merely because a downgrade would be convenient for some caller.
+ *
+ * Four codes are deliberate carve-outs FROM `STRUCTURAL_CODES` above: each stays a
+ * structural member (self-consistency of the graph still requires it to block
+ * unconditionally today) AND is admitted here, because each is a
+ * code-versus-graph drift finding — a brownfield reality an adopter inherits from
+ * code that predates or diverges from the graph — rather than a graph-authoring
+ * self-inconsistency the graph author alone could have avoided:
+ *
+ *   - relation-undeclared-dependency — the drift is between the SOURCE TREE's
+ *     import graph and the architecture's declared relations; the graph itself
+ *     is well-formed, but the code a change touches may or may not be the code
+ *     that introduced the undeclared edge.
+ *   - type-relation-forbidden — same shape, one layer more specific: a
+ *     statically-resolved import between two classified endpoints has no
+ *     allowed relation type. The architecture's allow-list is not wrong; the
+ *     code's actual dependency is what disagrees with it.
+ *   - ambiguous-node-type — an uncovered FILE's own shape matches two
+ *     classifying types at once. Nothing about the type definitions is
+ *     self-contradictory; the file is the thing that is ambiguous, and a
+ *     change that never touched it did not create the ambiguity.
+ *   - type-when-mismatch — a node's own mapped file fails its declared type's
+ *     `when:` predicate. The type definition and the node's declaration are
+ *     both well-formed; the drift is between the file's actual content and
+ *     the shape the graph asserts for it — exactly the same family as the
+ *     three above, just keyed to a node's own mapping instead of a relation.
+ *
+ * No other `STRUCTURAL_CODES` member may be added here without the same kind of
+ * documented rationale — a code stays out by default.
+ */
+export const SCOPED_CODES = new Set<string>([
+  // Pair-verdict codes: a reviewer/deterministic verdict a change's own pairs
+  // did or did not reach.
+  'unverified',
+  'aspect-violation-enforced',
+  'prompt-too-large',
+  'aspect-companion-runtime-error',
+  // Log-gate codes: a component's log is its own channel, reached only when
+  // the component itself is touched.
+  'log-entry-missing',
+  'log-integrity',
+  'log-format',
+  'log-conflict',
+  // Metadata completeness: a per-node fact, reached only when that node is
+  // touched.
+  'description-missing',
+  // Coverage codes: per-file findings, reached only when the named file is
+  // touched.
+  'unmapped-files',
+  'tracked-file-gitignored',
+  // Strict-mapping codes: per-file/per-node overlap findings, reached only
+  // when the file or node in question is touched.
+  'type-strict-orphan',
+  'type-strict-misplaced',
+  'strict-overlap-conflict',
+  // Carve-outs from STRUCTURAL_CODES — see the four rationale bullets above.
+  'type-when-mismatch',
+  'relation-undeclared-dependency',
+  'type-relation-forbidden',
+  'ambiguous-node-type',
+]);
+
+/**
+ * The ONLY place the `-outside` suffix is spelled. Every producer and consumer
+ * of an outside-twin code must call this function rather than re-spelling the
+ * suffix inline — a hand-spelled copy that drifts from this one would silently
+ * stop matching, defeating the twin scheme without raising any error.
+ */
+export function outsideTwin(code: string): string {
+  return `${code}-outside`;
+}
+
+/**
+ * The outside-twin of every `SCOPED_CODES` member, derived — never hand-listed.
+ * A hand-listed copy would drift from `SCOPED_CODES` the first time this set
+ * changes and nobody remembered to update a parallel list.
+ */
+export const OUTSIDE_CODES = new Set<string>(Array.from(SCOPED_CODES, outsideTwin));
+
+/**
  * Non-blocking warning codes. Warnings are emitted at `severity: 'warning'` and
  * render in the grouped Warnings block; they are deliberately NOT members of the
  * three sets above (STRUCTURAL / COMPLETENESS / APPROVE_GATING), because those

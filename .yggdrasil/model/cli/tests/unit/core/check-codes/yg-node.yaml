@@ -1,0 +1,15 @@
+name: Check Codes Unit Tests
+type: test-suite
+description: "Unit tests for the check-codes issue-code partition — every
+  SCOPED_CODES member is either absent from STRUCTURAL_CODES or one of the
+  four named carve-outs, the carve-out set is asserted by exact membership
+  (not just count), SCOPED_CODES never overlaps APPROVE_GATING_CODES, the
+  always-blocking codes stay excluded, outsideTwin round-trips and is the
+  only spelling of the -outside suffix, and OUTSIDE_CODES never collides
+  with STRUCTURAL_CODES."
+aspects: []
+relations:
+  - target: cli/core/check-codes
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/check-codes-partition.test.ts
