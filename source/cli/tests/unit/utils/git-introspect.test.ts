@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
-import { mkdtemp, rm, writeFile, stat, unlink, mkdir, appendFile, chmod } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, stat, unlink, mkdir, appendFile, chmod, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import {
   getMergeParents,
@@ -215,6 +215,60 @@ describe('parsePorcelainZ', () => {
     expect(result.files.size).toBe(0);
     expect(result.renames).toEqual([]);
   });
+
+  it('throws a descriptive (not a bare TypeError) error on a rename record truncated mid-stream', () => {
+    // "R  to-name.txt" with NO companion "from" record after it — the NUL
+    // stream ends (or is otherwise malformed) exactly where a second record
+    // was required. Regression pin for the low-level `TypeError` this used to
+    // throw ("Cannot read properties of undefined (reading 'replace')") deep
+    // inside `toPosixPath`, which named neither the parser nor what was
+    // expected.
+    const buf = Buffer.from('R  to-name.txt\0', 'utf8');
+    expect(() => parsePorcelainZ(buf)).toThrow(/parsePorcelainZ.*truncated/i);
+  });
+
+  it('a real repo with status.renames=copies: a copy record is consumed correctly (both sides in files, no renames entry, no phantom path)', async () => {
+    // `status.renames=copies` is a documented, NON-DEFAULT git config value —
+    // reachable purely via an adopter's ambient config, no flag of ours
+    // involved. Regression fixture for a Critical review finding: before the
+    // fix, an unrecognized `C` status fell into the ordinary-record branch,
+    // which read the copy's "from" companion record as if it were a bare
+    // path — injecting a phantom entry and, on the diff side, desyncing every
+    // record after it. Mirrors the review's own real-repo repro exactly:
+    // `git -c status.renames=copies status --porcelain=v1 -z -uall` on a
+    // file edited AND copied in the same pass produces
+    // `M  a.txt\0C  b.txt\0a.txt\0` — confirmed against this environment's
+    // git (2.54.0) before writing this assertion.
+    const repo = await mkdtemp(path.join(tmpdir(), 'yg-copy-status-'));
+    dirs.push(repo);
+    const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+    r('git init -q -b main');
+    r('git config user.email t@t.test');
+    r('git config user.name Test');
+    await writeFile(path.join(repo, 'a.txt'), RENAME_BASE_BODY);
+    r('git add -A && git commit -qm base');
+    await appendFile(path.join(repo, 'a.txt'), 'line 21 edited\n');
+    await copyFile(path.join(repo, 'a.txt'), path.join(repo, 'b.txt'));
+    r('git add -A');
+
+    const buf = execSync('git -c status.renames=copies status --porcelain=v1 -z -uall', {
+      cwd: repo,
+      env: gitFixtureEnv(repo),
+    });
+
+    const result = parsePorcelainZ(buf);
+
+    expect([...result.files].sort()).toEqual(['a.txt', 'b.txt']);
+    // A copy is not a rename: the source (a.txt) is untouched-but-still-valid,
+    // not invalidated, so it must not appear as a `renames` edge.
+    expect(result.renames).toEqual([]);
+    // No phantom path from mis-slicing the companion "from" record as if it
+    // carried its own "XY " status prefix (e.g. the bug's "xt" from
+    // "a.txt".slice(3)).
+    for (const f of result.files) {
+      expect(f).not.toBe('xt');
+    }
+  });
 });
 
 describe('parseDiffNameStatusZ', () => {
@@ -238,6 +292,66 @@ describe('parseDiffNameStatusZ', () => {
     const result = parseDiffNameStatusZ(Buffer.from('', 'utf8'));
     expect(result.files.size).toBe(0);
     expect(result.renames).toEqual([]);
+  });
+
+  it('throws a descriptive (not a bare TypeError) error on an ordinary record truncated mid-stream', () => {
+    // A bare status token "A" with NO path record after it.
+    const buf = Buffer.from('A\0', 'utf8');
+    expect(() => parseDiffNameStatusZ(buf)).toThrow(/parseDiffNameStatusZ.*truncated/i);
+  });
+
+  it('throws a descriptive (not a bare TypeError) error on a rename record truncated after only the "from" path', () => {
+    const buf = Buffer.from('R087\0old-name.txt\0', 'utf8');
+    expect(() => parseDiffNameStatusZ(buf)).toThrow(/parseDiffNameStatusZ.*truncated/i);
+  });
+
+  it('a real repo with diff.renames=copies: a copy record does NOT desync the rename record that follows it (both correct, no phantom path, exactly one renames entry)', async () => {
+    // `diff.renames=copies` is a documented, NON-DEFAULT git config value —
+    // reachable purely via an adopter's ambient config, no flag of ours
+    // involved. This is the WORSE half of the Critical review finding: an
+    // unrecognized `C` status used to fall into the ordinary-record branch,
+    // which consumed only ONE of its two companion records as a bare path —
+    // permanently losing the stream's 1-token alignment, so the genuine `R`
+    // record immediately after it was misread too (a phantom path built from
+    // the score token itself, e.g. "R096"). Mirrors the review's own
+    // real-repo repro exactly: one base file renamed AND copied in the same
+    // commit produces, with copies enabled,
+    // `C100\0source-file.txt\0copied-file.txt\0R100\0source-file.txt\0renamed-file.txt\0`
+    // — confirmed against this environment's git (2.54.0) before writing this
+    // assertion. The copy record deliberately comes FIRST so a fix that only
+    // "worked" for a copy at the end of the stream would still fail here.
+    const repo = await mkdtemp(path.join(tmpdir(), 'yg-copy-diff-'));
+    dirs.push(repo);
+    const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+    r('git init -q -b main');
+    r('git config user.email t@t.test');
+    r('git config user.name Test');
+    await writeFile(path.join(repo, 'source-file.txt'), RENAME_BASE_BODY);
+    r('git add -A && git commit -qm base');
+    const mergeBase = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) })
+      .toString()
+      .trim();
+    r('git mv source-file.txt renamed-file.txt');
+    await copyFile(path.join(repo, 'renamed-file.txt'), path.join(repo, 'copied-file.txt'));
+    r('git add -A && git commit -qm "rename + copy"');
+
+    const buf = execSync(`git -c diff.renames=copies diff --name-status -z ${mergeBase}..HEAD`, {
+      cwd: repo,
+      env: gitFixtureEnv(repo),
+    });
+
+    const result = parseDiffNameStatusZ(buf);
+
+    expect([...result.files].sort()).toEqual(
+      ['copied-file.txt', 'renamed-file.txt', 'source-file.txt'].sort(),
+    );
+    // Exactly the genuine rename — the copy must NOT also appear as a
+    // renames edge (its source persists, unlike a rename's).
+    expect(result.renames).toEqual([{ from: 'source-file.txt', to: 'renamed-file.txt' }]);
+    // No phantom path built from a misread score/status token.
+    for (const f of result.files) {
+      expect(f).not.toMatch(/^[RC]\d/);
+    }
   });
 });
 

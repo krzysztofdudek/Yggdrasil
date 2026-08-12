@@ -96,10 +96,42 @@ export interface RenamePair {
  * used to apply and must be confirmed intentionally dropped). `renames` is the
  * subset of that same information callers need in edge form (old -> new)
  * rather than as an unordered set.
+ *
+ * A COPY (git status code `C` — never produced by the default `-uall`/
+ * `--name-status` invocations this module runs, but reachable purely via the
+ * non-default `status.renames`/`diff.renames` config value `copies`/`copy`,
+ * which an adopter's ambient `~/.gitconfig` can set with no flag on our
+ * command line at all) is deliberately NOT a `RenamePair`: unlike a rename,
+ * the source path is untouched and still valid — nothing was invalidated.
+ * Both the copy's source and destination still land in `files` (either one
+ * differing from the merge-base is a legitimate reason to re-gate), just not
+ * as a `renames` edge.
  */
 export interface ChangedFiles {
   files: Set<string>;
   renames: RenamePair[];
+}
+
+/**
+ * Returns `tokens[i]`, or throws a descriptive, named error if the NUL-record
+ * stream ended (or is otherwise malformed) before a required companion token —
+ * e.g. a rename/copy record's from/to path, or an ordinary diff record's path.
+ * Without this, the same situation throws deep inside `toPosixPath` as a bare
+ * "Cannot read properties of undefined" `TypeError`, which is accurate but
+ * tells a reader nothing about which parser or which record shape broke.
+ * Both callers still just want ONE outcome either way — thrown, and caught by
+ * {@link changedFilesAgainst}'s catch-all, degrading to `null` exactly like
+ * any other parse failure — this only makes that failure legible if it is
+ * ever hit directly (e.g. in a unit test) rather than through that catch.
+ */
+function requireToken(tokens: string[], i: number, parserName: string, what: string): string {
+  const token = tokens[i];
+  if (token === undefined) {
+    throw new Error(
+      `${parserName}: truncated NUL-record stream — expected ${what} after record ${i - 1}`,
+    );
+  }
+  return token;
 }
 
 /**
@@ -110,7 +142,7 @@ export interface ChangedFiles {
  *   - ordinary: `XY <path>` — two status chars, one separator space, then the
  *     path verbatim. `X`/`Y` are the index/worktree status chars (a space
  *     means "no change on that side"); this parser does not need to inspect
- *     them beyond checking position 0 for `R`.
+ *     them beyond checking position 0 for `R`/`C`.
  *   - rename: `R  <to>` immediately followed by a SEPARATE raw `<from>`
  *     record (no `XY ` prefix on the second one) — the renamed-FROM path packs
  *     AFTER the renamed-TO path here. This is the opposite field order from
@@ -119,6 +151,14 @@ export interface ChangedFiles {
  *     code would need a branch per caller anyway, and a shared implementation
  *     is a more tempting place to introduce a from/to mixup than two short,
  *     independently-obvious functions.
+ *   - copy: `C  <to>` followed by a SEPARATE raw `<from>` record — the SAME
+ *     to-then-from field order as a rename, just a different status letter.
+ *     Not reachable via the default command line this module runs, but
+ *     reachable via the non-default `status.renames=copies` git config value
+ *     with no flag of ours involved at all — see {@link ChangedFiles}'s doc
+ *     comment for why it still must consume its companion token (so it
+ *     doesn't desync every record after it) while landing only in `files`,
+ *     never `renames`.
  *
  * Exported standalone (not just via {@link changedFilesAgainst}) so its
  * from/to field order can be pinned by a literal-byte unit test, independent
@@ -134,11 +174,13 @@ export function parsePorcelainZ(buf: Buffer): ChangedFiles {
     // Position 3 skips the fixed "XY " prefix (index status, worktree status,
     // one separator space) — the path is verbatim from there, spaces and all.
     const recordPath = toPosixPath(record.slice(3));
-    if (indexStatus === 'R') {
-      const from = toPosixPath(tokens[++i]);
+    if (indexStatus === 'R' || indexStatus === 'C') {
+      const from = toPosixPath(
+        requireToken(tokens, ++i, 'parsePorcelainZ', 'a rename/copy "from" companion record'),
+      );
       files.add(from);
       files.add(recordPath);
-      renames.push({ from, to: recordPath });
+      if (indexStatus === 'R') renames.push({ from, to: recordPath });
     } else {
       files.add(recordPath);
     }
@@ -157,6 +199,18 @@ export function parsePorcelainZ(buf: Buffer): ChangedFiles {
  *     `<from>` record, then a `<to>` record — from BEFORE to, the opposite
  *     order from {@link parsePorcelainZ}'s rename record. See that function's
  *     doc comment for why the two parsers do not share rename logic.
+ *   - copy: a `C<score>` status record (e.g. `C096`) followed by `<from>`
+ *     then `<to>` — the SAME from-then-to order as a rename, just a
+ *     different status letter. Not reachable via the default command line
+ *     this module runs, but reachable via the non-default
+ *     `diff.renames=copies` git config value with no flag of ours involved at
+ *     all: WITHOUT special-casing it, its status token falls into the
+ *     ordinary branch below, which reads the copy's `<from>` path as if it
+ *     were a complete record's `<path>` — silently dropping the real `<to>`
+ *     path and leaving the NEXT record's own status token to be misread as a
+ *     bogus path, corrupting every record after it, not just this one. See
+ *     {@link ChangedFiles}'s doc comment for why a copy still lands only in
+ *     `files`, never `renames`.
  *
  * Exported standalone (not just via {@link changedFilesAgainst}) so its
  * from/to field order can be pinned by a literal-byte unit test, independent
@@ -168,14 +222,20 @@ export function parseDiffNameStatusZ(buf: Buffer): ChangedFiles {
   const tokens = buf.toString('utf8').split('\0').filter((t) => t.length > 0);
   for (let i = 0; i < tokens.length; i++) {
     const status = tokens[i];
-    if (status[0] === 'R') {
-      const from = toPosixPath(tokens[++i]);
-      const to = toPosixPath(tokens[++i]);
+    if (status[0] === 'R' || status[0] === 'C') {
+      const from = toPosixPath(
+        requireToken(tokens, ++i, 'parseDiffNameStatusZ', 'a rename/copy "from" record'),
+      );
+      const to = toPosixPath(
+        requireToken(tokens, ++i, 'parseDiffNameStatusZ', 'a rename/copy "to" record'),
+      );
       files.add(from);
       files.add(to);
-      renames.push({ from, to });
+      if (status[0] === 'R') renames.push({ from, to });
     } else {
-      const recordPath = toPosixPath(tokens[++i]);
+      const recordPath = toPosixPath(
+        requireToken(tokens, ++i, 'parseDiffNameStatusZ', "an ordinary record's path"),
+      );
       files.add(recordPath);
     }
   }
