@@ -180,7 +180,12 @@ const SIDE_EFFECT_ONLY = new Map([
  * rewrite shape the derivation carries the member on its own and the entry is
  * redundant; keep this map SHORT and delete an entry as soon as it is.
  */
-const ISSUE_TRANSFORM = new Map([]);
+const ISSUE_TRANSFORM = new Map([
+  [
+    'changeScope',
+    "carries which of this run's obligations the current change is accountable for, plus the name it was measured against. Scope decides which issues a run reports as blocking and which it re-codes as pre-existing, so it alters the issue set by definition and can never be side-effect-only. runCheck's body does not read it yet — the classification step that rewrites the assembled list with it lands separately — so it is demanded at every call site first, which is the whole point: a surface that had not been threaded before that step arrived would silently report a different issue set from every other.",
+  ],
+]);
 
 /** tree-sitter counts `comment` as a NAMED child of argument lists, parameter
  *  lists, object literals and interface bodies. A comment is never a positional

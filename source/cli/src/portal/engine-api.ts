@@ -178,6 +178,16 @@ export async function runPortalCheck(
     rulesArtifacts: await readRulesArtifacts(path.dirname(graph.rootPath)),
     trackedFiles: listGitTrackedFiles(path.dirname(graph.rootPath)),
     precomputedTypeCoverage,
+    // DELIBERATELY unscoped, and not an omission to be "fixed" later. Every
+    // other input above is supplied precisely because leaving it out would make
+    // the portal quietly report less than the command line does. This one is
+    // the opposite: the portal is the whole project's standing picture — what
+    // is verified, what is refused, what is owed — read by someone who did not
+    // necessarily make the current change and is not being asked to answer for
+    // it. Narrowing it to one change's scope would hide real, outstanding work
+    // behind whatever happened to be edited in this working tree. The command
+    // line is where a change is judged; this page is where the project is.
+    changeScope: undefined,
   });
 }
 

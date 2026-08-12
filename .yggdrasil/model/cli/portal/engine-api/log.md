@@ -115,3 +115,5 @@ it is. The scan module re-exports the adaptation so existing callers are
 unaffected. A redundant guard was dropped in the same pass — range-closing
 markers are already filtered out before the risk decision runs, so testing for
 them again there could never be false.
+## [2026-08-12T12:58:59.818Z]
+The portal gateway now states explicitly that it asks for the whole project rather than the scope of the current change. Every other input it supplies exists so the page never reports less than the command line does; this one is the opposite. The page is the project standing picture, read by people who did not make the change sitting in the working tree, so narrowing it to that change would hide real outstanding work behind whatever happened to be edited.

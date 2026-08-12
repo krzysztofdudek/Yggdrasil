@@ -5,6 +5,7 @@ description: >-
   set from: two issue-gating options written as the ternary the derivation
   matches, one whole-list rewrite written as the shape the second derivation
   matches, a near miss of that rewrite whose branches are different lists, one
+  member declared ahead of its consumer that the body never reads, one
   byproduct switch written as an if-statement, and a same-file helper carrying
   its own gating ternary and its own rewrite, neither of which may leak into
   the derived key set.

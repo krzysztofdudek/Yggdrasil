@@ -60,6 +60,7 @@ import { computeTypeCoverageCached } from './type-coverage.js';
 import type { TypeCoverageResult } from './type-coverage.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { validate } from './validator.js';
+import type { BurnSet } from './progressive-scope.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
 import type { RulesArtifacts } from './checks/digest-gate.js';
@@ -128,12 +129,19 @@ export {
  *        rules-distribution artifacts plus the installed CLI's canonical
  *        digest, for the committed-digest staleness gate; same absence-skips
  *        seam as `nowUtc`. Read-only.
+ * @param options.changeScope -- INJECTED change scope. Plain data: the burn
+ *        set a caller already computed plus the name it was measured against.
+ *        Core touches no git and resolves no reference itself. Nothing here
+ *        reads it yet, so supplying it changes no issue, count, or exit code.
  */
-// Each field below is either ISSUE-GATING (`options?.<key> ? <issues> : []` —
-// absence silently skips a check) or a side-effect switch. A NEW optional field
-// must be one or the other, or `.yggdrasil/aspects/runcheck-injected-input-parity`
-// refuses it as unclassified: write the ternary, or list it in that check.mjs's
-// SIDE_EFFECT_ONLY allowlist with a reason.
+// Each field below is ISSUE-GATING (`options?.<key> ? <issues> : []` — absence
+// silently skips a check), a WHOLE-LIST REWRITE
+// (`options?.<key> ? fn(list, options.<key>) : list` — absence leaves the whole
+// issue list unrewritten), or a side-effect switch. A NEW optional field must be
+// one of those three, or `.yggdrasil/aspects/runcheck-injected-input-parity`
+// refuses it as unclassified: write one of the two ternaries, or list it in that
+// check.mjs's SIDE_EFFECT_ONLY allowlist (it alters no issue) or its
+// ISSUE_TRANSFORM map (it will, once its consumer lands) with a reason.
 export interface RunCheckOptions {
   /** INJECTED clock for the review-cadence check (spec RZ-18). Absent ⇒ that check is skipped. */
   nowUtc?: () => Date;
@@ -186,6 +194,23 @@ export interface RunCheckOptions {
   precomputedVerification?: LockVerification;
   /** runFill's own fill→check handoff, this run only. Absent ⇒ none (a plain read never fills). */
   runtimeDispositions?: Array<{ file: string; aspectId: string; code: string }>;
+  /**
+   * INJECTED change scope: which of this run's obligations the current change is
+   * accountable for (`burn`), and the plain name it was measured against
+   * (`referenceName`, for the report to quote). PLAIN DATA — the caller computes
+   * the burn set from git output it read itself; core touches no git, resolves no
+   * reference, and reads no files for this.
+   *
+   * INERT for now: nothing in this function reads it, so a caller supplying it
+   * gets a byte-identical result to one that omits it. It is declared and
+   * threaded ahead of its consumer deliberately — every runCheck call site must
+   * already be passing it (explicitly `undefined` where global truth is wanted)
+   * before the classification step that reads it can land, or the surface that
+   * forgot it would silently report a different issue set. That parity is what
+   * `.yggdrasil/aspects/runcheck-injected-input-parity` demands of this member
+   * meanwhile, via its ISSUE_TRANSFORM map.
+   */
+  changeScope?: { burn: BurnSet; referenceName: string };
 }
 
 export async function runCheck(

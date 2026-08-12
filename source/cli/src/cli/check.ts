@@ -452,6 +452,11 @@ export function registerCheckCommand(program: Command): void {
           now: () => new Date(),
           trackedFiles: tracked,
           rulesArtifacts: await readRulesArtifacts(projectRoot),
+          // No change scope yet: this command still reports on the whole project
+          // and computes the progressive view separately, below, after the read.
+          // Passed explicitly so the day a scope IS computed here, the seam is
+          // already threaded rather than silently absent.
+          changeScope: undefined,
         });
         await applyHonestCoverageSplit(result, graph, repoFiles);
         await writeProgressiveView(result.issues);

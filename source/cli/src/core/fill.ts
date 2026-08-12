@@ -240,6 +240,9 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       // re-parsing every mapped source file to rediscover what is already here.
       precomputedRelationPass: relPassResult,
       precomputedVerification: verification,
+      // A cost preview prices the WHOLE project's outstanding work, so it is
+      // deliberately unscoped — see the post-fill report below.
+      changeScope: undefined,
     });
     return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0, runtimeDispositions: [] };
   }
@@ -415,6 +418,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     // (plain `yg check`, or a later separate invocation) passes nothing here and
     // gets runCheck's own empty-array default — the qualified fallback wording.
     runtimeDispositions: det.runtimeDispositions,
+    // The fill stage is handed no change scope of its own: what a fill may
+    // narrow is decided by its caller, and this report describes the lock this
+    // run just wrote, whole. Passed explicitly so a scope arriving later has a
+    // seam to arrive at instead of being quietly dropped here.
+    changeScope: undefined,
   });
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────

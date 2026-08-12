@@ -9,5 +9,6 @@ export function complete(graph: string, files: string[]): string[] {
   return runCheck(graph, files, {
     nowUtc: () => new Date(),
     rulesArtifacts: ['agents-md'],
+    changeScope: 'whole-project',
   });
 }

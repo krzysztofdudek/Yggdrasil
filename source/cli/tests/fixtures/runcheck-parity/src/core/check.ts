@@ -10,6 +10,10 @@
  *     absent input leaves the WHOLE assembled list unrewritten, which no gating
  *     ternary can express, since its alternative is that list and never `[]`;
  *   - a NEAR MISS of that rewrite shape, which must NOT derive;
+ *   - one DECLARED-AHEAD-OF-ITS-CONSUMER option (changeScope) this body never
+ *     reads, so neither derivation can see it and only the rule's
+ *     ISSUE_TRANSFORM map classifies it — demanding it at every call site
+ *     meanwhile;
  *   - six SIDE-EFFECT members (writeFeatureIndex, now, precomputedTypeCoverage,
  *     precomputedRelationPass, precomputedVerification, runtimeDispositions) —
  *     none of them written in either derived shape, so all six must be
@@ -30,6 +34,13 @@ export interface RunCheckOptions {
   rulesArtifacts?: string[];
   /** INJECTED scope. Absent ⇒ the assembled issue list is returned unrewritten. */
   scopeFilter?: string;
+  /**
+   * DECLARED AHEAD OF ITS CONSUMER: issue-affecting, but nothing in this body
+   * reads it yet. Neither derivation can see it, so only the rule's
+   * ISSUE_TRANSFORM map classifies it — and that map demands it at every call
+   * site, which is what this fixture's `declared-omitted` caller proves.
+   */
+  changeScope?: string;
   /** INJECTED already-classified result — reused instead of a fresh classify; never reaches the issue set. */
   precomputedTypeCoverage?: unknown;
   /** An import-resolution pass the caller already ran — decides only whether it is run again. */

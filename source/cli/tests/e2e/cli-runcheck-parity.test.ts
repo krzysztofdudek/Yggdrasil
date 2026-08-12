@@ -37,12 +37,15 @@ import { fileURLToPath } from 'node:url';
 //                           derivation walking the whole file instead of
 //                           runCheck's body would refuse all four compliant
 //                           ones; plus a near miss of the rewrite shape, which
-//                           a looser matcher would derive and demand.
-//   runcheck-parity-drift — a seam whose call site passes every DERIVED option,
-//                           so ONLY the rule's classification half can refuse
-//                           it: a new issue-gating input written in a shape the
-//                           derivation does not match, and a stale entry in the
-//                           rule's side-effect allowlist.
+//                           a looser matcher would derive and demand, and a
+//                           member the seam declares but never reads, demanded
+//                           only by the rule's hand-signed ISSUE_TRANSFORM map.
+//   runcheck-parity-drift — a seam whose call site passes every DERIVED option
+//                           AND every hand-signed one, so ONLY the rule's
+//                           classification half can refuse it: a new
+//                           issue-gating input written in a shape the derivation
+//                           does not match, and a stale entry in the rule's
+//                           side-effect allowlist.
 //
 // Hermetic: each test copies the committed fixture into a fresh mkdtemp tree and
 // removes it in `finally`; zero committed bytes change. No network, no clock, no
@@ -92,10 +95,10 @@ function withFixture(fixture: string, assert: (out: string) => void): void {
 }
 
 describe.skipIf(!distExists)(`${ASPECT_ID} — call-site parity (fixture: runcheck-parity)`, () => {
-  it('refuses exactly the four call sites that provably omit an issue-affecting option', () => {
+  it('refuses exactly the five call sites that provably omit an issue-affecting option', () => {
     withFixture('runcheck-parity', (out) => {
       expect(out).toContain('refused');
-      expect(out).toContain('4 violations');
+      expect(out).toContain('5 violations');
 
       // A caller that supplies the injected clock but not the injected
       // artifacts snapshot — the defect the rule exists to catch, and the proof
@@ -120,6 +123,13 @@ describe.skipIf(!distExists)(`${ASPECT_ID} — call-site parity (fixture: runche
       // derive it — with the rewrite matcher absent, this call site is silent.
       expect(out).toContain('src/callers/transform-omitted.ts');
       expect(out).toContain('missing issue-affecting option(s): scopeFilter');
+
+      // A member the seam declares but does not yet read: no derivation can see
+      // it, so the rule's hand-signed ISSUE_TRANSFORM map is the only thing
+      // demanding it — and it must demand it at every call site, or the surface
+      // that skipped it starts reporting differently the day the consumer lands.
+      expect(out).toContain('src/callers/declared-omitted.ts');
+      expect(out).toContain('missing issue-affecting option(s): changeScope');
 
       // Every violation names the omitted option, and only the omitted one.
       expect(out).toContain('missing issue-affecting option(s): rulesArtifacts');

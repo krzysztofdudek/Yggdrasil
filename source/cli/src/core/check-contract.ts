@@ -36,6 +36,20 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   /** Pair-derived issues only: `pair.unitKey`, so a nodeless member's FILE can
    *  render even though `nodePath` is undefined (same as a repo-level issue). */
   unitKey?: string;
+  /**
+   * Flow-derived issues: the flow this issue concerns. Structured identity for
+   * an issue whose only subject today is prose — a flow is not a node and has no
+   * `nodePath`, so without this there is nothing to match a flow issue against.
+   * Data-only; nothing reads it yet.
+   */
+  flowName?: string;
+  /**
+   * Edge-derived issues (a forbidden dependency and its kin): the concrete
+   * file-to-file edges the issue is about, rather than one example named in the
+   * message. Structured identity for an aggregate issue that has no single
+   * subject file. Data-only; nothing reads it yet.
+   */
+  relationEdges?: Array<{ fromFile: string; toFile: string }>;
 }
 
 export interface CheckResult {
@@ -96,4 +110,15 @@ export interface CheckResult {
   excludedFiles?: number;
   /** Per-file type-tier enforcement report. Undefined at flag-off. */
   typeVisibility?: TypeVisibilityReport;
+  /**
+   * How many issues fell OUTSIDE the change scope this run was given. Undefined
+   * whenever no scope was supplied — which is every run today, since nothing
+   * populates these three yet. They are declared here so the shape a later
+   * report renders from is fixed before anything writes it.
+   */
+  outsideCount?: number;
+  /** The plain name the change was measured against, for the report to quote. */
+  progressiveReference?: string;
+  /** How many changed paths that measurement actually accounted for. */
+  changedInputCount?: number;
 }

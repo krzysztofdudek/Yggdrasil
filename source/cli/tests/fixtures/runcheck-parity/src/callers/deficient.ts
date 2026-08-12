@@ -11,5 +11,6 @@ export function deficient(graph: string, files: string[]): string[] {
   return runCheck(graph, files, {
     nowUtc: () => new Date(),
     scopeFilter: 'in-scope',
+    changeScope: 'whole-project',
   });
 }

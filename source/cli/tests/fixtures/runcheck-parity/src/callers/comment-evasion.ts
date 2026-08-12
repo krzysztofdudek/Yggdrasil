@@ -12,5 +12,6 @@ export function commentEvasion(graph: string, files: string[]): string[] {
   return runCheck(graph, /* boundary-injected */ files, {
     nowUtc: () => new Date(),
     scopeFilter: 'in-scope',
+    changeScope: 'whole-project',
   });
 }

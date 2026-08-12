@@ -13,5 +13,6 @@ export function methodShorthand(graph: string, files: string[]): string[] {
     },
     rulesArtifacts: ['agents-md'],
     scopeFilter: 'in-scope',
+    changeScope: 'whole-project',
   });
 }

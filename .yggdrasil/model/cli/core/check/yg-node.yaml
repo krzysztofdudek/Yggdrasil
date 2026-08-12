@@ -88,6 +88,8 @@ relations:
     type: calls
   - target: cli/core/type-visibility
     type: calls
+  - target: cli/core/progressive-scope
+    type: calls
 mapping:
   - source/cli/src/core/check.ts
   - source/cli/src/core/check-contract.ts

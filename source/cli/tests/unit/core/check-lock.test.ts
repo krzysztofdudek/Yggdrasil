@@ -17,6 +17,8 @@ import type { Graph, GraphNode, AspectDef, LlmConfig, AspectStatus } from '../..
 import type { LockFile } from '../../../src/model/lock.js';
 import { nodeUnit, LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
 import { runCheck } from '../../../src/core/check.js';
+import type { CheckIssue } from '../../../src/core/check.js';
+import type { BurnSet } from '../../../src/core/progressive-scope.js';
 import { writeLock } from '../../../src/io/lock-store.js';
 import { writeSeededLock } from '../helpers/seed-lock.js';
 
@@ -435,5 +437,60 @@ describe('runCheck — verified pair tally split (deterministic vs LLM)', () => 
     expect(result.verifiedLlm).toBe(1);
     expect(result.verifiedDet).toBe(1);
     expect(result.verifiedDet + result.verifiedLlm).toBe(2);
+  });
+});
+
+// ── Change scope: accepted, threaded, and provably inert ──────────────────────
+
+describe('runCheck — change scope is accepted and changes nothing', () => {
+  it('a populated change scope yields a result identical to omitting the option', async () => {
+    writeFile('src/a.ts', 'code');
+    const graph = buildGraph('enforced');
+    const lock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
+    await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
+
+    // The narrowest honest scope there is: a real reference, and nothing at all
+    // burned by the change. It is chosen precisely because it is the value a
+    // consumer would act on most visibly — every issue below is outside it — so
+    // if ANY code read this option, the two results could not match.
+    const burn: BurnSet = {
+      global: false,
+      pairKeys: new Set(),
+      nodePaths: new Set(),
+      files: new Set(),
+      logOnlyNodePaths: new Set(),
+      changedInputCount: 0,
+    };
+
+    const withoutOption = await runCheck(graph, null);
+    const withOption = await runCheck(graph, null, { changeScope: { burn, referenceName: 'origin/main' } });
+
+    // Guard against a vacuous pass: there IS something here that a scope could
+    // have re-coded or dropped.
+    expect(withoutOption.issues.length).toBeGreaterThan(0);
+    expect(withOption).toEqual(withoutOption);
+
+    // …and the result fields a later consumer will populate stay unset, so no
+    // report can start rendering a scope that nothing computed.
+    expect(withOption.outsideCount).toBeUndefined();
+    expect(withOption.progressiveReference).toBeUndefined();
+    expect(withOption.changedInputCount).toBeUndefined();
+  });
+
+  it('an issue can carry flow and edge identity', () => {
+    // Type-level smoke for the two identity fields added alongside the option:
+    // a flow issue has no nodePath to be matched by, and an edge-derived issue
+    // has no single subject file, so both need somewhere structured to say what
+    // they are about. Nothing populates them yet.
+    const issue: CheckIssue = {
+      code: 'description-missing',
+      severity: 'warning',
+      rule: 'description-required',
+      messageData: { what: 'flow lacks a description', why: 'readers cannot tell what it does', next: 'add one' },
+      flowName: 'checkout',
+      relationEdges: [{ fromFile: 'src/a.ts', toFile: 'src/b.ts' }],
+    };
+    expect(issue.flowName).toBe('checkout');
+    expect(issue.relationEdges).toEqual([{ fromFile: 'src/a.ts', toFile: 'src/b.ts' }]);
   });
 });

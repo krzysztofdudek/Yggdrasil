@@ -7,5 +7,6 @@ export function complete(graph: string, files: string[]): string[] {
     nowUtc: () => new Date(),
     rulesArtifacts: ['agents-md'],
     scopeFilter: 'in-scope',
+    changeScope: 'whole-project',
   });
 }

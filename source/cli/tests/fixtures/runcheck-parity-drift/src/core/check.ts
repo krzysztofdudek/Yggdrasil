@@ -24,6 +24,13 @@ export interface RunCheckOptions {
   rulesArtifacts?: string[];
   /** ISSUE-GATING, but written in a shape the derivation does not match. */
   strictMode?: boolean;
+  /**
+   * DECLARED AHEAD OF ITS CONSUMER — nothing in this body reads it. The rule's
+   * ISSUE_TRANSFORM map classifies it and demands it at every call site; the
+   * single caller passes it, so it contributes no violation here. Present so
+   * that map holds no entry naming a member this seam does not declare.
+   */
+  changeScope?: string;
 }
 
 export function runCheck(
