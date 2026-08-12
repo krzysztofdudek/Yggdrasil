@@ -11,8 +11,14 @@
  *   - `now` is gone, but the rule's side-effect allowlist still names it — a
  *     stale exemption that would silently pre-approve any future member taking
  *     that name.
+ *   - this seam declares no `changeScope` at all, while the rule's
+ *     ISSUE_TRANSFORM map names one. That entry demands a key no caller could
+ *     legally pass, so every call site would be judged against something that
+ *     cannot exist — and, left unswept, it would silently pre-classify any
+ *     future member taking that name. The same stale-entry treatment the
+ *     side-effect allowlist gets must apply to the demanding map too.
  *
- * Both must surface as loud, classification-demanding refusals.
+ * All three must surface as loud, classification-demanding refusals.
  */
 
 export interface RunCheckOptions {
@@ -24,13 +30,6 @@ export interface RunCheckOptions {
   rulesArtifacts?: string[];
   /** ISSUE-GATING, but written in a shape the derivation does not match. */
   strictMode?: boolean;
-  /**
-   * DECLARED AHEAD OF ITS CONSUMER — nothing in this body reads it. The rule's
-   * ISSUE_TRANSFORM map classifies it and demands it at every call site; the
-   * single caller passes it, so it contributes no violation here. Present so
-   * that map holds no entry naming a member this seam does not declare.
-   */
-  changeScope?: string;
 }
 
 export function runCheck(

@@ -18,8 +18,9 @@ description: >-
   pass every option that can move the issue set — one that GATES a bounded set
   of issues (an `options?.<key> ? <issues> : []` field) and one consumed as a
   WHOLE-LIST REWRITE of the assembled issues (an
-  `options?.<key> ? <fn>(<list>, options.<key>) : <list>` field, the shape a
-  gate cannot be written in) — but not every field of RunCheckOptions, since
+  `options?.<key> ? <fn>(<list>, options.<key>) : <list>` field whose result is
+  what runCheck RETURNS as its issues, the shape a gate cannot be written in) —
+  but not every field of RunCheckOptions, since
   some fields (`writeFeatureIndex`, `now`) are side-effect switches deliberately
   set at only one call site and alter no issue. CLASSIFICATION: every OPTIONAL
   member of RunCheckOptions must be accounted for — derived from runCheck's own
@@ -33,7 +34,10 @@ description: >-
   `[]` nor the untransformed list) would never be derived, never be demanded at
   a call site, and never be noticed. Only the side-effect allowlist exempts a
   member from the call-site demand; nothing else here can make the rule ask for
-  less.
+  less. Every demand is a provable claim about the issue set runCheck returns:
+  a byproduct assembled in the rewrite shape — a report row, an index — is not
+  the returned list, is not derived, and is never asked for, so the `errs: under`
+  contract holds in both directions.
 
   Everything except the seam's node id and the two hand-signed maps is derived
   live from a single parse of core/check.ts — the runCheck declaration, the

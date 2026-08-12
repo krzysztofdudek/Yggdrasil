@@ -1,0 +1,5 @@
+name: Core
+type: module
+description: Grouping for the fixture's engine core.
+aspects: []
+relations: []

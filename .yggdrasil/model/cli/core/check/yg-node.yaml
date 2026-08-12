@@ -34,8 +34,9 @@ max_direct_relations:
     checks and this node's own feature-index output require. The count grows by one
     each time a new check is added, which is the intended shape: keeping the
     composition in one auditable place is what lets a single run produce one
-    consistent issue set and exit code. The ceiling is the current count (23) plus modest headroom,
-    so a couple of future checks land without churning this allowance while a
+    consistent issue set and exit code. The ceiling is the current count (24, after
+    the scope engine whose burn-set shape this node's options contract names) plus
+    modest headroom, so one more check lands without churning this allowance while a
     larger jump still re-raises the warning for review.
 aspects:
   - posix-paths-output

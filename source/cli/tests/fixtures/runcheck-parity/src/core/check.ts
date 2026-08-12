@@ -6,10 +6,12 @@
  *   - two ISSUE-GATING options written as `options?.<key> ? <issues> : []`
  *     (nowUtc, rulesArtifacts) — absent input silently skips a check;
  *   - one ISSUE-TRANSFORM option written as
- *     `options?.<key> ? <fn>(<list>, options.<key>) : <list>` (scopeFilter) —
- *     absent input leaves the WHOLE assembled list unrewritten, which no gating
- *     ternary can express, since its alternative is that list and never `[]`;
- *   - a NEAR MISS of that rewrite shape, which must NOT derive;
+ *     `options?.<key> ? <fn>(<list>, options.<key>) : <list>` (scopeFilter) whose
+ *     result is what runCheck RETURNS — absent input leaves the WHOLE assembled
+ *     list unrewritten, which no gating ternary can express, since its
+ *     alternative is that list and never `[]`;
+ *   - a NEAR MISS of that rewrite shape that differs in ONE respect only — it
+ *     assembles a byproduct rather than the returned list — and must NOT derive;
  *   - one DECLARED-AHEAD-OF-ITS-CONSUMER option (changeScope) this body never
  *     reads, so neither derivation can see it and only the rule's
  *     ISSUE_TRANSFORM map classifies it — demanding it at every call site
@@ -77,14 +79,17 @@ export function runCheck(
   // missing gate causes, in a shape no gating ternary can be written in.
   const issues = options?.scopeFilter ? rescope(assembled, options.scopeFilter) : assembled;
 
-  // NEAR MISS of that shape — same silhouette, but the two branches are
-  // DIFFERENT lists, so nothing is being rewritten: the option only selects
-  // which already-computed list this run notes. A matcher that accepted any
-  // identifier as the alternative would derive this key and refuse every
-  // compliant caller below, none of which passes it — it is a reuse switch,
-  // classified side-effect-only.
+  // NEAR MISS — a BYPRODUCT assembled in exactly the rewrite shape: conditioned
+  // on the option, the same list on both branches, the option handed to the
+  // transform. One thing and one thing only keeps it from deriving — `noted` is
+  // not what this function returns as its issues. Drop that requirement and this
+  // key is demanded at every caller below, none of which passes it, while the
+  // rule simultaneously contradicts its own side-effect classification of the
+  // member and advises removing it from that list. That is a provable FALSE
+  // POSITIVE on code that alters no issue, which `errs: under` forbids — so this
+  // case is the regression fixture for the returned-list requirement.
   const noted = options?.precomputedVerification
-    ? rescope(digestGateIssues, 'verified')
+    ? annotate(reviewOverdueIssues, options.precomputedVerification)
     : reviewOverdueIssues;
   if (noted.length > 0) writtenIndex.push(`noted:${noted.length}`);
 
@@ -100,6 +105,10 @@ export function runCheck(
 
 function rescope(issues: string[], scope: string): string[] {
   return issues.map((i) => `${scope}:${i}`);
+}
+
+function annotate(rows: string[], marker: unknown): string[] {
+  return rows.map((r) => `${String(marker)}:${r}`);
 }
 
 /**

@@ -3,8 +3,10 @@ type: engine
 description: >-
   A DRIFTED runCheck seam. Its options interface gained an issue-gating member
   written as an if-statement rather than the ternary the derivation matches, and
-  lost a member the rule's side-effect allowlist still names — the two ways the
-  rule's own knowledge can silently fall behind the code it derives from.
+  declares neither a member the rule's side-effect allowlist still names nor the
+  one its issue-transform map still demands — the three ways the rule's own
+  knowledge can silently fall behind the code it derives from, one per
+  hand-signed list plus the derivation itself.
 aspects: []
 relations: []
 mapping:

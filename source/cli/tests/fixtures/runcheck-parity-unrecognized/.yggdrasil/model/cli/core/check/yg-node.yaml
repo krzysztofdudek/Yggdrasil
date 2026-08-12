@@ -1,0 +1,14 @@
+name: Check
+type: engine
+description: >-
+  A runCheck seam that READS the member the rule's issue-transform map lists,
+  in three shapes the whole-list-rewrite derivation does not match. Each read
+  differs from the recognized shape in exactly one respect — the transform
+  rewrites a different list than the one opposite it, the option is never handed
+  to the transform, or the rewritten list is a byproduct rather than the one this
+  function returns as its issues — so each pins one requirement of that matcher
+  on its own.
+aspects: []
+relations: []
+mapping:
+  - src/core/check.ts

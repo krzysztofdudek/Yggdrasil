@@ -17,35 +17,46 @@ import { fileURLToPath } from 'node:url';
 // silent-skip hole (an inline comment among a call's arguments disabled it at
 // that call site) that one negative fixture would have caught on the first run.
 //
-// So the drill corpus is replaced here by two REAL, committed on-disk fixture
-// projects — tests/fixtures/runcheck-parity and .../runcheck-parity-drift —
-// each a self-contained graph plus source, driven through the REAL built binary
-// against the REAL check.mjs. Nothing about the rule is copied or restated: the
-// aspect directory is materialized into each run's temp project straight from
-// `.yggdrasil/aspects/`, so the fixture can never drift from the rule it pins.
+// So the drill corpus is replaced here by three REAL, committed on-disk fixture
+// projects — tests/fixtures/runcheck-parity, .../runcheck-parity-drift and
+// .../runcheck-parity-unrecognized — each a self-contained graph plus source,
+// driven through the REAL built binary against the REAL check.mjs. Nothing about
+// the rule is copied or restated: the aspect directory is materialized into each
+// run's temp project straight from `.yggdrasil/aspects/`, so a fixture can never
+// drift from the rule it pins.
 //
 // What each fixture proves:
 //   runcheck-parity       — every call shape the rule must judge, in ONE node:
-//                           four that PROVABLY omit an issue-affecting option
+//                           five that PROVABLY omit an issue-affecting option
 //                           (must be refused — three omitting a gating option,
 //                           including the two that a comment-blind matcher
-//                           skipped in silence, and one omitting the whole-list
-//                           rewrite) and four that cannot be proven to omit one
-//                           (must stay silent, per `errs: under`). Its seam also
-//                           carries a same-file helper with its own gating
+//                           skipped in silence; one omitting the whole-list
+//                           rewrite; one omitting the member declared ahead of
+//                           its consumer) and four that cannot be proven to omit
+//                           one (must stay silent, per `errs: under`). Its seam
+//                           also carries a same-file helper with its own gating
 //                           ternary AND its own whole-list rewrite, so a
 //                           derivation walking the whole file instead of
-//                           runCheck's body would refuse all four compliant
-//                           ones; plus a near miss of the rewrite shape, which
-//                           a looser matcher would derive and demand, and a
-//                           member the seam declares but never reads, demanded
-//                           only by the rule's hand-signed ISSUE_TRANSFORM map.
-//   runcheck-parity-drift — a seam whose call site passes every DERIVED option
-//                           AND every hand-signed one, so ONLY the rule's
-//                           classification half can refuse it: a new
-//                           issue-gating input written in a shape the derivation
-//                           does not match, and a stale entry in the rule's
-//                           side-effect allowlist.
+//                           runCheck's body would refuse every compliant one;
+//                           and a byproduct assembled in the exact rewrite shape,
+//                           which must not derive because it is not the list
+//                           runCheck returns — the false positive `errs: under`
+//                           forbids.
+//   runcheck-parity-drift — a seam whose call site passes every option the rule
+//                           asks for, so ONLY its classification half can refuse
+//                           it: an issue-gating input written in a shape the
+//                           derivation does not match, plus a STALE entry on each
+//                           hand-signed list — the side-effect allowlist naming a
+//                           member this seam dropped, and the demanding map
+//                           naming one it never declared.
+//   runcheck-parity-      — a seam that READS the member the demanding map lists,
+//   unrecognized            in three shapes the rewrite matcher does not match,
+//                           each differing from it in exactly ONE respect. The
+//                           entry must go UNPROVEN rather than be trusted, and
+//                           every matcher requirement is individually pinned:
+//                           delete any one and that read derives, the unproven
+//                           refusal vanishes, and the call site is refused for
+//                           the omission instead.
 //
 // Hermetic: each test copies the committed fixture into a fresh mkdtemp tree and
 // removes it in `finally`; zero committed bytes change. No network, no clock, no
@@ -163,12 +174,14 @@ describe.skipIf(!distExists)(`${ASPECT_ID} — call-site parity (fixture: runche
     });
   });
 
-  it('does not derive a near miss of the rewrite shape', () => {
+  it('does not derive a byproduct assembled in the exact rewrite shape', () => {
     withFixture('runcheck-parity', (out) => {
-      // The seam's near miss has the same silhouette but two DIFFERENT lists on
-      // its branches, so it rewrites nothing. A matcher that took any identifier
-      // as the alternative would derive `precomputedVerification`, contradict
-      // its side-effect classification, and refuse every compliant caller.
+      // The seam's near miss satisfies every requirement of the rewrite matcher
+      // but one: the list it rewrites is a byproduct, not what runCheck returns
+      // as its issues. Without that requirement the rule would derive
+      // `precomputedVerification`, demand it at every compliant caller, and
+      // contradict its own side-effect classification of it — a provable false
+      // positive on code that alters no issue, which `errs: under` forbids.
       expect(out).not.toContain('precomputedVerification');
     });
   });
@@ -191,6 +204,18 @@ describe.skipIf(!distExists)(`${ASPECT_ID} — member classification (fixture: r
     });
   });
 
+  it('refuses a stale ISSUE_TRANSFORM entry naming a member the seam never declared', () => {
+    withFixture('runcheck-parity-drift', (out) => {
+      // The DEMANDING map gets the same stale sweep the exempting one gets. Left
+      // unswept, this entry would have every call site judged against a key the
+      // options interface cannot accept, and would silently pre-classify any
+      // future member that happened to take that name.
+      expect(out).toContain('stale classification');
+      expect(out).toContain("ISSUE_TRANSFORM lists 'changeScope'");
+      expect(out).toContain('declares no such optional member');
+    });
+  });
+
   it('refuses a stale side-effect allowlist entry naming a member that no longer exists', () => {
     withFixture('runcheck-parity-drift', (out) => {
       expect(out).toContain('stale classification');
@@ -208,6 +233,40 @@ describe.skipIf(!distExists)(`${ASPECT_ID} — member classification (fixture: r
       // …and each carries the full what / why / next structure.
       expect(out).toContain('WHY:');
       expect(out).toContain('NEXT:');
+    });
+  });
+});
+
+describe.skipIf(!distExists)(`${ASPECT_ID} — hand-signed entry outlives its window (fixture: runcheck-parity-unrecognized)`, () => {
+  it('refuses an ISSUE_TRANSFORM entry once the seam reads the member in a shape no derivation matches', () => {
+    withFixture('runcheck-parity-unrecognized', (out) => {
+      expect(out).toContain('refused');
+      // The single safety property the hand-signed entry rests on: it claims the
+      // member is issue-affecting and this body cannot act on it YET. The moment
+      // the body reads it, the shape it is read in — not the entry — decides
+      // whether call sites are being asked for enough, so an unrecognized shape
+      // must be loud rather than quietly trusted.
+      expect(out).toContain('unproven classification');
+      expect(out).toContain("ISSUE_TRANSFORM lists 'changeScope'");
+      expect(out).toContain("already reads 'options.changeScope'");
+      // …and it says what to do about it, in the same three-part shape.
+      expect(out).toContain('WHY:');
+      expect(out).toContain('NEXT:');
+    });
+  });
+
+  it('demands nothing at the call site while that entry stands unproven', () => {
+    withFixture('runcheck-parity-unrecognized', (out) => {
+      // The other half of every requirement's proof. The seam's three reads each
+      // differ from the recognized rewrite in exactly ONE respect — the transform
+      // rewrites a different list than the one opposite it, the option is never
+      // handed to the transform, or the rewritten list is a byproduct rather than
+      // the returned one. While none of them derives, the entry demands nothing
+      // and this caller is silent. Drop any single requirement from the matcher
+      // and the read it guarded starts deriving: the unproven refusal above
+      // disappears and this assertion fails with the omission. So no requirement
+      // can be deleted without a test going red.
+      expect(out).not.toContain('missing issue-affecting option');
     });
   });
 });

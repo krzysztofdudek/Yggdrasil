@@ -20,13 +20,16 @@ import { walk, report } from '@chrisdudek/yg/ast';
  * can instead be consumed as a WHOLE-LIST REWRITE of the assembled issues:
  *
  *   const issues = options?.<KEY> ? <fn>(<LIST>, options.<KEY>) : <LIST>;
+ *   return { …, issues, … };
  *
  * That is an ISSUE-TRANSFORM field. It cannot be written in the gating shape —
  * its alternative is the untransformed list, never a literal `[]` — and it is
  * strictly MORE issue-affecting than a gate, since it may re-code, re-rank or
  * drop any issue rather than contribute a bounded set. So it is derived by its
  * own matcher (`deriveIssueTransformKeys`) and, exactly like a gating key, is
- * DEMANDED at every call site.
+ * DEMANDED at every call site. That matcher requires the rewritten list to be
+ * the one runCheck RETURNS as its issues, so a byproduct assembled in the same
+ * shape — a report row, an index — is never mistaken for the issue set.
  *
  * ── The two things this rule enforces ────────────────────────────────────────
  *
@@ -78,6 +81,10 @@ import { walk, report } from '@chrisdudek/yg/ast';
  *
  * Both violation families fire only on provable facts.
  *
+ * Both derivations demand a key only where omitting it PROVABLY changes the
+ * issue set runCheck returns: a gate's own bounded set silently disappears, or
+ * the returned list is handed back unrewritten. Neither fires on a byproduct.
+ *
  * PARITY: a call is flagged only when its options argument is a plain object
  * literal PROVABLY missing a key, or the options argument is absent entirely.
  * Anything that cannot be read statically — a variable or any other non-literal
@@ -108,6 +115,8 @@ import { walk, report } from '@chrisdudek/yg/ast';
 const CORE_CHECK_NODE_ID = 'cli/core/check';
 const CORE_CHECK_FILE_SUFFIX = '/core/check.ts';
 const RUNCHECK_FN_NAME = 'runCheck';
+/** The property of runCheck's returned result that carries the issue set. */
+const ISSUES_PROPERTY = 'issues';
 
 /**
  * The EXEMPTING half of the classification: options members that exist to
@@ -283,13 +292,94 @@ function readsOptionKey(node, optionsName, key) {
   return found;
 }
 
+const FUNCTION_NODE_TYPES = new Set([
+  'function_declaration',
+  'generator_function_declaration',
+  'function_expression',
+  'generator_function',
+  'arrow_function',
+  'method_definition',
+]);
+
+/** True when the nearest enclosing function of `node` is `decl` itself — so a
+ *  nested helper's own `return` can never be read as runCheck's. */
+function returnsFrom(node, decl) {
+  for (let cur = node.parent; cur !== null; cur = cur.parent) {
+    if (!FUNCTION_NODE_TYPES.has(cur.type)) continue;
+    return cur.startIndex === decl.startIndex && cur.endIndex === decl.endIndex;
+  }
+  return false;
+}
+
+/**
+ * The identifier(s) runCheck hands back AS ITS ISSUE SET: the name it returns
+ * directly (`return issues;`), or the value of the `issues` property of a
+ * returned object literal (`return { …, issues: allIssues, … };`, shorthand
+ * included). Only `return`s belonging to runCheck itself count.
+ *
+ * This is what makes the whole-list-rewrite match a statement about THE ISSUE
+ * SET rather than about any list that happens to sit inside this function. See
+ * condition 5 below.
+ */
+function findReturnedIssueIdentifiers(decl) {
+  const names = new Set();
+  const body = decl.childForFieldName('body');
+  if (!body) return names;
+  walk(body, (node) => {
+    if (node.type !== 'return_statement') return;
+    if (!returnsFrom(node, decl)) return;
+    const value = withoutComments(node.namedChildren)[0];
+    if (!value) return;
+    if (value.type === 'identifier') {
+      names.add(value.text);
+      return;
+    }
+    if (value.type !== 'object') return;
+    for (const entry of withoutComments(value.namedChildren)) {
+      if (entry.type === 'shorthand_property_identifier' && entry.text === ISSUES_PROPERTY) {
+        names.add(ISSUES_PROPERTY);
+        continue;
+      }
+      if (entry.type !== 'pair') continue;
+      if (entry.childForFieldName('key')?.text !== ISSUES_PROPERTY) continue;
+      const propertyValue = entry.childForFieldName('value');
+      if (propertyValue?.type === 'identifier') names.add(propertyValue.text);
+    }
+  });
+  return names;
+}
+
+/**
+ * Whether this ternary's RESULT becomes the issue set runCheck returns: it is
+ * bound to (or assigned to) one of `returnedNames`, or it IS the returned
+ * expression / the `issues` property of the returned object literal.
+ */
+function becomesReturnedIssues(ternary, decl, returnedNames) {
+  const parent = ternary.parent;
+  if (!parent) return false;
+  if (parent.type === 'variable_declarator' && parent.childForFieldName('value')?.startIndex === ternary.startIndex) {
+    const name = parent.childForFieldName('name');
+    return name?.type === 'identifier' && returnedNames.has(name.text);
+  }
+  if (parent.type === 'assignment_expression' && parent.childForFieldName('right')?.startIndex === ternary.startIndex) {
+    const left = parent.childForFieldName('left');
+    return left?.type === 'identifier' && returnedNames.has(left.text);
+  }
+  if (parent.type === 'return_statement') return returnsFrom(parent, decl);
+  if (parent.type === 'pair' && parent.childForFieldName('key')?.text === ISSUES_PROPERTY) {
+    const object = parent.parent;
+    return object?.type === 'object' && object.parent?.type === 'return_statement' && returnsFrom(object.parent, decl);
+  }
+  return false;
+}
+
 /**
  * Scan the runCheck declaration's BODY (never the whole file, for the same
  * reason deriveGatingKeys does not) for a WHOLE-LIST REWRITE of the issue set:
  *
- *   <optionsName>?.<key> ? <fn>(<LIST>, … <optionsName>.<key> …) : <LIST>
+ *   const <ISSUES> = <optionsName>?.<key> ? <fn>(<LIST>, … <optionsName>.<key> …) : <LIST>;
  *
- * Four things must line up, and the match is deliberately no looser than the
+ * FIVE things must line up, and the match is deliberately no looser than the
  * gating one — a permissive "any ternary on an option" shape would let a field
  * that genuinely gates a bounded set be labelled a rewrite:
  *
@@ -303,12 +393,28 @@ function readsOptionKey(node, optionsName, key) {
  *      unrelated expression that merely happens to sit opposite it;
  *   4. the option's own value is handed to that call. A transform that never
  *      receives the option cannot be varying on it, and a call site omitting it
- *      would then change nothing — so demanding it everywhere would be noise.
+ *      would then change nothing — so demanding it everywhere would be noise;
+ *   5. the RESULT becomes the issue set runCheck returns. Without this the match
+ *      would say "some list in here is rewritten", not "the issue set is", and a
+ *      side-effect option assembling a BYPRODUCT in this shape — a report row, an
+ *      index — would be demanded at every call site though it alters no issue.
+ *      That would be a provable FALSE POSITIVE, which `errs: under` forbids, and
+ *      it would collide with that option's own side-effect classification and
+ *      advise removing it. Requiring the rewritten list to be the returned one
+ *      keeps every demand this rule makes a statement about the issue set.
+ *
+ * Narrowing in this direction is safe in a way widening would not be: a genuine
+ * rewrite written so that its result reaches the return by some path this cannot
+ * follow simply is not derived — and its member then falls to the CLASSIFICATION
+ * half as UNCLASSIFIED, which is loud. A missed derivation degrades to "a human
+ * must classify this", never to silence.
  */
 function deriveIssueTransformKeys(decl, optionsName) {
   const keys = new Set();
   const body = decl.childForFieldName('body');
   if (!body) return keys;
+  const returnedNames = findReturnedIssueIdentifiers(decl);
+  if (returnedNames.size === 0) return keys;
   walk(body, (node) => {
     if (node.type !== 'ternary_expression') return;
     const condition = node.childForFieldName('condition');
@@ -332,6 +438,8 @@ function deriveIssueTransformKeys(decl, optionsName) {
     if (argList[0].type !== 'identifier' || argList[0].text !== alternative.text) return;
     // 4. the option itself is fed to the transform.
     if (!argList.some((a) => readsOptionKey(a, optionsName, property.text))) return;
+    // 5. the rewritten list is the one runCheck returns as its issues.
+    if (!becomesReturnedIssues(node, decl, returnedNames)) return;
     keys.add(property.text);
   });
   return keys;
@@ -579,7 +687,7 @@ export function check(ctx) {
 
   const RULE_PATH = '.yggdrasil/aspects/runcheck-injected-input-parity/check.mjs';
   const classificationNext = (member) =>
-    `decide which '${member}' is and record it. If it GATES an issue, express it in ${RUNCHECK_FN_NAME}'s body as \`${optionsParam.name}?.${member} ? <issues> : []\`; if it REWRITES the whole issue list, express it as \`${optionsParam.name}?.${member} ? <fn>(<list>, ${optionsParam.name}.${member}) : <list>\` — either shape derives automatically, and either way pass it at every ${RUNCHECK_FN_NAME} call site. If it is issue-affecting but its consumer has not landed yet, add it to ISSUE_TRANSFORM in ${RULE_PATH} with that reason, which demands it at every call site meanwhile. Only if it flips a SIDE EFFECT and can never add, remove, or alter an issue does it belong in SIDE_EFFECT_ONLY in that same file.`;
+    `decide which '${member}' is and record it. If it GATES an issue, express it in ${RUNCHECK_FN_NAME}'s body as \`${optionsParam.name}?.${member} ? <issues> : []\`; if it REWRITES the whole issue list, express it as \`${optionsParam.name}?.${member} ? <fn>(<list>, ${optionsParam.name}.${member}) : <list>\` and let that result be what ${RUNCHECK_FN_NAME} returns as its \`${ISSUES_PROPERTY}\` — either shape derives automatically, and either way pass it at every ${RUNCHECK_FN_NAME} call site. If it is issue-affecting but its consumer has not landed yet, add it to ISSUE_TRANSFORM in ${RULE_PATH} with that reason, which demands it at every call site meanwhile. Only if it flips a SIDE EFFECT and can never add, remove, or alter an issue does it belong in SIDE_EFFECT_ONLY in that same file.`;
 
   for (const shape of members.malformed) {
     ruleLevel(
@@ -643,7 +751,7 @@ export function check(ctx) {
     const allowlisted = SIDE_EFFECT_ONLY.has(member);
     if (derived && allowlisted) {
       ruleLevel(
-        `This ${RUNCHECK_FN_NAME}() call site rests on a contradictory classification: '${member}' is listed in SIDE_EFFECT_ONLY as altering no issue, but ${RUNCHECK_FN_NAME}'s body now ${gatingKeys.has(member) ? 'gates an issue on it' : 'rewrites the whole issue list with it'}. ` +
+        `This ${RUNCHECK_FN_NAME}() call site rests on a contradictory classification: '${member}' is listed in SIDE_EFFECT_ONLY as altering no issue, but ${RUNCHECK_FN_NAME}'s body now ${gatingKeys.has(member) ? 'gates an issue on it' : 'rewrites the issue list it RETURNS with it'}. ` +
           `WHY: the allowlist is the half of this rule a human signs for; while it disagrees with the code, no call site's completeness can be trusted. This is NOT a defect in this file's code. ` +
           `NEXT: remove '${member}' from SIDE_EFFECT_ONLY in ${RULE_PATH} — it is issue-affecting and is already derived as such.`,
       );
