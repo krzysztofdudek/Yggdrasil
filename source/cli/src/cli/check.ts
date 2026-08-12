@@ -6,7 +6,7 @@ import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog, writeFillDivergence } from '../io/debug-log-writer.js';
 import { runCheck, runAttentionDump } from '../core/check.js';
-import type { CheckResult } from '../core/check.js';
+import type { CheckIssue, CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
@@ -16,6 +16,7 @@ import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from 
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, resolveTopValue } from './check-render-views.js';
+import { buildProgressiveViewLine } from './progressive-view.js';
 
 /**
  * Resolve the effective approve mode from explicit CLI flags and graph config.
@@ -100,10 +101,16 @@ export function registerCheckCommand(program: Command): void {
     .option('--details', 'Read-only: ungrouped, one block per issue (full per-pair detail). Opposite of the default grouped view.')
     .option('--aspect <id>', "Read-only: drill into one rule — show only that aspect's issues, grouped, with the full per-node detail.")
     .option('-q, --quiet', 'Suppress --approve progress on stderr (only the final report + exit code). No-op with a plain read; with --dry-run the budget preview still prints (--dry-run wins).')
+    // Asks for the whole graph to be answered for, regardless of what the
+    // project measures a change against. Today the report is already the whole
+    // graph, so all this suppresses is the informational line above it — but the
+    // flag is the explicit "prove everything" invocation, and it is registered
+    // now so a CI recipe written against it keeps meaning the same thing later.
+    .option('--full', 'Answer for the whole graph, ignoring any configured reference branch.')
     // Hidden calibration instrument: print the raw per-file structural measurements grouped by
     // family, with the outliers marked, then exit 0. Writes nothing, makes no LLM calls.
     .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
-    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; quiet?: boolean; attentionDump?: boolean }) => {
+    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; quiet?: boolean; full?: boolean; attentionDump?: boolean }) => {
       try {
         const cwd = process.cwd();
         const graph = await loadGraphOrAbort(cwd, { tolerateInvalidConfig: true });
@@ -118,6 +125,23 @@ export function registerCheckCommand(program: Command): void {
         const repoFiles = await walkRepoFiles(projectRoot);
         // Tracked-file list for the anomaly check below; null (no git) skips it.
         const tracked = listGitTrackedFiles(projectRoot);
+
+        // The read-only progressive measurement, printed immediately above the
+        // report on every path that prints one. It is inert unless the project
+        // committed a reference branch to measure changes against: with none,
+        // it resolves to null before any git process runs, so a project that
+        // never opted in produces byte-identical output and the same exit code
+        // it always did. It never gates anything — see cli/progressive-view.ts.
+        const writeProgressiveView = async (issues: CheckIssue[]): Promise<void> => {
+          const line = await buildProgressiveViewLine({
+            graph,
+            projectRoot,
+            coverageVisibleFiles: repoFiles,
+            fullFlag: opts.full === true,
+            issues,
+          });
+          if (line !== null) process.stdout.write(line + '\n');
+        };
 
         // Hidden calibration instrument. Bypasses the normal report entirely: run the
         // read-only attention dump over warm shards, print it, exit 0. Writes nothing. It is
@@ -383,6 +407,7 @@ export function registerCheckCommand(program: Command): void {
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
             await applyHonestCoverageSplit(fill.checkResult, graph, repoFiles);
+            await writeProgressiveView(fill.checkResult.issues);
             process.stdout.write(formatOutput(fill.checkResult, { kind: 'full' }, autoFilled));
             // A dry-run is a cost preview only — it never writes and must never fail
             // the build for unverified/refused pairs it merely previewed. Exit 0 always.
@@ -429,6 +454,7 @@ export function registerCheckCommand(program: Command): void {
           rulesArtifacts: await readRulesArtifacts(projectRoot),
         });
         await applyHonestCoverageSplit(result, graph, repoFiles);
+        await writeProgressiveView(result.issues);
         process.stdout.write(formatOutput(result, view));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and

@@ -16,6 +16,7 @@ import {
   getToplevelAndPrefix,
   treesIdentical,
   hasCleanWorktree,
+  gitlinkPaths,
 } from '../../../src/utils/git-introspect.js';
 import { gitFixtureEnv } from '../../support/git-fixture.js';
 
@@ -606,5 +607,89 @@ describe('hasCleanWorktree', () => {
   it('returns null when repoCwd is not a git repository', async () => {
     const dir = await makeNonGitDir();
     expect(await hasCleanWorktree(dir)).toBeNull();
+  });
+});
+
+/**
+ * A repo carrying a REAL submodule gitlink (git mode 160000) without needing a
+ * second repository to clone from: `update-index --cacheinfo` writes the index
+ * entry directly, which is exactly the on-disk shape `git submodule add`
+ * produces. `vendor/sub` is added at the base commit and REMOVED at the tip, so
+ * the same fixture proves both halves of the probe — the tip's index no longer
+ * knows about it, and only the base tree does.
+ */
+async function setupGitlinkRepo(): Promise<{ repo: string; base: string }> {
+  const repo = await mkdtemp(path.join(tmpdir(), 'yg-gitlink-'));
+  dirs.push(repo);
+  const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+  r('git init -q -b main');
+  r('git config user.email t@t.test');
+  r('git config user.name Test');
+  await writeFile(path.join(repo, 'plain.txt'), 'ordinary\n');
+  r('git add -A && git commit -qm base');
+  const someSha = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) })
+    .toString()
+    .trim();
+  r(`git update-index --add --cacheinfo 160000,${someSha},vendor/sub`);
+  r('git commit -qm "add gitlink"');
+  const base = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) })
+    .toString()
+    .trim();
+  r('git rm -q --cached vendor/sub');
+  r('git commit -qm "drop gitlink"');
+  return { repo, base };
+}
+
+describe('gitlinkPaths', () => {
+  it('finds a gitlink, and never an ordinary file', async () => {
+    const { repo, base } = await setupGitlinkRepo();
+    const paths = await gitlinkPaths(repo, base);
+    expect(paths).not.toBeNull();
+    expect(paths!.has('vendor/sub')).toBe(true);
+    expect(paths!.has('plain.txt')).toBe(false);
+  });
+
+  it('still finds a gitlink the change DELETED — the current index alone would miss it', async () => {
+    const { repo, base } = await setupGitlinkRepo();
+    // HEAD no longer carries the entry at all; only the base tree does. A
+    // probe that read only `git ls-files` would answer "no gitlinks" for a
+    // change whose entire content is the removal of one.
+    const indexOnly = execSync('git ls-files --stage', { cwd: repo, env: gitFixtureEnv(repo) }).toString();
+    expect(indexOnly).not.toContain('vendor/sub');
+    const paths = await gitlinkPaths(repo, base);
+    expect(paths!.has('vendor/sub')).toBe(true);
+  });
+
+  it('finds a gitlink this change ADDED but never committed — the ref tree alone would miss it', async () => {
+    const { repo, base } = await setupRevertRepo();
+    const someSha = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) })
+      .toString()
+      .trim();
+    execSync(`git update-index --add --cacheinfo 160000,${someSha},vendor/new-sub`, {
+      cwd: repo,
+      stdio: 'pipe',
+      env: gitFixtureEnv(repo),
+    });
+    // `base` predates the entry entirely, so nothing in that tree mentions it —
+    // only the staged index does, which is the whole point of reading both.
+    const paths = await gitlinkPaths(repo, base);
+    expect(paths!.has('vendor/new-sub')).toBe(true);
+  });
+
+  it('returns an empty set for a repo with no submodules at all', async () => {
+    const { repo, base } = await setupRevertRepo();
+    const paths = await gitlinkPaths(repo, base);
+    expect(paths).not.toBeNull();
+    expect(paths!.size).toBe(0);
+  });
+
+  it('returns null when repoCwd is not a git repository', async () => {
+    const dir = await makeNonGitDir();
+    expect(await gitlinkPaths(dir, 'HEAD')).toBeNull();
+  });
+
+  it('returns null when the ref does not resolve', async () => {
+    const { repo } = await setupRevertRepo();
+    expect(await gitlinkPaths(repo, 'no-such-ref')).toBeNull();
   });
 });

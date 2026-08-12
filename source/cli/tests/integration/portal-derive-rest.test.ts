@@ -30,17 +30,18 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 25, ahead of cli/core/fill at 24 and a two-way tie at 23', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 27, ahead of cli/core/fill at 24 and a two-way tie at 23', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
-    // own unit-test umbrella (cli/tests/unit/cli/general) picked up one more
-    // relation — a `uses` edge to the new cli/progressive-preflight node, added
-    // alongside progressive-preflight.test.ts — taking it to 25 and out ahead of
-    // cli/core/fill on its own, no tie-break needed. cli/core/fill and the
-    // 23-count pair below it are unaffected.
+    // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
+    // relations — `uses` edges to cli/progressive-preflight, cli/progressive-view
+    // and cli/core/progressive-scope (whose pair-key helper the view's own unit
+    // test builds its expectations with), added alongside those unit tests —
+    // taking it to 27 and out ahead of cli/core/fill on its own, no tie-break
+    // needed. cli/core/fill and the 23-count pair below it are unaffected.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
-    expect(data.hubs.fanOut[0].count).toBe(25);
+    expect(data.hubs.fanOut[0].count).toBe(27);
     expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[1].count).toBe(24);
     expect(data.hubs.fanOut[2].path).toBe('cli/core/check');

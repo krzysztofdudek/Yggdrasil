@@ -14,7 +14,10 @@ description: "Unit tests for build and check CLI commands — build-command,
   large repository could not rebuild its deterministic verdicts at all. It also
   covers the progressive-preflight state machine — the pure decision table that
   turns the progressive-mode git probes into a gate-everything/gate-only-the-
-  touched-set/stay-quiet/fall-back verdict."
+  touched-set/stay-quiet/fall-back verdict, and the two pure halves of the
+  progressive view built on it: how a finished report's findings are split
+  into what the current change is accountable for and what was already there,
+  and the one sentence that reports that split."
 aspects: []
 max_direct_relations:
   limit: 30
@@ -22,10 +25,12 @@ max_direct_relations:
     Growth is honest, not accidental: this node is a shared test-suite umbrella
     covering an entire command's test files (build, check, and now the
     check-render-header/-groups/-views split, plus init and its shared
-    helpers, plus the progressive-preflight state machine), so its relation
-    count tracks the real dependency surface of everything it tests. The
-    ceiling gives modest headroom above the current count (25) without
-    silencing a genuine future over-connection.
+    helpers, plus the progressive-preflight state machine and the progressive
+    view's own split, which is asserted against the burn engine's own key
+    format rather than a re-spelled copy of it), so its relation count tracks
+    the real dependency surface of everything it tests. The ceiling gives
+    modest headroom above the current count (27) without silencing a genuine
+    future over-connection.
 relations:
   [
     { target: cli/commands/build-context, type: uses },
@@ -52,7 +57,9 @@ relations:
     { target: cli/utils, type: uses },
     { target: cli/relations/core, type: uses },
     { target: cli/tests/fixtures, type: uses },
-    { target: cli/progressive-preflight, type: uses }
+    { target: cli/progressive-preflight, type: uses },
+    { target: cli/progressive-view, type: uses },
+    { target: cli/core/progressive-scope, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts
@@ -73,3 +80,4 @@ mapping:
   - source/cli/tests/unit/cli/group-issues.test.ts
   - source/cli/tests/unit/cli/rules-artifacts.test.ts
   - source/cli/tests/unit/cli/progressive-preflight.test.ts
+  - source/cli/tests/unit/cli/progressive-view.test.ts

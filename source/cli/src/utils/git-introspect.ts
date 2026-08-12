@@ -421,6 +421,75 @@ export async function treesIdentical(
   }
 }
 
+/** git's file mode for a submodule gitlink — a pointer to another repository's commit. */
+const GITLINK_MODE = '160000';
+
+/**
+ * Collect the gitlink paths out of one NUL-record listing into `into`.
+ *
+ * Shared by both listings this module reads, because their record shapes agree
+ * on exactly the two fields that matter here: the mode is everything before the
+ * first space, and the path is everything after the first TAB.
+ *   - `git ls-files --stage -z` → `<mode> <object> <stage>\t<path>\0`
+ *   - `git ls-tree -r -z <ref>` → `<mode> <type> <object>\t<path>\0`
+ * With `-z` the path is verbatim (git's usual quoting/escaping of unusual bytes
+ * is disabled), so there is nothing to unescape.
+ */
+function collectGitlinks(stdout: string, into: Set<string>): void {
+  for (const record of stdout.split('\0')) {
+    if (record.length === 0) continue;
+    const space = record.indexOf(' ');
+    const tab = record.indexOf('\t');
+    if (space < 0 || tab < space) continue;
+    if (record.slice(0, space) !== GITLINK_MODE) continue;
+    into.add(toPosixPath(record.slice(tab + 1)));
+  }
+}
+
+/**
+ * Every repo-relative POSIX path that is a SUBMODULE GITLINK — at `ref`, or in
+ * the current index, or both.
+ *
+ * A gitlink is not a file: it is a pointer to another repository's commit, so a
+ * path-based decision (does this change reach that rule?) has nothing to match
+ * it against. A caller that scopes work by path therefore has to know whether
+ * one appears among the paths it is about to scope, and this is the set it
+ * intersects its own changed paths with.
+ *
+ * BOTH sides are read on purpose, and each catches a case the other cannot:
+ * `git ls-files --stage` sees a submodule that exists now (including one this
+ * change ADDED, and one whose own work tree is merely dirty), while
+ * `git ls-tree -r <ref>` sees one that existed at the reference and this change
+ * REMOVED — an entry the current index no longer mentions at all, even though
+ * its removal is precisely the change being judged. Reading only the index
+ * would answer "no gitlinks here" for a change whose entire content is the
+ * deletion of one.
+ *
+ * `null` on ANY git failure (a ref that does not resolve, `repoCwd` not a
+ * repository, git missing, …) — never a partial or empty set standing in for
+ * "could not tell", same three-valued contract as every other probe here.
+ */
+export async function gitlinkPaths(repoCwd: string, ref: string): Promise<Set<string> | null> {
+  try {
+    const [indexResult, treeResult] = await Promise.all([
+      execFilep('git', ['ls-files', '--stage', '-z'], {
+        cwd: repoCwd,
+        maxBuffer: 64 * 1024 * 1024,
+      }),
+      execFilep('git', ['ls-tree', '-r', '-z', ref], {
+        cwd: repoCwd,
+        maxBuffer: 64 * 1024 * 1024,
+      }),
+    ]);
+    const paths = new Set<string>();
+    collectGitlinks(indexResult.stdout, paths);
+    collectGitlinks(treeResult.stdout, paths);
+    return paths;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Is the work tree clean — no staged, unstaged, OR untracked change versus
  * HEAD? Uses the identical `git status --porcelain=v1 -z -uall` invocation
