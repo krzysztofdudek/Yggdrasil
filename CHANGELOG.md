@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **(Repo-internal — not yet wired into any command.)** Three pure graph-query helpers for scoping which rules a change reaches: `impliesClosure` returns the full set of aspect ids reachable by following an aspect's `implies` edges — an unconditional structural walk, with no `when` or status filtering, that terminates on a cycle; `buildReverseTargetIndex` maps a node path to every other node that declares any relation to it, not only ones consuming one of its ports; `collectFlowParticipants` returns a flow's declared participant nodes plus their descendants. All three take the graph and return a plain set or map, with no I/O.
+
 ### Fixed
 
 - **The portal's waiver inventory no longer calls a whole-file waiver "bounded".** Every clean waiver read the same fixed label, "bounded · single rule", no matter how much code it actually switched a rule off for. A clean waiver's badge — and its CSV export — now name the real span: a single line, a range, or the whole file. A risky waiver still shows only its risk (wildcard, unbounded, inert, typo, or the new "waives a rule that cannot false-alarm" for a check that produces no false positives by design), sorted between inert and unbounded, never alongside a span label that would be partly redundant. The header also names the total marker count on disk only when it differs from the waiver count, since a closing marker is not itself a waiver.

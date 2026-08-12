@@ -1,0 +1,14 @@
+name: Progressive Scope Unit Tests
+type: test-suite
+description: "Unit tests for the progressive-mode burn-set helpers —
+  impliesClosure's unconditional structural walk over an aspect's `implies`
+  edges (including cycle termination), buildReverseTargetIndex's target ->
+  source-node reverse map over every relation kind, and
+  collectFlowParticipants's declared-node-plus-descendants set, all built
+  against small hand-built in-memory graphs (no fixture project, no mocking)."
+aspects: []
+relations:
+  - target: cli/core/progressive-scope
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/progressive-scope.test.ts
