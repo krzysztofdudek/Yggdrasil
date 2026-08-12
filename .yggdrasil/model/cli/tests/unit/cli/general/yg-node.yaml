@@ -11,17 +11,21 @@ description: "Unit tests for build and check CLI commands — build-command,
   into the free deterministic fill: sized from cores AND the machine's memory,
   because every worker carries its own copy of the graph and its own parsed
   trees, and sizing on cores alone let a large machine multiply the two until a
-  large repository could not rebuild its deterministic verdicts at all."
+  large repository could not rebuild its deterministic verdicts at all. It also
+  covers the progressive-preflight state machine — the pure decision table that
+  turns the progressive-mode git probes into a gate-everything/gate-only-the-
+  touched-set/stay-quiet/fall-back verdict."
 aspects: []
 max_direct_relations:
-  limit: 25
+  limit: 30
   reason: >-
     Growth is honest, not accidental: this node is a shared test-suite umbrella
     covering an entire command's test files (build, check, and now the
     check-render-header/-groups/-views split, plus init and its shared
-    helpers), so its relation count tracks the real dependency surface of
-    everything it tests. The ceiling gives modest headroom above the current
-    count (21) without silencing a genuine future over-connection.
+    helpers, plus the progressive-preflight state machine), so its relation
+    count tracks the real dependency surface of everything it tests. The
+    ceiling gives modest headroom above the current count (25) without
+    silencing a genuine future over-connection.
 relations:
   [
     { target: cli/commands/build-context, type: uses },
@@ -47,7 +51,8 @@ relations:
     { target: cli/rules-artifacts, type: uses },
     { target: cli/utils, type: uses },
     { target: cli/relations/core, type: uses },
-    { target: cli/tests/fixtures, type: uses }
+    { target: cli/tests/fixtures, type: uses },
+    { target: cli/progressive-preflight, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts
@@ -67,3 +72,4 @@ mapping:
   - source/cli/tests/unit/cli/det-concurrency.test.ts
   - source/cli/tests/unit/cli/group-issues.test.ts
   - source/cli/tests/unit/cli/rules-artifacts.test.ts
+  - source/cli/tests/unit/cli/progressive-preflight.test.ts

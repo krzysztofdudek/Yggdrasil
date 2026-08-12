@@ -30,37 +30,18 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/core/fill and cli/tests/unit/cli/general tie for top fan-out at 24, over a two-way tie at 23', () => {
-    // cli/core/check no longer constructs the type-classification cache itself
-    // (core/type-coverage.ts's own computeTypeCoverageCached/
-    // classifySingleFileCached wrappers do, so every caller gets the cache
-    // without hand-threading it) — that relation moved to cli/core/type-coverage
-    // instead, which had 8 spare relations under the global default ceiling
-    // where cli/core/check had none left under ITS OWN reviewed ceiling of 25.
-    // All three of these seams then dropped one further relation each — the
-    // direct cli/relations/extractors edge (extractorForLanguage), once every
-    // relation-pass call site started assembling its deps through
-    // relations/pass.ts's runProjectRelationPass instead of by hand; the
-    // extractor registry is now reached transitively through the
-    // cli/relations/core relation each of them already declares. All three
-    // dropped together, so the tie survives at one lower — 23, not 24.
-    // The tie then BROKE: cli/core/fill gained one edge when the per-(rule,
-    // component) parse caches moved into a node of their own. That dependency
-    // is not new — the fill stage already reached those helpers through the
-    // substrate node that used to own them — but the edge is now its own and
-    // therefore counted. The split was forced: lock verification began sharing
-    // the same caches and cannot depend on the substrate, which reaches back to
-    // the check report.
-    // The test-suite umbrella for the check command's own unit tests reached 24
-    // in the same change, by testing the new worker-ceiling helper — a test node
-    // depending on one more thing it tests, which is what a test node is for.
-    // Tied counts break alphabetically (rankHubs: count desc, then path asc), so
-    // 'cli/core/fill' < 'cli/tests/unit/cli/general' at 24, and
-    // 'cli/core/check' < 'cli/portal/engine-api' at 23.
+  it('cli/tests/unit/cli/general leads fan-out at 25, ahead of cli/core/fill at 24 and a two-way tie at 23', () => {
+    // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
+    // both at 24, alphabetical order breaking it) is gone: the check command's
+    // own unit-test umbrella (cli/tests/unit/cli/general) picked up one more
+    // relation — a `uses` edge to the new cli/progressive-preflight node, added
+    // alongside progressive-preflight.test.ts — taking it to 25 and out ahead of
+    // cli/core/fill on its own, no tie-break needed. cli/core/fill and the
+    // 23-count pair below it are unaffected.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
-    expect(data.hubs.fanOut[0].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[0].count).toBe(24);
-    expect(data.hubs.fanOut[1].path).toBe('cli/tests/unit/cli/general');
+    expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
+    expect(data.hubs.fanOut[0].count).toBe(25);
+    expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[1].count).toBe(24);
     expect(data.hubs.fanOut[2].path).toBe('cli/core/check');
     expect(data.hubs.fanOut[2].count).toBe(23);
