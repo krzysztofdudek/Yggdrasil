@@ -271,6 +271,7 @@ export function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
           why: `Description is used in context output — agents need it for orientation.`,
           next: `Add a description field to yg-aspect.yaml.`,
         }),
+        aspectId: aspect.id,
       });
     }
 
@@ -288,6 +289,7 @@ export function checkMissingDescriptions(graph: Graph): ValidationIssue[] {
           why: `Description is used in context output — agents need it for orientation.`,
           next: `Add a description field to yg-flow.yaml.`,
         }),
+        flowName: flow.name,
       });
     }
   }

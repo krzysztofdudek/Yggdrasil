@@ -160,6 +160,10 @@ export async function runLockPhase(args: {
           code: 'type-relation-forbidden',
           rule: 'type-relation-forbidden',
           messageData: typeGateForbiddenMessage(finding),
+          // Every violating edge in this type-pair's bucket, not just the five
+          // the message samples (typeGateForbiddenMessage) — the structured
+          // field is for machines and must be complete.
+          relationEdges: finding.edges,
         });
       }
     }

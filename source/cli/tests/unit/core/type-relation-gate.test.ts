@@ -73,6 +73,11 @@ describe('live type-relation gate — fixture rows', () => {
     expect(finding!.severity).toBe('error');
     expect(finding!.messageData.what).toContain('handler.ts');
     expect(finding!.messageData.what).toContain('target.ts');
+    // Structured identity: the concrete forbidden edge, not just prose — an
+    // aggregate finding (per type-pair) needs the full edge list attached.
+    expect(finding!.relationEdges).toEqual([
+      { fromFile: 'src/svc/handler.ts', toFile: 'src/owner/target.ts' },
+    ]);
   });
 
   it('an EXPLICIT allow entry permits svc -> util (handler.ts -> plain-util.ts, listed in calls: [util])', async () => {

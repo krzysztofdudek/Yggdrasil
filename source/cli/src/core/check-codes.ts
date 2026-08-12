@@ -199,23 +199,24 @@ export const APPROVE_GATING_CODES = new Set<string>([
  * No other `STRUCTURAL_CODES` member may be added here without the same kind of
  * documented rationale — a code stays out by default.
  *
- * CURRENT-MECHANICS CAVEAT — read this before wiring any consumer to this set.
- * Six of the eighteen codes below emit their issue with NO structured file/node
- * identity today: no `nodePath`, no `unitKey`, no `aspectId` — the subject lives
- * only in `messageData` prose, which nothing in this codebase parses back out. The
- * category rationale above and below is still correct; what is missing is the
- * mechanical hook a scope decision needs to test "did this change touch it."
- * Affected: `type-relation-forbidden` (worst of the six — findings are aggregated
- * per type-PAIR, so one issue can bundle edges from several unrelated files, and
- * the edge file list is discarded rather than attached to the issue),
- * `ambiguous-node-type` (the file path is known at the push site but never carried
- * onto the issue), `tracked-file-gitignored`, `type-strict-orphan`,
- * `strict-overlap-conflict`, and the ASPECT and FLOW branches of
- * `description-missing` (its NODE branch is fine — that one already sets
- * `nodePath`). A future classification step must NOT treat any of these six as
- * attributable to a change until each carries real structured identity —
- * membership here is the policy target, not a claim that today's emit sites
- * already support it.
+ * STRUCTURED-IDENTITY NOTE — read this before wiring any consumer to this set.
+ * Every code below now emits its issue with a structured, machine-checkable
+ * subject — a `nodePath`, `unitKey`, `aspectId`, `flowName`, or (for an
+ * aggregate with no single subject file) `relationEdges` — never prose alone.
+ * The six that once emitted with no structured identity at all are now
+ * covered: `type-relation-forbidden` (the full per-type-pair edge list, not
+ * just the example the message samples, via `relationEdges`),
+ * `ambiguous-node-type` (`unitKey`, from the file path already known at the
+ * push site), `tracked-file-gitignored` and `type-strict-orphan` (`unitKey`,
+ * from the scanned path), `strict-overlap-conflict` (`relationEdges`, one
+ * self-referencing `{fromFile, toFile}` entry per matching file — the
+ * aggregate has no real edge, just files sharing a type-pair conflict, so the
+ * existing edge-list shape is reused rather than adding a second aggregate
+ * field), and the ASPECT/FLOW branches of `description-missing` (`aspectId` /
+ * `flowName` respectively; its NODE branch already set `nodePath`). A future
+ * classification step may now treat every member here as attributable to a
+ * change by reading its structured field(s) — no code in this set still
+ * requires parsing `messageData` prose to find its subject.
  */
 export const SCOPED_CODES = new Set<string>([
   // Pair-verdict codes: a reviewer/deterministic verdict a change's own pairs

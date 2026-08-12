@@ -235,6 +235,9 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
     expect(amb[0].messageData.what).toContain('util');
     expect(amb[0].messageData.next).toContain('1. Create an explicit node');
     expect(amb[0].messageData.next).toContain('2. Narrow one of the overlapping');
+    // Structured identity: the ambiguous file's own unit key, not just prose —
+    // a nodeless finding needs a machine-checkable subject.
+    expect(amb[0].unitKey).toBe('file:src/svc/overlap.ts');
   });
 
   it('a strict+non-strict file yields the enriched orphan WHAT, NO ambiguity issue, and is absent from unmapped-files', async () => {
@@ -301,6 +304,8 @@ describe('runCheck — type-level coverage wiring (flag on)', () => {
     );
     expect(mentioning).toHaveLength(1);
     expect(mentioning[0].code).toBe('type-strict-orphan');
+    // Structured identity: the scanned file's own unit key.
+    expect(mentioning[0].unitKey).toBe('file:src/util/special.ts');
   });
 
   it('a file over the 5MB content-scan limit is a blocking file-unreadable error and appears in EXACTLY that one issue', async () => {

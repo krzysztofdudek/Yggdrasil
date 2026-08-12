@@ -747,6 +747,8 @@ describe('scanTrackedButIgnored — tracked∩gitignored anomaly', () => {
         expect(issues[0].rule).toBe('tracked-file-gitignored');
         expect(issues[0].messageData.what).toContain('src/svc/secret.ts');
         expect(issues[0].messageData.next).toMatch(/git rm --cached/);
+        // Structured identity: the flagged file's own unit key, not just prose.
+        expect(issues[0].unitKey).toBe('file:src/svc/secret.ts');
       },
     );
   });

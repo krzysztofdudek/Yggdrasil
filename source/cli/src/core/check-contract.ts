@@ -23,8 +23,6 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   uncoveredFiles?: string[];
   /** For unmapped-files: total count of uncovered files */
   uncoveredCount?: number;
-  /** For aspect-newly-active / aspect-violation-*: the aspect this issue concerns */
-  aspectId?: string;
   /**
    * For pair-derived issues (unverified / refused): the reviewer kind of the
    * pair. Lets the CLI's `--summary` view split per-node counts into
@@ -33,23 +31,13 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
    * structural), which the summary buckets as "other".
    */
   pairKind?: 'llm' | 'deterministic';
-  /** Pair-derived issues only: `pair.unitKey`, so a nodeless member's FILE can
-   *  render even though `nodePath` is undefined (same as a repo-level issue). */
-  unitKey?: string;
-  /**
-   * Flow-derived issues: the flow this issue concerns. Structured identity for
-   * an issue whose only subject today is prose — a flow is not a node and has no
-   * `nodePath`, so without this there is nothing to match a flow issue against.
-   * Data-only; nothing reads it yet.
-   */
-  flowName?: string;
-  /**
-   * Edge-derived issues (a forbidden dependency and its kin): the concrete
-   * file-to-file edges the issue is about, rather than one example named in the
-   * message. Structured identity for an aggregate issue that has no single
-   * subject file. Data-only; nothing reads it yet.
-   */
-  relationEdges?: Array<{ fromFile: string; toFile: string }>;
+  // `aspectId` / `unitKey` / `flowName` / `relationEdges` are inherited from
+  // `ValidationIssue` (model/validation.ts) — every non-pair emit site that
+  // stamps them (ambiguous-node-type, type-relation-forbidden,
+  // description-missing's aspect/flow cases, tracked-file-gitignored,
+  // type-strict-orphan, strict-overlap-conflict) produces a plain
+  // `ValidationIssue`, not a `CheckIssue`, so the fields have to live on the
+  // shared base to type-check there. See that interface for the full doc.
 }
 
 export interface CheckResult {
