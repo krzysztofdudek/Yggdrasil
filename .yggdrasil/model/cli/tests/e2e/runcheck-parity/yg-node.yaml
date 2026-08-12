@@ -4,7 +4,7 @@ description: "Subprocess E2E that is the regression vehicle for the
   runcheck-injected-input-parity aspect, which cannot be drilled: it derives its
   rule by reading another node's file through the graph, and any graph read
   throws under the single-file drill sandbox before the check's own logic runs.
-  Three committed fixture projects are driven through the real built binary with
+  Four committed fixture projects are driven through the real built binary with
   the REAL aspect directory copied in per run (so no stale copy of the rule can
   live in a fixture). The first exercises every call shape the rule must judge —
   five that provably omit an issue-affecting option (three a gating one,
@@ -18,10 +18,18 @@ description: "Subprocess E2E that is the regression vehicle for the
   the derivation so only the rule's classification half can refuse it: a gating
   input written in an unmatched shape, and a stale entry on each hand-signed
   list. The third reads the member the demanding map lists in three shapes the
-  rewrite matcher does not match, each differing from it in exactly one respect,
-  so that entry must go unproven rather than be trusted and every matcher
-  requirement is individually pinned — deleting any one makes that read derive,
-  drops the unproven refusal, and refuses the call site for the omission."
+  rewrite matcher does not match, plus a fourth conditioned on a local rather
+  than on the injected options — each differing from the recognized shape in
+  exactly one respect, so deleting the requirement it targets makes that read
+  derive, drops the unproven refusal (or invents a key outright) and refuses the
+  call site for the omission. Four of the matcher's five requirements are covered
+  that way; the fifth, a bare-identifier alternative, is subsumed by the
+  first-argument comparison and cannot change a verdict alone, so nothing pins
+  it. The fourth project carries two rewrites that reach the returned issue set
+  without being bound to a name — one as the issues property of a returned object
+  literal, one as the returned expression itself — both shapes the rule documents
+  as recognized and both unreachable while it gave up whenever no return named an
+  identifier."
 aspects: []
 relations: []
 mapping:

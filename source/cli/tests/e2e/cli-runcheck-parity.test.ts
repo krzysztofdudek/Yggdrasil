@@ -17,13 +17,13 @@ import { fileURLToPath } from 'node:url';
 // silent-skip hole (an inline comment among a call's arguments disabled it at
 // that call site) that one negative fixture would have caught on the first run.
 //
-// So the drill corpus is replaced here by three REAL, committed on-disk fixture
-// projects — tests/fixtures/runcheck-parity, .../runcheck-parity-drift and
-// .../runcheck-parity-unrecognized — each a self-contained graph plus source,
-// driven through the REAL built binary against the REAL check.mjs. Nothing about
-// the rule is copied or restated: the aspect directory is materialized into each
-// run's temp project straight from `.yggdrasil/aspects/`, so a fixture can never
-// drift from the rule it pins.
+// So the drill corpus is replaced here by four REAL, committed on-disk fixture
+// projects under tests/fixtures/ — runcheck-parity, runcheck-parity-drift,
+// runcheck-parity-unrecognized and runcheck-parity-return-shapes — each a
+// self-contained graph plus source, driven through the REAL built binary against
+// the REAL check.mjs. Nothing about the rule is copied or restated: the aspect
+// directory is materialized into each run's temp project straight from
+// `.yggdrasil/aspects/`, so a fixture can never drift from the rule it pins.
 //
 // What each fixture proves:
 //   runcheck-parity       — every call shape the rule must judge, in ONE node:
@@ -49,14 +49,26 @@ import { fileURLToPath } from 'node:url';
 //                           hand-signed list — the side-effect allowlist naming a
 //                           member this seam dropped, and the demanding map
 //                           naming one it never declared.
-//   runcheck-parity-      — a seam that READS the member the demanding map lists,
-//   unrecognized            in three shapes the rewrite matcher does not match,
-//                           each differing from it in exactly ONE respect. The
-//                           entry must go UNPROVEN rather than be trusted, and
-//                           every matcher requirement is individually pinned:
-//                           delete any one and that read derives, the unproven
-//                           refusal vanishes, and the call site is refused for
-//                           the omission instead.
+//   runcheck-parity-      — one near miss per REJECTING requirement of the
+//   unrecognized            rewrite matcher, each differing from the recognized
+//                           shape in exactly ONE respect, so deleting the
+//                           requirement it targets — and only that one — makes it
+//                           derive. Three read the member the demanding map
+//                           lists, whose entry must then go UNPROVEN rather than
+//                           be trusted; the fourth is conditioned on a local, the
+//                           shape that would have the rule invent a key outright.
+//                           Four of the matcher's five requirements are pinned
+//                           this way; the fifth (a bare-identifier alternative)
+//                           is subsumed by the first-argument comparison and
+//                           cannot change a verdict alone, so nothing pins it.
+//   runcheck-parity-      — two rewrites that reach the returned issue set
+//   return-shapes           WITHOUT being bound to a name: one as the `issues`
+//                           property of a returned object literal, one as the
+//                           returned expression itself. Both are shapes the rule
+//                           documents as recognized and both were unreachable
+//                           while it gave up whenever no return named an
+//                           identifier — which is what a body written this way
+//                           produces.
 //
 // Hermetic: each test copies the committed fixture into a fresh mkdtemp tree and
 // removes it in `finally`; zero committed bytes change. No network, no clock, no
@@ -257,16 +269,46 @@ describe.skipIf(!distExists)(`${ASPECT_ID} — hand-signed entry outlives its wi
 
   it('demands nothing at the call site while that entry stands unproven', () => {
     withFixture('runcheck-parity-unrecognized', (out) => {
-      // The other half of every requirement's proof. The seam's three reads each
-      // differ from the recognized rewrite in exactly ONE respect — the transform
-      // rewrites a different list than the one opposite it, the option is never
-      // handed to the transform, or the rewritten list is a byproduct rather than
-      // the returned one. While none of them derives, the entry demands nothing
-      // and this caller is silent. Drop any single requirement from the matcher
-      // and the read it guarded starts deriving: the unproven refusal above
-      // disappears and this assertion fails with the omission. So no requirement
-      // can be deleted without a test going red.
+      // The other half of each near miss's proof. The seam's four reads each
+      // differ from the recognized rewrite in exactly ONE respect — conditioned
+      // on a local rather than on the injected options, the transform rewrites a
+      // different list than the one opposite it, the option is never handed to
+      // the transform, or the rewritten list is a byproduct rather than the
+      // returned one. While none of them derives, nothing is demanded and this
+      // caller is silent. Delete the requirement any one of them targets and that
+      // read derives: for the three on the hand-signed member the unproven
+      // refusal above disappears too; for the local-conditioned one the rule
+      // invents a key outright. Either way this assertion fails with the
+      // omission.
+      //
+      // FOUR of the matcher's five requirements are pinned this way (the options
+      // object, the first-argument comparison, the option being fed in, and the
+      // returned-list test — the last also by the parity fixture's byproduct).
+      // The fifth, that the alternative be a bare identifier, is subsumed by the
+      // first-argument comparison and provably cannot change a verdict alone, so
+      // it is NOT pinned here and no case pretends to; the rule's docblock
+      // carries that argument.
       expect(out).not.toContain('missing issue-affecting option');
+    });
+  });
+});
+
+describe.skipIf(!distExists)(`${ASPECT_ID} — rewrites that reach the return unbound (fixture: runcheck-parity-return-shapes)`, () => {
+  it('derives a rewrite written as the issues property of a returned object literal, and one written as the returned expression', () => {
+    withFixture('runcheck-parity-return-shapes', (out) => {
+      expect(out).toContain('refused');
+      // Neither rewrite is bound to anything, so this seam names no returned
+      // identifier at all — the case the rule's identifier collector used to give
+      // up on, leaving both of these documented shapes unreachable and their
+      // authors advised to write the code already in front of them.
+      expect(out).toContain('src/callers/omits-return-shapes.ts');
+      expect(out).toContain('missing issue-affecting option(s): scopeInProperty, scopeInReturn');
+    });
+  });
+
+  it('stays silent on the call site that passes both', () => {
+    withFixture('runcheck-parity-return-shapes', (out) => {
+      expect(out).not.toContain('src/callers/complete.ts');
     });
   });
 });

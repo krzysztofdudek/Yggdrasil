@@ -1,0 +1,14 @@
+name: Callers
+type: engine
+description: >-
+  Two runCheck call sites against the unbound-rewrite seam: one passing every
+  option the seam varies its returned issue set on, which must stay silent, and
+  one omitting both unbound rewrites, which must be refused for them by name. The
+  pair is what makes the recognized-shape coverage falsifiable in both directions.
+aspects:
+  - runcheck-injected-input-parity
+relations:
+  - target: cli/core/check
+    type: calls
+mapping:
+  - src/callers/

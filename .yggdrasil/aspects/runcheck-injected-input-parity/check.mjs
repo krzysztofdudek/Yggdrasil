@@ -81,9 +81,12 @@ import { walk, report } from '@chrisdudek/yg/ast';
  *
  * Both violation families fire only on provable facts.
  *
- * Both derivations demand a key only where omitting it PROVABLY changes the
- * issue set runCheck returns: a gate's own bounded set silently disappears, or
- * the returned list is handed back unrewritten. Neither fires on a byproduct.
+ * Both derivations aim at one thing: demand a key only where omitting it changes
+ * the issue set runCheck returns — a gate's own bounded set silently disappears,
+ * or the returned list is handed back unrewritten. A byproduct assembled in
+ * either shape is not matched. The rewrite half reaches that by a name check
+ * rather than a proof (see its KNOWN LIMIT below), so this is the rule's aim and
+ * its ordinary behaviour, not a guarantee for every shape a body can take.
  *
  * PARITY: a call is flagged only when its options argument is a plain object
  * literal PROVABLY missing a key, or the options argument is absent entirely.
@@ -384,24 +387,52 @@ function becomesReturnedIssues(ternary, decl, returnedNames) {
  * that genuinely gates a bounded set be labelled a rewrite:
  *
  *   1. the condition is `<optionsName>?.<key>`, the same optional-chained member
- *      access on the bare options identifier the gating matcher requires;
+ *      access on the bare options identifier the gating matcher requires. Of its
+ *      three checks only the OBJECT one is load-bearing alone, and a fixture case
+ *      pins it: without it a rewrite conditioned on some unrelated local carrying
+ *      a same-named field derives that field's name as a key, and every call site
+ *      is then refused for omitting an option whose presence changes nothing
+ *      about that ternary — the rule inventing an obligation. The node-type check
+ *      is subsumed by it (a non-member_expression has no `object` field, so the
+ *      object check already rejects it) and no case pins it. The optional-chain
+ *      check is NOT subsumed and is NOT pinned: deleting it would also match a
+ *      plain `<optionsName>.<key>` condition, which is still this options object,
+ *      so it widens the match without inventing a key. It stays for symmetry with
+ *      the gating matcher, not because a case proves it;
  *   2. the alternative is a BARE IDENTIFIER — the untransformed list. (A literal
  *      `[]` alternative is the gating shape and is matched there instead; the
  *      two derivations therefore cannot both claim one construct.)
+ *      SUBSUMED, kept deliberately: requirement 3 below compares the first
+ *      argument's TEXT against the alternative's, and only an `identifier` node
+ *      can be that argument, so the alternative can pass 3 only when its own text
+ *      is a bare identifier — which is to say, only when it IS one. Deleting this
+ *      line therefore cannot change any verdict, so no fixture case can pin it
+ *      and none pretends to. It stays because it states the intent directly
+ *      rather than leaving it as a consequence of how 3 happens to compare, and
+ *      it keeps 3 free to become a structural comparison later without silently
+ *      widening what shapes reach it;
  *   3. the consequence is a CALL whose FIRST argument is that same identifier,
  *      by name. This is what makes it a rewrite OF that list rather than an
  *      unrelated expression that merely happens to sit opposite it;
  *   4. the option's own value is handed to that call. A transform that never
  *      receives the option cannot be varying on it, and a call site omitting it
  *      would then change nothing — so demanding it everywhere would be noise;
- *   5. the RESULT becomes the issue set runCheck returns. Without this the match
+ *   5. the RESULT becomes the issue set runCheck returns — bound or assigned to
+ *      an identifier a `return` hands back, returned directly, or placed as the
+ *      `issues` property of a returned object literal. Without this the match
  *      would say "some list in here is rewritten", not "the issue set is", and a
  *      side-effect option assembling a BYPRODUCT in this shape — a report row, an
  *      index — would be demanded at every call site though it alters no issue.
- *      That would be a provable FALSE POSITIVE, which `errs: under` forbids, and
- *      it would collide with that option's own side-effect classification and
- *      advise removing it. Requiring the rewritten list to be the returned one
- *      keeps every demand this rule makes a statement about the issue set.
+ *      That would be a FALSE POSITIVE, which `errs: under` forbids, and it would
+ *      collide with that option's own side-effect classification and advise
+ *      removing it.
+ *
+ * KNOWN LIMIT of requirement 5: it matches by NAME and does no scope analysis, so
+ * a byproduct bound inside a nested block to a name that SHADOWS the returned
+ * identifier still derives. That is far narrower than the hole it closed and it
+ * errs toward demanding rather than exempting, but it means requirement 5 is a
+ * name check and not a proof — do not describe this rule as demanding a key only
+ * where omitting it provably changes the returned issue set.
  *
  * Narrowing in this direction is safe in a way widening would not be: a genuine
  * rewrite written so that its result reaches the return by some path this cannot
@@ -413,8 +444,15 @@ function deriveIssueTransformKeys(decl, optionsName) {
   const keys = new Set();
   const body = decl.childForFieldName('body');
   if (!body) return keys;
+  // Deliberately NO `if (returnedNames.size === 0) return` short-circuit. An
+  // empty set is not "nothing is returned as issues" — it is "no return names an
+  // IDENTIFIER", which is exactly the case for the two shapes that need no name
+  // at all (`return <ternary>` and `return { issues: <ternary> }`). Bailing here
+  // made both of those branches of becomesReturnedIssues unreachable on their
+  // own, so a rewrite written in a shape this rule documents as recognized did
+  // not derive, and the member's refusal then told its author to write the code
+  // already in front of them.
   const returnedNames = findReturnedIssueIdentifiers(decl);
-  if (returnedNames.size === 0) return keys;
   walk(body, (node) => {
     if (node.type !== 'ternary_expression') return;
     const condition = node.childForFieldName('condition');

@@ -34,10 +34,12 @@ description: >-
   `[]` nor the untransformed list) would never be derived, never be demanded at
   a call site, and never be noticed. Only the side-effect allowlist exempts a
   member from the call-site demand; nothing else here can make the rule ask for
-  less. Every demand is a provable claim about the issue set runCheck returns:
-  a byproduct assembled in the rewrite shape — a report row, an index — is not
-  the returned list, is not derived, and is never asked for, so the `errs: under`
-  contract holds in both directions.
+  less. A byproduct assembled in the rewrite shape — a report row, an index — is
+  not the returned list, is not derived, and is never asked for, which is what
+  keeps the `errs: under` contract honest in the widening direction. That test is
+  a name check rather than a scope analysis, so a byproduct bound to a name that
+  shadows the returned one would still be demanded; the rule's own docblock
+  records that limit rather than claiming a guarantee it does not have.
 
   Everything except the seam's node id and the two hand-signed maps is derived
   live from a single parse of core/check.ts — the runCheck declaration, the

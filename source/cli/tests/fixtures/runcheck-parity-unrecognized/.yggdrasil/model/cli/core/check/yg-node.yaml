@@ -1,13 +1,16 @@
 name: Check
 type: engine
 description: >-
-  A runCheck seam that READS the member the rule's issue-transform map lists,
-  in three shapes the whole-list-rewrite derivation does not match. Each read
-  differs from the recognized shape in exactly one respect — the transform
-  rewrites a different list than the one opposite it, the option is never handed
-  to the transform, or the rewritten list is a byproduct rather than the one this
-  function returns as its issues — so each pins one requirement of that matcher
-  on its own.
+  A runCheck seam carrying one near miss per REJECTING requirement of the
+  whole-list-rewrite matcher, each differing from the recognized shape in exactly
+  one respect: conditioned on a local rather than on the injected options, the
+  transform rewriting a different list than the one opposite it, the option never
+  handed to the transform, or the rewritten list being a byproduct rather than
+  the one this function returns as its issues. Deleting the requirement any one
+  of them targets, and only that one, makes it derive. Four of the matcher's five
+  requirements are covered this way; the fifth, that the alternative be a bare
+  identifier, is subsumed by the first-argument comparison and cannot change a
+  verdict on its own, so nothing here pins it.
 aspects: []
 relations: []
 mapping:
