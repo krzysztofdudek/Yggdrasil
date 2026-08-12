@@ -11,5 +11,6 @@ import { runCheck } from '../core/check.js';
 export function commentEvasion(graph: string, files: string[]): string[] {
   return runCheck(graph, /* boundary-injected */ files, {
     nowUtc: () => new Date(),
+    scopeFilter: 'in-scope',
   });
 }

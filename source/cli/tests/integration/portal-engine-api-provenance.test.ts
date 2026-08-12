@@ -254,13 +254,13 @@ describe('computePortalSourceFileCounts — the panel\'s real per-node file coun
     // equals the real file count for every node there — a facade that quietly
     // returned mapping.length instead of the real expansion would pass the two tests
     // above unnoticed. The committed `runcheck-parity` fixture's `cli/callers` node has
-    // ONE mapping entry (a directory, `src/callers/`) that expands to SEVEN files on
+    // ONE mapping entry (a directory, `src/callers/`) that expands to EIGHT files on
     // disk, so the two numbers can only agree here if the facade is actually doing the
     // real expansion.
     const graph = await loadGraph(RUNCHECK_PARITY_FIXTURE);
     const counts = await computePortalSourceFileCounts(graph);
     const callers = counts.find((c) => c.nodePath === 'cli/callers')!;
-    expect(callers.sourceFileCount).toBe(7); // real expansion, not the single mapping entry
+    expect(callers.sourceFileCount).toBe(8); // real expansion, not the single mapping entry
   });
 });
 

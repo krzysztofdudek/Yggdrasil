@@ -15,23 +15,32 @@ description: >-
   been missing `nowUtc` for the same reason.
 
   Two things are enforced. PARITY: every call site that invokes runCheck() must
-  pass every option that GATES an issue (an `options?.<key> ? <issues> : []`
-  field) — not every field of RunCheckOptions, since some fields
-  (`writeFeatureIndex`, `now`) are side-effect switches deliberately set at only
-  one call site and gate no issue. CLASSIFICATION: every OPTIONAL member of
-  RunCheckOptions must be accounted for — either derived as issue-gating from
-  runCheck's own body, or named in this rule's short side-effect allowlist with
-  a reason. Without that second half the rule silently under-enforces exactly as
-  before: a new gate written in any other shape (an `if (options?.x)` branch, a
-  ternary whose alternative is not a literal `[]`) would never be derived, never
-  be demanded at a call site, and never be noticed.
+  pass every option that can move the issue set — one that GATES a bounded set
+  of issues (an `options?.<key> ? <issues> : []` field) and one consumed as a
+  WHOLE-LIST REWRITE of the assembled issues (an
+  `options?.<key> ? <fn>(<list>, options.<key>) : <list>` field, the shape a
+  gate cannot be written in) — but not every field of RunCheckOptions, since
+  some fields (`writeFeatureIndex`, `now`) are side-effect switches deliberately
+  set at only one call site and alter no issue. CLASSIFICATION: every OPTIONAL
+  member of RunCheckOptions must be accounted for — derived from runCheck's own
+  body as one of those two shapes, named in this rule's short side-effect
+  allowlist with a reason, or named in its issue-transform map, which DEMANDS
+  the member at every call site and is honoured only while runCheck's body
+  provably never reads it (the window in which a field is declared and threaded
+  before its consumer lands). Without that second half the rule silently
+  under-enforces exactly as before: a new gate written in any other shape (an
+  `if (options?.x)` branch, a ternary whose alternative is neither a literal
+  `[]` nor the untransformed list) would never be derived, never be demanded at
+  a call site, and never be noticed. Only the side-effect allowlist exempts a
+  member from the call-site demand; nothing else here can make the rule ask for
+  less.
 
-  Everything except the seam's node id and the side-effect allowlist is derived
+  Everything except the seam's node id and the two hand-signed maps is derived
   live from a single parse of core/check.ts — the runCheck declaration, the
   options parameter's name and position, the options interface and its members,
-  and the issue-gating key set — so a fifth injected input added later is picked
-  up automatically without editing this rule, and a parameter reorder can never
-  move the positional half without the key half.
+  both key sets, and which members the body reads at all — so a further injected
+  input added later is picked up automatically without editing this rule, and a
+  parameter reorder can never move the positional half without the key half.
 reviewer:
   type: deterministic
 errs: under

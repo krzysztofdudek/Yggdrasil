@@ -26,14 +26,18 @@ import { fileURLToPath } from 'node:url';
 //
 // What each fixture proves:
 //   runcheck-parity       — every call shape the rule must judge, in ONE node:
-//                           three that PROVABLY omit an issue-gating option
-//                           (must be refused, including the two that a
-//                           comment-blind matcher skipped in silence) and four
-//                           that cannot be proven to omit one (must stay silent,
-//                           per `errs: under`). Its seam also carries a
-//                           same-file helper with its own gating ternary, so a
+//                           four that PROVABLY omit an issue-affecting option
+//                           (must be refused — three omitting a gating option,
+//                           including the two that a comment-blind matcher
+//                           skipped in silence, and one omitting the whole-list
+//                           rewrite) and four that cannot be proven to omit one
+//                           (must stay silent, per `errs: under`). Its seam also
+//                           carries a same-file helper with its own gating
+//                           ternary AND its own whole-list rewrite, so a
 //                           derivation walking the whole file instead of
-//                           runCheck's body would refuse all four compliant ones.
+//                           runCheck's body would refuse all four compliant
+//                           ones; plus a near miss of the rewrite shape, which
+//                           a looser matcher would derive and demand.
 //   runcheck-parity-drift — a seam whose call site passes every DERIVED option,
 //                           so ONLY the rule's classification half can refuse
 //                           it: a new issue-gating input written in a shape the
@@ -88,10 +92,10 @@ function withFixture(fixture: string, assert: (out: string) => void): void {
 }
 
 describe.skipIf(!distExists)(`${ASPECT_ID} — call-site parity (fixture: runcheck-parity)`, () => {
-  it('refuses exactly the three call sites that provably omit an issue-gating option', () => {
+  it('refuses exactly the four call sites that provably omit an issue-affecting option', () => {
     withFixture('runcheck-parity', (out) => {
       expect(out).toContain('refused');
-      expect(out).toContain('3 violations');
+      expect(out).toContain('4 violations');
 
       // A caller that supplies the injected clock but not the injected
       // artifacts snapshot — the defect the rule exists to catch, and the proof
@@ -110,8 +114,15 @@ describe.skipIf(!distExists)(`${ASPECT_ID} — call-site parity (fixture: runche
       expect(out).toContain('src/callers/no-options.ts');
       expect(out).toContain('passes no options argument');
 
+      // The whole-list rewrite is demanded exactly as a gate is: this caller
+      // passes both gating options and omits only the rewrite. Its alternative
+      // is the untransformed list, never `[]`, so the gating matcher can never
+      // derive it — with the rewrite matcher absent, this call site is silent.
+      expect(out).toContain('src/callers/transform-omitted.ts');
+      expect(out).toContain('missing issue-affecting option(s): scopeFilter');
+
       // Every violation names the omitted option, and only the omitted one.
-      expect(out).toContain('missing issue-gating option(s): rulesArtifacts');
+      expect(out).toContain('missing issue-affecting option(s): rulesArtifacts');
     });
   });
 
@@ -130,13 +141,25 @@ describe.skipIf(!distExists)(`${ASPECT_ID} — call-site parity (fixture: runche
     });
   });
 
-  it('derives no phantom key from a gating ternary outside runCheck\'s own body', () => {
+  it('derives no phantom key from a gating ternary or a rewrite outside runCheck\'s own body', () => {
     withFixture('runcheck-parity', (out) => {
       // The fixture's seam file carries a same-file helper with its own
-      // `options?.phantomKey ? … : []`. A derivation walking the whole file
-      // would demand phantomKey at every call site and refuse all four
-      // compliant ones with a fix that would not even typecheck.
+      // `options?.phantomKey ? … : []` AND its own whole-list rewrite on
+      // `phantomScope`. A derivation walking the whole file would demand both at
+      // every call site and refuse all four compliant ones with a fix that would
+      // not even typecheck.
       expect(out).not.toContain('phantomKey');
+      expect(out).not.toContain('phantomScope');
+    });
+  });
+
+  it('does not derive a near miss of the rewrite shape', () => {
+    withFixture('runcheck-parity', (out) => {
+      // The seam's near miss has the same silhouette but two DIFFERENT lists on
+      // its branches, so it rewrites nothing. A matcher that took any identifier
+      // as the alternative would derive `precomputedVerification`, contradict
+      // its side-effect classification, and refuse every compliant caller.
+      expect(out).not.toContain('precomputedVerification');
     });
   });
 });
@@ -154,7 +177,7 @@ describe.skipIf(!distExists)(`${ASPECT_ID} — member classification (fixture: r
 
       // The call site itself passes every DERIVED option, so a parity-only rule
       // would have found nothing at all to say about this fixture.
-      expect(out).not.toContain('missing issue-gating option');
+      expect(out).not.toContain('missing issue-affecting option');
     });
   });
 
