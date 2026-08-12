@@ -58,7 +58,9 @@ import {
   hasCleanWorktree,
   isAncestor,
   isShallowRepository,
+  pathExistsAtRef,
   treesIdentical,
+  type ChangedFiles,
 } from '../utils/git-introspect.js';
 import { toPosixPath } from '../utils/posix.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -209,9 +211,17 @@ export function renderProgressiveViewLine(split: ProgressiveSplit, reference: st
  * `null` means "could not be read", and a caller MUST treat that as a reason to
  * print nothing rather than as an empty set. The two are not interchangeable: an
  * empty set is the positive claim "the reference held no verdicts", which
- * switches OFF the check that notices a change deleting verdicts outright. A
- * file genuinely ABSENT at the reference is a different matter — that absence is
- * proven rather than guessed, and is honestly an empty set.
+ * switches OFF the check that notices a change deleting verdicts outright. Only
+ * ONE situation earns that claim — the file was genuinely not there at the
+ * reference — and only because that absence can be proven.
+ *
+ * Proving it takes a second question. Reading the file back EMPTY does not prove
+ * it: a path that is absent at the reference and a path that is present there as
+ * a zero-byte or whitespace-only blob both read back as the empty string, and
+ * the second is a truncated or emptied verdict record — precisely the change
+ * this row exists to notice. So an empty read asks the reference's tree whether
+ * the path was there at all, and anything short of a confirmed absence declines
+ * to answer.
  *
  * Only the committed file is read. Deterministic verdicts live in a gitignored
  * local cache, so reading those too would make a cold clone look like a change
@@ -228,8 +238,17 @@ async function readBaseVerdictPairKeys(
     debugWrite(`[progressive] committed lock unreadable at the reference: ${String(error)}`);
     return null;
   }
-  // Absent at the reference — proven, not assumed: no committed verdicts existed.
-  if (text.trim() === '') return new Set();
+  if (text.trim() === '') {
+    // Empty content is ambiguous — see this function's doc. A CONFIRMED absence
+    // is the only reading that earns the empty set; a present-but-empty record
+    // (and a probe that could not answer) falls back instead.
+    const present = await pathExistsAtRef(projectRoot, mergeBase, COMMITTED_LOCK_FILE);
+    if (present === false) return new Set();
+    debugWrite(
+      `[progressive] committed lock at the reference read back empty and could not be confirmed absent (present=${String(present)})`,
+    );
+    return null;
+  }
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -260,7 +279,10 @@ async function didConfigVocabularyMove(projectRoot: string, mergeBase: string): 
   let baseText: string | null;
   try {
     const raw = await getFileAtRef(projectRoot, mergeBase, CONFIG_FILE);
-    // Absent at the reference: every key in the current file is new to it.
+    // Nothing to compare against — the file was absent at the reference, or was
+    // there and empty. Unlike the verdict record above, the two need no telling
+    // apart here: both make every key in the current file new to the reference,
+    // and both therefore fall the same, safe way.
     baseText = raw.trim() === '' ? null : raw;
   } catch {
     baseText = null;
@@ -294,6 +316,33 @@ async function resolveTypeCoverage(
   const uncovered = scanUncoveredFiles(graph, coverageVisibleFiles);
   const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
+}
+
+/**
+ * Does a submodule pointer appear among the changed paths?
+ *
+ * The preflight table's field is a plain boolean because the row it feeds is a
+ * refusal — there is no third answer that table could act on. So this collapses
+ * three inputs into two answers, and it collapses them AWAY from reassurance:
+ * a run that could not enumerate the repository's submodule pointers, or could
+ * not enumerate its own changed paths, reports the blocking value. Answering
+ * `false` there would be claiming "no submodule here" on the strength of not
+ * having looked, and a pointer to another repository's commit is exactly the
+ * thing path-based scoping cannot reason about.
+ *
+ * (A missing changed-path set is separately, and more precisely, refused by the
+ * table's own earlier row, so that half never decides an outcome on its own —
+ * it is written this way to keep the rule one rule rather than two.)
+ */
+export function resolveSubmoduleGitlinkInDiff(
+  gitlinks: Set<string> | null,
+  touched: ChangedFiles | null,
+): boolean {
+  if (gitlinks === null || touched === null) return true;
+  for (const file of touched.files) {
+    if (gitlinks.has(file)) return true;
+  }
+  return false;
 }
 
 /**
@@ -348,12 +397,7 @@ async function probeProgressiveState(
       toplevelMatchesProjectRoot:
         toplevel === null ? null : toplevelMatchesProjectRoot(toplevel.toplevel, projectRoot),
       shallow,
-      // No answer means no answer: a run that cannot enumerate its submodule
-      // pointers must not report the reassuring value here.
-      submoduleGitlinkInDiff:
-        gitlinks === null
-          ? true
-          : touched !== null && [...touched.files].some((file) => gitlinks.has(file)),
+      submoduleGitlinkInDiff: resolveSubmoduleGitlinkInDiff(gitlinks, touched),
     },
   };
 }

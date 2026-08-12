@@ -82,6 +82,25 @@ never a silent full dump — for the single suggested-next group use bare
 matching the count the build enforces. Orient with \`--summary\`/\`--top\`, drill
 with \`--aspect\` or plain \`yg check\`.
 
+### \`--full\`: report the whole project
+
+A project can name a branch that changes are measured against (the
+\`progressive\` block — see \`yg schemas read config\`). When it does, \`yg check\`
+prints one extra line above its report: how many of the findings the current
+change is accountable for, out of how many there are, and how many were already
+there beforehand.
+
+\`\`\`bash
+yg check --full            # report the whole project, without that line
+\`\`\`
+
+Unlike the views above this one is NOT a triage view: it hides no finding, and
+it combines freely with \`--approve\` and with any other flag. Today it changes
+nothing else either — the findings, their severities and the exit code are the
+same with or without it, on every project. The extra line is informational: it
+never means a finding is someone else's problem, and it is never a reason to
+leave one unfixed.
+
 ### Silent structural-deviation index (attention only)
 
 As a byproduct, a plain \`yg check\` also maintains a local, gitignored

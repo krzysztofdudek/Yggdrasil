@@ -2,7 +2,9 @@ import { describe, it, expect } from 'vitest';
 import {
   splitIssuesByScope,
   renderProgressiveViewLine,
+  resolveSubmoduleGitlinkInDiff,
 } from '../../../src/cli/progressive-view.js';
+import type { ChangedFiles } from '../../../src/utils/git-introspect.js';
 import { progressivePairKey, type BurnSet } from '../../../src/core/progressive-scope.js';
 import type { CheckIssue } from '../../../src/core/check-contract.js';
 import type { ExpectedPair } from '../../../src/core/pairs.js';
@@ -194,6 +196,35 @@ describe('splitIssuesByScope', () => {
       outside: 0,
       global: false,
     });
+  });
+});
+
+describe('resolveSubmoduleGitlinkInDiff', () => {
+  const changed = (...files: string[]): ChangedFiles => ({ files: new Set(files), renames: [] });
+
+  it('refuses when the submodule pointers could not be enumerated at all', () => {
+    // The load-bearing half. Answering "no submodule here" because the probe
+    // failed would be a claim made from not having looked — and a pointer to
+    // another repository's commit is precisely what path-based scoping cannot
+    // reason about, so the unknown has to land on the blocking side.
+    expect(resolveSubmoduleGitlinkInDiff(null, changed('src/a.ts'))).toBe(true);
+    expect(resolveSubmoduleGitlinkInDiff(null, changed())).toBe(true);
+    expect(resolveSubmoduleGitlinkInDiff(null, null)).toBe(true);
+  });
+
+  it('refuses when the changed paths could not be enumerated', () => {
+    expect(resolveSubmoduleGitlinkInDiff(new Set(), null)).toBe(true);
+  });
+
+  it('is true only when a pointer is actually among the changed paths', () => {
+    const pointers = new Set(['vendor/sub']);
+    expect(resolveSubmoduleGitlinkInDiff(pointers, changed('vendor/sub'))).toBe(true);
+    expect(resolveSubmoduleGitlinkInDiff(pointers, changed('src/a.ts', 'vendor/sub'))).toBe(true);
+    expect(resolveSubmoduleGitlinkInDiff(pointers, changed('src/a.ts'))).toBe(false);
+  });
+
+  it('is false for a repository that has no submodules and a real change', () => {
+    expect(resolveSubmoduleGitlinkInDiff(new Set(), changed('src/a.ts'))).toBe(false);
   });
 });
 

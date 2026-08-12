@@ -61,10 +61,19 @@ import type { ChangedFiles } from '../utils/git-introspect.js';
  *   since neither is a confirmed match.
  * - `shallow` — `isShallowRepository()`, used only to pick which of three
  *   distinct explanations a `mergeBase === null` fallback gets.
- * - `submoduleGitlinkInDiff` — whether the touched-set computation observed
- *   a submodule gitlink entry. Always a concrete `boolean` (not nullable):
- *   by the time a caller can answer this at all, `touched` was already
- *   resolved.
+ * - `submoduleGitlinkInDiff` — whether a submodule gitlink appears among the
+ *   changed paths. NOT a by-product of the touched set, and NOT implied by
+ *   `touched` being resolved: the changed-file reader reports paths only,
+ *   with no file modes, so nothing in `touched` distinguishes a gitlink from
+ *   an ordinary file. A caller answers this from a SEPARATE probe
+ *   (`gitlinkPaths` in `utils/git-introspect.ts`, which must read both the
+ *   current index and the reference's own tree — neither alone sees a
+ *   submodule that was added but not committed, or one this change removed)
+ *   and intersects that set with the touched paths itself. Always a concrete
+ *   `boolean` (not nullable) because the row it feeds below is a refusal and
+ *   there is no third answer this table could act on — which is exactly why a
+ *   caller that could not determine it must supply `true` (refuse) rather
+ *   than the reassuring `false`.
  */
 export interface PreflightProbes {
   configReference: string | undefined;

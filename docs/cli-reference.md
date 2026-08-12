@@ -202,6 +202,24 @@ final report on stdout. With `--dry-run` the budget preview is the command's
 deliverable, so `--dry-run` wins over `--quiet` — the budget still prints on
 stdout; `--quiet` only suppresses the non-dry-run progress.
 
+#### `--full` — answer for the whole project
+
+```bash
+yg check --full
+```
+
+A project can name a branch to measure changes against (the `progressive` block
+in `yg schemas read config`). When it does, `yg check` prints one extra line
+above its report: how many of the findings your current change is accountable
+for, out of how many there are, and how many were already there before you
+started. `--full` asks for the whole project instead and leaves that line out.
+
+It is not a triage view: it hides no finding, and it combines freely with
+`--approve` and with any of the flags above. Today it changes nothing else —
+the findings, their severities and the exit code are identical with or without
+it, on every project. Reach for it when you want the report read plainly, with
+no reference to what you happen to be working on.
+
 **Precedence:** explicit CLI flags (`--approve`, `--no-approve`,
 `--only-deterministic`) override `auto_approve` in `yg-config.yaml`. The config
 setting affects bare `yg check` only; CI scripts should always use explicit flags.

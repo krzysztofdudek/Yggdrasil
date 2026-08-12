@@ -17,6 +17,7 @@ import {
   treesIdentical,
   hasCleanWorktree,
   gitlinkPaths,
+  pathExistsAtRef,
 } from '../../../src/utils/git-introspect.js';
 import { gitFixtureEnv } from '../../support/git-fixture.js';
 
@@ -691,5 +692,41 @@ describe('gitlinkPaths', () => {
   it('returns null when the ref does not resolve', async () => {
     const { repo } = await setupRevertRepo();
     expect(await gitlinkPaths(repo, 'no-such-ref')).toBeNull();
+  });
+});
+
+describe('pathExistsAtRef', () => {
+  it('separates a zero-byte blob from an absent path, where the content alone cannot', async () => {
+    const { repo, base } = await setupRevertRepo();
+    // `git show` succeeds on an empty blob, so getFileAtRef reports the SAME
+    // empty string for both of these — which is exactly why this probe exists.
+    await writeFile(path.join(repo, 'empty.txt'), '');
+    execSync('git add -A && git commit -qm "add an empty file"', {
+      cwd: repo,
+      stdio: 'pipe',
+      env: gitFixtureEnv(repo),
+    });
+    expect(await getFileAtRef(repo, 'HEAD', 'empty.txt')).toBe('');
+    expect(await getFileAtRef(repo, 'HEAD', 'never-existed.txt')).toBe('');
+
+    expect(await pathExistsAtRef(repo, 'HEAD', 'empty.txt')).toBe(true);
+    expect(await pathExistsAtRef(repo, 'HEAD', 'never-existed.txt')).toBe(false);
+    // ...and the same file is honestly absent at a ref that predates it.
+    expect(await pathExistsAtRef(repo, base, 'empty.txt')).toBe(false);
+  });
+
+  it('reports a tracked file with content as present', async () => {
+    const { repo } = await setupRevertRepo();
+    expect(await pathExistsAtRef(repo, 'HEAD', 'file.txt')).toBe(true);
+  });
+
+  it('returns null when the ref does not resolve', async () => {
+    const { repo } = await setupRevertRepo();
+    expect(await pathExistsAtRef(repo, 'no-such-ref', 'file.txt')).toBeNull();
+  });
+
+  it('returns null when repoCwd is not a git repository', async () => {
+    const dir = await makeNonGitDir();
+    expect(await pathExistsAtRef(dir, 'HEAD', 'a.txt')).toBeNull();
   });
 });

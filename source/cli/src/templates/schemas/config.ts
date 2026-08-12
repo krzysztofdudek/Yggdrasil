@@ -50,6 +50,24 @@ coverage:                         # optional — scopes the unmapped-files gate.
                                   # this key, since it changes what counts as covered for everyone.
                                   # Does nothing until some type declares \`when:\`.
 
+progressive:                      # optional — names the branch your changes are measured against.
+  reference: origin/main          #   Absent = off: every run answers for the whole project, unchanged.
+                                  # When set, \`yg check\` prints one extra line above its report: how many
+                                  # of the findings your current change is accountable for, out of how many
+                                  # there are, and how many were already there before you started. Nothing
+                                  # else moves — no finding changes severity, none is hidden, and the exit
+                                  # code is exactly what it would be without this key. \`yg check --full\`
+                                  # answers for the whole project and leaves the line out.
+                                  # The block accepts only \`reference\`, and it must be a non-blank string —
+                                  # a misspelling or a blank value is refused rather than silently ignored,
+                                  # since either would leave you believing this was on when it was not.
+                                  # Committed-config only: a yg-secrets.yaml overlay can never introduce or
+                                  # repoint this key, since it decides how much of the project a run answers
+                                  # for — the answer must be the same for everyone working on the branch.
+                                  # The line is simply absent whenever the comparison cannot be made
+                                  # honestly (the named branch is unknown locally, or has no shared history
+                                  # with your work) rather than guessed at.
+
 signals:                          # optional — attention-layer switches. Absent = every signal at its default.
   attention: true                 #   attention (default true): the advisory "structurally unusual" note in
                                   #   yg context --file. false silences it. Must be boolean; unknown keys rejected.

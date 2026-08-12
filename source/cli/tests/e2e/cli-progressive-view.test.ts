@@ -142,12 +142,36 @@ describe.skipIf(!distExists)('yg check — progressive view line', () => {
       return fixture;
     }
 
-    it('says nothing, where a readable-but-empty one measures normally', () => {
+    it('measures normally against a readable-but-empty record', () => {
       const readable = scaffoldWithBaseRecord('base-readable', READABLE);
-      const garbled = scaffoldWithBaseRecord('base-garbled', '{ this is not json');
-
       expect(run(['check'], readable.dir).stdout).toContain('progressive view:');
+    });
+
+    it('says nothing when the record at the reference is unparseable', () => {
+      const garbled = scaffoldWithBaseRecord('base-garbled', '{ this is not json');
       expect(run(['check'], garbled.dir).stdout).not.toContain('progressive view:');
+    });
+
+    it('says nothing when the record at the reference was there but EMPTY', () => {
+      // The case an "is it empty?" test on the content alone gets wrong. A file
+      // that was never committed and a file that was committed and then
+      // truncated read back identically — as nothing — and the second is a
+      // record whose entries this change destroyed, which is the whole reason
+      // the row exists. Only a confirmed absence may be read as "held no
+      // verdicts"; an emptied one must decline.
+      const emptied = scaffoldWithBaseRecord('base-emptied', '');
+      expect(run(['check'], emptied.dir).stdout).not.toContain('progressive view:');
+    });
+
+    it('measures normally when the record was simply never committed at the reference', () => {
+      // The other side of the same coin, and why this cannot just refuse every
+      // empty read: a project that has never recorded a reviewer verdict has no
+      // such file at all, and that absence IS provable. Every other case in this
+      // suite relies on it.
+      const never = createProgressiveFixture({ label: 'base-absent', progressiveReference: 'main' });
+      fixtures.push(never);
+      never.branchWithEdit('feature', 'src/alpha/alpha.ts', 'export const alpha = 42;\n');
+      expect(run(['check'], never.dir).stdout).toContain('progressive view:');
     });
   });
 

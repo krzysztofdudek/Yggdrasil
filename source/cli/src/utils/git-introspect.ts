@@ -421,6 +421,36 @@ export async function treesIdentical(
   }
 }
 
+/**
+ * Does `filePath` exist at `ref`? `git ls-tree <ref> -- <path>` lists the path
+ * when it is there and prints nothing when it is not, exiting zero either way,
+ * so presence is read off the OUTPUT rather than the exit code.
+ *
+ * This exists because {@link getFileAtRef}'s empty string is ambiguous: it comes
+ * back both for a path that is absent at the ref AND for a path that is present
+ * as a zero-byte (or whitespace-only) blob, since `git show` succeeds on the
+ * latter and never reaches the absence fallback. A caller for which those two
+ * mean different things — "the file was not there yet" versus "the file was
+ * there and had been emptied" — cannot tell them apart from the content alone
+ * and asks here instead. Any caller treating an emptied file as an absent one
+ * is claiming a proof it does not have.
+ *
+ * `null` on any git failure (a ref that does not resolve, `repoCwd` not a
+ * repository, git missing, …), never a `false` standing in for "could not tell".
+ */
+export async function pathExistsAtRef(
+  repoCwd: string,
+  ref: string,
+  filePath: string,
+): Promise<boolean | null> {
+  try {
+    const { stdout } = await execFilep('git', ['ls-tree', ref, '--', filePath], { cwd: repoCwd });
+    return stdout.trim() !== '';
+  } catch {
+    return null;
+  }
+}
+
 /** git's file mode for a submodule gitlink — a pointer to another repository's commit. */
 const GITLINK_MODE = '160000';
 
