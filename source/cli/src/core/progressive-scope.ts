@@ -7,6 +7,7 @@ import {
   LOCK_LOGS_FILE_NAME,
   LOCK_NONDET_FILE_NAME,
 } from '../model/lock.js';
+import { COMMITTED_EVENTS_FILENAME, EVENTS_FILENAME } from '../io/events-store.js';
 import type { ExpectedPair } from './pairs.js';
 import { collectAncestors, collectDescendants } from './graph/traversal.js';
 import { touchedReferencesFile } from './graph/impact-graph.js';
@@ -156,17 +157,29 @@ const FLOW_YAML = 'yg-flow.yaml';
 const LOG_MD = 'log.md';
 
 /**
- * Engine OUTPUTS — a changed lock file is a record of a previous run's answer,
- * never an input to this one, so it is dropped before anything else: it burns
- * nothing AND is not counted as a changed input. Named from the lock model's
- * own constants rather than a `yg-lock.*` prefix test on purpose: an exact list
- * fails CLOSED if a future lock file is added (it burns/counts until someone
- * adds it here), whereas a prefix rule would silently swallow it.
+ * Engine OUTPUTS — a changed lock file, or an appended verdict-event line, is a
+ * record of a previous run's answer, never an input to this one, so each is
+ * dropped before anything else: it burns nothing AND is not counted as a
+ * changed input. Named from the lock and events modules' own constants rather
+ * than a `yg-lock.*` prefix test on purpose: an exact list fails CLOSED if a
+ * future output file is added (it burns and counts until someone adds it here),
+ * whereas a prefix rule would silently swallow it.
+ *
+ * Dropping the committed LLM lock here has one consequence worth naming: it is
+ * the only record proving a verdict ever existed, and a change can DELETE
+ * entries from it (a bad merge resolution, `--ours`, or deliberately). That
+ * deletion cannot be seen through this file, so it is caught on the other side
+ * instead — see {@link BurnInput.baseVerdictPairKeys}.
  */
 const IGNORED_OUTPUTS: ReadonlySet<string> = new Set(
-  [LOCK_FILE_NAME, LOCK_NONDET_FILE_NAME, LOCK_LOGS_FILE_NAME, LOCK_DET_FILE_NAME].map(
-    (name) => `${YGG_DIR}/${name}`,
-  ),
+  [
+    LOCK_FILE_NAME,
+    LOCK_NONDET_FILE_NAME,
+    LOCK_LOGS_FILE_NAME,
+    LOCK_DET_FILE_NAME,
+    COMMITTED_EVENTS_FILENAME,
+    EVENTS_FILENAME,
+  ].map((name) => `${YGG_DIR}/${name}`),
 );
 
 /**
@@ -200,6 +213,23 @@ export interface BurnInput {
    * observation-free verdict into a cold pair and burns most of the graph.
    */
   touchedListsByPairKey: Map<string, Array<[string, string]>>;
+  /**
+   * Pair keys that HELD a stored verdict in the committed lock as of the
+   * reference, supplied by the caller from the merge-base copy of that file.
+   *
+   * This exists because the committed lock is the only record proving a verdict
+   * ever existed, AND it is a file a change can edit. A change that deletes
+   * entries from it — a bad merge resolution, `--ours`, or deliberately — makes
+   * those pairs verdict-less; without this input they would look exactly like
+   * pairs that were simply never verified, render as pre-existing debt, and let
+   * the change that destroyed them pass. Every pair whose key is here and has no
+   * stored entry now is burned unconditionally, whatever its reviewer kind.
+   *
+   * A caller that cannot read the lock at the reference must fall back to the
+   * GLOBAL gate. Passing an empty set means "the reference genuinely held no
+   * verdicts", which disables this row.
+   */
+  baseVerdictPairKeys: Set<string>;
   /**
    * Whether the reviewer/coverage VOCABULARY in `yg-config.yaml` moved between
    * the merge base and head — {@link configVocabularyChanged} over the two raw
@@ -278,7 +308,15 @@ function observationKeyCandidates(file: string): string[] {
   const candidates = [`read:${file}`, `exists:${file}`, `list:${path.posix.dirname(file)}`];
   if (file.startsWith(MODEL_PREFIX) && file.endsWith(`/${NODE_YAML}`)) {
     const nodePath = file.slice(MODEL_PREFIX.length, file.length - NODE_YAML.length - 1);
-    if (nodePath !== '') candidates.push(`graph:${nodePath}`, `graph-children:${nodePath}`);
+    if (nodePath !== '') {
+      candidates.push(`graph:${nodePath}`, `graph-children:${nodePath}`);
+      // The PARENT's children membership too: this file appearing or
+      // disappearing is what moves it, and the unit that observed
+      // children(parent) is very often some other node entirely — one that
+      // holds a relation to the parent, not the parent itself.
+      const slash = nodePath.lastIndexOf('/');
+      if (slash > 0) candidates.push(`graph-children:${nodePath.slice(0, slash)}`);
+    }
   }
   if (file.startsWith(FLOWS_PREFIX) && file.endsWith(`/${FLOW_YAML}`)) {
     const flowName = file.slice(FLOWS_PREFIX.length, file.length - FLOW_YAML.length - 1);
@@ -313,6 +351,12 @@ function nearestNodePath(graph: Graph, dir: string): string | undefined {
  * rule text, both of which are already covered precisely by the subject and
  * aspect rows — estimating it would burn most of the graph for no added truth.
  * Mirrors `classifyInvalidations`'s own cold-start branch.
+ *
+ * Leaving a plain LLM pair out is only safe because "cold" has a second cause
+ * this predicate says nothing about: its verdict may have been DELETED by the
+ * very change being judged. That case is not estimated at all — it is known,
+ * from {@link BurnInput.baseVerdictPairKeys}, and burned unconditionally before
+ * this predicate is ever consulted.
  */
 function isColdEstimable(pair: ExpectedPair, aspectById: Map<string, AspectDef>): boolean {
   if (pair.kind === 'deterministic') return true;
@@ -359,6 +403,10 @@ function isColdEstimable(pair: ExpectedPair, aspectById: Map<string, AspectDef>)
  *     at it.
  *   - **`.yggdrasil/flows/<f>/**`** — pairs of the flow's aspects (and their
  *     `implies` closure) on every participant, descendants included.
+ *   - **removed verdicts** — a pair that HELD a stored verdict at the reference
+ *     and holds none now is burned outright, whatever its reviewer kind. The
+ *     change deleted it; nothing else in the table can see that, because the
+ *     file carrying the proof is an engine output this table ignores.
  *   - **cold pairs** — a pair with NO stored verdict is burned when any changed
  *     file falls inside its component's allowed-reads. Fail closed: a fresh
  *     clone's deterministic cache is entirely cold, and reading that as
@@ -366,13 +414,19 @@ function isColdEstimable(pair: ExpectedPair, aspectById: Map<string, AspectDef>)
  *     per component (not per pair, not per file) — see {@link isColdEstimable}
  *     for which pairs qualify.
  *
- * Complexity is O(pairs + observations + changed files), never their product:
- * every row is an inverted index built in one pass over `pairs`, then probed
- * once per changed file. The only per-component work is the cold estimate, and
- * only for components that actually have a cold pair.
+ * Complexity: every row above is an inverted index built in ONE pass over
+ * `pairs` and probed a fixed number of times per changed file —
+ * O(pairs + observations + changed), never their product. The cold row is the
+ * one exception and is stated honestly rather than folded into that claim: an
+ * allowed-reads set is per-component with no cheap inversion, so each component
+ * that has a cold pair tests changed paths until one matches (early exit on the
+ * first hit), giving O(components-with-cold-pairs x changed) in the worst case.
+ * It does not run at all for a component whose pairs are all warm, and the
+ * allowed-reads set itself is resolved once per component — never per pair and
+ * never per changed file, which is the part that would actually hurt.
  */
 export function computeBurnSet(input: BurnInput): BurnSet {
-  const { touched, graph, pairs, touchedListsByPairKey } = input;
+  const { touched, graph, pairs, touchedListsByPairKey, baseVerdictPairKeys } = input;
 
   // ── Inverted indexes: ONE pass over pairs, probed per changed file ──────
   const aspectById = new Map(graph.aspects.map((a) => [a.id, a]));
@@ -384,6 +438,7 @@ export function computeBurnSet(input: BurnInput): BurnSet {
   // Cold pairs grouped BY COMPONENT — the grouping is what memoizes the
   // allowed-reads computation to one call per node path.
   const coldPairKeysByNode = new Map<string, string[]>();
+  const removedVerdictPairKeys: string[] = [];
 
   for (const pair of pairs) {
     const key = progressivePairKey(pair.aspectId, pair.unitKey);
@@ -394,10 +449,14 @@ export function computeBurnSet(input: BurnInput): BurnSet {
 
     const observations = touchedListsByPairKey.get(key);
     if (observations === undefined) {
+      // Its verdict was there at the reference and is not here now — the change
+      // destroyed it. Unconditional, before any estimate: this is a fact, not a
+      // guess about what the pair might have read.
+      if (baseVerdictPairKeys.has(key)) removedVerdictPairKeys.push(key);
       // Cold. A nodeless (type-covered) pair has no component whose
       // allowed-reads apply, so there is nothing to estimate from — it is
       // reachable through the subject and aspect rows alone.
-      if (pair.nodePath !== undefined && isColdEstimable(pair, aspectById)) {
+      else if (pair.nodePath !== undefined && isColdEstimable(pair, aspectById)) {
         pushInto(coldPairKeysByNode, pair.nodePath, key);
       }
     } else {
@@ -437,6 +496,10 @@ export function computeBurnSet(input: BurnInput): BurnSet {
     for (const key of keys ?? []) pairKeys.add(key);
   };
   const burnNodePairs = (nodePath: string): void => burnKeys(pairKeysByNode.get(nodePath));
+
+  // Removed-verdict row. Independent of the touched set: the deletion shows in
+  // the lock, and the lock is an output this table never reads as an input.
+  burnKeys(removedVerdictPairKeys);
 
   for (const file of touched) {
     if (IGNORED_OUTPUTS.has(file)) continue;
@@ -539,12 +602,15 @@ export function computeBurnSet(input: BurnInput): BurnSet {
 // ============================================================
 
 /**
- * The part of `yg-config.yaml` that changes what the graph MEANS, as opposed to
- * how fast or how loudly it runs: the schema `version`, the `coverage` block
- * (which files must be covered at all), and the SET of reviewer tier names
- * (which rule can name which reviewer). Everything else in the file — prompt
- * character limits, parallelism, debug, a tier's model or provider — changes
- * how a rule is executed, never which rules exist or what they apply to.
+ * The part of `yg-config.yaml` that changes what the graph MEANS, or that could
+ * narrow the gate itself, as opposed to how fast or how loudly a run goes: the
+ * schema `version`; the `coverage` block (which files must be covered at all);
+ * the SET of reviewer tier names and the RESOLVED default among them (which
+ * reviewer a rule is judged under — a stored-verdict ingredient); and the whole
+ * `progressive:` block (which reference the scope is measured against).
+ * Everything else in the file — prompt character limits, parallelism, debug, a
+ * tier's model or provider — changes how a rule is executed, never which rules
+ * exist, what they apply to, or how much of the run is gated.
  */
 export interface ConfigVocabulary {
   /** Trimmed only when it is a string, matching the config parser's own read. */
@@ -553,6 +619,28 @@ export interface ConfigVocabulary {
   coverage: unknown;
   /** Tier names, sorted — a SET, so declaration order is not a change. */
   tierNames: string[];
+  /**
+   * The RESOLVED default tier: `reviewer.default` when it names one, otherwise
+   * the sole tier when exactly one exists — the same resolution the tier
+   * selector performs. This is a verdict-hash ingredient, not a preference: an
+   * aspect that declares no tier of its own is reviewed under this name, and
+   * the name is folded into every one of its pairs' stored hashes. Repointing
+   * it between two EXISTING tiers leaves the tier-name set untouched while
+   * recomputing every such pair's hash — every affected pair goes unverified,
+   * previously-refused ones included. Without this field that one line would
+   * change nothing in the burn set and a whole repository's live refusals would
+   * quietly re-render as pre-existing debt.
+   */
+  defaultTier?: string;
+  /**
+   * The raw `progressive:` block. ANY change to it goes global — a
+   * self-punishing enable. The block names the reference the whole scope is
+   * measured against, so a change that repoints it (to `HEAD`, or to the
+   * branch's own base) can make the touched set legitimately empty and the run
+   * quietly green while gating nothing at all. A gate must never be able to
+   * narrow itself unnoticed, so re-pointing it costs one full run.
+   */
+  progressive: unknown;
 }
 
 /**
@@ -567,20 +655,28 @@ export interface ConfigVocabulary {
 export function extractConfigVocabulary(rawYamlText: string): ConfigVocabulary {
   const doc: unknown = parseYaml(rawYamlText);
   if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) {
-    return { coverage: undefined, tierNames: [] };
+    return { coverage: undefined, tierNames: [], progressive: undefined };
   }
   const raw = doc as Record<string, unknown>;
   const version = typeof raw.version === 'string' ? raw.version.trim() : undefined;
 
   let tierNames: string[] = [];
+  let declaredDefault: string | undefined;
   const reviewer = raw.reviewer;
   if (reviewer !== null && typeof reviewer === 'object' && !Array.isArray(reviewer)) {
-    const tiers = (reviewer as Record<string, unknown>).tiers;
+    const reviewerMap = reviewer as Record<string, unknown>;
+    const tiers = reviewerMap.tiers;
     if (tiers !== null && typeof tiers === 'object' && !Array.isArray(tiers)) {
       tierNames = Object.keys(tiers as Record<string, unknown>).sort();
     }
+    if (typeof reviewerMap.default === 'string') declaredDefault = reviewerMap.default;
   }
-  return { version, coverage: raw.coverage, tierNames };
+  // Same resolution the tier selector performs: the declared default, else the
+  // sole tier when there is exactly one, else none.
+  const defaultTier =
+    declaredDefault ?? (tierNames.length === 1 ? tierNames[0] : undefined);
+
+  return { version, coverage: raw.coverage, tierNames, defaultTier, progressive: raw.progressive };
 }
 
 /** Recursively key-sorted form, so YAML key order is never mistaken for a change. */
@@ -616,6 +712,12 @@ export function configVocabularyChanged(baseText: string | null, headText: strin
     return true;
   }
   const canonical = (v: ConfigVocabulary): string =>
-    JSON.stringify([v.version ?? null, canonicalValue(v.coverage), v.tierNames]);
+    JSON.stringify([
+      v.version ?? null,
+      canonicalValue(v.coverage),
+      v.tierNames,
+      v.defaultTier ?? null,
+      canonicalValue(v.progressive),
+    ]);
   return canonical(base) !== canonical(head);
 }

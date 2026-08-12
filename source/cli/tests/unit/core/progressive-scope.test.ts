@@ -297,6 +297,7 @@ function burn(
     graph?: Graph;
     pairs?: ExpectedPair[];
     lists?: Map<string, Array<[string, string]>>;
+    baseVerdictPairKeys?: Set<string>;
     configVocabularyChanged?: boolean;
   } = {},
 ): BurnSet {
@@ -307,6 +308,7 @@ function burn(
     graph,
     pairs,
     touchedListsByPairKey: opts.lists ?? warmAll(pairs),
+    baseVerdictPairKeys: opts.baseVerdictPairKeys ?? new Set(),
     configVocabularyChanged: opts.configVocabularyChanged ?? false,
   };
   return computeBurnSet(input);
@@ -773,6 +775,7 @@ describe('computeBurnSet — performance shape', () => {
       graph,
       pairs,
       touchedListsByPairKey: lists,
+      baseVerdictPairKeys: new Set(),
       configVocabularyChanged: false,
     });
 
@@ -807,6 +810,7 @@ describe('computeBurnSet — performance shape', () => {
       graph,
       pairs,
       touchedListsByPairKey: new Map(), // every pair cold
+      baseVerdictPairKeys: new Set(),
       configVocabularyChanged: false,
     });
 
@@ -1016,5 +1020,178 @@ describe('computeBurnSet — repeated and empty reach', () => {
     const pairs = [makePair('y', 'top/mid', ['src/top/mid/f.ts'])];
     const result = burn(['.yggdrasil/flows/f/yg-flow.yaml'], { graph, pairs });
     expect(result.pairKeys).toEqual(new Set([K('y', 'node:top/mid')]));
+  });
+});
+
+// --- Row: a verdict the change DELETED from the committed lock ---
+
+describe('computeBurnSet — removed-verdict row', () => {
+  it('burns a pair whose stored verdict existed at the reference and is gone now', () => {
+    const pairs = makeBurnPairs();
+    const lists = warmAll(pairs);
+    lists.delete(K('y', 'node:top/mid')); // the change dropped this lock entry
+    const result = burn(['src/nowhere/orphan.ts'], {
+      pairs,
+      lists,
+      baseVerdictPairKeys: new Set([K('y', 'node:top/mid')]),
+    });
+    expect(result.pairKeys.has(K('y', 'node:top/mid'))).toBe(true);
+  });
+
+  it('burns a deleted PLAIN-LLM verdict, which no allowed-reads estimate would reach', () => {
+    // The exact hole the estimate cannot see: a plain LLM pair is excluded from
+    // the cold estimate on purpose, and nothing changed inside its reach either.
+    const graph = makeBurnGraph();
+    graph.aspects = [makeAspect('y', { reviewer: { type: 'llm' } })];
+    const pairs = [makePair('y', 'top/mid', ['src/top/mid/f.ts'], { kind: 'llm' })];
+    const withoutBase = burn(['README.md'], { graph, pairs, lists: new Map() });
+    expect(withoutBase.pairKeys).toEqual(new Set());
+
+    const withBase = burn(['README.md'], {
+      graph,
+      pairs,
+      lists: new Map(),
+      baseVerdictPairKeys: new Set([K('y', 'node:top/mid')]),
+    });
+    expect(withBase.pairKeys).toEqual(new Set([K('y', 'node:top/mid')]));
+  });
+
+  it('fires even when nothing at all was touched — the deletion is the change', () => {
+    const pairs = makeBurnPairs();
+    const lists = warmAll(pairs);
+    lists.delete(K('x', 'node:lonely'));
+    const result = burn([], { pairs, lists, baseVerdictPairKeys: new Set([K('x', 'node:lonely')]) });
+    expect(result.pairKeys).toEqual(new Set([K('x', 'node:lonely')]));
+    expect(result.changedInputCount).toBe(0);
+  });
+
+  it('does not fire for a pair that still holds its verdict', () => {
+    const pairs = makeBurnPairs();
+    const result = burn(['README.md'], {
+      pairs,
+      baseVerdictPairKeys: new Set(pairs.map((p) => K(p.aspectId, p.unitKey))),
+    });
+    expect(result.pairKeys).toEqual(new Set());
+  });
+
+  it('does not fire for a pair that never had a verdict at the reference', () => {
+    const pairs = makeBurnPairs();
+    const lists = warmAll(pairs);
+    lists.delete(K('y', 'node:top/mid'));
+    const result = burn(['README.md'], { pairs, lists, baseVerdictPairKeys: new Set() });
+    expect(result.pairKeys).toEqual(new Set());
+  });
+});
+
+// --- Row: children membership observed from somewhere other than the parent ---
+
+describe('computeBurnSet — graph-children membership', () => {
+  it('burns a pair that observed children(B) when a new child node appears under B', () => {
+    // The observing unit is `lonely`; the observed parent is `top/mid`. Adding
+    // top/mid/newchild moves the membership lonely's check recorded.
+    const pairs = makeBurnPairs();
+    const lists = warmAll(pairs, { [K('x', 'node:lonely')]: [['graph-children:top/mid', 'h']] });
+    const result = burn(['.yggdrasil/model/top/mid/newchild/yg-node.yaml'], { pairs, lists });
+    expect(result.pairKeys.has(K('x', 'node:lonely'))).toBe(true);
+  });
+
+  it('burns it on a DELETED child too — both directions move the membership', () => {
+    const pairs = makeBurnPairs();
+    const lists = warmAll(pairs, { [K('x', 'node:lonely')]: [['graph-children:top/mid', 'h']] });
+    const result = burn(['.yggdrasil/model/top/mid/leaf/yg-node.yaml'], { pairs, lists });
+    expect(result.pairKeys.has(K('x', 'node:lonely'))).toBe(true);
+  });
+
+  it('does not burn it for a node two levels down — that moves the INTERMEDIATE node’s children', () => {
+    const pairs = makeBurnPairs();
+    const lists = warmAll(pairs, { [K('x', 'node:lonely')]: [['graph-children:top', 'h']] });
+    const result = burn(['.yggdrasil/model/top/mid/leaf/yg-node.yaml'], { pairs, lists });
+    expect(result.pairKeys.has(K('x', 'node:lonely'))).toBe(false);
+  });
+
+  it('agrees with touchedReferencesFile on the direct-child form', () => {
+    expect(
+      touchedReferencesFile(
+        [['graph-children:top/mid', 'h']],
+        '.yggdrasil/model/top/mid/newchild/yg-node.yaml',
+      ),
+    ).toBe(true);
+    expect(
+      touchedReferencesFile(
+        [['graph-children:top', 'h']],
+        '.yggdrasil/model/top/mid/leaf/yg-node.yaml',
+      ),
+    ).toBe(false);
+  });
+});
+
+// --- Row: engine outputs that are not lock files ---
+
+describe('computeBurnSet — verdict-event outputs', () => {
+  it('ignores the committed and local verdict-event streams', () => {
+    const result = burn(['.yggdrasil/yg-events.llm.jsonl', '.yggdrasil/.yg-events.jsonl']);
+    expect(result.files).toEqual(new Set());
+    expect(result.changedInputCount).toBe(0);
+    expect(result.pairKeys).toEqual(new Set());
+  });
+});
+
+// --- Config vocabulary: the two ingredients a tier-name set cannot see ---
+
+describe('configVocabularyChanged — reviewer.default', () => {
+  it('is true when the default is repointed between two EXISTING tiers', () => {
+    const head = BASE_CONFIG.replace('default: fast', 'default: deep');
+    expect(extractConfigVocabulary(BASE_CONFIG).tierNames).toEqual(
+      extractConfigVocabulary(head).tierNames,
+    );
+    expect(configVocabularyChanged(BASE_CONFIG, head)).toBe(true);
+  });
+
+  it('is true when an explicit default is added or removed', () => {
+    const withoutDefault = BASE_CONFIG.replace('  default: fast\n', '');
+    expect(configVocabularyChanged(BASE_CONFIG, withoutDefault)).toBe(true);
+  });
+
+  it('resolves a lone tier as the default even with no explicit default', () => {
+    const single = `reviewer:
+  tiers:
+    only:
+      provider: claude-code
+      model: sonnet
+`;
+    expect(extractConfigVocabulary(single).defaultTier).toBe('only');
+  });
+
+  it('reads no default when several tiers exist and none is named', () => {
+    const noDefault = BASE_CONFIG.replace('  default: fast\n', '');
+    expect(extractConfigVocabulary(noDefault).defaultTier).toBeUndefined();
+  });
+});
+
+describe('configVocabularyChanged — the progressive block', () => {
+  it('is true when the reference is repointed', () => {
+    const base = `${BASE_CONFIG}progressive:\n  reference: origin/main\n`;
+    const head = `${BASE_CONFIG}progressive:\n  reference: HEAD\n`;
+    expect(configVocabularyChanged(base, head)).toBe(true);
+  });
+
+  it('is true when the block is added or removed', () => {
+    const withBlock = `${BASE_CONFIG}progressive:\n  reference: origin/main\n`;
+    expect(configVocabularyChanged(BASE_CONFIG, withBlock)).toBe(true);
+    expect(configVocabularyChanged(withBlock, BASE_CONFIG)).toBe(true);
+  });
+
+  it('is false when the block is present and identical on both sides', () => {
+    const same = `${BASE_CONFIG}progressive:\n  reference: origin/main\n`;
+    expect(configVocabularyChanged(same, same)).toBe(false);
+  });
+
+  it('escalates a repointed reference all the way to a global burn', () => {
+    const base = `${BASE_CONFIG}progressive:\n  reference: origin/main\n`;
+    const head = `${BASE_CONFIG}progressive:\n  reference: HEAD\n`;
+    const result = burn(['.yggdrasil/yg-config.yaml'], {
+      configVocabularyChanged: configVocabularyChanged(base, head),
+    });
+    expect(result.global).toBe(true);
   });
 });

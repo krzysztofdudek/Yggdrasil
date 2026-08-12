@@ -28,5 +28,7 @@ relations:
     type: calls
   - target: cli/model/lock
     type: uses
+  - target: cli/io/stores
+    type: calls
 mapping:
   - source/cli/src/core/progressive-scope.ts
