@@ -198,6 +198,24 @@ export const APPROVE_GATING_CODES = new Set<string>([
  *
  * No other `STRUCTURAL_CODES` member may be added here without the same kind of
  * documented rationale — a code stays out by default.
+ *
+ * CURRENT-MECHANICS CAVEAT — read this before wiring any consumer to this set.
+ * Six of the eighteen codes below emit their issue with NO structured file/node
+ * identity today: no `nodePath`, no `unitKey`, no `aspectId` — the subject lives
+ * only in `messageData` prose, which nothing in this codebase parses back out. The
+ * category rationale above and below is still correct; what is missing is the
+ * mechanical hook a scope decision needs to test "did this change touch it."
+ * Affected: `type-relation-forbidden` (worst of the six — findings are aggregated
+ * per type-PAIR, so one issue can bundle edges from several unrelated files, and
+ * the edge file list is discarded rather than attached to the issue),
+ * `ambiguous-node-type` (the file path is known at the push site but never carried
+ * onto the issue), `tracked-file-gitignored`, `type-strict-orphan`,
+ * `strict-overlap-conflict`, and the ASPECT and FLOW branches of
+ * `description-missing` (its NODE branch is fine — that one already sets
+ * `nodePath`). A future classification step must NOT treat any of these six as
+ * attributable to a change until each carries real structured identity —
+ * membership here is the policy target, not a claim that today's emit sites
+ * already support it.
  */
 export const SCOPED_CODES = new Set<string>([
   // Pair-verdict codes: a reviewer/deterministic verdict a change's own pairs

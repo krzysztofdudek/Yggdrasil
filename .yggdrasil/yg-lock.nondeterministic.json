@@ -90,7 +90,7 @@
       "file:source/cli/src/core/allowed-relation-types.ts": {"hash":"bcab6a9a9b018cb2bf0be476800a59adbd29c9e94d5b2965305400da385b9def","promptChars":5479,"verdict":"approved"},
       "file:source/cli/src/core/aspect-health-signals.ts": {"hash":"b54cad679b2c87a6f86e572969339df707ff2a43049bc5c837245f7103febfe6","promptChars":29048,"verdict":"approved"},
       "file:source/cli/src/core/aspect-test-file-target.ts": {"hash":"177d7bfd360fe9feaba32672b73372f4b420dd27f60f72a37ad16d34693fa3df","promptChars":11241,"verdict":"approved"},
-      "file:source/cli/src/core/check-codes.ts": {"hash":"2b462bb61a572e7806a6c61ebdbdb75ed6fda13eccde138a1f99bbe3fc08a5c9","promptChars":18141,"verdict":"approved"},
+      "file:source/cli/src/core/check-codes.ts": {"hash":"bfe9db3f8b48fe39806afbd5ab070fc922f603ecf1c82925452ae27599b8c097","promptChars":19411,"verdict":"approved"},
       "file:source/cli/src/core/check-contract.ts": {"hash":"b7e7aada84391f494acd48aa9c53306d2eb2b05ca55991cd7b09db1adf5f9cae","promptChars":7163,"verdict":"approved"},
       "file:source/cli/src/core/check-coverage-phase.ts": {"hash":"7076ea326e84c70f5191798a47193f199a0769791858196f09750bb79e5120c8","promptChars":15299,"verdict":"approved"},
       "file:source/cli/src/core/check-coverage-scan.ts": {"hash":"1a28ad865b9530afa68b938ef7ecf5e55ffb910d0dd1ebdc883648003ef56919","promptChars":10868,"verdict":"approved"},
