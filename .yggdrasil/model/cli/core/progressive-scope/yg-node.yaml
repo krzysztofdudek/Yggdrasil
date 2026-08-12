@@ -1,18 +1,32 @@
 name: Progressive Scope
 type: engine
-description: "Pure burn-set helpers for the progressive-mode scope engine —
-  given a graph, answer which other graph elements a starting point reaches:
-  impliesClosure (unconditional structural closure over an aspect's `implies`
-  edges, deliberately not the node-bound, `when`-filtered expandImpliesFiltered
-  in core/graph/aspects.ts), buildReverseTargetIndex (target nodePath ->
-  every node declaring ANY relation to it, not only port-consuming ones), and
-  collectFlowParticipants (a flow's declared nodes plus their descendants).
-  No I/O, no `when` evaluation, no node binding — graph in, sets/maps out. A
-  later stage composes these into 'which rules does this change reach'."
+description: "Pure burn-set engine for progressive mode. Two halves. The
+  structural reach helpers answer which other graph elements one starting point
+  reaches: impliesClosure (unconditional structural closure over an aspect's
+  `implies` edges, deliberately not the node-bound, `when`-filtered
+  expandImpliesFiltered in core/graph/aspects.ts), buildReverseTargetIndex
+  (target nodePath -> every node declaring ANY relation to it, not only
+  port-consuming ones), and collectFlowParticipants (a flow's declared nodes
+  plus their descendants). computeBurnSet then composes them into the burn
+  table itself: given the touched set, the run's expected pairs and the
+  observation lists their stored verdicts carry, which pairs, node-keyed
+  issues, per-file issues and node logs the change is accountable for — with
+  the log.md carve-out (a log entry re-gates only that node's log channel),
+  cold pairs failing closed via allowed-reads, and architecture / config
+  vocabulary escalating to the global gate. extractConfigVocabulary and
+  configVocabularyChanged decide that last one from two raw config texts the
+  caller supplies. Inverted indexes throughout: O(pairs + changed files), never
+  their product. No I/O of any kind — graph and plain values in, sets out."
 relations:
   - target: cli/core/graph
     type: calls
   - target: cli/core/pairs
     type: calls
+  - target: cli/structure
+    type: calls
+  - target: cli/relations/core
+    type: calls
+  - target: cli/model/lock
+    type: uses
 mapping:
   - source/cli/src/core/progressive-scope.ts
