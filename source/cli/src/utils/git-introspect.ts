@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { execFile, type ExecFileException } from 'node:child_process';
 import { promisify } from 'node:util';
 import { toPosixPath } from './posix.js';
 
@@ -287,6 +287,160 @@ export async function changedFilesAgainst(
     const files = new Set<string>([...statusParsed.files, ...diffParsed.files]);
     const renames = [...statusParsed.renames, ...diffParsed.renames];
     return { files, renames };
+  } catch {
+    return null;
+  }
+}
+
+// =============================================================================
+// State probes — small, independent facts a later scoping decision consumes
+// alongside {@link changedFilesAgainst}'s touched set: whether a comparison
+// between two refs is even meaningful here at all. Every probe below shares
+// one contract: return `null` on ANY git failure (missing binary, `repoCwd`
+// not a repository, a ref that does not resolve, …) and NEVER throw — exactly
+// {@link changedFilesAgainst}'s contract, for the same reason. A caller that
+// cannot trust a probe has nothing safer to do with a guessed answer than
+// with an honest "I don't know", so `null` is a first-class outcome a caller
+// must branch on, never a `false`/empty value in disguise. `isAncestor` in
+// particular must not collapse "not an ancestor" and "could not tell" into
+// the same falsy result — the whole point of a three-valued probe is that a
+// caller downstream can tell those two apart.
+// =============================================================================
+
+/**
+ * Is `maybeAncestor` an ancestor of (or equal to) `ref`? `git merge-base
+ * --is-ancestor` documents its exit codes precisely, so this maps them
+ * directly rather than inferring anything from stdout (there is none):
+ * 0 → true, 1 → false, anything else (bad ref, not a repository, git
+ * missing, …) → null. Ancestry is directional and NOT implied by
+ * {@link treesIdentical} — two refs can carry identical content while
+ * neither is reachable from the other (e.g. one reverted its own change
+ * before the other advanced past it), so a caller needing both facts must
+ * call both probes; this one alone cannot stand in for tree equality.
+ */
+export async function isAncestor(
+  repoCwd: string,
+  maybeAncestor: string,
+  ref: string,
+): Promise<boolean | null> {
+  try {
+    await execFilep('git', ['merge-base', '--is-ancestor', maybeAncestor, ref], { cwd: repoCwd });
+    return true;
+  } catch (err) {
+    return (err as ExecFileException).code === 1 ? false : null;
+  }
+}
+
+/**
+ * Is `repoCwd` a shallow clone (a truncated history from `--depth`)? Extracted
+ * from the inline probe in `cli/advise.ts::gatherChurnHistory` (`git
+ * rev-parse --is-shallow-repository`), which exists for the same reason a
+ * progressive-mode scoping decision needs it: a shallow clone's history
+ * window is truncated, so a comparison that assumes full history (an
+ * ancestor check, a commit-range diff) can silently look at less than it
+ * thinks it does. `advise.ts` keeps its own inline call for now — this is the
+ * reusable form a later caller switches to, not a replacement wired in here.
+ * Git prints exactly `true` or `false` on success; anything else (a truncated
+ * or unexpected stdout, as well as any non-zero exit) is reported as `null`
+ * rather than guessed at.
+ */
+export async function isShallowRepository(repoCwd: string): Promise<boolean | null> {
+  try {
+    const { stdout } = await execFilep('git', ['rev-parse', '--is-shallow-repository'], {
+      cwd: repoCwd,
+    });
+    const trimmed = stdout.trim();
+    if (trimmed === 'true') return true;
+    if (trimmed === 'false') return false;
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The repo's work-tree top level and the caller's prefix beneath it (`git
+ * rev-parse --show-toplevel --show-prefix`, one process for both facts). A
+ * caller running from a subdirectory of the repo needs both: the toplevel to
+ * resolve repo-relative paths (as {@link changedFilesAgainst}'s callers do)
+ * and the prefix to know how far below that root it currently sits. An empty
+ * prefix (the caller IS the repo root) is a legitimate, common value, not an
+ * error — only a git failure (not a repository, git missing) produces `null`.
+ * Both fields are normalized with {@link toPosixPath} since they leave this
+ * module; `--show-prefix` prints a trailing slash on every non-root value
+ * (e.g. `sub/dir/`) which `toPosixPath` strips so the shape matches every
+ * other path this module hands back.
+ */
+export async function getToplevelAndPrefix(
+  repoCwd: string,
+): Promise<{ toplevel: string; prefix: string } | null> {
+  try {
+    const { stdout } = await execFilep('git', ['rev-parse', '--show-toplevel', '--show-prefix'], {
+      cwd: repoCwd,
+    });
+    // git prints the toplevel on the first line and the prefix on the
+    // second, in that fixed order for these two flags; the prefix line is
+    // empty (not absent) when the caller is already at the repo root.
+    const lines = stdout.split('\n');
+    const toplevelLine = lines[0];
+    const prefixLine = lines[1];
+    if (!toplevelLine || prefixLine === undefined) return null;
+    return { toplevel: toPosixPath(toplevelLine), prefix: toPosixPath(prefixLine) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Do `refA` and `refB` point at the same tree content — `git rev-parse
+ * <ref>^{tree}` resolved and compared for each, NOT the commit SHAs
+ * themselves? Comparing commits would report a real difference for a branch
+ * that changed a file and then reverted the change back to the exact prior
+ * content: the commit SHAs genuinely differ (different history, different
+ * parents/timestamps/messages) even though nothing about the tree — and so
+ * nothing a content-based gate cares about — actually changed. Resolving to
+ * the tree object first is what makes that case honestly report "identical".
+ * As with {@link isAncestor}, this says nothing about ancestry: identical
+ * trees do not imply either ref is reachable from the other. `null` on any
+ * resolution failure for either ref (a ref that does not resolve, `repoCwd`
+ * not a repository, …) — never inferred from a partial result.
+ */
+export async function treesIdentical(
+  repoCwd: string,
+  refA: string,
+  refB: string,
+): Promise<boolean | null> {
+  try {
+    const [treeA, treeB] = await Promise.all([
+      execFilep('git', ['rev-parse', `${refA}^{tree}`], { cwd: repoCwd }),
+      execFilep('git', ['rev-parse', `${refB}^{tree}`], { cwd: repoCwd }),
+    ]);
+    return treeA.stdout.trim() === treeB.stdout.trim();
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Is the work tree clean — no staged, unstaged, OR untracked change versus
+ * HEAD? Uses the identical `git status --porcelain=v1 -z -uall` invocation
+ * {@link changedFilesAgainst} reads for its worktree half, so "clean" here
+ * means precisely "that call would have found nothing" in both places — a
+ * caller cross-checking this probe against the touched set never has to
+ * reconcile two different notions of dirty. `-uall` is what makes an
+ * untracked file (not just a modified tracked one) count as dirty; a repo
+ * with zero commits and nothing to track is vacuously clean, matching plain
+ * `git status`'s own behavior there. `null` on any git failure, same as
+ * every other probe in this section.
+ */
+export async function hasCleanWorktree(repoCwd: string): Promise<boolean | null> {
+  try {
+    const { stdout } = await execFilep('git', ['status', '--porcelain=v1', '-z', '-uall'], {
+      cwd: repoCwd,
+      maxBuffer: 64 * 1024 * 1024,
+      encoding: 'buffer',
+    });
+    return stdout.length === 0;
   } catch {
     return null;
   }

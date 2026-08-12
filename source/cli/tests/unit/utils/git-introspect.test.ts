@@ -11,6 +11,11 @@ import {
   changedFilesAgainst,
   parsePorcelainZ,
   parseDiffNameStatusZ,
+  isAncestor,
+  isShallowRepository,
+  getToplevelAndPrefix,
+  treesIdentical,
+  hasCleanWorktree,
 } from '../../../src/utils/git-introspect.js';
 import { gitFixtureEnv } from '../../support/git-fixture.js';
 
@@ -403,5 +408,203 @@ describe('changedFilesAgainst', () => {
     await writeFile(path.join(dir, 'a.txt'), 'a\n');
     const result = await changedFilesAgainst(dir, 'HEAD');
     expect(result).toBeNull();
+  });
+});
+
+// =============================================================================
+// isAncestor / isShallowRepository / getToplevelAndPrefix / treesIdentical /
+// hasCleanWorktree
+//
+// Each probe answers a narrow, orthogonal question a later scoping decision
+// needs BEFORE trusting a diff between two refs is meaningful at all — and
+// each must return null (never throw, never guess) on any git failure. The
+// probes are tested against real on-disk temp repos, not mocks, matching the
+// rest of this module.
+// =============================================================================
+
+async function makeNonGitDir(): Promise<string> {
+  const dir = await mkdtemp(path.join(tmpdir(), 'yg-probe-nogit-'));
+  dirs.push(dir);
+  await writeFile(path.join(dir, 'a.txt'), 'a\n');
+  return dir;
+}
+
+/**
+ * Base commit A (file = "v1"), then commit B changes the file to "v2", then
+ * commit C reverts it back to "v1" — a straight-line branch, no divergence.
+ * This single fixture proves tree identity and ancestry are independent
+ * facts: C's TREE is identical to A's (the revert undid the content
+ * change), while ancestry stays ordinary and directional — A really is
+ * reachable from C (forward), but C is NOT reachable from A (backward,
+ * since A predates C). Neither probe may be inferred from the other.
+ */
+async function setupRevertRepo(): Promise<{ repo: string; base: string; tip: string }> {
+  const repo = await mkdtemp(path.join(tmpdir(), 'yg-revert-'));
+  dirs.push(repo);
+  const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+  r('git init -q -b main');
+  r('git config user.email t@t.test');
+  r('git config user.name Test');
+  await writeFile(path.join(repo, 'file.txt'), 'v1\n');
+  r('git add -A && git commit -qm base');
+  const base = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) })
+    .toString()
+    .trim();
+  await writeFile(path.join(repo, 'file.txt'), 'v2\n');
+  r('git add -A && git commit -qm change');
+  await writeFile(path.join(repo, 'file.txt'), 'v1\n');
+  r('git add -A && git commit -qm revert');
+  const tip = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) })
+    .toString()
+    .trim();
+  return { repo, base, tip };
+}
+
+describe('isAncestor', () => {
+  it('true when maybeAncestor really precedes ref, false in the reverse direction', async () => {
+    const { repo, base, tip } = await setupRevertRepo();
+    expect(await isAncestor(repo, base, tip)).toBe(true);
+    expect(await isAncestor(repo, tip, base)).toBe(false);
+  });
+
+  it('a commit-then-revert branch: trees identical, yet the reverse-direction ancestor check is false (tree identity does not imply ancestry)', async () => {
+    const { repo, base, tip } = await setupRevertRepo();
+    expect(await treesIdentical(repo, base, tip)).toBe(true);
+    expect(await isAncestor(repo, tip, base)).toBe(false);
+  });
+
+  it('returns null (not false) when a ref does not resolve — "could not tell" is distinct from "not an ancestor"', async () => {
+    const { repo, tip } = await setupRevertRepo();
+    const result = await isAncestor(repo, 'not-a-real-ref-0000', tip);
+    expect(result).toBeNull();
+  });
+
+  it('returns null when repoCwd is not a git repository', async () => {
+    const dir = await makeNonGitDir();
+    const result = await isAncestor(dir, 'HEAD', 'HEAD');
+    expect(result).toBeNull();
+  });
+});
+
+describe('treesIdentical', () => {
+  it('false when the two refs carry different content', async () => {
+    const { repo, base } = await setupRevertRepo();
+    // base (v1) vs. the intermediate "change" commit (v2): genuinely different trees.
+    const changeSha = execSync('git rev-parse HEAD~1', { cwd: repo, env: gitFixtureEnv(repo) })
+      .toString()
+      .trim();
+    expect(await treesIdentical(repo, base, changeSha)).toBe(false);
+  });
+
+  it('returns null when a ref does not resolve', async () => {
+    const { repo, base } = await setupRevertRepo();
+    expect(await treesIdentical(repo, base, 'not-a-real-ref-0000')).toBeNull();
+  });
+
+  it('returns null when repoCwd is not a git repository', async () => {
+    const dir = await makeNonGitDir();
+    expect(await treesIdentical(dir, 'HEAD', 'HEAD')).toBeNull();
+  });
+});
+
+describe('isShallowRepository', () => {
+  it('false for an ordinary full-history repo', async () => {
+    const { repo } = await setupRevertRepo();
+    expect(await isShallowRepository(repo)).toBe(false);
+  });
+
+  it('true for a shallow clone (--depth 1)', async () => {
+    const { repo } = await setupRevertRepo();
+    const shallow = await mkdtemp(path.join(tmpdir(), 'yg-shallow-'));
+    dirs.push(shallow);
+    // `git clone` creates its own .git layout at the destination, so (unlike
+    // every other fixture op in this file) it must NOT run under a
+    // pre-pinned GIT_DIR/GIT_WORK_TREE — those would point clone at a
+    // work tree it didn't create and it refuses with "already exists".
+    // Still scrub the inherited discovery vars (same isolation concern
+    // {@link gitFixtureEnv} exists for) so this clone cannot wander into the
+    // real repo through a leaked env.
+    const cloneEnv = gitFixtureEnv(shallow);
+    delete cloneEnv.GIT_DIR;
+    delete cloneEnv.GIT_WORK_TREE;
+    execSync(`git clone -q --depth 1 "file://${repo}" "${shallow}"`, {
+      stdio: 'pipe',
+      env: cloneEnv,
+    });
+    expect(await isShallowRepository(shallow)).toBe(true);
+  });
+
+  it('returns null when repoCwd is not a git repository', async () => {
+    const dir = await makeNonGitDir();
+    expect(await isShallowRepository(dir)).toBeNull();
+  });
+});
+
+describe('getToplevelAndPrefix', () => {
+  it('empty prefix at the repo root — a legitimate value, not an error', async () => {
+    const { repo } = await setupRevertRepo();
+    const result = await getToplevelAndPrefix(repo);
+    expect(result).not.toBeNull();
+    expect(result!.prefix).toBe('');
+    // Resolve both sides through fs.realpath-equivalent comparison isn't
+    // needed here: git prints an absolute, symlink-resolved toplevel, so
+    // comparing basenames avoids any /tmp vs /private/tmp (or similar)
+    // symlink mismatch across platforms while still proving it found the
+    // right repo.
+    expect(path.basename(result!.toplevel)).toBe(path.basename(repo));
+  });
+
+  it('non-empty POSIX prefix when run from a subdirectory', async () => {
+    const { repo } = await setupRevertRepo();
+    const sub = path.join(repo, 'sub', 'dir');
+    await mkdir(sub, { recursive: true });
+    const result = await getToplevelAndPrefix(sub);
+    expect(result).not.toBeNull();
+    expect(result!.prefix).toBe('sub/dir');
+  });
+
+  it('resolves in a repo with no commits at all', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'yg-nocommits-'));
+    dirs.push(repo);
+    execSync('git init -q -b main', { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+    const result = await getToplevelAndPrefix(repo);
+    expect(result).not.toBeNull();
+    expect(result!.prefix).toBe('');
+  });
+
+  it('returns null when repoCwd is not a git repository', async () => {
+    const dir = await makeNonGitDir();
+    expect(await getToplevelAndPrefix(dir)).toBeNull();
+  });
+});
+
+describe('hasCleanWorktree', () => {
+  it('true immediately after a commit (nothing staged, unstaged, or untracked)', async () => {
+    const { repo } = await setupRevertRepo();
+    expect(await hasCleanWorktree(repo)).toBe(true);
+  });
+
+  it('true for a repo with no commits and nothing untracked (vacuously clean)', async () => {
+    const repo = await mkdtemp(path.join(tmpdir(), 'yg-nocommits-clean-'));
+    dirs.push(repo);
+    execSync('git init -q -b main', { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+    expect(await hasCleanWorktree(repo)).toBe(true);
+  });
+
+  it('false when a tracked file has an unstaged edit', async () => {
+    const { repo } = await setupRevertRepo();
+    await writeFile(path.join(repo, 'file.txt'), 'v1\ndirty\n');
+    expect(await hasCleanWorktree(repo)).toBe(false);
+  });
+
+  it('false when dirty ONLY because of an untracked file (the -uall case)', async () => {
+    const { repo } = await setupRevertRepo();
+    await writeFile(path.join(repo, 'untracked-only.txt'), 'new\n');
+    expect(await hasCleanWorktree(repo)).toBe(false);
+  });
+
+  it('returns null when repoCwd is not a git repository', async () => {
+    const dir = await makeNonGitDir();
+    expect(await hasCleanWorktree(dir)).toBeNull();
   });
 });
