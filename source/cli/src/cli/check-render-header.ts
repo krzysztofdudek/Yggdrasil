@@ -68,6 +68,36 @@ export function renderChangeScope(result: CheckResult, errorCount: number): stri
     : `${obligations} (${changed} changed input${changed === 1 ? '' : 's'})`;
 }
 
+/**
+ * The one line the content check owes a person, or nothing when it has nothing
+ * to say. A standing statement of fact, printed ahead of every view beside the
+ * other such lines — never an issue, never counted, never blocking.
+ *
+ * It exists because both of the states it reports are otherwise INVISIBLE. A
+ * finding the content check kept is reported exactly like any other blocking
+ * finding, so a repository where every file legitimately differs from its stored
+ * form — a committed `.gitattributes` with `text eol=`/`filter=`, or large-file
+ * storage, on any platform and in CI as readily as on a laptop — has every
+ * inherited finding kept on every run while the header goes on claiming a
+ * measurement was made. That is a mode which has effectively switched itself off,
+ * and it must say so in its own output rather than only in its documentation. The
+ * second state is the same failure with a different cause: ids this build cannot
+ * reproduce, where the check could not be made at all.
+ *
+ * Says nothing at all in the ordinary case (zero kept, ids readable), so a run
+ * that never met either state prints exactly what it always printed.
+ */
+export function renderByteGuardNotice(result: CheckResult): string | undefined {
+  const reference = result.progressiveReference;
+  if (reference === undefined) return undefined;
+  if (result.byteGuardUnavailable === true) {
+    return `Content check skipped: '${reference}' records file identifiers this version cannot reproduce, so findings were judged on git's report of what changed and nothing else.`;
+  }
+  const kept = result.byteGuardKept ?? 0;
+  if (kept === 0) return undefined;
+  return `Content check: ${kept} finding${kept === 1 ? '' : 's'} kept in scope — the file${kept === 1 ? '' : 's'} behind ${kept === 1 ? 'it' : 'them'} differ${kept === 1 ? 's' : ''} from '${reference}' although git reports no change there. If that happens to everything on every run, something is rewriting files between storage and your working copy (a committed .gitattributes 'text eol='/'filter=', or large-file storage).`;
+}
+
 export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji): string {
   let verdict: string;
   if (errorCount > 0) {

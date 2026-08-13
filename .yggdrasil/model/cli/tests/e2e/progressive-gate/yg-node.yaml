@@ -31,13 +31,21 @@ description: "Subprocess E2E for the progressive gate on `yg check`, driven
   whose own committed change is honest. Every one of those cases asserts the
   SECOND component's inherited refusal is still only a warning in the same run,
   which is what separates 'the guard re-admitted this one obligation' from 'the
-  run gave up and gated everything'. Two cases pin the other direction: a hidden
-  file whose bytes did not actually change produces a byte-identical report to
-  the run before it was hidden, and a project that names no reference is
-  byte-identical to the whole-project gate with the evasion present on both
-  sides."
+  run gave up and gated everything'. One group covers the class a rule-check-only
+  guard left open: a hidden edit introducing an undeclared cross-component
+  dependency, whose finding names a component and no rule check at all — it must
+  block, count the hidden file among the changed inputs, print the line saying
+  the check kept a finding and what can cause that, and produce the same finding
+  when the identical edit is committed honestly. One case proves the advice a
+  blocked run gives actually works: a re-admitted reviewer-judged rule is bought
+  and settled by `yg check --approve` against an in-process mock reviewer, rather
+  than being declined as outside the change and blocking forever. Two cases pin
+  the other direction: a hidden file whose bytes did not actually change produces
+  a byte-identical report to the run before it was hidden, and a project that
+  names no reference is byte-identical to the whole-project gate with the evasion
+  present on both sides."
 aspects: []
-relations: [ { target: cli/tests/support, type: uses } ]
+relations: [ { target: cli/tests/support, type: uses }, { target: cli/tests/e2e/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-progressive-gate.test.ts
   - source/cli/tests/e2e/cli-progressive-byte-guard.test.ts

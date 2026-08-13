@@ -16,19 +16,27 @@ description: "Unit tests for the change-scope classification step — one case
   against hand-built findings and hand-built burn sets (no fixture project, no
   mocking).
 
-  Also the byte guard's GATHERING half, which decides which obligations that
-  classification is about to set aside are worth asking the bytes about: an
-  out-of-scope pair reporting a blocking finding is gathered with its subject
-  bytes read from disk (including a valid verdict whose prompt outgrew its
-  tier, which reports an error despite the pair itself being verified); a
-  passing pair, an advisory refusal (already a warning nothing downgrades) and
-  a pair the burn table already burned are all skipped; an unreadable subject
-  is carried as null rather than dropped, so the decision can see that it could
-  not be compared; a file shared by several pairs is read once; and the three
-  states in which it does nothing at all and reads nothing — no change scope,
-  no reference listing, or a scope that already went global. Those cases run
-  against real files in a real throwaway directory, since the one thing this
-  half exists to do is the disk read the pure comparer must not."
+  Also the byte guard's GATHERING half, in both of its forms. The FINDING form
+  is checked once per identity a finding can carry — a component (resolved to
+  that component's own files through the graph's path patterns, the rung a
+  rule-check-only gathering missed entirely), a rule check, a file named by a
+  unit key, the two ends of every dependency edge, and the inherited half alone
+  of the aggregate coverage finding — plus every reason a finding is left alone
+  (already in scope, already a warning, a code never downgradable, no file it
+  could ask about), the fallback to a component's rule-check subjects when there
+  is no file walk, reading a shared file once, and preferring bytes the run has
+  already read over a second trip to disk. The PAIR form, which the fill stage
+  uses before any finding exists, is checked on the same axes: a failing
+  out-of-scope pair is gathered (including a valid verdict whose prompt outgrew
+  its tier, an error despite the pair being verified), while a passing pair, an
+  advisory refusal and an already-burned pair are skipped, and an unreadable
+  subject is carried as null rather than dropped. Both forms are checked in the
+  states where they do nothing and read nothing — no change scope, no reference
+  listing, a scope that already went global — and in the one where the reference
+  records ids the build cannot reproduce, which is reported rather than
+  swallowed. Every case runs against real files in a real throwaway directory,
+  since the one thing this half exists to do is the disk read the pure comparer
+  must not."
 aspects: []
 relations:
   - target: cli/core/check

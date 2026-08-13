@@ -150,15 +150,40 @@ its findings reported as inherited debt.
 
 So before any finding is set aside as not yours, the run checks the content of
 the files it is about against the content the reference branch holds. If they
-disagree, that finding is yours, whatever git said about it. This costs nothing
-you will notice: it looks only at findings that are both failing and about to be
-set aside, and it reads the reference branch's file list once for the whole run.
+disagree, that finding is yours, whatever git said about it — and that holds
+whichever way the finding names its subject: a rule check, a component, a file,
+or a dependency between two files. This costs nothing you will notice: it looks
+only at findings that are both failing and about to be set aside, and it reads
+the reference branch's file list once for the whole run.
 
-One consequence worth knowing: on a checkout that rewrites line endings on the
-way to your working copy (git's `core.autocrlf`, on Windows), your files
-genuinely differ byte-for-byte from what the branch holds, so failing findings on
-them stay blocking rather than being set aside. That errs toward gating more, not
-less; `yg check --full` reports the same set either way.
+#### When this check has to be switched off, and how you will know
+
+The comparison is between the bytes stored on the branch and the bytes in your
+working copy. Anything that **rewrites files between those two points** makes
+them differ for reasons that have nothing to do with your change, and then every
+failing finding on every such file stays blocking, on every run. Two things do
+that, and neither is confined to any one platform:
+
+- a committed `.gitattributes` that sets `text eol=…` or a `filter=` driver — so
+  continuous integration meets it exactly as readily as a laptop does;
+- large-file storage, where the branch holds a pointer and your working copy
+  holds the content.
+
+When that happens the run says so, in a line of its own beneath the header:
+
+```text
+Content check: 12 findings kept in scope — the files behind them differ from
+'origin/main' although git reports no change there. If that happens to
+everything on every run, something is rewriting files between storage and your
+working copy (a committed .gitattributes 'text eol='/'filter=', or large-file
+storage).
+```
+
+That is the symptom of a project on which measuring changes cannot currently
+narrow anything: everything inherited blocks. It errs toward gating more rather
+than less, and `yg check --full` reports the same set either way — but if you see
+it on every run, measuring against a branch is buying you nothing until the
+rewriting stops.
 
 ## What never becomes a warning
 

@@ -120,4 +120,25 @@ export interface CheckResult {
   progressiveReference?: string;
   /** How many changed paths that measurement actually accounted for. */
   changedInputCount?: number;
+  /**
+   * How many findings the byte guard KEPT blocking — ones this run was about to
+   * report as inherited until their files turned out to differ from what the
+   * reference branch holds, whatever git said about them.
+   *
+   * Reported rather than kept internal because the number is also the symptom of
+   * a whole failure class: on a repository where a content filter sits between
+   * the stored blob and the working copy (a committed `.gitattributes` with
+   * `text eol=` or a `filter=` driver, large-file storage), every file
+   * legitimately differs, so every inherited finding is kept on every run and the
+   * measurement has effectively switched itself off. Without this number that
+   * state is indistinguishable from an ordinary red build. Undefined whenever no
+   * scope was supplied, which is every run that does not opt in.
+   */
+  byteGuardKept?: number;
+  /**
+   * The reference tree's object ids are in a format this build cannot reproduce,
+   * so the content check could not be made at all this run. Undefined whenever no
+   * scope was supplied.
+   */
+  byteGuardUnavailable?: boolean;
 }

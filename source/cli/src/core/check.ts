@@ -73,7 +73,7 @@ import type { TypeCoverageInput } from './pairs.js';
 import { validate } from './validator.js';
 import type { BurnSet } from './progressive-scope.js';
 import { forceInScopeOnByteMismatch } from './progressive-scope.js';
-import { collectByteGuardCandidates } from './check-byte-guard.js';
+import { collectFindingByteGuardCandidates } from './check-byte-guard.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
 import type { RulesArtifacts } from './checks/digest-gate.js';
@@ -321,6 +321,13 @@ export async function runCheck(
 
   // `coverage`/`earlyTypeCoverage` moved above section 1 (K15); read again below.
 
+  // Byte cache OWNED here rather than by the verification below, so the byte
+  // guard further down compares the very bytes each verdict was re-hashed from
+  // instead of reading the same files a second time (and possibly reading
+  // different content than the verdict saw). Empty on the injected-verification
+  // path, where nothing is re-hashed at all — the guard then reads what it needs.
+  const subjectByteCache = new Map<string, Buffer | null>();
+
   // 2. Lock verification: pair verdicts, relation conformance, the type gate,
   // parser-infrastructure failures, log integrity and the mandatory-log
   // requirement — every one of them reported only when the lock can be read.
@@ -341,6 +348,7 @@ export async function runCheck(
     relResult,
     runtimeDispositions: options?.runtimeDispositions,
     precomputedVerification: options?.precomputedVerification,
+    byteCache: subjectByteCache,
   });
 
   // 3. Coverage scan (unmapped-files / uncovered-advisory), plus the
@@ -379,17 +387,23 @@ export async function runCheck(
   ];
 
   // Byte guard, gathered BEFORE the classification below reads the scope: the
-  // subject bytes of every blocking obligation the measurement is about to treat
-  // as inherited. Git can be told to report a modified file as unmodified
-  // (`assume-unchanged`, `skip-worktree`), and such a file's obligations would
-  // otherwise be released on that false report. Reads nothing at all when there
-  // is no scope, no reference listing, or a scope that already went global — so
-  // a run with the feature off is untouched by its existence.
-  const byteGuardCandidates = await collectByteGuardCandidates(
-    options?.changeScope,
+  // files behind every blocking finding the measurement is about to treat as
+  // inherited, and what those files currently contain. Git can be told to report
+  // a modified file as unmodified (`assume-unchanged`, `skip-worktree`), and
+  // every finding about such a file would otherwise be released on that false
+  // report — not only the ones keyed by a rule check, which is why the candidate
+  // set is derived from the assembled findings themselves. Reads nothing at all
+  // when there is no scope, no reference listing, or a scope that already went
+  // global — so a run with the feature off is untouched by its existence.
+  const byteGuard = await collectFindingByteGuardCandidates({
+    scope: options?.changeScope,
+    issues: assembledIssues,
     pairs,
+    graph,
+    visibleFiles: coverageVisibleFiles,
     projectRoot,
-  );
+    alreadyRead: subjectByteCache,
+  });
 
   // Change-scope classification. With a scope supplied, every finding the
   // change is NOT accountable for is re-coded to its `-outside` twin at warning
@@ -405,17 +419,33 @@ export async function runCheck(
   // disagree with the reference tree and returns the burn set untouched (the
   // same object) when none do, so this is the plain measurement plus, never
   // minus.
+  //
+  // Reached through a MEMOIZED local rather than called inline: two things need
+  // the widened answer — this classification and the changed-input count below,
+  // which must report the files the run actually gated on rather than the
+  // smaller set git admitted to — and hashing every candidate's bytes a second
+  // time to answer the same question twice would be the only alternative. The
+  // call still names `options.changeScope` directly, which is what lets the rule
+  // proving every call site complete see the option feeding the rewrite.
+  let guarded: BurnSet | undefined;
+  const guardScope = (scope: NonNullable<RunCheckOptions['changeScope']>): BurnSet =>
+    (guarded ??= forceInScopeOnByteMismatch(scope, byteGuard.candidates));
   const allIssues = options?.changeScope
-    ? applyChangeScope(
-        assembledIssues,
-        forceInScopeOnByteMismatch(
-          options.changeScope.burn,
-          byteGuardCandidates,
-          options.changeScope.blobOidByPath,
-        ),
-        pairs,
-      )
+    ? applyChangeScope(assembledIssues, guardScope(options.changeScope), pairs)
     : assembledIssues;
+  // How many findings the guard KEPT, read off object identity rather than by
+  // running the comparison twice: the classifier hands an in-scope finding back
+  // as the very object it was given and builds a NEW one for a twin, so a
+  // candidate whose issue survived into the classified list is one this run was
+  // about to release and did not. Reported, because a repository where a content
+  // filter sits between the stored blob and the working copy has every inherited
+  // finding kept on every run, and a mode that has effectively switched itself
+  // off must say so in its own output instead of only in its documentation.
+  const classified = new Set(allIssues);
+  const byteGuardKept = options?.changeScope
+    ? byteGuard.candidates.filter((c) => c.issue !== undefined && classified.has(c.issue)).length
+    : undefined;
+  const byteGuardUnavailable = options?.changeScope ? byteGuard.unsupportedObjectFormat : undefined;
   // Deliberately a SECOND, independently-shaped expression rather than a richer
   // return from the call above: the rule that proves every runCheck call site
   // supplies this option derives the rewrite from `options?.<key> ? fn(list, …)
@@ -423,7 +453,7 @@ export async function runCheck(
   // literal, leaving the classification unproven and the gate red everywhere.
   const outsideCount = options?.changeScope ? countOutside(allIssues) : undefined;
   const progressiveReference = options?.changeScope ? options.changeScope.referenceName : undefined;
-  const changedInputCount = options?.changeScope ? options.changeScope.burn.changedInputCount : undefined;
+  const changedInputCount = options?.changeScope ? guardScope(options.changeScope).changedInputCount : undefined;
 
   // Node type counts
   const nodeTypeCounts = new Map<string, number>();
@@ -480,6 +510,8 @@ export async function runCheck(
     outsideCount,
     progressiveReference,
     changedInputCount,
+    byteGuardKept,
+    byteGuardUnavailable,
   };
 }
 

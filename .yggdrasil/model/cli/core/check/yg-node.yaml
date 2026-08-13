@@ -21,11 +21,16 @@ description: "Unified check orchestrator — runs validation, coverage, the
   lock, the uncovered-file and tracked-but-gitignored scans, the coverage
   tiers plus the type-level lattice, the change-scope classification that
   re-codes a finding the current change is not accountable for into a
-  non-blocking twin, the byte guard's gathering half that collects the subject
-  bytes of every blocking obligation that classification is about to treat as
-  inherited (so the pure comparer in core/progressive-scope.ts can re-admit any
-  whose content contradicts git's own report of what changed), and the single
-  next step a finished check points at."
+  non-blocking twin, the byte guard's gathering half that collects the files
+  behind every blocking FINDING that classification is about to treat as
+  inherited — driven by the assembled findings rather than by rule checks alone,
+  since a finding keyed by a component or a file carries no rule check at all —
+  together with what those files currently contain, so the pure comparer in
+  core/progressive-scope.ts can re-admit any whose content contradicts git's own
+  report of what changed, and the single next step a finished check points at.
+  The orchestrator owns the byte cache the verification fills, so the guard
+  compares the very bytes each verdict was re-hashed from rather than reading
+  the same files again, and reports how many findings the guard kept."
 max_direct_relations:
   limit: 25
   reason: >-

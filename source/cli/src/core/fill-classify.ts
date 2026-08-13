@@ -18,6 +18,15 @@
  * decision the report gates with (core/check-progressive.ts's `pairIsInScope`),
  * never a second copy of it.
  *
+ * That scope is WIDENED by the byte guard first, exactly as the report's is. It
+ * has to be: the guard re-admits a rule check whose subject files differ from
+ * the reference although git reported them unchanged, and the report then blocks
+ * on it. If this stage went on reading the unwidened scope it would decline to
+ * review the very pair the report is blocking over — and the command that report
+ * advises is this one, so the run would be unfixable by the step it points at,
+ * forever, at a measured cost of zero reviewer calls. One widened scope, read by
+ * both, is the only shape in which the advice a run gives is advice that works.
+ *
  * ── Two node sets, deliberately ─────────────────────────────────────────────
  * `nodeSet` stays UNFILTERED and feeds the mandatory-log gate, which is
  * all-or-nothing over every component owning an unverified pair. The reported
@@ -32,6 +41,8 @@
  * pre-dispatch header and the dry-run cost preview then report.
  */
 
+import path from 'node:path';
+
 import type { Graph, AspectDef } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
 import type { BurnSet } from './progressive-scope.js';
@@ -39,7 +50,8 @@ import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import type { LockVerification } from './verify-lock.js';
 import { verifyLock } from './verify-lock.js';
 import { knownPairKeys, pairIsInScope } from './check-progressive.js';
-import { progressivePairKey } from './progressive-scope.js';
+import { forceInScopeOnByteMismatch, progressivePairKey } from './progressive-scope.js';
+import { collectPairByteGuardCandidates, type ByteGuardScope } from './check-byte-guard.js';
 import { readDetLockAspectIds } from '../io/lock-store.js';
 import { selectTierForAspect } from './tier-selection.js';
 
@@ -120,18 +132,24 @@ export function reviewerCallsForPair(graph: Graph, aspectById: Map<string, Aspec
  * Classify every expected pair against `lock` and derive this run's fill set,
  * subject counts, and reviewer-call budget.
  *
- * `changeScope` is the burn set the caller measured this change against, or
- * undefined for a run answering for the whole project. Supplying it narrows the
- * PAID half of the fill set and nothing else — see this module's header.
+ * `changeScope` is the measurement the caller made against the reference, plus
+ * the reference's own file listing, or undefined for a run answering for the
+ * whole project. Supplying it narrows the PAID half of the fill set and nothing
+ * else — see this module's header.
  */
 export async function classifyFillPairs(
   graph: Graph,
   lock: LockFile,
   typeCoverage: TypeCoverageInput | undefined,
   onlyDeterministic: boolean,
-  changeScope?: BurnSet,
+  changeScope?: ByteGuardScope,
 ): Promise<FillPairSets> {
-  const verification = await verifyLock(graph, lock, typeCoverage);
+  const projectRoot = path.dirname(graph.rootPath);
+  // The byte cache this verification fills is handed to the guard below, so the
+  // content it compares is the content the re-hash just read — one pass over
+  // those files, and no window in which the two could see different bytes.
+  const byteCache = new Map<string, Buffer | null>();
+  const verification = await verifyLock(graph, lock, typeCoverage, byteCache);
 
   const unverifiedPairs: ExpectedPair[] = [];
   for (const vp of verification.pairs) {
@@ -145,8 +163,19 @@ export async function classifyFillPairs(
   // does: a pair no enumeration produced is unattributable and stays in — the
   // paying direction, matching the report's blocking one.
   const known = knownPairKeys(verification.pairs);
+  // Widen the measurement by the byte guard before anything is decided against
+  // it — see this module's header for why buying and blocking must read the
+  // SAME widened answer.
+  const guardedBurn: BurnSet | undefined =
+    changeScope === undefined
+      ? undefined
+      : forceInScopeOnByteMismatch(
+          changeScope,
+          (await collectPairByteGuardCandidates(changeScope, verification.pairs, projectRoot, byteCache))
+            .candidates,
+        );
   const inScope = (p: ExpectedPair): boolean =>
-    changeScope === undefined || pairIsInScope(changeScope, p.aspectId, p.unitKey, known);
+    guardedBurn === undefined || pairIsInScope(guardedBurn, p.aspectId, p.unitKey, known);
   // --only-deterministic: no LLM fills this run. An empty set naturally skips the
   // reviewer-call budget, the deterministic gate, and the whole step-6 LLM loop.
   const llmPairs = onlyDeterministic ? [] : unverifiedLlmPairs.filter(inScope);

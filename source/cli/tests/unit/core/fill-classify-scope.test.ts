@@ -102,9 +102,16 @@ function burnOver(pairs: Array<[string, string]>): BurnSet {
 const unitsOf = (pairs: Array<{ aspectId: string; unitKey: string }>): string[] =>
   pairs.map((p) => `${p.aspectId} ${p.unitKey}`).sort();
 
+/**
+ * The scope as the fill stage receives it: the measurement plus the reference
+ * listing the byte guard checks it against. `null` for that listing here — every
+ * case in this file is about what a measured scope narrows, not about the guard,
+ * and a null listing is the documented "no content check this run".
+ */
 async function classify(root: string, scope?: BurnSet, onlyDeterministic = false): ReturnType<typeof classifyFillPairs> {
   const graph = await loadGraph(root);
-  return classifyFillPairs(graph, readLock(graph.rootPath), undefined, onlyDeterministic, scope);
+  const forFill = scope === undefined ? undefined : { burn: scope, blobOidByPath: null };
+  return classifyFillPairs(graph, readLock(graph.rootPath), undefined, onlyDeterministic, forFill);
 }
 
 describe('classifyFillPairs — what a measured change narrows', () => {

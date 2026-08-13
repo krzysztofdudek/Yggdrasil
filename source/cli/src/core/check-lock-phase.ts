@@ -82,8 +82,16 @@ export async function runLockPhase(args: {
    * lock failing closed on this path exactly as on any other.
    */
   precomputedVerification: LockVerification | undefined;
+  /**
+   * The caller's own byte cache for this run, filled as every subject file is
+   * read for re-hashing. Supplied by `runCheck` so its byte guard compares the
+   * SAME bytes the verdicts were hashed from instead of reading them a second
+   * time; absent for every other caller, and then the verification allocates
+   * and releases its own exactly as it always did.
+   */
+  byteCache: Map<string, Buffer | null> | undefined;
 }): Promise<LockPhaseResult> {
-  const { graph, projectRoot, typeCoverageInput, earlyTypeCoverage, relResult, runtimeDispositions, precomputedVerification } = args;
+  const { graph, projectRoot, typeCoverageInput, earlyTypeCoverage, relResult, runtimeDispositions, precomputedVerification, byteCache } = args;
 
   // Captured from the relation pass (run once by the orchestrator, ahead of
   // validate()) for the optional feature-field index write. Stays null if the
@@ -107,7 +115,7 @@ export async function runLockPhase(args: {
   let pairs: VerifiedPair[] = [];
   try {
     const lock = readLock(graph.rootPath);
-    const verification = precomputedVerification ?? await verifyLock(graph, lock, typeCoverageInput);
+    const verification = precomputedVerification ?? await verifyLock(graph, lock, typeCoverageInput, byteCache);
     pairs = verification.pairs;
     const runtimeRows = toRuntimeVisibilityRows(runtimeDispositions ?? []);
     typeVisibility = earlyTypeCoverage

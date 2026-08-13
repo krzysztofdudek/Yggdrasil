@@ -646,11 +646,47 @@ export function computeBurnSet(input: BurnInput): BurnSet {
 // ============================================================
 
 /**
- * The git object id of a blob holding exactly `bytes`: SHA-1 over the literal
- * header `blob <byteLength>\0` followed by the RAW bytes — git's own loose-object
- * form, which is what a tree listing records.
+ * The digests git uses to name objects, by the hex width of the id each
+ * produces. A repository is created in ONE object format and every id in its
+ * trees is that format's — `sha1` for every repository git has ever created by
+ * default, `sha256` for one initialised with `--object-format=sha256`.
  *
- * Two details are load-bearing, and getting either wrong makes EVERY file
+ * Keyed by width because that is the only thing a listing tells us: a tree
+ * records ids, not the algorithm that made them. Hard-wiring one of these was a
+ * real defect and a silent one — on a sha256 repository every recorded id is 64
+ * hex characters, so every comparison against a 40-character digest fails,
+ * every inherited finding is forced back in scope, and the mode is inert with
+ * nothing said about it.
+ */
+const GIT_OBJECT_DIGESTS: ReadonlyMap<number, string> = new Map([
+  [40, 'sha1'],
+  [64, 'sha256'],
+]);
+
+/**
+ * Which digest produced the ids in this listing, or `null` when this build
+ * cannot reproduce them and the guard must therefore not run at all.
+ *
+ * Read off ONE entry, because a repository's object format is a property of the
+ * repository and not of a file: every id in one listing is the same width by
+ * construction, so scanning the rest would cost a pass to re-learn a fact the
+ * first entry already settled.
+ *
+ * An EMPTY listing answers `sha1` and it does not matter which it answers: a
+ * listing with no entries records no id for any subject, so every subject takes
+ * the "absent from the reference" branch and nothing is ever hashed.
+ */
+export function gitObjectDigest(blobOidByPath: ReadonlyMap<string, string>): string | null {
+  for (const oid of blobOidByPath.values()) return GIT_OBJECT_DIGESTS.get(oid.length) ?? null;
+  return 'sha1';
+}
+
+/**
+ * The git object id of a blob holding exactly `bytes`: `digest` over the literal
+ * header `blob <byteLength>\0` followed by the RAW bytes — git's own
+ * loose-object form, which is what a tree listing records.
+ *
+ * Three details are load-bearing, and getting any of them wrong makes EVERY file
  * mismatch rather than failing loudly:
  *
  *   - the length in the header is the BYTE length, not a character count, and
@@ -660,17 +696,20 @@ export function computeBurnSet(input: BurnInput): BurnSet {
  *     rules keep binary files among their subjects, and a `toString()` anywhere
  *     on this path replaces every byte an encoder cannot represent, so every
  *     binary subject would mismatch forever and the guard would be permanently,
- *     uselessly noisy. There is no `.toString()` here on purpose.
+ *     uselessly noisy. There is no `.toString()` here on purpose;
+ *   - the digest is the one the REPOSITORY uses, resolved from the recorded ids
+ *     by {@link gitObjectDigest}, not a constant. See that function for what
+ *     assuming one costs.
  *
- * This is SHA-1 as an OBJECT NAME, not as a security primitive: the value is
- * compared against ids git itself wrote, so the hash function is fixed by git's
- * format and is not a choice this code gets to make.
+ * This is a hash used as an OBJECT NAME, not as a security primitive: the value
+ * is compared against ids git itself wrote, so the algorithm is fixed by the
+ * repository's format and is not a choice this code gets to make.
  */
-export function hashGitBlob(bytes: Buffer): string {
-  return createHash('sha1').update(`blob ${bytes.length}\0`, 'latin1').update(bytes).digest('hex');
+export function hashGitBlob(bytes: Buffer, digest = 'sha1'): string {
+  return createHash(digest).update(`blob ${bytes.length}\0`, 'latin1').update(bytes).digest('hex');
 }
 
-/** One subject file of a candidate pair, with the bytes currently on disk. */
+/** One file a candidate finding's verdict is about, with the bytes on disk now. */
 export interface ByteGuardSubject {
   /** Repo-relative POSIX path, spelled exactly as a tree listing spells it. */
   path: string;
@@ -680,50 +719,96 @@ export interface ByteGuardSubject {
    * guard resolves the blocking way (see {@link forceInScopeOnByteMismatch}).
    */
   bytes: Buffer | null;
+  /**
+   * The component that answers for this file, when one does — resolved by the
+   * gatherer from the graph's own path patterns, so the decision itself needs no
+   * graph. Re-admitting a file puts its owner back in scope too, which is
+   * exactly what the burn table's own owner row would have done had git reported
+   * the file at all.
+   */
+  owner?: string;
 }
 
-/** One obligation the guard may re-admit, and the files its verdict is about. */
+/**
+ * One finding the classification is about to set aside, and the files its
+ * verdict is about.
+ *
+ * `pairKey` is present only for a finding whose identity IS a rule check. The
+ * rest — a finding keyed by component, by file, or by the dependency edges it
+ * names — carry none, and are re-admitted through the file and component sets
+ * instead. Deriving candidates from rule checks ALONE was a real hole: a hidden
+ * edit that introduced an undeclared cross-component dependency produced a
+ * finding carrying only a component path, no rule check moved at all, and the
+ * whole class went on being reported as inherited debt.
+ */
 export interface ByteGuardCandidate {
-  /** `<aspectId> <unitKey>` — {@link progressivePairKey}, same spelling as the burn set. */
-  pairKey: string;
+  /** `<aspectId> <unitKey>` — {@link progressivePairKey} — or absent when the finding names no rule check. */
+  pairKey?: string;
   subjects: ByteGuardSubject[];
 }
 
 /**
- * Re-admit every candidate obligation whose subject bytes disagree with the
- * reference tree — the guard against git being TOLD to lie.
+ * Re-admit every candidate finding whose files disagree with the reference tree
+ * — the guard against git being TOLD to lie.
  *
  * ── The hole this closes ────────────────────────────────────────────────────
  * The burn table decides what a change is accountable for by asking git which
  * files differ from the reference. Git can be instructed to answer that question
  * wrongly: a path marked `assume-unchanged` or `skip-worktree` is reported as
  * unmodified no matter what its bytes actually say, so `git status` and
- * `git diff` both omit it. The obligation covering that file then falls outside
- * the change, its live refusal is re-coded as inherited debt, and the build goes
- * green over an edit the gate never saw. The same shape covers any residual
- * enumeration bug on the touched-set side, whatever its cause.
+ * `git diff` both omit it. Every finding about that file then falls outside the
+ * change, its live refusal is re-coded as inherited debt, and the build goes
+ * green over an edit the gate never saw.
  *
  * So for candidates only, this asks the bytes instead of asking git. A file's
  * git object id is a function of its content alone; recomputing it in-process
  * from the bytes already in hand and comparing against the id the reference tree
  * recorded is a complete answer that no index flag can influence.
  *
+ * ── What it widens, and why all three sets ──────────────────────────────────
+ * A re-admitted file is put back into the scope in the SAME three places the
+ * burn table would have put it had git reported it:
+ *
+ *   - `files` — which is what the per-file rung, the dependency-edge rung and
+ *     the coverage split all read;
+ *   - `nodePaths` — the file's owning component, which is what every
+ *     component-keyed finding reads (the undeclared-dependency finding, the log
+ *     gate, a missing description);
+ *   - `pairKeys` — the candidate's own rule check, when it has one.
+ *
+ * Widening only `pairKeys` was the defect this shape replaces: it re-admitted
+ * rule checks and nothing else, so an entire class of finding — everything
+ * identified by a component or a file rather than by a rule — stayed released
+ * on git's false report.
+ *
+ * `changedInputCount` follows `files` by construction, exactly as it does in
+ * {@link computeBurnSet}: a file the guard re-admits IS a changed input the
+ * measurement failed to count, and leaving the number behind would have the
+ * header claim fewer inputs than the run just gated on.
+ *
  * ── What it may and may not do ──────────────────────────────────────────────
- * ADD obligations, never remove them. The returned burn set's `pairKeys` is
- * always a SUPERSET of the input's, and every other field is the input's own
- * value untouched — with nothing forced, the input object itself comes back, so
- * a run where the guard finds nothing is indistinguishable from one where it
- * never ran. That direction is the whole safety argument: a wrong "force" costs
- * someone reading a finding that was not theirs, while a wrong "release" ships a
- * real violation green.
+ * ADD, never remove. Every returned set is a SUPERSET of the input's and
+ * `global` is untouched — and with nothing forced, the input object itself comes
+ * back, so a run where the guard finds nothing is indistinguishable from one
+ * where it never ran. Every rung of the classification ladder is monotone in
+ * these sets, so a superset can only ever keep a finding blocking that would
+ * otherwise have been released. That direction is the whole safety argument: a
+ * wrong "force" costs someone reading a finding that was not theirs, while a
+ * wrong "release" ships a real violation green.
  *
  * ── When it declines to answer ──────────────────────────────────────────────
  *   - `blobOidByPath === null` — the listing could not be obtained. The guard is
  *     SKIPPED entirely rather than treated as an empty listing (which would
  *     force every candidate in scope, inventing a second failure mode where the
- *     measurement already fails closed elsewhere).
- *   - `burn.global` — the run already gates everything; there is nothing for a
- *     per-pair force to add.
+ *     measurement already fails closed elsewhere). NOTE the one way that
+ *     listing can come back `null` for a reason unrelated to git health: it is
+ *     read through a bounded output buffer, and a repository whose tree listing
+ *     exceeds it fails the read and disarms the guard silently. That is
+ *     fail-open, and it is recorded here rather than defended against.
+ *   - the recorded ids are in an object format this build cannot reproduce —
+ *     also skipped, and the caller is told so it can SAY so rather than let the
+ *     mode go quietly inert.
+ *   - `burn.global` — the run already gates everything; there is nothing to add.
  *
  * ── Which way a comparison that cannot be made falls ────────────────────────
  * Toward blocking, in both shapes:
@@ -737,46 +822,81 @@ export interface ByteGuardCandidate {
  *     where a file is added and hidden in the same breath: staged, then marked
  *     assume-unchanged, so it appears in no status and in no committed diff.)
  *
- * ── One known false-positive, stated rather than papered over ───────────────
- * A checkout that rewrites line endings on the way to the work tree (git's
- * `core.autocrlf`) holds bytes that legitimately differ from the blob's, so an
- * untouched file there compares as changed and its FAILING obligations stay
- * blocking. That is the safe direction — more gated, never less — and it is the
- * price of comparing bytes rather than a normalised decoding of them, which
- * would break every binary subject to fix a Windows-only cosmetic case.
+ * ── The false positive this has, stated at its real scope ───────────────────
+ * ANY content filter between the stored blob and the working copy makes the two
+ * legitimately differ, and then every failing finding on every filtered file is
+ * re-admitted — on every run, on every platform. A committed `.gitattributes`
+ * carrying `text eol=` or a `filter=` driver does it, which means continuous
+ * integration meets it as readily as a developer's machine; large-file storage
+ * is the same class, since the blob holds a pointer and the working copy holds
+ * the content. This is NOT confined to Windows or to `core.autocrlf`. The effect
+ * is not "a few findings stay blocking": on such a repository every inherited
+ * obligation blocks on every run. So the caller is told how many findings this
+ * kept, and reports it — a mode that has effectively turned itself off must say
+ * so in its own output rather than only in its documentation. The direction is
+ * still the safe one (more gated, never less), and it is the price of comparing
+ * bytes rather than a normalised decoding of them, which would break every
+ * binary subject to fix a text-only case.
  *
  * Pure: the ids and the bytes both arrive as plain values. No git, no
  * filesystem, no clock — the caller gathers, this decides.
  *
- * @param burn        the burn table's answer, as computed from git's own report
- * @param candidates  the obligations eligible for re-admission — the caller
- *                    supplies ONLY out-of-scope FAILING pairs, since a passing
- *                    pair has no finding to keep and an in-scope one already
- *                    blocks
- * @param blobOidByPath  path -> object id at the reference, or `null` (skip)
+ * @param scope       the burn table's answer, plus the reference listing to
+ *                    check it against (`null` ⇒ skip)
+ * @param candidates  the findings eligible for re-admission — the caller
+ *                    supplies ONLY the ones that are both blocking and about to
+ *                    be set aside, since a passing finding has nothing to keep
+ *                    and an in-scope one already blocks
  */
 export function forceInScopeOnByteMismatch(
-  burn: BurnSet,
+  scope: { burn: BurnSet; blobOidByPath: ReadonlyMap<string, string> | null },
   candidates: readonly ByteGuardCandidate[],
-  blobOidByPath: ReadonlyMap<string, string> | null,
 ): BurnSet {
+  const { burn, blobOidByPath } = scope;
   if (blobOidByPath === null || burn.global) return burn;
+  const digest = gitObjectDigest(blobOidByPath);
+  if (digest === null) return burn;
 
-  const forced: string[] = [];
+  const forcedPairKeys: string[] = [];
+  const forcedFiles: string[] = [];
+  const forcedNodes: string[] = [];
   for (const candidate of candidates) {
-    // Defensive, and free: a caller that hands over a pair the table already
-    // burned must not be able to make this look like a find.
-    if (burn.pairKeys.has(candidate.pairKey)) continue;
-    const moved = candidate.subjects.some((subject) => {
-      if (subject.bytes === null) return true;
-      const recorded = blobOidByPath.get(subject.path);
-      if (recorded === undefined) return true;
-      return hashGitBlob(subject.bytes) !== recorded;
-    });
-    if (moved) forced.push(candidate.pairKey);
+    let moved = false;
+    for (const subject of candidate.subjects) {
+      if (!subjectMoved(subject, blobOidByPath, digest)) continue;
+      moved = true;
+      forcedFiles.push(subject.path);
+      if (subject.owner !== undefined) forcedNodes.push(subject.owner);
+    }
+    // Only the files that actually moved are re-admitted, never a candidate's
+    // whole subject list: `files` means "changed paths this run accounted for",
+    // and adding one that did not change would make the count in front of a
+    // person a claim about their diff that is not true.
+    if (moved && candidate.pairKey !== undefined) forcedPairKeys.push(candidate.pairKey);
   }
-  if (forced.length === 0) return burn;
-  return { ...burn, pairKeys: new Set([...burn.pairKeys, ...forced]) };
+  if (forcedFiles.length === 0) return burn;
+
+  const files = new Set([...burn.files, ...forcedFiles]);
+  return {
+    global: burn.global,
+    pairKeys: new Set([...burn.pairKeys, ...forcedPairKeys]),
+    nodePaths: new Set([...burn.nodePaths, ...forcedNodes]),
+    files,
+    logOnlyNodePaths: burn.logOnlyNodePaths,
+    changedInputCount: files.size,
+  };
+}
+
+/** Does this one subject's content disagree with what the reference recorded? */
+function subjectMoved(
+  subject: ByteGuardSubject,
+  blobOidByPath: ReadonlyMap<string, string>,
+  digest: string,
+): boolean {
+  if (subject.bytes === null) return true;
+  const recorded = blobOidByPath.get(subject.path);
+  if (recorded === undefined) return true;
+  return hashGitBlob(subject.bytes, digest) !== recorded;
 }
 
 // ============================================================

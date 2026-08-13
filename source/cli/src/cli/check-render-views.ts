@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE, OUTSIDE_CODES } from '../core/check-codes.js';
 import { groupIssues, issuePriorityRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, type IssueGroup } from './group-issues.js';
-import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderChangeScope } from './check-render-header.js';
+import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderChangeScope, renderByteGuardNotice } from './check-render-header.js';
 import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup } from './check-render-groups.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -105,6 +105,16 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   if (result.typeLevel && (result.classifyingTypeCount ?? 0) === 0) {
     sections.push('');
     sections.push(chalk.dim(ZERO_CLASSIFYING_TYPES_NOTICE));
+  }
+
+  // The content check's own statement of fact, same posture as the notice above
+  // and printed in every view (the --aspect drill-in replaces only sections[0],
+  // so this survives it). Absent entirely on a run that met neither of the two
+  // states it reports, which is every ordinary run.
+  const byteGuardNotice = renderByteGuardNotice(result);
+  if (byteGuardNotice !== undefined) {
+    sections.push('');
+    sections.push(chalk.dim(byteGuardNotice));
   }
 
   // Type-visibility: a statement of fact about the type tier's own coverage,

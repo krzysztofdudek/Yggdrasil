@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createProgressiveFixture, type ProgressiveFixture } from '../support/progressive-fixture.js';
 import { runGitFixture } from '../support/git-fixture.js';
+import { startMockReviewer, runAsync, type MockReviewer } from './support/mock-reviewer.js';
 
 // ---------------------------------------------------------------------------
 // Hermetic E2E for the BYTE GUARD, driven through the real built binary over
@@ -36,9 +37,11 @@ const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const distExists = existsSync(BIN_PATH);
 
 const fixtures: ProgressiveFixture[] = [];
+const mocks: MockReviewer[] = [];
 
-afterEach(() => {
+afterEach(async () => {
   for (const f of fixtures.splice(0)) f.cleanup();
+  for (const m of mocks.splice(0)) await m.close();
 });
 
 function run(args: string[], cwd: string): { status: number | null; stdout: string; stderr: string } {
@@ -100,7 +103,10 @@ function hideEdit(
   git(dir, ['update-index', bit, '--', relPath]);
   writeFileSync(path.join(dir, relPath), content, 'utf-8');
   // The premise of every case in this file: after this, git denies the edit.
-  expect(porcelain(dir)).toBe('');
+  // Asserted on the hidden path specifically rather than on an empty report,
+  // because a run that has already recorded verdicts leaves its own (untracked)
+  // record behind and that is not what any of these cases are about.
+  expect(porcelain(dir)).not.toContain(relPath);
 }
 
 /** The local, gitignored file a deterministic recording run writes its verdicts to. */
@@ -202,6 +208,119 @@ describe.skipIf(!distExists)('yg check — the byte guard', () => {
     expect(after.stderr).toBe(before.stderr);
     expect(after.status).toBe(before.status);
     expect(warningSection(after.stdout)).toContain(TODO_IN('beta'));
+  });
+
+  // ── The class a rule-check-only guard left wide open ──────────────────────
+  //
+  // Not every finding is identified by a rule check. An undeclared dependency
+  // between two components names only the COMPONENT — no rule check moves at
+  // all — so a guard that widened the rule-check set and nothing else went on
+  // reporting the whole class as inherited debt. These cases are the reviewer's
+  // own reproduction, kept as the regression it is.
+  describe('a finding identified by a component rather than by a rule', () => {
+    /** An import of the other component, with no relation declared for it. */
+    const UNDECLARED_IMPORT = "import { beta } from '../beta/beta.js';\nexport const alpha = beta;\n";
+
+    /**
+     * Hide an edit that introduces an undeclared cross-component dependency, and
+     * re-record the free verdicts over the hidden content so that alpha's own
+     * rule checks are all VERIFIED again. What is left blocking on alpha is then
+     * exactly one finding, and it carries no rule check at all — which is the
+     * whole point of the case.
+     */
+    function hiddenUndeclaredImport(label: string): ProgressiveFixture {
+      const fixture = scaffoldRecorded(label, 'main');
+      hideEdit(fixture.dir, 'src/alpha/alpha.ts', UNDECLARED_IMPORT);
+      run(['check', '--approve', '--only-deterministic'], fixture.dir);
+      return fixture;
+    }
+
+    it('blocks on the undeclared dependency the hidden edit introduced', () => {
+      const fixture = hiddenUndeclaredImport('hidden-undeclared-import');
+
+      const { status, stdout } = run(['check'], fixture.dir);
+
+      expect(status).toBe(1);
+      expect(errorSection(stdout)).toContain('relation-undeclared-dependency');
+      expect(errorSection(stdout)).toContain('alpha');
+      // Still a measured run, not a whole-project gate in disguise.
+      expect(headerOf(stdout)).toContain('outside your changes vs main');
+      expect(warningSection(stdout)).toContain(TODO_IN('beta'));
+    });
+
+    it('says in its own output that it kept the finding, and why that can happen', () => {
+      // Without this line the state is indistinguishable from an ordinary red
+      // build — which matters most on a repository where a checkout filter makes
+      // EVERY file differ and the mode has therefore switched itself off.
+      const fixture = hiddenUndeclaredImport('hidden-undeclared-notice');
+
+      const { stdout } = run(['check'], fixture.dir);
+
+      expect(stdout).toContain('Content check: 1 finding kept in scope');
+      expect(stdout).toContain("differs from 'main' although git reports no change there");
+      expect(stdout).toContain('.gitattributes');
+    });
+
+    it('counts the hidden file among the changed inputs it gated on', () => {
+      // The header quotes this number. Reporting git's smaller count beside a
+      // finding that only the file's content justifies would be a claim about
+      // the person's diff that is not true.
+      const fixture = hiddenUndeclaredImport('hidden-undeclared-count');
+
+      const { stdout } = run(['check'], fixture.dir);
+
+      expect(headerOf(stdout)).toContain('(1 changed input)');
+    });
+
+    it('reports the same finding when the identical edit is committed honestly', () => {
+      // The control: the guard is re-admitting a finding the run would have had
+      // anyway, not inventing one.
+      const fixture = scaffoldRecorded('honest-undeclared-import', 'main');
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', UNDECLARED_IMPORT);
+      run(['check', '--approve', '--only-deterministic'], fixture.dir);
+
+      const { status, stdout } = run(['check'], fixture.dir);
+
+      expect(status).toBe(1);
+      expect(errorSection(stdout)).toContain('relation-undeclared-dependency');
+    });
+  });
+
+  // ── The advice a run gives has to be advice that works ────────────────────
+  it('reviews a re-admitted reviewer-judged rule when told to, instead of blocking forever', async () => {
+    // The report blocks on a re-admitted rule check and points at the recording
+    // command. If the recording half read the unwidened measurement it would
+    // call that same rule outside the change and decline to review it — zero
+    // reviewer calls, the identical failure, and no way out through the step the
+    // run advises.
+    const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'mock-approve' }) });
+    mocks.push(mock);
+    const fixture = createProgressiveFixture({
+      label: 'guard-fill',
+      progressiveReference: 'main',
+      reviewedAspect: { endpoint: mock.endpoint },
+    });
+    fixtures.push(fixture);
+    // Settle the WHOLE project first (`--full`, since a clean checkout of the
+    // reference is accountable for nothing and would buy nothing), so the only
+    // outstanding reviewer obligation afterwards is the hidden one.
+    await runAsync(['check', '--full', '--approve'], fixture.dir);
+    const beforeHiding = mock.chatCount();
+    expect(beforeHiding).toBeGreaterThan(0);
+
+    hideEdit(fixture.dir, 'src/alpha/alpha.ts', '// alpha, documented.\nexport const alpha = 2;\n');
+
+    const blocked = run(['check'], fixture.dir);
+    expect(blocked.status).toBe(1);
+    expect(errorSection(blocked.stdout)).toContain("- alpha  aspect 'has-doc-comment'");
+
+    const filled = await runAsync(['check', '--approve'], fixture.dir);
+
+    // It bought the review the report was blocking over…
+    expect(mock.chatCount()).toBeGreaterThan(beforeHiding);
+    expect(filled.status).toBe(0);
+    // …and the same run comes back clean, so the advice actually resolved it.
+    expect(headerOf(filled.stdout)).toContain('yg check: PASS');
   });
 
   it('is byte-identical to the whole-project gate on a project that never opted in', () => {

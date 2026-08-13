@@ -140,9 +140,10 @@ export async function verifyLock(
   graph: Graph,
   lock: LockFile,
   typeCoverage?: TypeCoverageInput,
+  byteCache?: Map<string, Buffer | null>,
 ): Promise<LockVerification> {
   const { pairs, unreadable, drops, uncomputableTypeCoverage } = await computeExpectedPairs(graph, { typeCoverage });
-  const verified = await verifyPairs(graph, lock, pairs, typeCoverage);
+  const verified = await verifyPairs(graph, lock, pairs, typeCoverage, byteCache);
   return { pairs: verified, unreadable, drops, uncomputableTypeCoverage };
 }
 
@@ -164,6 +165,7 @@ export async function verifyPairs(
   lock: LockFile,
   pairs: ExpectedPair[],
   typeCoverage?: TypeCoverageInput,
+  byteCache?: Map<string, Buffer | null>,
 ): Promise<VerifiedPair[]> {
   const projectRoot = path.dirname(graph.rootPath);
 
@@ -172,11 +174,20 @@ export async function verifyPairs(
   for (const a of graph.aspects) aspectById.set(a.id, a);
 
   // Cache file byte reads across pairs (subject files, references, observations).
-  const byteCache = new Map<string, Buffer | null>();
+  //
+  // A CALLER may own this map instead of this call. `yg check`'s byte guard
+  // does: it has to compare a subject's content against what the reference
+  // branch records, and re-reading the same files afterwards would both pay for
+  // a second pass over exactly the files this loop just read and open a window
+  // in which the bytes a verdict hashed and the bytes the guard compared are
+  // not the same content. Supplying the map keeps the guard's comparison and
+  // the verdict's hash reading one and the same bytes. Absent (every other
+  // caller) it is allocated here and released with this call, exactly as before.
+  const cache = byteCache ?? new Map<string, Buffer | null>();
   const readBytes = async (absPath: string): Promise<Buffer | null> => {
-    if (byteCache.has(absPath)) return byteCache.get(absPath)!;
+    if (cache.has(absPath)) return cache.get(absPath)!;
     const bytes = await readFileBytes(absPath);
-    byteCache.set(absPath, bytes);
+    cache.set(absPath, bytes);
     return bytes;
   };
 
