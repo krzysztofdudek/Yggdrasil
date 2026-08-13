@@ -5,7 +5,15 @@ description: "Fill stage behind yg check --approve — the single producer of
   gate (det fills before LLM; a node's enforced det refusal skips its LLM
   fills), hands the surviving LLM pairs to reviewer dispatch, enforces the
   mandatory-log gate, and on positive closure writes the source fingerprint and
-  log baseline. GCs detached verdict entries and writes the lock canonically. No
+  log baseline. When its caller measured the current change, only the LLM pairs
+  that change is accountable for are handed on — by the same per-pair decision
+  the report gates with, never a second copy of it. The deterministic half stays
+  whole-project (free, and its recorded observations are what the next
+  measurement reads) and so does the mandatory-log gate, which is all-or-nothing
+  about the code as it stands. The subject counts and reviewer-call budget the
+  stage reports are therefore computed separately from that gate's component
+  set, from what the run will actually fill, with whatever was left alone named
+  out loud. GCs detached verdict entries and writes the lock canonically. No
   write ever happens on an infra disposition (provider unreachable,
   tier-resolution error, reference-load failure, unparseable response) or a
   tainted/failed deterministic result. One orchestrator owns the ORDER of those
