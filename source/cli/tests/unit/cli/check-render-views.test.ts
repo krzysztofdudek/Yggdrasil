@@ -6,6 +6,7 @@ import {
   llmRefusedMessage,
   unverifiedMessage,
 } from '../../../src/formatters/lock-issue-messages.js';
+import { applyChangeScope } from '../../../src/core/check-progressive.js';
 
 /** Strip ANSI color codes so block-line counting is deterministic. */
 function stripAnsi(s: string): string {
@@ -788,5 +789,79 @@ describe('check render — --top view: coverage issues (task 2.3 fix)', () => {
     expect(out).not.toMatch(/\d+ pairs\s+\d+ nodes/);
     // renderGroup member line pattern ("- ") for an empty nodePath must NOT appear.
     expect(out).not.toMatch(/^\s*- \s*$/m);
+  });
+});
+
+// ── --top view: the two halves of a split coverage finding ───────────────────
+
+/**
+ * Under a change scope the aggregate coverage finding is split in two. Before
+ * the halves carried DISTINCT codes, both would have keyed the same group in
+ * `groupIssues` (which keys by code alone when there is no aspect), and the
+ * `--top` view — which deliberately renders coverage inside its cascade rather
+ * than excluding it — would have rendered `members[0]` and silently dropped the
+ * other half, with array order deciding which one survived. These pin that the
+ * twin codes really do keep the two halves visible as separate blocks, through
+ * the actual view rather than by inspection of the grouping key.
+ */
+describe('check render — --top view: a split coverage finding', () => {
+  /** The aggregate coverage finding exactly as the coverage phase emits it. */
+  const aggregate = (): CheckIssue => ({
+    severity: 'error',
+    code: 'unmapped-files',
+    rule: 'unmapped-file',
+    uncoveredFiles: ['src/in-diff.ts', 'src/inherited-a.ts', 'src/inherited-b.ts'],
+    uncoveredCount: 3,
+    messageData: {
+      what: '3 source files not covered by any node.\n  src/in-diff.ts\n  src/inherited-a.ts\n  src/inherited-b.ts',
+      why: 'Files without graph coverage cannot be modified under the protocol.',
+      next: 'Check ownership candidates: yg context --file <path>',
+    },
+  });
+
+  // The halves themselves are built by the real split, not by hand: it is the
+  // split's own output the view has to keep separable.
+  const halves = (): CheckIssue[] =>
+    applyChangeScope(
+      [aggregate()],
+      {
+        global: false,
+        pairKeys: new Set(),
+        nodePaths: new Set(),
+        files: new Set(['src/in-diff.ts']),
+        logOnlyNodePaths: new Set(),
+        changedInputCount: 1,
+      },
+      [],
+    );
+
+  it('renders BOTH halves, each naming only its own files', () => {
+    const issues = halves();
+    expect(issues.map((i) => i.code)).toEqual(['unmapped-files', 'unmapped-files-outside']);
+    const out = stripAnsi(formatOutput(baseResult(issues), { kind: 'top', n: 5 }));
+    expect(out).toContain('src/in-diff.ts');
+    expect(out).toContain('src/inherited-a.ts');
+    expect(out).toContain('src/inherited-b.ts');
+    // The blocking half keeps the compact file-list block with its own count.
+    expect(out).toContain('unmapped (1)');
+  });
+
+  it('keeps the halves under their own severity sections', () => {
+    const out = stripAnsi(formatOutput(baseResult(halves()), { kind: 'top', n: 5 }));
+    const errorAt = out.indexOf('Errors (1):');
+    const warningAt = out.indexOf('Warnings (1):');
+    expect(errorAt).toBeGreaterThan(-1);
+    expect(warningAt).toBeGreaterThan(errorAt);
+    // The blocking half's file is disclosed above the warnings subheader; the
+    // inherited half's files below it.
+    expect(out.indexOf('src/in-diff.ts')).toBeLessThan(warningAt);
+    expect(out.indexOf('src/inherited-a.ts')).toBeGreaterThan(warningAt);
+  });
+
+  it('renders the reverse order identically — no array-order accident', () => {
+    const [inDiff, outside] = halves();
+    const forward = stripAnsi(formatOutput(baseResult([inDiff, outside]), { kind: 'top', n: 5 }));
+    const reversed = stripAnsi(formatOutput(baseResult([outside, inDiff]), { kind: 'top', n: 5 }));
+    expect(reversed).toBe(forward);
   });
 });

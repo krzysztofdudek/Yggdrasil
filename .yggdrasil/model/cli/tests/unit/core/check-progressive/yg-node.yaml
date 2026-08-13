@@ -1,0 +1,27 @@
+name: Check Progressive Classification Unit Tests
+type: test-suite
+description: "Unit tests for the change-scope classification step — one case
+  per classification rule and, deliberately, per negative: a code outside the
+  scoped tier is untouched whatever its severity, an existing warning is
+  untouched, an outside twin is never re-twinned, a pair-keyed finding is
+  matched on the shared pair key (and a re-spelled key provably fails to
+  match), a finding naming a pair this run never enumerated stays blocking, a
+  component-keyed finding honours the log-only carve-out without letting it
+  rescue a non-log finding on the same component, a file-keyed and an
+  edge-list-keyed finding are matched on their own files, a finding with
+  missing or unrecognized identity stays blocking, the aggregate coverage
+  finding is split into a blocking and an inherited half each regenerated from
+  its own file list, a global scope is the identity function, and the outside
+  tally counts one per twin with the coverage half counted by its files. Built
+  against hand-built findings and hand-built burn sets (no fixture project, no
+  mocking)."
+aspects: []
+relations:
+  - target: cli/core/check
+    type: uses
+  - target: cli/core/check-codes
+    type: uses
+  - target: cli/core/progressive-scope
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/check-progressive.test.ts

@@ -22,9 +22,12 @@
  *      conformance, the type gate, log integrity and the mandatory-log
  *      requirement — fail-closed on a lock that cannot be read.
  *   4. Coverage, plus the one anomaly check fed by injected git output.
- *   5. Assemble: combine the issue sets, pick the single next step, and — only
- *      when the caller asks for it — write the silent attention index as a
- *      byproduct, after the issue set is final so it can never change one.
+ *   5. Assemble: combine the issue sets; classify them against the change scope
+ *      when one was supplied (a finding the change is not accountable for
+ *      becomes a non-blocking `-outside` twin, so the tallies below all read the
+ *      classified list); pick the single next step; and — only when the caller
+ *      asks for it — write the silent attention index as a byproduct, after the
+ *      issue set is final so it can never change one.
  *
  * INJECTED INPUTS, gated HERE. The engine keeps no clock, shells out to no git,
  * and reads no files of its own: a caller supplies each such input, and an absent
@@ -41,6 +44,9 @@
  *   - check-coverage-scan.ts  — the uncovered-file and tracked∩gitignored scans
  *   - check-coverage-phase.ts — coverage tiers + the type-level lattice (step 4)
  *   - check-coverage-tiers.ts — the single coverage-tier / exclusion authority
+ *   - check-progressive.ts    — the change-scope classification of the assembled
+ *                               issues (in scope ⇒ untouched; outside ⇒ its
+ *                               `-outside` twin at warning severity)
  *   - check-suggested-next.ts — the one `next` a finished check points at
  *
  * `runAttentionDump` — the read-only calibration lens behind a hidden flag —
@@ -74,6 +80,7 @@ import type { LockVerification } from './verify-lock.js';
 import { runCoveragePhase } from './check-coverage-phase.js';
 import { scanUncoveredFiles, scanTrackedButIgnored } from './check-coverage-scan.js';
 import { computeSuggestedNext } from './check-suggested-next.js';
+import { applyChangeScope, countOutside } from './check-progressive.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
 import {
@@ -131,8 +138,12 @@ export {
  *        seam as `nowUtc`. Read-only.
  * @param options.changeScope -- INJECTED change scope. Plain data: the burn
  *        set a caller already computed plus the name it was measured against.
- *        Core touches no git and resolves no reference itself. Nothing here
- *        reads it yet, so supplying it changes no issue, count, or exit code.
+ *        Core touches no git and resolves no reference itself. Supplying it
+ *        REWRITES the assembled issue list (core/check-progressive.ts): a
+ *        finding the change is not accountable for is re-coded to its
+ *        `-outside` twin at warning severity, so it still appears and is still
+ *        counted but no longer blocks. Absent ⇒ the list is unrewritten and
+ *        every count, code and exit code is exactly what it always was.
  */
 // Each field below is ISSUE-GATING (`options?.<key> ? <issues> : []` — absence
 // silently skips a check), a WHOLE-LIST REWRITE
@@ -201,14 +212,16 @@ export interface RunCheckOptions {
    * the burn set from git output it read itself; core touches no git, resolves no
    * reference, and reads no files for this.
    *
-   * INERT for now: nothing in this function reads it, so a caller supplying it
-   * gets a byte-identical result to one that omits it. It is declared and
-   * threaded ahead of its consumer deliberately — every runCheck call site must
-   * already be passing it (explicitly `undefined` where global truth is wanted)
-   * before the classification step that reads it can land, or the surface that
-   * forgot it would silently report a different issue set. That parity is what
-   * `.yggdrasil/aspects/runcheck-injected-input-parity` demands of this member
-   * meanwhile, via its ISSUE_TRANSFORM map.
+   * Consumed as a WHOLE-LIST REWRITE of the assembled issues
+   * (`applyChangeScope`, core/check-progressive.ts) — the classification step
+   * that re-codes a finding the change did not reach to its `-outside` twin at
+   * warning severity, splitting the aggregate coverage finding rather than
+   * re-coding it, and keeping any finding it cannot positively attribute as a
+   * blocking error. A caller OMITTING it gets the unrewritten list, which is why
+   * `.yggdrasil/aspects/runcheck-injected-input-parity` demands this member at
+   * every runCheck call site (surfaces wanting global truth pass an explicit
+   * `undefined`): a surface that forgot it would silently report a different
+   * issue set from every other.
    */
   changeScope?: { burn: BurnSet; referenceName: string };
 }
@@ -343,13 +356,33 @@ export async function runCheck(
   }
 
   // Combine all issues
-  const allIssues: CheckIssue[] = [
+  const assembledIssues: CheckIssue[] = [
     ...lockIssues,
     ...validationIssues,
     ...reviewOverdueIssues,
     ...digestGateIssues,
     ...coverageIssues,
   ];
+
+  // Change-scope classification. With a scope supplied, every finding the
+  // change is NOT accountable for is re-coded to its `-outside` twin at warning
+  // severity (the aggregate coverage finding is split rather than re-coded); a
+  // finding that cannot be attributed stays a blocking error. Absent ⇒ the
+  // assembled list is handed on unrewritten, which is every run today that does
+  // not opt in. This sits BEFORE the two derived tallies below deliberately: the
+  // suggested next step and the advisory count must both read the CLASSIFIED
+  // list, or the report would point at a finding it no longer blocks on.
+  const allIssues = options?.changeScope
+    ? applyChangeScope(assembledIssues, options.changeScope.burn, pairs)
+    : assembledIssues;
+  // Deliberately a SECOND, independently-shaped expression rather than a richer
+  // return from the call above: the rule that proves every runCheck call site
+  // supplies this option derives the rewrite from `options?.<key> ? fn(list, …)
+  // : list` exactly, and an object return would make the alternative an object
+  // literal, leaving the classification unproven and the gate red everywhere.
+  const outsideCount = options?.changeScope ? countOutside(allIssues) : undefined;
+  const progressiveReference = options?.changeScope ? options.changeScope.referenceName : undefined;
+  const changedInputCount = options?.changeScope ? options.changeScope.burn.changedInputCount : undefined;
 
   // Node type counts
   const nodeTypeCounts = new Map<string, number>();
@@ -403,6 +436,9 @@ export async function runCheck(
     nodeOwnedFiles,
     excludedFiles,
     typeVisibility,
+    outsideCount,
+    progressiveReference,
+    changedInputCount,
   };
 }
 

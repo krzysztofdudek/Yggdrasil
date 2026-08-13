@@ -130,3 +130,74 @@ describe('computeSuggestedNext', () => {
     expect(run(issues)).toBe('FIX-PARENT');
   });
 });
+
+/**
+ * Findings the current change is NOT accountable for arrive here as `-outside`
+ * twins at warning severity. Their `next` is written for the finding, not for
+ * the scope — an outside `unverified` still carries `yg check --approve`, which
+ * would review the whole graph — so the warnings fallback must never surface it.
+ */
+describe('computeSuggestedNext — findings outside the change', () => {
+  const STANDING = "run 'yg check --full' for the complete audit";
+
+  it('points at the full audit instead of an outside finding\'s own command', () => {
+    const issues: Issue[] = [
+      { severity: 'warning', code: 'unverified-outside', aspectId: 'audit-log', messageData: md('yg check --approve') },
+    ];
+    const next = run(issues);
+    expect(next).not.toBe('yg check --approve');
+    expect(next).toBe(`1 enforced obligation(s) outside your changes — ${STANDING}`);
+  });
+
+  it('counts the coverage twin by the files it names, not as one finding', () => {
+    const issues: Issue[] = [
+      { severity: 'warning', code: 'unverified-outside', aspectId: 'audit-log', messageData: md('yg check --approve') },
+      { severity: 'warning', code: 'unmapped-files-outside', uncoveredCount: 3, messageData: md('x') },
+    ];
+    expect(run(issues)).toBe(`4 enforced obligation(s) outside your changes — ${STANDING}`);
+  });
+
+  it('prefers a real, actionable warning over the standing line', () => {
+    const issues: Issue[] = [
+      { severity: 'warning', code: 'unverified-outside', aspectId: 'audit-log', messageData: md('yg check --approve') },
+      { severity: 'warning', code: 'high-fan-out', nodePath: 'a/n', messageData: md('NEXT-FANOUT') },
+    ];
+    expect(run(issues)).toBe('NEXT-FANOUT');
+  });
+
+  it('still prefers an advisory aspect violation over the standing line', () => {
+    const issues: Issue[] = [
+      { severity: 'warning', code: 'unverified-outside', aspectId: 'audit-log', messageData: md('yg check --approve') },
+      { severity: 'warning', code: 'aspect-violation-advisory', aspectId: 'audit-log', messageData: md('NEXT-ADVISORY') },
+    ];
+    expect(run(issues)).toBe('NEXT-ADVISORY');
+  });
+
+  it('lets a real error outrank the standing line entirely', () => {
+    const issues: Issue[] = [
+      { severity: 'error', code: 'lock-invalid', messageData: md('RESTORE-THE-LOCK') },
+      { severity: 'warning', code: 'unverified-outside', aspectId: 'audit-log', messageData: md('yg check --approve') },
+    ];
+    expect(run(issues)).toBe('RESTORE-THE-LOCK');
+  });
+
+  it('reads the coverage count from the blocking half of a split, never the inherited one', () => {
+    const issues: Issue[] = [
+      { severity: 'error', code: 'unmapped-files', uncoveredCount: 2, messageData: md('x') },
+      { severity: 'warning', code: 'unmapped-files-outside', uncoveredCount: 5, messageData: md('x') },
+    ];
+    const next = run(issues);
+    expect(next).toContain('2 files need coverage');
+    expect(next).not.toContain('5 files');
+  });
+
+  it('reads the structural rider from the blocking half of a split too', () => {
+    const issues: Issue[] = [
+      { severity: 'error', code: 'yaml-invalid', nodePath: 'b/n', messageData: md('x') },
+      { severity: 'error', code: 'unmapped-files', uncoveredCount: 2, messageData: md('x') },
+      { severity: 'warning', code: 'unmapped-files-outside', uncoveredCount: 5, messageData: md('x') },
+    ];
+    const next = run(issues);
+    expect(next).toContain('Then: 2 files need coverage');
+  });
+});

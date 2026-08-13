@@ -19,6 +19,7 @@ import { nodeUnit, LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
 import { runCheck } from '../../../src/core/check.js';
 import type { CheckIssue } from '../../../src/core/check.js';
 import type { BurnSet } from '../../../src/core/progressive-scope.js';
+import { OUTSIDE_CODES, SCOPED_CODES } from '../../../src/core/check-codes.js';
 import { writeLock } from '../../../src/io/lock-store.js';
 import { writeSeededLock } from '../helpers/seed-lock.js';
 
@@ -471,41 +472,74 @@ describe('runCheck — verified pair tally split (deterministic vs LLM)', () => 
   });
 });
 
-// ── Change scope: accepted, threaded, and provably inert ──────────────────────
+// ── Change scope: accepted, threaded, and acted on ────────────────────────────
 
-describe('runCheck — change scope is accepted and changes nothing', () => {
-  it('a populated change scope yields a result identical to omitting the option', async () => {
+describe('runCheck — change scope classifies the assembled issues', () => {
+  /** The narrowest honest scope there is: a real reference, nothing burned. */
+  const emptyBurn = (): BurnSet => ({
+    global: false,
+    pairKeys: new Set(),
+    nodePaths: new Set(),
+    files: new Set(),
+    logOnlyNodePaths: new Set(),
+    changedInputCount: 0,
+  });
+
+  it('re-codes every scoped error the change did not reach, and reports the tally', async () => {
     writeFile('src/a.ts', 'code');
     const graph = buildGraph('enforced');
     const lock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
     await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
 
-    // The narrowest honest scope there is: a real reference, and nothing at all
-    // burned by the change. It is chosen precisely because it is the value a
-    // consumer would act on most visibly — every issue below is outside it — so
-    // if ANY code read this option, the two results could not match.
-    const burn: BurnSet = {
-      global: false,
-      pairKeys: new Set(),
-      nodePaths: new Set(),
-      files: new Set(),
-      logOnlyNodePaths: new Set(),
-      changedInputCount: 0,
-    };
+    const withoutOption = await runCheck(graph, null);
+    const withOption = await runCheck(graph, null, {
+      changeScope: { burn: emptyBurn(), referenceName: 'origin/main' },
+    });
+
+    // Guard against a vacuous pass: there IS a scoped blocking finding here.
+    const scopedErrors = withoutOption.issues.filter(
+      (i) => i.severity === 'error' && SCOPED_CODES.has(i.code),
+    );
+    expect(scopedErrors.length).toBeGreaterThan(0);
+    expect(withoutOption.outsideCount).toBeUndefined();
+
+    // With nothing burned, every ATTRIBUTABLE one is now a non-blocking twin.
+    const twins = withOption.issues.filter((i) => OUTSIDE_CODES.has(i.code));
+    expect(twins.length).toBeGreaterThan(0);
+    expect(twins.every((i) => i.severity === 'warning')).toBe(true);
+    expect(withOption.outsideCount).toBe(twins.length);
+
+    // …and the ones that stayed blocking are exactly the ones nothing could
+    // attribute: this fixture's undescribed ASPECT names no component, no file
+    // and no pair, so there is no honest way to say the change missed it. Fail
+    // closed — never treat "cannot attribute" as "not touched".
+    const stillBlocking = withOption.issues.filter(
+      (i) => i.severity === 'error' && SCOPED_CODES.has(i.code),
+    );
+    expect(stillBlocking.map((i) => i.code)).toEqual(['description-missing']);
+    expect(stillBlocking[0].aspectId).toBe('asp');
+    expect(stillBlocking[0].nodePath).toBeUndefined();
+    expect(twins.length + stillBlocking.length).toBe(scopedErrors.length);
+    expect(withOption.progressiveReference).toBe('origin/main');
+    expect(withOption.changedInputCount).toBe(0);
+  });
+
+  it('a global scope leaves every issue exactly as an unscoped run reports it', async () => {
+    writeFile('src/a.ts', 'code');
+    const graph = buildGraph('enforced');
+    const lock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
+    await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
 
     const withoutOption = await runCheck(graph, null);
-    const withOption = await runCheck(graph, null, { changeScope: { burn, referenceName: 'origin/main' } });
+    const globalScope = await runCheck(graph, null, {
+      changeScope: { burn: { ...emptyBurn(), global: true, changedInputCount: 3 }, referenceName: 'origin/main' },
+    });
 
-    // Guard against a vacuous pass: there IS something here that a scope could
-    // have re-coded or dropped.
     expect(withoutOption.issues.length).toBeGreaterThan(0);
-    expect(withOption).toEqual(withoutOption);
-
-    // …and the result fields a later consumer will populate stay unset, so no
-    // report can start rendering a scope that nothing computed.
-    expect(withOption.outsideCount).toBeUndefined();
-    expect(withOption.progressiveReference).toBeUndefined();
-    expect(withOption.changedInputCount).toBeUndefined();
+    expect(globalScope.issues).toEqual(withoutOption.issues);
+    expect(globalScope.suggestedNext).toBe(withoutOption.suggestedNext);
+    expect(globalScope.outsideCount).toBe(0);
+    expect(globalScope.changedInputCount).toBe(3);
   });
 
   it('an issue can carry flow and edge identity', () => {

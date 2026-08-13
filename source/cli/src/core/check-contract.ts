@@ -109,10 +109,11 @@ export interface CheckResult {
   /** Per-file type-tier enforcement report. Undefined at flag-off. */
   typeVisibility?: TypeVisibilityReport;
   /**
-   * How many issues fell OUTSIDE the change scope this run was given. Undefined
-   * whenever no scope was supplied — which is every run today, since nothing
-   * populates these three yet. They are declared here so the shape a later
-   * report renders from is fixed before anything writes it.
+   * How many enforced obligations fell OUTSIDE the change scope this run was
+   * given — one per `-outside` twin the classification produced, except the
+   * aggregate coverage twin, which counts the uncovered files it names (it is
+   * one finding standing for many obligations). Undefined whenever no scope was
+   * supplied, which is every run that does not opt in.
    */
   outsideCount?: number;
   /** The plain name the change was measured against, for the report to quote. */

@@ -19,8 +19,9 @@ description: "Unified check orchestrator — runs validation, coverage, the
   issue/result contract, one pair's verdict translated into its issues, log
   integrity plus the mandatory-log requirement, everything gated on a readable
   lock, the uncovered-file and tracked-but-gitignored scans, the coverage
-  tiers plus the type-level lattice, and the single next step a finished check
-  points at."
+  tiers plus the type-level lattice, the change-scope classification that
+  re-codes a finding the current change is not accountable for into a
+  non-blocking twin, and the single next step a finished check points at."
 max_direct_relations:
   limit: 25
   reason: >-
@@ -100,6 +101,7 @@ mapping:
   - source/cli/src/core/check-coverage-scan.ts
   - source/cli/src/core/check-coverage-phase.ts
   - source/cli/src/core/check-suggested-next.ts
+  - source/cli/src/core/check-progressive.ts
   - source/cli/src/core/feature-index-write.ts
   - source/cli/src/core/feature-index-read.ts
   - source/cli/src/core/feature-field-schema.ts
