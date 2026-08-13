@@ -40,10 +40,10 @@ That one key is the whole switch. What it has to satisfy:
 - **It is read from the committed file only.** A local `yg-secrets.yaml` overlay
   can neither introduce this key nor re-point it, so how much of the project a
   run answers for is the same for everyone working on the branch.
-- **The block accepts only `reference`, and it must be a non-blank string.** A
-  misspelled key or an empty value is refused outright rather than ignored —
-  otherwise you would be reading a config that says the mode is on while every
-  run behaved as if it were off.
+- **The block must name `reference`, and nothing else.** A misspelled key, an
+  empty value, and a block that names nothing at all (`progressive: {}`) are each
+  refused outright rather than ignored — otherwise you would be reading a config
+  that says the mode is on while every run behaved as if it were off.
 - **Changing the block costs one full run.** The run that adds, edits, or removes
   it answers for the whole project, because a change that re-points the
   measurement could otherwise narrow the gate on its own authority.
@@ -78,7 +78,7 @@ When nothing of yours is blocking, the run's single next step points at the
 audit rather than at any one finding:
 
 ```text
-Next: 12 enforced obligation(s) outside your changes — run 'yg check --full' for the complete audit
+Next: 12 obligations outside your changes — run 'yg check --full' for the complete audit
 ```
 
 And on a checkout that carries no change at all, the header says so in words
@@ -195,7 +195,9 @@ findings are never eligible for it at all:
 
 - **The graph's own integrity** — a component naming a rule that does not exist,
   a cycle, a port contract that is not honoured, a malformed file, a lock that
-  cannot be read. These block wherever you run them.
+  cannot be read. These block wherever you run them. The test is whether the
+  graph *contradicts itself*: that is something whoever wrote it can always fix
+  on the spot, and there is no version of it that belongs to somebody else.
 - **Anything that stops a recording run before it writes.**
 - **Any finding the run cannot attribute** to a file or a component, as above.
 - **The written-reason requirement, at recording time.** If a component's type
@@ -206,18 +208,33 @@ findings are never eligible for it at all:
   same branch can pass while that run stops; both are true, and the message names
   the component it is waiting on.
 
+Four findings look like they belong in the first bullet and do not. An
+**undeclared dependency** between two components, an **import the architecture
+forbids between two types**, a **file that matches two types at once**, and a
+**mapped file that does not match its type's `when`** are all reported as
+architecture-level errors, and all four are eligible. The graph is well-formed in
+every one of those cases: what disagrees is the *code*, and a branch that never
+touched that code did not cause the disagreement. They keep blocking the moment
+your change reaches the code that carries them, and `yg check --full` blocks on
+all of them regardless.
+
 ## Every state, and what the run does
 
 The measurement is only ever made when it can be made honestly. Where it cannot,
 the run answers for the whole project and says so on stderr — what happened, why,
-and the specific fix — never a quietly empty scope.
+and the specific fix — never a quietly empty scope. One state answers for the
+whole project with the measurement having gone perfectly well: a change that
+reaches the architecture or the meaning of the configuration. That one gets a
+notice too, for the opposite reason — nothing went wrong, and a run that gates
+everything while reporting `0 obligations outside your changes` should not leave
+you wondering whether the mode had quietly stopped working.
 
 | State | What the run does |
 | --- | --- |
 | `yg check --full` was asked for | Answers for the whole project. No measurement is attempted. |
 | No branch named in the config | Answers for the whole project, exactly as before this feature existed. |
 | An ordinary branch, or uncommitted edits sitting on the reference branch itself | Measured: your change blocks, the rest is listed as outside it. |
-| Your change reached the architecture, the coverage scope, the schema version, the reviewer tiers, or the `progressive` block | Measured, and everything is in scope this run. |
+| Your change reached the architecture, the coverage scope, the schema version, the reviewer tiers, or the `progressive` block | Measured, and everything is in scope this run — plus a notice naming which of those it reached and saying plainly that there is nothing to fix. The next change that leaves those files alone is measured normally again. |
 | Nothing has moved: your work is at or behind the reference and nothing is uncommitted | Nothing is in scope. Every eligible finding is reported as inherited and the run passes, quietly — no notice, because nothing went wrong. |
 | Your branch committed something and then reverted to the reference's exact content, nothing uncommitted | The same: it is the same content, reached by a different route. |
 | The named branch cannot be resolved (typo, renamed, never fetched) | Whole project, plus a notice naming the branch and telling you to fetch it or correct the key. |

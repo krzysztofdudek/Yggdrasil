@@ -566,7 +566,7 @@ describe('runCheck — change scope classifies the assembled issues', () => {
     expect(scoped.issues.filter((i) => i.severity === 'error')).toHaveLength(0);
     expect(scoped.suggestedNext).not.toBe('yg check --approve');
     expect(scoped.suggestedNext).toBe(
-      "1 enforced obligation(s) outside your changes — run 'yg check --full' for the complete audit",
+      "1 obligation outside your changes — run 'yg check --full' for the complete audit",
     );
   });
 

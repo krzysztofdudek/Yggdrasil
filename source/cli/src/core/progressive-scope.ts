@@ -259,6 +259,20 @@ export interface BurnInput {
   configVocabularyChanged: boolean;
 }
 
+/**
+ * Which of the two changes made a run global. Recorded rather than re-derived
+ * because a run gated this way owes the person a sentence naming the cause, and
+ * a caller working that out for itself — by re-testing the changed-file set
+ * against the same two paths — would be a second copy of the decision, free to
+ * disagree with the one that actually gated the run.
+ *
+ * `architecture` outranks `configuration` when a change moved both, on the same
+ * most-upstream-CAUSE rule the preflight table's fallback rows follow: the
+ * explanation should name the thing whose reach is widest, not one of the two
+ * arbitrarily.
+ */
+export type GlobalCause = 'architecture' | 'configuration';
+
 export interface BurnSet {
   /**
    * The change reached something no per-pair intersection can bound (the
@@ -267,6 +281,8 @@ export interface BurnSet {
    * caller must ignore them and gate everything.
    */
   global: boolean;
+  /** Why {@link global} is true — set exactly when it is, absent otherwise. */
+  globalCause?: GlobalCause;
   /** `<aspectId> <unitKey>` for every pair this change is accountable for. */
   pairKeys: Set<string>;
   /**
@@ -524,7 +540,11 @@ export function computeBurnSet(input: BurnInput): BurnSet {
   };
 
   // ── Outputs ─────────────────────────────────────────────────────────────
-  let global = false;
+  // Tracked as two flags rather than one, so the cause reported below is decided
+  // by which change was seen — never by which one the touched set happened to
+  // list first.
+  let architectureMoved = false;
+  let vocabularyMoved = false;
   const pairKeys = new Set<string>();
   const nodePaths = new Set<string>();
   const files = new Set<string>();
@@ -576,9 +596,9 @@ export function computeBurnSet(input: BurnInput): BurnSet {
 
     // Graph-structure rows.
     if (file === ARCHITECTURE_FILE) {
-      global = true;
+      architectureMoved = true;
     } else if (file === CONFIG_FILE) {
-      if (input.configVocabularyChanged) global = true;
+      if (input.configVocabularyChanged) vocabularyMoved = true;
     } else if (file.startsWith(ASPECTS_PREFIX)) {
       const rest = file.slice(ASPECTS_PREFIX.length);
       const slash = rest.indexOf('/');
@@ -638,7 +658,20 @@ export function computeBurnSet(input: BurnInput): BurnSet {
     }
   }
 
-  return { global, pairKeys, nodePaths, files, logOnlyNodePaths, changedInputCount: files.size };
+  const globalCause: GlobalCause | undefined = architectureMoved
+    ? 'architecture'
+    : vocabularyMoved
+      ? 'configuration'
+      : undefined;
+  return {
+    global: globalCause !== undefined,
+    globalCause,
+    pairKeys,
+    nodePaths,
+    files,
+    logOnlyNodePaths,
+    changedInputCount: files.size,
+  };
 }
 
 // ============================================================
@@ -905,6 +938,7 @@ export function forceInScopeOnByteMismatch(
   const files = new Set([...burn.files, ...forcedFiles]);
   return {
     global: burn.global,
+    globalCause: burn.globalCause,
     pairKeys: new Set([...burn.pairKeys, ...forcedPairKeys]),
     nodePaths: new Set([...burn.nodePaths, ...forcedNodes]),
     files,

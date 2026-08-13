@@ -33,7 +33,7 @@ The fields:
 
 - **name** — display name, shown in CLI output.
 - **type** — must match a type defined in the architecture file (see [Node types](#node-types-the-architecture-file)). The type decides what rules apply by default and what this component is allowed to connect to.
-- **description** — one line on what the component does. It shows in CLI context output and helps your agent understand the component. It is not optional: a node, rule, or flow with no description is a blocking `description-missing` error.
+- **description** — one line on what the component does. It shows in CLI context output and helps your agent understand the component. It is not optional: a node, rule, or flow with no description is a blocking `description-missing` error. (With [progressive mode](/progressive-mode) on, one your change never went near is listed as a warning until `yg check --full`; with no reference branch named — the default — it blocks on every run.)
 - **aspects** — the rules this component must satisfy. Each name points to an aspect under `.yggdrasil/aspects/`. See [Aspects](/aspects).
 - **relations** — the other components this one depends on. See [Relations, flows, ports](/relations-flows-ports).
 - **mapping** — which source files this node owns.
@@ -153,7 +153,7 @@ Reach for it on the types where missing the type means missing a rule that matte
 
 The backward scan honors [`coverage.excluded`](/configuration#coverage-config) like every other coverage question does: a file under an excluded root is never a candidate for `type-strict-orphan` or `type-strict-misplaced`, even when it satisfies the type's `when`. A path you have excluded is gone from this graph's coverage entirely — not merely from the ordinary tiering — so the backward scan has nothing to say about it either.
 
-Four errors are specific to strict types, and each blocks `yg check`:
+Four errors are specific to strict types, and each blocks `yg check`. (With [progressive mode](/progressive-mode) on, the three that are about a particular file or component are listed as warnings when your change reached neither, and `yg check --full` blocks on them again; `enforce-strict-without-when` is about the type declaration itself and blocks either way. With no reference branch named — the default — all four block on every run.)
 
 | Code | What it means |
 |---|---|

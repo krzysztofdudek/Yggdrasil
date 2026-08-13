@@ -7,6 +7,7 @@ import {
   unverifiedMessage,
 } from '../../../src/formatters/lock-issue-messages.js';
 import { applyChangeScope } from '../../../src/core/check-progressive.js';
+import { computeSuggestedNext } from '../../../src/core/check.js';
 
 /** Strip ANSI color codes so block-line counting is deterministic. */
 function stripAnsi(s: string): string {
@@ -645,6 +646,113 @@ describe('check render — --aspect drill-in view (task 2.2)', () => {
   it('stays silent about change scope in the drill-in header when the run measured nothing', () => {
     const out = stripAnsi(formatOutput(baseResult(aspectDrillIssues()), { kind: 'aspect', id: 'x' }));
     expect(out.split('\n')[0]).not.toContain('outside your changes');
+  });
+
+  /**
+   * The drill-in FOOTER, the counterpart to the header case above.
+   *
+   * Every other surface already refuses to advise the recording command for a
+   * finding the run deliberately declined to hold this change accountable for:
+   * the group renderer suppresses the Fix: line on a twin in all four of its
+   * shapes, and the run's own bottom line points at the audit instead. This view
+   * took the highest-priority filtered finding's `next` verbatim — and a twin's
+   * `messageData` is deliberately left untouched by the classifier, so on an
+   * all-inherited, warning-only, exit-0 run it printed
+   * `Next (this group): yg check --approve`: a repo-wide paid review, advised by
+   * a run that had just said none of this was yours, and one a scoped recording
+   * run would decline to perform anyway.
+   */
+  function inheritedOnlyOnAspectX(): CheckResult {
+    const twins: CheckIssue[] = [
+      {
+        severity: 'warning',
+        code: 'unverified-outside',
+        rule: 'unverified',
+        aspectId: 'x',
+        pairKind: 'llm',
+        nodePath: 'legacy/reporting',
+        messageData: unverifiedMessage({ aspectId: 'x', unitKey: 'legacy/reporting#x' }),
+      } as CheckIssue,
+    ];
+    return {
+      ...baseResult(twins),
+      // What computeSuggestedNext returns for this run — the standing line, not
+      // any one finding's own command.
+      suggestedNext: computeSuggestedNext(twins),
+      outsideCount: 1,
+      progressiveReference: 'origin/main',
+      changedInputCount: 3,
+    };
+  }
+
+  it('drill-in on an all-inherited aspect points at the audit, never at the recording command', () => {
+    const result = inheritedOnlyOnAspectX();
+    const out = stripAnsi(formatOutput(result, { kind: 'aspect', id: 'x' }));
+    // The header still names the aspect and the true totals (0 blocking errors).
+    expect(out).toContain("aspect 'x'");
+    expect(out).toContain('0 of 0 errors');
+    // The finding itself is still listed — never hidden.
+    expect(out).toContain('unverified (not yet reviewed) (outside changes)');
+    // No group-scoped pointer at all: nothing in this group is this change's to fix.
+    expect(out).not.toMatch(/Next \(this group\):/);
+    // The one honest next step, identical to the one the plain view prints.
+    expect(out).toContain(`Next: ${result.suggestedNext!}`);
+    expect(out).toContain("run 'yg check --full' for the complete audit");
+    // And emphatically not the recording command, in either footer form.
+    expect(out).not.toMatch(/Next.*yg check --approve/);
+  });
+
+  // The two surfaces reporting the SAME number have to call it the same thing.
+  // The footer once said "N enforced obligation(s)" where the header said plain
+  // "N obligations" — and the number is not enforced-only (it sums uncovered
+  // files, missing descriptions and undeclared dependencies too), so the reader
+  // had a status word on one line and none on the other for one figure.
+  // Rendered in a single view here, so neither can drift without this failing.
+  it('header and footer call the same number by the same name', () => {
+    for (const count of [1, 2]) {
+      const twins: CheckIssue[] = Array.from({ length: count }, (_, i) => ({
+        severity: 'warning',
+        code: 'unverified-outside',
+        rule: 'unverified',
+        aspectId: 'x',
+        pairKind: 'llm',
+        nodePath: `legacy/n${i}`,
+        messageData: unverifiedMessage({ aspectId: 'x', unitKey: `legacy/n${i}#x` }),
+      } as CheckIssue));
+      const out = stripAnsi(formatOutput({
+        ...baseResult(twins),
+        suggestedNext: computeSuggestedNext(twins),
+        outsideCount: count,
+        progressiveReference: 'origin/main',
+        changedInputCount: 1,
+      }));
+      const noun = `${count} obligation${count === 1 ? '' : 's'} outside your changes`;
+      const [header] = out.split('\n');
+      const footer = out.split('\n').find((l) => l.startsWith('Next: '))!;
+      expect(header).toContain(noun);
+      expect(footer).toContain(noun);
+      expect(footer).not.toContain('enforced');
+    }
+  });
+
+  it('drill-in still points at a genuine finding when the aspect carries one beside inherited debt', () => {
+    // A twin sub-ranks after every ordinary warning, so a group that mixes the
+    // two must speak for the finding the change IS answerable for — dropping
+    // twins from the pick must not drop everything else with them.
+    const genuine: CheckIssue = {
+      severity: 'warning',
+      code: 'aspect-violation-advisory',
+      rule: 'aspect-violation-advisory',
+      aspectId: 'x',
+      pairKind: 'llm',
+      nodePath: 'orders/handler',
+      messageData: llmRefusedMessage({ aspectId: 'x', unitKey: 'orders/handler#x', reason: 'style nit' }),
+    } as CheckIssue;
+    const base = inheritedOnlyOnAspectX();
+    const issues = [...base.issues, genuine];
+    const out = stripAnsi(formatOutput({ ...base, issues, suggestedNext: computeSuggestedNext(issues) }, { kind: 'aspect', id: 'x' }));
+    expect(out).toMatch(/Next \(this group\): /);
+    expect(out).toContain(genuine.messageData.next.split('\n')[0]);
   });
 });
 

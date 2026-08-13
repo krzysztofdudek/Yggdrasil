@@ -473,12 +473,26 @@ Three properties of the key itself:
 - **Committed-config only.** A \`yg-secrets.yaml\` overlay can neither introduce nor
   re-point it, so how much of the project a run answers for is identical for
   everyone on the branch.
-- **Strict when present.** The block accepts only \`reference\` (an unknown sibling
-  is \`config-progressive-unknown-key\`), and \`reference\` must be a non-blank
-  string. A typo is refused rather than silently leaving the mode off.
+- **Strict when present.** The block must name \`reference\` and nothing else: an
+  unknown sibling is \`config-progressive-unknown-key\`, and a missing, blank, or
+  non-string \`reference\` — including an EMPTY block, \`progressive: {}\` — is
+  refused rather than silently leaving the mode off. A config that says the mode
+  is on cannot parse into a run that behaves as if it were off.
 - **Changing it costs one full run.** The run that adds, edits, or removes the
   block answers for the whole project — a gate must never be able to narrow itself
   unnoticed.
+
+What stays blocking whatever the measurement says: the graph's own INTEGRITY (a
+node naming an aspect that does not exist, a cycle, an unhonoured port contract,
+malformed YAML, an unreadable lock), anything that aborts a recording run before
+it writes, the log gate at recording time, and any finding the run cannot
+attribute to a file or a component ("cannot tell" is never read as "not yours").
+Everything else is eligible — INCLUDING the drift findings that are reported as
+architecture-level errors but are really code-versus-graph disagreements:
+\`relation-undeclared-dependency\`, \`type-relation-forbidden\`,
+\`ambiguous-node-type\`, and \`type-when-mismatch\`. Those four look like integrity
+codes and are not: the graph is well-formed in each case, and the code a change
+did not touch is what disagrees with it.
 
 Where the measurement cannot be made honestly — the named branch is unknown
 locally, the clone is too shallow to share history with it, the graph does not sit

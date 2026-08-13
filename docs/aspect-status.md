@@ -27,9 +27,13 @@ the lock — see [Status and verdicts](#status-and-verdicts). `advisory` and
 `enforced` pairs are both verified and cached the same way; the level only changes
 severity. Severity follows status with one exception: **advisory never blocks**
 (whether a pair is refused or merely unverified) and **enforced always blocks** —
-but a `prompt-too-large` failure is always an error and blocks `yg check`
-regardless of status, so an advisory pair can still block if its assembled prompt
-exceeds the resolved tier's `max_prompt_chars`.
+but a `prompt-too-large` failure is an error regardless of status, so an advisory
+pair can still block `yg check` if its assembled prompt exceeds the resolved
+tier's `max_prompt_chars`. Status is the only thing that cannot soften it: like
+every other finding below, an oversized pair your change did not reach is listed
+as a warning when [progressive mode](/progressive-mode) is on, and `yg check
+--full` blocks on it again. On a project that names no branch — the default — it
+blocks on every run, advisory or not.
 
 One project-level setting changes where an enforced finding blocks, and only
 there: when [progressive mode](/progressive-mode) is on — the project names a

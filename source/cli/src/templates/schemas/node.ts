@@ -33,7 +33,9 @@ ports:                        # optional — named entry points with required as
 relations:                    # optional — outgoing dependencies to other nodes
                               # Load-bearing, not just documentation: a built-in deterministic check
                               # parses this node's mapped code and REFUSES it (relation-undeclared-dependency,
-                              # always an error) if it depends on another mapped node without a relation here.
+                              # always an error; blocking unconditionally unless progressive mode is on,
+                              # where a refusal the change did not reach is a warning until yg check --full)
+                              # if it depends on another mapped node without a relation here.
                               # One-directional — a declared relation needs no code behind it. See
                               # \`yg knowledge read ports-and-relations\`.
   - target: other/module-path # required — node path relative to model/

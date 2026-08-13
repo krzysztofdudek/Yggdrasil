@@ -234,7 +234,7 @@ Controls which coverage-visible files must be mapped to a node in `yg check`.
 
   With it on, every uncovered file is classified against every type that has a `when` predicate, and lands in exactly one outcome — one issue per file, the most-binding outcome wins, and none of the first four ever also shows up in the plain `unmapped-files`/`uncovered-advisory` listing (each already has its own, more specific verdict):
   - **Exactly one type matches** — covered. No issue at all.
-  - **Two or more types match, none of them `enforce: strict`** — a new blocking error, `ambiguous-node-type`. It names every matching type and gives two ways to resolve it: create an explicit node declaring the intended type (its verdicts re-key under that node — nothing is lost), or narrow one type's `when` in `yg-architecture.yaml` so only one still matches (existing verdicts revalidate for free). This fires independent of `required`/advisory root tiering — an ambiguous file blocks even if it sits outside every `required` root. (A file under an `excluded` root is exempt entirely — see below.)
+  - **Two or more types match, none of them `enforce: strict`** — a new blocking error, `ambiguous-node-type`. It names every matching type and gives two ways to resolve it: create an explicit node declaring the intended type (its verdicts re-key under that node — nothing is lost), or narrow one type's `when` in `yg-architecture.yaml` so only one still matches (existing verdicts revalidate for free). This fires independent of `required`/advisory root tiering — an ambiguous file blocks even if it sits outside every `required` root. (A file under an `excluded` root is exempt entirely — see below.) It is *not* independent of [progressive mode](#progressive-mode), which is the one setting that moves it: with a reference branch named, an ambiguous file your change never touched is listed as a warning, and `yg check --full` blocks on it again. With no reference named — the default — it blocks unconditionally, as described.
   - **A matching type has `enforce: strict`** — left entirely to that type's own backward-scan error (`type-strict-orphan` or `type-strict-misplaced`; see [Node types](/nodes#enforce-strict-—-both-directions)), never also reported as ambiguous. If the file also matches another, non-strict type, the strict error's message names it too.
   - **A matching type's `when` could not be evaluated at all** (for example, a `content:` predicate on a file over the 5MB scan limit) — a blocking `file-unreadable` error, the same code the strict backward scan uses for the same situation.
   - **No type matches at all** — the one outcome still reported through the ordinary `unmapped-files`/`uncovered-advisory` path, same as today, except the message now says plainly that the architecture has no type for the file — distinct from a file that matches a type but simply has no node.
@@ -464,11 +464,11 @@ Three things about the key itself:
 - **It is read from the committed file only.** A `yg-secrets.yaml` overlay can
   neither introduce nor re-point it, so how much of the project a run answers for
   is the same for everyone on the branch.
-- **The block accepts only `reference`, and it must be a non-blank string.** A
-  misspelled key or a blank value is a hard `config-progressive-unknown-key` /
-  `config-invalid` error rather than a silent no-op — the alternative would leave
-  you reading a config that says the mode is on while every run behaved as if it
-  were off.
+- **The block must name `reference`, and nothing else.** A misspelled key, a blank
+  value, or a block that names nothing at all (`progressive: {}`) is a hard
+  `config-progressive-unknown-key` / `config-invalid` error rather than a silent
+  no-op — the alternative would leave you reading a config that says the mode is
+  on while every run behaved as if it were off.
 - **Where the measurement cannot be made honestly** — the named branch is unknown
   locally, the clone is too shallow to share history with it, the graph does not
   sit at the repository root, a submodule pointer moved, or the verdict record

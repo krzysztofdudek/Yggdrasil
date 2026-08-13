@@ -1111,9 +1111,25 @@ quality:
       expect(cfg.progressive).toEqual({ reference: 'origin/main' });
     });
 
-    it('an empty block parses to a block with no reference', async () => {
-      const cfg = await parseWith('progressive: {}\n');
-      expect(cfg.progressive).toEqual({ reference: undefined });
+    // The one shape that used to slip through every guard: a mapping, with no
+    // unknown sibling and no blank value to reject, that named nothing — so it
+    // parsed cleanly and turned the mode on in name only. That is exactly the
+    // silent no-op the rules on either side of it exist to make impossible, and
+    // it is what the user-facing page promises cannot happen.
+    it('refuses an empty block rather than turning the mode on in name only', async () => {
+      await expect(parseWith('progressive: {}\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
+      await expect(parseWith('progressive: {}\n'))
+        .rejects.toThrow(/progressive is present but names no reference/);
+    });
+
+    // The same block written the other way round — a key with nothing indented
+    // under it, which YAML reads as null. Refused by the mapping guard, but the
+    // promise is about the CONFIG, not about one spelling of it, so both ways of
+    // writing "on but naming nothing" are pinned here.
+    it('refuses a block with nothing under it at all', async () => {
+      await expect(parseWith('progressive:\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
     });
 
     it('rejects an unknown sibling key with config-progressive-unknown-key', async () => {

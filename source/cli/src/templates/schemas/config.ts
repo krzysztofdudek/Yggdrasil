@@ -64,16 +64,19 @@ progressive:                      # optional — names the branch your changes a
                                   # change is accountable for; it names how many it left, and
                                   # \`yg check --full --approve\` reviews those. Checks that run locally
                                   # cover the whole project either way, since they cost nothing.
-                                  # The block accepts only \`reference\`, and it must be a non-blank string —
-                                  # a misspelling or a blank value is refused rather than silently ignored,
-                                  # since either would leave you believing this was on when it was not.
+                                  # The block must name \`reference\` and nothing else — a misspelling, a
+                                  # blank value, or an empty block (\`progressive: {}\`) is refused rather
+                                  # than silently ignored, since any of them would leave you believing
+                                  # this was on when it was not.
                                   # Committed-config only: a yg-secrets.yaml overlay can never introduce or
                                   # repoint this key, since it decides how much of the project a run answers
                                   # for — the answer must be the same for everyone working on the branch.
                                   # Whenever the comparison cannot be made honestly (the named branch is
                                   # unknown locally, or has no shared history with your work) the run
                                   # answers for the whole project and says so, rather than guessing at a
-                                  # smaller answer.
+                                  # smaller answer. A change that reaches yg-architecture.yaml, or the part
+                                  # of this file that decides what the graph MEANS, also answers for the
+                                  # whole project — measured, deliberate, and announced the same way.
 
 signals:                          # optional — attention-layer switches. Absent = every signal at its default.
   attention: true                 #   attention (default true): the advisory "structurally unusual" note in

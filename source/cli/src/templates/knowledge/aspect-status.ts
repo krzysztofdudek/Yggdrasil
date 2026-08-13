@@ -30,6 +30,10 @@ Status colors verdicts that exist; it never substitutes for verification.
   is emitted at error severity regardless of status. An advisory LLM pair whose
   assembled prompt exceeds the resolved tier's \`max_prompt_chars\` blocks
   \`yg check\` all the same — it can never be verified, so status cannot soften it.
+  STATUS is what cannot soften it, not the change scope: the progressive carve-out
+  above applies to this code too, so an oversized pair the current change did not
+  reach is listed as a warning, with \`yg check --full\` blocking on it again. On a
+  project that names no branch, it blocks on every run whatever its status.
 - Only **\`draft\`** removes a pair from the expected set entirely. Both keyless
   exits from a blocking pair are status flips (relevant in a keyless-CI
   emergency): \`draft\` removes the pair altogether; demoting to \`advisory\`

@@ -222,8 +222,11 @@ not aspects — the architecture and mapping validators, and the relation-confor
 check (\`relation-undeclared-dependency\`, see
 \`yg knowledge read ports-and-relations\`). The relation-conformance check has no
 aspect id to name in a marker and is always an error; a \`yg-suppress\` aimed at it
-is inert. Resolve a relation refusal by declaring the relation in the node's
-\`yg-node.yaml\` or removing the dependency — never by trying to suppress it.
+is inert. (Under progressive mode a refusal the current change did not reach is
+listed as a warning — which is not a waiver either: \`yg check --full\` blocks on
+it, and it blocks here the moment a change reaches it.) Resolve a relation
+refusal by declaring the relation in the node's \`yg-node.yaml\` or removing the
+dependency — never by trying to suppress it.
 
 A suppress marker (single or disable form) must carry a reason — an empty
 reason is rejected with a clear error. Beyond that, the token is matched as a

@@ -135,7 +135,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     expect(headerOf(stdout)).toContain('1 obligation outside your changes vs main (1 changed input)');
     // And the single next step is the audit, never a repo-wide review of debt
     // this change did not cause.
-    expect(stdout).toContain("1 enforced obligation(s) outside your changes — run 'yg check --full' for the complete audit");
+    expect(stdout).toContain("1 obligation outside your changes — run 'yg check --full' for the complete audit");
     // The classifier leaves messageData untouched, so a twin's own `next` still
     // names its mirror's remedy verbatim — here, the deterministic refusal's
     // "Fix the listed violations" text. Printing it would mislead: this
@@ -263,6 +263,73 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     // Asking for everything drops the measurement entirely — there is no scope
     // left to report.
     expect(headerOf(full.stdout)).not.toContain('outside your changes');
+  });
+
+  // A measurement that SUCCEEDED and still reached everything. It is deliberate
+  // — the architecture decides which rules apply to what, so one edit there can
+  // move every component's obligations at once — but for a long time it was the
+  // one whole-project outcome with nothing to explain it: the report simply read
+  // `0 obligations outside your changes` and left a person to guess whether the
+  // mode had quietly stopped working. It is also the outcome an adopter meets
+  // the first time they write a rule, since attaching one edits this file.
+  describe('a change that reaches the whole project', () => {
+    /** The reference's own architecture text, with the type's description reworded. */
+    function revisedArchitecture(dir: string): string {
+      const text = readFileSync(path.join(dir, '.yggdrasil', 'yg-architecture.yaml'), 'utf-8');
+      const revised = text.replace("'Discrete service unit'", "'Discrete service unit, revised'");
+      expect(revised).not.toBe(text);
+      return revised;
+    }
+
+    it('gates everything and says why, naming the architecture', () => {
+      const fixture = scaffoldReference('global-architecture', 'main');
+      fixture.branchWithEdit('feature', '.yggdrasil/yg-architecture.yaml', revisedArchitecture(fixture.dir));
+      run(['check', '--approve', '--only-deterministic'], fixture.dir);
+
+      const { status, stdout, stderr } = run(['check'], fixture.dir);
+
+      // Everything is in scope: the refusal the change never went near blocks.
+      expect(status).toBe(1);
+      expect(errorSection(stdout)).toContain(TODO_IN('beta'));
+      // The measurement was still made — the header keeps saying so, honestly.
+      expect(headerOf(stdout)).toContain('0 obligations outside your changes vs main');
+      // …and the run explains that reading rather than leaving it to be guessed:
+      // what happened, why, and — truthfully — that there is nothing to fix.
+      expect(stderr).toContain('Notice:');
+      expect(stderr).toContain('reaches the whole project');
+      expect(stderr).toContain('.yggdrasil/yg-architecture.yaml');
+      expect(stderr).toContain('Nothing to fix');
+      expect(stderr).toContain('measured normally again');
+      // Emphatically not the failed-measurement wording: nothing went wrong here.
+      expect(stderr).not.toContain('could not be measured');
+    });
+
+    it('names the configuration instead when that is what moved', () => {
+      const fixture = scaffoldReference('global-configuration', 'main');
+      const config = readFileSync(path.join(fixture.dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+      // The coverage block is part of what decides what the graph MEANS, so
+      // moving it is one of the two changes nothing smaller can bound. (An
+      // excluded root nothing matches, so no finding moves with it.)
+      fixture.branchWithEdit('feature', '.yggdrasil/yg-config.yaml',
+        config.replace('  excluded: []', '  excluded:\n    - docs/'));
+      run(['check', '--approve', '--only-deterministic'], fixture.dir);
+
+      const { status, stderr } = run(['check'], fixture.dir);
+
+      expect(status).toBe(1);
+      expect(stderr).toContain('Notice:');
+      expect(stderr).toContain('.yggdrasil/yg-config.yaml');
+      expect(stderr).toContain('which files must be covered');
+      expect(stderr).not.toContain('yg-architecture.yaml');
+    });
+
+    it('says nothing at all on an ordinary measured run', () => {
+      const fixture = scaffoldReference('global-quiet-contrast', 'main');
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+      run(['check', '--approve', '--only-deterministic'], fixture.dir);
+
+      expect(run(['check'], fixture.dir).stderr).toBe('');
+    });
   });
 
   it('is quiet on a clean checkout of the reference: nothing in scope', () => {

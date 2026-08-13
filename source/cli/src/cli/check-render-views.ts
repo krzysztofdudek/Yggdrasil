@@ -196,7 +196,21 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
     // not raw emission order — so the drill-in pointer cannot disagree with the
     // global Next when a lower-priority issue happens to be emitted first. Stable
     // min-by: strict `<` keeps the first-encountered on equal rank.
-    const combined = [...filteredErrors, ...filteredWarnings];
+    //
+    // A finding put OUTSIDE the change can never be that pointer, and is dropped
+    // before the pick rather than ranked down. Its `messageData` is deliberately
+    // untouched by the classifier (check-progressive.ts's `toOutsideTwin`), so its
+    // `next` still reads as the remedy for the finding it mirrors — `yg check
+    // --approve`, which reviews the WHOLE project rather than this one pair, on a
+    // run that has just declined to hold this change accountable for it. Every
+    // other surface already refuses to say that: the group renderer suppresses the
+    // Fix: line on a twin in all four of its shapes (check-render-groups.ts's
+    // `isOutsideFinding`), and the run's bottom line points at the audit instead
+    // (check-suggested-next.ts's `standingOutsideLine`). With nothing left after
+    // the filter, this view falls through to that same standing line below —
+    // which is the honest answer, and is also what a scoped recording run does:
+    // it declines out-of-scope work, so the advice would not even act.
+    const combined = [...filteredErrors, ...filteredWarnings].filter((i) => !OUTSIDE_CODES.has(i.code));
     const firstFiltered =
       combined.length > 0
         ? combined.reduce((best, cur) => (issuePriorityRank(cur) < issuePriorityRank(best) ? cur : best))
@@ -208,11 +222,13 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
       sections.push('');
       return sections.join('\n');
     }
-    // Empty filtered set (this aspect has zero issues THIS run): do NOT dead-end.
-    // Fall through to the global `result.suggestedNext` block below so the agent
-    // still gets a next step pointing at the rest of the wall (e.g. when other
-    // errors remain). With no global suggestedNext (a clean run) nothing prints —
-    // self-evidently done. The aspect-scoped header (0 of N) is already in place.
+    // Nothing left to point at — this aspect has zero issues THIS run, or every
+    // one of them was put outside the change: do NOT dead-end. Fall through to
+    // the global `result.suggestedNext` block below so the agent still gets a
+    // next step pointing at the rest of the wall (the audit when everything here
+    // is inherited; whatever else remains when other errors do). With no global
+    // suggestedNext (a clean run) nothing prints — self-evidently done. The
+    // aspect-scoped header (K of N) is already in place either way.
   } else if (view.kind === 'details') {
     // --details: ungrouped, one block per issue, grouped only by severity into
     // Errors(N): / Warnings(N): sections. Coverage issues still render via

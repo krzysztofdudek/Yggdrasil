@@ -327,8 +327,17 @@ export function registerCheckCommand(program: Command): void {
           coverageVisibleFiles: repoFiles,
           fullFlag: opts.full === true,
         });
-        if (decision.kind === 'unmeasurable') {
-          process.stderr.write(chalk.yellow(`Notice: ${buildIssueMessage(decision.notice)}`) + '\n');
+        // One print site for both notices a measured run can owe: the refusal to
+        // guess at a scope, and the measurement that succeeded and still reached
+        // the whole project. Two sites would let the second drift out of the
+        // what/why/next shape the first established, which is the shape every
+        // other whole-project outcome is already reported in.
+        const scopeNotice =
+          decision.kind === 'unmeasurable' ? decision.notice
+          : decision.kind === 'scoped' ? decision.notice
+          : undefined;
+        if (scopeNotice !== undefined) {
+          process.stderr.write(chalk.yellow(`Notice: ${buildIssueMessage(scopeNotice)}`) + '\n');
         }
         const changeScope =
           decision.kind === 'scoped'

@@ -365,7 +365,16 @@ stale one is still caught in the trailing report.
 #### Verification and aspect-status issue codes
 
 The validator emits the following codes (see [Aspect Status](/aspect-status) for
-status semantics):
+status semantics).
+
+**Severity here is the whole-project answer**: what `yg check` reports on a project
+that names no reference branch — the default — and what `yg check --full` reports on
+one that does. With [progressive mode](/progressive-mode) on, most of these findings
+are listed as a non-blocking warning when your change did not reach them, whatever
+their severity below; [what never becomes a warning](/progressive-mode#what-never-becomes-a-warning)
+is the list of the ones that never are. `error (always)` in the column means the code
+is not governed by aspect status — it is an error whatever a rule's
+`draft`/`advisory`/`enforced` level says.
 
 | Code | Severity | Meaning |
 |------|----------|---------|

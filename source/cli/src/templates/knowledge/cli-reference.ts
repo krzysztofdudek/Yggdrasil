@@ -1029,7 +1029,19 @@ the fix is always \`yg init --upgrade\`.
 
 ## Validator issue codes — verification and status
 
-The validator (\`yg check\`) emits the following issue codes:
+The validator (\`yg check\`) emits the following issue codes.
+
+SEVERITY BELOW IS THE WHOLE-PROJECT ANSWER: what \`yg check\` reports on a project
+that names no reference branch (the default), and what \`yg check --full\` reports
+on one that does. With progressive mode on (\`progressive.reference\` set), most of
+these are listed as a non-blocking warning when the current change did not reach
+them, whatever their severity below. The exceptions — the graph's own integrity
+codes, anything that stops a recording run before it writes, the log gate at
+recording time, and any finding the run cannot attribute to a file or a
+component — never are; see \`yg knowledge read configuration\` (the \`progressive\`
+section). \`error (always)\` in the column means NOT STATUS-GOVERNED — an error
+whatever a rule's \`draft\`/\`advisory\`/\`enforced\` level says — not "unconditional
+under every configuration".
 
 | Code | Severity | Meaning |
 |------|----------|---------|

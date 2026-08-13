@@ -261,10 +261,14 @@ This differs from aspect verdicts in two ways:
   every \`yg check\` (plain or \`--approve\`) — it never reads or writes a lock entry,
   so it is never stale and never needs re-validation.
 - **No status, no waiver.** A relation refusal (\`relation-undeclared-dependency\`)
-  is always an error and blocks \`yg check\`. There is no \`content.md\` to sharpen
-  and it is not \`yg-suppress\`-able. The only exits are **declare the relation**
-  (add an architecture-allowed relation edge) or **remove the dependency**. The
-  next run recomputes and the refusal clears the moment the code or graph matches.
+  is always an error, and with no reference branch named (the default) it blocks
+  \`yg check\` unconditionally. There is no \`content.md\` to sharpen and it is not
+  \`yg-suppress\`-able. The only exits are **declare the relation** (add an
+  architecture-allowed relation edge) or **remove the dependency**. The next run
+  recomputes and the refusal clears the moment the code or graph matches.
+  Where it blocks — and only that — moves when progressive mode is on (the
+  project sets \`progressive.reference\`): a refusal the current change did not
+  reach is listed as a warning, and \`yg check --full\` blocks on it again.
 
 ## Caching policy
 

@@ -146,7 +146,24 @@ describe('computeSuggestedNext — findings outside the change', () => {
     ];
     const next = run(issues);
     expect(next).not.toBe('yg check --approve');
-    expect(next).toBe(`1 enforced obligation(s) outside your changes — ${STANDING}`);
+    expect(next).toBe(`1 obligation outside your changes — ${STANDING}`);
+  });
+
+  // The noun is the header's, and it agrees in number. This line once said
+  // "enforced obligation(s)" for a count the header called plain "obligations" —
+  // and the count is not enforced-only (it sums uncovered files, missing
+  // descriptions and undeclared dependencies too), so "enforced", a specific
+  // status word everywhere else in the product, read as a narrower figure than
+  // it is. That the two SURFACES agree is pinned where both are rendered at
+  // once, in tests/unit/cli/check-render-views.test.ts.
+  it('names the count plainly, and agrees with it in number', () => {
+    const twin = (code: string): Issue => ({
+      severity: 'warning', code, aspectId: 'audit-log', messageData: md('yg check --approve'),
+    });
+    expect(run([twin('unverified-outside')])).toContain('1 obligation outside your changes');
+    expect(run([twin('unverified-outside'), twin('description-missing-outside')]))
+      .toContain('2 obligations outside your changes');
+    expect(run([twin('unverified-outside')])).not.toContain('enforced');
   });
 
   it('counts the coverage twin by the files it names, not as one finding', () => {
@@ -154,7 +171,7 @@ describe('computeSuggestedNext — findings outside the change', () => {
       { severity: 'warning', code: 'unverified-outside', aspectId: 'audit-log', messageData: md('yg check --approve') },
       { severity: 'warning', code: 'unmapped-files-outside', uncoveredCount: 3, messageData: md('x') },
     ];
-    expect(run(issues)).toBe(`4 enforced obligation(s) outside your changes — ${STANDING}`);
+    expect(run(issues)).toBe(`4 obligations outside your changes — ${STANDING}`);
   });
 
   it('outranks a surviving pre-existing warning, whose next is not about this change', () => {
@@ -162,7 +179,7 @@ describe('computeSuggestedNext — findings outside the change', () => {
       { severity: 'warning', code: 'unverified-outside', aspectId: 'audit-log', messageData: md('yg check --approve') },
       { severity: 'warning', code: 'high-fan-out', nodePath: 'a/n', messageData: md('NEXT-FANOUT') },
     ];
-    expect(run(issues)).toBe(`1 enforced obligation(s) outside your changes — ${STANDING}`);
+    expect(run(issues)).toBe(`1 obligation outside your changes — ${STANDING}`);
   });
 
   it('outranks the ADVISORY branch too — the one that steers at a repo-wide review', () => {
@@ -176,7 +193,7 @@ describe('computeSuggestedNext — findings outside the change', () => {
     ];
     const next = run(issues);
     expect(next).not.toBe('yg check --approve');
-    expect(next).toBe(`1 enforced obligation(s) outside your changes — ${STANDING}`);
+    expect(next).toBe(`1 obligation outside your changes — ${STANDING}`);
   });
 
   it('leaves a run with no twin at all exactly as it was', () => {

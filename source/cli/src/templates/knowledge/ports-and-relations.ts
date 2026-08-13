@@ -47,8 +47,15 @@ The issue code is \`relation-undeclared-dependency\`.
 
 This is a built-in check, NOT an aspect. It has no \`content.md\` or \`check.mjs\`,
 it is not attached through any of the seven aspect channels, and \`status:\`
-(draft/advisory/enforced) does not apply — it is ALWAYS an error and blocks
-\`yg check\`, exactly like the architecture and mapping validators. It is also NOT
+(draft/advisory/enforced) does not apply — it is ALWAYS an error, and on a
+project that names no reference branch (the default) it blocks \`yg check\`
+unconditionally, exactly like the architecture and mapping validators. ONE
+setting changes where it blocks, and only there: when progressive mode is on
+(the project sets \`progressive.reference\`), a refusal the current change did not
+reach is listed as a warning instead, and \`yg check --full\` blocks on it again.
+The check itself is untouched by that — still not an aspect, still status-free,
+still not waivable, and still blocking the moment a change reaches the code
+carrying it. It is also NOT
 \`yg-suppress\`-able (suppress waives aspects; this is not one). It is NOT stored in
 the lock: it is recomputed live on every \`yg check\` (parse, resolve, verify, from
 scratch), so it is never cached and never stale — a keyless \`yg check\` catches an

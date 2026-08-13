@@ -301,11 +301,20 @@ export async function parseConfig(
   // Absent ⇒ undefined (progressive mode off; every run gates the whole graph,
   // exactly as it always has). Tolerated when absent (like auto_approve /
   // signals / events), but STRICT when present: `progressive` must be a
-  // mapping, an UNKNOWN sibling is rejected, and `reference` (if given) must be
-  // a non-blank string. A misspelled sibling or a blank value would otherwise
-  // leave a repo believing it had turned progressive mode on while every run
-  // silently kept its previous behavior — the failure this section is strict to
-  // prevent.
+  // mapping, an UNKNOWN sibling is rejected, and `reference` must be THERE and
+  // a non-blank string. A misspelled sibling, a blank value, or a block that
+  // names nothing at all would otherwise leave a repo believing it had turned
+  // progressive mode on while every run silently kept its previous behavior —
+  // the failure this section is strict to prevent.
+  //
+  // The empty mapping (`progressive: {}`, or a `progressive:` key with nothing
+  // under it) is the one shape that used to slip through every guard here: it is
+  // a mapping, it carries no unknown sibling, and it has no blank reference to
+  // reject — so it parsed cleanly and yielded no reference, which is precisely
+  // the silent no-op the two rules on either side of it exist to make
+  // impossible. It is refused for the same reason and with the same kind of
+  // message, so the promise this block makes ("a config that says the mode is on
+  // cannot behave as if it were off") holds for every way of writing it.
   //
   // Read from `baseRaw`, NOT from the merged `raw`: this key is committed-only,
   // exactly like coverage.type_level above. The reference decides how much of
@@ -313,7 +322,7 @@ export async function parseConfig(
   // able to introduce it or re-point it. The overlay's own copy is therefore
   // not validated either — refusing a config over a key that is guaranteed to
   // have no effect would misreport what is actually in force.
-  let progressive: { reference?: string } | undefined;
+  let progressive: { reference: string } | undefined;
   const committedProgressive = baseRaw.progressive;
   if (committedProgressive !== undefined) {
     if (
@@ -338,14 +347,21 @@ export async function parseConfig(
         }, 'config-progressive-unknown-key');
       }
     }
-    if (prog.reference !== undefined && (typeof prog.reference !== 'string' || prog.reference.trim() === '')) {
+    if (prog.reference === undefined) {
+      throw new ConfigParseError({
+        what: `${filename}: progressive is present but names no reference.`,
+        why: 'reference is what the progressive block is for — it names the committed branch or ref a change is measured against (e.g. origin/main). A block that names none turns nothing on: every run would keep answering for the whole project while the config read as though changes were being measured.',
+        next: 'Set progressive.reference to a ref that exists locally, e.g. `progressive: { reference: origin/main }`, or remove the progressive key.',
+      }, 'config-invalid');
+    }
+    if (typeof prog.reference !== 'string' || prog.reference.trim() === '') {
       throw new ConfigParseError({
         what: `${filename}: progressive.reference must be a non-empty string (got ${JSON.stringify(prog.reference)}).`,
         why: 'reference names the committed branch or ref a change is measured against (e.g. origin/main); a blank or non-string value names nothing, so nothing could ever be measured.',
         next: 'Set progressive.reference to a ref that exists locally, e.g. `reference: origin/main`, or remove the progressive key.',
       }, 'config-invalid');
     }
-    progressive = { reference: typeof prog.reference === 'string' ? prog.reference.trim() : undefined };
+    progressive = { reference: prog.reference.trim() };
   }
 
   // A fresh object, never a mutation of whatever parseCoverage returned: when

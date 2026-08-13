@@ -540,6 +540,29 @@ describe('computeBurnSet — architecture and config rows', () => {
   it('configVocabularyChanged never makes an unrelated run global', () => {
     expect(burn(['src/lonely/f.ts'], { configVocabularyChanged: true }).global).toBe(false);
   });
+
+  // The cause travels with the verdict because the run owes a person a sentence
+  // naming it — and a caller working it out for itself, by re-testing the
+  // changed paths against these same two file names, would be a second copy of
+  // this decision, free to disagree with the one that actually gated the run.
+  it('names WHY the run went global, and says nothing when it did not', () => {
+    expect(burn(['.yggdrasil/yg-architecture.yaml']).globalCause).toBe('architecture');
+    expect(burn(['.yggdrasil/yg-config.yaml'], { configVocabularyChanged: true }).globalCause)
+      .toBe('configuration');
+    expect(burn(['src/lonely/f.ts']).globalCause).toBeUndefined();
+    expect(burn(['.yggdrasil/yg-config.yaml'], { configVocabularyChanged: false }).globalCause)
+      .toBeUndefined();
+  });
+
+  // Most-upstream cause wins, on the same rule the preflight table's fallback
+  // rows follow — and it must win whichever order the touched set happens to
+  // list the two files in, which is what the second assertion pins.
+  it('reports the architecture as the cause when a change moved both', () => {
+    const files = ['.yggdrasil/yg-architecture.yaml', '.yggdrasil/yg-config.yaml'];
+    expect(burn(files, { configVocabularyChanged: true }).globalCause).toBe('architecture');
+    expect(burn([...files].reverse(), { configVocabularyChanged: true }).globalCause)
+      .toBe('architecture');
+  });
 });
 
 // --- Row: lock files are outputs ---

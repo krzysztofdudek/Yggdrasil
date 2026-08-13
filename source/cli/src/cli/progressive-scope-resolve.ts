@@ -38,10 +38,13 @@ import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check-coverage-scan.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import {
+  ARCHITECTURE_FILE,
+  CONFIG_FILE,
   computeBurnSet,
   configVocabularyChanged,
   progressivePairKey,
   type BurnSet,
+  type GlobalCause,
 } from '../core/progressive-scope.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
@@ -63,9 +66,14 @@ import { toPosixPath } from '../utils/posix.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { resolveProgressiveState, type PreflightProbes } from './progressive-preflight.js';
 
-/** Repo-relative POSIX location of the two committed files this module reads at the reference. */
+/**
+ * Repo-relative POSIX location of the committed lock this module reads at the
+ * reference. The two committed GRAPH files it also reads (`ARCHITECTURE_FILE`,
+ * `CONFIG_FILE`) are imported from the burn table that spells them rather than
+ * re-typed here: the same paths decide what makes a run global, and two
+ * spellings of one path is exactly how a probe silently stops matching.
+ */
 const YGG_DIR = '.yggdrasil';
-const CONFIG_FILE = `${YGG_DIR}/yg-config.yaml`;
 const COMMITTED_LOCK_FILE = `${YGG_DIR}/${LOCK_NONDET_FILE_NAME}`;
 
 export interface ChangeScopeInput {
@@ -103,6 +111,12 @@ export type ChangeScopeDecision =
        * would gate the whole project over a listing the run never needed.
        */
       blobOidByPath: Map<string, string> | null;
+      /**
+       * Set only when the measurement SUCCEEDED and still reached everything —
+       * see {@link globallyGated}. Absent on an ordinary scoped run, which has
+       * nothing to explain.
+       */
+      notice?: IssueMessage;
     }
   | { kind: 'unmeasurable'; notice: IssueMessage };
 
@@ -132,6 +146,37 @@ function unmeasurable(reference: string, cause: string, nextStep: string): Chang
 /** The remedy for a cause that has no specific one: try again. */
 const RE_RUN_NEXT =
   'Re-run. If it persists, check that ordinary git commands succeed in this directory.';
+
+/**
+ * The notice a run gets when the measurement was made perfectly well and still
+ * came back covering the whole project, because the change moved something no
+ * per-obligation intersection can bound.
+ *
+ * It exists because this outcome is otherwise the one whole-project answer with
+ * NOTHING to explain it. Every other one carries a notice: a reference that will
+ * not resolve, a shallow clone, an unreadable record, an explicit `--full`. This
+ * one — the one an adopter meets the first time they write a rule, since
+ * attaching it edits the architecture — printed only a header segment reading
+ * `0 obligations outside your changes`, which is true, deliberate, and reads
+ * exactly like a mode that quietly did nothing. Deliberate behaviour that looks
+ * like a malfunction has to say so in the run's own output, not only in its
+ * documentation.
+ *
+ * There is no remedy, and the `next` says so plainly rather than inventing one:
+ * this is the design working. What it does say is when the next run narrows
+ * again, which is the thing a person actually wants to know.
+ */
+function globallyGated(reference: string, cause: GlobalCause): IssueMessage {
+  const why =
+    cause === 'architecture'
+      ? `it edits ${ARCHITECTURE_FILE}, which decides which rules apply to what — one edit there can move every component's obligations at once, so there is no smaller set to measure.`
+      : `it edits the part of ${CONFIG_FILE} that decides what the graph means — the schema version, which files must be covered, the set of reviewer tiers and which is the default, or the branch this measurement is made against — so there is no smaller set to measure.`;
+  return {
+    what: `This change reaches the whole project, so this run answered for all of it — every finding blocks, exactly as 'yg check --full' would report it. It was still measured against '${reference}': nothing was left out.`,
+    why,
+    next: 'Nothing to fix — this is the intended cost of a change that reaches that far. The next change that leaves those files alone is measured normally again.',
+  };
+}
 
 /**
  * The reference this invocation would measure a change against, or `undefined`
@@ -430,7 +475,13 @@ async function measure(input: ChangeScopeInput, reference: string): Promise<Chan
   // without asking git a second question per file.
   const blobOidByPath = await listTreeOids(projectRoot, mergeBase);
 
-  return { kind: 'scoped', burn, referenceName: reference, blobOidByPath };
+  // A measurement that succeeded and still reached everything says so — see
+  // globallyGated. The cause comes from the burn table itself, never from
+  // re-testing the changed paths here.
+  const notice =
+    burn.globalCause !== undefined ? globallyGated(reference, burn.globalCause) : undefined;
+
+  return { kind: 'scoped', burn, referenceName: reference, blobOidByPath, notice };
 }
 
 /**

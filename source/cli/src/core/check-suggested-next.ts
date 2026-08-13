@@ -28,10 +28,18 @@ import type { CheckIssue } from './check-contract.js';
  * review it never asked for, clearing inherited debt the change did not cause
  * and spending reviewer calls to do it. While anything sits outside the change,
  * the honest next step is the audit that shows all of it at once.
+ *
+ * The noun is the header's, deliberately: both surfaces report the SAME number
+ * (`countOutside`, one definition), and the header calls it plain "obligations".
+ * This line once called them "enforced obligations", which is wrong twice over —
+ * `countOutside` sums uncovered files, missing descriptions and undeclared
+ * dependencies alongside enforced pairs, and "enforced" is a specific status word
+ * everywhere else in the product, so a reader could reasonably take the two
+ * numbers for different things. Same count, same word, same pluralisation.
  */
 function standingOutsideLine(outsideWarnings: CheckIssue[]): string {
   const count = countOutside(outsideWarnings);
-  return `${count} enforced obligation(s) outside your changes — run 'yg check --full' for the complete audit`;
+  return `${count} obligation${count === 1 ? '' : 's'} outside your changes — run 'yg check --full' for the complete audit`;
 }
 
 /**
