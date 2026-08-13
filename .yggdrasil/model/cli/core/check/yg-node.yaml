@@ -21,7 +21,11 @@ description: "Unified check orchestrator — runs validation, coverage, the
   lock, the uncovered-file and tracked-but-gitignored scans, the coverage
   tiers plus the type-level lattice, the change-scope classification that
   re-codes a finding the current change is not accountable for into a
-  non-blocking twin, and the single next step a finished check points at."
+  non-blocking twin, the byte guard's gathering half that collects the subject
+  bytes of every blocking obligation that classification is about to treat as
+  inherited (so the pure comparer in core/progressive-scope.ts can re-admit any
+  whose content contradicts git's own report of what changed), and the single
+  next step a finished check points at."
 max_direct_relations:
   limit: 25
   reason: >-
@@ -102,6 +106,7 @@ mapping:
   - source/cli/src/core/check-coverage-phase.ts
   - source/cli/src/core/check-suggested-next.ts
   - source/cli/src/core/check-progressive.ts
+  - source/cli/src/core/check-byte-guard.ts
   - source/cli/src/core/feature-index-write.ts
   - source/cli/src/core/feature-index-read.ts
   - source/cli/src/core/feature-field-schema.ts

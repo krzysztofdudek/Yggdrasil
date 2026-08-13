@@ -140,6 +140,26 @@ reach — so a fresh clone never reads as "everything was already verified".
 Everything else falls on the safe side. A finding that cannot be tied to a file
 or a component keeps blocking: "cannot tell" is never read as "not yours".
 
+### A file git has been told to ignore still answers for itself
+
+Git can be instructed to report a modified file as unmodified — that is what
+`git update-index --assume-unchanged` and `--skip-worktree` do, and a file
+carrying either mark is absent from `git status` and from every diff no matter
+what its content says. Left there, that would be a way to edit a file and have
+its findings reported as inherited debt.
+
+So before any finding is set aside as not yours, the run checks the content of
+the files it is about against the content the reference branch holds. If they
+disagree, that finding is yours, whatever git said about it. This costs nothing
+you will notice: it looks only at findings that are both failing and about to be
+set aside, and it reads the reference branch's file list once for the whole run.
+
+One consequence worth knowing: on a checkout that rewrites line endings on the
+way to your working copy (git's `core.autocrlf`, on Windows), your files
+genuinely differ byte-for-byte from what the branch holds, so failing findings on
+them stay blocking rather than being set aside. That errs toward gating more, not
+less; `yg check --full` reports the same set either way.
+
 ## What never becomes a warning
 
 Progressive mode narrows what blocks; it never narrows what is checked, and some

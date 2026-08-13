@@ -22,10 +22,9 @@ description: >-
   array-position heuristic, so a prose copyedit that preserves the bullet
   shape can never turn an already-documented exception into a false refusal.
   A declaration this check cannot confidently recognize is skipped rather
-  than guessed at (errs: under). Ships as status: draft — inert until the
-  progressive-mode feature it protects is complete.
+  than guessed at (errs: under).
 errs: under
 reviewer:
   type: deterministic
-status: draft
+status: enforced
 review_by: 2027-02-12

@@ -47,6 +47,11 @@
  *   - check-progressive.ts    — the change-scope classification of the assembled
  *                               issues (in scope ⇒ untouched; outside ⇒ its
  *                               `-outside` twin at warning severity)
+ *   - check-byte-guard.ts     — the gathering half of the byte guard: the
+ *                               subject bytes of every blocking obligation the
+ *                               scope is about to treat as inherited, so the
+ *                               pure comparer can re-admit any whose content
+ *                               provably moved despite git reporting otherwise
  *   - check-suggested-next.ts — the one `next` a finished check points at
  *
  * `runAttentionDump` — the read-only calibration lens behind a hidden flag —
@@ -67,6 +72,8 @@ import type { TypeCoverageResult } from './type-coverage.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { validate } from './validator.js';
 import type { BurnSet } from './progressive-scope.js';
+import { forceInScopeOnByteMismatch } from './progressive-scope.js';
+import { collectByteGuardCandidates } from './check-byte-guard.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
 import type { RulesArtifacts } from './checks/digest-gate.js';
@@ -207,10 +214,17 @@ export interface RunCheckOptions {
   runtimeDispositions?: Array<{ file: string; aspectId: string; code: string }>;
   /**
    * INJECTED change scope: which of this run's obligations the current change is
-   * accountable for (`burn`), and the plain name it was measured against
-   * (`referenceName`, for the report to quote). PLAIN DATA — the caller computes
-   * the burn set from git output it read itself; core touches no git, resolves no
-   * reference, and reads no files for this.
+   * accountable for (`burn`), the plain name it was measured against
+   * (`referenceName`, for the report to quote), and the reference tree's
+   * path→object-id listing (`blobOidByPath`) the byte guard checks git's own
+   * answer against. PLAIN DATA — the caller computes the burn set and reads that
+   * listing from git itself; core touches no git and resolves no reference.
+   *
+   * `blobOidByPath` is `null`, never absent, when the listing could not be
+   * obtained: the guard is then skipped, and the run gates exactly as it would
+   * have without it. A required-but-nullable member rather than an optional one
+   * on purpose — a caller that simply forgot it would silently disarm the guard,
+   * and "I could not read the tree" is a fact worth having to state.
    *
    * Consumed as a WHOLE-LIST REWRITE of the assembled issues
    * (`applyChangeScope`, core/check-progressive.ts) — the classification step
@@ -223,7 +237,7 @@ export interface RunCheckOptions {
    * `undefined`): a surface that forgot it would silently report a different
    * issue set from every other.
    */
-  changeScope?: { burn: BurnSet; referenceName: string };
+  changeScope?: { burn: BurnSet; referenceName: string; blobOidByPath: Map<string, string> | null };
 }
 
 export async function runCheck(
@@ -364,6 +378,19 @@ export async function runCheck(
     ...coverageIssues,
   ];
 
+  // Byte guard, gathered BEFORE the classification below reads the scope: the
+  // subject bytes of every blocking obligation the measurement is about to treat
+  // as inherited. Git can be told to report a modified file as unmodified
+  // (`assume-unchanged`, `skip-worktree`), and such a file's obligations would
+  // otherwise be released on that false report. Reads nothing at all when there
+  // is no scope, no reference listing, or a scope that already went global — so
+  // a run with the feature off is untouched by its existence.
+  const byteGuardCandidates = await collectByteGuardCandidates(
+    options?.changeScope,
+    pairs,
+    projectRoot,
+  );
+
   // Change-scope classification. With a scope supplied, every finding the
   // change is NOT accountable for is re-coded to its `-outside` twin at warning
   // severity (the aggregate coverage finding is split rather than re-coded); a
@@ -372,8 +399,22 @@ export async function runCheck(
   // not opt in. This sits BEFORE the two derived tallies below deliberately: the
   // suggested next step and the advisory count must both read the CLASSIFIED
   // list, or the report would point at a finding it no longer blocks on.
+  //
+  // The scope it classifies against is the measured one WIDENED by the byte
+  // guard — `forceInScopeOnByteMismatch` re-admits any candidate whose bytes
+  // disagree with the reference tree and returns the burn set untouched (the
+  // same object) when none do, so this is the plain measurement plus, never
+  // minus.
   const allIssues = options?.changeScope
-    ? applyChangeScope(assembledIssues, options.changeScope.burn, pairs)
+    ? applyChangeScope(
+        assembledIssues,
+        forceInScopeOnByteMismatch(
+          options.changeScope.burn,
+          byteGuardCandidates,
+          options.changeScope.blobOidByPath,
+        ),
+        pairs,
+      )
     : assembledIssues;
   // Deliberately a SECOND, independently-shaped expression rather than a richer
   // return from the call above: the rule that proves every runCheck call site

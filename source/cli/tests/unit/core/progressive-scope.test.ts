@@ -7,6 +7,8 @@ import {
   progressivePairKey,
   extractConfigVocabulary,
   configVocabularyChanged,
+  hashGitBlob,
+  forceInScopeOnByteMismatch,
   type BurnInput,
   type BurnSet,
 } from '../../../src/core/progressive-scope.js';
@@ -1225,5 +1227,251 @@ describe('configVocabularyChanged — the progressive block', () => {
       configVocabularyChanged: configVocabularyChanged(base, head),
     });
     expect(result.global).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The byte guard: git's answer, checked against the files' own content.
+//
+// Every case below hands the decision plain values — a fabricated object-id map
+// and buffers — because that is the whole point of the split: the gathering
+// half reads the disk, this half only compares. The ONE claim these tests
+// cannot make on their own is that the id it computes is really git's; that is
+// proved against a real repository in tests/unit/utils/git-introspect.test.ts,
+// and end-to-end through the built binary in tests/e2e/cli-progressive-byte-guard.
+// ---------------------------------------------------------------------------
+
+/** A burn set with nothing burned, for the guard to widen (or not). */
+function emptyBurn(overrides: Partial<BurnSet> = {}): BurnSet {
+  return {
+    global: false,
+    pairKeys: new Set(),
+    nodePaths: new Set(['untouched-node']),
+    files: new Set(['src/touched.ts']),
+    logOnlyNodePaths: new Set(['logged-node']),
+    changedInputCount: 1,
+    ...overrides,
+  };
+}
+
+const bytesOf = (text: string): Buffer => Buffer.from(text, 'utf-8');
+
+/** The object id a tree listing would record for exactly this content. */
+const oidOf = (text: string): string => hashGitBlob(bytesOf(text));
+
+describe('hashGitBlob', () => {
+  it('is the git object-header form: sha1 over "blob <byteLength>\\0" then the raw bytes', () => {
+    // Pinned against a value produced by git itself for this exact content
+    // (`printf 'hello\nworld\n' | git hash-object --stdin`), so a refactor that
+    // silently changed the header, the length units, or the encoding fails here
+    // rather than by making every file in a repository look modified.
+    expect(hashGitBlob(bytesOf('hello\nworld\n'))).toBe(
+      '94954abda49de8615a048f8d2e64b5de848e27a1',
+    );
+  });
+
+  it('counts BYTES, not characters', () => {
+    // A multi-byte character is where a character-count header goes wrong, and
+    // it goes wrong for every file at once.
+    const multibyte = Buffer.from('héllo\n', 'utf-8');
+    expect(multibyte.length).toBe(7);
+    expect(hashGitBlob(multibyte)).not.toBe(hashGitBlob(Buffer.from('hello\n', 'utf-8')));
+  });
+
+  it('distinguishes two binary buffers a text decoding would flatten together', () => {
+    // 0xFE and 0xFF are both invalid UTF-8 starts and both decode to the SAME
+    // replacement character. A text-based comparer calls these two files equal;
+    // hashing raw bytes does not.
+    const a = Buffer.from([0x00, 0xfe, 0x01]);
+    const b = Buffer.from([0x00, 0xff, 0x01]);
+    expect(a.toString('utf-8')).toBe(b.toString('utf-8'));
+    expect(hashGitBlob(a)).not.toBe(hashGitBlob(b));
+  });
+});
+
+describe('forceInScopeOnByteMismatch — what it re-admits', () => {
+  it('re-admits a pair whose subject bytes moved while git reported no change', () => {
+    // The evasion this exists for: the file is edited, the index is told to
+    // ignore it, so it never reaches the touched set and its pair falls outside
+    // the change. Its content says otherwise.
+    const result = forceInScopeOnByteMismatch(
+      emptyBurn(),
+      [{ pairKey: K('a', 'node:hidden'), subjects: [{ path: 'src/hidden.ts', bytes: bytesOf('edited\n') }] }],
+      new Map([['src/hidden.ts', oidOf('original\n')]]),
+    );
+    expect(result.pairKeys).toEqual(new Set([K('a', 'node:hidden')]));
+  });
+
+  it('leaves a pair alone when every subject still hashes to the recorded id', () => {
+    const burnSet = emptyBurn();
+    const result = forceInScopeOnByteMismatch(
+      burnSet,
+      [{ pairKey: K('a', 'node:quiet'), subjects: [{ path: 'src/quiet.ts', bytes: bytesOf('same\n') }] }],
+      new Map([['src/quiet.ts', oidOf('same\n')]]),
+    );
+    // The very same object, not an equal copy: a run where the guard finds
+    // nothing must be indistinguishable from one where it never ran.
+    expect(result).toBe(burnSet);
+  });
+
+  it('re-admits on ANY subject moving, not only the first', () => {
+    const result = forceInScopeOnByteMismatch(
+      emptyBurn(),
+      [
+        {
+          pairKey: K('a', 'node:multi'),
+          subjects: [
+            { path: 'src/one.ts', bytes: bytesOf('same\n') },
+            { path: 'src/two.ts', bytes: bytesOf('edited\n') },
+          ],
+        },
+      ],
+      new Map([
+        ['src/one.ts', oidOf('same\n')],
+        ['src/two.ts', oidOf('original\n')],
+      ]),
+    );
+    expect(result.pairKeys).toEqual(new Set([K('a', 'node:multi')]));
+  });
+
+  it('compares BINARY subjects correctly instead of forcing them in forever', () => {
+    // The trap that would make the guard permanently noisy: deterministic rules
+    // keep binary files among their subjects, and a text-decoding comparer
+    // mismatches every one of them on every run.
+    const logo = Buffer.from([0x00, 0x01, 0xff, 0x7f, 0x00, 0x42]);
+    const burnSet = emptyBurn();
+    const unchanged = forceInScopeOnByteMismatch(
+      burnSet,
+      [{ pairKey: K('a', 'node:art'), subjects: [{ path: 'src/logo.bin', bytes: logo }] }],
+      new Map([['src/logo.bin', hashGitBlob(logo)]]),
+    );
+    expect(unchanged).toBe(burnSet);
+
+    // …and a real edit to those same bytes is still caught.
+    const edited = Buffer.from([0x00, 0x01, 0xff, 0x7f, 0x00, 0x43]);
+    const moved = forceInScopeOnByteMismatch(
+      burnSet,
+      [{ pairKey: K('a', 'node:art'), subjects: [{ path: 'src/logo.bin', bytes: edited }] }],
+      new Map([['src/logo.bin', hashGitBlob(logo)]]),
+    );
+    expect(moved.pairKeys).toEqual(new Set([K('a', 'node:art')]));
+  });
+});
+
+describe('forceInScopeOnByteMismatch — which way an unanswerable comparison falls', () => {
+  it('re-admits a subject whose bytes could not be read at all', () => {
+    const result = forceInScopeOnByteMismatch(
+      emptyBurn(),
+      [{ pairKey: K('a', 'node:gone'), subjects: [{ path: 'src/gone.ts', bytes: null }] }],
+      new Map([['src/gone.ts', oidOf('was here\n')]]),
+    );
+    expect(result.pairKeys).toEqual(new Set([K('a', 'node:gone')]));
+  });
+
+  it('re-admits a subject the reference tree never listed', () => {
+    // The file did not exist at the reference, yet the change is reported as
+    // never having touched it. Both cannot be true.
+    const result = forceInScopeOnByteMismatch(
+      emptyBurn(),
+      [{ pairKey: K('a', 'node:new'), subjects: [{ path: 'src/new.ts', bytes: bytesOf('added\n') }] }],
+      new Map(),
+    );
+    expect(result.pairKeys).toEqual(new Set([K('a', 'node:new')]));
+  });
+
+  it('says nothing about a pair with no subject files', () => {
+    // Nothing to disagree about, so nothing is proved either way — and the
+    // guard never re-admits on an absence of evidence.
+    const burnSet = emptyBurn();
+    const result = forceInScopeOnByteMismatch(
+      burnSet,
+      [{ pairKey: K('a', 'type:everything'), subjects: [] }],
+      new Map(),
+    );
+    expect(result).toBe(burnSet);
+  });
+});
+
+describe('forceInScopeOnByteMismatch — when it declines to run', () => {
+  it('is skipped entirely when the reference listing could not be obtained', () => {
+    // A null listing is NOT an empty one: reading it as empty would re-admit
+    // every candidate, inventing a second failure mode where the measurement
+    // already fails closed elsewhere.
+    const burnSet = emptyBurn();
+    const result = forceInScopeOnByteMismatch(
+      burnSet,
+      [{ pairKey: K('a', 'node:hidden'), subjects: [{ path: 'src/hidden.ts', bytes: bytesOf('edited\n') }] }],
+      null,
+    );
+    expect(result).toBe(burnSet);
+  });
+
+  it('is skipped under a global scope, which already gates everything', () => {
+    const burnSet = emptyBurn({ global: true });
+    const result = forceInScopeOnByteMismatch(
+      burnSet,
+      [{ pairKey: K('a', 'node:hidden'), subjects: [{ path: 'src/hidden.ts', bytes: bytesOf('edited\n') }] }],
+      new Map([['src/hidden.ts', oidOf('original\n')]]),
+    );
+    expect(result).toBe(burnSet);
+  });
+
+  it('cannot re-admit a pair the burn table already burned', () => {
+    const burnSet = emptyBurn({ pairKeys: new Set([K('a', 'node:already')]) });
+    const result = forceInScopeOnByteMismatch(
+      burnSet,
+      [{ pairKey: K('a', 'node:already'), subjects: [{ path: 'src/a.ts', bytes: bytesOf('edited\n') }] }],
+      new Map([['src/a.ts', oidOf('original\n')]]),
+    );
+    expect(result).toBe(burnSet);
+  });
+});
+
+describe('forceInScopeOnByteMismatch — it can only ADD scope', () => {
+  // The one property the whole guard rests on, checked over every combination
+  // of the inputs that decide an outcome rather than on one hand-picked case: a
+  // wrong "force" costs someone reading a finding that was not theirs, while a
+  // wrong "release" ships a real violation green.
+  it('never drops a pair key, and never touches any other field', () => {
+    const listings: Array<ReadonlyMap<string, string> | null> = [
+      null,
+      new Map(),
+      new Map([['src/a.ts', oidOf('original\n')]]),
+      new Map([['src/a.ts', oidOf('same\n')]]),
+    ];
+    const subjectSets = [
+      [],
+      [{ path: 'src/a.ts', bytes: bytesOf('same\n') }],
+      [{ path: 'src/a.ts', bytes: bytesOf('edited\n') }],
+      [{ path: 'src/a.ts', bytes: null }],
+      [{ path: 'src/missing.ts', bytes: bytesOf('x\n') }],
+    ];
+    const starts = [
+      emptyBurn(),
+      emptyBurn({ global: true }),
+      emptyBurn({ pairKeys: new Set([K('kept', 'node:one'), K('kept', 'node:two')]) }),
+    ];
+
+    for (const start of starts) {
+      for (const listing of listings) {
+        for (const subjects of subjectSets) {
+          const result = forceInScopeOnByteMismatch(
+            start,
+            [{ pairKey: K('candidate', 'node:x'), subjects }],
+            listing,
+          );
+          for (const key of start.pairKeys) expect(result.pairKeys.has(key)).toBe(true);
+          expect(result.global).toBe(start.global);
+          expect(result.nodePaths).toBe(start.nodePaths);
+          expect(result.files).toBe(start.files);
+          expect(result.logOnlyNodePaths).toBe(start.logOnlyNodePaths);
+          expect(result.changedInputCount).toBe(start.changedInputCount);
+          // The only key it may ever have added is the candidate's own.
+          for (const key of result.pairKeys) {
+            if (!start.pairKeys.has(key)) expect(key).toBe(K('candidate', 'node:x'));
+          }
+        }
+      }
+    }
   });
 });

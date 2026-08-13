@@ -54,6 +54,7 @@ import {
   hasCleanWorktree,
   isAncestor,
   isShallowRepository,
+  listTreeOids,
   pathExistsAtRef,
   treesIdentical,
   type ChangedFiles,
@@ -90,7 +91,19 @@ export interface ChangeScopeInput {
  */
 export type ChangeScopeDecision =
   | { kind: 'whole-project' }
-  | { kind: 'scoped'; burn: BurnSet; referenceName: string }
+  | {
+      kind: 'scoped';
+      burn: BurnSet;
+      referenceName: string;
+      /**
+       * The reference tree's path→object-id listing, for the engine's byte
+       * guard, or `null` when git could not produce it. `null` disables the
+       * guard and nothing else — the measurement above already fails closed for
+       * every state it cannot resolve, and inventing a second failure mode here
+       * would gate the whole project over a listing the run never needed.
+       */
+      blobOidByPath: Map<string, string> | null;
+    }
   | { kind: 'unmeasurable'; notice: IssueMessage };
 
 /**
@@ -410,7 +423,14 @@ async function measure(input: ChangeScopeInput, reference: string): Promise<Chan
     configVocabularyChanged: await didConfigVocabularyMove(projectRoot, mergeBase),
   });
 
-  return { kind: 'scoped', burn, referenceName: reference };
+  // ONE listing of the reference tree, for the engine's byte guard. The burn set
+  // above believes git about which files differ; a path marked assume-unchanged
+  // or skip-worktree makes git report a real edit as no edit at all, and this is
+  // what lets the engine check that report against the files' own content
+  // without asking git a second question per file.
+  const blobOidByPath = await listTreeOids(projectRoot, mergeBase);
+
+  return { kind: 'scoped', burn, referenceName: reference, blobOidByPath };
 }
 
 /**

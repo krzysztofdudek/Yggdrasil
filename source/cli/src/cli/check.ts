@@ -332,7 +332,11 @@ export function registerCheckCommand(program: Command): void {
         }
         const changeScope =
           decision.kind === 'scoped'
-            ? { burn: decision.burn, referenceName: decision.referenceName }
+            ? {
+                burn: decision.burn,
+                referenceName: decision.referenceName,
+                blobOidByPath: decision.blobOidByPath,
+              }
             : undefined;
 
         // Fill path: runs when --approve is explicit OR when auto_approve in config

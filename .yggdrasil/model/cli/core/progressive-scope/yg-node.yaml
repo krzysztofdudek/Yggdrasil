@@ -1,6 +1,6 @@
 name: Progressive Scope
 type: engine
-description: "Pure burn-set engine for progressive mode. Two halves. The
+description: "Pure burn-set engine for progressive mode. Three parts. The
   structural reach helpers answer which other graph elements one starting point
   reaches: impliesClosure (unconditional structural closure over an aspect's
   `implies` edges, deliberately not the node-bound, `when`-filtered
@@ -21,7 +21,18 @@ description: "Pure burn-set engine for progressive mode. Two halves. The
   vocabulary escalating to the global gate. extractConfigVocabulary and
   configVocabularyChanged decide that last one from two raw config texts the
   caller supplies. Inverted indexes throughout: O(pairs + changed files), never
-  their product. No I/O of any kind — graph and plain values in, sets out."
+  their product. Third, the BYTE GUARD: hashGitBlob reproduces git's own
+  object-id form (sha1 over the header 'blob <byteLength>\\0' then the RAW
+  bytes — never a decoded string, so a binary subject compares correctly rather
+  than mismatching forever), and forceInScopeOnByteMismatch re-admits every
+  candidate obligation whose subject bytes disagree with the object ids the
+  reference tree recorded. That is what stops a file marked assume-unchanged or
+  skip-worktree — which git reports as unmodified however it was edited — from
+  having its live findings re-coded as inherited debt. It may only ADD pair
+  keys: every other field of the burn set comes back untouched, and with
+  nothing forced the input object itself is returned. A null listing skips the
+  guard entirely rather than being read as an empty one. No I/O of any kind —
+  graph, ids and bytes in, sets out."
 relations:
   - target: cli/core/graph
     type: calls

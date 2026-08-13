@@ -521,6 +521,61 @@ export async function gitlinkPaths(repoCwd: string, ref: string): Promise<Set<st
 }
 
 /**
+ * Every BLOB path in the tree at `ref`, mapped to the git object id recorded
+ * for it there — ONE `git ls-tree -r -z <ref>` process for the whole tree.
+ *
+ * The single-process shape is the point, not an optimisation. The consumer
+ * (`core/progressive-scope.ts`'s byte guard) asks "did this file's content
+ * really not move since the reference" about an arbitrary subset of a
+ * repository's files, and the naive answer — `git cat-file`/`git rev-parse` per
+ * file — costs one process per question, which on a large repository is the
+ * difference between a guard that always runs and one nobody can afford to
+ * leave on. One listing answers every question at once.
+ *
+ * Only `blob` entries are kept. `-r` without `-t` already suppresses tree
+ * records, so the only other type reachable here is `commit` — a submodule
+ * gitlink, whose object id names another repository's commit and can never be
+ * compared against any bytes on this side. {@link gitlinkPaths} is the probe for
+ * those, and progressive mode refuses outright when one appears in a diff.
+ *
+ * `null` on ANY git failure (a ref that does not resolve, `repoCwd` not a
+ * repository, git missing, …) — never a partial or empty map standing in for
+ * "could not tell", the same three-valued contract as every other probe here.
+ * A caller must NOT read the empty map out of a failure: "the reference held no
+ * files" and "the listing could not be obtained" lead to opposite conclusions
+ * for every path it is asked about.
+ */
+export async function listTreeOids(
+  repoCwd: string,
+  ref: string,
+): Promise<Map<string, string> | null> {
+  try {
+    const { stdout } = await execFilep('git', ['ls-tree', '-r', '-z', ref], {
+      cwd: repoCwd,
+      maxBuffer: 64 * 1024 * 1024,
+    });
+    const oids = new Map<string, string>();
+    // `<mode> <type> <object>\t<path>\0` — the same record shape
+    // `collectGitlinks` reads, parsed for a different field. With `-z` the path
+    // is verbatim (git's usual quoting of unusual bytes is disabled), so there
+    // is nothing to unescape.
+    for (const record of stdout.split('\0')) {
+      if (record.length === 0) continue;
+      const tab = record.indexOf('\t');
+      if (tab < 0) continue;
+      const fields = record.slice(0, tab).split(' ');
+      if (fields.length < 3) continue;
+      const [, type, oid] = fields;
+      if (type !== 'blob') continue;
+      oids.set(toPosixPath(record.slice(tab + 1)), oid);
+    }
+    return oids;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Is the work tree clean — no staged, unstaged, OR untracked change versus
  * HEAD? Uses the identical `git status --porcelain=v1 -z -uall` invocation
  * {@link changedFilesAgainst} reads for its worktree half, so "clean" here

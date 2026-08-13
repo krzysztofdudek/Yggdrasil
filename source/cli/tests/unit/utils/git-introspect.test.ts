@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
-import { mkdtemp, rm, writeFile, stat, unlink, mkdir, appendFile, chmod, copyFile } from 'node:fs/promises';
+import { mkdtemp, rm, writeFile, readFile, stat, unlink, mkdir, appendFile, chmod, copyFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import {
   getMergeParents,
@@ -17,8 +17,10 @@ import {
   treesIdentical,
   hasCleanWorktree,
   gitlinkPaths,
+  listTreeOids,
   pathExistsAtRef,
 } from '../../../src/utils/git-introspect.js';
+import { hashGitBlob } from '../../../src/core/progressive-scope.js';
 import { gitFixtureEnv } from '../../support/git-fixture.js';
 
 const dirs: string[] = [];
@@ -692,6 +694,84 @@ describe('gitlinkPaths', () => {
   it('returns null when the ref does not resolve', async () => {
     const { repo } = await setupRevertRepo();
     expect(await gitlinkPaths(repo, 'no-such-ref')).toBeNull();
+  });
+});
+
+describe('listTreeOids', () => {
+  /**
+   * A tree holding one text file, one BINARY file (a NUL byte in the first
+   * bytes, so every text-shaped reader mangles it), one file whose path
+   * contains a space, and one nested file — the four shapes the record parser
+   * and the in-process hash both have to survive.
+   */
+  async function setupTreeRepo(): Promise<{ repo: string; head: string; base: string }> {
+    const repo = await mkdtemp(path.join(tmpdir(), 'yg-lstree-'));
+    dirs.push(repo);
+    const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+    r('git init -q -b main');
+    r('git config user.email t@t.test');
+    r('git config user.name Test');
+    await writeFile(path.join(repo, 'plain.txt'), 'hello\nworld\n');
+    r('git add -A && git commit -qm base');
+    const base = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) })
+      .toString()
+      .trim();
+    await writeFile(path.join(repo, 'logo.bin'), Buffer.from([0x00, 0x01, 0xff, 0x7f, 0x00, 0x42]));
+    await writeFile(path.join(repo, 'with space.txt'), 'spaced\n');
+    await mkdir(path.join(repo, 'src', 'deep'), { recursive: true });
+    await writeFile(path.join(repo, 'src', 'deep', 'nested.ts'), 'export const x = 1;\n');
+    r('git add -A && git commit -qm more');
+    const head = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) })
+      .toString()
+      .trim();
+    return { repo, head, base };
+  }
+
+  it('agrees with git itself about every blob in the tree, binary included', async () => {
+    // The whole guard rests on one claim: an object id recomputed in-process
+    // from a file's raw bytes equals the one git recorded. Proved here against
+    // a REAL repository rather than asserted, and proved for a binary file
+    // specifically — a text-decoding hash reproduces the text ids perfectly and
+    // silently gets every binary one wrong, which is the failure that would
+    // make the guard permanently noisy instead of visibly broken.
+    const { repo, head } = await setupTreeRepo();
+    const oids = await listTreeOids(repo, head);
+    expect(oids).not.toBeNull();
+    expect([...oids!.keys()].sort()).toEqual([
+      'logo.bin',
+      'plain.txt',
+      'src/deep/nested.ts',
+      'with space.txt',
+    ]);
+    for (const [relPath, recorded] of oids!) {
+      const bytes = await readFile(path.join(repo, relPath));
+      expect(hashGitBlob(bytes)).toBe(recorded);
+    }
+  });
+
+  it('lists the tree AT THE REF asked for, not the current one', async () => {
+    const { repo, base } = await setupTreeRepo();
+    const oids = await listTreeOids(repo, base);
+    expect([...oids!.keys()]).toEqual(['plain.txt']);
+  });
+
+  it('never lists a submodule pointer as though it were a file', async () => {
+    // A gitlink's object id names another repository's commit; there are no
+    // bytes on this side to compare it against, so it must not appear at all.
+    const { repo, base } = await setupGitlinkRepo();
+    const oids = await listTreeOids(repo, base);
+    expect(oids!.has('plain.txt')).toBe(true);
+    expect(oids!.has('vendor/sub')).toBe(false);
+  });
+
+  it('returns null when the ref does not resolve', async () => {
+    const { repo } = await setupTreeRepo();
+    expect(await listTreeOids(repo, 'no-such-ref')).toBeNull();
+  });
+
+  it('returns null when repoCwd is not a git repository', async () => {
+    const dir = await makeNonGitDir();
+    expect(await listTreeOids(dir, 'HEAD')).toBeNull();
   });
 });
 

@@ -14,7 +14,21 @@ description: "Unit tests for the change-scope classification step — one case
   its own file list, a global scope is the identity function, and the outside
   tally counts one per twin with the coverage half counted by its files. Built
   against hand-built findings and hand-built burn sets (no fixture project, no
-  mocking)."
+  mocking).
+
+  Also the byte guard's GATHERING half, which decides which obligations that
+  classification is about to set aside are worth asking the bytes about: an
+  out-of-scope pair reporting a blocking finding is gathered with its subject
+  bytes read from disk (including a valid verdict whose prompt outgrew its
+  tier, which reports an error despite the pair itself being verified); a
+  passing pair, an advisory refusal (already a warning nothing downgrades) and
+  a pair the burn table already burned are all skipped; an unreadable subject
+  is carried as null rather than dropped, so the decision can see that it could
+  not be compared; a file shared by several pairs is read once; and the three
+  states in which it does nothing at all and reads nothing — no change scope,
+  no reference listing, or a scope that already went global. Those cases run
+  against real files in a real throwaway directory, since the one thing this
+  half exists to do is the disk read the pure comparer must not."
 aspects: []
 relations:
   - target: cli/core/check
@@ -25,3 +39,4 @@ relations:
     type: uses
 mapping:
   - source/cli/tests/unit/core/check-progressive.test.ts
+  - source/cli/tests/unit/core/check-byte-guard.test.ts

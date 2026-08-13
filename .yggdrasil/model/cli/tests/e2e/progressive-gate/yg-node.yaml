@@ -22,8 +22,22 @@ description: "Subprocess E2E for the progressive gate on `yg check`, driven
   ANOTHER component's declaration is re-gated whole, its log included — so a log
   refusal a project has been carrying starts blocking on a branch that never
   touched that component's own files. The last is intended behaviour recorded as
-  a test precisely so it is not later mistaken for a defect."
+  a test precisely so it is not later mistaken for a defect.
+
+  A second suite covers the BYTE GUARD over the same fixture family: git is told
+  to report a modified file as unmodified (`update-index --assume-unchanged`, and
+  the `--skip-worktree` bit), and the run must still block on that file — as an
+  unreviewed pair, as a recorded refusal of the hidden content, and on a branch
+  whose own committed change is honest. Every one of those cases asserts the
+  SECOND component's inherited refusal is still only a warning in the same run,
+  which is what separates 'the guard re-admitted this one obligation' from 'the
+  run gave up and gated everything'. Two cases pin the other direction: a hidden
+  file whose bytes did not actually change produces a byte-identical report to
+  the run before it was hidden, and a project that names no reference is
+  byte-identical to the whole-project gate with the evasion present on both
+  sides."
 aspects: []
 relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/cli-progressive-gate.test.ts
+  - source/cli/tests/e2e/cli-progressive-byte-guard.test.ts
