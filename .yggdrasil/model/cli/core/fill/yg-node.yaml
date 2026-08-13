@@ -34,7 +34,7 @@ description: "Fill stage behind yg check --approve — the single producer of
   that lock verification can share them without reaching anything that depends
   back on the check report."
 max_direct_relations:
-  limit: 24
+  limit: 25
   reason: >-
     Reviewed architectural seam. This node is the SINGLE producer of verdict-lock
     entries and the fill orchestrator — it fans out to every subsystem a
@@ -76,6 +76,16 @@ max_direct_relations:
     verification began sharing the same caches, and it cannot depend on the
     substrate, which reaches back to the check report. Nothing this stage calls
     changed; only which node owns the code it was already calling.
+    Raised from 24 to 25 for the burn-set engine. When a run is measured against a
+    change, this stage decides which reviewer work to buy and, at closure, which
+    unbought rule may be treated as settled — both keyed by the SAME pair identity
+    the scope engine defines. It reads that identity from the engine that owns it
+    rather than re-spelling it here, because a second spelling of a key silently
+    never matches, and the two places that would have to agree are the one that
+    declines to buy a rule and the one that later decides the component is
+    settled — a disagreement there would leave a component's justification cycle
+    open forever. Routing it through an already-declared neighbour instead would
+    have kept this count down while hiding a dependency that is genuinely made.
 aspects:
   - deterministic
   - posix-paths-output
@@ -131,6 +141,8 @@ relations:
   - target: cli/core/type-coverage
     type: calls
   - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/core/progressive-scope
     type: calls
 mapping:
   - source/cli/src/core/fill.ts

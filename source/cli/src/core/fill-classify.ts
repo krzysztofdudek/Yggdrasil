@@ -39,6 +39,7 @@ import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import type { LockVerification } from './verify-lock.js';
 import { verifyLock } from './verify-lock.js';
 import { knownPairKeys, pairIsInScope } from './check-progressive.js';
+import { progressivePairKey } from './progressive-scope.js';
 import { readDetLockAspectIds } from '../io/lock-store.js';
 import { selectTierForAspect } from './tier-selection.js';
 
@@ -60,6 +61,10 @@ export interface FillPairSets {
    *  Counted so the header and closing summary can say so honestly instead of
    *  implying the run reviewed or verified them. Zero outside that mode. */
   skippedLlmPairs: number;
+  /** The pair keys of exactly those pairs — what positive closure needs to tell
+   *  "unverified because we were told not to buy it" from "unverified because
+   *  something went wrong", which are the same state and must not close alike. */
+  skippedOutsideLlmPairKeys: Set<string>;
   /** Unverified LLM pairs left alone because the change is not accountable for
    *  them — the same "outside" the report renders as a non-blocking twin.
    *  Counted for exactly the reason above: a run that quietly reviewed fewer
@@ -146,9 +151,15 @@ export async function classifyFillPairs(
   // reviewer-call budget, the deterministic gate, and the whole step-6 LLM loop.
   const llmPairs = onlyDeterministic ? [] : unverifiedLlmPairs.filter(inScope);
   const skippedLlmPairs = onlyDeterministic ? unverifiedLlmPairs.length : 0;
-  const skippedOutsideLlmPairs = onlyDeterministic
-    ? 0
-    : unverifiedLlmPairs.length - llmPairs.length;
+  const filledLlmKeys = new Set(llmPairs.map((p) => progressivePairKey(p.aspectId, p.unitKey)));
+  const skippedOutsideLlmPairKeys = new Set(
+    onlyDeterministic
+      ? []
+      : unverifiedLlmPairs
+        .map((p) => progressivePairKey(p.aspectId, p.unitKey))
+        .filter((key) => !filledLlmKeys.has(key)),
+  );
+  const skippedOutsideLlmPairs = skippedOutsideLlmPairKeys.size;
 
   // Index aspect defs and resolve consensus for the header's call count.
   const aspectById = new Map<string, AspectDef>();
@@ -181,6 +192,7 @@ export async function classifyFillPairs(
     llmPairs,
     skippedLlmPairs,
     skippedOutsideLlmPairs,
+    skippedOutsideLlmPairKeys,
     aspectById,
     deterministicAspectIds,
     detAspectIdsOnDisk,

@@ -211,6 +211,116 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
   // has to be lived with rather than papered over: a plain read can PASS while
   // the recording run refuses to record anything, and the refusal has to
   // explain itself well enough that the two do not read as a contradiction.
+  // The gate's whole point is that an edit nobody explained cannot be recorded
+  // over. That promise survives only if the justification an edit was explained
+  // WITH is consumed once and cannot be spent again on a later, different edit.
+  // Consuming it used to be positive closure's job alone — and closure needs
+  // every rule on the component settled, which a narrowed run deliberately does
+  // not do. These cases run the whole sequence on a component the branch never
+  // touches, with BOTH a justification requirement and a reviewer-backed rule.
+  describe('an entry is spent once, even when the run left that component’s review alone', () => {
+    /**
+     * A project whose components carry both a mandatory-justification type and a
+     * reviewer-backed rule, recorded whole (`--full`) so every component starts
+     * from a real baseline — the state a reference branch is in after an audit.
+     */
+    async function auditedProject(label: string): Promise<{ fixture: ProgressiveFixture; mock: MockReviewer }> {
+      const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'mock-approve' }) });
+      mocks.push(mock);
+      const fixture = createProgressiveFixture({
+        label,
+        progressiveReference: 'main',
+        logRequired: true,
+        extraComponents: ['gamma'],
+        reviewedAspect: { endpoint: mock.endpoint },
+      });
+      fixtures.push(fixture);
+      for (const component of ['alpha', 'beta', 'gamma']) {
+        run(['log', 'add', '--node', component, '--reason', 'First entry, recorded before anything moved.'], fixture.dir);
+      }
+      await runAsync(['check', '--approve', '--full'], fixture.dir);
+      fixture.commitAll('record the baselines for the whole project');
+      return { fixture, mock };
+    }
+
+    /**
+     * The sequence, on `gamma`, which no branch below touches:
+     *   1. ON THE REFERENCE, gamma's source moves and an entry explains it.
+     *   2. a branch that touches only `alpha` records verdicts — gamma's review
+     *      is deliberately left alone, so gamma does not settle.
+     *   3. gamma's source moves AGAIN with nothing explaining it.
+     * Step 3 must be refused. It is refused only if step 2 spent the entry from
+     * step 1; otherwise that entry — written for an edit that is now history —
+     * still counts as newer than whatever gamma last settled at, and answers for
+     * an edit nobody described.
+     */
+    async function throughStepTwo(label: string): Promise<{ fixture: ProgressiveFixture; mock: MockReviewer }> {
+      const { fixture, mock } = await auditedProject(label);
+      fixture.commit('src/gamma/gamma.ts', '// gamma, documented.\nexport const gamma = 3;\nexport const moved = 4;\n');
+      run(['log', 'add', '--node', 'gamma', '--reason', 'Explaining gamma’s move, at the time it happened.'], fixture.dir);
+      fixture.commitAll('gamma moves on the reference, with its reason');
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+      // The branch explains its OWN edit — the type asks for one, and without it
+      // the gate stops this run over alpha and the sequence never reaches the
+      // state it is about.
+      run(['log', 'add', '--node', 'alpha', '--reason', 'Explaining this branch’s own edit to alpha.'], fixture.dir);
+      fixture.commitAll('alpha moves on the branch, with its reason');
+      await runAsync(['check', '--approve'], fixture.dir);
+      return { fixture, mock };
+    }
+
+    it('refuses to record over a later edit nobody explained', async () => {
+      const { fixture } = await throughStepTwo('entry-spent-once');
+
+      // Step 3: gamma moves again, with nothing said about it.
+      fixture.commit('src/gamma/gamma.ts', '// gamma, documented.\nexport const gamma = 3;\nexport const unexplained = 5;\n');
+      const { status, stderr } = await runAsync(['check', '--approve'], fixture.dir);
+
+      expect(stderr).toContain("No fresh log entry for node 'gamma'");
+      expect(status).toBe(1);
+      // Nothing was recorded over it — the gate stops the whole run.
+      expect(stderr).not.toContain('reviewer calls made');
+    });
+
+    it('reports that same unexplained edit on a plain read', async () => {
+      // The read path shares the predicate, so the hole closed there too.
+      const { fixture } = await throughStepTwo('entry-spent-once-read');
+
+      fixture.commit('src/gamma/gamma.ts', '// gamma, documented.\nexport const gamma = 3;\nexport const unexplained = 5;\n');
+      const { status, stdout } = await runAsync(['check', '--no-approve', '--full'], fixture.dir);
+
+      expect(status).toBe(1);
+      expect(stdout).toContain("No fresh log entry for node 'gamma'");
+    });
+
+    // The other half of the same property, and the reason spending the entry is
+    // not enough on its own: what an entry was spent ON has to be recorded with
+    // it. Advance the entry alone and the component is left permanently drifted
+    // with nothing left to satisfy the gate — every later run demands a brand-new
+    // justification for code nobody has touched since.
+    it('asks for nothing further when nothing moved again', async () => {
+      const { fixture } = await throughStepTwo('entry-spent-once-idempotent');
+
+      const second = await runAsync(['check', '--approve'], fixture.dir);
+      const third = await runAsync(['check', '--approve'], fixture.dir);
+
+      expect(second.stderr).not.toContain('No fresh log entry');
+      expect(third.stderr).not.toContain('No fresh log entry');
+      expect(second.status).toBe(0);
+      expect(third.status).toBe(0);
+    });
+
+    it('still records nothing for the component whose review it left alone', async () => {
+      // Spending the entry must not be mistaken for having reviewed anything:
+      // gamma's reviewer-backed rule is still outstanding afterwards.
+      const { fixture } = await throughStepTwo('entry-spent-once-not-a-verdict');
+
+      const { stdout } = await runAsync(['check', '--no-approve', '--full'], fixture.dir);
+
+      expect(stdout).toContain("- gamma  aspect 'has-doc-comment'");
+    });
+  });
+
   describe('a component whose log fell behind, outside the change', () => {
     /**
      * A repository where `alpha`'s source has moved past the entry its log

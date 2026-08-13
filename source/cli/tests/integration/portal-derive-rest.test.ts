@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 28, ahead of a two-way tie at 24 and engine-api at 23', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 28, ahead of cli/core/fill at 25 and cli/core/check at 24', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -40,16 +40,19 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // — taking it out ahead of the rest on its own, no tie-break needed. It sits
     // at 28 since the outside-changes label test began asserting against
     // cli/core/check-codes' real code set rather than a hand-listed copy.
-    // A new tie sits below it: cli/core/check declared its own `calls` edge to
-    // cli/core/progressive-scope when it began accepting a change scope, taking
-    // it from 23 to 24 alongside cli/core/fill, alphabetical order breaking that
-    // pair. cli/portal/engine-api is unaffected at 23.
+    // Below it, the tie that used to sit at 24 has been broken: cli/core/fill
+    // declared its own `calls` edge to cli/core/progressive-scope when the fill
+    // stage began deciding which reviewer work a measured change is accountable
+    // for — and, at closure, which unbought rule counts as settled — both keyed
+    // by the pair identity that engine defines. That took it from 24 to 25, out
+    // ahead of cli/core/check (24, which declared the same edge when it began
+    // accepting a change scope). cli/portal/engine-api is unaffected at 23.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(28);
-    expect(data.hubs.fanOut[1].path).toBe('cli/core/check');
-    expect(data.hubs.fanOut[1].count).toBe(24);
-    expect(data.hubs.fanOut[2].path).toBe('cli/core/fill');
+    expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
+    expect(data.hubs.fanOut[1].count).toBe(25);
+    expect(data.hubs.fanOut[2].path).toBe('cli/core/check');
     expect(data.hubs.fanOut[2].count).toBe(24);
     expect(data.hubs.fanOut[3].path).toBe('cli/portal/engine-api');
     expect(data.hubs.fanOut[3].count).toBe(23);

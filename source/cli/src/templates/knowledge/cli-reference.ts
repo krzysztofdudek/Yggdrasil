@@ -91,12 +91,20 @@ everything it inherited from that branch is still listed and still counted, as a
 warning that does not fail the build. The header says how much sits outside the
 change and what it was measured against.
 
-Measuring narrows what BLOCKS, not what gets reviewed: a run that RECORDS
-verdicts — \`--approve\`, or a bare run on a project configured to approve
-automatically — still answers for the whole project, and says so on stderr. So a
-scoped run can PASS while the same tree under \`--approve\` fails on inherited
-findings. That is not a contradiction to fix by re-running with \`--approve\`
-until it goes green: doing so reviews work that is not yours.
+When progressive mode is on, a run that RECORDS verdicts — \`--approve\`, or a
+bare run on a project configured to approve automatically — is measured the same
+way: it reports what a plain run reports, and it reviews only the rules the
+current change is accountable for. It says how many reviewed rules it left
+outside the change; \`yg check --full --approve\` is what reviews those. Checks
+that run locally still cover the whole project, because they cost nothing.
+
+One thing a recording run still answers for whole: if a component's type
+requires a log entry and its source has moved past the entry its log records,
+the run stops and asks for that entry — whoever moved the code. So a plain read
+can PASS while \`--approve\` stops on a component the current change never
+touched. That is not a contradiction: the read is telling you what your change
+is answerable for, and the recording run is refusing to record over an edit
+nobody described. Add the entry it names; do not re-run until it goes green.
 
 \`\`\`bash
 yg check --full            # answer for the whole project: everything blocks again

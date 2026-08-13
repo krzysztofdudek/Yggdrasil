@@ -18,6 +18,7 @@ import { computeSourceFingerprint, FileUnreadableError } from './pairs.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { verifyLock } from './verify-lock.js';
 import { computeLogBaselineFromContent, readLogContent } from './log/log-gate.js';
+import { progressivePairKey } from './progressive-scope.js';
 import { validateAppendOnly } from './log-integrity.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { logGateBlocksNode } from './log/log-gate.js';
@@ -46,11 +47,40 @@ import { logGateBlocksNode } from './log/log-gate.js';
  *       it produced zero unverified pairs and step 4 never saw it), AND a drifted
  *       log_required node with ZERO enforced pairs (which must NOT vacuously
  *       close without a fresh entry), AND
- *   (c) every ENFORCED effective pair of the node is approved AGAINST CURRENT
- *       INPUTS — i.e. its post-fill verifyLock state is `verified` (a valid entry
- *       carrying an approved token). A pair that is merely stored-`approved` but
- *       is currently `unverified` (inputs changed, not re-verified this run),
- *       `refused`, or `prompt-too-large` does NOT count.
+ *   (c) every ENFORCED effective pair of the node is SETTLED — approved AGAINST
+ *       CURRENT INPUTS (its post-fill verifyLock state is `verified`, a valid
+ *       entry carrying an approved token), or one this run was deliberately told
+ *       not to buy (`outsideScopePairKeys`, see below). A pair that is merely
+ *       stored-`approved` but is currently `unverified` for any OTHER reason
+ *       (inputs changed and it was not re-verified, an infrastructure
+ *       disposition), or that is `refused` or `prompt-too-large`, does NOT count.
+ *
+ * ── (c)'s one carve-out, and the hole it closes ────────────────────────────
+ * A run measured against a change deliberately leaves the reviewer work the
+ * change is not accountable for. Those pairs stay unverified, which without this
+ * carve-out keeps the node's cycle open FOREVER — and an open cycle is exactly
+ * what lets ONE justification entry answer for edit after edit: the gate asks
+ * whether any entry is newer than the last baselined one, so an entry written
+ * for an edit that is now history keeps satisfying it, and a later, entirely
+ * unexplained edit gets recorded over. On a scoped run that is not a rare state,
+ * it is the normal one — every component whose reviewed rules the change did not
+ * reach — so the gate would be disarmed almost everywhere.
+ *
+ * The carve-out is deliberately the NARROWEST thing that closes it: a pair that
+ * is red (`refused`), that failed to fill, or that is unverified for any reason
+ * other than "we were told not to buy it" still holds the cycle open. That is
+ * what preserves the standing promise that ONE entry covers a whole cycle,
+ * including a code edit that fails its check and is then fixed — the fix is the
+ * same cycle, and a refusal is the run's own answer, not a purchase it declined.
+ * With no change scope in force the set is empty and this reads exactly as it
+ * always did.
+ *
+ * What the recorded fingerprint attests is correspondingly narrowed for such a
+ * node, and only for it: every enforced rule this run was asked to settle saw
+ * these bytes. The rules it was told to leave alone are still `unverified` and
+ * still reported that way, so nothing about the node can read as a stale green
+ * (portal/api/freshness.ts's reading — a node whose pairs are ALL valid while
+ * its bytes moved — is untouched, since such a node has no unbought pair).
  *
  * INVARIANT: the closure decision NEVER reads lock.verdicts[...].verdict
  * directly. Fresh validity is sourced from a single post-fill verifyLock pass —
@@ -71,6 +101,9 @@ export async function applyPositiveClosure(
   blockedNodes: Set<string>,
   persistLock: () => Promise<void>,
   typeCoverage?: TypeCoverageInput,
+  /** Pair keys this run deliberately did not buy — see (c)'s carve-out. Empty
+   *  (the default) for any run that answers for the whole project. */
+  outsideScopePairKeys: ReadonlySet<string> = new Set(),
 ): Promise<void> {
   // Single post-fill verification pass: the authoritative per-pair validity for
   // THIS run, computed against the freshly-written lock. This is the ONLY source
@@ -133,14 +166,20 @@ export async function applyPositiveClosure(
     // a drifted log_required node with zero enforced pairs (no vacuous close).
     if (await logGateBlocksNode(graph, projectRoot, node, lock)) continue;
 
-    // (c) Every ENFORCED effective pair must be FRESHLY verified-approved this
-    // run (state.kind === 'verified'); stored-approved-but-unverified does NOT
-    // count. Advisory refusals are not enforced pairs and never block closure.
+    // (c) Every ENFORCED effective pair must be SETTLED: freshly verified-approved
+    // this run (state.kind === 'verified'), or unverified ONLY because this run was
+    // told not to buy it. Stored-approved-but-unverified does NOT count, and neither
+    // does a refusal or any other unverified disposition. Advisory refusals are not
+    // enforced pairs and never block closure.
     const nodePairs = byNode.get(nodePath) ?? [];
-    const allEnforcedApproved = nodePairs
+    const allEnforcedSettled = nodePairs
       .filter((vp) => vp.pair.status === 'enforced')
-      .every((vp) => vp.state.kind === 'verified');
-    if (!allEnforcedApproved) continue; // a red/unverified enforced pair keeps the cycle open
+      .every((vp) =>
+        vp.state.kind === 'verified' ||
+        (vp.state.kind === 'unverified' &&
+          outsideScopePairKeys.has(progressivePairKey(vp.pair.aspectId, vp.pair.unitKey))),
+      );
+    if (!allEnforcedSettled) continue; // a red/unbought-for-another-reason pair keeps the cycle open
 
     const entry = lock.nodes[nodePath] ?? {};
     entry.source = currentFingerprint;

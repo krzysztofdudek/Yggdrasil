@@ -57,10 +57,12 @@ progressive:                      # optional — names the branch your changes a
                                   # listed and still counted — as a warning that does not fail the build,
                                   # never hidden — and the header says how much of it there is.
                                   # \`yg check --full\` answers for the whole project instead: everything
-                                  # blocks again, whatever your change touched. So does any run that
-                                  # RECORDS verdicts (\`--approve\`, or a bare run under auto_approve),
-                                  # which says so on stderr — measuring narrows what blocks, not what
-                                  # gets reviewed.
+                                  # blocks again, whatever your change touched.
+                                  # A run that RECORDS verdicts (\`--approve\`, or a bare run under
+                                  # auto_approve) is measured the same way, and reviews only the rules your
+                                  # change is accountable for; it names how many it left, and
+                                  # \`yg check --full --approve\` reviews those. Checks that run locally
+                                  # cover the whole project either way, since they cost nothing.
                                   # The block accepts only \`reference\`, and it must be a non-blank string —
                                   # a misspelling or a blank value is refused rather than silently ignored,
                                   # since either would leave you believing this was on when it was not.

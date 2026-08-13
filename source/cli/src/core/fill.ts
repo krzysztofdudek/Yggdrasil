@@ -213,7 +213,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   );
   const {
     verification, unverifiedPairs, detPairs, llmPairs, skippedLlmPairs, skippedOutsideLlmPairs,
-    aspectById, deterministicAspectIds, detAspectIdsOnDisk, nodeSet,
+    skippedOutsideLlmPairKeys, aspectById, deterministicAspectIds, detAspectIdsOnDisk, nodeSet,
     reportNodeSet, reportFileSet, reviewerCallBudget,
   } = classification;
 
@@ -379,7 +379,15 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // Skipped under --only-deterministic: closure records source + log baseline to the
   // COMMITTED logs file, which a deterministic-only / CI run must never write.
   if (!onlyDeterministic) {
-    await applyPositiveClosure(graph, projectRoot, lock, blockedNodes, writer.persistLock, typeCoverageInput);
+    // The skipped set is what lets closure tell a pair this run was told not to
+    // buy from one that is unverified because something went wrong. Without it a
+    // scoped run would leave every such component's cycle open forever, and an
+    // open cycle lets ONE justification entry answer for every later edit — see
+    // applyPositiveClosure's own note on (c).
+    await applyPositiveClosure(
+      graph, projectRoot, lock, blockedNodes, writer.persistLock, typeCoverageInput,
+      skippedOutsideLlmPairKeys,
+    );
   }
 
   // ── Step 8: GC + canonical rewrite (§3.2). ────────────────────────────────

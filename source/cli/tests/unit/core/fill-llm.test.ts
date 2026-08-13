@@ -244,6 +244,40 @@ describe('header + summary strings (exact)', () => {
     );
   });
 
+  // The free-only run's header, pinned in BOTH directions: it counts what the run
+  // will actually fill, and it says out loud what it is deliberately not doing.
+  // Quoting the reviewer work it has no intention of buying would read as a bill.
+  it('counts only what a deterministic-only run fills, and names the review it skips', async () => {
+    const { projectRoot } = await setupProject({
+      aspects: [
+        { id: 'det-a', kind: 'deterministic', status: 'enforced', rule: DET_PASS },
+        { id: 'llm-a', kind: 'llm', status: 'enforced', rule: 'rule a' },
+      ],
+    });
+    const graph = await loadGraph(projectRoot);
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider());
+    const w = makeWriter();
+
+    await runFill(graph, {
+      coverageVisibleFiles: null, onlyDeterministic: true, write: w.write, emitIssue: w.emitIssue,
+    });
+
+    // One pair will be filled — not the two that are unverified.
+    expect(w.text()).toContain(
+      'Filling 1 unverified pairs across 1 nodes — 1 deterministic (no cost), 0 reviewer calls (consensus included)',
+    );
+    expect(w.text()).toContain(
+      'Deterministic-only mode — 1 LLM pair will NOT be reviewed this run; run `yg check --approve` to review it.',
+    );
+    // …and the closing summary never claims every pair holds a valid verdict.
+    expect(w.text()).toContain(
+      '0 reviewer calls made — deterministic-only mode; 1 LLM pair left unverified.',
+    );
+    expect(w.text()).not.toContain('all expected pairs hold valid verdicts');
+    // No reviewer was constructed at all — the count above is not merely unspent.
+    expect(mockCreateLlmProvider).not.toHaveBeenCalled();
+  });
+
   it('prints the exact zero-calls summary when nothing is unverified', async () => {
     const { projectRoot } = await setupProject({
       aspects: [{ id: 'det-a', kind: 'deterministic', status: 'enforced', rule: DET_PASS }],
