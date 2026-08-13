@@ -86,20 +86,26 @@ with \`--aspect\` or plain \`yg check\`.
 
 A project can name a branch that changes are measured against (the
 \`progressive\` block — see \`yg schemas read config\`). When it does, \`yg check\`
-prints one extra line above its report: how many of the findings the current
-change is accountable for, out of how many there are, and how many were already
-there beforehand.
+blocks only on what the current change is accountable for; everything it
+inherited from that branch is still listed and still counted, as a warning that
+does not fail the build. The header says how much sits outside the change and
+what it was measured against.
 
 \`\`\`bash
-yg check --full            # report the whole project, without that line
+yg check --full            # answer for the whole project: everything blocks again
 \`\`\`
 
 Unlike the views above this one is NOT a triage view: it hides no finding, and
-it combines freely with \`--approve\` and with any other flag. Today it changes
-nothing else either — the findings, their severities and the exit code are the
-same with or without it, on every project. The extra line is informational: it
-never means a finding is someone else's problem, and it is never a reason to
-leave one unfixed.
+it combines freely with \`--approve\` and with any other flag. It only ever
+tightens the gate — it can turn an inherited finding back into a blocking one,
+never the reverse. On a project that names no branch there is nothing to measure
+against, so every run already answers for the whole project and this flag
+changes nothing at all.
+
+An inherited finding is a finding, not someone else's problem: it is
+non-blocking because this change did not cause it, never because it stopped
+mattering. Do not silence one, and do not clear a pile of them under cover of an
+unrelated change — \`yg check --full\` is how you look at all of it deliberately.
 
 ### Silent structural-deviation index (attention only)
 

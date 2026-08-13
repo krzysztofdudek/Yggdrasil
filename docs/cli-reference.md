@@ -209,16 +209,22 @@ yg check --full
 ```
 
 A project can name a branch to measure changes against (the `progressive` block
-in `yg schemas read config`). When it does, `yg check` prints one extra line
-above its report: how many of the findings your current change is accountable
-for, out of how many there are, and how many were already there before you
-started. `--full` asks for the whole project instead and leaves that line out.
+in `yg schemas read config`). When it does, `yg check` blocks only on what your
+change is accountable for; anything it inherited from that branch is still
+listed and still counted, as a warning that does not fail the build. The header
+says how much sits outside your change and what it was measured against.
+
+`--full` answers for the whole project instead: every finding blocks again,
+whatever your change touched. Reach for it on the integration leg of CI, for an
+audit, or any time you want the report read plainly with no reference to what
+you happen to be working on. It only ever tightens the gate — it can turn an
+inherited finding back into a blocking one, never the reverse — so it is always
+safe to add.
 
 It is not a triage view: it hides no finding, and it combines freely with
-`--approve` and with any of the flags above. Today it changes nothing else —
-the findings, their severities and the exit code are identical with or without
-it, on every project. Reach for it when you want the report read plainly, with
-no reference to what you happen to be working on.
+`--approve` and with any of the flags above. On a project that names no branch
+there is nothing to measure against, so every run already answers for the whole
+project and `--full` changes nothing at all.
 
 **Precedence:** explicit CLI flags (`--approve`, `--no-approve`,
 `--only-deterministic`) override `auto_approve` in `yg-config.yaml`. The config

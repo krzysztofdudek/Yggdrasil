@@ -1016,3 +1016,43 @@ describe('type-visibility block — a run that watched the disposition happen na
     expect(out).not.toMatch(/component context.*validates-input/);
   });
 });
+
+// ── Change-scope segment ──────────────────────────────────────────────────────
+
+/**
+ * The header's account of a run that measured a change against a reference
+ * branch. Three shapes, and the third is the one the feature-off guarantee
+ * rests on: a run that measured nothing says nothing, rather than printing a
+ * zero, so a project that never opted in reads exactly as it always did.
+ */
+describe('check render — header change-scope segment', () => {
+  const measured = (over: Partial<CheckResult>): CheckResult => ({ ...baseResult([]), ...over });
+
+  it('names the reference and the size of the change it measured', () => {
+    const out = stripAnsi(formatOutput(measured({
+      outsideCount: 3,
+      progressiveReference: 'origin/main',
+      changedInputCount: 2,
+    }), { kind: 'full' }));
+    expect(out.split('\n')[0]).toContain('3 obligations outside your changes vs origin/main (2 changed inputs)');
+  });
+
+  it('says nothing is in scope for a checkout carrying no change at all', () => {
+    // Deliberately NOT "0 changed inputs": that reads as "this run proved
+    // nothing", when what it proved is that everything it found was already
+    // there.
+    const out = stripAnsi(formatOutput(measured({
+      outsideCount: 1,
+      progressiveReference: 'main',
+      changedInputCount: 0,
+    }), { kind: 'full' }));
+    expect(out.split('\n')[0]).toContain('nothing in scope; 1 obligation outside your changes vs main');
+    expect(out).not.toContain('changed input');
+  });
+
+  it('is absent entirely when the run measured nothing', () => {
+    const out = stripAnsi(formatOutput(baseResult([]), { kind: 'full' }));
+    expect(out).not.toContain('outside your changes');
+    expect(out).not.toContain('nothing in scope');
+  });
+});

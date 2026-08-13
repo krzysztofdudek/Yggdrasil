@@ -15,6 +15,11 @@
  * un-replayable.
  *
  * ── The one invariant every branch below protects ───────────────────────
+ * Ordering note: among the fallback rows, order decides only WHICH
+ * explanation a person is given (every one of them gates the whole graph),
+ * so they run most-upstream-cause first — see the block comment on those
+ * rows for the one case where that distinction was got wrong and fixed.
+ *
  * `honest-empty` is the ONLY quiet-green outcome — the run reports nothing
  * in scope and exits clean. Reaching it on a guess rather than a proof is
  * exactly the silent-green hole this state machine exists to close: a rule
@@ -132,26 +137,25 @@ export function resolveProgressiveState(p: PreflightProbes): ProgressiveState {
 
   // 3. Fallback causes — checked before anything that could look clean or
   //    scoped, because a probe that failed outright must win over a probe
-  //    that merely happened to read as empty. The four causes below are
-  //    checked most-upstream-fact first: a `null` touched set undermines
-  //    everything else this function could say, an unresolved merge-base
-  //    undermines the ancestry/tree-identity probes that depend on it, and
-  //    so on, so when more than one cause fires at once, the first one
-  //    listed here is the one reported.
+  //    that merely happened to read as empty. Every cause below produces the
+  //    SAME outcome (gate everything), so their order decides one thing only:
+  //    which explanation the person is given when more than one fires at
+  //    once. They are therefore listed most-upstream-CAUSE first, so the
+  //    explanation names the thing that has to be fixed rather than one of
+  //    its symptoms.
+  //
+  //    ORDER CORRECTION, and the reason it is written down: the merge-base
+  //    row used to sit BELOW the touched-set row. The two always fire
+  //    together — the changed-file set is enumerated AGAINST the merge base,
+  //    so a caller with no merge base has no diff to report either — which
+  //    made the touched-set row absorb every unresolved-reference run and
+  //    report "the diff could not be read (git status/diff failed)" for a
+  //    reference that simply does not exist here. That reads as a broken git
+  //    and names no fix, while the three merge-base explanations below name a
+  //    different, concrete one each; the shallow-clone case (the common CI
+  //    checkout) was unreachable in practice as a result.
 
-  // 3a. Without a touched set, nothing later in this ladder can be trusted:
-  //     `scoped` would gate on a guessed diff and `honest-empty` would call
-  //     that guess proof. A caller that cannot enumerate the diff has
-  //     nothing safer to do than gate everything.
-  if (p.touched === null) {
-    return {
-      mode: 'global-fallback',
-      reason:
-        'the changed-files diff against the configured reference could not be read (git status/diff failed), so there is no touched set to scope against.',
-    };
-  }
-
-  // 3b. No merge-base means there is no stable point to diff against at
+  // 3a. No merge-base means there is no stable point to diff against at
   //     all. `shallow` disambiguates WHY into three genuinely different
   //     fixes, so the caller rendering this reason can name one instead of shrugging:
   //     - a confirmed shallow clone (`shallow === true`) means the common
@@ -184,6 +188,19 @@ export function resolveProgressiveState(p: PreflightProbes): ProgressiveState {
       mode: 'global-fallback',
       reason:
         'no merge-base with the configured reference could be found, even though this is a full (non-shallow) clone — the configured reference likely does not exist or was never fetched. Check progressive.reference in yg-config.yaml.',
+    };
+  }
+
+  // 3b. With a merge base but no touched set, the diff itself is what failed:
+  //     nothing later in this ladder can be trusted, since `scoped` would gate
+  //     on a guessed diff and `honest-empty` would call that guess proof. A
+  //     caller that cannot enumerate the diff has nothing safer to do than
+  //     gate everything.
+  if (p.touched === null) {
+    return {
+      mode: 'global-fallback',
+      reason:
+        'the changed-files diff against the configured reference could not be read (git status/diff failed), so there is no touched set to scope against.',
     };
   }
 

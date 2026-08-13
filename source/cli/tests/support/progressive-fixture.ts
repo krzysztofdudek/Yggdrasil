@@ -17,6 +17,12 @@
 //   through the COMMITTED half of a diff against the reference while the work
 //   tree stays clean.
 //
+//   Two options shape the harder scenarios: `logRequired` turns on the type's
+//   mandatory-log requirement, and `alphaRelatesToBeta` makes `alpha` declare a
+//   relation to `beta`. Together they let a test edit BETA's declaration and
+//   watch that reach alpha — a component being re-gated without one of its own
+//   files being touched.
+//
 //   Every git operation goes through `tests/support/git-fixture.ts`, so it is
 //   pinned to the fixture directory and can never reach this repository's real
 //   `.git` — see that module for why that matters inside the pre-commit gate.
@@ -48,6 +54,24 @@ export interface ProgressiveFixtureOptions {
    * reference keeps the branch's diff to what the test actually wants to vary.
    */
   progressiveReference?: string;
+  /**
+   * Turn ON the type's mandatory-log requirement, so a component whose source
+   * moved past the entry its log records is refused until a fresh entry exists.
+   *
+   * Off by default, and it has to stay that way for every other scenario: with
+   * it on, a component that has never recorded an entry blocks the whole
+   * verdict-filling step, so a fixture using it must add an entry per component
+   * BEFORE the first fill.
+   */
+  logRequired?: boolean;
+  /**
+   * Have `alpha` declare a relation to `beta`. Nothing in the source imports
+   * anything, so the declaration is inert to every rule here — its only purpose
+   * is to give a change to BETA's declaration a documented way to reach alpha,
+   * which is how a component can be re-gated without its own files being
+   * touched at all.
+   */
+  alphaRelatesToBeta?: boolean;
 }
 
 export interface ProgressiveFixture {
@@ -57,21 +81,33 @@ export interface ProgressiveFixture {
   reference: string;
   /** Write `relPath` and commit it on whatever branch is currently checked out. */
   commit(relPath: string, content: string): void;
+  /**
+   * Commit everything currently in the work tree, gitignored files included, on
+   * whatever branch is checked out — for the files a CLI run produced rather
+   * than the test (a log entry, the committed halves of the verdict record).
+   */
+  commitAll(message: string): void;
+  /** Check out an existing branch (or the reference) without touching any file. */
+  checkout(branch: string): void;
   /** Cut `branch` off the reference, then write and commit `relPath`. */
   branchWithEdit(branch: string, relPath: string, content: string): void;
+  /** The declaration file of one component, with `description` substituted in. */
+  nodeDeclaration(dir: string, description: string): string;
   /** Remove the temp directory. Safe to call twice. */
   cleanup(): void;
 }
 
-const ARCHITECTURE = `node_types:
+function architecture(logRequired: boolean): string {
+  return `node_types:
   service:
     description: 'Discrete service unit'
-    log_required: false
+    log_required: ${logRequired ? 'true' : 'false'}
     when:
       path: "**"
     aspects:
       - no-todo-comments
 `;
+}
 
 /**
  * Language-agnostic content scan, no AST import — the fixture stays runnable
@@ -120,15 +156,20 @@ const YGG_GITIGNORE = `yg-secrets.yaml
 *.tmp
 `;
 
-function nodeYaml(name: string, dir: string): string {
+function nodeYaml(name: string, dir: string, description: string, relations: string[]): string {
   return `name: ${name}
 type: service
-description: "The ${dir} service — one file, one rule, nothing else."
+description: "${description}"
 aspects: []
-relations: []
+relations: [${relations.join(', ')}]
 mapping:
   - src/${dir}/
 `;
+}
+
+/** The description each component's declaration ships with on the first commit. */
+function defaultDescription(dir: string): string {
+  return `The ${dir} service — one file, one rule, nothing else.`;
 }
 
 function configYaml(progressiveReference: string | undefined): string {
@@ -177,13 +218,17 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
   mkdirSync(path.join(dir, 'src', 'alpha'), { recursive: true });
   mkdirSync(path.join(dir, 'src', 'beta'), { recursive: true });
 
-  writeFileSync(path.join(ygg, 'yg-architecture.yaml'), ARCHITECTURE, 'utf-8');
+  const alphaRelations = opts.alphaRelatesToBeta === true ? ['{ target: beta, type: uses }'] : [];
+  const nodeDeclaration = (dir: string, description: string): string =>
+    nodeYaml(dir === 'alpha' ? 'Alpha' : 'Beta', dir, description, dir === 'alpha' ? alphaRelations : []);
+
+  writeFileSync(path.join(ygg, 'yg-architecture.yaml'), architecture(opts.logRequired === true), 'utf-8');
   writeFileSync(path.join(ygg, 'yg-config.yaml'), configYaml(opts.progressiveReference), 'utf-8');
   writeFileSync(path.join(ygg, '.gitignore'), YGG_GITIGNORE, 'utf-8');
   writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'yg-aspect.yaml'), ASPECT_YAML, 'utf-8');
   writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'check.mjs'), CHECK_MJS, 'utf-8');
-  writeFileSync(path.join(ygg, 'model', 'alpha', 'yg-node.yaml'), nodeYaml('Alpha', 'alpha'), 'utf-8');
-  writeFileSync(path.join(ygg, 'model', 'beta', 'yg-node.yaml'), nodeYaml('Beta', 'beta'), 'utf-8');
+  writeFileSync(path.join(ygg, 'model', 'alpha', 'yg-node.yaml'), nodeDeclaration('alpha', defaultDescription('alpha')), 'utf-8');
+  writeFileSync(path.join(ygg, 'model', 'beta', 'yg-node.yaml'), nodeDeclaration('beta', defaultDescription('beta')), 'utf-8');
 
   writeFileSync(path.join(dir, 'src', 'alpha', 'alpha.ts'), 'export const alpha = 1;\n', 'utf-8');
   // The one pre-existing failure: refused on the reference branch, and never
@@ -213,6 +258,18 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
     dir,
     reference: REFERENCE_BRANCH,
     commit,
+    nodeDeclaration,
+    commitAll(message: string): void {
+      // Deliberately NOT forced, unlike `commit` above: this one sweeps the whole
+      // work tree, and the local caches a CLI run leaves behind are gitignored
+      // precisely because committing them would make every later run dirty the
+      // tree — which is exactly the state several progressive rows are about.
+      git(dir, ['add', '-A']);
+      git(dir, ['commit', '-qm', message]);
+    },
+    checkout(branch: string): void {
+      git(dir, ['checkout', '-q', branch]);
+    },
     branchWithEdit(branch: string, relPath: string, content: string): void {
       git(dir, ['checkout', '-q', '-b', branch, REFERENCE_BRANCH]);
       commit(relPath, content);

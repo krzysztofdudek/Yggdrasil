@@ -1,34 +1,30 @@
 /**
- * source/cli/src/cli/progressive-view.ts — the read-only progressive VIEW line
- * for `yg check`: how much of this run's issue set the current change is
- * accountable for, measured against the committed reference branch named in
- * `yg-config.yaml`.
+ * source/cli/src/cli/progressive-scope-resolve.ts — resolve the CHANGE SCOPE a
+ * `yg check` run gates against: which of this run's obligations the current
+ * change is accountable for, measured against the reference branch the project
+ * names in `yg-config.yaml`.
  *
- * ── What this is NOT ────────────────────────────────────────────────────────
- * It is not a gate. Nothing here changes a severity, an issue code, an issue's
- * membership in the report, or the exit code. It reads the result the command
- * already computed and prints ONE sentence above it. That is deliberate, and
- * the sentence says so itself: the numbers exist so the split can be measured
- * on real repositories before anything is allowed to act on it.
+ * ── What this module does and does not decide ───────────────────────────────
+ * It answers exactly one question — "what did this change reach?" — and hands
+ * the answer to the engine as plain data. It does NOT decide what any single
+ * finding's severity becomes: that is one ladder, in core/check-progressive.ts,
+ * and it is deliberately the only one. This module once carried a second,
+ * simplified copy of that ladder for an informational preview line; the two
+ * could disagree about the same finding, so the preview and its copy are gone.
+ * Nothing here reads a finding at all.
  *
  * ── The guarantee that outranks everything else here ────────────────────────
  * With no reference configured, this module must be indistinguishable from not
- * existing: no git process, no file read, no output, no cost. That is why
- * {@link buildProgressiveViewLine} asks the preflight table whether there is
- * anything to do at all BEFORE any probe runs, and why every failure inside it
- * is caught and turned into "print nothing". An informational line must never
- * be able to fail a build.
+ * existing: no git process, no file read, no output, no cost, and above all no
+ * change to what the run gates. That is why {@link resolveChangeScope} asks the
+ * preflight table whether there is anything to do at all BEFORE any probe runs.
  *
- * ── Why the classification below is deliberately conservative ───────────────
- * An issue is reported OUTSIDE only when it can be positively attributed to
- * something the change did not reach. Anything this module cannot attribute —
- * an issue with no pair, component or file identity on it, or one naming a pair
- * this module's own enumeration never saw — counts as IN SCOPE. Over-counting
- * makes the measurement pessimistic; under-counting would claim a real finding
- * is none of the change's business, which is the one direction that must never
- * happen, even in a view. The emission-site identity work that lets several
- * repo-level findings be attributed precisely is separate, later work; until it
- * lands, those findings simply read as in scope.
+ * ── Which way every uncertainty falls ───────────────────────────────────────
+ * Toward gating MORE. A state this module cannot resolve honestly does not
+ * quietly become an empty scope — an empty scope is the positive claim "this
+ * change reached nothing", which would downgrade every finding in the report.
+ * It becomes the whole-project gate plus a notice naming the cause, which is
+ * the same answer `yg check` gave before progressive mode existed.
  */
 
 import path from 'node:path';
@@ -37,8 +33,8 @@ import { readFile } from 'node:fs/promises';
 
 import type { Graph } from '../model/graph.js';
 import { LOCK_NONDET_FILE_NAME } from '../model/lock.js';
-import type { CheckIssue } from '../core/check-contract.js';
-import { computeExpectedPairs, type ExpectedPair, type TypeCoverageInput } from '../core/pairs.js';
+import type { IssueMessage } from '../model/validation.js';
+import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check-coverage-scan.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import {
@@ -71,137 +67,47 @@ const YGG_DIR = '.yggdrasil';
 const CONFIG_FILE = `${YGG_DIR}/yg-config.yaml`;
 const COMMITTED_LOCK_FILE = `${YGG_DIR}/${LOCK_NONDET_FILE_NAME}`;
 
-/** Unit-key prefix for a pair whose unit IS one file (`model/lock.ts`'s `fileUnit`). */
-const FILE_UNIT_PREFIX = 'file:';
-
-export interface ProgressiveViewInput {
+export interface ChangeScopeInput {
   graph: Graph;
   /** The directory the graph's paths are relative to — and, for a scoped run, the git top level. */
   projectRoot: string;
   /** The disk walk the command already performed, reused for the type-level lattice. */
   coverageVisibleFiles: string[];
-  /** Whether `--full` was passed. */
+  /** Whether the whole project was explicitly demanded on this invocation. */
   fullFlag: boolean;
-  /** The finished report's issue set — the thing being split. */
-  issues: CheckIssue[];
 }
 
 /**
- * The split itself: how many of the run's issues the change is accountable for,
- * and how many were already there and stay untouched by it.
- */
-export interface ProgressiveSplit {
-  inScope: number;
-  outside: number;
-  /**
-   * The change reached something no per-issue attribution can bound (the
-   * architecture, or the vocabulary the configuration gives the graph), so every
-   * issue is in scope by construction. Carried as its own field so the sentence
-   * can say that plainly instead of leaving a reader to infer it from a zero.
-   */
-  global: boolean;
-}
-
-/**
- * Which pair keys this module's OWN enumeration produced. Used only to tell
- * "this pair exists and the change did not reach it" (outside) from "the
- * enumeration never saw this pair at all" (unattributable ⇒ in scope). Without
- * that distinction, a pair the enumeration missed would be silently reported as
- * none of the change's business — exactly the claim this module must never make.
- */
-function knownPairKeys(pairs: ExpectedPair[]): Set<string> {
-  const keys = new Set<string>();
-  for (const pair of pairs) keys.add(progressivePairKey(pair.aspectId, pair.unitKey));
-  return keys;
-}
-
-/** The repo-relative file an issue is about, when its unit key names one. */
-function fileSubjectOf(issue: CheckIssue): string | undefined {
-  if (issue.unitKey !== undefined && issue.unitKey.startsWith(FILE_UNIT_PREFIX)) {
-    return issue.unitKey.slice(FILE_UNIT_PREFIX.length);
-  }
-  return undefined;
-}
-
-/**
- * Is this ONE issue something the change is accountable for?
+ * What the command should gate this run against.
  *
- * A ladder of decreasing precision: each branch returns a real verdict only
- * where the issue carries an identity the burn set can be probed with, and
- * everything falling through the bottom is unattributable and counts as in
- * scope, per this module's conservative direction.
+ * `whole-project` and `unmeasurable` produce the SAME gate — every obligation
+ * blocks, exactly as before progressive mode existed. They are separate cases
+ * because only one of them owes the person an explanation: "you never asked for
+ * a measurement" and "you asked and it could not be made" are different
+ * situations, and collapsing them would either explain a run nobody asked
+ * anything of, or silently swallow the reason a configured project's run was
+ * not scoped.
  */
-function issueIsInScope(issue: CheckIssue, graph: Graph, burn: BurnSet, known: Set<string>): boolean {
-  // 1. A pair-derived finding names its pair exactly. If this module's own
-  //    enumeration never produced that pair, it cannot speak to it at all.
-  if (issue.aspectId !== undefined && issue.unitKey !== undefined) {
-    const key = progressivePairKey(issue.aspectId, issue.unitKey);
-    if (burn.pairKeys.has(key)) return true;
-    return !known.has(key);
-  }
-
-  // 2. A component-keyed finding. `nodePath` is trusted only when it really is
-  //    a component: several finding kinds put a synthetic label there (a rule's
-  //    id dressed as a path), and probing the burn set with one would answer
-  //    "outside" about something that was never a component to begin with.
-  if (issue.nodePath !== undefined && graph.nodes.has(issue.nodePath)) {
-    if (burn.nodePaths.has(issue.nodePath)) return true;
-    // A component's log is its own channel: writing a log entry re-gates that
-    // log and nothing else, so a log finding is the change's business for that
-    // edit even though nothing else about the component moved.
-    return burn.logOnlyNodePaths.has(issue.nodePath);
-  }
-
-  // 3. A per-file finding that named its file through the unit key.
-  const file = fileSubjectOf(issue);
-  if (file !== undefined) return burn.files.has(file);
-
-  // 4. A coverage finding carrying a whole list of files. Any one of them being
-  //    part of the change makes the whole finding the change's business — it is
-  //    one finding and cannot be half-outside.
-  if (issue.uncoveredFiles !== undefined) {
-    return issue.uncoveredFiles.some((f) => burn.files.has(f));
-  }
-
-  // 5. Nothing to attribute it by.
-  return true;
-}
-
-/** Split the run's issues. Pure — every fact it needs is already resolved. */
-export function splitIssuesByScope(
-  issues: CheckIssue[],
-  graph: Graph,
-  burn: BurnSet,
-  pairs: ExpectedPair[],
-): ProgressiveSplit {
-  if (burn.global) return { inScope: issues.length, outside: 0, global: true };
-  const known = knownPairKeys(pairs);
-  let inScope = 0;
-  for (const issue of issues) {
-    if (issueIsInScope(issue, graph, burn, known)) inScope++;
-  }
-  return { inScope, outside: issues.length - inScope, global: false };
-}
+export type ChangeScopeDecision =
+  | { kind: 'whole-project' }
+  | { kind: 'scoped'; burn: BurnSet; referenceName: string }
+  | { kind: 'unmeasurable'; notice: IssueMessage };
 
 /**
- * The sentence. It states a ratio, names the reference it was measured against,
- * and says plainly that nothing about the build changed because of it — a number
- * that looks like a gate but is not one would be worse than no number at all.
- *
- * Deliberately NOT reported here: how many files the change touched. A change
- * can reach rules through inputs that are not themselves counted as changed
- * files, so a file count printed beside this ratio would invite the reading
- * "nothing changed, therefore nothing is in scope", which can be false.
+ * The notice a configured project gets when its change could not be measured.
+ * `cause` is the state machine's own account of WHAT went wrong — it is the
+ * `why`, never the `what`, because the person's first question is about their
+ * build ("what did this run actually gate?"), not about git.
  */
-export function renderProgressiveViewLine(split: ProgressiveSplit, reference: string): string {
-  // The denominator is derived from the split rather than passed alongside it:
-  // the two halves ARE the whole report by construction, and a separately
-  // supplied total is a number that can disagree with them.
-  const total = split.inScope + split.outside;
-  const outside = split.global
-    ? '0 outside; this change reaches the whole graph'
-    : `${split.outside} outside`;
-  return `progressive view: ${split.inScope} of ${total} issue(s) within scope of ${reference} (${outside}) — gate unchanged in this build`;
+function unmeasurable(reference: string, cause: string): ChangeScopeDecision {
+  return {
+    kind: 'unmeasurable',
+    notice: {
+      what: `This change could not be measured against '${reference}', so this run gated the whole project.`,
+      why: cause,
+      next: "Fix the cause above and re-run — or run 'yg check --full' to ask for the whole-project gate on purpose, which gives this same result without this notice.",
+    },
+  };
 }
 
 /**
@@ -209,11 +115,12 @@ export function renderProgressiveViewLine(split: ProgressiveSplit, reference: st
  * committed reviewer lock as it stood there.
  *
  * `null` means "could not be read", and a caller MUST treat that as a reason to
- * print nothing rather than as an empty set. The two are not interchangeable: an
- * empty set is the positive claim "the reference held no verdicts", which
- * switches OFF the check that notices a change deleting verdicts outright. Only
- * ONE situation earns that claim — the file was genuinely not there at the
- * reference — and only because that absence can be proven.
+ * gate the whole project rather than as an empty set. The two are not
+ * interchangeable: an empty set is the positive claim "the reference held no
+ * verdicts", which switches OFF the check that notices a change deleting
+ * verdicts outright. Only ONE situation earns that claim — the file was
+ * genuinely not there at the reference — and only because that absence can be
+ * proven.
  *
  * Proving it takes a second question. Reading the file back EMPTY does not prove
  * it: a path that is absent at the reference and a path that is present there as
@@ -269,6 +176,10 @@ async function readBaseVerdictPairKeys(
   return keys;
 }
 
+/** The cause reported when the record above could not be read. */
+const UNREADABLE_BASE_RECORD =
+  'the verdict record committed at the reference could not be read, so a change that DELETED recorded verdicts cannot be told apart from one that never had them — and the second reads as inherited debt.';
+
 /**
  * Did the part of the configuration that changes what the graph MEANS move
  * between the reference and here? Fails closed: a text that cannot be obtained
@@ -302,11 +213,12 @@ async function didConfigVocabularyMove(projectRoot: string, mergeBase: string): 
  * enumeration had before that tier existed.
  *
  * The statically-resolved import edges are deliberately NOT resolved here: that
- * is a full parse of every mapped source file, and this is one informational
- * line. Their only effect is on rules whose applicability is written in terms of
- * a file's real dependencies; where such a rule exists, its pair may be missing
- * from this enumeration, and the conservative direction (an unknown pair counts
- * as in scope) keeps that a pessimistic count rather than a false "outside".
+ * is a full parse of every mapped source file, and this runs before the check
+ * that will parse them anyway. Their only effect is on rules whose applicability
+ * is written in terms of a file's real dependencies; where such a rule exists,
+ * its pair may be missing from this enumeration, and the conservative direction
+ * (a finding naming an obligation this enumeration never saw keeps blocking)
+ * keeps that a pessimistic gate rather than a false "outside".
  */
 async function resolveTypeCoverage(
   graph: Graph,
@@ -402,21 +314,27 @@ async function probeProgressiveState(
   };
 }
 
-/** The whole measurement, once the reference is known to exist. */
-async function measure(input: ProgressiveViewInput, reference: string): Promise<string | null> {
-  const { graph, projectRoot, coverageVisibleFiles, fullFlag, issues } = input;
+/** The whole measurement, once the reference is known to be configured. */
+async function measure(input: ChangeScopeInput, reference: string): Promise<ChangeScopeDecision> {
+  const { graph, projectRoot, coverageVisibleFiles, fullFlag } = input;
 
   const { probes, mergeBase } = await probeProgressiveState(projectRoot, reference, fullFlag);
   const state = resolveProgressiveState(probes);
-  if (state.mode !== 'scoped' && state.mode !== 'honest-empty') return null;
+  if (state.mode === 'off' || state.mode === 'full') return { kind: 'whole-project' };
+  if (state.mode === 'global-fallback') {
+    return unmeasurable(reference, state.reason ?? 'the state could not be established.');
+  }
   // Both remaining modes have a merge-base and a touched set by construction;
-  // narrowing here keeps that a checked fact rather than an asserted one.
-  if (mergeBase === null || probes.touched === null) return null;
+  // narrowing here keeps that a checked fact rather than an asserted one, and
+  // the impossible case still falls the safe way.
+  if (mergeBase === null || probes.touched === null) {
+    return unmeasurable(reference, 'the reference point and the changed-file set did not both resolve.');
+  }
 
-  // An unreadable committed lock at the reference is NOT an empty one — see
-  // readBaseVerdictPairKeys. Nothing honest can be said without it.
+  // An unreadable committed record at the reference is NOT an empty one — see
+  // readBaseVerdictPairKeys. There is no honest scope without it.
   const baseVerdictPairKeys = await readBaseVerdictPairKeys(projectRoot, mergeBase);
-  if (baseVerdictPairKeys === null) return null;
+  if (baseVerdictPairKeys === null) return unmeasurable(reference, UNREADABLE_BASE_RECORD);
 
   const typeCoverage = await resolveTypeCoverage(graph, coverageVisibleFiles);
   const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
@@ -442,17 +360,19 @@ async function measure(input: ProgressiveViewInput, reference: string): Promise<
     configVocabularyChanged: await didConfigVocabularyMove(projectRoot, mergeBase),
   });
 
-  return renderProgressiveViewLine(splitIssuesByScope(issues, graph, burn, pairs), reference);
+  return { kind: 'scoped', burn, referenceName: reference };
 }
 
 /**
- * The line to print above the report, or `null` when there is nothing honest to
- * say — which covers all of: no reference configured, `--full`, a state the
- * preflight table declines to scope from, and any failure while gathering the
- * inputs. Printing nothing is always a safe outcome: the report and the exit
- * code are produced entirely without this.
+ * What this run should gate against.
+ *
+ * Returns `whole-project` — silently, and without starting a single git process
+ * — for the two states that were never a measurement to begin with: a project
+ * that named no reference, and a run that explicitly asked for the whole
+ * project. Every other outcome is either a real scope or a refusal to guess at
+ * one, and a refusal always carries the notice explaining it.
  */
-export async function buildProgressiveViewLine(input: ProgressiveViewInput): Promise<string | null> {
+export async function resolveChangeScope(input: ChangeScopeInput): Promise<ChangeScopeDecision> {
   const reference = input.graph.config.progressive?.reference;
 
   // The two rows that need no probe at all, answered by the SAME table that
@@ -471,18 +391,20 @@ export async function buildProgressiveViewLine(input: ProgressiveViewInput): Pro
     shallow: null,
     submoduleGitlinkInDiff: false,
   });
-  if (withoutProbes.mode === 'off' || withoutProbes.mode === 'full') return null;
+  if (withoutProbes.mode === 'off' || withoutProbes.mode === 'full') return { kind: 'whole-project' };
 
   try {
     return await measure(input, reference as string);
   } catch (error) {
-    // An informational line must never be able to fail a run. Every anticipated
-    // path already returns null above; this is the backstop for the ones that
-    // cannot be anticipated, and it records what happened rather than
-    // swallowing it silently.
-    debugWrite(
-      `[progressive] view line skipped: ${error instanceof Error ? error.message : String(error)}`,
+    // Every anticipated path already returned above; this is the backstop for
+    // the ones that cannot be anticipated. It falls the same way as all of them
+    // — gate everything, say so — because the alternative (an empty scope) would
+    // turn an unexpected failure into a green build.
+    const detail = error instanceof Error ? error.message : String(error);
+    debugWrite(`[progressive] change scope could not be resolved: ${detail}`);
+    return unmeasurable(
+      reference as string,
+      `working out what this change reached failed unexpectedly (${detail}).`,
     );
-    return null;
   }
 }

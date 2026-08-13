@@ -265,12 +265,25 @@ describe('resolveProgressiveState — scoped', () => {
 });
 
 describe('resolveProgressiveState — ordering: the earliest-listed fallback cause wins', () => {
-  it('touched === null wins over a simultaneous unresolved merge-base', () => {
+  it('an unresolved merge-base wins over a simultaneously unreadable touched set', () => {
+    // These two ALWAYS fire together in practice — the changed-file set is
+    // enumerated against the merge base, so a run with no merge base has no
+    // diff to report either. Reporting the diff first meant every
+    // unresolvable-reference run was explained as a failing `git status/diff`,
+    // which names no fix; the merge-base row names a different concrete one for
+    // each of its three shallow states. The upstream cause has to win.
     const result = resolveProgressiveState({ ...base, touched: null, mergeBase: null, shallow: true });
-    // Whatever the exact wording, it must be the touched-set cause, not the
-    // merge-base/shallow-clone one — proven by NOT mentioning shallow.
     expect(result.mode).toBe('global-fallback');
-    expect(result.reason).not.toMatch(/shallow/i);
+    expect(result.reason).toMatch(/shallow/i);
+  });
+
+  it('still blames the diff itself when the merge base DID resolve', () => {
+    // The other side of that correction: with a merge base in hand, a missing
+    // touched set really is the diff having failed, and must still say so.
+    const result = resolveProgressiveState({ ...base, touched: null });
+    expect(result.mode).toBe('global-fallback');
+    expect(result.reason).toMatch(/diff/i);
+    expect(result.reason).not.toMatch(/merge-base/i);
   });
 
   it('an unresolved merge-base wins over a simultaneous toplevel mismatch', () => {

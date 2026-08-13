@@ -58,7 +58,7 @@ relations:
     { target: cli/relations/core, type: uses },
     { target: cli/tests/fixtures, type: uses },
     { target: cli/progressive-preflight, type: uses },
-    { target: cli/progressive-view, type: uses },
+    { target: cli/progressive-scope-resolve, type: uses },
     { target: cli/core/progressive-scope, type: uses }
   ]
 mapping:
@@ -80,4 +80,4 @@ mapping:
   - source/cli/tests/unit/cli/group-issues.test.ts
   - source/cli/tests/unit/cli/rules-artifacts.test.ts
   - source/cli/tests/unit/cli/progressive-preflight.test.ts
-  - source/cli/tests/unit/cli/progressive-view.test.ts
+  - source/cli/tests/unit/cli/progressive-scope-resolve.test.ts

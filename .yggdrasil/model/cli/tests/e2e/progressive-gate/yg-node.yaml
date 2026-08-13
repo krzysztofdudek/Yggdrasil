@@ -1,0 +1,29 @@
+name: E2E Tests — Progressive Gate
+type: test-suite
+description: "Subprocess E2E for the progressive gate on `yg check`, driven
+  through the real built binary over throwaway git repositories holding a
+  minimal real graph: two components, one deterministic rule, and one refusal
+  recorded on the reference branch that no later change touches. It walks every
+  state the command can land in — a change that violates a rule in a file it
+  touched (blocking); the same violation inherited from the reference while the
+  change goes elsewhere (reported, counted, not blocking); the same branch with
+  the whole project demanded (blocking again); a clean checkout of the reference
+  and a branch that commits and then reverts (both quiet, both reporting nothing
+  in scope rather than reading as a failure to enumerate the change); and a
+  reference that cannot be resolved (whole-project gate plus a notice naming the
+  cause and the fix).
+
+  Three of its cases carry more weight than the rest. A project that never named
+  a reference must be byte-identical to the whole-project gate — asserted as two
+  real runs compared on both streams and the exit code, not as matching exit
+  codes. An unreadable verdict record at the reference must gate everything
+  rather than be measured against an empty one, which would quietly disable the
+  check that notices a change deleting verdicts. And a component reached through
+  ANOTHER component's declaration is re-gated whole, its log included — so a log
+  refusal a project has been carrying starts blocking on a branch that never
+  touched that component's own files. The last is intended behaviour recorded as
+  a test precisely so it is not later mistaken for a defect."
+aspects: []
+relations: [ { target: cli/tests/support, type: uses } ]
+mapping:
+  - source/cli/tests/e2e/cli-progressive-gate.test.ts

@@ -34,7 +34,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
-    // relations — `uses` edges to cli/progressive-preflight, cli/progressive-view
+    // relations — `uses` edges to cli/progressive-preflight, cli/progressive-scope-resolve
     // and cli/core/progressive-scope (whose pair-key helper the view's own unit
     // test builds its expectations with), added alongside those unit tests —
     // taking it to 27 and out ahead of the rest on its own, no tie-break needed.

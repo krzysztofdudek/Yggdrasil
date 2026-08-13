@@ -21,6 +21,35 @@ export const useEmoji: boolean = chalk.level > 0;
 
 // ── Header ─────────────────────────────────────────────────
 
+/**
+ * The header's account of a run that measured a change against a reference
+ * branch: how much of the project's enforced debt this run declined to block
+ * on, and how big the change it measured was.
+ *
+ * Absent — not zeroed — for every run that measured nothing: no reference
+ * configured, the whole project explicitly asked for, or a state that could not
+ * be measured (which gets its own notice instead). That absence is what keeps a
+ * project that never opted in byte-identical to what this command always
+ * printed.
+ *
+ * The two shapes are genuinely different statements, not one sentence with a
+ * zero in it. "Nothing in scope" is the answer for a checkout that carries no
+ * change at all — a reference branch in CI, a clean working copy — where a
+ * count of changed inputs would only invite the reading "0 files, therefore
+ * this run proved nothing". It did prove something: that everything it found
+ * was already there.
+ */
+function renderChangeScope(result: CheckResult): string | undefined {
+  const reference = result.progressiveReference;
+  if (reference === undefined) return undefined;
+  const outside = result.outsideCount ?? 0;
+  const changed = result.changedInputCount ?? 0;
+  const obligations = `${outside} obligation${outside === 1 ? '' : 's'} outside your changes vs ${reference}`;
+  return changed === 0
+    ? `nothing in scope; ${obligations}`
+    : `${obligations} (${changed} changed input${changed === 1 ? '' : 's'})`;
+}
+
 export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji): string {
   let verdict: string;
   if (errorCount > 0) {
@@ -69,6 +98,9 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
   if (result.draftSkipped > 0) {
     metrics.push(`${result.draftSkipped} draft`);
   }
+
+  const changeScope = renderChangeScope(result);
+  if (changeScope !== undefined) metrics.push(changeScope);
 
   return `${emojiPrefix}${verdict}  ${metrics.join(' · ')}`;
 }

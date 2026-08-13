@@ -38,7 +38,7 @@ relations:
     type: calls
   - target: cli/check-render-views
     type: calls
-  - target: cli/progressive-view
+  - target: cli/progressive-scope-resolve
     type: calls
 mapping:
   - source/cli/src/cli/check.ts

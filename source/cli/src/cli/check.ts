@@ -6,7 +6,7 @@ import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog, writeFillDivergence } from '../io/debug-log-writer.js';
 import { runCheck, runAttentionDump } from '../core/check.js';
-import type { CheckIssue, CheckResult } from '../core/check.js';
+import type { CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
@@ -16,7 +16,7 @@ import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from 
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, resolveTopValue } from './check-render-views.js';
-import { buildProgressiveViewLine } from './progressive-view.js';
+import { resolveChangeScope } from './progressive-scope-resolve.js';
 
 /**
  * Resolve the effective approve mode from explicit CLI flags and graph config.
@@ -101,12 +101,12 @@ export function registerCheckCommand(program: Command): void {
     .option('--details', 'Read-only: ungrouped, one block per issue (full per-pair detail). Opposite of the default grouped view.')
     .option('--aspect <id>', "Read-only: drill into one rule — show only that aspect's issues, grouped, with the full per-node detail.")
     .option('-q, --quiet', 'Suppress --approve progress on stderr (only the final report + exit code). No-op with a plain read; with --dry-run the budget preview still prints (--dry-run wins).')
-    // Asks for the whole graph to be answered for, regardless of what the
-    // project measures a change against. Today the report is already the whole
-    // graph, so all this suppresses is the informational line above it — but the
-    // flag is the explicit "prove everything" invocation, and it is registered
-    // now so a CI recipe written against it keeps meaning the same thing later.
-    .option('--full', 'Answer for the whole graph, ignoring any configured reference branch.')
+    // Asks for the whole project to be answered for, regardless of what it
+    // measures a change against — the explicit "prove everything" invocation a
+    // CI integration leg and a maintainer audit both want. It is the ONE flag
+    // that only ever tightens the gate: it can turn an inherited finding back
+    // into a blocking one, never the reverse, so it is safe to hand to anyone.
+    .option('--full', 'Answer for the whole project, ignoring any configured reference branch.')
     // Hidden calibration instrument: print the raw per-file structural measurements grouped by
     // family, with the outliers marked, then exit 0. Writes nothing, makes no LLM calls.
     .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
@@ -125,23 +125,6 @@ export function registerCheckCommand(program: Command): void {
         const repoFiles = await walkRepoFiles(projectRoot);
         // Tracked-file list for the anomaly check below; null (no git) skips it.
         const tracked = listGitTrackedFiles(projectRoot);
-
-        // The read-only progressive measurement, printed immediately above the
-        // report on every path that prints one. It is inert unless the project
-        // committed a reference branch to measure changes against: with none,
-        // it resolves to null before any git process runs, so a project that
-        // never opted in produces byte-identical output and the same exit code
-        // it always did. It never gates anything — see cli/progressive-view.ts.
-        const writeProgressiveView = async (issues: CheckIssue[]): Promise<void> => {
-          const line = await buildProgressiveViewLine({
-            graph,
-            projectRoot,
-            coverageVisibleFiles: repoFiles,
-            fullFlag: opts.full === true,
-            issues,
-          });
-          if (line !== null) process.stdout.write(line + '\n');
-        };
 
         // Hidden calibration instrument. Bypasses the normal report entirely: run the
         // read-only attention dump over warm shards, print it, exit 0. Writes nothing. It is
@@ -407,7 +390,6 @@ export function registerCheckCommand(program: Command): void {
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
             await applyHonestCoverageSplit(fill.checkResult, graph, repoFiles);
-            await writeProgressiveView(fill.checkResult.issues);
             process.stdout.write(formatOutput(fill.checkResult, { kind: 'full' }, autoFilled));
             // A dry-run is a cost preview only — it never writes and must never fail
             // the build for unverified/refused pairs it merely previewed. Exit 0 always.
@@ -446,20 +428,40 @@ export function registerCheckCommand(program: Command): void {
         // (which passes the same flag into its own runCheck) — so both `yg check` and
         // `yg check --approve` keep the index current. Only --dry-run (returns before the
         // fill's report) and the internal fill/portal re-checks stay byproduct-free.
+        // What this run is accountable for. Inert unless the project committed a
+        // reference branch to measure changes against: with none it resolves
+        // before any git process runs, and the run below is byte-for-byte the
+        // one this command always produced. A project that DID name one and
+        // whose change could not be measured gets the same whole-project gate
+        // plus a notice saying so — never a silently empty scope, which would
+        // downgrade every finding in the report.
+        const decision = await resolveChangeScope({
+          graph,
+          projectRoot,
+          coverageVisibleFiles: repoFiles,
+          fullFlag: opts.full === true,
+        });
+        if (decision.kind === 'unmeasurable') {
+          process.stderr.write(chalk.yellow(`Notice: ${buildIssueMessage(decision.notice)}`) + '\n');
+        }
+        const changeScope =
+          decision.kind === 'scoped'
+            ? { burn: decision.burn, referenceName: decision.referenceName }
+            : undefined;
+
         const result = await runCheck(graph, repoFiles, {
           nowUtc: () => new Date(),
           writeFeatureIndex: true,
           now: () => new Date(),
           trackedFiles: tracked,
           rulesArtifacts: await readRulesArtifacts(projectRoot),
-          // No change scope yet: this command still reports on the whole project
-          // and computes the progressive view separately, below, after the read.
-          // Passed explicitly so the day a scope IS computed here, the seam is
-          // already threaded rather than silently absent.
-          changeScope: undefined,
+          // The measurement above, or undefined for a run answering for the
+          // whole project. Absent, every finding keeps the code and severity it
+          // always had; present, a finding this change is not accountable for
+          // becomes its non-blocking counterpart — still named, still counted.
+          changeScope: changeScope,
         });
         await applyHonestCoverageSplit(result, graph, repoFiles);
-        await writeProgressiveView(result.issues);
         process.stdout.write(formatOutput(result, view));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and
