@@ -24,7 +24,10 @@
 //   files being touched. `extraComponents` adds further untouched subjects, and
 //   `reviewedAspect` attaches a second enforced rule that only a reviewer can
 //   settle — the pair of options a scenario about PAID work needs, since the
-//   question there is always "how much of it did this run decide to buy".
+//   question there is always "how much of it did this run decide to buy" — and
+//   its `perFile` flag makes that rule owe one review per file rather than one
+//   per component, which is what lets a scenario put a hidden edit on a file
+//   whose own review is not the one under test.
 //
 //   Every git operation goes through `tests/support/git-fixture.ts`, so it is
 //   pinned to the fixture directory and can never reach this repository's real
@@ -104,7 +107,20 @@ export interface ProgressiveFixtureOptions {
    * until something pays for a review — which is the whole subject of the
    * scoped-fill scenarios.
    */
-  reviewedAspect?: { endpoint: string };
+  reviewedAspect?: {
+    endpoint: string;
+    /**
+     * Judge the rule ONCE PER FILE rather than once per component, so a
+     * component owning several files owes several separate reviews.
+     *
+     * The distinction is invisible to most scenarios and decisive for one: only
+     * a per-file rule can have a review whose OWN subject did not move while a
+     * neighbouring file in the same component did — which is where a scope that
+     * re-admits per rule check and one that re-admits per component stop
+     * agreeing.
+     */
+     perFile?: boolean;
+  };
 }
 
 export interface ProgressiveFixture {
@@ -187,12 +203,14 @@ status: enforced
 `;
 
 /** The reviewer-judged rule `reviewedAspect` installs, and the prose it judges by. */
-const REVIEWED_ASPECT_YAML = `name: HasDocComment
+function reviewedAspectYaml(perFile: boolean): string {
+  return `name: HasDocComment
 description: Every source file must begin with a documentation comment describing the file's purpose.
 reviewer:
   type: llm
 status: enforced
-`;
+${perFile ? 'scope:\n  per: file\n' : ''}`;
+}
 
 const REVIEWED_ASPECT_CONTENT = `Every source file must begin with a comment.
 
@@ -291,7 +309,7 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
   writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'check.mjs'), CHECK_MJS, 'utf-8');
   if (opts.reviewedAspect !== undefined) {
     mkdirSync(path.join(ygg, 'aspects', 'has-doc-comment'), { recursive: true });
-    writeFileSync(path.join(ygg, 'aspects', 'has-doc-comment', 'yg-aspect.yaml'), REVIEWED_ASPECT_YAML, 'utf-8');
+    writeFileSync(path.join(ygg, 'aspects', 'has-doc-comment', 'yg-aspect.yaml'), reviewedAspectYaml(opts.reviewedAspect.perFile === true), 'utf-8');
     writeFileSync(path.join(ygg, 'aspects', 'has-doc-comment', 'content.md'), REVIEWED_ASPECT_CONTENT, 'utf-8');
   }
 

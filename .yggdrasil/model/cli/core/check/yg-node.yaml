@@ -27,7 +27,9 @@ description: "Unified check orchestrator — runs validation, coverage, the
   since a finding keyed by a component or a file carries no rule check at all —
   together with what those files currently contain, so the pure comparer in
   core/progressive-scope.ts can re-admit any whose content contradicts git's own
-  report of what changed, and the single next step a finished check points at.
+  report of what changed (together with the component -> rule-check index that
+  re-admission reads, so re-admitting a component re-admits every check it
+  owns), and the single next step a finished check points at.
   The orchestrator owns the byte cache the verification fills, so the guard
   compares the very bytes each verdict was re-hashed from rather than reading
   the same files again, and reports how many findings the guard kept."

@@ -34,9 +34,13 @@ description: "Unit tests for the change-scope classification step — one case
   states where they do nothing and read nothing — no change scope, no reference
   listing, a scope that already went global — and in the one where the reference
   records ids the build cannot reproduce, which is reported rather than
-  swallowed. Every case runs against real files in a real throwaway directory,
-  since the one thing this half exists to do is the disk read the pure comparer
-  must not."
+  swallowed. Both forms are also checked for the component -> rule-check index
+  they hand the decision, and the per-identity file derivation is tested
+  directly — including the fixed-project-file rung, which no downgradable code
+  reaches today and which is therefore proved here rather than left as an
+  uncovered line. Every case runs against real files in a real throwaway
+  directory, since the one thing this half exists to do is the disk read the
+  pure comparer must not."
 aspects: []
 relations:
   - target: cli/core/check

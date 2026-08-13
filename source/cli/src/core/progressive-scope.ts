@@ -747,6 +747,19 @@ export interface ByteGuardCandidate {
   subjects: ByteGuardSubject[];
 }
 
+/** Everything the decision needs about this run beyond the candidates themselves. */
+export interface ByteGuardEvidence {
+  candidates: readonly ByteGuardCandidate[];
+  /**
+   * Every rule check each component owns — the same index the burn table builds
+   * to burn a component WHOLE when one of its files changes. Re-admitting a
+   * component without it re-admits its node-keyed findings while leaving its
+   * rule checks released, which is a narrower answer than the honest table gives
+   * for the identical file.
+   */
+  pairKeysByNode: ReadonlyMap<string, readonly string[]>;
+}
+
 /**
  * Re-admit every candidate finding whose files disagree with the reference tree
  * — the guard against git being TOLD to lie.
@@ -841,16 +854,17 @@ export interface ByteGuardCandidate {
  * Pure: the ids and the bytes both arrive as plain values. No git, no
  * filesystem, no clock — the caller gathers, this decides.
  *
- * @param scope       the burn table's answer, plus the reference listing to
- *                    check it against (`null` ⇒ skip)
- * @param candidates  the findings eligible for re-admission — the caller
- *                    supplies ONLY the ones that are both blocking and about to
- *                    be set aside, since a passing finding has nothing to keep
- *                    and an in-scope one already blocks
+ * @param scope     the burn table's answer, plus the reference listing to check
+ *                  it against (`null` ⇒ skip)
+ * @param evidence  the findings eligible for re-admission and the component ->
+ *                  rule-check index re-admitting a component reads. The caller
+ *                  supplies ONLY findings that are both blocking and about to be
+ *                  set aside, since a passing finding has nothing to keep and an
+ *                  in-scope one already blocks
  */
 export function forceInScopeOnByteMismatch(
   scope: { burn: BurnSet; blobOidByPath: ReadonlyMap<string, string> | null },
-  candidates: readonly ByteGuardCandidate[],
+  evidence: ByteGuardEvidence,
 ): BurnSet {
   const { burn, blobOidByPath } = scope;
   if (blobOidByPath === null || burn.global) return burn;
@@ -860,13 +874,25 @@ export function forceInScopeOnByteMismatch(
   const forcedPairKeys: string[] = [];
   const forcedFiles: string[] = [];
   const forcedNodes: string[] = [];
-  for (const candidate of candidates) {
+  for (const candidate of evidence.candidates) {
     let moved = false;
     for (const subject of candidate.subjects) {
       if (!subjectMoved(subject, blobOidByPath, digest)) continue;
       moved = true;
       forcedFiles.push(subject.path);
-      if (subject.owner !== undefined) forcedNodes.push(subject.owner);
+      if (subject.owner === undefined) continue;
+      // Re-admit the component WHOLE — its node-keyed findings AND every rule
+      // check it owns — which is exactly what the burn table's own owner row
+      // does for a file git DID report (`burnNode`). Re-admitting only the
+      // candidate's own rule check made this guard's answer strictly narrower
+      // than the burn table's for the same file, and the two halves that read it
+      // then disagreed: the report gathers a component-keyed finding over the
+      // component's whole file set, while the stage that BUYS reviews gathers
+      // per rule check. A hidden edit to a neighbouring file in the same
+      // component therefore blocked in the report and was declined by the very
+      // command the report advised — the same unfixable shape, one layer down.
+      forcedNodes.push(subject.owner);
+      for (const key of evidence.pairKeysByNode.get(subject.owner) ?? []) forcedPairKeys.push(key);
     }
     // Only the files that actually moved are re-admitted, never a candidate's
     // whole subject list: `files` means "changed paths this run accounted for",
@@ -885,6 +911,37 @@ export function forceInScopeOnByteMismatch(
     logOnlyNodePaths: burn.logOnlyNodePaths,
     changedInputCount: files.size,
   };
+}
+
+/**
+ * How many of `candidates` the guard re-admitted, read off the two burn sets it
+ * produced rather than by comparing anything a second time.
+ *
+ * A candidate is forced exactly when one of its subjects moved, and every moved
+ * subject's path is added to `files` — so the paths `after` gained over `before`
+ * ARE the moved ones, and a candidate owning any of them is one this run was
+ * about to release and did not. No candidate can own a moved path that was
+ * already in `before.files`: a candidate is out of scope by construction, and a
+ * path git DID report puts every finding about it back in scope through one rung
+ * or another (its rule check through the subject row, its component through the
+ * owner row, itself through the file and edge rungs).
+ *
+ * Derived this way rather than by tracking which finding OBJECTS survived
+ * classification, because one of them never does: the aggregate coverage finding
+ * is SPLIT into two freshly-built halves rather than handed back, so a run whose
+ * only re-admission was an uncovered file counted nothing and printed no
+ * explanation at all — the one case with no self-diagnosis, which is precisely
+ * what the explanation exists for.
+ */
+export function keptByByteGuard(
+  before: BurnSet,
+  after: BurnSet,
+  candidates: readonly ByteGuardCandidate[],
+): number {
+  if (after === before) return 0;
+  return candidates.filter((c) =>
+    c.subjects.some((s) => after.files.has(s.path) && !before.files.has(s.path)),
+  ).length;
 }
 
 /** Does this one subject's content disagree with what the reference recorded? */

@@ -27,6 +27,15 @@
  * forever, at a measured cost of zero reviewer calls. One widened scope, read by
  * both, is the only shape in which the advice a run gives is advice that works.
  *
+ * "The same" has to mean the same reach, not merely the same mechanism. The
+ * guard re-admits a component WHOLE — every rule check it owns, exactly as the
+ * burn table's owner row does for a file git reported — so a hidden edit to one
+ * file of a component re-admits its neighbours' reviews here as well as in the
+ * report. Without that, this stage was strictly narrower than the report for the
+ * identical file, and the unfixable state came back one layer down: the report
+ * blocked on every review the component owed while this stage bought only the
+ * one whose own file had moved.
+ *
  * ── Two node sets, deliberately ─────────────────────────────────────────────
  * `nodeSet` stays UNFILTERED and feeds the mandatory-log gate, which is
  * all-or-nothing over every component owning an unverified pair. The reported
@@ -171,8 +180,7 @@ export async function classifyFillPairs(
       ? undefined
       : forceInScopeOnByteMismatch(
           changeScope,
-          (await collectPairByteGuardCandidates(changeScope, verification.pairs, projectRoot, byteCache))
-            .candidates,
+          await collectPairByteGuardCandidates(changeScope, verification.pairs, projectRoot, byteCache),
         );
   const inScope = (p: ExpectedPair): boolean =>
     guardedBurn === undefined || pairIsInScope(guardedBurn, p.aspectId, p.unitKey, known);

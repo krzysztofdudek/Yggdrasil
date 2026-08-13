@@ -5,6 +5,7 @@ import path from 'node:path';
 import {
   collectFindingByteGuardCandidates,
   collectPairByteGuardCandidates,
+  filesOfIssue,
 } from '../../../src/core/check-byte-guard.js';
 import { hashGitBlob, progressivePairKey, type BurnSet } from '../../../src/core/progressive-scope.js';
 import type { VerifiedPair, PairState } from '../../../src/core/verify-lock.js';
@@ -435,5 +436,74 @@ describe('collectPairByteGuardCandidates — the fill stage’s half', () => {
     expect(
       (await collectPairByteGuardCandidates(scopeOf(burnOf({ global: true })), pairs, root)).candidates,
     ).toEqual([]);
+  });
+});
+
+describe('the component -> rule-check index both halves hand the decision', () => {
+  it('names every rule check a component owns, so re-admitting it re-admits them all', async () => {
+    const root = await projectWith({ 'src/svc.ts': 'x\n', 'src/helper.ts': 'y\n' });
+    const pairs = [
+      verifiedPair({ kind: 'unverified' }, { unitKey: 'file:src/svc.ts', subjectFiles: ['src/svc.ts'] }),
+      verifiedPair({ kind: 'unverified' }, { unitKey: 'file:src/helper.ts', subjectFiles: ['src/helper.ts'] }),
+      // Nodeless (type-covered): no component owns it, so it belongs to no entry.
+      verifiedPair({ kind: 'unverified' }, { unitKey: 'file:src/loose.ts', nodePath: undefined }),
+    ];
+
+    const fromFindings = await gather({ root, issues: [], pairs });
+    const fromPairs = await collectPairByteGuardCandidates(scopeOf(), pairs, root);
+
+    for (const index of [fromFindings.pairKeysByNode, fromPairs.pairKeysByNode]) {
+      expect(index.get('svc')).toEqual([K('a', 'file:src/svc.ts'), K('a', 'file:src/helper.ts')]);
+      expect([...index.keys()]).toEqual(['svc']);
+    }
+  });
+});
+
+describe('filesOfIssue — the dual of the classification ladder’s rungs', () => {
+  const noNodeFiles = (): string[] => [];
+  const noOutside = (): string[] => [];
+
+  it('names the fixed project files a finding is always about', () => {
+    // Unreachable through the gathering pass today (no fixed-input code is
+    // downgradable), which is exactly why it is proved here directly: a code
+    // admitted to both sets later is attributed by these paths, and a gatherer
+    // that never learned to ask about them would reopen the evasion for it.
+    const files = filesOfIssue(
+      {
+        severity: 'error',
+        code: 'rules-digest-stale',
+        rule: 'rules-digest-stale',
+        messageData: { what: 'w', why: 'y', next: 'n' },
+      },
+      new Map(),
+      noNodeFiles,
+      noOutside,
+    );
+    expect(files).toContain('AGENTS.md');
+    expect(files).toContain('CLAUDE.md');
+  });
+
+  it('names nothing for a finding carrying no identity it could ask about', () => {
+    expect(
+      filesOfIssue(
+        { severity: 'error', code: 'unverified', rule: 'unverified', messageData: { what: 'w', why: 'y', next: 'n' } },
+        new Map(),
+        noNodeFiles,
+        noOutside,
+      ),
+    ).toEqual([]);
+  });
+
+  it('unions every identity a finding happens to carry at once', () => {
+    // A rule-check finding also carries its component, and both are asked about:
+    // over-gathering is safe (a file that did not move re-admits nothing) while
+    // under-gathering is the defect this whole rung set exists to prevent.
+    const files = filesOfIssue(
+      unverified('a', 'node:svc', 'svc'),
+      new Map([[K('a', 'node:svc'), ['src/svc.ts']]]),
+      () => ['src/svc.ts', 'src/helper.ts'],
+      noOutside,
+    );
+    expect(files.sort()).toEqual(['src/helper.ts', 'src/svc.ts']);
   });
 });

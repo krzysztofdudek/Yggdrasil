@@ -323,6 +323,109 @@ describe.skipIf(!distExists)('yg check — the byte guard', () => {
     expect(headerOf(filled.stdout)).toContain('yg check: PASS');
   });
 
+  // ── The same divergence, one layer down ───────────────────────────────────
+  //
+  // The report asks about a finding's whole COMPONENT; the stage that buys
+  // reviews once asked only about each rule check's OWN subject files. So when
+  // the hidden edit lands on a NEIGHBOURING file of the same component, the
+  // report blocked on every review that component owes while the advised command
+  // bought only the one whose own file moved — the identical unfixable shape as
+  // the last round's, just narrower. Both halves now re-admit a component whole,
+  // exactly as the honest measurement does for a file git reported.
+  describe('a hidden edit on a neighbouring file of the same component', () => {
+    /**
+     * `alpha` owns two files and owes ONE review per file, and NEITHER has been
+     * reviewed yet. That second part is what makes the case: a review whose own
+     * file never moves is still outstanding, so the report has something to
+     * block on that the narrow gathering would never have offered to buy.
+     */
+    async function perFileProject(label: string): Promise<{ fixture: ProgressiveFixture; mock: MockReviewer }> {
+      const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'mock-approve' }) });
+      mocks.push(mock);
+      const fixture = createProgressiveFixture({
+        label,
+        progressiveReference: 'main',
+        reviewedAspect: { endpoint: mock.endpoint, perFile: true },
+      });
+      fixtures.push(fixture);
+      fixture.commit('src/alpha/helper.ts', '// helper, documented.\nexport const helper = 1;\n');
+      return { fixture, mock };
+    }
+
+    const EDITED_HELPER = '// helper, documented.\nexport const helper = 2;\n';
+
+    it('buys every review the component owes when the edit is visible to git', async () => {
+      // The control, and the definition of correct: an honest commit re-gates
+      // the whole component, so BOTH of its reviews are bought and it passes.
+      const { fixture, mock } = await perFileProject('neighbour-visible');
+      fixture.branchWithEdit('feature', 'src/alpha/helper.ts', EDITED_HELPER);
+
+      const filled = await runAsync(['check', '--approve'], fixture.dir);
+
+      expect(mock.chatCount()).toBe(2);
+      expect(filled.status).toBe(0);
+      expect(headerOf(filled.stdout)).toContain('yg check: PASS');
+    });
+
+    it('buys the same reviews, and clears, when the edit is hidden from git', async () => {
+      // Before this round: the report blocked on both reviews while the advised
+      // command bought one, and further runs bought nothing at all — only the
+      // whole-project form could clear it.
+      const { fixture, mock } = await perFileProject('neighbour-hidden');
+      hideEdit(fixture.dir, 'src/alpha/helper.ts', EDITED_HELPER);
+
+      const filled = await runAsync(['check', '--approve'], fixture.dir);
+
+      expect(mock.chatCount()).toBe(2);
+      expect(filled.status).toBe(0);
+      expect(headerOf(filled.stdout)).toContain('yg check: PASS');
+
+      // And it stays cleared: a second run has nothing left to buy or block on.
+      const again = await runAsync(['check'], fixture.dir);
+      expect(again.status).toBe(0);
+    });
+
+    it('blocks on the neighbour’s review too, not only the edited file’s', async () => {
+      // The report's own half of the same agreement, asserted directly rather
+      // than only through what the fill buys: reaching a component re-gates
+      // every review it owes, which is what the honest commit above produces.
+      const { fixture } = await perFileProject('neighbour-report');
+      hideEdit(fixture.dir, 'src/alpha/helper.ts', EDITED_HELPER);
+
+      const { status, stdout } = run(['check', '--details'], fixture.dir);
+
+      expect(status).toBe(1);
+      expect(errorSection(stdout)).toContain("'has-doc-comment' on file:src/alpha/helper.ts");
+      expect(errorSection(stdout)).toContain("'has-doc-comment' on file:src/alpha/alpha.ts");
+      // …while the component the change never reached keeps its reviews outside.
+      expect(errorSection(stdout)).not.toContain('file:src/beta/beta.ts');
+    });
+  });
+
+  it('re-admits an uncovered file, and still says it kept something', async () => {
+    // The one finding classification REBUILDS instead of handing back: the
+    // coverage finding is split into a blocking and an inherited half, so a
+    // count tracked by finding identity saw nothing for a run whose only
+    // re-admission was an uncovered file — it blocked with no explanation at
+    // all, which is the single case the explanation exists for.
+    const fixture = scaffoldRecorded('coverage-kept', 'main');
+    // A file under the covered root that no component maps: an inherited
+    // coverage finding on the reference, non-blocking while nothing reaches it.
+    fixture.commit('src/orphan/orphan.ts', 'export const orphan = 1;\n');
+
+    const inherited = run(['check'], fixture.dir);
+    expect(inherited.status).toBe(0);
+    expect(warningSection(inherited.stdout)).toContain('src/orphan/orphan.ts');
+    expect(inherited.stdout).not.toContain('Content check:');
+
+    hideEdit(fixture.dir, 'src/orphan/orphan.ts', 'export const orphan = 2;\n');
+    const kept = run(['check'], fixture.dir);
+
+    expect(kept.status).toBe(1);
+    expect(errorSection(kept.stdout)).toContain('src/orphan/orphan.ts');
+    expect(kept.stdout).toContain('Content check: 1 finding kept in scope');
+  });
+
   it('is byte-identical to the whole-project gate on a project that never opted in', () => {
     // The feature-off guarantee, proved with the evasion PRESENT on both sides:
     // a project carrying no reference must produce exactly what this command

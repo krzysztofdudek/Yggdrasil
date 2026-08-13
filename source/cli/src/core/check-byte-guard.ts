@@ -21,6 +21,12 @@
  * candidate set is now derived from the assembled findings themselves, filtered
  * by the SAME predicate the classifier downgrades on, so the two cannot drift.
  *
+ * ── What both halves hand the decision besides the candidates ───────────────
+ * The component -> rule-check index. Re-admitting a component has to re-admit
+ * every check it owns, which is what the burn table's own owner row does for a
+ * file git reported; the decision cannot derive that from a graph it never sees,
+ * so the gathering builds it from this run's enumeration and passes it along.
+ *
  * ── Why only these findings ─────────────────────────────────────────────────
  * A finding is a candidate only when the classifier is about to set it aside AND
  * it is blocking. Anything else is work with no possible effect: an in-scope
@@ -40,7 +46,12 @@ import type { VerifiedPair } from './verify-lock.js';
 import { emitPairIssue } from './check-pair-issues.js';
 import { issueIsInScope, knownPairKeys } from './check-progressive.js';
 import { SCOPED_CODES, SINGLETON_INPUTS } from './check-codes.js';
-import type { BurnSet, ByteGuardCandidate, ByteGuardSubject } from './progressive-scope.js';
+import type {
+  BurnSet,
+  ByteGuardCandidate,
+  ByteGuardEvidence,
+  ByteGuardSubject,
+} from './progressive-scope.js';
 import { gitObjectDigest, progressivePairKey } from './progressive-scope.js';
 
 /** The measured scope plus the listing to check it against, as the engine receives it. */
@@ -64,8 +75,10 @@ export interface ByteGuardCandidateFromFinding extends ByteGuardCandidate {
 }
 
 /** What one gathering pass produced, plus the one thing a caller must be able to report. */
-export interface ByteGuardGathering {
+export interface ByteGuardGathering extends ByteGuardEvidence {
   candidates: ByteGuardCandidateFromFinding[];
+  /** Every rule check each component owns — see {@link ByteGuardEvidence}. */
+  pairKeysByNode: Map<string, string[]>;
   /**
    * The reference listing's ids are in an object format this build cannot
    * reproduce, so the guard cannot run at all. Surfaced rather than swallowed:
@@ -77,7 +90,11 @@ export interface ByteGuardGathering {
 
 /** A gathering that found nothing and read nothing. A fresh object per call — a
  *  shared one would hand every caller the same array. */
-const nothing = (): ByteGuardGathering => ({ candidates: [], unsupportedObjectFormat: false });
+const nothing = (): ByteGuardGathering => ({
+  candidates: [],
+  pairKeysByNode: new Map(),
+  unsupportedObjectFormat: false,
+});
 
 /** Unit-key prefix for a unit that IS one file — mirrors the classifier's own rung. */
 const FILE_UNIT_PREFIX = 'file:';
@@ -123,9 +140,30 @@ function guardPrecondition(
   if (scope === undefined || scope.blobOidByPath === null) return { run: false, gathering: nothing() };
   if (scope.burn.global) return { run: false, gathering: nothing() };
   if (gitObjectDigest(scope.blobOidByPath) === null) {
-    return { run: false, gathering: { candidates: [], unsupportedObjectFormat: true } };
+    return {
+      run: false,
+      gathering: { candidates: [], pairKeysByNode: new Map(), unsupportedObjectFormat: true },
+    };
   }
   return { run: true, burn: scope.burn };
+}
+
+/**
+ * Component -> every rule check it owns, from this run's own enumeration. The
+ * same index the burn table builds for its owner row, rebuilt here because the
+ * decision must be able to re-admit a component WHOLE without being handed a
+ * graph.
+ */
+function indexPairKeysByNode(pairs: VerifiedPair[]): Map<string, string[]> {
+  const byNode = new Map<string, string[]>();
+  for (const vp of pairs) {
+    if (vp.pair.nodePath === undefined) continue;
+    const key = progressivePairKey(vp.pair.aspectId, vp.pair.unitKey);
+    const owned = byNode.get(vp.pair.nodePath);
+    if (owned === undefined) byNode.set(vp.pair.nodePath, [key]);
+    else owned.push(key);
+  }
+  return byNode;
 }
 
 /**
@@ -183,7 +221,7 @@ export async function collectPairByteGuardCandidates(
     }
     candidates.push({ pairKey, subjects });
   }
-  return { candidates, unsupportedObjectFormat: false };
+  return { candidates, pairKeysByNode: indexPairKeysByNode(pairs), unsupportedObjectFormat: false };
 }
 
 /**
@@ -195,7 +233,7 @@ export async function collectPairByteGuardCandidates(
  * under-gathering is not, which is why every rung the classifier can match on
  * appears here.
  */
-function filesOfIssue(
+export function filesOfIssue(
   issue: CheckIssue,
   subjectsByPairKey: ReadonlyMap<string, string[]>,
   filesOfNode: (nodePath: string) => string[],
@@ -203,13 +241,14 @@ function filesOfIssue(
 ): string[] {
   const files = new Set<string>();
   // 1. A finding whose entire input is a fixed, well-known project file.
-  //    UNREACHABLE today and kept deliberately, for the same reason the ladder's
-  //    own first rung is: no `SINGLETON_INPUTS` code is a `SCOPED_CODES` member,
-  //    so no such finding is ever downgraded and none is ever gathered here. If
-  //    one is ever admitted to both sets, the ladder would attribute it by those
-  //    fixed paths — and a gatherer that had never learned to ask about them
-  //    would reopen the evasion for exactly that code, silently.
-  /* v8 ignore next */
+  //    Unreachable through the gathering pass today, for the same reason the
+  //    ladder's own first rung is: no `SINGLETON_INPUTS` code is a
+  //    `SCOPED_CODES` member, so no such finding is ever downgraded and none is
+  //    ever offered here. Kept — and this function exported and tested directly
+  //    rather than marked as uncovered — because a code admitted to both sets
+  //    later would be attributed by those fixed paths, and a gatherer that had
+  //    never learned to ask about them would reopen the evasion for exactly that
+  //    code, silently.
   for (const fixed of SINGLETON_INPUTS.get(issue.code) ?? []) files.add(fixed);
   // 2. A rule check names its own subject files, through this run's enumeration.
   if (issue.aspectId !== undefined && issue.aspectId !== '' && issue.unitKey !== undefined && issue.unitKey !== '') {
@@ -330,5 +369,9 @@ export async function collectFindingByteGuardCandidates(args: {
         : undefined;
     candidates.push({ pairKey, subjects, issue });
   }
-  return { candidates, unsupportedObjectFormat: false };
+  return {
+    candidates,
+    pairKeysByNode: indexPairKeysByNode(args.pairs),
+    unsupportedObjectFormat: false,
+  };
 }

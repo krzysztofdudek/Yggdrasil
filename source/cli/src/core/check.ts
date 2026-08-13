@@ -72,7 +72,7 @@ import type { TypeCoverageResult } from './type-coverage.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { validate } from './validator.js';
 import type { BurnSet } from './progressive-scope.js';
-import { forceInScopeOnByteMismatch } from './progressive-scope.js';
+import { forceInScopeOnByteMismatch, keptByByteGuard } from './progressive-scope.js';
 import { collectFindingByteGuardCandidates } from './check-byte-guard.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
@@ -429,21 +429,17 @@ export async function runCheck(
   // proving every call site complete see the option feeding the rewrite.
   let guarded: BurnSet | undefined;
   const guardScope = (scope: NonNullable<RunCheckOptions['changeScope']>): BurnSet =>
-    (guarded ??= forceInScopeOnByteMismatch(scope, byteGuard.candidates));
+    (guarded ??= forceInScopeOnByteMismatch(scope, byteGuard));
   const allIssues = options?.changeScope
     ? applyChangeScope(assembledIssues, guardScope(options.changeScope), pairs)
     : assembledIssues;
-  // How many findings the guard KEPT, read off object identity rather than by
-  // running the comparison twice: the classifier hands an in-scope finding back
-  // as the very object it was given and builds a NEW one for a twin, so a
-  // candidate whose issue survived into the classified list is one this run was
-  // about to release and did not. Reported, because a repository where a content
+  // How many findings the guard KEPT, read off the two burn sets rather than by
+  // running the comparison twice. Reported, because a repository where a content
   // filter sits between the stored blob and the working copy has every inherited
   // finding kept on every run, and a mode that has effectively switched itself
   // off must say so in its own output instead of only in its documentation.
-  const classified = new Set(allIssues);
   const byteGuardKept = options?.changeScope
-    ? byteGuard.candidates.filter((c) => c.issue !== undefined && classified.has(c.issue)).length
+    ? keptByByteGuard(options.changeScope.burn, guardScope(options.changeScope), byteGuard.candidates)
     : undefined;
   const byteGuardUnavailable = options?.changeScope ? byteGuard.unsupportedObjectFormat : undefined;
   // Deliberately a SECOND, independently-shaped expression rather than a richer

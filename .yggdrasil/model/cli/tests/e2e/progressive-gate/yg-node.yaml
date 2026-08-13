@@ -39,7 +39,14 @@ description: "Subprocess E2E for the progressive gate on `yg check`, driven
   when the identical edit is committed honestly. One case proves the advice a
   blocked run gives actually works: a re-admitted reviewer-judged rule is bought
   and settled by `yg check --approve` against an in-process mock reviewer, rather
-  than being declined as outside the change and blocking forever. Two cases pin
+  than being declined as outside the change and blocking forever — and a second
+  group does the same one layer down, where the hidden edit lands on a
+  NEIGHBOURING file of the same component and a per-file reviewed rule means the
+  component owes several separate reviews: what the advised command buys, and
+  whether the run clears, must match what an honest visible commit of the
+  identical edit produces. One case covers the only finding classification
+  rebuilds rather than hands back — an uncovered file — which must both block and
+  be counted in the line reporting what the check kept. Two cases pin
   the other direction: a hidden file whose bytes did not actually change produces
   a byte-identical report to the run before it was hidden, and a project that
   names no reference is byte-identical to the whole-project gate with the evasion

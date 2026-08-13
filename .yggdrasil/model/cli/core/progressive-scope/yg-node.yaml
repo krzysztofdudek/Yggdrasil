@@ -32,10 +32,15 @@ description: "Pure burn-set engine for progressive mode. Three parts. The
   stops a file marked assume-unchanged or skip-worktree — which git reports as
   unmodified however it was edited — from having its live findings re-coded as
   inherited debt. A re-admitted file is put back in all THREE places the burn
-  table would have put it (files, its owning component, and the candidate's own
+  table would have put it (files, its owning component TOGETHER WITH every rule
+  check that component owns — burnNode's own shape, so the answer is never
+  narrower than the honest table's for the same file — and the candidate's own
   pair key when it has one), because a finding keyed by a component or a file is
   decided by the first two and never by the third; changedInputCount follows
-  files, as it does in computeBurnSet. It may only ADD: every set comes back a
+  files, as it does in computeBurnSet. keptByByteGuard reads how many findings
+  were re-admitted off the two burn sets rather than off finding identity, since
+  the aggregate coverage finding is rebuilt by classification rather than handed
+  back and would otherwise count as nothing. It may only ADD: every set comes back a
   superset, global is untouched, and with nothing forced the input object itself
   is returned. A null listing skips the guard entirely rather than being read as
   an empty one. No I/O of any kind — graph, ids and bytes in, sets out."
