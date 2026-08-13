@@ -61,6 +61,12 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # carries status_inherit instead. Downgrade attempts are validator
                                    # errors. Advisory and enforced verdicts are recorded in the
                                    # baseline; draft aspects get no verdict.
+                                   # One project-level setting changes WHERE an enforced result blocks,
+                                   # never the status itself: with progressive mode on (the project sets
+                                   # progressive.reference in yg-config.yaml), an enforced finding the
+                                   # current change did not reach renders as a warning, and
+                                   # yg check --full blocks on it again. With no such key — the
+                                   # default — enforced blocks everywhere, as above.
 
 # review_by: 2027-01-15            # optional — a standing review-by date (bare ISO
                                    # calendar date YYYY-MM-DD). It is the constitution's

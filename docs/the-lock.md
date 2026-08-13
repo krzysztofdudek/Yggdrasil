@@ -73,6 +73,8 @@ An aspect refusal never blocks other nodes' pairs. `--approve` records every res
 
 This is the CI / pre-commit gate for the deterministic cache. A fresh checkout has no deterministic cache, so plain `yg check` reports those pairs as unverified; running `yg check --approve --only-deterministic` rematerializes the cache for free and clears them, without ever needing a key or touching a committed file. Use plain `yg check --approve` (no flag) when you also want the LLM pairs filled.
 
+One consequence of writing no committed file: this run never records positive closure either (see [The log gate](#the-log-gate) below), so it never ends a node's log cycle. On a project whose only recording run is this free gate, the newest entry a node has goes on satisfying the requirement for every later source change, and a second entry is never asked for. Where each round of work should carry its own written reason, a full `yg check --approve` has to run somewhere — on a developer's machine before the change lands, or on a pipeline leg that has a reviewer configured.
+
 ## Refusals are cached
 
 A refusal is a verdict, and it's cached like any other. For unchanged inputs it's **final** — re-running `yg check --approve` over a refused pair does not re-run the reviewer. For a deterministic check a re-run would return the same violations; for an LLM check it would be a re-roll of a judgment that already came back negative. There is deliberately no force-rejudge command.
@@ -97,6 +99,7 @@ Corollaries worth knowing:
 
 - An advisory refusal does not prevent closure. A red *enforced* pair keeps the cycle open — and the same log entry stays valid through every retry, because the intent behind the change did not move, only the execution. Iterate on the code without adding entries.
 - A node with no pairs, or only advisory ones, closes vacuously — but still only once its log requirement is satisfied.
+- Closure is recorded only by a run that writes the committed files. `yg check --approve --only-deterministic` writes only the gitignored cache, so it never closes a cycle at all: a project that records nothing else keeps the node's newest entry answering for every later change to it, as described under that flag above.
 
 **The gate is read-only, and it is all-or-nothing.** A missing entry is a blocking `log-entry-missing` error on a plain `yg check`, computed live from the fingerprint at zero cost — not merely something `--approve` refuses. So CI catches an unlogged source change even on a node that produces no pairs to fill. And at `--approve`, if *any* `log_required` node is missing its entry, the run fills **nothing at all** — no pair on any node, related or not. Add the missing entries and re-run.
 

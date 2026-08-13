@@ -68,6 +68,15 @@ Corollaries:
   by anything OTHER than that deliberate skip — a check that failed to run, a
   provider that could not be reached. Only "we were told not to buy it" settles a
   pair nobody looked at.
+- Only a run that writes the COMMITTED files can close a cycle at all.
+  \`yg check --approve --only-deterministic\` writes just the gitignored cache, so
+  it records no closure, for any node, on any project. Where that free gate is a
+  project's ONLY recording run, no cycle ever ends: the node's newest entry keeps
+  satisfying the requirement for every later source change, and a second entry is
+  never asked for. Nothing about progressive mode causes this and turning the mode
+  off does not change it — but it is worth knowing when a pipeline leans on the
+  free gate. Where each round of work must carry its own reason, a full
+  \`yg check --approve\` has to run somewhere.
 - A node that closes with an unbought pair records a fingerprint that attests
   something correspondingly narrower: every enforced rule the run was ASKED to
   settle saw these bytes — not that every rule on the node did. A node with four

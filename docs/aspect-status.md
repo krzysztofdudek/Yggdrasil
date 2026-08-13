@@ -31,6 +31,14 @@ but a `prompt-too-large` failure is always an error and blocks `yg check`
 regardless of status, so an advisory pair can still block if its assembled prompt
 exceeds the resolved tier's `max_prompt_chars`.
 
+One project-level setting changes where an enforced finding blocks, and only
+there: when [progressive mode](/progressive-mode) is on — the project names a
+branch in `progressive.reference` — an enforced finding your change did not reach
+is listed as a warning instead of an error, and `yg check --full` blocks on it
+again. Status is unchanged by this: the pair is still enforced, still verified and
+cached the same way, and still blocks the moment a change reaches it. On a project
+that names no branch (the default), the table above is the whole story.
+
 ## When to use each
 
 - **`draft`** — content.md / check.mjs is still being authored, or the

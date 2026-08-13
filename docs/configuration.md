@@ -33,19 +33,21 @@ refreshes the agent-rules files.
 - **auto_approve** — Auto-fill mode for bare `yg check` (default `false`; see [Auto-approve config](#auto-approve-config) below).
 - **signals** — Attention-layer switches (optional). Its only key today is `attention` (default `true`): the advisory "structurally unusual" note in `yg context --file`. Set `false` to silence it. See [Signals](#signals) below and [Structural attention](/feature-field).
 - **events** — Committed-events opt-in (optional). Its only key today is `committed_llm` (default `false`): opt into a committed, team-shared record of LLM verification events. See [Events](#events) below.
+- **progressive** — Names the branch your changes are measured against (optional; absent means off). Its only key today is `reference`. With it set, a plain `yg check` blocks only on what your change reaches, and everything inherited from that branch is listed as a non-blocking warning. See [Progressive mode](#progressive-mode) below and the [Progressive mode](/progressive-mode) page.
 
-Those nine are the whole of it — `version`, `reviewer`, `coverage`, `quality`,
-`parallel`, `debug`, `auto_approve`, `signals`, `events`.
+Those ten are the whole of it — `version`, `reviewer`, `coverage`, `quality`,
+`parallel`, `debug`, `auto_approve`, `signals`, `events`, `progressive`.
 
 ::: warning A typo at the top level is silent
-The parser reads the nine keys above and ignores anything else it finds at the top
+The parser reads the ten keys above and ignores anything else it finds at the top
 level, with no error and no warning. So `auto_aprove: full` does not enable
 auto-approval — it does nothing at all, and the check that would tell you so does
 not exist. Several nested places *are* guarded: a misspelled key directly under
 `reviewer:` or inside a tier is a hard `config-reviewer-unknown-key` /
-`config-tier-unknown-key` error, and `signals:`, `events:`, and `coverage:` all
-reject unknown keys too. Copy the names from this page rather than typing them
-from memory, and confirm a setting took effect by watching the behaviour change.
+`config-tier-unknown-key` error, and `signals:`, `events:`, `coverage:` and
+`progressive:` all reject unknown keys too. Copy the names from this page rather
+than typing them from memory, and confirm a setting took effect by watching the
+behaviour change.
 :::
 
 Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),
@@ -87,6 +89,9 @@ signals:                              # Optional — attention-layer switches
 
 events:                               # Optional — committed-events opt-in (default off)
   committed_llm: true                 # Commit + share LLM verification events (default false)
+
+# progressive:                        # Optional — absent means off (every run answers for the whole project)
+#   reference: origin/main            # Branch your changes are measured against
 ```
 
 ---
@@ -430,6 +435,48 @@ When a fill triggered by `auto_approve` produces a PASS, the result line shows
 # .yggdrasil/yg-config.yaml
 auto_approve: deterministic   # fill the deterministic cache automatically on bare yg check
 ```
+
+---
+
+## Progressive mode
+
+`progressive` names a branch your changes are measured against. It is absent by
+default, and absent means off: every run answers for the whole project, exactly
+as it always has.
+
+| Key | Type | Default | Effect |
+| --- | --- | --- | --- |
+| `reference` | string (non-blank) | none | The branch or ref changes are measured against, e.g. `origin/main`. |
+
+```yaml
+# .yggdrasil/yg-config.yaml
+progressive:
+  reference: origin/main
+```
+
+With it set, a plain `yg check` blocks only on the obligations your change
+reaches. Everything inherited from that branch is still listed and still counted,
+as a warning that does not fail the build, and the header says how much of it
+there is. `yg check --full` answers for the whole project instead.
+
+Three things about the key itself:
+
+- **It is read from the committed file only.** A `yg-secrets.yaml` overlay can
+  neither introduce nor re-point it, so how much of the project a run answers for
+  is the same for everyone on the branch.
+- **The block accepts only `reference`, and it must be a non-blank string.** A
+  misspelled key or a blank value is a hard `config-progressive-unknown-key` /
+  `config-invalid` error rather than a silent no-op — the alternative would leave
+  you reading a config that says the mode is on while every run behaved as if it
+  were off.
+- **Where the measurement cannot be made honestly** — the named branch is unknown
+  locally, the clone is too shallow to share history with it, the graph does not
+  sit at the repository root, a submodule pointer moved, or the verdict record
+  committed at the reference cannot be read — the run answers for the whole
+  project and says which of those it hit and what to do about it.
+
+The full picture, including what decides whether a finding is yours and the two
+CI legs this needs: [Progressive mode](/progressive-mode).
 
 ---
 

@@ -1,4 +1,4 @@
-export const summary = 'yg-config.yaml fields: version, reviewer tiers, quality thresholds, parallelism, auto_approve (auto-approval mode)';
+export const summary = 'yg-config.yaml fields: version, reviewer tiers, quality thresholds, parallelism, auto_approve (auto-approval mode), progressive (measure changes against a branch)';
 
 export const content = `# Configuration (yg-config.yaml)
 
@@ -69,6 +69,14 @@ events:                           # Optional — committed-events opt-in. Absent
                                   #   Deterministic/drill/diag events always stay local (keyless CI = zero churn).
                                   #   Must be a boolean; an unknown key under events: is rejected. Never folds
                                   #   into any verdict hash — flipping it invalidates nothing.
+
+progressive:                      # Optional — names the branch changes are measured against.
+  reference: origin/main          #   Absent ⇒ off: every run answers for the whole project, unchanged.
+                                  #   Set ⇒ a plain yg check blocks only on what the current change
+                                  #   reaches; everything inherited from that branch is listed and
+                                  #   counted as a non-blocking warning, and yg check --full answers
+                                  #   for the whole project again. Committed-config only; the block
+                                  #   accepts only reference, and it must be a non-blank string.
 \`\`\`
 
 ## Reviewer tiers
@@ -440,4 +448,43 @@ The key never folds into any verdict hash: recording it, or flipping it on/off,
 invalidates NOTHING. \`committed_llm\` must be a boolean, and \`events\` accepts no
 other key — an unknown sibling is a hard \`config-events-unknown-key\` error so a
 typo can't silently leave the shared record disabled.
+
+## progressive
+
+Optional, absent by default, and absent means OFF: every run answers for the
+whole project, exactly as it always has. Its only key today is \`reference\`, the
+branch changes are measured against.
+
+\`\`\`yaml
+progressive:
+  reference: origin/main
+\`\`\`
+
+With it set, a plain \`yg check\` blocks only on the obligations the current change
+reaches; everything inherited from that branch is still listed and still counted,
+as a warning that does not fail the build, and the header says how much there is.
+\`yg check --full\` answers for the whole project instead. A run that RECORDS
+verdicts is measured the same way and buys reviewer work only for what the change
+is accountable for — the checks that run locally still cover everything, since
+they cost nothing.
+
+Three properties of the key itself:
+
+- **Committed-config only.** A \`yg-secrets.yaml\` overlay can neither introduce nor
+  re-point it, so how much of the project a run answers for is identical for
+  everyone on the branch.
+- **Strict when present.** The block accepts only \`reference\` (an unknown sibling
+  is \`config-progressive-unknown-key\`), and \`reference\` must be a non-blank
+  string. A typo is refused rather than silently leaving the mode off.
+- **Changing it costs one full run.** The run that adds, edits, or removes the
+  block answers for the whole project — a gate must never be able to narrow itself
+  unnoticed.
+
+Where the measurement cannot be made honestly — the named branch is unknown
+locally, the clone is too shallow to share history with it, the graph does not sit
+at the repository root, a submodule pointer moved, or the verdict record committed
+at the reference cannot be read — the run answers for the whole project and prints
+a notice naming that specific cause and its remedy. See
+\`yg knowledge read cli-reference\` (the \`--full\` section) for what a measured
+report looks like and why the integration leg of CI has to be \`yg check --full\`.
 `;

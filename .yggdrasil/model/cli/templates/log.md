@@ -154,3 +154,31 @@ The agent manual's account of the mapping-versus-gitignore mirror diagnostic des
 The agent-facing manual and the configuration reference described a recording run as answering for the whole project and promising a notice about it. Neither is true once such a run is measured like any other, and a manual that ships to every adopting repository must not carry a claim the tool no longer honours. The wording now names the condition explicitly rather than hedging, so a project that never turns the feature on reads exactly what it did before.
 ## [2026-08-13T10:09:50.701Z]
 Three surfaces that ship to every adopting repository still described verification as repo-wide and all-or-nothing with one free scoping flag, and the document defining when a component records its baseline still stated the pre-change rule. An agent reading the manual would have believed a recording run reviews everything, and anyone reading the log-management topic would have believed a component records its baseline only when every rule on it passed. Both are now stated as the code behaves, with the condition named explicitly rather than hedged, so a project that never turns the feature on reads what it always did.
+## [2026-08-13T11:35:01.287Z]
+The manual an agent reads at the start of a session now states what to do when a
+run reports obligations the current change did not reach. Until now it described
+only the measurement — that a project can have its changes measured against a
+branch, and that findings outside a change are listed as warnings — and left the
+conduct to each agent's judgement, which is the part that carries consequences.
+An agent reading such a list as a work order widens the change to clear it,
+reaches for a recording run that answers for the whole project and spends the
+reviewer budget on code nobody asked about, or waives a rule on code it never
+touched. The manual now says plainly that an inherited finding is not a mandate,
+that it is never cleared by a recording run answering for the whole project, that
+it is never waived, and that anything still reported as an error is the change's
+own to resolve — including a finding the run could not attribute to any subject,
+which stays an error deliberately. A run that could not make the measurement at
+all gets its own instruction: report the cause it names rather than start
+clearing a backlog nobody asked for.
+
+The same change puts a condition on a sentence that had been unconditional. The
+manual stated that an enforced rule always blocks when refused or unverified.
+That stopped being exactly true once a project could have its changes measured
+against a branch: an enforced finding a change did not reach is reported as a
+warning until a run answering for the whole project blocks on it again. The
+rule's status is untouched by that, and on a project that measures nothing the
+original sentence still holds — so this is written as a condition naming exactly
+when it applies, never as a hedge. The manual ships to every repository that
+adopts this tool, and the overwhelming majority of them will never turn the
+measurement on; a reader who never will must not come away less certain about
+what blocks their build.

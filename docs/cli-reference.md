@@ -247,10 +247,21 @@ you happen to be working on. It only ever tightens the gate — it can turn an
 inherited finding back into a blocking one, never the reverse — so it is always
 safe to add.
 
+On a project that names a branch, the integration leg needs it. On the branch
+being measured against, a plain `yg check` has nothing in scope — nothing changed
+relative to it — so it reports every eligible finding as outside the change and
+passes, however much is outstanding there. That is what "measured against this
+branch" means, and `yg check --full` is the only run that answers for that branch.
+(Findings progressive mode never narrows — the graph's own integrity, and any
+finding the run cannot attribute to a file or component — still block there.)
+
 It is not a triage view: it hides no finding, and it combines freely with
 `--approve` and with any of the flags above. On a project that names no branch
 there is nothing to measure against, so every run already answers for the whole
 project and `--full` changes nothing at all.
+
+Full picture, including how to wire the two CI legs and what decides whether a
+finding is yours: [Progressive mode](/progressive-mode).
 
 **Precedence:** explicit CLI flags (`--approve`, `--no-approve`,
 `--only-deterministic`) override `auto_approve` in `yg-config.yaml`. The config

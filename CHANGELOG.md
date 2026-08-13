@@ -51,6 +51,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **(Repo-internal.)** The digest freshness gate in `scripts/repo-check.sh` checked only the repo root and `examples/*/` for a stale committed rules digest, so a test fixture carrying its own digest anchor (`tests/fixtures/portal-coverage-only`) could go stale after a rules-content edit with no gate step catching it — surfacing later as unrelated-looking portal e2e failures instead. The gate now also verifies any fixture whose `AGENTS.md` already carries a digest anchor.
 
+### Documentation
+
+- **Measuring changes against a branch has a page of its own.** The setting was documented only as a config key and a flag; the decisions it asks of a team were not written down anywhere. A new page, `docs/progressive-mode.md`, now covers what turning it on changes and what it leaves alone, exactly what makes a finding your change's business (and the changes that put the whole project back in scope for one run), what never becomes a warning, every state the measurement can end in — including the ones where it declines to measure and gates everything instead — and the two CI legs this needs, with the shallow-checkout trap that otherwise fails a pull request on debt it never touched. The configuration reference also listed nine top-level keys when there are ten; `progressive` is now among them, with its own section.
+
+- **Two behaviours that were true but written down nowhere.** On the branch you measure against, a plain `yg check` passes however much is outstanding there — nothing changed relative to that branch, so nothing is in scope — which is precisely why the integration leg of a pipeline has to ask for the whole project. And the free, keyless recording run writes no committed file, so it never records the point at which a component came up clean: on a project whose only recording run is that gate, one written reason keeps answering for every later change to a component and a second is never asked for. Both are now stated where they are read — in the command reference, on the lock page, and in the agent-facing manual.
+
+- **"Enforced always blocks" now says where.** The status pages, the aspect schema and the agent-facing manual all stated it without qualification, which stopped being exactly true once a project could measure changes against a branch: an enforced finding your change did not reach is listed as a warning, and `yg check --full` blocks on it again. The rule's status is untouched by that, and on a project that names no branch — the default — the unqualified sentence still holds; each place now says so rather than leaving the reader to wonder which case they are in.
+
+- **The agent-facing manual says what to do with inherited findings.** It described the measurement but not the conduct it implies, leaving the most consequential calls to the agent's discretion: a finding outside the change is not a work list, it is never cleared with a whole-project recording run (which spends the reviewer budget on other people's code), it is never suppressed, and anything still listed as an error is the change's own to resolve. A run that could not measure gets its own instruction: report the cause it names instead of clearing a backlog nobody asked for.
+
 ## [5.7.2] - 2026-08-09
 
 ### Fixed

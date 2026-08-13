@@ -119,7 +119,7 @@ A verdict is valid exactly while the inputs that produced it hash to the stored 
 
 If you modify code without reading the aspect content files (\`yg context --file\` → follow the \`read:\` paths), you will likely write code that violates rules you didn't know about. The reviewer will refuse it. You will have to read the aspects anyway, then rewrite. Double cost.
 
-Status governs blocking uniformly. An advisory pair never blocks \`yg check\` — whether it is refused OR unverified, it renders as a warning. An enforced pair always blocks when refused or unverified. Only \`draft\` removes a pair from the expected set, so flipping an aspect to advisory does NOT make an unverified enforced pair go green — the pair is still unverified, just now a warning; \`yg check --approve\` is what fills it. To park an aspect, use \`status: draft\`, never a \`when\` edit (a \`when\` edit drops the pairs and garbage-collection prunes their verdicts; a \`draft\` round-trip keeps them). When \`yg check\` emits both errors AND warnings, \`suggestedNext\` points at the highest-priority error (a fixed priority cascade, not output order). Fix errors before warnings. When only warnings remain, it surfaces an advisory next-step so a warnings-only run still points somewhere.
+Status governs blocking uniformly. An advisory pair never blocks \`yg check\` — whether it is refused OR unverified, it renders as a warning. An enforced pair always blocks when refused or unverified — with one exception, and only when progressive mode is on: an enforced finding your change did not reach renders as a warning, and \`yg check --full\` blocks on it again. Status itself is untouched by that — the pair stays enforced and blocks the moment a change reaches it. Only \`draft\` removes a pair from the expected set, so flipping an aspect to advisory does NOT make an unverified enforced pair go green — the pair is still unverified, just now a warning; \`yg check --approve\` is what fills it. To park an aspect, use \`status: draft\`, never a \`when\` edit (a \`when\` edit drops the pairs and garbage-collection prunes their verdicts; a \`draft\` round-trip keeps them). When \`yg check\` emits both errors AND warnings, \`suggestedNext\` points at the highest-priority error (a fixed priority cascade, not output order). Fix errors before warnings. When only warnings remain, it surfaces an advisory next-step so a warnings-only run still points somewhere.
 
 Full lock format, hash ingredients, caching policy, merge procedure, garbage-collection, and the revert recipe: \`yg knowledge read verification-and-lock\`.
 
@@ -182,6 +182,14 @@ const DECISIONS = `## DECISIONS
 ### Workflow
 
 **Start of conversation:** \`yg check\`. If errors — fix before any other work. \`yg check\` failures block commits and CI. Nothing passes until check is clean.
+
+**When the project measures changes against a branch** (progressive mode — the project sets \`progressive.reference\` in \`yg-config.yaml\`): \`yg check\`'s header ends with how many obligations sit outside your change and what it was measured against, and those findings are listed as \`(outside changes)\` warnings. Read that line, then get on with the task — the run is clean when nothing of YOURS is red. If the header says nothing about changes, the project is not measuring and none of the following applies. Findings outside your change are inherited debt, not a work list:
+
+- **Not a mandate.** Nobody asked you to fix them, and they are not a verdict on the code you are about to touch. Do not widen the change to reach them; if they look worth fixing, say so and let the user decide.
+- **Never clear them with a whole-project recording run.** \`yg check --full --approve\` reviews the entire project and records verdicts for code your change never touched — it spends the user's reviewer budget and answers for other people's work under your run. \`--full\` is the user's audit lever: propose it, never run it as cleanup.
+- **Never suppress one** — see \`yg-suppress\` below.
+- **Yours still block.** Anything still listed as an ERROR is yours to resolve, including a finding the run could not attribute to any file or component — those stay errors on purpose.
+- **If the run says the change could not be measured**, it gated the whole project instead and the notice names the cause (most often a shallow CI checkout) and the fix. Report that cause; do not start clearing a backlog you did not create.
 
 **Before touching a source file:** \`yg context --file <path>\`. Read the files listed under \`read:\` — these are the rules the reviewer will check your code against. For LLM aspects, \`read:\` points to \`content.md\` (and \`companion.mjs\` when present). For deterministic aspects, \`read:\` points to \`check.mjs\` — read it to know what rules will be enforced. Aggregating aspects have no \`read:\` of their own; their implied children each carry their own \`read:\` paths. For blast radius: \`yg impact --file <path>\`.
 
@@ -534,6 +542,7 @@ Authorization rules (these live here — behavioral, not syntax):
 - You MUST NEVER write a suppress without explicit user confirmation — no exceptions.
 - You do not invent reasons — the user provides or approves them.
 - A single-line marker waives ONLY the line directly below it; the bracket disable/enable form (or a bare disable that runs to end of file) waives a range. Suppress scope is resolved once into line ranges and every reviewer kind (LLM and deterministic) honors the exact same ranges — to waive a whole file, use the bracket form, never a single-line marker.
+- When progressive mode is on: NEVER write a suppress for a finding the run listed as \`(outside changes)\`. It waives a rule on code your change never touched, and that debt was not yours to sign off — the run is already telling you it is not this change's business. Waive only what your change reached, and only with the user's confirmation as below.
 
 When proposing a suppress (the only path to a written suppress):
 

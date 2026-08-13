@@ -122,6 +122,16 @@ non-blocking because this change did not cause it, never because it stopped
 mattering. Do not silence one, and do not clear a pile of them under cover of an
 unrelated change — \`yg check --full\` is how you look at all of it deliberately.
 
+One consequence to plan a pipeline around, true whenever progressive mode is on:
+ON THE BRANCH BEING MEASURED AGAINST, a plain \`yg check\` has nothing in scope —
+nothing changed relative to it — so it reports every eligible finding as outside
+the change and PASSES, however much is outstanding there. That is what measuring
+against a branch means, not a threshold anyone can tune, and it is why the
+integration leg must be \`yg check --full\`: it is the only run that answers for
+that branch. What still blocks there: the graph's own integrity (an undefined
+rule, a cycle, an unreadable file) and any finding the run could not attribute to
+a file or component — neither is ever narrowed by the measurement.
+
 ### Silent structural-deviation index (attention only)
 
 As a byproduct, a plain \`yg check\` also maintains a local, gitignored
