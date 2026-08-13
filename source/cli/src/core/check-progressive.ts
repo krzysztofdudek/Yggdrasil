@@ -35,6 +35,13 @@ import { splitCoverageIssueByTouched } from './check-coverage-tiers.js';
  * itself. A change to a node's `log.md` re-gates that one channel and nothing
  * else about the node — see `BurnSet.logOnlyNodePaths`, which is deliberately
  * NOT folded into `nodePaths` for exactly this reason.
+ *
+ * These four are the whole list, and it is complete BECAUSE it mirrors
+ * `SCOPED_CODES`'s log group exactly. There is a fifth log-family code,
+ * `log-entry-required` (core/fill.ts): it belongs to the `--approve` fill gate,
+ * not to a check's issue set, and is correctly outside `SCOPED_CODES` — do not
+ * "complete" this list with it. Adding it would attach a scope carve-out to a
+ * code this classifier can never be handed.
  */
 const LOG_CODES: ReadonlySet<string> = new Set([
   'log-entry-missing',
@@ -42,6 +49,17 @@ const LOG_CODES: ReadonlySet<string> = new Set([
   'log-format',
   'log-conflict',
 ]);
+
+/**
+ * A structured identity field, or `undefined` when it is absent OR blank. An
+ * empty string is not an identity: probing the burn set with one answers "not
+ * in the set" for a subject that was never named, which downgrades a finding on
+ * the strength of nothing at all. Blank reads as absent, and absent falls
+ * through to the blocking default.
+ */
+function named(value: string | undefined): string | undefined {
+  return value !== undefined && value !== '' ? value : undefined;
+}
 
 /** Unit-key prefix for a unit that IS one file (`model/lock.ts`'s `fileUnit`). */
 const FILE_UNIT_PREFIX = 'file:';
@@ -92,8 +110,10 @@ export function issueIsInScope(
   if (singletonInputs !== undefined) return singletonInputs.some((p) => scope.files.has(p));
 
   // 2. A pair-derived finding names its pair exactly.
-  if (issue.aspectId !== undefined && issue.unitKey !== undefined) {
-    const key = progressivePairKey(issue.aspectId, issue.unitKey);
+  const aspectId = named(issue.aspectId);
+  const unitKey = named(issue.unitKey);
+  if (aspectId !== undefined && unitKey !== undefined) {
+    const key = progressivePairKey(aspectId, unitKey);
     if (scope.pairKeys.has(key)) return true;
     return !known.has(key);
   }
@@ -103,21 +123,30 @@ export function issueIsInScope(
   //    change's business for that edit even though nothing else about the
   //    component moved — and, symmetrically, a non-log finding on the same
   //    component is not.
-  if (issue.nodePath !== undefined) {
-    if (scope.nodePaths.has(issue.nodePath)) return true;
-    return LOG_CODES.has(issue.code) && scope.logOnlyNodePaths.has(issue.nodePath);
+  const nodePath = named(issue.nodePath);
+  if (nodePath !== undefined) {
+    if (scope.nodePaths.has(nodePath)) return true;
+    return LOG_CODES.has(issue.code) && scope.logOnlyNodePaths.has(nodePath);
   }
 
-  // 4. A per-file finding that named its file through the unit key.
-  if (issue.unitKey?.startsWith(FILE_UNIT_PREFIX) === true) {
-    return scope.files.has(issue.unitKey.slice(FILE_UNIT_PREFIX.length));
+  // 4. A per-file finding that named its file through the unit key. A BARE
+  //    prefix names no file, so it is not an identity either.
+  if (unitKey?.startsWith(FILE_UNIT_PREFIX) === true) {
+    const file = named(unitKey.slice(FILE_UNIT_PREFIX.length));
+    if (file !== undefined) return scope.files.has(file);
   }
 
   // 5. An aggregate finding carrying the concrete file-to-file edges it is
   //    about. ANY one of them being part of the change makes the whole finding
   //    the change's business — it is one finding and cannot be half-outside.
-  if (issue.relationEdges !== undefined && issue.relationEdges.length > 0) {
-    return issue.relationEdges.some((e) => scope.files.has(e.fromFile) || scope.files.has(e.toFile));
+  //    Edges naming no file at all are dropped first: an edge list that names
+  //    nothing is not an identity, and answering "no match" off it would
+  //    downgrade on the strength of nothing.
+  const namedEdges = (issue.relationEdges ?? []).filter(
+    (e) => named(e.fromFile) !== undefined || named(e.toFile) !== undefined,
+  );
+  if (namedEdges.length > 0) {
+    return namedEdges.some((e) => scope.files.has(e.fromFile) || scope.files.has(e.toFile));
   }
 
   // 6. Nothing to attribute it by — keep it blocking.

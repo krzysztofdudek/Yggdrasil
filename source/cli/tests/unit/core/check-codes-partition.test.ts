@@ -96,9 +96,25 @@ describe('SINGLETON_INPUTS', () => {
       '.clinerules/yggdrasil.md',
     ]);
     expect(SINGLETON_INPUTS.get('incident-ledger-out-of-order')).toEqual(['.yggdrasil/incidents.md']);
-    expect(SINGLETON_INPUTS.get('coverage-required-shadowed')).toEqual(['yg-config.yaml']);
-    expect(SINGLETON_INPUTS.get('type-unknown-parent')).toEqual(['yg-architecture.yaml']);
+    // The two committed graph files are spelled WITH the graph directory, like
+    // every other repo-relative path a change is measured in. Written bare they
+    // could never match a changed path, and the rung that reads them shadows
+    // every other identity — so a finding under either code would have been
+    // judged solely by an input it can never see.
+    expect(SINGLETON_INPUTS.get('coverage-required-shadowed')).toEqual(['.yggdrasil/yg-config.yaml']);
+    expect(SINGLETON_INPUTS.get('type-unknown-parent')).toEqual(['.yggdrasil/yg-architecture.yaml']);
     expect(SINGLETON_INPUTS.size).toBe(4);
+  });
+
+  it('spells every graph-owned input under the graph directory', () => {
+    // A guard on the SHAPE rather than on the four values above: any future
+    // entry naming a committed graph file must carry the prefix too.
+    for (const [code, paths] of SINGLETON_INPUTS) {
+      for (const path of paths) {
+        if (!/^yg-|^incidents\.md$/.test(path)) continue;
+        expect.fail(`${code} names '${path}' without the graph directory — it can never match a changed path`);
+      }
+    }
   });
 
   it('every entry has at least one path, and no path is blank or padded', () => {

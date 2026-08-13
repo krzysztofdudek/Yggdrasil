@@ -1,10 +1,12 @@
 name: Check Codes
 type: engine
-description: "Single source of truth for issue-code categories (structural, completeness) shared between the check engine's summary tally and the check command's error grouping, so the two can never diverge. Also maps the handful of issue codes whose entire input is one fixed, well-known repo file (the committed agent-rules artifacts, the incident ledger, the coverage config, the architecture file) to those real paths, for a later change-accountability step to consult."
+description: "Single source of truth for issue-code categories (structural, completeness) shared between the check engine's summary tally and the check command's error grouping, so the two can never diverge. Also maps the handful of issue codes whose entire input is one fixed, well-known repo file (the committed agent-rules artifacts, the incident ledger, the coverage config, the architecture file) to those real paths, for the change-accountability step to consult. Those paths are repo-relative and are IMPORTED from the modules that own each spelling — the rules-artifact names, and the burn engine for the two committed graph files — never re-typed, because a path spelled any other way silently never matches a changed file and the finding is then judged by an input it can never see."
 aspects:
   - progressive-tier-partition
 relations:
   - target: cli/utils
+    type: calls
+  - target: cli/core/progressive-scope
     type: calls
 mapping:
   - source/cli/src/core/check-codes.ts

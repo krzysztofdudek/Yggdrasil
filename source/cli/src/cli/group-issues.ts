@@ -1,5 +1,23 @@
 import type { CheckIssue } from '../core/check.js';
-import { STRUCTURAL_CODES, COMPLETENESS_CODES } from '../core/check-codes.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, outsideTwin } from '../core/check-codes.js';
+
+/**
+ * The same codes, plus the `-outside` twin of every one of them that a change
+ * scope can actually produce a twin for.
+ *
+ * DERIVED, never hand-listed. Each of the three sets below decides how a code
+ * renders — collapsed into one group, shown with its full actionable body, or
+ * pulled out as a file-list block — and a twin that fell out of one silently
+ * rendered worse than the finding it stands for: fragmented into a group per
+ * aspect, truncated to its first line with the reviewer's reason gone, or
+ * stripped of the file list that IS its content. A parallel hand-written list
+ * of twins would drift from `SCOPED_CODES` the first time that set changed, so
+ * the twins are computed from it here. A code that is not scoped has no twin
+ * and contributes nothing, which is why the filter is not merely decorative.
+ */
+function withOutsideTwins(codes: readonly string[]): Set<string> {
+  return new Set([...codes, ...codes.filter((c) => SCOPED_CODES.has(c)).map(outsideTwin)]);
+}
 
 export interface IssueGroup {
   code: string;
@@ -59,8 +77,13 @@ export interface IssueGroup {
  * `unverified` is the primary case: editing one aspect previously produced
  * N near-identical group blocks (one per aspect) with the same why+fix text.
  * Now they collapse into one block, with each line annotating its aspect.
+ *
+ * Its twin collapses the same way, and must: a run reporting inherited debt
+ * typically carries far MORE unverified pairs than a blocking one, so leaving
+ * `unverified-outside` to fragment into a block per aspect would push genuine
+ * warnings past the section's overflow cap and out of view entirely.
  */
-export const CODE_ONLY_GROUP_CODES = new Set(['unverified']);
+export const CODE_ONLY_GROUP_CODES = withOutsideTwins(['unverified']);
 
 // ── Shared code-set constants ────────────────────────────────
 
@@ -78,7 +101,7 @@ const STRICT_CODES = new Set(['type-strict-orphan', 'type-strict-misplaced', 'st
  * strictly less informative than `yg aspect-test`. All other codes keep the
  * terse one-line summary.
  */
-export const FULL_WHAT_CODES = new Set([
+export const FULL_WHAT_CODES = withOutsideTwins([
   'aspect-violation-enforced',
   'aspect-violation-advisory',
   // The relation refusal's `what` carries the violation list (each
@@ -96,10 +119,33 @@ export const FULL_WHAT_CODES = new Set([
 /**
  * Coverage issue codes the grouped SECTION renderers exclude from groupIssues and
  * render as their own file-list blocks (renderUnmappedBlock). Single-sourced here so
- * the portal worklist partitions identically. NOTE: renderTopBody deliberately does
- * NOT use this set — the --top view renders coverage inside its cascade.
+ * the portal worklist partitions identically, and so the details and --top views
+ * decide the same way — each of those dispatches on THIS set rather than on its own
+ * literal codes, which is what stopped a coverage finding's file list from being
+ * truncated away in one view while rendering in another.
+ *
+ * The inherited half of a split coverage finding (`unmapped-files-outside`) belongs
+ * here for the same reason its blocking half does: the file list IS the finding, and
+ * the generic issue renderer shows only the first line of `what` — "N source files
+ * not covered by any node." with every filename gone.
+ *
+ * NOTE, unchanged: renderTopBody does not EXCLUDE these from grouping the way the
+ * section renderers do — the --top view renders coverage inside its priority cascade,
+ * so a coverage finding can be one of the `n` blocks it shows. It consults this set
+ * only to choose the block renderer.
  */
-export const COVERAGE_GROUP_EXCLUDED_CODES = new Set(['unmapped-files', 'uncovered-advisory']);
+export const COVERAGE_GROUP_EXCLUDED_CODES = withOutsideTwins(['unmapped-files', 'uncovered-advisory']);
+
+/**
+ * The label `renderUnmappedBlock` heads a coverage block with. `uncovered-advisory`
+ * is the non-blocking visibility tier and says so; everything else in
+ * {@link COVERAGE_GROUP_EXCLUDED_CODES} is an unmapped-files finding, blocking or
+ * inherited — the two are told apart by the severity section they render under, not
+ * by this word.
+ */
+export function coverageBlockLabel(code: string): string {
+  return code === 'uncovered-advisory' ? 'uncovered' : 'unmapped';
+}
 
 /**
  * Priority rank for an issue, mirroring computeSuggestedNext's §6 cascade so the

@@ -7,6 +7,7 @@
  */
 
 import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH } from '../utils/rules-artifact-names.js';
+import { ARCHITECTURE_FILE, CONFIG_FILE } from './progressive-scope.js';
 
 /**
  * Standing notice: coverage.type_level is on, but no type in the architecture
@@ -359,11 +360,21 @@ export const OUTSIDE_CODES = new Set<string>(Array.from(SCOPED_CODES, outsideTwi
  * of the four codes above can never be attributed to a change's own diff —
  * there is no per-change file for it to be "about" — which is exactly why
  * none of them are members of `SCOPED_CODES`.
+ *
+ * EVERY path here is REPO-RELATIVE, spelled exactly as the touched set spells
+ * it — a consumer intersects these against the changed-file set, so a path
+ * written any other way silently never matches and the finding is judged by an
+ * input it can never see. The three rules-distribution artifacts sit at the
+ * repository root and are imported from the module that names them; the two
+ * committed graph files sit UNDER the graph directory and are imported from the
+ * burn table that spells that directory, rather than re-typed here. Both were
+ * once written bare (`yg-config.yaml`, `yg-architecture.yaml`) and could not
+ * have matched anything; importing is what stops that from recurring.
  */
 export const SINGLETON_INPUTS: Map<string, string[]> = new Map([
   ['rules-digest-stale', [AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH]],
   ['incident-ledger-out-of-order', ['.yggdrasil/incidents.md']],
-  ['coverage-required-shadowed', ['yg-config.yaml']],
-  ['type-unknown-parent', ['yg-architecture.yaml']],
+  ['coverage-required-shadowed', [CONFIG_FILE]],
+  ['type-unknown-parent', [ARCHITECTURE_FILE]],
 ]);
 

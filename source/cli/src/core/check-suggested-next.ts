@@ -16,12 +16,18 @@ import { toPosixPath } from '../utils/posix.js';
 import type { CheckIssue } from './check-contract.js';
 
 /**
- * The one line a run points at when everything still blocking is something the
- * current change is not accountable for. Those findings arrive as `-outside`
- * twins whose own `next` was written for the finding, not for the scope — an
- * outside `unverified` still says `yg check --approve`, which would review the
- * WHOLE graph and quietly clear debt the change never touched. So the fallback
- * skips them and points at the audit that is honestly the next step.
+ * The one line a run points at when nothing blocks and at least one finding was
+ * put outside the change.
+ *
+ * It outranks every OTHER warning's own `next`, not just the twins' — which is
+ * a stronger rule than it first looks and is deliberate. Skipping only the twins
+ * left the highest-ranking survivor speaking for the run, and the two warnings
+ * that rank highest here (an advisory aspect violation, then whatever sorts
+ * first alphabetically) carry guidance about re-reviewing the WHOLE project:
+ * a progressive-green run would end by telling an agent to run a repo-wide
+ * review it never asked for, clearing inherited debt the change did not cause
+ * and spending reviewer calls to do it. While anything sits outside the change,
+ * the honest next step is the audit that shows all of it at once.
  */
 function standingOutsideLine(outsideWarnings: CheckIssue[]): string {
   const count = countOutside(outsideWarnings);
@@ -52,13 +58,11 @@ function pickByAspectIdLocale(errors: CheckIssue[], code: string): CheckIssue | 
  *
  * Each lock issue carries its own kind-appropriate `next` in messageData
  * (cached three-exit for an LLM refusal, fix-violations for a deterministic
- * refusal, size remedies for prompt-too-large). With no error remaining,
+ * refusal, size remedies for prompt-too-large). With no error remaining: when
+ * ANY finding was put outside the change, point at the full audit; otherwise
  * surface the highest-priority warning's `next` — advisory aspect-violation
- * first, else the alphabetically-first warning that is not a `-outside` twin —
- * so a warnings-only run still points somewhere. When the ONLY warnings left
- * are twins (a run whose every blocking finding was inherited rather than
- * caused by the change), point at the full audit instead of at any one
- * finding's own command.
+ * first, else the alphabetically-first warning — so a warnings-only run still
+ * points somewhere.
  */
 export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   const errors = issues.filter(i => i.severity === 'error');
@@ -66,6 +70,10 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   if (errors.length === 0) {
     const warnings = issues.filter(i => i.severity === 'warning');
     if (warnings.length === 0) return null;
+    // Anything outside the change takes the line, ahead of every warning below
+    // — including the advisory branch, which otherwise outranks everything and
+    // whose `next` points at a repo-wide review. See standingOutsideLine.
+    if (warnings.some(i => OUTSIDE_CODES.has(i.code))) return standingOutsideLine(warnings);
     // Advisory aspect violations rank first among warnings (matching groupIssues'
     // label sort, where the 'advisory' label precedes every other warning label).
     // Among several advisory warnings, pick the alphabetically-first aspectId — the
@@ -82,12 +90,9 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
     // run still points somewhere, per the agent-facing contract. Use the SAME
     // (code, nodePath) tie-break as the structural / "any remaining error" branches
     // below so the surfaced line stays consistent with what `--top` renders first.
-    // `-outside` twins are excluded: their `next` belongs to the finding, not to
-    // the scope, and surfacing it would tell an agent to act on work that is not
-    // the change's — see standingOutsideLine.
-    const actionable = warnings.filter(i => !OUTSIDE_CODES.has(i.code));
-    if (actionable.length === 0) return standingOutsideLine(warnings);
-    const first = [...actionable].sort((a, b) =>
+    // No twin can reach here — the branch above already took the line — so this
+    // is the pre-scope behaviour, unchanged.
+    const first = [...warnings].sort((a, b) =>
       a.code.localeCompare(b.code, 'en') ||
       (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];
     return first.messageData.next ?? null;

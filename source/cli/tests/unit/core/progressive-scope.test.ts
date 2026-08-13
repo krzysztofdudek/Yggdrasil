@@ -400,15 +400,38 @@ describe('computeBurnSet — model row', () => {
     );
     expect(result.pairKeys.has(K('x', 'node:lonely'))).toBe(false);
     expect(result.pairKeys.has(K('x', 'node:globby'))).toBe(false);
-    // Node-keyed issues scope to the node whose declaration changed, not to the
-    // whole fan-out — an ancestor did not itself change.
-    expect(result.nodePaths).toEqual(new Set(['top/mid']));
+    // Node-keyed issues reach EXACTLY the same nodes the pairs did. They must:
+    // some of what this row reaches produces node-keyed findings and nothing
+    // else — editing one node's declaration can make another node's existing
+    // import an undeclared cross-node edge, and that finding carries only the
+    // second node's path. Burning the pairs while leaving the node out let such
+    // a finding be re-coded as inherited debt.
+    expect(result.nodePaths).toEqual(new Set(['top/mid', 'top/mid/leaf', 'top', 'other']));
     expect(result.logOnlyNodePaths).toEqual(new Set());
+  });
+
+  it('puts a reverse-relation source in the NODE set, not only its pairs (C1)', () => {
+    // The reproduced under-burn: only `top/mid`'s declaration is touched, but
+    // `other` declares a relation to it, so `other`'s own imports are what a
+    // relation-conformance finding would land on. That finding names `other`
+    // and nothing else.
+    const result = burn(['.yggdrasil/model/top/mid/yg-node.yaml']);
+    expect(result.nodePaths.has('other')).toBe(true);
+  });
+
+  it('puts a reverse-relation source of a DELETED node directory in the node set too', () => {
+    const graph = makeBurnGraph();
+    const other = graph.nodes.get('other')!;
+    other.meta.relations = [{ target: 'top/mid/gone', type: 'uses' }];
+    const result = burn(['.yggdrasil/model/top/mid/gone/yg-node.yaml'], { graph });
+    expect(result.nodePaths.has('other')).toBe(true);
   });
 
   it('resolves a non-node file inside a node directory to the nearest enclosing node', () => {
     const result = burn(['.yggdrasil/model/top/mid/notes/scratch.md']);
-    expect(result.nodePaths).toEqual(new Set(['top/mid']));
+    // The nearest enclosing node is `top/mid`, and the row reaches from there
+    // exactly as it does for the declaration file itself.
+    expect(result.nodePaths).toEqual(new Set(['top/mid', 'top/mid/leaf', 'top', 'other']));
     expect(result.pairKeys.has(K('x', 'node:top/mid'))).toBe(true);
   });
 
@@ -443,8 +466,17 @@ describe('computeBurnSet — log.md carve-out', () => {
   it('a log.md whose directory is not a node falls back to the full row (fail closed)', () => {
     const result = burn(['.yggdrasil/model/top/mid/notes/log.md']);
     expect(result.logOnlyNodePaths).toEqual(new Set());
-    expect(result.nodePaths).toEqual(new Set(['top/mid']));
+    expect(result.nodePaths).toEqual(new Set(['top/mid', 'top/mid/leaf', 'top', 'other']));
     expect(result.pairKeys.has(K('x', 'node:top/mid'))).toBe(true);
+  });
+
+  it('a REAL node log.md still burns no node — the carve-out survives the wider node set', () => {
+    // The completeness fix above widens the model row only. A log entry on a
+    // shallow node must still re-gate that node's log channel and nothing else,
+    // which is the whole reason the carve-out exists.
+    const result = burn(['.yggdrasil/model/top/log.md']);
+    expect(result.nodePaths).toEqual(new Set());
+    expect(result.logOnlyNodePaths).toEqual(new Set(['top']));
   });
 
   it('a sibling yg-node.yaml change in the same commit still burns the full row', () => {

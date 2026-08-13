@@ -865,3 +865,62 @@ describe('check render — --top view: a split coverage finding', () => {
     expect(reversed).toBe(forward);
   });
 });
+
+// ── Every view discloses the inherited half's file list ─────────────────────
+
+/**
+ * The file list IS a coverage finding — its `what` carries the count on line 1
+ * and the filenames beneath. A view that routes the finding to the generic
+ * block renderer shows line 1 only, so the finding renders as a bare number
+ * with every filename gone. That is what happened to the inherited half in the
+ * details view while the same half rendered correctly elsewhere.
+ */
+describe('check render — the inherited coverage half in every view', () => {
+  const inherited = (): CheckIssue[] =>
+    applyChangeScope(
+      [
+        {
+          severity: 'error',
+          code: 'unmapped-files',
+          rule: 'unmapped-file',
+          uncoveredFiles: ['src/inherited-a.ts', 'src/inherited-b.ts'],
+          uncoveredCount: 2,
+          messageData: {
+            what: '2 source files not covered by any node.\n  src/inherited-a.ts\n  src/inherited-b.ts',
+            why: 'Files without graph coverage cannot be modified under the protocol.',
+            next: 'Check ownership candidates: yg context --file <path>',
+          },
+        },
+      ],
+      {
+        global: false,
+        pairKeys: new Set(),
+        nodePaths: new Set(),
+        files: new Set(),
+        logOnlyNodePaths: new Set(),
+        changedInputCount: 0,
+      },
+      [],
+    );
+
+  it('produces exactly one inherited half, and nothing blocking', () => {
+    const issues = inherited();
+    expect(issues.map((i) => i.code)).toEqual(['unmapped-files-outside']);
+    expect(issues[0].severity).toBe('warning');
+  });
+
+  for (const view of [{ kind: 'full' }, { kind: 'details' }, { kind: 'top', n: 5 }] as CheckView[]) {
+    it(`names both inherited files in the ${view.kind} view`, () => {
+      const out = stripAnsi(formatOutput(baseResult(inherited()), view));
+      expect(out).toContain('src/inherited-a.ts');
+      expect(out).toContain('src/inherited-b.ts');
+      // …and as a compact coverage block, not as a truncated one-line summary.
+      expect(out).toContain('unmapped (2)');
+    });
+  }
+
+  it('does not call the inherited half "uncovered" — that is the advisory tier', () => {
+    const out = stripAnsi(formatOutput(baseResult(inherited()), { kind: 'full' }));
+    expect(out).not.toContain('uncovered (2)');
+  });
+});

@@ -5,10 +5,11 @@ import {
   issueIsInScope,
 } from '../../../src/core/check-progressive.js';
 import type { BurnSet } from '../../../src/core/progressive-scope.js';
-import { progressivePairKey } from '../../../src/core/progressive-scope.js';
-import { OUTSIDE_CODES, SCOPED_CODES, outsideTwin } from '../../../src/core/check-codes.js';
+import { computeBurnSet, progressivePairKey } from '../../../src/core/progressive-scope.js';
+import { OUTSIDE_CODES, SCOPED_CODES, SINGLETON_INPUTS, outsideTwin } from '../../../src/core/check-codes.js';
 import type { CheckIssue } from '../../../src/core/check-contract.js';
 import type { VerifiedPair } from '../../../src/core/verify-lock.js';
+import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 /**
  * The classification step: for each finding a check produced, decide whether the
@@ -464,5 +465,192 @@ describe('countOutside', () => {
   it('counts nothing when the burn set is global', () => {
     const issues = [pairIssue('audit', 'node:a')];
     expect(countOutside(applyChangeScope(issues, burn({ global: true }), [knownPair('audit', 'node:a')]))).toBe(0);
+  });
+});
+
+
+// ── C1: the node set the REAL burn engine produces ─────────────────────────
+
+/**
+ * These do not hand-build a burn set. They run the real engine over a real
+ * graph, because the defect they pin was an internal disagreement between two
+ * halves of that engine — the model row burning a node's PAIRS while leaving
+ * the node out of the set every node-keyed finding is judged against. A
+ * hand-built scope cannot see that at all.
+ */
+describe('applyChangeScope — against the real burn engine', () => {
+  function node(path: string, over: Partial<GraphNode['meta']> = {}): GraphNode {
+    return {
+      path,
+      meta: { name: path, type: 'library', mapping: [`src/${path}`], ...over },
+      children: [],
+      parent: null,
+    } as unknown as GraphNode;
+  }
+
+  function graphOf(nodes: GraphNode[]): Graph {
+    return {
+      config: {},
+      architecture: { node_types: {} },
+      nodes: new Map(nodes.map((n) => [n.path, n])),
+      aspects: [],
+      flows: [],
+      rootPath: '/tmp/.yggdrasil',
+    } as unknown as Graph;
+  }
+
+  /** `consumer` declares a relation to `provider`; only provider's declaration moves. */
+  function scopeAfterTouchingProviderDeclaration(): BurnSet {
+    const provider = node('provider');
+    const consumer = node('consumer', { relations: [{ target: 'provider', type: 'uses' }] });
+    return computeBurnSet({
+      touched: new Set(['.yggdrasil/model/provider/yg-node.yaml']),
+      graph: graphOf([provider, consumer]),
+      pairs: [],
+      touchedListsByPairKey: new Map(),
+      baseVerdictPairKeys: new Set(),
+      configVocabularyChanged: false,
+    });
+  }
+
+  const nodeFinding = (code: string, nodePath: string): CheckIssue => ({
+    severity: 'error',
+    code,
+    rule: code,
+    messageData: md(),
+    nodePath,
+  });
+
+  it('keeps a relation finding on the node the change re-gated through a reverse relation', () => {
+    // Editing one component's declaration is exactly what can turn ANOTHER
+    // component's existing import into an undeclared cross-node edge. That
+    // finding names only the second component, so if the burn set re-gates its
+    // pairs but not the component itself, a violation the change caused ships
+    // as a warning.
+    const [out] = applyChangeScope(
+      [nodeFinding('relation-undeclared-dependency', 'consumer')],
+      scopeAfterTouchingProviderDeclaration(),
+      [],
+    );
+    expect(out.code).toBe('relation-undeclared-dependency');
+    expect(out.severity).toBe('error');
+  });
+
+  it('keeps a strict-mapping finding on that same node — the ownership-release shape', () => {
+    const [out] = applyChangeScope(
+      [nodeFinding('type-strict-misplaced', 'consumer')],
+      scopeAfterTouchingProviderDeclaration(),
+      [],
+    );
+    expect(out.severity).toBe('error');
+  });
+
+  it('still downgrades a finding on a component the change reaches by no route at all', () => {
+    // The completeness fix must not collapse into "everything is in scope".
+    const provider = node('provider');
+    const consumer = node('consumer', { relations: [{ target: 'provider', type: 'uses' }] });
+    const bystander = node('bystander');
+    const scope = computeBurnSet({
+      touched: new Set(['.yggdrasil/model/provider/yg-node.yaml']),
+      graph: graphOf([provider, consumer, bystander]),
+      pairs: [],
+      touchedListsByPairKey: new Map(),
+      baseVerdictPairKeys: new Set(),
+      configVocabularyChanged: false,
+    });
+    const [out] = applyChangeScope([nodeFinding('relation-undeclared-dependency', 'bystander')], scope, []);
+    expect(out.code).toBe('relation-undeclared-dependency-outside');
+    expect(out.severity).toBe('warning');
+  });
+
+  it('reaches each fixed-input path the singleton rung names, as the engine spells them', () => {
+    // The rung shadows every other identity, so a path spelled differently from
+    // the touched set would judge a finding by an input it can never match —
+    // and downgrade it. Run every path through the real engine rather than
+    // comparing two string literals.
+    for (const [code, paths] of SINGLETON_INPUTS) {
+      for (const path of paths) {
+        const scope = computeBurnSet({
+          touched: new Set([path]),
+          graph: graphOf([]),
+          pairs: [],
+          touchedListsByPairKey: new Map(),
+          baseVerdictPairKeys: new Set(),
+          configVocabularyChanged: false,
+        });
+        const issue: CheckIssue = { severity: 'warning', code, rule: code, messageData: md() };
+        expect(issueIsInScope(issue, scope, new Set()), `${code} -> ${path}`).toBe(true);
+      }
+    }
+  });
+
+  it('spells the two committed graph files under the graph directory', () => {
+    // The concrete regression: both were once written bare and could never
+    // have matched a changed path.
+    expect(SINGLETON_INPUTS.get('coverage-required-shadowed')).toEqual(['.yggdrasil/yg-config.yaml']);
+    expect(SINGLETON_INPUTS.get('type-unknown-parent')).toEqual(['.yggdrasil/yg-architecture.yaml']);
+  });
+});
+
+// ── Blank identity is NOT identity ─────────────────────────────────────────
+
+describe('applyChangeScope — blank identity fields', () => {
+  it('keeps a finding whose node path is the empty string', () => {
+    const issue: CheckIssue = {
+      severity: 'error',
+      code: 'relation-undeclared-dependency',
+      rule: 'relation-undeclared-dependency',
+      messageData: md(),
+      nodePath: '',
+    };
+    expect(applyChangeScope([issue], burn(), [])).toEqual([issue]);
+  });
+
+  it('keeps a finding whose unit key is a bare `file:` prefix naming nothing', () => {
+    const issue: CheckIssue = {
+      severity: 'error',
+      code: 'ambiguous-node-type',
+      rule: 'ambiguous-node-type',
+      messageData: md(),
+      unitKey: 'file:',
+    };
+    expect(applyChangeScope([issue], burn(), [])).toEqual([issue]);
+  });
+
+  it('keeps a finding whose aspect id is blank rather than keying a pair on it', () => {
+    const issue: CheckIssue = {
+      severity: 'error',
+      code: 'unverified',
+      rule: 'unverified',
+      messageData: md(),
+      aspectId: '',
+      unitKey: '',
+    };
+    expect(applyChangeScope([issue], burn(), [])).toEqual([issue]);
+  });
+
+  it('keeps an aggregate finding whose every edge names no file', () => {
+    const issue: CheckIssue = {
+      severity: 'error',
+      code: 'type-relation-forbidden',
+      rule: 'type-relation-forbidden',
+      messageData: md(),
+      relationEdges: [{ fromFile: '', toFile: '' }],
+    };
+    expect(applyChangeScope([issue], burn(), [])).toEqual([issue]);
+  });
+
+  it('still reads a half-named edge — one real file is an identity', () => {
+    const issue: CheckIssue = {
+      severity: 'error',
+      code: 'type-relation-forbidden',
+      rule: 'type-relation-forbidden',
+      messageData: md(),
+      relationEdges: [{ fromFile: 'src/real.ts', toFile: '' }],
+    };
+    expect(applyChangeScope([issue], burn({ files: new Set(['src/real.ts']) }), [])[0].severity).toBe('error');
+    expect(applyChangeScope([issue], burn({ files: new Set(['src/other.ts']) }), [])[0].code).toBe(
+      'type-relation-forbidden-outside',
+    );
   });
 });

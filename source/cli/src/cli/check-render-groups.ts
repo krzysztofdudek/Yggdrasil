@@ -1,7 +1,7 @@
 // yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import chalk from 'chalk';
 import type { CheckIssue } from '../core/check.js';
-import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES } from './group-issues.js';
+import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel } from './group-issues.js';
 import { useEmoji } from './check-render-header.js';
 
 /** Code sets for grouping errors by category. STRUCTURAL_CODES and
@@ -27,10 +27,13 @@ export function renderDetailsSection(issues: CheckIssue[], mode: 'error' | 'warn
   const lines: string[] = [];
   for (const issue of issues) {
     lines.push('');
-    if (issue.code === 'unmapped-files') {
-      renderUnmappedBlock(issue, lines);
-    } else if (issue.code === 'uncovered-advisory') {
-      renderUnmappedBlock(issue, lines, 'uncovered');
+    // Dispatch on the shared coverage set, not on literal codes: a coverage
+    // finding's file list lives on lines 2+ of its `what`, which the generic
+    // block renderer truncates away, so a code missing from this branch loses
+    // the whole content of the finding in THIS view while rendering fine in
+    // the others.
+    if (COVERAGE_GROUP_EXCLUDED_CODES.has(issue.code)) {
+      renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code));
     } else {
       renderIssueBlock(issue, lines, mode);
     }
@@ -121,10 +124,14 @@ export function renderWarningSection(warnings: CheckIssue[], opts: { isTTY: bool
     lines.push(`  ... in ${groups.length} groups — showing ${GROUP_CAP}; run yg check --top <n> or --aspect <id>`);
   }
 
-  // Coverage warnings — compact block with file list (unchanged)
+  // Coverage warnings — compact block with file list. The label comes from the
+  // code, not from the section: this block now also carries the INHERITED half
+  // of a split coverage finding, which is an unmapped-files finding that does
+  // not block, not the advisory visibility tier, and calling it "uncovered"
+  // would merge two different facts under one word.
   for (const issue of coverage) {
     lines.push('');
-    renderUnmappedBlock(issue, lines, 'uncovered');
+    renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code));
   }
 
   return lines.join('\n');

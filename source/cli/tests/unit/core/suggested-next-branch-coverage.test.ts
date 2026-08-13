@@ -157,18 +157,32 @@ describe('computeSuggestedNext — findings outside the change', () => {
     expect(run(issues)).toBe(`4 enforced obligation(s) outside your changes — ${STANDING}`);
   });
 
-  it('prefers a real, actionable warning over the standing line', () => {
+  it('outranks a surviving pre-existing warning, whose next is not about this change', () => {
     const issues: Issue[] = [
       { severity: 'warning', code: 'unverified-outside', aspectId: 'audit-log', messageData: md('yg check --approve') },
       { severity: 'warning', code: 'high-fan-out', nodePath: 'a/n', messageData: md('NEXT-FANOUT') },
     ];
-    expect(run(issues)).toBe('NEXT-FANOUT');
+    expect(run(issues)).toBe(`1 enforced obligation(s) outside your changes — ${STANDING}`);
   });
 
-  it('still prefers an advisory aspect violation over the standing line', () => {
+  it('outranks the ADVISORY branch too — the one that steers at a repo-wide review', () => {
+    // The live case: this repository ships advisory aspects, so a
+    // progressive-green run would otherwise end on an advisory violation's own
+    // guidance about re-reviewing every component — a repo-wide paid operation
+    // nobody asked for, clearing debt this change did not cause.
     const issues: Issue[] = [
       { severity: 'warning', code: 'unverified-outside', aspectId: 'audit-log', messageData: md('yg check --approve') },
+      { severity: 'warning', code: 'aspect-violation-advisory', aspectId: 'audit-log', messageData: md('yg check --approve') },
+    ];
+    const next = run(issues);
+    expect(next).not.toBe('yg check --approve');
+    expect(next).toBe(`1 enforced obligation(s) outside your changes — ${STANDING}`);
+  });
+
+  it('leaves a run with no twin at all exactly as it was', () => {
+    const issues: Issue[] = [
       { severity: 'warning', code: 'aspect-violation-advisory', aspectId: 'audit-log', messageData: md('NEXT-ADVISORY') },
+      { severity: 'warning', code: 'high-fan-out', nodePath: 'a/n', messageData: md('NEXT-FANOUT') },
     ];
     expect(run(issues)).toBe('NEXT-ADVISORY');
   });

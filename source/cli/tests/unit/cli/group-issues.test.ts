@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { groupIssues, CODE_ONLY_GROUP_CODES, FULL_WHAT_CODES } from '../../../src/cli/group-issues.js';
+import {
+  groupIssues,
+  CODE_ONLY_GROUP_CODES,
+  FULL_WHAT_CODES,
+  COVERAGE_GROUP_EXCLUDED_CODES,
+  coverageBlockLabel,
+} from '../../../src/cli/group-issues.js';
 import { computeSuggestedNext } from '../../../src/core/check.js';
 import type { CheckIssue } from '../../../src/core/check.js';
 
@@ -331,5 +337,58 @@ describe('computeSuggestedNext — a pair this run proved cannot run never displ
       }),
     ];
     expect(computeSuggestedNext(errors)).toBe(cannotRunNext);
+  });
+});
+
+// ── Twins of the scoped codes, derived rather than hand-listed ───────────────
+
+/**
+ * Each of the three render sets decides how a code is presented: collapsed into
+ * one group, shown with its full actionable body, or pulled out as a file-list
+ * block. A finding put outside the change is the SAME finding — it must present
+ * the same way, or being outside the change silently costs a reader the
+ * reviewer's reason, the violation list, or the file names.
+ */
+describe('render code sets — the -outside twins', () => {
+  it('collapses `unverified-outside` by code, exactly as its untwinned form does', () => {
+    expect(CODE_ONLY_GROUP_CODES.has('unverified-outside')).toBe(true);
+    const groups = groupIssues([
+      iss({ severity: 'warning', code: 'unverified-outside', aspectId: 'audit-logging', nodePath: 'a' }),
+      iss({ severity: 'warning', code: 'unverified-outside', aspectId: 'retention', nodePath: 'b' }),
+      iss({ severity: 'warning', code: 'unverified-outside', aspectId: 'naming', nodePath: 'c' }),
+    ]);
+    // One block, not one per aspect — otherwise a run reporting inherited debt
+    // fragments into dozens of blocks and pushes real warnings past the cap.
+    expect(groups).toHaveLength(1);
+    expect(groups[0].pairCount).toBe(3);
+    expect(groups[0].aspectId).toBeUndefined();
+  });
+
+  it('keeps the full actionable body for every twin that can carry one', () => {
+    for (const code of [
+      'aspect-violation-enforced-outside',
+      'relation-undeclared-dependency-outside',
+      'type-relation-forbidden-outside',
+    ]) {
+      expect(FULL_WHAT_CODES.has(code), code).toBe(true);
+    }
+  });
+
+  it('invents no twin for a code a change scope can never twin', () => {
+    // `aspect-violation-advisory` is already a warning, so it is not scoped and
+    // no twin of it ever exists. A blanket `.map(outsideTwin)` would have put a
+    // code here that nothing can ever produce.
+    expect(FULL_WHAT_CODES.has('aspect-violation-advisory-outside')).toBe(false);
+  });
+
+  it('routes the inherited half of a split coverage finding to the file-list block', () => {
+    expect(COVERAGE_GROUP_EXCLUDED_CODES.has('unmapped-files-outside')).toBe(true);
+    expect(COVERAGE_GROUP_EXCLUDED_CODES.has('uncovered-advisory-outside')).toBe(false);
+  });
+
+  it('labels the inherited half by what it is, not by the section it sits in', () => {
+    expect(coverageBlockLabel('unmapped-files')).toBe('unmapped');
+    expect(coverageBlockLabel('unmapped-files-outside')).toBe('unmapped');
+    expect(coverageBlockLabel('uncovered-advisory')).toBe('uncovered');
   });
 });

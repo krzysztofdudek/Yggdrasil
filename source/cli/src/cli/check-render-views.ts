@@ -2,7 +2,7 @@
 import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check-codes.js';
-import { groupIssues, issuePriorityRank, type IssueGroup } from './group-issues.js';
+import { groupIssues, issuePriorityRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, type IssueGroup } from './group-issues.js';
 import { renderHeader, useEmoji, renderTypeVisibilityBlock } from './check-render-header.js';
 import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup } from './check-render-groups.js';
 import { toPosixPath } from '../utils/posix.js';
@@ -277,10 +277,11 @@ function renderTopBody(errors: CheckIssue[], warnings: CheckIssue[], n: number, 
   const chosenWarnings = chosenGroups.filter(g => g.severity === 'warning');
   const renderOneGroup = (g: IssueGroup): string => {
     const lines: string[] = [];
-    if (g.code === 'unmapped-files') {
-      renderUnmappedBlock(g.members[0], lines);
-    } else if (g.code === 'uncovered-advisory') {
-      renderUnmappedBlock(g.members[0], lines, 'uncovered');
+    // Same shared coverage set the full and details views dispatch on, so a
+    // coverage finding cannot render as a file-list block in one view and as a
+    // truncated one-liner in another.
+    if (COVERAGE_GROUP_EXCLUDED_CODES.has(g.code)) {
+      renderUnmappedBlock(g.members[0], lines, coverageBlockLabel(g.code));
     } else {
       renderGroup(g, lines, opts);
     }

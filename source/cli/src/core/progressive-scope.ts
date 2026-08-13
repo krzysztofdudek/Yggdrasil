@@ -150,8 +150,16 @@ const YGG_DIR = '.yggdrasil';
 const MODEL_PREFIX = `${YGG_DIR}/model/`;
 const ASPECTS_PREFIX = `${YGG_DIR}/aspects/`;
 const FLOWS_PREFIX = `${YGG_DIR}/flows/`;
-const ARCHITECTURE_FILE = `${YGG_DIR}/yg-architecture.yaml`;
-const CONFIG_FILE = `${YGG_DIR}/yg-config.yaml`;
+/**
+ * Exported because a code→fixed-input map elsewhere (`SINGLETON_INPUTS`,
+ * core/check-codes.ts) has to intersect the SAME touched set this table reads,
+ * and a second, hand-spelled copy of either path silently never matches: the
+ * touched set spells them repo-relative, WITH this directory in front. That is
+ * not hypothetical — both were once written bare and could never have matched
+ * anything. One spelling, imported, is the only way that stays true.
+ */
+export const ARCHITECTURE_FILE = `${YGG_DIR}/yg-architecture.yaml`;
+export const CONFIG_FILE = `${YGG_DIR}/yg-config.yaml`;
 const NODE_YAML = 'yg-node.yaml';
 const FLOW_YAML = 'yg-flow.yaml';
 const LOG_MD = 'log.md';
@@ -186,6 +194,14 @@ const IGNORED_OUTPUTS: ReadonlySet<string> = new Set(
  * The identity of one expected pair inside a {@link BurnSet}: `<aspectId> <unitKey>`.
  * Exported so every consumer derives the key the same way — a caller that
  * re-spells the separator gets a set that silently never intersects.
+ *
+ * KNOWN LIMIT, recorded rather than fixed: the join is a single space, so two
+ * different (aspect, unit) pairs whose ids themselves contain spaces could in
+ * principle produce the same key. No aspect id and no unit key in practice
+ * contains one — aspect ids are slug-like and a unit key is `node:<path>` or
+ * `file:<repo-relative POSIX path>` — so this is a latent ambiguity, not a live
+ * defect. If ids ever gain spaces, change the separator HERE and every consumer
+ * follows, which is the whole reason this function exists.
  */
 export function progressivePairKey(aspectId: string, unitKey: string): string {
   return `${aspectId} ${unitKey}`;
@@ -250,13 +266,26 @@ export interface BurnSet {
   /** `<aspectId> <unitKey>` for every pair this change is accountable for. */
   pairKeys: Set<string>;
   /**
-   * Node paths whose NODE-KEYED issues (the log gate, description, mapping
-   * diagnostics) the change is accountable for: the owner of every changed
-   * file, plus a node whose own model directory changed. Deliberately NOT the
-   * wider pair fan-out — a descendant, ancestor or reverse-relation node has
-   * its PAIRS re-gated because its rule attachment may have moved, but nothing
-   * about that node itself changed, and demanding a log entry on it would be
-   * asking a person to answer for a file they never opened.
+   * Node paths whose NODE-KEYED issues (the log gate, description, mapping and
+   * relation diagnostics) the change is accountable for: the owner of every
+   * changed file, plus EVERY node the model row reaches — the node whose own
+   * directory changed, its descendants, its ancestor chain, and every node
+   * declaring a relation to it (including to the literal directory, so a
+   * deleted node still re-gates whoever points at it).
+   *
+   * That last part is load-bearing and was once absent. This set must contain
+   * every node whose PAIRS the model row burns, because a node-keyed finding is
+   * the only evidence some of those reaches produce at all: editing one node's
+   * declaration can make ANOTHER node's existing import become an undeclared
+   * cross-node edge, and that finding (`relation-undeclared-dependency`) carries
+   * only the second node's path. Burning that node's pairs while leaving it out
+   * of this set let a violation the change actually caused be re-coded as
+   * inherited debt. The same shape reaches `type-strict-misplaced` when one
+   * node's mapping release makes another the owner.
+   *
+   * The `log.md` carve-out is NOT affected: a change to a node's log file takes
+   * the {@link logOnlyNodePaths} branch instead and never enters this set, so
+   * `yg log add` on a shallow node still burns nothing but that node's log.
    */
   nodePaths: Set<string>;
   /**
@@ -395,14 +424,19 @@ function isColdEstimable(pair: ExpectedPair, aspectById: Map<string, AspectDef>)
  *   - **`.yggdrasil/model/<p>/log.md`** — `logOnlyNodePaths` only. See
  *     {@link BurnSet.logOnlyNodePaths} for why this carve-out exists. A `log.md`
  *     whose directory is not a node falls through to the full row instead.
- *   - **`.yggdrasil/model/<p>/**` (anything else)** — the full row: pairs of
- *     `p`, of its descendants, of its ancestor chain (a `descendants:` clause
- *     looks down, so an edit must look up), and of every node declaring ANY
- *     relation targeting `p`. Reverse sources are also looked up under the
- *     LITERAL directory, so deleting a node still re-gates whoever still points
- *     at it.
+ *   - **`.yggdrasil/model/<p>/**` (anything else)** — the full row: `p`, its
+ *     descendants, its ancestor chain (a `descendants:` clause looks down, so an
+ *     edit must look up), and every node declaring ANY relation targeting `p`.
+ *     Reverse sources are also looked up under the LITERAL directory, so
+ *     deleting a node still re-gates whoever still points at it. Each of those
+ *     nodes is burned WHOLE — pairs and node-keyed issues alike (`burnNode`),
+ *     never pairs alone: see {@link BurnSet.nodePaths} for the violation that
+ *     shipped green while this row burned only half of each node it reached.
  *   - **`.yggdrasil/flows/<f>/**`** — pairs of the flow's aspects (and their
- *     `implies` closure) on every participant, descendants included.
+ *     `implies` closure) on every participant, descendants included. Pairs
+ *     ONLY, unlike the model row above: what moved is which rules attach
+ *     through the flow, not anything about a participant itself, so a
+ *     participant's own node-keyed findings stay outside the change.
  *   - **removed verdicts** — a pair that HELD a stored verdict at the reference
  *     and holds none now is burned outright, whatever its reviewer kind. The
  *     change deleted it; nothing else in the table can see that, because the
@@ -495,7 +529,17 @@ export function computeBurnSet(input: BurnInput): BurnSet {
   const burnKeys = (keys: string[] | undefined): void => {
     for (const key of keys ?? []) pairKeys.add(key);
   };
-  const burnNodePairs = (nodePath: string): void => burnKeys(pairKeysByNode.get(nodePath));
+  /**
+   * Burn one node: its pairs AND its node-keyed issues. The two travel together
+   * on purpose — see {@link BurnSet.nodePaths}. A reach that burned only the
+   * pairs would silently exempt every finding whose ONLY identity is that node's
+   * path, which is how a change that caused a violation elsewhere could ship it
+   * as inherited debt.
+   */
+  const burnNode = (nodePath: string): void => {
+    nodePaths.add(nodePath);
+    burnKeys(pairKeysByNode.get(nodePath));
+  };
 
   // Removed-verdict row. Independent of the touched set: the deletion shows in
   // the lock, and the lock is an output this table never reads as an input.
@@ -507,10 +551,7 @@ export function computeBurnSet(input: BurnInput): BurnSet {
 
     // Owner row — pattern-only resolution, so a deleted path still lands.
     const owner = ownerOf(file);
-    if (owner !== undefined) {
-      nodePaths.add(owner);
-      burnNodePairs(owner);
-    }
+    if (owner !== undefined) burnNode(owner);
 
     // Subject row.
     burnKeys(pairKeysBySubjectFile.get(file));
@@ -552,17 +593,16 @@ export function computeBurnSet(input: BurnInput): BurnSet {
         const nodePath = nearestNodePath(graph, dir);
         if (nodePath !== undefined) {
           const node = graph.nodes.get(nodePath)!;
-          nodePaths.add(nodePath);
-          burnNodePairs(nodePath);
-          for (const descendant of collectDescendants(node)) burnNodePairs(descendant.path);
-          for (const ancestor of collectAncestors(node)) burnNodePairs(ancestor.path);
-          for (const source of reverseTargets.get(nodePath) ?? []) burnNodePairs(source);
+          burnNode(nodePath);
+          for (const descendant of collectDescendants(node)) burnNode(descendant.path);
+          for (const ancestor of collectAncestors(node)) burnNode(ancestor.path);
+          for (const source of reverseTargets.get(nodePath) ?? []) burnNode(source);
         }
         // Whoever still declares a relation to the LITERAL directory — the node
         // that used to live there may have just been deleted, and the graph no
         // longer holds it to be found by the walk above.
         if (dir !== '' && dir !== nodePath) {
-          for (const source of reverseTargets.get(dir) ?? []) burnNodePairs(source);
+          for (const source of reverseTargets.get(dir) ?? []) burnNode(source);
         }
       }
     } else if (file.startsWith(FLOWS_PREFIX)) {

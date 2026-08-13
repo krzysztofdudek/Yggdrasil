@@ -10,8 +10,13 @@ description: "Pure burn-set engine for progressive mode. Two halves. The
   plus their descendants). computeBurnSet then composes them into the burn
   table itself: given the touched set, the run's expected pairs and the
   observation lists their stored verdicts carry, which pairs, node-keyed
-  issues, per-file issues and node logs the change is accountable for — with
-  the log.md carve-out (a log entry re-gates only that node's log channel),
+  issues, per-file issues and node logs the change is accountable for. Every
+  node a reach admits is burned WHOLE — its pairs AND its node-keyed issues —
+  because some reaches produce node-keyed findings and nothing else: editing
+  one node's declaration can make another node's import an undeclared
+  cross-node edge, and that finding names only the second node. With
+  the log.md carve-out (a log entry re-gates only that node's log channel, and
+  never enters the node set),
   cold pairs failing closed via allowed-reads, and architecture / config
   vocabulary escalating to the global gate. extractConfigVocabulary and
   configVocabularyChanged decide that last one from two raw config texts the

@@ -524,6 +524,52 @@ describe('runCheck — change scope classifies the assembled issues', () => {
     expect(withOption.changedInputCount).toBe(0);
   });
 
+  it('a progressive-green run points at the audit, never at a repo-wide review', async () => {
+    // The live shape: one ENFORCED rule (its unverified pair blocks, and with
+    // nothing burned becomes a twin) beside one ADVISORY rule (whose unverified
+    // pair is already a warning and stays one, carrying `yg check --approve` as
+    // its own next). Every description is filled in so nothing is left
+    // unattributable and the run really does reach zero errors.
+    writeFile('src/a.ts', 'code');
+    const rootPath = path.join(tmpDir, '.yggdrasil');
+    mkdirSync(rootPath, { recursive: true });
+    const mkAspect = (id: string, status: AspectStatus): AspectDef => {
+      // Real rule source on disk — the aspect contract check reads the file,
+      // and a missing one is a structural error that would never be scoped.
+      writeFile(path.join('.yggdrasil', 'aspects', id, 'content.md'), 'rule');
+      return {
+        id, name: id, description: `${id} rule`, reviewer: { type: 'llm' }, status,
+        artifacts: [{ filename: 'content.md', content: 'rule' }],
+      } as AspectDef;
+    };
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'svc', type: 'service', description: 'the service', aspects: ['blocking', 'advising'], mapping: ['src/a.ts'] },
+      children: [], parent: null,
+    } as GraphNode;
+    const graph = {
+      config: { version: '5.0.0', reviewer: { tiers: { default: TIER }, default: 'default' } },
+      architecture: { node_types: { service: { description: 'test', when: { path: 'src/**' } } } },
+      nodes: new Map([['svc', node]]),
+      aspects: [mkAspect('blocking', 'enforced'), mkAspect('advising', 'advisory')],
+      flows: [], schemas: [], rootPath,
+    } as unknown as Graph;
+    const lock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
+    await writeLock(rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
+
+    const unscoped = await runCheck(graph, null);
+    expect(unscoped.suggestedNext).toBe('yg check --approve');
+
+    const scoped = await runCheck(graph, null, {
+      changeScope: { burn: emptyBurn(), referenceName: 'origin/main' },
+    });
+    expect(scoped.issues.filter((i) => i.severity === 'error')).toHaveLength(0);
+    expect(scoped.suggestedNext).not.toBe('yg check --approve');
+    expect(scoped.suggestedNext).toBe(
+      "1 enforced obligation(s) outside your changes — run 'yg check --full' for the complete audit",
+    );
+  });
+
   it('a global scope leaves every issue exactly as an unscoped run reports it', async () => {
     writeFile('src/a.ts', 'code');
     const graph = buildGraph('enforced');
