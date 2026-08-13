@@ -130,3 +130,5 @@ The stage header and the closure step still described the old rule — that a co
 The recording stage judged which reviewed rules to buy against the unwidened measurement while the report blocked against the widened one, so a rule kept in scope because its files provably differ from the reference was refused review by the very command the failing report advises — an unfixable state at a measured cost of nothing. Both now read one widened answer.
 ## [2026-08-13T15:00:01.833Z]
 Buying reviews read a narrower answer than blocking did: it asked only whether each rule check own subject files had moved, while the report asked about the whole component. An edit hidden on a neighbouring file of the same component therefore blocked while the advised command declined to review it. Both now read one answer with one reach.
+## [2026-08-13T15:38:52.183Z]
+Buying reviews now resolves a component to the files it owns, using the repository file walk the caller already performed, instead of asking only about each rule check own subjects. Agreeing with the report about what to do with an answer was not enough while the two were answering different questions.

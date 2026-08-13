@@ -350,11 +350,7 @@ describe('collectFindingByteGuardCandidates — when it does nothing at all', ()
 describe('collectPairByteGuardCandidates — the fill stage’s half', () => {
   it('gathers an out-of-scope rule check that is failing, with its bytes', async () => {
     const root = await projectWith({ 'src/svc.ts': 'export const svc = 1;\n' });
-    const { candidates } = await collectPairByteGuardCandidates(
-      scopeOf(),
-      [verifiedPair({ kind: 'unverified' })],
-      root,
-    );
+    const { candidates } = await collectPairByteGuardCandidates({ scope: scopeOf(), pairs: [verifiedPair({ kind: 'unverified' })], graph: graphOwning(), visibleFiles: ['src/svc.ts'], projectRoot: root });
     expect(candidates).toHaveLength(1);
     expect(candidates[0].pairKey).toBe(K('a', 'node:svc'));
     expect(candidates[0].subjects[0].owner).toBe('svc');
@@ -363,65 +359,53 @@ describe('collectPairByteGuardCandidates — the fill stage’s half', () => {
 
   it('ignores a passing rule check — there is nothing to buy or to keep', async () => {
     const root = await projectWith({ 'src/svc.ts': 'ok\n' });
-    const { candidates } = await collectPairByteGuardCandidates(
-      scopeOf(),
-      [verifiedPair({ kind: 'verified' })],
-      root,
-    );
+    const { candidates } = await collectPairByteGuardCandidates({ scope: scopeOf(), pairs: [verifiedPair({ kind: 'verified' })], graph: graphOwning(), visibleFiles: ['src/svc.ts'], projectRoot: root });
     expect(candidates).toEqual([]);
   });
 
   it('ignores an ADVISORY refusal, which is already a warning nothing downgrades', async () => {
     const root = await projectWith({ 'src/svc.ts': 'ok\n' });
-    const { candidates } = await collectPairByteGuardCandidates(
-      scopeOf(),
-      [verifiedPair({ kind: 'refused', reason: 'no' }, { status: 'advisory' })],
-      root,
-    );
+    const { candidates } = await collectPairByteGuardCandidates({ scope: scopeOf(), pairs: [verifiedPair({ kind: 'refused', reason: 'no' }, { status: 'advisory' })], graph: graphOwning(), visibleFiles: ['src/svc.ts'], projectRoot: root });
     expect(candidates).toEqual([]);
   });
 
   it('gathers a rule check whose verdict is VALID but whose prompt outgrew its tier', async () => {
     const root = await projectWith({ 'src/svc.ts': 'ok\n' });
-    const { candidates } = await collectPairByteGuardCandidates(
-      scopeOf(),
-      [{ pair: pairOf(), state: { kind: 'verified' }, oversized: { chars: 10, limit: 5, tierName: 'standard' } }],
-      root,
-    );
+    const { candidates } = await collectPairByteGuardCandidates({ scope: scopeOf(), pairs: [{ pair: pairOf(), state: { kind: 'verified' }, oversized: { chars: 10, limit: 5, tierName: 'standard' } }], graph: graphOwning(), visibleFiles: ['src/svc.ts'], projectRoot: root });
     expect(candidates.map((c) => c.pairKey)).toEqual([K('a', 'node:svc')]);
   });
 
   it('ignores a rule check the burn table already burned', async () => {
     const root = await projectWith({ 'src/svc.ts': 'ok\n' });
-    const { candidates } = await collectPairByteGuardCandidates(
-      scopeOf(burnOf({ pairKeys: new Set([K('a', 'node:svc')]) })),
-      [verifiedPair({ kind: 'unverified' })],
-      root,
-    );
+    const { candidates } = await collectPairByteGuardCandidates({ scope: scopeOf(burnOf({ pairKeys: new Set([K('a', 'node:svc')]) })), pairs: [verifiedPair({ kind: 'unverified' })], graph: graphOwning(), visibleFiles: ['src/svc.ts'], projectRoot: root });
     expect(candidates).toEqual([]);
   });
 
   it('carries an unreadable subject as null rather than dropping it', async () => {
     const root = await projectWith({ 'src/svc.ts': 'ok\n' });
-    const { candidates } = await collectPairByteGuardCandidates(
-      scopeOf(),
-      [verifiedPair({ kind: 'unverified' }, { subjectFiles: ['src/svc.ts', 'src/vanished.ts'] })],
-      root,
-    );
-    expect(candidates[0].subjects.map((s) => s.path)).toEqual(['src/svc.ts', 'src/vanished.ts']);
+    const { candidates } = await collectPairByteGuardCandidates({
+      scope: scopeOf(),
+      pairs: [verifiedPair({ kind: 'unverified' }, { subjectFiles: ['src/svc.ts', 'src/vanished.ts'] })],
+      graph: graphOwning(),
+      visibleFiles: ['src/svc.ts'],
+      projectRoot: root,
+    });
+    expect(candidates[0].subjects.map((s) => s.path).sort()).toEqual(['src/svc.ts', 'src/vanished.ts']);
     expect(candidates[0].subjects[1].bytes).toBeNull();
   });
 
   it('reads a file shared by several rule checks exactly once', async () => {
     const root = await projectWith({ 'src/svc.ts': 'ok\n' });
-    const { candidates } = await collectPairByteGuardCandidates(
-      scopeOf(),
-      [
+    const { candidates } = await collectPairByteGuardCandidates({
+      scope: scopeOf(),
+      pairs: [
         verifiedPair({ kind: 'unverified' }, { aspectId: 'a' }),
         verifiedPair({ kind: 'unverified' }, { aspectId: 'b' }),
       ],
-      root,
-    );
+      graph: graphOwning(),
+      visibleFiles: ['src/svc.ts'],
+      projectRoot: root,
+    });
     expect(candidates).toHaveLength(2);
     expect(candidates[0].subjects[0].bytes).toBe(candidates[1].subjects[0].bytes);
   });
@@ -429,12 +413,12 @@ describe('collectPairByteGuardCandidates — the fill stage’s half', () => {
   it('gathers nothing when there is no scope, no listing, or a global scope', async () => {
     const root = await projectWith({ 'src/svc.ts': 'ok\n' });
     const pairs = [verifiedPair({ kind: 'unverified' })];
-    expect((await collectPairByteGuardCandidates(undefined, pairs, root)).candidates).toEqual([]);
+    expect((await collectPairByteGuardCandidates({ scope: undefined, pairs: pairs, graph: graphOwning(), visibleFiles: ['src/svc.ts'], projectRoot: root })).candidates).toEqual([]);
     expect(
-      (await collectPairByteGuardCandidates({ burn: burnOf(), blobOidByPath: null }, pairs, root)).candidates,
+      (await collectPairByteGuardCandidates({ scope: { burn: burnOf(), blobOidByPath: null }, pairs: pairs, graph: graphOwning(), visibleFiles: ['src/svc.ts'], projectRoot: root })).candidates,
     ).toEqual([]);
     expect(
-      (await collectPairByteGuardCandidates(scopeOf(burnOf({ global: true })), pairs, root)).candidates,
+      (await collectPairByteGuardCandidates({ scope: scopeOf(burnOf({ global: true })), pairs: pairs, graph: graphOwning(), visibleFiles: ['src/svc.ts'], projectRoot: root })).candidates,
     ).toEqual([]);
   });
 });
@@ -450,7 +434,7 @@ describe('the component -> rule-check index both halves hand the decision', () =
     ];
 
     const fromFindings = await gather({ root, issues: [], pairs });
-    const fromPairs = await collectPairByteGuardCandidates(scopeOf(), pairs, root);
+    const fromPairs = await collectPairByteGuardCandidates({ scope: scopeOf(), pairs: pairs, graph: graphOwning(), visibleFiles: ['src/svc.ts'], projectRoot: root });
 
     for (const index of [fromFindings.pairKeysByNode, fromPairs.pairKeysByNode]) {
       expect(index.get('svc')).toEqual([K('a', 'file:src/svc.ts'), K('a', 'file:src/helper.ts')]);
@@ -505,5 +489,73 @@ describe('filesOfIssue — the dual of the classification ladder’s rungs', () 
       noOutside,
     );
     expect(files.sort()).toEqual(['src/helper.ts', 'src/svc.ts']);
+  });
+});
+
+describe('both halves ask about the same files', () => {
+  // The half-closed shape the close-out review found: the forcing step agreed on
+  // what to do with an answer while the two gatherers were answering different
+  // questions. A component file that no rule check has as a subject — a mapped
+  // documentation file, or a binary asset a prose rule is never given — belongs
+  // to the component and to no subject set, so the narrower half never asked
+  // about it and the review it should have bought was bought by nobody.
+  it('asks a rule check about its component’s files, not only its own subjects', async () => {
+    const root = await projectWith({ 'src/svc.ts': 'x\n', 'src/README.md': 'docs\n' });
+    const pairs = [verifiedPair({ kind: 'unverified' }, { subjectFiles: ['src/svc.ts'] })];
+
+    const { candidates } = await collectPairByteGuardCandidates({
+      scope: scopeOf(),
+      pairs,
+      graph: graphOwning(),
+      visibleFiles: ['src/svc.ts', 'src/README.md'],
+      projectRoot: root,
+    });
+
+    expect(candidates[0].subjects.map((s) => s.path).sort()).toEqual(['src/README.md', 'src/svc.ts']);
+    expect(candidates[0].subjects.every((s) => s.owner === 'svc')).toBe(true);
+  });
+
+  it('resolves a component to exactly the same files on both paths', async () => {
+    // Asserted as an equality between the two halves rather than as two
+    // independent expectations, because "the same" is the property that broke.
+    const root = await projectWith({ 'src/svc.ts': 'x\n', 'src/logo.png': 'PNGDATA\n' });
+    const pairs = [verifiedPair({ kind: 'unverified' }, { subjectFiles: ['src/svc.ts'] })];
+    const visibleFiles = ['src/svc.ts', 'src/logo.png'];
+
+    const fromPairs = await collectPairByteGuardCandidates({
+      scope: scopeOf(),
+      pairs,
+      graph: graphOwning(),
+      visibleFiles,
+      projectRoot: root,
+    });
+    const fromFindings = await collectFindingByteGuardCandidates({
+      scope: scopeOf(),
+      issues: [unverified('a', 'node:svc', 'svc')],
+      pairs,
+      graph: graphOwning(),
+      visibleFiles,
+      projectRoot: root,
+    });
+
+    const paths = (g: { candidates: Array<{ subjects: Array<{ path: string }> }> }): string[] =>
+      g.candidates[0].subjects.map((s) => s.path).sort();
+    expect(paths(fromPairs)).toEqual(paths(fromFindings));
+    expect(paths(fromPairs)).toEqual(['src/logo.png', 'src/svc.ts']);
+  });
+
+  it('falls back to rule-check subjects on both paths when there is no file walk', async () => {
+    const root = await projectWith({ 'src/svc.ts': 'x\n', 'src/README.md': 'docs\n' });
+    const pairs = [verifiedPair({ kind: 'unverified' }, { subjectFiles: ['src/svc.ts'] })];
+
+    const { candidates } = await collectPairByteGuardCandidates({
+      scope: scopeOf(),
+      pairs,
+      graph: graphOwning(),
+      visibleFiles: null,
+      projectRoot: root,
+    });
+
+    expect(candidates[0].subjects.map((s) => s.path)).toEqual(['src/svc.ts']);
   });
 });

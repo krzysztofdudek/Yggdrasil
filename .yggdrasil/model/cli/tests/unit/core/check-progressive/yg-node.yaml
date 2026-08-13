@@ -35,7 +35,10 @@ description: "Unit tests for the change-scope classification step — one case
   listing, a scope that already went global — and in the one where the reference
   records ids the build cannot reproduce, which is reported rather than
   swallowed. Both forms are also checked for the component -> rule-check index
-  they hand the decision, and the per-identity file derivation is tested
+  they hand the decision and for resolving a component to the SAME files as each
+  other (asserted as an equality between the two halves, since sameness is the
+  property that broke, plus the shared fallback to rule-check subjects when no
+  file walk was supplied), and the per-identity file derivation is tested
   directly — including the fixed-project-file rung, which no downgradable code
   reaches today and which is therefore proved here rather than left as an
   uncovered line. Every case runs against real files in a real throwaway

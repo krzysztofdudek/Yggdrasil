@@ -167,6 +167,62 @@ function indexPairKeysByNode(pairs: VerifiedPair[]): Map<string, string[]> {
 }
 
 /**
+ * Component -> the files it OWNS, resolved from the repo walk through the
+ * graph's own path patterns — the same resolution the burn table's owner row
+ * uses, and the single one BOTH gathering halves ask through.
+ *
+ * That sharing is the point, not a tidiness. The two halves once resolved a
+ * component differently: the report asked about its whole file set, while the
+ * stage that buys reviews asked only about each rule check's own subject files.
+ * Those are not the same set — a component's mapped documentation file, or a
+ * binary asset a prose rule is never given, belongs to the component and to no
+ * rule check's subjects at all — so a hidden edit to such a file blocked in the
+ * report and was bought by nobody. Agreeing on what to DO with an answer is not
+ * enough when the two are answering different questions.
+ *
+ * Built lazily and ONCE per gathering pass: it costs a pass over every visible
+ * file, and a run with no candidates must not pay for it. Falls back to the
+ * union of the component's rule-check subjects when there is no walk to read
+ * (a caller that supplied no file list) — narrower, but never wrong.
+ */
+function makeComponentFiles(
+  graph: Graph,
+  visibleFiles: string[] | null,
+  pairs: VerifiedPair[],
+): { filesOfNode: (nodePath: string) => string[]; ownerOf: (file: string) => string | undefined } {
+  const subjectsByNode = new Map<string, Set<string>>();
+  for (const vp of pairs) {
+    if (vp.pair.nodePath === undefined) continue;
+    let owned = subjectsByNode.get(vp.pair.nodePath);
+    if (owned === undefined) {
+      owned = new Set<string>();
+      subjectsByNode.set(vp.pair.nodePath, owned);
+    }
+    for (const file of vp.pair.subjectFiles) owned.add(file);
+  }
+
+  const { ownerOf } = buildOwnerIndex(graph.nodes);
+  let byNode: Map<string, string[]> | undefined;
+  const filesOfNode = (nodePath: string): string[] => {
+    const fallback = (): string[] => [...(subjectsByNode.get(nodePath) ?? [])];
+    if (visibleFiles === null) return fallback();
+    if (byNode === undefined) {
+      byNode = new Map();
+      for (const raw of visibleFiles) {
+        const file = toPosixPath(raw.trim());
+        const owner = ownerOf(file);
+        if (owner === undefined) continue;
+        const list = byNode.get(owner);
+        if (list === undefined) byNode.set(owner, [file]);
+        else list.push(file);
+      }
+    }
+    return byNode.get(nodePath) ?? fallback();
+  };
+  return { filesOfNode, ownerOf };
+}
+
+/**
  * Does this pair produce a BLOCKING finding at all?
  *
  * Asked of `emitPairIssue` rather than re-derived from `state.kind`, because
@@ -186,42 +242,56 @@ function producesBlockingFinding(vp: VerifiedPair): boolean {
 }
 
 /**
- * Candidates derived from this run's RULE CHECKS alone — what a fill stage
- * needs, since the only thing it decides with a scope is which rule checks to
- * pay a reviewer for.
+ * Candidates derived from this run's RULE CHECKS — what a fill stage needs,
+ * since the only thing it decides with a scope is which rule checks to pay a
+ * reviewer for.
  *
  * This exists separately from {@link collectFindingByteGuardCandidates} because
- * a fill runs before any finding is assembled. It answers the same question for
- * the subset a fill can act on, so a rule check the report is about to re-admit
- * is also one the fill is about to buy — without which a re-admitted
- * reviewer-judged finding would block forever while the very command the run
- * advises refused to review it.
+ * a fill runs before any finding is assembled. It asks the SAME question about
+ * the same files — a rule check is asked about its own subjects AND about every
+ * file its component owns, through {@link makeComponentFiles}, exactly as the
+ * report resolves a component — so a rule check the report is about to re-admit
+ * is also one the fill is about to buy. Without that a re-admitted
+ * reviewer-judged finding blocks forever while the very command the run advises
+ * refuses to review it; and asking only about subject files reopened that hole
+ * for every component file no rule check has as a subject, which is the ordinary
+ * shape rather than a corner (a mapped documentation file; a binary asset, which
+ * a prose rule is never given at all).
  */
-export async function collectPairByteGuardCandidates(
-  scope: ByteGuardScope | undefined,
-  pairs: VerifiedPair[],
-  projectRoot: string,
-  alreadyRead?: ReadonlyMap<string, Buffer | null>,
-): Promise<ByteGuardGathering> {
-  const precondition = guardPrecondition(scope);
+export async function collectPairByteGuardCandidates(args: {
+  scope: ByteGuardScope | undefined;
+  pairs: VerifiedPair[];
+  graph: Graph;
+  /** The repo file walk, for resolving a component to its own files. `null` ⇒ fall back to rule-check subjects. */
+  visibleFiles: string[] | null;
+  projectRoot: string;
+  /** Bytes the lock verification already read this run, keyed by absolute path. */
+  alreadyRead?: ReadonlyMap<string, Buffer | null>;
+}): Promise<ByteGuardGathering> {
+  const precondition = guardPrecondition(args.scope);
   if (!precondition.run) return precondition.gathering;
   const { burn } = precondition;
 
-  const read = makeReader(projectRoot, alreadyRead);
+  const { filesOfNode, ownerOf } = makeComponentFiles(args.graph, args.visibleFiles, args.pairs);
+  const read = makeReader(args.projectRoot, args.alreadyRead);
   const candidates: ByteGuardCandidateFromFinding[] = [];
-  for (const vp of pairs) {
+  for (const vp of args.pairs) {
     const pairKey = progressivePairKey(vp.pair.aspectId, vp.pair.unitKey);
     if (burn.pairKeys.has(pairKey)) continue;
     if (!producesBlockingFinding(vp)) continue;
+    const files = new Set(vp.pair.subjectFiles);
+    if (vp.pair.nodePath !== undefined) for (const file of filesOfNode(vp.pair.nodePath)) files.add(file);
     const subjects: ByteGuardSubject[] = [];
-    for (const file of vp.pair.subjectFiles) {
-      // A pair already names the component that answers for it, so no
-      // path-pattern resolution is needed (or paid for) on this path.
-      subjects.push({ path: file, bytes: await read(file), owner: vp.pair.nodePath });
+    for (const file of files) {
+      subjects.push({ path: file, bytes: await read(file), owner: ownerOf(file) ?? vp.pair.nodePath });
     }
     candidates.push({ pairKey, subjects });
   }
-  return { candidates, pairKeysByNode: indexPairKeysByNode(pairs), unsupportedObjectFormat: false };
+  return {
+    candidates,
+    pairKeysByNode: indexPairKeysByNode(args.pairs),
+    unsupportedObjectFormat: false,
+  };
 }
 
 /**
@@ -308,41 +378,11 @@ export async function collectFindingByteGuardCandidates(args: {
 
   const known = knownPairKeys(args.pairs);
   const subjectsByPairKey = new Map<string, string[]>();
-  const subjectsByNode = new Map<string, Set<string>>();
   for (const vp of args.pairs) {
     subjectsByPairKey.set(progressivePairKey(vp.pair.aspectId, vp.pair.unitKey), vp.pair.subjectFiles);
-    if (vp.pair.nodePath === undefined) continue;
-    let owned = subjectsByNode.get(vp.pair.nodePath);
-    if (owned === undefined) {
-      owned = new Set<string>();
-      subjectsByNode.set(vp.pair.nodePath, owned);
-    }
-    for (const file of vp.pair.subjectFiles) owned.add(file);
   }
 
-  const { ownerOf } = buildOwnerIndex(args.graph.nodes);
-  // A component's own files, from the repo walk resolved through the graph's
-  // path patterns — the same resolution the burn table's owner row uses. Built
-  // ONCE and only when a component-keyed candidate actually needs it, since it
-  // costs a pass over every visible file. Falls back to the union of the
-  // component's rule-check subjects when there is no walk to read (a caller
-  // that supplied no file list), which is narrower but never wrong.
-  let byNode: Map<string, string[]> | undefined;
-  const filesOfNode = (nodePath: string): string[] => {
-    if (args.visibleFiles === null) return [...(subjectsByNode.get(nodePath) ?? [])];
-    if (byNode === undefined) {
-      byNode = new Map();
-      for (const raw of args.visibleFiles) {
-        const file = toPosixPath(raw.trim());
-        const owner = ownerOf(file);
-        if (owner === undefined) continue;
-        const list = byNode.get(owner);
-        if (list === undefined) byNode.set(owner, [file]);
-        else list.push(file);
-      }
-    }
-    return byNode.get(nodePath) ?? [...(subjectsByNode.get(nodePath) ?? [])];
-  };
+  const { filesOfNode, ownerOf } = makeComponentFiles(args.graph, args.visibleFiles, args.pairs);
   const outsideFiles = (issue: CheckIssue): string[] =>
     issue.code === COVERAGE_AGGREGATE_CODE
       ? (issue.uncoveredFiles ?? []).filter((f) => !burn.files.has(f))

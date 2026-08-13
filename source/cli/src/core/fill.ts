@@ -210,7 +210,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // every number this run reports comes from the report sets beside it.
   const lock = readLock(graph.rootPath);
   const classification = await classifyFillPairs(
-    graph, lock, typeCoverageInput, onlyDeterministic, opts.changeScope,
+    graph, lock, typeCoverageInput, onlyDeterministic, opts.changeScope, opts.coverageVisibleFiles,
   );
   const {
     verification, unverifiedPairs, detPairs, llmPairs, skippedLlmPairs, skippedOutsideLlmPairs,

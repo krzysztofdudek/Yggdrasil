@@ -152,6 +152,14 @@ export async function classifyFillPairs(
   typeCoverage: TypeCoverageInput | undefined,
   onlyDeterministic: boolean,
   changeScope?: ByteGuardScope,
+  /**
+   * The caller's own repo file walk, so the content check can resolve a
+   * component to the files it OWNS exactly as the report does. `null` (or
+   * absent) falls back to the component's rule-check subjects, which is narrower
+   * — and narrower is precisely what left this stage asking a different question
+   * from the report, so a caller that HAS the walk must pass it.
+   */
+  visibleFiles: string[] | null = null,
 ): Promise<FillPairSets> {
   const projectRoot = path.dirname(graph.rootPath);
   // The byte cache this verification fills is handed to the guard below, so the
@@ -180,7 +188,14 @@ export async function classifyFillPairs(
       ? undefined
       : forceInScopeOnByteMismatch(
           changeScope,
-          await collectPairByteGuardCandidates(changeScope, verification.pairs, projectRoot, byteCache),
+          await collectPairByteGuardCandidates({
+            scope: changeScope,
+            pairs: verification.pairs,
+            graph,
+            visibleFiles,
+            projectRoot,
+            alreadyRead: byteCache,
+          }),
         );
   const inScope = (p: ExpectedPair): boolean =>
     guardedBurn === undefined || pairIsInScope(guardedBurn, p.aspectId, p.unitKey, known);

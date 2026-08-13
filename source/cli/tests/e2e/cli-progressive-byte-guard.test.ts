@@ -402,6 +402,109 @@ describe.skipIf(!distExists)('yg check — the byte guard', () => {
     });
   });
 
+  // ── A component file that is nobody's review subject ──────────────────────
+  //
+  // The half-closed shape the close-out review found: the forcing step agreed on
+  // what to do with an answer while the two gathering halves asked different
+  // questions. The report resolved a finding to its component's whole file set;
+  // the stage that buys reviews asked only about each rule check's own subject
+  // files. Whenever the hidden file belongs to a component but to no subject set,
+  // the report blocked and the recording step bought NOTHING.
+  //
+  // Neither case below needs unusual setup. The first is a rule written about
+  // source files beside a component's mapped notes; the second needs no aspect
+  // configuration at all, because a prose rule is never given a binary asset.
+  describe('a hidden edit to a component file no rule reviews', () => {
+    async function withReviewer(
+      label: string,
+      reviewedAspect: { perFile?: boolean; sourceFilesOnly?: boolean },
+      extraFile: { path: string; content: string },
+    ): Promise<{ fixture: ProgressiveFixture; mock: MockReviewer }> {
+      const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'mock-approve' }) });
+      mocks.push(mock);
+      const fixture = createProgressiveFixture({
+        label,
+        progressiveReference: 'main',
+        // The component's ONLY rule is reviewer-judged. A script-judged rule
+        // reviews every file a component maps, binary ones included, so leaving
+        // one attached would put the hidden file back in some rule's subject set
+        // and the question these cases ask could not arise.
+        deterministicAspect: false,
+        reviewedAspect: { endpoint: mock.endpoint, ...reviewedAspect },
+      });
+      fixtures.push(fixture);
+      fixture.commit(extraFile.path, extraFile.content);
+      return { fixture, mock };
+    }
+
+    /**
+     * A rule written about source files, beside a note the component maps. The
+     * note is `alpha`'s file and no review's subject.
+     */
+    const mappedNotes = (label: string): Promise<{ fixture: ProgressiveFixture; mock: MockReviewer }> =>
+      withReviewer(label, { sourceFilesOnly: true }, {
+        path: 'src/alpha/NOTES.md',
+        content: '# alpha notes\n',
+      });
+
+    /**
+     * No aspect configuration whatsoever — a component owning a binary asset.
+     * A prose rule is never handed bytes it cannot read as text, so the asset is
+     * dropped from the subject set by default. This is the ordinary shape.
+     */
+    const binaryAsset = (label: string): Promise<{ fixture: ProgressiveFixture; mock: MockReviewer }> =>
+      withReviewer(label, {}, { path: 'src/alpha/logo.png', content: 'PNG-ish payload\n' });
+
+    const EDITED_NOTES = '# alpha notes, revised\n';
+    const EDITED_ASSET = 'PNG-ish payload, revised\n';
+
+    it('mapped documentation file: buys the review when the edit is visible', async () => {
+      const { fixture, mock } = await mappedNotes('nobody-subject-notes-visible');
+      fixture.branchWithEdit('feature', 'src/alpha/NOTES.md', EDITED_NOTES);
+
+      const filled = await runAsync(['check', '--approve'], fixture.dir);
+
+      expect(mock.chatCount()).toBe(1);
+      expect(filled.status).toBe(0);
+    });
+
+    it('mapped documentation file: buys the same review when the edit is hidden', async () => {
+      // Before this round: zero bought, the run failed, and a third run still
+      // bought nothing — only the whole-project form could clear it.
+      const { fixture, mock } = await mappedNotes('nobody-subject-notes-hidden');
+      hideEdit(fixture.dir, 'src/alpha/NOTES.md', EDITED_NOTES);
+
+      const filled = await runAsync(['check', '--approve'], fixture.dir);
+
+      expect(mock.chatCount()).toBe(1);
+      expect(filled.status).toBe(0);
+      const again = await runAsync(['check'], fixture.dir);
+      expect(again.status).toBe(0);
+    });
+
+    it('binary asset, no aspect configuration: buys the review when the edit is visible', async () => {
+      const { fixture, mock } = await binaryAsset('nobody-subject-asset-visible');
+      fixture.branchWithEdit('feature', 'src/alpha/logo.png', EDITED_ASSET);
+
+      const filled = await runAsync(['check', '--approve'], fixture.dir);
+
+      expect(mock.chatCount()).toBe(1);
+      expect(filled.status).toBe(0);
+    });
+
+    it('binary asset, no aspect configuration: buys the same review when the edit is hidden', async () => {
+      const { fixture, mock } = await binaryAsset('nobody-subject-asset-hidden');
+      hideEdit(fixture.dir, 'src/alpha/logo.png', EDITED_ASSET);
+
+      const filled = await runAsync(['check', '--approve'], fixture.dir);
+
+      expect(mock.chatCount()).toBe(1);
+      expect(filled.status).toBe(0);
+      const again = await runAsync(['check'], fixture.dir);
+      expect(again.status).toBe(0);
+    });
+  });
+
   it('re-admits an uncovered file, and still says it kept something', async () => {
     // The one finding classification REBUILDS instead of handing back: the
     // coverage finding is split into a blocking and an inherited half, so a

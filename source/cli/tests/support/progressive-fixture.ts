@@ -107,6 +107,19 @@ export interface ProgressiveFixtureOptions {
    * until something pays for a review — which is the whole subject of the
    * scoped-fill scenarios.
    */
+  /**
+   * Attach the free, script-judged rule (`no-todo-comments`) to the type.
+   * ON by default — it is what gives `beta` its standing refusal, which is how
+   * most scenarios here observe an in-scope / outside split at all.
+   *
+   * Turned OFF for the scenarios about a component file that is NO rule's review
+   * subject. A script-judged rule reviews every file a component maps, binary
+   * ones included, so with it attached there is always some rule holding that
+   * file — and the question those scenarios ask (what happens when nothing
+   * holds it) cannot arise. A component whose only rule is reviewer-judged is an
+   * ordinary project, not a contrivance.
+   */
+  deterministicAspect?: boolean;
   reviewedAspect?: {
     endpoint: string;
     /**
@@ -120,6 +133,17 @@ export interface ProgressiveFixtureOptions {
      * agreeing.
      */
      perFile?: boolean;
+    /**
+     * Restrict the rule's subject set to source files (`**\/*.ts`), leaving any
+     * other file a component maps — a README, a note beside the code — owned by
+     * that component and reviewed by nothing.
+     *
+     * That gap is ordinary, not contrived: a rule written about code says so in
+     * its scope. It matters here because a component file that is no rule's
+     * subject is exactly where "ask about this rule's files" and "ask about this
+     * component's files" stop being the same question.
+     */
+    sourceFilesOnly?: boolean;
   };
 }
 
@@ -159,7 +183,11 @@ export interface ProgressiveFixture {
   cleanup(): void;
 }
 
-function architecture(logRequired: boolean, reviewed: boolean): string {
+function architecture(logRequired: boolean, reviewed: boolean, deterministic: boolean): string {
+  const aspects = [
+    ...(deterministic ? ['      - no-todo-comments'] : []),
+    ...(reviewed ? ['      - has-doc-comment'] : []),
+  ];
   return `node_types:
   service:
     description: 'Discrete service unit'
@@ -167,8 +195,8 @@ function architecture(logRequired: boolean, reviewed: boolean): string {
     when:
       path: "**"
     aspects:
-      - no-todo-comments
-${reviewed ? '      - has-doc-comment\n' : ''}`;
+${aspects.join('\n')}
+`;
 }
 
 /**
@@ -203,13 +231,20 @@ status: enforced
 `;
 
 /** The reviewer-judged rule `reviewedAspect` installs, and the prose it judges by. */
-function reviewedAspectYaml(perFile: boolean): string {
+function reviewedAspectYaml(opts: NonNullable<ProgressiveFixtureOptions['reviewedAspect']>): string {
+  const scope: string[] = [];
+  // `per:` is required whenever a scope block exists at all, so it is emitted
+  // for either option rather than only for the one that varies it.
+  if (opts.perFile === true || opts.sourceFilesOnly === true) {
+    scope.push(`  per: ${opts.perFile === true ? 'file' : 'node'}`);
+  }
+  if (opts.sourceFilesOnly === true) scope.push('  files:', '    path: "**/*.ts"');
   return `name: HasDocComment
 description: Every source file must begin with a documentation comment describing the file's purpose.
 reviewer:
   type: llm
 status: enforced
-${perFile ? 'scope:\n  per: file\n' : ''}`;
+${scope.length > 0 ? `scope:\n${scope.join('\n')}\n` : ''}`;
 }
 
 const REVIEWED_ASPECT_CONTENT = `Every source file must begin with a comment.
@@ -295,21 +330,28 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
   const dir = mkdtempSync(path.join(tmpdir(), `yg-progressive-${opts.label}-`));
   const ygg = path.join(dir, '.yggdrasil');
 
-  mkdirSync(path.join(ygg, 'aspects', 'no-todo-comments'), { recursive: true });
+  const withDeterministic = opts.deterministicAspect !== false;
+  // The graph directory itself, unconditionally — it used to be created as a
+  // side effect of making the script-judged rule's folder, which a fixture that
+  // attaches no such rule never reaches.
+  mkdirSync(ygg, { recursive: true });
+  if (withDeterministic) mkdirSync(path.join(ygg, 'aspects', 'no-todo-comments'), { recursive: true });
 
   const alphaRelations = opts.alphaRelatesToBeta === true ? ['{ target: beta, type: uses }'] : [];
   const componentName = (dir: string): string => dir.charAt(0).toUpperCase() + dir.slice(1);
   const nodeDeclaration = (dir: string, description: string): string =>
     nodeYaml(componentName(dir), dir, description, dir === 'alpha' ? alphaRelations : []);
 
-  writeFileSync(path.join(ygg, 'yg-architecture.yaml'), architecture(opts.logRequired === true, opts.reviewedAspect !== undefined), 'utf-8');
+  writeFileSync(path.join(ygg, 'yg-architecture.yaml'), architecture(opts.logRequired === true, opts.reviewedAspect !== undefined, withDeterministic), 'utf-8');
   writeFileSync(path.join(ygg, 'yg-config.yaml'), configYaml(opts), 'utf-8');
   writeFileSync(path.join(ygg, '.gitignore'), YGG_GITIGNORE, 'utf-8');
-  writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'yg-aspect.yaml'), ASPECT_YAML, 'utf-8');
-  writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'check.mjs'), CHECK_MJS, 'utf-8');
+  if (withDeterministic) {
+    writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'yg-aspect.yaml'), ASPECT_YAML, 'utf-8');
+    writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'check.mjs'), CHECK_MJS, 'utf-8');
+  }
   if (opts.reviewedAspect !== undefined) {
     mkdirSync(path.join(ygg, 'aspects', 'has-doc-comment'), { recursive: true });
-    writeFileSync(path.join(ygg, 'aspects', 'has-doc-comment', 'yg-aspect.yaml'), reviewedAspectYaml(opts.reviewedAspect.perFile === true), 'utf-8');
+    writeFileSync(path.join(ygg, 'aspects', 'has-doc-comment', 'yg-aspect.yaml'), reviewedAspectYaml(opts.reviewedAspect), 'utf-8');
     writeFileSync(path.join(ygg, 'aspects', 'has-doc-comment', 'content.md'), REVIEWED_ASPECT_CONTENT, 'utf-8');
   }
 

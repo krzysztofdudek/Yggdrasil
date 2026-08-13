@@ -176,14 +176,17 @@ Content check: 12 findings kept in scope — the files behind them differ from
 'origin/main' although git reports no change there. If that happens to
 everything on every run, something is rewriting files between storage and your
 working copy (a committed .gitattributes 'text eol='/'filter=', or large-file
-storage).
+storage) — nothing is then inherited, so 'yg check --approve' pays to review the
+whole project.
 ```
 
 That is the symptom of a project on which measuring changes cannot currently
-narrow anything: everything inherited blocks. It errs toward gating more rather
-than less, and `yg check --full` reports the same set either way — but if you see
-it on every run, measuring against a branch is buying you nothing until the
-rewriting stops.
+narrow anything: everything inherited blocks, and — the part that costs real
+money — a recording run has nothing left to leave out, so it reviews the whole
+project exactly as it would on a branch that reached everything. It errs toward
+gating more rather than less, and `yg check --full` reports the same set either
+way, but if you see this on every run, measuring against a branch is buying you
+nothing until the rewriting stops.
 
 ## What never becomes a warning
 

@@ -84,6 +84,12 @@ export function renderChangeScope(result: CheckResult, errorCount: number): stri
  * second state is the same failure with a different cause: ids this build cannot
  * reproduce, where the check could not be made at all.
  *
+ * The closing clause names the cost that state actually carries, which is not
+ * the extra gating: nothing is left inherited, so a recording run pays to review
+ * the whole project. That is ordinary behaviour for a run with nothing outside
+ * it — it predates any of this — but it is what a person on such a checkout
+ * feels, and it is worth saying beside the reason.
+ *
  * Says nothing at all in the ordinary case (zero kept, ids readable), so a run
  * that never met either state prints exactly what it always printed.
  */
@@ -95,7 +101,7 @@ export function renderByteGuardNotice(result: CheckResult): string | undefined {
   }
   const kept = result.byteGuardKept ?? 0;
   if (kept === 0) return undefined;
-  return `Content check: ${kept} finding${kept === 1 ? '' : 's'} kept in scope — the file${kept === 1 ? '' : 's'} behind ${kept === 1 ? 'it' : 'them'} differ${kept === 1 ? 's' : ''} from '${reference}' although git reports no change there. If that happens to everything on every run, something is rewriting files between storage and your working copy (a committed .gitattributes 'text eol='/'filter=', or large-file storage).`;
+  return `Content check: ${kept} finding${kept === 1 ? '' : 's'} kept in scope — the file${kept === 1 ? '' : 's'} behind ${kept === 1 ? 'it' : 'them'} differ${kept === 1 ? 's' : ''} from '${reference}' although git reports no change there. If that happens to everything on every run, something is rewriting files between storage and your working copy (a committed .gitattributes 'text eol='/'filter=', or large-file storage) — nothing is then inherited, so 'yg check --approve' pays to review the whole project.`;
 }
 
 export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji): string {

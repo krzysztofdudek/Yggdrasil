@@ -46,7 +46,12 @@ description: "Subprocess E2E for the progressive gate on `yg check`, driven
   whether the run clears, must match what an honest visible commit of the
   identical edit produces. One case covers the only finding classification
   rebuilds rather than hands back — an uncovered file — which must both block and
-  be counted in the line reporting what the check kept. Two cases pin
+  be counted in the line reporting what the check kept. A further group covers a
+  component file that is NO rule's review subject, on a component whose only rule
+  is reviewer-judged: a mapped documentation file beside a source-scoped rule, and
+  a binary asset with no rule configuration at all (a prose rule is never handed
+  bytes it cannot read as text). Each is measured visible and hidden, and the two
+  must buy the same reviews and reach the same verdict. Two cases pin
   the other direction: a hidden file whose bytes did not actually change produces
   a byte-identical report to the run before it was hidden, and a project that
   names no reference is byte-identical to the whole-project gate with the evasion

@@ -28,8 +28,14 @@ description: "Unified check orchestrator — runs validation, coverage, the
   together with what those files currently contain, so the pure comparer in
   core/progressive-scope.ts can re-admit any whose content contradicts git's own
   report of what changed (together with the component -> rule-check index that
-  re-admission reads, so re-admitting a component re-admits every check it
-  owns), and the single next step a finished check points at.
+  re-admission reads, so re-admitting a component re-admits every check it owns).
+  Both gathering halves — this one and the fill stage's — resolve a component to
+  its files through ONE shared resolver, so they ask about the same files rather
+  than merely agreeing what to do with an answer: a component file that is no
+  rule check's subject (mapped documentation; a binary asset, which a prose rule
+  is never given) belongs to the component and to no subject set, and a half that
+  asked only about subjects never saw it. Then the single next step a finished
+  check points at.
   The orchestrator owns the byte cache the verification fills, so the guard
   compares the very bytes each verdict was re-hashed from rather than reading
   the same files again, and reports how many findings the guard kept."
