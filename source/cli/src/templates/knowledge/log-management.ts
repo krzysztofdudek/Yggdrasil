@@ -68,11 +68,14 @@ Corollaries:
   by anything OTHER than that deliberate skip — a check that failed to run, a
   provider that could not be reached. Only "we were told not to buy it" settles a
   pair nobody looked at.
-- A node that closes with an unbought pair records a fingerprint for source no
-  reviewer has read. What that fingerprint attests is correspondingly narrower:
-  every enforced rule the run was ASKED to settle saw these bytes. The unbought
-  ones stay unverified and are still reported as such, so nothing about the node
-  reads as green.
+- A node that closes with an unbought pair records a fingerprint that attests
+  something correspondingly narrower: every enforced rule the run was ASKED to
+  settle saw these bytes — not that every rule on the node did. A node with four
+  approved rules and one unbought one did have its source read, for those four.
+  Only at the extreme — every reviewer-judged rule on the node outside every
+  change so far — does the fingerprint stand for source no reviewer has read. In
+  every one of these cases the unbought rules stay unverified and are still
+  reported as such, so nothing about the node reads as green.
 
 ## The source fingerprint and the lock
 
