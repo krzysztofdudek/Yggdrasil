@@ -48,8 +48,16 @@ export const useEmoji: boolean = chalk.level > 0;
  * "nothing in scope" beside those errors would contradict the very list under
  * it, so a run with anything blocking gets the plain shape instead, zero and
  * all.
+ *
+ * Exported because the `--aspect` drill-in view (check-render-views.ts) OVERWRITES
+ * the header line this normally feeds with its own aspect-scoped verdict, which
+ * silently dropped the change-scope segment; that view calls this directly,
+ * with the SAME `errorCount` (the true total, not the aspect-filtered one) the
+ * plain header would have used, so it reprints the identical sentence rather
+ * than computing a second, aspect-scoped number nothing else in the report
+ * shows.
  */
-function renderChangeScope(result: CheckResult, errorCount: number): string | undefined {
+export function renderChangeScope(result: CheckResult, errorCount: number): string | undefined {
   const reference = result.progressiveReference;
   if (reference === undefined) return undefined;
   const outside = result.outsideCount ?? 0;

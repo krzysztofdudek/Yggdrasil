@@ -330,6 +330,51 @@ describe('check render — --summary view', () => {
     const out = stripAnsi(formatOutput(baseResult([repoIssue]), { kind: 'summary' }));
     expect(out).toContain('(repo)');
   });
+
+  // A finding put outside the change used to bucket as "other" — the very
+  // catch-all a genuinely unclassified structural/coverage finding lands in —
+  // making it indistinguishable from real, in-scope debt at a glance. It gets
+  // its own bucket now, keyed on OUTSIDE_CODES (the derived twin set), so it
+  // reads as inherited rather than as the change's own unexplained mess.
+  it('gives a finding put outside the change its own bucket, not "other"', () => {
+    const outsideIssue: CheckIssue = {
+      severity: 'warning',
+      code: 'aspect-violation-enforced-outside',
+      rule: 'aspect-violation-enforced',
+      nodePath: 'legacy/reporting',
+      aspectId: 'audit-logging',
+      messageData: llmRefusedMessage({
+        aspectId: 'audit-logging',
+        unitKey: 'legacy/reporting#audit-logging',
+        reason: 'inherited from the reference branch',
+      }),
+    } as CheckIssue;
+    const out = stripAnsi(formatOutput(baseResult([outsideIssue]), { kind: 'summary' }));
+    expect(out).toContain('Warnings (1):');
+    expect(out).toMatch(/legacy\/reporting\s+.*1 outside changes/);
+    expect(out).not.toMatch(/legacy\/reporting\s+.*\bother\b/);
+  });
+
+  // The per-node totals still have to reconcile with the header even once a
+  // node carries BOTH an inherited twin AND a genuine warning of its own —
+  // the new bucket must not double-count or drop either.
+  it('reconciles per-node totals when a node carries both an outside twin and a genuine warning', () => {
+    const issues: CheckIssue[] = [
+      {
+        severity: 'warning', code: 'aspect-violation-enforced-outside', rule: 'aspect-violation-enforced',
+        nodePath: 'legacy/reporting', aspectId: 'audit-logging',
+        messageData: llmRefusedMessage({ aspectId: 'audit-logging', unitKey: 'legacy/reporting#audit-logging', reason: 'inherited' }),
+      } as CheckIssue,
+      {
+        severity: 'warning', code: 'aspect-violation-advisory', rule: 'aspect-violation-advisory',
+        nodePath: 'legacy/reporting', aspectId: 'style-guide',
+        messageData: llmRefusedMessage({ aspectId: 'style-guide', unitKey: 'legacy/reporting#style-guide', reason: 'style nit' }),
+      } as CheckIssue,
+    ];
+    const out = stripAnsi(formatOutput(baseResult(issues), { kind: 'summary' }));
+    expect(out).toContain('Warnings (2):');
+    expect(out).toMatch(/legacy\/reporting\s+0 unverified \(0 deterministic-free, 0 LLM\), 1 refused, 1 outside changes/);
+  });
 });
 
 describe('check render — Next: residual annotation (task 1.4)', () => {
@@ -575,6 +620,31 @@ describe('check render — --aspect drill-in view (task 2.2)', () => {
     // the enforced refusal's 'Three exits:' text.
     expect(out).toMatch(/\nNext \(this group\): yg check --approve/);
     expect(out).not.toMatch(/\nNext \(this group\): Three exits:/);
+  });
+
+  // The drill-in header REPLACES the plain header's first line wholesale (its
+  // own "(aspect 'x' — K of N errors)" verdict) — which used to silently drop
+  // the change-scope segment a project measuring against a reference branch
+  // would otherwise always see. It has to come back, computed the SAME way
+  // (renderChangeScope, the TRUE total N) rather than a second, aspect-scoped
+  // tally nothing else in the report shows.
+  it('reprints the progressive change-scope segment the plain header would have shown', () => {
+    const result: CheckResult = {
+      ...baseResult(aspectDrillIssues()),
+      outsideCount: 2,
+      progressiveReference: 'main',
+      changedInputCount: 1,
+    };
+    const out = stripAnsi(formatOutput(result, { kind: 'aspect', id: 'x' }));
+    const headerLine = out.split('\n')[0];
+    expect(headerLine).toContain("aspect 'x'");
+    expect(headerLine).toContain('2 of 3 errors');
+    expect(headerLine).toContain('2 obligations outside your changes vs main (1 changed input)');
+  });
+
+  it('stays silent about change scope in the drill-in header when the run measured nothing', () => {
+    const out = stripAnsi(formatOutput(baseResult(aspectDrillIssues()), { kind: 'aspect', id: 'x' }));
+    expect(out.split('\n')[0]).not.toContain('outside your changes');
   });
 });
 

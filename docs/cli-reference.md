@@ -186,14 +186,21 @@ yg check --approve --quiet  # suppress progress output during --approve (stderr)
 
 `--top N` renders the N highest-priority **rule groups**, in the same priority
 order the `Next:` line draws from. A bare `--top` (no value) renders exactly
-one group — the suggested-next one, the one concrete thing to fix next.
+one group — the suggested-next one, the one concrete thing to fix next. Among
+warnings, a finding put outside your change (see `--full` below) always sorts
+last: a run whose only warnings are inherited debt never buries a genuine
+advisory finding under it.
 `--summary` prints one line per node — `K unverified (J deterministic-free, L
-LLM), M refused` — plus an `other` bucket for non-pair errors (coverage, log,
-relation, structural) so the per-node totals reconcile with the header.
+LLM), M refused` — plus an `outside changes` bucket for findings your change is
+not accountable for and an `other` bucket for every other non-pair error
+(coverage, log, relation, structural), so the per-node totals reconcile with
+the header.
 `--details` expands the output to the old per-pair view (useful when you need to
 see every individual file in a group). `--aspect <id>` restricts output to pairs
 of a single aspect, useful for drilling into one rule after seeing it in the
-grouped view. An **unknown / mistyped** `--aspect` id is a guided error naming
+grouped view — on a project that measures changes against a reference branch,
+the aspect-scoped header still names how much sits outside your change, same as
+the plain header. An **unknown / mistyped** `--aspect` id is a guided error naming
 the id (run `yg aspects` for the real list) rather than a misleading `0 of N`
 view; when a valid aspect simply has no issues this run while other errors remain,
 the drill-in still surfaces the global `Next:` so you are never left at a dead end.
@@ -213,6 +220,11 @@ in `yg schemas read config`). When it does, a plain `yg check` blocks only on
 what your change is accountable for; anything it inherited from that branch is
 still listed and still counted, as a warning that does not fail the build. The
 header says how much sits outside your change and what it was measured against.
+Every such warning reads exactly like the finding it mirrors — same label, same
+why — with one addition, `(outside changes)`, so it never reads as a raw
+internal code; its `Fix:` line is left off rather than repeating a command that
+would, for this one finding, be misleading (see below), since the WHY is still
+true regardless of who caused it.
 
 Measuring narrows what BLOCKS, not what gets reviewed, so a run that records
 verdicts — `--approve`, or a bare run on a project configured to approve

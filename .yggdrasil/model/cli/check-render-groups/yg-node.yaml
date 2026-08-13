@@ -4,7 +4,15 @@ description: "Renders grouped and --details issue output for yg check: the
   Errors/Warnings sections, per-group and per-issue blocks, the unmapped-files
   compact block, and the CAP_NODES/GROUP_CAP truncation logic. Reads the
   useEmoji accessibility gate (owned by check-render-header) as the default
-  emoji parameter on its own section renderers."
+  emoji parameter on its own section renderers. A -outside twin's gloss and
+  Fix line are derived from SCOPED_CODES/baseCodeOfOutsideTwin rather than
+  hand-listed: LABEL_GLOSS carries the twin of every glossed base code, and
+  every Fix: line (single block, unmapped-files block, grouped shared line,
+  grouped per-member divergent line) is suppressed for one — the classifier
+  leaves messageData untouched, so a twin's next still names the finding's own
+  remedy (e.g. unverified's yg check --approve), which would mislead for a
+  finding the change is not accountable for and contradict the run's own
+  standing next step for everything outside the change."
 mapping:
   - source/cli/src/cli/check-render-groups.ts
 relations:
@@ -13,4 +21,6 @@ relations:
   - target: cli/check-render-header
     type: calls
   - target: cli/core/check
+    type: calls
+  - target: cli/core/check-codes
     type: calls

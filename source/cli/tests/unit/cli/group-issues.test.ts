@@ -6,6 +6,7 @@ import {
   COVERAGE_GROUP_EXCLUDED_CODES,
   coverageBlockLabel,
   getIssueLabel,
+  issuePriorityRank,
 } from '../../../src/cli/group-issues.js';
 import { OUTSIDE_CODES } from '../../../src/core/check-codes.js';
 import { computeSuggestedNext } from '../../../src/core/check.js';
@@ -396,6 +397,38 @@ describe('render code sets — the -outside twins', () => {
     expect(coverageBlockLabel('unmapped-files')).toBe('unmapped');
     expect(coverageBlockLabel('unmapped-files-outside')).toBe('unmapped (outside changes)');
     expect(coverageBlockLabel('uncovered-advisory')).toBe('uncovered');
+  });
+});
+
+/**
+ * Before this fix, EVERY warning shared one rank and fell back to alphabetical
+ * label order — including a `-outside` twin, whose label is exactly its base
+ * code's label plus " (outside changes)". A twin mirroring an early-alphabet
+ * base code (e.g. `aspect-violation-enforced` → "enforced") then sorted AHEAD
+ * of an unrelated genuine warning whose own label happens to sort later,
+ * purely by accident of which word its mirrored finding used — inherited debt
+ * outranking a warning the change actually caused. issuePriorityRank now
+ * sub-ranks every twin after every ordinary warning, so this cannot happen
+ * regardless of either one's label.
+ */
+describe('issuePriorityRank — -outside twins sort last among warnings', () => {
+  it('ranks a twin strictly below an ordinary warning of the same severity', () => {
+    const twin = iss({ severity: 'warning', code: 'unverified-outside' });
+    const ordinary = iss({ severity: 'warning', code: 'aspect-violation-advisory' });
+    expect(issuePriorityRank(twin)).toBeGreaterThan(issuePriorityRank(ordinary));
+  });
+
+  it('sorts a genuine warning ahead of a twin even when the twin\'s OWN label would sort first', () => {
+    const twin = iss({ severity: 'warning', code: 'unverified-outside', nodePath: 'a' });
+    // A code no aspect ever produces — chosen only so its label (which falls
+    // through getIssueLabel to the raw code) sorts AFTER the twin's label
+    // ('unverified (outside changes)') under a pure alphabetical tie-break.
+    const ordinary = iss({ severity: 'warning', code: 'zzz-unrelated-warning', nodePath: 'b' });
+    expect(getIssueLabel(twin) < getIssueLabel(ordinary)).toBe(true);
+    // Label-only ordering (the pre-fix behavior) would render the twin FIRST —
+    // exactly backwards. The fix ranks by severity/scope first, THEN label.
+    const groups = groupIssues([twin, ordinary]);
+    expect(groups.map((g) => g.code)).toEqual(['zzz-unrelated-warning', 'unverified-outside']);
   });
 });
 

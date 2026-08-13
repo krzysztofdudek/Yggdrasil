@@ -125,6 +125,117 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     // And the single next step is the audit, never a repo-wide review of debt
     // this change did not cause.
     expect(stdout).toContain("1 enforced obligation(s) outside your changes — run 'yg check --full' for the complete audit");
+    // The classifier leaves messageData untouched, so a twin's own `next` still
+    // names its mirror's remedy verbatim — here, the deterministic refusal's
+    // "Fix the listed violations" text. Printing it would mislead: this
+    // finding is a warning specifically because the change did not reach it,
+    // and the run's own next step above already names the honest one. The
+    // renderer suppresses the line rather than repeat it — the SAME block, in
+    // full, minus only that one line.
+    const twinBlock = warningSection(stdout);
+    expect(twinBlock).toContain(
+      "enforced (outside changes)  1 pairs  1 nodes  aspect 'no-todo-comments'\n"
+      + '            A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.\n'
+      + '            - beta  Violations:\n',
+    );
+    expect(twinBlock).toContain(TODO_IN('beta'));
+    expect(twinBlock).not.toContain('Fix the listed violations');
+  });
+
+  // Among warnings, an inherited (`-outside`) finding sorts last regardless of
+  // its own label — never merely tied with an ordinary warning and left to
+  // alphabetical order. Proved with NO extra fixture setup: every fixture here
+  // ships with no installed agent-rules digest, so `rules-digest-stale` is a
+  // genuine, unrelated warning present on every run, and its label
+  // ('rules-digest-stale', 'r') sorts AFTER the twin's own label ('enforced
+  // (outside changes)', 'e') — so a pure alphabetical tie-break (the pre-fix
+  // behavior) would have rendered the inherited debt FIRST, ahead of a warning
+  // this run is genuinely responsible for.
+  it('sorts a genuine warning ahead of an inherited twin even when the twin\'s own label would sort first', () => {
+    const fixture = scaffoldReference('warning-subrank', 'main');
+    fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+    run(['check', '--approve', '--only-deterministic'], fixture.dir);
+
+    const { stdout } = run(['check'], fixture.dir);
+
+    const warnings = warningSection(stdout);
+    const genuineAt = warnings.indexOf('rules-digest-stale');
+    const twinAt = warnings.indexOf('enforced (outside changes)');
+    expect(genuineAt).toBeGreaterThan(-1);
+    expect(twinAt).toBeGreaterThan(-1);
+    expect(genuineAt).toBeLessThan(twinAt);
+  });
+
+  // The `unverified-outside` shape (as opposed to `aspect-violation-enforced-
+  // outside`, exercised above): a pair the reference never reviewed at all,
+  // inherited unchanged. `scaffoldReference` always pre-fills the reference via
+  // `--approve --only-deterministic`, which leaves nothing unverified there —
+  // so this scaffolds the reference WITHOUT that fill, leaving both alpha's and
+  // beta's pairs unverified at the reference. Touching only alpha keeps its
+  // pair blocking (a real `unverified` error) while beta's becomes the twin —
+  // the shape LABEL_GLOSS's twin entry and the --summary/--aspect/--top
+  // disclosures below all exist for.
+  describe('the unverified-outside shape, across every triage view', () => {
+    function scoped(label: string): ProgressiveFixture {
+      const fixture = createProgressiveFixture({ label, progressiveReference: 'main' });
+      fixtures.push(fixture);
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+      return fixture;
+    }
+
+    it('default view: glosses the twin like its mirror and omits its Fix: line', () => {
+      const fixture = scoped('unverified-outside-full');
+      const { status, stdout } = run(['check'], fixture.dir);
+
+      // alpha's own pair is genuinely unverified AND touched — still blocks.
+      expect(status).toBe(1);
+      expect(errorSection(stdout)).toContain('Fix: yg check --approve');
+      // beta's pair is the SAME kind of finding, glossed the same way, marked
+      // as outside the change — and with no Fix: line repeating a command
+      // that would, for this one finding, review the whole project.
+      expect(warningSection(stdout)).toContain(
+        'unverified (not yet reviewed) (outside changes)  1 pairs  1 nodes\n'
+        + '            The lock holds no entry for this pair, or its inputs changed since the verdict was recorded (source edit, aspect edit, or a fill that did not complete). A verdict is valid only while its inputs hash to the stored value.\n'
+        + "            - beta  aspect 'no-todo-comments'\n",
+      );
+    });
+
+    it('--summary gives the inherited pair its own bucket, never "other"', () => {
+      const fixture = scoped('unverified-outside-summary');
+      const { stdout } = run(['check', '--summary'], fixture.dir);
+
+      expect(stdout).toMatch(/\balpha\s+1 unverified \(1 deterministic-free, 0 LLM\), 0 refused\n/);
+      expect(stdout).toMatch(/\bbeta\s+0 unverified \(0 deterministic-free, 0 LLM\), 0 refused, 1 outside changes\n/);
+      expect(stdout).not.toMatch(/\bbeta\s+.*\bother\b/);
+    });
+
+    it('--aspect reprints the progressive segment the plain header carries, and keeps both pairs visible', () => {
+      const fixture = scoped('unverified-outside-aspect');
+      const { stdout } = run(['check', '--aspect', 'no-todo-comments'], fixture.dir);
+
+      const headerLine = headerOf(stdout);
+      expect(headerLine).toContain("aspect 'no-todo-comments'");
+      // Same computation the plain header uses — not a second, aspect-scoped
+      // tally: one changed input (alpha), one obligation outside it (beta).
+      expect(headerLine).toContain('1 obligation outside your changes vs main (1 changed input)');
+      // Both pairs are visible: alpha's own blocking pair keeps its Fix line…
+      expect(errorSection(stdout)).toContain('Fix: yg check --approve');
+      // …beta's inherited pair reads the same way minus that line.
+      expect(warningSection(stdout)).toContain(
+        'unverified (not yet reviewed) (outside changes)  1 pairs  1 nodes\n'
+        + '            The lock holds no entry for this pair, or its inputs changed since the verdict was recorded (source edit, aspect edit, or a fill that did not complete). A verdict is valid only while its inputs hash to the stored value.\n'
+        + "            - beta  aspect 'no-todo-comments'\n",
+      );
+    });
+
+    it('--top surfaces the same outside disclosure as the default view', () => {
+      const fixture = scoped('unverified-outside-top');
+      const { stdout } = run(['check', '--top', '5'], fixture.dir);
+
+      expect(warningSection(stdout)).toContain('unverified (not yet reviewed) (outside changes)');
+      expect(warningSection(stdout)).toContain("- beta  aspect 'no-todo-comments'");
+      expect(warningSection(stdout)).not.toContain('Fix: yg check --approve');
+    });
   });
 
   it('blocks again on the same branch when the whole project is asked for', () => {

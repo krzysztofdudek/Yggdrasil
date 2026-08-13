@@ -216,6 +216,118 @@ describe('check render — advisory warning hints', () => {
   });
 });
 
+/**
+ * A finding put outside the change is rendered by the SAME code paths as the
+ * finding it mirrors — grouped block, repo-level block, --details block,
+ * unmapped-files block. Two things change deliberately: the glossed label
+ * gets the same "(outside changes)" marker every other twin label carries,
+ * and the Fix: line is left off, because `next` still names the mirrored
+ * finding's OWN remedy (messageData is untouched by the classifier) — which
+ * would mislead for a finding this change is not accountable for and
+ * contradict the run's own standing next step (`yg check --full`) for
+ * everything outside the change. Why: is unaffected — the rationale is still
+ * true regardless of scope.
+ */
+describe('check render — -outside twins: gloss and Fix suppression', () => {
+  function outsideUnverified(nodePath: string, aspectId = 'audit-logging'): CheckIssue {
+    return {
+      severity: 'warning',
+      code: 'unverified-outside',
+      rule: 'unverified',
+      nodePath,
+      aspectId,
+      messageData: unverifiedMessage({ aspectId, unitKey: `${nodePath}#${aspectId}` }),
+    } as CheckIssue;
+  }
+
+  it('glosses the twin exactly like its mirror, plus the outside marker', () => {
+    const [g] = groupIssues([outsideUnverified('orders/handler')]);
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    expect(out).toContain('unverified (not yet reviewed) (outside changes)  1 pairs  1 nodes');
+  });
+
+  it('omits the Fix: line for a grouped twin (code-only group, shared next)', () => {
+    const [g] = groupIssues([outsideUnverified('a'), outsideUnverified('b')]);
+    expect(g.sharedNext).toBe('yg check --approve'); // the mirrored finding's own remedy
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    expect(out).not.toContain('Fix:');
+    expect(out).not.toContain('yg check --approve');
+    // The rationale is unaffected — still present (the grouped shared-why line
+    // carries the raw text with no "Why:" label, same as it always has).
+    expect(out).toContain('The lock holds no entry for this pair');
+  });
+
+  it('omits the per-member Fix: line for a divergent twin group', () => {
+    // relation-undeclared-dependency carries a node-specific `next` — divergent
+    // across members even before scoping. Its twin must suppress ALL of them,
+    // not just a shared one.
+    const divergent = (nodePath: string): CheckIssue => ({
+      severity: 'warning',
+      code: 'relation-undeclared-dependency-outside',
+      rule: 'relation-undeclared-dependency',
+      nodePath,
+      messageData: {
+        what: `${nodePath} depends on something undeclared.\nsrc/${nodePath}.ts:3 → undeclared dependency on other`,
+        why: 'Every statically-resolvable cross-node dependency must be declared as a relation.',
+        next: `Add a relation entry in ${nodePath}/yg-node.yaml.`,
+      },
+    } as CheckIssue);
+    const [g] = groupIssues([divergent('svc-a'), divergent('svc-b')]);
+    expect(g.divergentNext).toBe(true);
+    const lines: string[] = [];
+    renderGroup(g, lines, { isTTY: false });
+    const out = stripAnsi(lines.join('\n'));
+    expect(out).not.toContain('Fix:');
+    expect(out).not.toContain('yg-node.yaml');
+    // The per-member `what` detail (the actual violation line) still renders.
+    expect(out).toContain('undeclared dependency on other');
+  });
+
+  it('omits the Fix: line for a twin in the --details (ungrouped) view', () => {
+    const out = stripAnsi(formatOutput(baseResult([outsideUnverified('orders/handler')]), { kind: 'details' }));
+    expect(out).not.toContain('Fix:');
+    expect(out).toContain('Why:');
+  });
+
+  it('omits the Fix: line for the inherited half of a split coverage finding', () => {
+    const issue: CheckIssue = {
+      severity: 'warning',
+      code: 'unmapped-files-outside',
+      rule: 'unmapped-file',
+      uncoveredFiles: ['src/inherited.ts'],
+      uncoveredCount: 1,
+      messageData: {
+        what: '1 source file not covered by any node.\n  src/inherited.ts',
+        why: 'Files without graph coverage cannot be modified under the protocol.',
+        next: 'Check ownership candidates: yg context --file <path>',
+      },
+    };
+    const out = stripAnsi(formatOutput(baseResult([issue])));
+    expect(out).not.toContain('Fix:');
+    expect(out).toContain('Why:');
+    expect(out).toContain('src/inherited.ts');
+  });
+
+  it('keeps the Fix: line for the SAME code when it is NOT put outside the change', () => {
+    // Control: the suppression is keyed on the twin code, not on `unverified`
+    // in general — an in-scope unverified pair still gets its Fix: line.
+    const inScope: CheckIssue = {
+      severity: 'error',
+      code: 'unverified',
+      rule: 'unverified',
+      nodePath: 'orders/handler',
+      aspectId: 'audit-logging',
+      messageData: unverifiedMessage({ aspectId: 'audit-logging', unitKey: 'orders/handler#audit-logging' }),
+    };
+    const out = stripAnsi(formatOutput(baseResult([inScope])));
+    expect(out).toContain('Fix: yg check --approve');
+  });
+});
+
 describe('check render — renderGroup', () => {
   it('renders ONE grouped block for an aspect failing on many nodes', () => {
     const issues: CheckIssue[] = ['a', 'b', 'c'].map((n) => ({

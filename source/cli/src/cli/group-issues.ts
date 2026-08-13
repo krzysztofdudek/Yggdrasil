@@ -30,7 +30,7 @@ function withOutsideTwins(codes: readonly string[]): Set<string> {
  * person's screen and reads as a different, unexplained kind of finding rather
  * than a familiar one the change did not cause.
  */
-const OUTSIDE_LABEL_SUFFIX = ' (outside changes)';
+export const OUTSIDE_LABEL_SUFFIX = ' (outside changes)';
 
 export interface IssueGroup {
   code: string;
@@ -205,7 +205,22 @@ export function issuePriorityRank(issue: CheckIssue): number {
     if (COMPLETENESS_CODES.has(issue.code)) return base + 2; // completeness
     return base + 3;                                          // any other error
   }
-  // Warnings always last.
+  // Warnings always last, and a `-outside` twin sub-ranks after every ORDINARY
+  // warning — an aspect-violation-advisory, a review-cadence overdue notice, a
+  // `tracked-file-gitignored` sitting outside `coverage.required` — rather than
+  // sharing their rank and falling back to alphabetical label order. A twin's
+  // label is exactly its mirror's label plus a suffix (getIssueLabel), so an
+  // early-alphabet base code (e.g. `aspect-violation-enforced`, label
+  // "enforced") used to sort its twin AHEAD of an unrelated warning whose own
+  // label happens to sort later (e.g. "tracked-file-gitignored") — burying a
+  // finding the change IS accountable for beneath debt it merely inherited. A
+  // run whose only warnings are inherited debt must not make that debt look
+  // more urgent than a genuine warning would; sub-ranking twins last fixes the
+  // GROUP order the full/`--top` views render (the standing "Next:" line for a
+  // warnings-only run already has its own carve-out — see
+  // check-suggested-next.ts's standingOutsideLine — this is the other half of
+  // the same concern, for the body above that line).
+  if (baseCodeOfOutsideTwin(issue.code) !== undefined) return base + 5;
   return base + 4;
 }
 
