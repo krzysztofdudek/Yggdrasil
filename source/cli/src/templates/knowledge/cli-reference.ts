@@ -146,7 +146,7 @@ NOTHING, and makes no reviewer calls.
 
 ## yg check --approve
 
-Fill every unverified pair, then report. The only writer of verdicts (alongside
+Fill every unverified pair the run answers for, then report. The only writer of verdicts (alongside
 \`yg log merge-resolve\`, which writes the per-node log baseline). Explicit flags
 (\`--approve\`, \`--no-approve\`, \`--only-deterministic\`) always override any
 \`auto_approve\` setting in \`yg-config.yaml\`.
@@ -168,8 +168,13 @@ triggers a full fill and the PASS header shows \`(auto-filled)\` to distinguish 
 from a clean read-only pass. A pre-run banner on stderr warns that reviewer
 calls will be made.
 
-Verification is repo-wide and all-or-nothing. The one scoping flag is
-\`--only-deterministic\`: it runs the deterministic fills only (no LLM, no key) and
+Verification is all-or-nothing: a run fills every pair it is answering for, or
+(when the mandatory-log gate stops it) nothing at all. By default it answers for
+the whole project. When progressive mode is on, it still runs every free
+deterministic check project-wide but buys reviewer work only for the rules the
+current change is accountable for, and names how many it left — see \`--full\`
+above. \`--only-deterministic\` is a different lever again, and the only one that
+is free: it runs the deterministic fills only (no LLM, no key) and
 writes ONLY the gitignored deterministic cache — the committed lock files are
 never touched (positive closure is skipped, GC is scoped to the cache), so a CI or
 pre-commit run produces zero committed-lock churn. A fresh checkout has no

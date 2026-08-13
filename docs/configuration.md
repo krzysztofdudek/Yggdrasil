@@ -412,7 +412,7 @@ repository root only. Review the diff before committing.
 | --- | --- |
 | `false` (default) | Read-only: recomputes hashes, validates, reports. Writes nothing, makes no LLM calls, needs no keys. |
 | `deterministic` | Behaves like `yg check --approve --only-deterministic` — fills only deterministic pairs (free, keyless), writes only the gitignored cache. |
-| `full` | Behaves like `yg check --approve` — fills every unverified pair including LLM pairs. |
+| `full` | Behaves like `yg check --approve` — fills the unverified pairs that run answers for, LLM pairs included. |
 
 **Precedence:** explicit CLI flags always override `auto_approve`. Passing
 `--approve`, `--no-approve`, or `--only-deterministic` on the command line takes

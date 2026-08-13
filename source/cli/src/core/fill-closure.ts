@@ -1,9 +1,12 @@
 /**
  * source/cli/src/core/fill-closure.ts — positive closure for the fill stage
  * (spec §7 step 5 / §9). After all fills, advances each log_required node's source
- * fingerprint + log baseline IFF every enforced effective pair is FRESHLY
- * verified-approved this run (a single post-fill verifyLock pass is the only
- * source of truth — never the raw stored verdict token).
+ * fingerprint + log baseline IFF every enforced effective pair is SETTLED — either
+ * FRESHLY verified-approved this run (a single post-fill verifyLock pass is the
+ * only source of truth — never the raw stored verdict token), or one this run was
+ * deliberately told not to buy, which only a change-scoped run produces. See
+ * applyPositiveClosure's (c) for why that second case has to count and how
+ * narrowly it is drawn.
  *
  * The `nodes.<path>.source` fingerprint is the log gate's drift basis and the gate
  * runs ONLY for log_required nodes — so closure records a source fingerprint ONLY
@@ -50,10 +53,10 @@ import { logGateBlocksNode } from './log/log-gate.js';
  *   (c) every ENFORCED effective pair of the node is SETTLED — approved AGAINST
  *       CURRENT INPUTS (its post-fill verifyLock state is `verified`, a valid
  *       entry carrying an approved token), or one this run was deliberately told
- *       not to buy (`outsideScopePairKeys`, see below). A pair that is merely
- *       stored-`approved` but is currently `unverified` for any OTHER reason
- *       (inputs changed and it was not re-verified, an infrastructure
- *       disposition), or that is `refused` or `prompt-too-large`, does NOT count.
+ *       not to buy (`outsideScopePairKeys`, see below). A pair this run DID answer
+ *       for and did not get approved — merely stored-`approved` but currently
+ *       `unverified`, left unverified by an infrastructure disposition this run
+ *       hit, `refused`, or `prompt-too-large` — does NOT count.
  *
  * ── (c)'s one carve-out, and the hole it closes ────────────────────────────
  * A run measured against a change deliberately leaves the reviewer work the
@@ -66,12 +69,18 @@ import { logGateBlocksNode } from './log/log-gate.js';
  * it is the normal one — every component whose reviewed rules the change did not
  * reach — so the gate would be disarmed almost everywhere.
  *
- * The carve-out is deliberately the NARROWEST thing that closes it: a pair that
- * is red (`refused`), that failed to fill, or that is unverified for any reason
- * other than "we were told not to buy it" still holds the cycle open. That is
- * what preserves the standing promise that ONE entry covers a whole cycle,
- * including a code edit that fails its check and is then fixed — the fix is the
- * same cycle, and a refusal is the run's own answer, not a purchase it declined.
+ * The carve-out is deliberately the NARROWEST thing that closes it, and the test
+ * is what THIS run decided — not how the pair came to be unverified. A pair this
+ * run was told not to buy is settled whatever left it unverified in the first
+ * place, including an infrastructure failure in some earlier run: nobody is going
+ * to look at it either way, and holding the cycle open for it would leave the
+ * justification gate disarmed for exactly as long. Everything this run DID answer
+ * for is judged on its result — a refusal, a check that failed to run, a provider
+ * that could not be reached, or any other unverified disposition still holds the
+ * cycle open. That is what preserves the standing promise that ONE entry covers a
+ * whole cycle, including a code edit that fails its check and is then fixed: the
+ * fix is the same cycle, and a refusal is the run's own answer, not a purchase it
+ * declined.
  * With no change scope in force the set is empty and this reads exactly as it
  * always did.
  *

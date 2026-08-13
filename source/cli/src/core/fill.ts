@@ -26,7 +26,8 @@
  *   5. Deterministic fills FIRST (free) → deterministic gate (a node with an
  *      enforced det refusal skips its LLM fills this run).
  *   6. LLM fills (grouped by tier; one provider per tier; run-scoped caches).
- *   7. Positive closure (§7.5): a node with all enforced pairs approved records
+ *   7. Positive closure (§7.5): a node with all enforced pairs settled — approved
+ *      this run, or deliberately left unbought by a change-scoped run — records
  *      its source fingerprint + log baseline.
  *   8. GC + canonical rewrite (§3.2).
  *   9. Re-run the read (runCheck) and return its result.

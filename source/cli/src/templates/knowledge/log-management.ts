@@ -45,9 +45,16 @@ its own final re-check surfaces the same error.
 
 ## Positive closure — the cycle
 
-Positive closure is the moment a \`yg check --approve\` run ends with every ENFORCED
-pair of the node — deterministic and LLM uniformly — approved. At closure the lock
-records the node's source fingerprint and the log freshness baseline.
+Positive closure is the moment a \`yg check --approve\` run ends with every
+ENFORCED pair of the node SETTLED. At closure the lock records the node's source
+fingerprint and the log freshness baseline.
+
+A pair is settled when it was approved this run — deterministic and LLM
+uniformly — or when the run was deliberately told not to buy it. The second case
+arises only under progressive mode: a run measured against a change leaves the
+reviewer work the change is not accountable for, and those pairs stay unverified.
+Treating them as settled is what stops the cycle from staying open forever, which
+would let ONE entry answer for every later edit, including edits nobody described.
 
 Corollaries:
 - Advisory refusals do NOT prevent closure.
@@ -57,7 +64,15 @@ Corollaries:
   flags it red regardless of its (lack of) pairs.
 - A red enforced pair of either kind keeps the cycle OPEN — the same log entry
   stays valid through every retry until the node is actually green. Intent does
-  not change between retries; only execution does.
+  not change between retries; only execution does. So does a pair left unverified
+  by anything OTHER than that deliberate skip — a check that failed to run, a
+  provider that could not be reached. Only "we were told not to buy it" settles a
+  pair nobody looked at.
+- A node that closes with an unbought pair records a fingerprint for source no
+  reviewer has read. What that fingerprint attests is correspondingly narrower:
+  every enforced rule the run was ASKED to settle saw these bytes. The unbought
+  ones stay unverified and are still reported as such, so nothing about the node
+  reads as green.
 
 ## The source fingerprint and the lock
 
@@ -86,7 +101,9 @@ source drifted with no fresh entry, \`--approve\` fills NOTHING that run — no 
 on any node, related or not, is verified — and the run stays red until every
 missing entry exists. Add the entries and re-run. If a pair is refused, iterate on
 the code WITHOUT adding new log entries — one entry covers all edits until the node
-reaches closure.
+reaches closure. Under progressive mode a node can reach closure while some of its
+reviewer work is deliberately left unbought, so the next source change there needs
+its own entry, exactly as it would after an ordinary closure.
 
 ## Self-contained entry — worked example
 

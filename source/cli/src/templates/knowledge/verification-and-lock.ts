@@ -24,7 +24,9 @@ like \`--approve\` (may call the reviewer). Explicit CLI flags (\`--approve\`,
 \`--no-approve\`, \`--only-deterministic\`) ALWAYS override \`auto_approve\`. CI and
 pre-commit should always use the explicit flag form to stay key-free and
 deterministic regardless of project config. \`yg check --approve\` fills every
-unverified pair and then reports. With \`--only-deterministic\` it fills ONLY
+unverified pair it answers for and then reports (the whole project, or — under
+progressive mode — every free check plus the reviewer work your change is
+accountable for). With \`--only-deterministic\` it fills ONLY
 deterministic pairs (free, keyless) and writes ONLY the gitignored cache — never
 the committed files — so it is the CI / pre-commit gate (a fresh checkout has no
 deterministic cache, so this rematerializes it; it also re-hashes the committed

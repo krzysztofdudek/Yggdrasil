@@ -16,7 +16,7 @@ This page is for inspecting or debugging your graph and enforcement state.
 | `yg context --file <path>` / `--node <path>` | Assemble context package |
 | `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis |
 | `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)) |
-| `yg check --approve` | Verify every unverified pair and record the verdicts in the lock |
+| `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
 | `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes only the gitignored cache |
 | `yg log add` / `read` / `merge-resolve` | Per-node append-only business log |
 
@@ -268,8 +268,12 @@ rule group with `--aspect <id>` or the full view with plain `yg check`.
 
 #### `--approve` — fill unverified pairs
 
-`yg check --approve` runs every unverified pair, repo-wide (there is no scoping —
-verification is all-or-nothing), then reports. Deterministic pairs run first,
+`yg check --approve` runs every unverified pair it is answering for, then
+reports — all of them, or (when a missing log entry stops the run) none. By
+default that is the whole project; on a project that measures changes against a
+branch it is the whole project for the checks that run locally, and the rules
+your change is accountable for for the ones a reviewer judges (see `--full`
+above). Deterministic pairs run first,
 locally, for free; a node with an enforced deterministic refusal has its LLM
 pairs skipped this run. LLM pairs then go to the reviewer per tier and consensus.
 Each real verdict — approved or refused — is recorded in the lock; infrastructure

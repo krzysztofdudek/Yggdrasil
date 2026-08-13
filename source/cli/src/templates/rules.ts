@@ -128,7 +128,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | Command | Purpose |
 |---|---|
 | \`yg check\` | By default: writes no verdicts, no LLM calls — re-hash lock verdicts, run the relation check live, validate coverage. Blocks CI. Behavior changes if \`auto_approve\` is set (see below). |
-| \`yg check --approve\` | Fill every unverified pair (deterministic first, then LLM), then report. The only writer of verdicts. Overrides \`auto_approve\`. |
+| \`yg check --approve\` | Fill every unverified pair the run answers for (deterministic first, then LLM), then report. The only writer of verdicts. Overrides \`auto_approve\`. |
 | \`yg check --approve --only-deterministic\` | Fill ONLY deterministic pairs (free, keyless), writing ONLY the gitignored cache; then report. The CI / pre-commit gate. Overrides \`auto_approve\`. |
 | \`yg check --approve --dry-run\` | Free cost preview — print the reviewer-call budget (an upper bound) + per-node breakdown, then exit 0 WITHOUT writing or calling the reviewer. |
 | \`yg check --top [N]\` | Read-only: show only the N highest-priority GROUPS (bare \`--top\` = single suggested-next group). True aggregate header always shown. |
@@ -162,7 +162,7 @@ The table above is the working set, not the whole surface. The commands it omits
 
 Cost is counted per PAIR. \`yg impact\` shows which pairs an edit invalidates. For an LLM pair, re-verification is one reviewer request × the tier's consensus count × the number of units — so editing an LLM aspect that touches 20 single-unit nodes is at least 20 reviewer calls. A source-code edit re-verifies every effective non-draft pair whose subject set includes that file. Deterministic pairs run locally and cost zero LLM calls regardless of how many they touch. A \`scope\` edit (\`per\` or \`files\`) invalidates every pair of the aspect — it cascades exactly like a \`content.md\` edit; run \`yg impact --aspect <id>\` first. For \`companion.mjs\` aspects: editing \`companion.mjs\` re-bills all pairs; a resolved companion edit re-bills only its readers — and because the verdict folds every file the hook reads to decide (not only the paths it returns), editing any read-to-decide file re-bills its readers too; \`yg impact --file\` previews this precisely, including companion pairs not yet in the lock. Plain LLM aspects are unaffected.
 
-Before a repo-wide fill, preview the bill for free: \`yg check --approve --dry-run\` runs the same classification and budget computation a real \`--approve\` would, prints the reviewer-call budget plus a per-node / per-aspect breakdown (deterministic pairs are free; each LLM pair shows its consensus call count), then exits 0 WITHOUT calling the reviewer or writing anything. Treat the number as an UPPER BOUND — a node with an enforced deterministic refusal has its LLM fills skipped, and a fresh refusal or infra disposition can leave a pair unfilled, so the real run bills at most that many calls. \`yg impact\` predicts the blast radius of one edit; \`--dry-run\` totals the bill for exactly what the real run would buy right before you commit to it — every currently-unverified pair, or, when progressive mode is on, the ones your change is accountable for.
+Before a fill, preview the bill for free: \`yg check --approve --dry-run\` runs the same classification and budget computation a real \`--approve\` would, prints the reviewer-call budget plus a per-node / per-aspect breakdown (deterministic pairs are free; each LLM pair shows its consensus call count), then exits 0 WITHOUT calling the reviewer or writing anything. Treat the number as an UPPER BOUND — a node with an enforced deterministic refusal has its LLM fills skipped, and a fresh refusal or infra disposition can leave a pair unfilled, so the real run bills at most that many calls. \`yg impact\` predicts the blast radius of one edit; \`--dry-run\` totals the bill for exactly what the real run would buy right before you commit to it — every currently-unverified pair, or, when progressive mode is on, the ones your change is accountable for.
 
 When code doesn't match an aspect, five options:
 
@@ -189,7 +189,7 @@ const DECISIONS = `## DECISIONS
 
 **Failing tests or checks:** Never write off a failure as pre-existing without evidence that actually establishes it — a single clean re-run is not that evidence, since a freshly introduced flake reproduces exactly the same result.
 
-**End of conversation:** \`yg check\` — resolve every unverified pair and refusal. \`yg check\` failures block CI. If any pair stays unverified or an enforced pair is refused, the build breaks.
+**End of conversation:** \`yg check\` — resolve every unverified pair and refusal it reports. \`yg check\` failures block CI: if any pair it holds you accountable for stays unverified, or such an enforced pair is refused, the build breaks. Under progressive mode that is the set your change reached; \`yg check --full\` is the whole project.
 
 **Unmapped files:** \`yg context --file\` will say if a file has no owner and suggest candidates. Either add it to an existing node's mapping or create a new node. Code without graph coverage works but is not verified — inform the user and propose options.
 
@@ -324,8 +324,9 @@ in \`yg context --node\`) to know whether an entry is required.
 
 A fresh log entry is required whenever BOTH hold: the node's type has
 \`log_required: true\` AND the node's mapped source changed since its last
-positive closure (the moment all the node's enforced pairs last went green), or
-this is the node's first verification and it owns source files. The entry must be
+positive closure (the moment every enforced pair of the node was last settled —
+approved, or under progressive mode deliberately left unbought), or this is the
+node's first verification and it owns source files. The entry must be
 newer than the one recorded at that closure — one fresh entry per closure cycle.
 This requirement is a property of the node TYPE plus a source change: it is
 INDEPENDENT of aspect status AND of whether the node has any aspects or pairs at
@@ -348,7 +349,9 @@ verified) and stays red until every missing entry exists. Add the entries and re
 If a pair is refused, iterate on the code WITHOUT adding new log entries. One
 log entry covers all source edits until the node reaches positive closure —
 a refused enforced pair keeps the cycle open, so the same entry stays valid
-across every retry until the node is actually green.
+across every retry until the node is actually green. Under progressive mode a
+node can close while reviewer work the change never reached stays unbought, so
+the next source change on it needs its own entry, as after any closure.
 
 \`yg log add\` does NOT invalidate any verdict or run the reviewer. You can
 append context entries between code changes freely. Only source-file changes in

@@ -366,7 +366,7 @@ Controls what bare \`yg check\` (with no explicit \`--approve\` / \`--no-approve
 |---|---|
 | \`false\` (default) | Read-only. No writes, no LLM calls, no API keys. |
 | \`"deterministic"\` | Behaves as \`yg check --approve --only-deterministic\` — fills only deterministic pairs (free, keyless, local). |
-| \`"full"\` | Behaves as \`yg check --approve\` — fills all unverified pairs and may call the reviewer (requires keys). |
+| \`"full"\` | Behaves as \`yg check --approve\` — fills the unverified pairs that run answers for, and may call the reviewer (requires keys). |
 
 **Precedence:** Explicit CLI flags (\`--approve\`, \`--no-approve\`,
 \`--only-deterministic\`) ALWAYS override \`auto_approve\` regardless of the

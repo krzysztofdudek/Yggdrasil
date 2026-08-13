@@ -28,7 +28,8 @@ auto_approve: false               # optional — controls the behavior of bare \
                                   #     \`yg check --approve --only-deterministic\` — fills only
                                   #     deterministic pairs (free, keyless, local).
                                   #   "full": bare \`yg check\` behaves as \`yg check --approve\` —
-                                  #     fills all unverified pairs and may call the reviewer (needs keys).
+                                  #     fills the unverified pairs that run answers for and may call
+                                  #     the reviewer (needs keys).
                                   #
                                   #   Explicit CLI flags (--approve, --no-approve, --only-deterministic)
                                   #   ALWAYS override this setting regardless of the configured value.
