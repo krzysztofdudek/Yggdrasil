@@ -35,6 +35,7 @@ function baseResult(issues: CheckIssue[]): CheckResult {
     draftSkipped: 0,
     verifiedDet: 0,
     verifiedLlm: 0,
+    pairs: [],
   };
 }
 
@@ -56,6 +57,7 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
       draftSkipped: 0,
       verifiedDet: 0,
       verifiedLlm: 0,
+      pairs: [],
     };
   }
   function warningsOnlyGreenResult(): CheckResult {
@@ -81,6 +83,7 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
       draftSkipped: 0,
       verifiedDet: 0,
       verifiedLlm: 0,
+      pairs: [],
     };
   }
 

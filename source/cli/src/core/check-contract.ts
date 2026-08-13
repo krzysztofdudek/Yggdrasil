@@ -15,6 +15,7 @@
 
 import type { ValidationIssue } from '../model/validation.js';
 import type { TypeVisibilityReport } from './type-visibility.js';
+import type { VerifiedPair } from './verify-lock.js';
 
 export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   /** All issues have a code -- override optional from ValidationIssue */
@@ -64,6 +65,15 @@ export interface CheckResult {
   verifiedDet: number;
   /** Count of VERIFIED LLM pairs. See `verifiedDet`. */
   verifiedLlm: number;
+  /**
+   * Every expected pair this run classified against the lock (verified,
+   * refused, unverified, prompt-too-large, or companion-error) — the SAME
+   * list `verifiedDet`/`verifiedLlm` are tallied from. A future classification
+   * step reads `pair.subjectFiles` off these to match a finding back to the
+   * files a change touched; nothing reads this field yet. Empty (never
+   * undefined) when the lock could not be read.
+   */
+  pairs: VerifiedPair[];
   /**
    * Whether `coverage.type_level` was on this run — gates the header's
    * node-owned/type-covered split and the zero-classifying-types notice.

@@ -51,6 +51,7 @@ function baseResult(issues: CheckIssue[]): CheckResult {
     draftSkipped: 0,
     verifiedDet: 0,
     verifiedLlm: 0,
+    pairs: [],
   };
 }
 
@@ -87,6 +88,7 @@ describe('check render — Next line surfacing', () => {
       draftSkipped: 0,
       verifiedDet: 0,
       verifiedLlm: 0,
+      pairs: [],
     };
   }
 
@@ -364,6 +366,7 @@ describe('check render — Next: residual annotation (task 1.4)', () => {
       draftSkipped: 0,
       verifiedDet: 0,
       verifiedLlm: 0,
+      pairs: [],
     };
     const out = stripAnsi(formatOutput(green));
     expect(out).not.toContain('Next:');

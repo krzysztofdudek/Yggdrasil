@@ -305,6 +305,7 @@ export async function runCheck(
     typeVisibility,
     featureFactsByPath,
     featureHashByPath,
+    pairs,
   } = await runLockPhase({
     graph,
     projectRoot,
@@ -395,6 +396,7 @@ export async function runCheck(
     draftSkipped,
     verifiedDet,
     verifiedLlm,
+    pairs,
     typeLevel,
     typeCoveredCount,
     classifyingTypeCount,

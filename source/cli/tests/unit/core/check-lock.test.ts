@@ -165,6 +165,37 @@ describe('runCheck — verdict-lock issue emission', () => {
   });
 });
 
+// ── Lock phase exposes verified pairs (for a later classification step) ──────
+
+describe('runCheck — lock phase exposes verified pairs', () => {
+  it('a readable lock returns the verified pair for the node, carrying its subjectFiles', async () => {
+    const graph = buildGraph('enforced');
+    const result = await seedAndCheck(graph, { verdict: 'approved' });
+    expect(result.pairs).toBeDefined();
+    const vp = result.pairs!.find((p) => p.pair.aspectId === 'asp' && p.pair.nodePath === 'svc');
+    expect(vp).toBeDefined();
+    expect(vp!.pair.subjectFiles).toEqual(['src/a.ts']);
+    expect(vp!.state.kind).toBe('verified');
+  });
+
+  it('an unverified pair (missing entry) still appears in the pair list, unverified', async () => {
+    const graph = buildGraph('enforced');
+    const result = await seedAndCheck(graph, null);
+    const vp = result.pairs!.find((p) => p.pair.aspectId === 'asp' && p.pair.nodePath === 'svc');
+    expect(vp).toBeDefined();
+    expect(vp!.state.kind).toBe('unverified');
+  });
+
+  it('a garbled lock fails closed with an empty pair list (same posture as verifiedDet/verifiedLlm)', async () => {
+    writeFile('src/a.ts', 'code');
+    const graph = buildGraph('enforced');
+    mkdirSync(graph.rootPath, { recursive: true });
+    writeFileSync(path.join(graph.rootPath, 'yg-lock.nondeterministic.json'), '{ not valid json', 'utf-8');
+    const result = await runCheck(graph, null);
+    expect(result.pairs).toEqual([]);
+  });
+});
+
 // ── Deterministic refusal rendering + log integrity / format branches ─────────
 
 /** A graph with a single deterministic aspect on node `svc`. */
