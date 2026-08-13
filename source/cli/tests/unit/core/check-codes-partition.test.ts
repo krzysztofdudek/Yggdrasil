@@ -5,6 +5,7 @@ import {
   outsideTwin,
   STRUCTURAL_CODES,
   APPROVE_GATING_CODES,
+  SINGLETON_INPUTS,
 } from '../../../src/core/check-codes.js';
 
 // The exact four STRUCTURAL_CODES members allowed to double as SCOPED_CODES
@@ -83,6 +84,36 @@ describe('OUTSIDE_CODES', () => {
   it('never collides with STRUCTURAL_CODES — an -outside twin can never be mistaken for a real structural code', () => {
     for (const code of OUTSIDE_CODES) {
       expect(STRUCTURAL_CODES.has(code)).toBe(false);
+    }
+  });
+});
+
+describe('SINGLETON_INPUTS', () => {
+  it('maps exactly the four fixed-file singleton codes to their real input paths', () => {
+    expect(SINGLETON_INPUTS.get('rules-digest-stale')).toEqual([
+      'AGENTS.md',
+      'CLAUDE.md',
+      '.clinerules/yggdrasil.md',
+    ]);
+    expect(SINGLETON_INPUTS.get('incident-ledger-out-of-order')).toEqual(['.yggdrasil/incidents.md']);
+    expect(SINGLETON_INPUTS.get('coverage-required-shadowed')).toEqual(['yg-config.yaml']);
+    expect(SINGLETON_INPUTS.get('type-unknown-parent')).toEqual(['yg-architecture.yaml']);
+    expect(SINGLETON_INPUTS.size).toBe(4);
+  });
+
+  it('every entry has at least one path, and no path is blank or padded', () => {
+    for (const [code, paths] of SINGLETON_INPUTS) {
+      expect(paths.length, `${code} must name at least one input path`).toBeGreaterThan(0);
+      for (const p of paths) {
+        expect(p.length).toBeGreaterThan(0);
+        expect(p.trim()).toBe(p);
+      }
+    }
+  });
+
+  it('none of the singleton codes are members of SCOPED_CODES — their finding is never about the change\'s own diff', () => {
+    for (const code of SINGLETON_INPUTS.keys()) {
+      expect(SCOPED_CODES.has(code)).toBe(false);
     }
   });
 });

@@ -6,6 +6,8 @@
  * is exactly what happened when each file hard-coded its own set.
  */
 
+import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH } from '../utils/rules-artifact-names.js';
+
 /**
  * Standing notice: coverage.type_level is on, but no type in the architecture
  * declares when:, so the classification lattice can never match a single
@@ -326,4 +328,42 @@ export const OUTSIDE_CODES = new Set<string>(Array.from(SCOPED_CODES, outsideTwi
  * parse-time blocking error carried by aspectParseErrors, intentionally NOT a
  * member of STRUCTURAL_CODES). No set membership is required for it to block.
  */
+
+/**
+ * The handful of codes whose finding is never about anything in a change's
+ * own diff at all: the check's entire input is one fixed, well-known repo
+ * file, independent of which files a change touched. Mapped to the exact
+ * path(s) each check actually reads, verified against the reading code
+ * itself (not asserted from memory):
+ *
+ *   - `rules-digest-stale` — core/checks/digest-gate.ts judges the three
+ *     committed rules-distribution artifacts named in
+ *     utils/rules-artifact-names.ts (AGENTS_FILENAME, CLAUDE_FILENAME,
+ *     CLINERULES_RELATIVE_PATH) — imported from there rather than re-typed,
+ *     the same single-source rule every other consumer of these three names
+ *     follows.
+ *   - `incident-ledger-out-of-order` — core/checks/incident-ledger.ts reads
+ *     the ledger via io/incidents-store.ts's `readIncidents(graph.rootPath)`,
+ *     i.e. `<yggdrasil-root>/incidents.md`.
+ *   - `coverage-required-shadowed` — core/check-coverage-tiers.ts's
+ *     `checkRequiredShadowedByExcluded` judges the `coverage:` block of the
+ *     project's parsed yg-config.yaml (io/config-parser.ts); it takes no
+ *     file list, only that one config's coverage section.
+ *   - `type-unknown-parent` — core/checks/architecture.ts's
+ *     `checkTypeUnknownParent` judges `graph.architecture.node_types`,
+ *     parsed from yg-architecture.yaml (core/graph-loader.ts).
+ *
+ * Deliberately NOT exhaustive: a code whose input is anything OTHER than a
+ * fixed path (a node's own mapping, a graph-wide scan of many files, a
+ * change's own subject files, ...) does not belong here. A finding under one
+ * of the four codes above can never be attributed to a change's own diff —
+ * there is no per-change file for it to be "about" — which is exactly why
+ * none of them are members of `SCOPED_CODES`.
+ */
+export const SINGLETON_INPUTS: Map<string, string[]> = new Map([
+  ['rules-digest-stale', [AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH]],
+  ['incident-ledger-out-of-order', ['.yggdrasil/incidents.md']],
+  ['coverage-required-shadowed', ['yg-config.yaml']],
+  ['type-unknown-parent', ['yg-architecture.yaml']],
+]);
 

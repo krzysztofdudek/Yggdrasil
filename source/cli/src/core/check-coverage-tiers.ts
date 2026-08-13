@@ -147,6 +147,48 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
   };
 }
 
+/**
+ * Partition the aggregate unmapped-files finding into the part a change
+ * TOUCHED (`inScope`) and the part it merely inherited (`outside`), each
+ * REBUILT from scratch via `buildCoverageIssue` over its own file list — so
+ * the count and sample inside each half's message are true for that half
+ * alone, never the original text with a number swapped in. This is the same
+ * builder `runCoveragePhase` uses for the aggregate itself, reused rather
+ * than duplicated so the two can never render differently for the same file
+ * list.
+ *
+ * `totalGitFiles` is passed as 0 to both calls: the repo-wide file count
+ * that produced the ORIGINAL issue's coverage-percentage guidance is not
+ * carried on `CheckIssue`, and a denominator built from only one half's own
+ * files would misstate the repo's real coverage rather than merely omit it.
+ * `buildCoverageIssue` already treats a non-positive total as "unknown" and
+ * falls back to its neutral guidance ("add to an existing node mapping, or
+ * create a new node") rather than asserting a cold-start or incremental
+ * verdict it cannot actually support — the same fallback this reuses.
+ *
+ * Returns only the non-empty half(s): `buildCoverageIssue` returns `null`
+ * for an empty file list, so a wholly-touched or wholly-inherited split
+ * naturally yields one key, never a second finding naming zero files.
+ *
+ * Partitions and rebuilds ONLY — it does not decide severity or re-code
+ * either half; both come back carrying the SAME code/severity
+ * `buildCoverageIssue` always assigns. What each half becomes (e.g.
+ * re-coding `outside` to its `-outside` twin) is a later classification
+ * step's decision, not this function's.
+ */
+export function splitCoverageIssueByTouched(
+  issue: CheckIssue,
+  touched: ReadonlySet<string>,
+): { inScope?: CheckIssue; outside?: CheckIssue } {
+  const files = issue.uncoveredFiles ?? [];
+  const inScopeFiles = files.filter((f) => touched.has(f));
+  const outsideFiles = files.filter((f) => !touched.has(f));
+  return {
+    inScope: buildCoverageIssue(inScopeFiles, 0) ?? undefined,
+    outside: buildCoverageIssue(outsideFiles, 0) ?? undefined,
+  };
+}
+
 /** Build the non-blocking 'uncovered-advisory' warning for the middle tier. */
 export function buildCoverageAdvisoryIssue(uncoveredFiles: string[]): CheckIssue | null {
   if (uncoveredFiles.length === 0) return null;

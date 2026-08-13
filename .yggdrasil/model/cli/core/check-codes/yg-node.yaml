@@ -1,8 +1,10 @@
 name: Check Codes
 type: engine
-description: "Single source of truth for issue-code categories (structural, completeness) shared between the check engine's summary tally and the check command's error grouping, so the two can never diverge."
+description: "Single source of truth for issue-code categories (structural, completeness) shared between the check engine's summary tally and the check command's error grouping, so the two can never diverge. Also maps the handful of issue codes whose entire input is one fixed, well-known repo file (the committed agent-rules artifacts, the incident ledger, the coverage config, the architecture file) to those real paths, for a later change-accountability step to consult."
 aspects:
   - progressive-tier-partition
-relations: []
+relations:
+  - target: cli/utils
+    type: calls
 mapping:
   - source/cli/src/core/check-codes.ts

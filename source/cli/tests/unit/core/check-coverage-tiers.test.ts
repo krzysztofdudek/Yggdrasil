@@ -10,6 +10,7 @@ import {
   blockingUnmappedPaths,
   isExcludedByCoverage,
   checkRequiredShadowedByExcluded,
+  splitCoverageIssueByTouched,
 } from '../../../src/core/check-coverage-tiers.js';
 
 // The question `yg init` asks after writing the agent-rules files into a
@@ -123,6 +124,81 @@ describe('buildCoverageAdvisoryIssue', () => {
     expect(issue!.messageData.what).not.toContain('src/f5.ts'); // beyond the 5-file sample
     expect(issue!.messageData.what).toContain('... and 3 more');
     expect(issue!.uncoveredCount).toBe(8);
+  });
+});
+
+describe('splitCoverageIssueByTouched', () => {
+  // 2 files a change touched (in-diff), 3 it merely inherited.
+  const IN_DIFF = ['src/a.ts', 'src/b.ts'];
+  const INHERITED = ['lib/c.ts', 'lib/d.ts', 'lib/e.ts'];
+  const issue = buildCoverageIssue([...IN_DIFF, ...INHERITED], 20)!;
+
+  it('splits into an in-scope half (touched) and an outside half (inherited), each independently counted', () => {
+    const { inScope, outside } = splitCoverageIssueByTouched(issue, new Set(IN_DIFF));
+    expect(inScope!.uncoveredCount).toBe(2);
+    expect(outside!.uncoveredCount).toBe(3);
+    expect(inScope!.uncoveredFiles).toEqual(IN_DIFF);
+    expect(outside!.uncoveredFiles).toEqual(INHERITED);
+  });
+
+  it('the two halves are disjoint and together cover every file the original named', () => {
+    const { inScope, outside } = splitCoverageIssueByTouched(issue, new Set(IN_DIFF));
+    const overlap = inScope!.uncoveredFiles!.filter((f) => outside!.uncoveredFiles!.includes(f));
+    expect(overlap).toEqual([]);
+    expect([...inScope!.uncoveredFiles!, ...outside!.uncoveredFiles!].sort()).toEqual(
+      [...IN_DIFF, ...INHERITED].sort(),
+    );
+  });
+
+  it('each message body lists only its own files — never a file from the other half', () => {
+    const { inScope, outside } = splitCoverageIssueByTouched(issue, new Set(IN_DIFF));
+    for (const f of IN_DIFF) expect(inScope!.messageData.what).toContain(f);
+    for (const f of INHERITED) expect(inScope!.messageData.what).not.toContain(f);
+    for (const f of INHERITED) expect(outside!.messageData.what).toContain(f);
+    for (const f of IN_DIFF) expect(outside!.messageData.what).not.toContain(f);
+  });
+
+  it('regenerates each half\'s count from scratch — not the original text with a number swapped', () => {
+    const { inScope, outside } = splitCoverageIssueByTouched(issue, new Set(IN_DIFF));
+    expect(inScope!.messageData.what).toContain('2 source files not covered by any node');
+    expect(outside!.messageData.what).toContain('3 source files not covered by any node');
+    // Neither half repeats the ORIGINAL aggregate's own count anywhere.
+    expect(inScope!.messageData.what).not.toContain('5 source files');
+    expect(outside!.messageData.what).not.toContain('5 source files');
+  });
+
+  it('an empty in-scope partition (nothing touched) returns only the outside half — no zero-file noise', () => {
+    const { inScope, outside } = splitCoverageIssueByTouched(issue, new Set());
+    expect(inScope).toBeUndefined();
+    expect(outside).toBeDefined();
+    expect(outside!.uncoveredCount).toBe(5);
+  });
+
+  it('an empty outside partition (everything touched) returns only the in-scope half — no zero-file noise', () => {
+    const { inScope, outside } = splitCoverageIssueByTouched(issue, new Set([...IN_DIFF, ...INHERITED]));
+    expect(outside).toBeUndefined();
+    expect(inScope).toBeDefined();
+    expect(inScope!.uncoveredCount).toBe(5);
+  });
+
+  it('regenerates the large-count (> 5) branch independently too, not just the small-count branch', () => {
+    const many = Array.from({ length: 8 }, (_, i) => `src/f${i}.ts`);
+    const bigIssue = buildCoverageIssue(many, 20)!;
+    const touched = new Set(many.slice(0, 2)); // 2 touched, 6 inherited
+    const { inScope, outside } = splitCoverageIssueByTouched(bigIssue, touched);
+    expect(inScope!.uncoveredCount).toBe(2);
+    expect(inScope!.messageData.what).toContain('2 source files not covered by any node');
+    expect(outside!.uncoveredCount).toBe(6);
+    expect(outside!.messageData.what).toContain('6 source files have no graph coverage');
+    expect(outside!.messageData.what).toContain('... and 1 more');
+  });
+
+  it('both halves keep the blocking unmapped-files shape (severity/code); re-coding is a later step\'s job', () => {
+    const { inScope, outside } = splitCoverageIssueByTouched(issue, new Set(IN_DIFF));
+    for (const half of [inScope!, outside!]) {
+      expect(half.severity).toBe('error');
+      expect(half.code).toBe('unmapped-files');
+    }
   });
 });
 
