@@ -17,11 +17,14 @@
 //   through the COMMITTED half of a diff against the reference while the work
 //   tree stays clean.
 //
-//   Two options shape the harder scenarios: `logRequired` turns on the type's
+//   Four options shape the harder scenarios: `logRequired` turns on the type's
 //   mandatory-log requirement, and `alphaRelatesToBeta` makes `alpha` declare a
 //   relation to `beta`. Together they let a test edit BETA's declaration and
 //   watch that reach alpha — a component being re-gated without one of its own
-//   files being touched.
+//   files being touched. `extraComponents` adds further untouched subjects, and
+//   `reviewedAspect` attaches a second enforced rule that only a reviewer can
+//   settle — the pair of options a scenario about PAID work needs, since the
+//   question there is always "how much of it did this run decide to buy".
 //
 //   Every git operation goes through `tests/support/git-fixture.ts`, so it is
 //   pinned to the fixture directory and can never reach this repository's real
@@ -75,10 +78,33 @@ export interface ProgressiveFixtureOptions {
   /**
    * Put `auto_approve` in the committed configuration, so a BARE `yg check`
    * records verdicts with no flag typed at all. The shape that matters for
-   * progressive mode: the person asks for a plain gate and silently gets the
-   * recording path, which answers for the whole project.
+   * progressive mode: the person asks for a plain gate and gets the recording
+   * path with no flag typed at all.
    */
   autoApprove?: 'deterministic' | 'full';
+  /**
+   * Extra components beyond `alpha` and `beta`, one clean file each. They exist
+   * for scenarios that need MORE THAN ONE subject a branch does not touch —
+   * anything counting what a run left alone needs at least two, or a count of
+   * one proves nothing about pluralisation or about summing.
+   */
+  extraComponents?: string[];
+  /**
+   * Attach a second ENFORCED rule to the type, judged by a reviewer rather than
+   * by a script, and point the tier at `endpoint` — an in-process mock speaking
+   * the same wire protocol (tests/e2e/support/mock-reviewer.ts).
+   *
+   * It is a fixture OPTION rather than an edit a test makes afterwards because
+   * the endpoint has to be in the FIRST commit: writing it later would leave the
+   * work tree dirty, or put a config edit in the very diff the scenario is
+   * measuring. Start the mock, then build the fixture around its address.
+   *
+   * The rule is deliberately one a clean file PASSES only if the reviewer says
+   * so: nothing about it can be decided locally, so a pair of it is unverified
+   * until something pays for a review — which is the whole subject of the
+   * scoped-fill scenarios.
+   */
+  reviewedAspect?: { endpoint: string };
 }
 
 export interface ProgressiveFixture {
@@ -117,7 +143,7 @@ export interface ProgressiveFixture {
   cleanup(): void;
 }
 
-function architecture(logRequired: boolean): string {
+function architecture(logRequired: boolean, reviewed: boolean): string {
   return `node_types:
   service:
     description: 'Discrete service unit'
@@ -126,7 +152,7 @@ function architecture(logRequired: boolean): string {
       path: "**"
     aspects:
       - no-todo-comments
-`;
+${reviewed ? '      - has-doc-comment\n' : ''}`;
 }
 
 /**
@@ -158,6 +184,22 @@ description: Source files must not contain TODO comments — track work in the i
 reviewer:
   type: deterministic
 status: enforced
+`;
+
+/** The reviewer-judged rule `reviewedAspect` installs, and the prose it judges by. */
+const REVIEWED_ASPECT_YAML = `name: HasDocComment
+description: Every source file must begin with a documentation comment describing the file's purpose.
+reviewer:
+  type: llm
+status: enforced
+`;
+
+const REVIEWED_ASPECT_CONTENT = `Every source file must begin with a comment.
+
+The first non-empty line of each source file must be a comment (for example a
+\`//\` line comment or a \`/* */\` block comment) that describes what the file does.
+
+A file whose first non-empty line is code — not a comment — violates this rule.
 `;
 
 /**
@@ -207,10 +249,12 @@ function configYaml(opts: ProgressiveFixtureOptions): string {
     '      consensus: 1',
     '      config:',
     '        model: test',
-    // Reserved port 1 (tcpmux) — guaranteed unreachable. The only rule here is
-    // deterministic, so no reviewer is ever contacted; the endpoint is pinned
-    // unreachable purely so a stray LLM pair could never reach a live service.
-    '        endpoint: http://127.0.0.1:1',
+    // Reserved port 1 (tcpmux) — guaranteed unreachable. Without a reviewed
+    // rule every rule here is deterministic and no reviewer is ever contacted;
+    // the endpoint is pinned unreachable purely so a stray LLM pair could never
+    // reach a live service. With one, the address is the caller's in-process
+    // mock, so the whole reviewer path runs for real against nothing remote.
+    `        endpoint: ${opts.reviewedAspect?.endpoint ?? 'http://127.0.0.1:1'}`,
     ...(opts.progressiveReference !== undefined
       ? ['progressive:', `  reference: ${opts.progressiveReference}`]
       : []),
@@ -234,31 +278,37 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
   const ygg = path.join(dir, '.yggdrasil');
 
   mkdirSync(path.join(ygg, 'aspects', 'no-todo-comments'), { recursive: true });
-  mkdirSync(path.join(ygg, 'model', 'alpha'), { recursive: true });
-  mkdirSync(path.join(ygg, 'model', 'beta'), { recursive: true });
-  mkdirSync(path.join(dir, 'src', 'alpha'), { recursive: true });
-  mkdirSync(path.join(dir, 'src', 'beta'), { recursive: true });
 
   const alphaRelations = opts.alphaRelatesToBeta === true ? ['{ target: beta, type: uses }'] : [];
+  const componentName = (dir: string): string => dir.charAt(0).toUpperCase() + dir.slice(1);
   const nodeDeclaration = (dir: string, description: string): string =>
-    nodeYaml(dir === 'alpha' ? 'Alpha' : 'Beta', dir, description, dir === 'alpha' ? alphaRelations : []);
+    nodeYaml(componentName(dir), dir, description, dir === 'alpha' ? alphaRelations : []);
 
-  writeFileSync(path.join(ygg, 'yg-architecture.yaml'), architecture(opts.logRequired === true), 'utf-8');
+  writeFileSync(path.join(ygg, 'yg-architecture.yaml'), architecture(opts.logRequired === true, opts.reviewedAspect !== undefined), 'utf-8');
   writeFileSync(path.join(ygg, 'yg-config.yaml'), configYaml(opts), 'utf-8');
   writeFileSync(path.join(ygg, '.gitignore'), YGG_GITIGNORE, 'utf-8');
   writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'yg-aspect.yaml'), ASPECT_YAML, 'utf-8');
   writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'check.mjs'), CHECK_MJS, 'utf-8');
-  writeFileSync(path.join(ygg, 'model', 'alpha', 'yg-node.yaml'), nodeDeclaration('alpha', defaultDescription('alpha')), 'utf-8');
-  writeFileSync(path.join(ygg, 'model', 'beta', 'yg-node.yaml'), nodeDeclaration('beta', defaultDescription('beta')), 'utf-8');
+  if (opts.reviewedAspect !== undefined) {
+    mkdirSync(path.join(ygg, 'aspects', 'has-doc-comment'), { recursive: true });
+    writeFileSync(path.join(ygg, 'aspects', 'has-doc-comment', 'yg-aspect.yaml'), REVIEWED_ASPECT_YAML, 'utf-8');
+    writeFileSync(path.join(ygg, 'aspects', 'has-doc-comment', 'content.md'), REVIEWED_ASPECT_CONTENT, 'utf-8');
+  }
 
-  writeFileSync(path.join(dir, 'src', 'alpha', 'alpha.ts'), 'export const alpha = 1;\n', 'utf-8');
-  // The one pre-existing failure: refused on the reference branch, and never
-  // touched by any branch this fixture cuts.
-  writeFileSync(
-    path.join(dir, 'src', 'beta', 'beta.ts'),
-    '// TODO: this one is meant to stay broken.\nexport const beta = 2;\n',
-    'utf-8',
-  );
+  // `alpha` is clean; `beta` carries the one pre-existing failure — refused on
+  // the reference branch, and never touched by any branch this fixture cuts.
+  // Every extra component is clean, like alpha.
+  const components: Array<{ dir: string; source: string }> = [
+    { dir: 'alpha', source: 'export const alpha = 1;\n' },
+    { dir: 'beta', source: '// TODO: this one is meant to stay broken.\nexport const beta = 2;\n' },
+    ...(opts.extraComponents ?? []).map((name) => ({ dir: name, source: `export const ${name} = 3;\n` })),
+  ];
+  for (const { dir: name, source } of components) {
+    mkdirSync(path.join(ygg, 'model', name), { recursive: true });
+    mkdirSync(path.join(dir, 'src', name), { recursive: true });
+    writeFileSync(path.join(ygg, 'model', name, 'yg-node.yaml'), nodeDeclaration(name, defaultDescription(name)), 'utf-8');
+    writeFileSync(path.join(dir, 'src', name, `${name}.ts`), source, 'utf-8');
+  }
 
   git(dir, ['init', '-q', '-b', REFERENCE_BRANCH]);
   git(dir, ['add', '-A']);

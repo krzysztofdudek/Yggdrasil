@@ -19,7 +19,11 @@
 
 import type { LockFile } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
+import { outsideTwin } from './check-codes.js';
 import { toPosixPath } from '../utils/posix.js';
+
+/** The finding a pair with no valid verdict produces in the report. */
+const UNVERIFIED_CODE = 'unverified';
 
 /** Hard cap on the evidence dump — total lines, header included. Bounded so a
  *  pathological run can never write an unbounded file. */
@@ -49,6 +53,30 @@ export interface DivergenceShape {
  */
 export function isZeroFillDivergence(s: DivergenceShape): boolean {
   return s.toFill === 0 && s.postUnverified > 0 && s.lockWrites === 0;
+}
+
+/**
+ * How many pairs the post-fill report still leaves without a verdict — the
+ * `postUnverified` side of the shape above, counted from the report's own
+ * findings.
+ *
+ * BOTH spellings count. A run measured against a change re-codes an unverified
+ * pair the change did not reach into its non-blocking twin, and that pair is
+ * every bit as unverified as one that kept the plain code: the sentinel is
+ * asking whether verification converged, not whose fault the leftovers are.
+ * Counting only the plain code would blind it on exactly the runs where the
+ * classifier has the most room to disagree with itself.
+ *
+ * The twin suffix is never spelled here — `outsideTwin` owns it, so a rename
+ * cannot leave this counting a code that no longer exists.
+ */
+export function countPostUnverified(issues: ReadonlyArray<{ code?: string }>): number {
+  const twin = outsideTwin(UNVERIFIED_CODE);
+  let count = 0;
+  for (const issue of issues) {
+    if (issue.code === UNVERIFIED_CODE || issue.code === twin) count += 1;
+  }
+  return count;
 }
 
 /**

@@ -16,7 +16,7 @@ import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from 
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, resolveTopValue } from './check-render-views.js';
-import { recordingRunNotice, requestedReference, resolveChangeScope } from './progressive-scope-resolve.js';
+import { resolveChangeScope } from './progressive-scope-resolve.js';
 
 /**
  * Resolve the effective approve mode from explicit CLI flags and graph config.
@@ -313,37 +313,45 @@ export function registerCheckCommand(program: Command): void {
           opts.approve === undefined &&
           opts.onlyDeterministic !== true;
 
+        // What this run is accountable for — resolved ONCE, for both paths below.
+        // Inert unless the project committed a reference branch to measure
+        // changes against: with none it resolves before any git process runs, and
+        // both paths are byte-for-byte what this command always produced. A
+        // project that DID name one and whose change could not be measured gets
+        // the same whole-project gate plus a notice saying so — never a silently
+        // empty scope, which would downgrade every finding in the report AND
+        // leave every rule outside it unreviewed.
+        const decision = await resolveChangeScope({
+          graph,
+          projectRoot,
+          coverageVisibleFiles: repoFiles,
+          fullFlag: opts.full === true,
+        });
+        if (decision.kind === 'unmeasurable') {
+          process.stderr.write(chalk.yellow(`Notice: ${buildIssueMessage(decision.notice)}`) + '\n');
+        }
+        const changeScope =
+          decision.kind === 'scoped'
+            ? { burn: decision.burn, referenceName: decision.referenceName }
+            : undefined;
+
         // Fill path: runs when --approve is explicit OR when auto_approve in config
         // promotes bare `yg check` to a fill. Triage views always stay read-only.
         // --dry-run is a preview mode of fill: previews cost without writing.
         if (mode.approve) {
-          // A project that measures its changes must be TOLD when a run does not
-          // measure: this whole branch answers for the whole project, so the
-          // gate the adopter configured is not in force here. Silence would be
-          // read as the setting having no effect — and this branch is reachable
-          // with no flag typed at all (auto_approve in the config), where nothing
-          // else on screen hints that a whole-project answer was even a choice.
-          // That same case decides the notice's own next step, which is why it is
-          // passed through: told to "run it plain", someone on that path would
-          // just repeat the run they are reading about.
-          // Suppressed under --full, which is the person saying they meant it.
-          const measuredReference = requestedReference(graph, opts.full === true);
-          if (measuredReference !== undefined) {
-            process.stderr.write(
-              chalk.yellow(`Notice: ${buildIssueMessage(recordingRunNotice({
-                reference: measuredReference,
-                configDriven: isConfigDrivenFill,
-                preview: opts.dryRun === true,
-              }))}`) + '\n',
-            );
-          }
-
           // Banner: warn before spending on the LLM reviewer, but ONLY for
           // config-driven full auto-fill (not deterministic, not explicit --approve).
+          // Under a measured change it can promise less: the reviewer is called
+          // for what the change is accountable for and nothing else, which on a
+          // branch that reached no reviewer-backed rule is nothing at all.
           const isConfigFull =
             isConfigDrivenFill && graph.config?.auto_approve === 'full';
           if (isConfigFull && !opts.dryRun) {
-            process.stderr.write("auto-approve: full — bare 'yg check' will call the reviewer.\n");
+            process.stderr.write(
+              changeScope !== undefined
+                ? "auto-approve: full — bare 'yg check' will call the reviewer for anything your change is accountable for.\n"
+                : "auto-approve: full — bare 'yg check' will call the reviewer.\n",
+            );
           }
 
           try {
@@ -404,6 +412,13 @@ export function registerCheckCommand(program: Command): void {
               // line instead of wrapping into a new row on every redraw.
               columns: process.stderr.columns,
               emitIssue: (m) => { process.stderr.write(buildIssueMessage(m) + '\n'); },
+              // The measurement above, or undefined for a run answering for the
+              // whole project. Present, it narrows the reviewer work this run
+              // pays for to the change's own obligations — the free
+              // deterministic half and the mandatory-log gate stay
+              // whole-project — and the report it prints afterwards gates on
+              // exactly what a plain read of the same tree gates on.
+              changeScope: changeScope,
               // Best-effort, synchronous io writer for the convergence sentinel's
               // evidence dump — wired here so the engine takes no core → io
               // dependency. It never throws into the fill.
@@ -449,27 +464,6 @@ export function registerCheckCommand(program: Command): void {
         // (which passes the same flag into its own runCheck) — so both `yg check` and
         // `yg check --approve` keep the index current. Only --dry-run (returns before the
         // fill's report) and the internal fill/portal re-checks stay byproduct-free.
-        // What this run is accountable for. Inert unless the project committed a
-        // reference branch to measure changes against: with none it resolves
-        // before any git process runs, and the run below is byte-for-byte the
-        // one this command always produced. A project that DID name one and
-        // whose change could not be measured gets the same whole-project gate
-        // plus a notice saying so — never a silently empty scope, which would
-        // downgrade every finding in the report.
-        const decision = await resolveChangeScope({
-          graph,
-          projectRoot,
-          coverageVisibleFiles: repoFiles,
-          fullFlag: opts.full === true,
-        });
-        if (decision.kind === 'unmeasurable') {
-          process.stderr.write(chalk.yellow(`Notice: ${buildIssueMessage(decision.notice)}`) + '\n');
-        }
-        const changeScope =
-          decision.kind === 'scoped'
-            ? { burn: decision.burn, referenceName: decision.referenceName }
-            : undefined;
-
         const result = await runCheck(graph, repoFiles, {
           nowUtc: () => new Date(),
           writeFeatureIndex: true,

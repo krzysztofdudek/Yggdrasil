@@ -226,10 +226,19 @@ internal code; its `Fix:` line is left off rather than repeating a command that
 would, for this one finding, be misleading (see below), since the WHY is still
 true regardless of who caused it.
 
-Measuring narrows what BLOCKS, not what gets reviewed, so a run that records
-verdicts — `--approve`, or a bare run on a project configured to approve
-automatically — still answers for the whole project. Such a run says so on
-stderr rather than leaving you to wonder why the setting appeared to do nothing.
+A run that records verdicts — `--approve`, or a bare run on a project
+configured to approve automatically — is measured the same way, so it reports
+what a plain run reports and reviews only the rules your change is accountable
+for. It says how many it left for later, and `yg check --full --approve` is what
+reviews those. Checks that run locally still cover the whole project: they cost
+nothing, and what they observe is what the next measurement reads.
+
+One thing stays whole-project on purpose. If a component's source has moved past
+the last entry its log records, and its type requires one, a recording run stops
+and asks for that entry — whoever moved the code, and whether or not your change
+went near it. Recording answers for the code as it stands, so it will not record
+over an unexplained edit; a plain read of the same branch can pass while that run
+stops, and the message says which component it is waiting on.
 
 `--full` answers for the whole project instead: every finding blocks again,
 whatever your change touched. Reach for it on the integration leg of CI, for an
@@ -306,7 +315,9 @@ calling the reviewer, running any `check.mjs`, or writing a single byte to any l
 file**. The reviewer-call total is an **upper bound**: a node with an enforced
 deterministic refusal has its LLM pairs skipped, and a fresh refusal or an
 infrastructure failure can leave a pair unfilled, so the real `--approve` bills at
-most that many calls.
+most that many calls. On a project that measures changes against a reference
+branch, the preview prices what your change is accountable for — the same work
+the real run would buy — and names how many reviewed rules it left outside it.
 
 The preview always exits 0, even when enforced pairs are unverified — it never
 blocks the build. The only thing that aborts a preview is a broken configuration

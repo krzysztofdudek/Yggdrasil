@@ -1,0 +1,33 @@
+name: E2E Tests — Progressive Recording Run
+type: test-suite
+description: "Subprocess E2E for what a run that RECORDS verdicts buys once a
+  project measures its changes, driven through the real built binary over
+  throwaway git repositories whose reviewer-backed rule is answered by an
+  in-process mock on an ephemeral loopback port. Three components — one the
+  branches touch, two they never do — so every count it asserts is a real sum
+  rather than a one.
+
+  It walks the cost preview (prices the change's own obligations, names how many
+  reviewed rules it left outside them, prices the whole backlog again under
+  --full, and prices nothing at all when the change reached nothing), then the
+  recording run itself (one reviewer call, about the one component the change
+  reached, recorded for that component alone; a run that bought nothing still
+  says what it left unreviewed rather than claiming every rule holds a verdict;
+  and a component whose free check refuses still has its paid review skipped,
+  the cost-ordering optimisation that must survive the narrowing).
+
+  Its last two cases pin the deliberate exception. The mandatory-log gate is NOT
+  narrowed: a component whose source moved past the entry its log records stops
+  the whole recording run even when the change never reached it, and even though
+  a plain read of the same branch passes. That is proved on a THIRD component
+  the gate did not object to — its free check was ready to run and did not,
+  leaving the record byte-identical — because all-or-nothing is only observable
+  on work the gate had no quarrel with."
+aspects: []
+relations:
+  [
+    { target: cli/tests/support, type: uses },
+    { target: cli/tests/e2e/support, type: uses }
+  ]
+mapping:
+  - source/cli/tests/e2e/cli-progressive-approve.test.ts

@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createProgressiveFixture, type ProgressiveFixture } from '../support/progressive-fixture.js';
@@ -62,17 +62,28 @@ function warningSection(stdout: string): string {
 /** The violation line each component's TODO produces, as the report prints it. */
 const TODO_IN = (dir: string): string => `src/${dir}/${dir}.ts:1: TODO comment found`;
 
+/** The local, gitignored file a deterministic recording run writes its verdicts to. */
+function recordedVerdicts(dir: string): string {
+  return readFileSync(path.join(dir, '.yggdrasil', '.yg-lock.deterministic.json'), 'utf-8');
+}
+
 /**
  * A fixture whose reference branch already holds recorded deterministic
  * verdicts — so `beta`'s TODO is a PRE-EXISTING refusal rather than a pair
  * nobody has ever looked at. Everything downstream measures against that.
+ *
+ * The state is asserted through the RECORD the run wrote, not through its exit
+ * code, because the exit code is no longer a property of the fixture: recording
+ * is whole-project (it is free), but the report a recording run prints is
+ * measured like any other, so this run reports beta's refusal as blocking on a
+ * project that names no reference and as inherited on one that does. The record
+ * is the same either way, and it is what every case below builds on.
  */
 function scaffoldReference(label: string, progressiveReference?: string): ProgressiveFixture {
   const fixture = createProgressiveFixture({ label, progressiveReference });
   fixtures.push(fixture);
-  // beta's TODO refuses, so the recording run's own report exits 1 — the point
-  // of the fixture, not a failure of it.
-  expect(run(['check', '--approve', '--only-deterministic'], fixture.dir).status).toBe(1);
+  run(['check', '--approve', '--only-deterministic'], fixture.dir);
+  expect(recordedVerdicts(fixture.dir)).toContain('no-todo-comments');
   return fixture;
 }
 
@@ -327,25 +338,36 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     expect(stderr).not.toContain('progressive.reference in yg-config.yaml');
   });
 
-  // Recording verdicts answers for the whole project — a deliberate property,
-  // since a verdict is a fact about the code rather than about who changed it.
-  // What must never happen is that being SILENT: the adopter's configured gate
-  // is not in force on such a run, the report fails on findings their change did
-  // not cause, and nothing on screen would say why.
+  // A run that RECORDS verdicts is measured like any other. It used to be the
+  // one hole in the promise: recording answered for the whole project, so the
+  // same working tree could pass `yg check` and fail `yg check --approve`, and
+  // the command the failing report pointed at was the one that answered for
+  // everything. What stays whole-project is only what costs nothing — the free
+  // deterministic checks whose recorded observations are what a later
+  // measurement reads.
   describe('a run that records verdicts', () => {
-    it('says out loud that it answered for the whole project', () => {
-      const fixture = scaffoldReference('recording-notice', 'main');
+    it('answers for the change, exactly as the plain gate does', () => {
+      const fixture = scaffoldReference('recording-scoped', 'main');
       fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
 
-      const { status, stderr } = run(['check', '--approve', '--only-deterministic'], fixture.dir);
+      const recording = run(['check', '--approve', '--only-deterministic'], fixture.dir);
+      const plain = run(['check', '--no-approve'], fixture.dir);
 
-      expect(status).toBe(1);
-      expect(stderr).toContain('answered for the WHOLE project');
-      expect(stderr).toContain("Run 'yg check' on its own");
+      // The two agree about the build, which is the whole point…
+      expect(recording.status).toBe(0);
+      expect(plain.status).toBe(0);
+      expect(warningSection(recording.stdout)).toContain(TODO_IN('beta'));
+      expect(headerOf(recording.stdout)).toContain('outside your changes vs main');
+      // …and there is no longer anything to warn about, because nothing about
+      // this run answered for more than the change did.
+      expect(recording.stderr).not.toContain('WHOLE project');
+      // The free half still covers everything: beta's verdict is recorded here
+      // even though this change never reached it.
+      expect(recordedVerdicts(fixture.dir)).toContain('node:beta');
     });
 
-    it('says it even when no flag was typed and the configuration chose it', () => {
-      // The worst version of the same shape: `auto_approve` promotes a bare
+    it('answers for the change even when no flag was typed and the configuration chose it', () => {
+      // The shape that used to be worst: `auto_approve` promotes a bare
       // `yg check` to the recording path, so the person asked for the plain gate
       // and silently got the whole-project answer.
       const fixture = createProgressiveFixture({
@@ -354,53 +376,68 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
         autoApprove: 'deterministic',
       });
       fixtures.push(fixture);
-      expect(run(['check'], fixture.dir).status).toBe(1);
+      run(['check'], fixture.dir);
       fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
 
       const auto = run(['check'], fixture.dir);
       const scoped = run(['check', '--no-approve'], fixture.dir);
 
-      // The two disagree about the build — which is exactly why the first has
-      // to explain itself.
-      expect(auto.status).toBe(1);
-      expect(auto.stderr).toContain('answered for the WHOLE project');
-      // And it must name the command that ACTUALLY reaches the scoped gate.
-      // "Run it plain" is what this person just did: on this configuration a
-      // plain run stays on the recording path, so that advice is a loop.
-      expect(auto.stderr).toContain("Run 'yg check --no-approve'");
-      expect(auto.stderr).not.toContain("Run 'yg check' on its own");
-      // The command it names is the one used here, and it does reach the gate.
+      // Same answer, whether or not the run happened to record anything.
+      expect(auto.status).toBe(0);
       expect(scoped.status).toBe(0);
-      expect(headerOf(scoped.stdout)).toContain('outside your changes vs main');
+      expect(headerOf(auto.stdout)).toContain('outside your changes vs main');
+      expect(auto.stderr).not.toContain('WHOLE project');
     });
 
-    it('does not claim to record anything when it is only pricing the work', () => {
+    it('prices the preview the same way, with no whole-project claim', () => {
       const fixture = scaffoldReference('recording-preview', 'main');
       fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
 
-      const { status, stderr } = run(['check', '--approve', '--dry-run'], fixture.dir);
+      const { status, stdout, stderr } = run(['check', '--approve', '--dry-run'], fixture.dir);
 
       expect(status).toBe(0);
-      expect(stderr).toContain('prices the WHOLE project');
-      expect(stderr).not.toContain('records verdicts');
+      expect(stderr).not.toContain('WHOLE project');
+      // Free work is priced for the whole project because it costs nothing;
+      // there is no reviewer-backed rule here, so the bill is zero either way.
+      expect(stdout).toContain('0 reviewer calls (consensus included)');
     });
 
-    it('stays quiet when the whole project was asked for explicitly', () => {
+    it('says so, and gates everything, when the change could not be measured', () => {
+      // The one case a recording run still owes an explanation for — and it is
+      // the same explanation a plain read gives, from the same measurement.
+      const fixture = scaffoldReference('recording-unmeasurable', 'origin/main');
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+
+      const { status, stdout, stderr } = run(['check', '--approve', '--only-deterministic'], fixture.dir);
+
+      expect(status).toBe(1);
+      expect(errorSection(stdout)).toContain(TODO_IN('beta'));
+      expect(stderr).toContain('whole project');
+      expect(stderr).toContain('likely does not exist or was never fetched');
+    });
+
+    it('answers for everything again when the whole project is asked for', () => {
       const fixture = scaffoldReference('recording-full', 'main');
       fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
 
-      const { stderr } = run(['check', '--approve', '--only-deterministic', '--full'], fixture.dir);
+      const { status, stdout, stderr } = run(['check', '--approve', '--only-deterministic', '--full'], fixture.dir);
 
-      expect(stderr).not.toContain('WHOLE project');
+      expect(status).toBe(1);
+      expect(errorSection(stdout)).toContain(TODO_IN('beta'));
+      expect(headerOf(stdout)).not.toContain('outside your changes');
+      // Fill progress goes to stderr; what must not be there is a notice.
+      expect(stderr).not.toContain('Notice:');
     });
 
-    it('stays quiet on a project that never opted in', () => {
+    it('is the plain whole-project run on a project that never opted in', () => {
       const fixture = scaffoldReference('recording-off', undefined);
       fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
 
-      const { stderr } = run(['check', '--approve', '--only-deterministic'], fixture.dir);
+      const { status, stdout, stderr } = run(['check', '--approve', '--only-deterministic'], fixture.dir);
 
-      expect(stderr).not.toContain('WHOLE project');
+      expect(status).toBe(1);
+      expect(errorSection(stdout)).toContain(TODO_IN('beta'));
+      expect(stderr).not.toContain('Notice:');
     });
   });
 

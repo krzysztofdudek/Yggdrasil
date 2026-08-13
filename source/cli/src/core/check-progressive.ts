@@ -77,11 +77,46 @@ const COVERAGE_AGGREGATE_CODE = 'unmapped-files';
  * distinction a finding whose pair the enumeration never produced would be
  * silently reported as none of the change's business — the one claim this
  * module must never make.
+ *
+ * Exported for the fill stage, which asks {@link pairIsInScope} the same
+ * question about the pairs it is about to pay a reviewer for and must derive
+ * this set exactly as the report does.
  */
-function knownPairKeys(pairs: VerifiedPair[]): Set<string> {
+export function knownPairKeys(pairs: VerifiedPair[]): Set<string> {
   const keys = new Set<string>();
   for (const vp of pairs) keys.add(progressivePairKey(vp.pair.aspectId, vp.pair.unitKey));
   return keys;
+}
+
+/**
+ * Is ONE pair something the change is accountable for?
+ *
+ * The single pair-level decision in the codebase, and deliberately so: the
+ * report uses it to decide whether a pair-derived finding blocks (rung 2 of
+ * {@link issueIsInScope}), and the fill stage uses it to decide whether to spend
+ * a reviewer call on that same pair (core/fill-classify.ts). A second copy could
+ * report a finding as inherited debt while still paying to review it, or — far
+ * worse — decline to review a pair the report then blocks the build over.
+ *
+ * The three answers, in order:
+ *   - a GLOBAL scope reaches everything no per-pair intersection can bound, so
+ *     every pair is the change's business;
+ *   - a pair the burn set names is the change's business;
+ *   - a pair this run ENUMERATED and the burn set does not name is outside it.
+ * Anything else — a pair no enumeration produced — is unattributable and
+ * answers TRUE, the blocking/paying direction, for the same reason every other
+ * rung does: "cannot attribute" is never read as "not touched".
+ */
+export function pairIsInScope(
+  scope: BurnSet,
+  aspectId: string,
+  unitKey: string,
+  known: ReadonlySet<string>,
+): boolean {
+  if (scope.global) return true;
+  const key = progressivePairKey(aspectId, unitKey);
+  if (scope.pairKeys.has(key)) return true;
+  return !known.has(key);
 }
 
 /**
@@ -109,13 +144,13 @@ export function issueIsInScope(
   const singletonInputs = SINGLETON_INPUTS.get(issue.code);
   if (singletonInputs !== undefined) return singletonInputs.some((p) => scope.files.has(p));
 
-  // 2. A pair-derived finding names its pair exactly.
+  // 2. A pair-derived finding names its pair exactly — the one rung the fill
+  //    stage shares, so what a run pays to review and what it blocks over are
+  //    decided by the same three lines rather than by two copies of them.
   const aspectId = named(issue.aspectId);
   const unitKey = named(issue.unitKey);
   if (aspectId !== undefined && unitKey !== undefined) {
-    const key = progressivePairKey(aspectId, unitKey);
-    if (scope.pairKeys.has(key)) return true;
-    return !known.has(key);
+    return pairIsInScope(scope, aspectId, unitKey, known);
   }
 
   // 3. A component-keyed finding. A component's log is its own channel: writing

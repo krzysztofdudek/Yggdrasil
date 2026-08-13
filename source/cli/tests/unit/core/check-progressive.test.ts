@@ -3,6 +3,7 @@ import {
   applyChangeScope,
   countOutside,
   issueIsInScope,
+  pairIsInScope,
 } from '../../../src/core/check-progressive.js';
 import type { BurnSet } from '../../../src/core/progressive-scope.js';
 import { computeBurnSet, progressivePairKey } from '../../../src/core/progressive-scope.js';
@@ -397,6 +398,35 @@ describe('applyChangeScope — list shape', () => {
       knownPair('audit', 'node:b'),
     ]);
     expect(out.map((i) => i.code)).toEqual(['unverified-outside', 'lock-invalid', 'unverified-outside']);
+  });
+});
+
+// ── The one pair-level decision, shared with the fill stage ────────────────
+//
+// The report asks it to decide whether a finding blocks; the fill stage asks it
+// about the same pair to decide whether to pay a reviewer for it. A second copy
+// could report an obligation as inherited debt while still buying review for it,
+// or — far worse — decline to review a pair the report then blocks the build
+// over. These cases pin the three answers directly.
+
+describe('pairIsInScope — is one pair the change’s business', () => {
+  const known = new Set([progressivePairKey('audit', 'node:a')]);
+
+  it('says yes for a pair the change reached', () => {
+    const scope = burn({ pairKeys: new Set([progressivePairKey('audit', 'node:a')]) });
+    expect(pairIsInScope(scope, 'audit', 'node:a', known)).toBe(true);
+  });
+
+  it('says no for an enumerated pair the change did not reach', () => {
+    expect(pairIsInScope(burn(), 'audit', 'node:a', known)).toBe(false);
+  });
+
+  it('says yes for a pair no enumeration produced — unattributable never means untouched', () => {
+    expect(pairIsInScope(burn(), 'audit', 'node:never-enumerated', known)).toBe(true);
+  });
+
+  it('says yes to everything when the change reached what no pair can bound', () => {
+    expect(pairIsInScope(burn({ global: true }), 'audit', 'node:a', known)).toBe(true);
   });
 });
 
