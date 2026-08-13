@@ -318,16 +318,23 @@ export function registerCheckCommand(program: Command): void {
         // --dry-run is a preview mode of fill: previews cost without writing.
         if (mode.approve) {
           // A project that measures its changes must be TOLD when a run does not
-          // measure: recording verdicts answers for the whole project, so the
+          // measure: this whole branch answers for the whole project, so the
           // gate the adopter configured is not in force here. Silence would be
           // read as the setting having no effect — and this branch is reachable
           // with no flag typed at all (auto_approve in the config), where nothing
           // else on screen hints that a whole-project answer was even a choice.
+          // That same case decides the notice's own next step, which is why it is
+          // passed through: told to "run it plain", someone on that path would
+          // just repeat the run they are reading about.
           // Suppressed under --full, which is the person saying they meant it.
           const measuredReference = requestedReference(graph, opts.full === true);
           if (measuredReference !== undefined) {
             process.stderr.write(
-              chalk.yellow(`Notice: ${buildIssueMessage(recordingRunNotice(measuredReference))}`) + '\n',
+              chalk.yellow(`Notice: ${buildIssueMessage(recordingRunNotice({
+                reference: measuredReference,
+                configDriven: isConfigDrivenFill,
+                preview: opts.dryRun === true,
+              }))}`) + '\n',
             );
           }
 

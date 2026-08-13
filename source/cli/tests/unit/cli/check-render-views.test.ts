@@ -842,8 +842,11 @@ describe('check render — --top view: a split coverage finding', () => {
     expect(out).toContain('src/in-diff.ts');
     expect(out).toContain('src/inherited-a.ts');
     expect(out).toContain('src/inherited-b.ts');
-    // The blocking half keeps the compact file-list block with its own count.
+    // The blocking half keeps the compact file-list block with its own count…
     expect(out).toContain('unmapped (1)');
+    // …and the two halves never read as the same thing: only one of them is
+    // this change's business, and the label says which.
+    expect(out).toContain('unmapped (outside changes) (2)');
   });
 
   it('keeps the halves under their own severity sections', () => {
@@ -914,8 +917,10 @@ describe('check render — the inherited coverage half in every view', () => {
       const out = stripAnsi(formatOutput(baseResult(inherited()), view));
       expect(out).toContain('src/inherited-a.ts');
       expect(out).toContain('src/inherited-b.ts');
-      // …and as a compact coverage block, not as a truncated one-line summary.
-      expect(out).toContain('unmapped (2)');
+      // …and as a compact coverage block, not as a truncated one-line summary,
+      // marked as the change's inheritance rather than its business — the two
+      // halves of one split finding must not share a label.
+      expect(out).toContain('unmapped (outside changes) (2)');
     });
   }
 

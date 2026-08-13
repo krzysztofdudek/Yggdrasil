@@ -253,8 +253,25 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       // to explain itself.
       expect(auto.status).toBe(1);
       expect(auto.stderr).toContain('answered for the WHOLE project');
+      // And it must name the command that ACTUALLY reaches the scoped gate.
+      // "Run it plain" is what this person just did: on this configuration a
+      // plain run stays on the recording path, so that advice is a loop.
+      expect(auto.stderr).toContain("Run 'yg check --no-approve'");
+      expect(auto.stderr).not.toContain("Run 'yg check' on its own");
+      // The command it names is the one used here, and it does reach the gate.
       expect(scoped.status).toBe(0);
       expect(headerOf(scoped.stdout)).toContain('outside your changes vs main');
+    });
+
+    it('does not claim to record anything when it is only pricing the work', () => {
+      const fixture = scaffoldReference('recording-preview', 'main');
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+
+      const { status, stderr } = run(['check', '--approve', '--dry-run'], fixture.dir);
+
+      expect(status).toBe(0);
+      expect(stderr).toContain('prices the WHOLE project');
+      expect(stderr).not.toContain('records verdicts');
     });
 
     it('stays quiet when the whole project was asked for explicitly', () => {

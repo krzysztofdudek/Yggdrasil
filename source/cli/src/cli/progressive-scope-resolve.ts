@@ -148,25 +148,54 @@ export function requestedReference(graph: Graph, fullFlag: boolean): string | un
   return withoutProbes.mode === 'off' || withoutProbes.mode === 'full' ? undefined : reference;
 }
 
+export interface RecordingRunNoticeInput {
+  /** The branch the project measures changes against. */
+  reference: string;
+  /**
+   * The configuration put this run on the recording path — nobody typed a flag.
+   * It changes the ONLY thing that matters here: which command reaches the
+   * scoped gate. "Run it plain" is the answer for someone who typed a flag, and
+   * an instruction to repeat what they just did for someone who did not.
+   */
+  configDriven: boolean;
+  /** A cost preview: it prices the work and writes nothing. */
+  preview: boolean;
+}
+
 /**
- * What a run that RECORDS verdicts owes a project that measures its changes:
- * the news that this particular run did not measure anything.
+ * What a run that answers for the whole project owes a project that measures its
+ * changes: the news that this particular run did not measure anything.
  *
- * Recording answers for the whole project. That is a deliberate property — a
- * verdict is a fact about the code, not about who changed it — but it means the
- * gate an adopter configured is not in force on this run, and silence about that
- * is the dangerous part: the report fails on findings the change did not cause,
- * with nothing to say why the setting appeared to do nothing. It also matters
- * before the fact, not after: a scoped run that fails points at this very
- * command, and following that pointer on a project with reviewer-backed rules
- * spends real review on the whole inherited backlog.
+ * Recording verdicts answers for the whole project. That is a deliberate
+ * property — a verdict is a fact about the code, not about who changed it — but
+ * it means the gate an adopter configured is not in force on this run, and
+ * silence about that is the dangerous part: the report fails on findings the
+ * change did not cause, with nothing to say why the setting appeared to do
+ * nothing. It also matters before the fact, not after: a scoped run that fails
+ * points at the recording command, and following that pointer on a project with
+ * reviewer-backed rules spends real review on the whole inherited backlog.
+ *
+ * Both variations exist because the fixed text would otherwise be FALSE in the
+ * exact situation it was written for. A cost preview records nothing, so it
+ * cannot be described as recording; and under a configuration that records on
+ * every run, "run it plain" is an instruction to repeat the run that produced
+ * this notice — a loop, and the one command that does reach the scoped gate
+ * would go unnamed.
  */
-export function recordingRunNotice(reference: string): IssueMessage {
-  return {
-    what: `This run records verdicts, so it answered for the WHOLE project — your change was not measured against '${reference}'.`,
-    why: 'Measuring a change narrows what BLOCKS; it does not narrow what gets reviewed. So findings your change did not cause block here, and rules that need a reviewer can be reviewed for work that is not yours.',
-    next: "Run 'yg check' on its own for the gate scoped to your change. Keep this form for the full audit — or add --full to say that is what you meant, which also silences this notice.",
-  };
+export function recordingRunNotice(input: RecordingRunNoticeInput): IssueMessage {
+  const { reference, configDriven, preview } = input;
+  const what = preview
+    ? `This preview prices the WHOLE project — your change was not measured against '${reference}'.`
+    : configDriven
+      ? `This run records verdicts (your configuration asks every run to), so it answered for the WHOLE project — your change was not measured against '${reference}'.`
+      : `This run records verdicts, so it answered for the WHOLE project — your change was not measured against '${reference}'.`;
+  const why = preview
+    ? 'Measuring a change narrows what BLOCKS; it does not narrow what gets reviewed. So the budget below covers every obligation in the project, including work that is not yours.'
+    : 'Measuring a change narrows what BLOCKS; it does not narrow what gets reviewed. So findings your change did not cause block here, and rules that need a reviewer can be reviewed for work that is not yours.';
+  const next = configDriven
+    ? "Run 'yg check --no-approve' for the gate scoped to your change — a plain 'yg check' stays on this path while auto_approve is set in yg-config.yaml. Add --full to say the whole project is what you meant, which also silences this notice."
+    : "Run 'yg check' on its own for the gate scoped to your change. Keep this form for the full audit — or add --full to say that is what you meant, which also silences this notice.";
+  return { what, why, next };
 }
 
 /**

@@ -388,9 +388,13 @@ describe('render code sets — the -outside twins', () => {
     expect(COVERAGE_GROUP_EXCLUDED_CODES.has('uncovered-advisory-outside')).toBe(false);
   });
 
-  it('labels the inherited half by what it is, not by the section it sits in', () => {
+  it('labels the inherited half by what it is, and says whose business it is', () => {
+    // Both halves of a split coverage finding appear in ONE report. Sharing a
+    // single word between them left the two distinguishable only by which
+    // severity section they happened to sit in — the marker every other
+    // outside-changes finding carries has to be here too.
     expect(coverageBlockLabel('unmapped-files')).toBe('unmapped');
-    expect(coverageBlockLabel('unmapped-files-outside')).toBe('unmapped');
+    expect(coverageBlockLabel('unmapped-files-outside')).toBe('unmapped (outside changes)');
     expect(coverageBlockLabel('uncovered-advisory')).toBe('uncovered');
   });
 });

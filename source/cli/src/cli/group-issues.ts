@@ -19,6 +19,19 @@ function withOutsideTwins(codes: readonly string[]): Set<string> {
   return new Set([...codes, ...codes.filter((c) => SCOPED_CODES.has(c)).map(outsideTwin)]);
 }
 
+/**
+ * How a finding put outside the change reads: exactly what the finding it
+ * mirrors reads, plus the one phrase that says whose business it is.
+ *
+ * DERIVED from the base code, never a second list of labels. A twin with no
+ * label rule of its own falls through to the bottom of {@link getIssueLabel} and
+ * renders as its raw code — `aspect-violation-enforced-outside` sitting beside
+ * `unverified (not yet reviewed)` — which puts an internal identifier on a
+ * person's screen and reads as a different, unexplained kind of finding rather
+ * than a familiar one the change did not cause.
+ */
+const OUTSIDE_LABEL_SUFFIX = ' (outside changes)';
+
 export interface IssueGroup {
   code: string;
   aspectId?: string;
@@ -139,11 +152,19 @@ export const COVERAGE_GROUP_EXCLUDED_CODES = withOutsideTwins(['unmapped-files',
 /**
  * The label `renderUnmappedBlock` heads a coverage block with. `uncovered-advisory`
  * is the non-blocking visibility tier and says so; everything else in
- * {@link COVERAGE_GROUP_EXCLUDED_CODES} is an unmapped-files finding, blocking or
- * inherited — the two are told apart by the severity section they render under, not
- * by this word.
+ * {@link COVERAGE_GROUP_EXCLUDED_CODES} is an unmapped-files finding.
+ *
+ * A coverage finding SPLIT by a change scope produces two of these blocks in one
+ * report, and this is the only label either half gets — so the outside half
+ * carries the same marker every other outside finding carries, derived the same
+ * way (see {@link OUTSIDE_LABEL_SUFFIX}). Leaving it off was not merely terse:
+ * both halves then rendered under the identical word, distinguishable only by
+ * which severity section they happened to sit in, which is exactly the reading a
+ * person scanning for their own work should not have to do.
  */
 export function coverageBlockLabel(code: string): string {
+  const baseCode = baseCodeOfOutsideTwin(code);
+  if (baseCode !== undefined) return coverageBlockLabel(baseCode) + OUTSIDE_LABEL_SUFFIX;
   return code === 'uncovered-advisory' ? 'uncovered' : 'unmapped';
 }
 
@@ -187,19 +208,6 @@ export function issuePriorityRank(issue: CheckIssue): number {
   // Warnings always last.
   return base + 4;
 }
-
-/**
- * How a finding put outside the change reads: exactly what the finding it
- * mirrors reads, plus the one phrase that says whose business it is.
- *
- * DERIVED from the base code, never a second list of labels. A twin with no
- * label rule of its own falls through to the bottom of {@link getIssueLabel} and
- * renders as its raw code — `aspect-violation-enforced-outside` sitting beside
- * `unverified (not yet reviewed)` — which puts an internal identifier on a
- * person's screen and reads as a different, unexplained kind of finding rather
- * than a familiar one the change did not cause.
- */
-const OUTSIDE_LABEL_SUFFIX = ' (outside changes)';
 
 export function getIssueLabel(issue: CheckIssue): string {
   // An outside twin borrows its mirror's label, whatever that turns out to be —
