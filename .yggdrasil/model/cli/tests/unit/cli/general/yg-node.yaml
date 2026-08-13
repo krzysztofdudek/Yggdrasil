@@ -14,10 +14,11 @@ description: "Unit tests for build and check CLI commands — build-command,
   large repository could not rebuild its deterministic verdicts at all. It also
   covers the progressive-preflight state machine — the pure decision table that
   turns the progressive-mode git probes into a gate-everything/gate-only-the-
-  touched-set/stay-quiet/fall-back verdict, and the two pure halves of the
-  progressive view built on it: how a finished report's findings are split
-  into what the current change is accountable for and what was already there,
-  and the one sentence that reports that split."
+  touched-set/stay-quiet/fall-back verdict, including the rule that every
+  fall-back names both its own cause and its own remedy; the one collapsing
+  decision in the change-scope resolver built on it; and how a finding the
+  change is not accountable for is labelled, derived from the label of the
+  finding it mirrors so no such finding can render as a raw internal code."
 aspects: []
 max_direct_relations:
   limit: 30
@@ -25,12 +26,12 @@ max_direct_relations:
     Growth is honest, not accidental: this node is a shared test-suite umbrella
     covering an entire command's test files (build, check, and now the
     check-render-header/-groups/-views split, plus init and its shared
-    helpers, plus the progressive-preflight state machine and the progressive
-    view's own split, which is asserted against the burn engine's own key
-    format rather than a re-spelled copy of it), so its relation count tracks
-    the real dependency surface of everything it tests. The ceiling gives
-    modest headroom above the current count (27) without silencing a genuine
-    future over-connection.
+    helpers, plus the progressive-preflight state machine, the change-scope
+    resolver, and the outside-changes labels, which are asserted against the
+    engine's own code sets rather than a re-spelled copy of them), so its
+    relation count tracks the real dependency surface of everything it tests.
+    The ceiling gives modest headroom above the current count (28) without
+    silencing a genuine future over-connection.
 relations:
   [
     { target: cli/commands/build-context, type: uses },
@@ -59,6 +60,7 @@ relations:
     { target: cli/tests/fixtures, type: uses },
     { target: cli/progressive-preflight, type: uses },
     { target: cli/progressive-scope-resolve, type: uses },
+    { target: cli/core/check-codes, type: uses },
     { target: cli/core/progressive-scope, type: uses }
   ]
 mapping:

@@ -38,14 +38,24 @@ export const useEmoji: boolean = chalk.level > 0;
  * count of changed inputs would only invite the reading "0 files, therefore
  * this run proved nothing". It did prove something: that everything it found
  * was already there.
+ *
+ * That sentence is claimed only when the report can back it up, which is why it
+ * reads `errorCount` as well. A count of zero changed inputs is not quite proof
+ * that nothing was in scope: a change consisting ONLY of engine output — a
+ * commit that deletes entries from the committed verdict record, say — is
+ * counted as zero changed inputs (those files are dropped unread) while the
+ * obligations whose verdicts it destroyed ARE in scope and DO block. Printing
+ * "nothing in scope" beside those errors would contradict the very list under
+ * it, so a run with anything blocking gets the plain shape instead, zero and
+ * all.
  */
-function renderChangeScope(result: CheckResult): string | undefined {
+function renderChangeScope(result: CheckResult, errorCount: number): string | undefined {
   const reference = result.progressiveReference;
   if (reference === undefined) return undefined;
   const outside = result.outsideCount ?? 0;
   const changed = result.changedInputCount ?? 0;
   const obligations = `${outside} obligation${outside === 1 ? '' : 's'} outside your changes vs ${reference}`;
-  return changed === 0
+  return changed === 0 && errorCount === 0
     ? `nothing in scope; ${obligations}`
     : `${obligations} (${changed} changed input${changed === 1 ? '' : 's'})`;
 }
@@ -99,7 +109,7 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
     metrics.push(`${result.draftSkipped} draft`);
   }
 
-  const changeScope = renderChangeScope(result);
+  const changeScope = renderChangeScope(result, errorCount);
   if (changeScope !== undefined) metrics.push(changeScope);
 
   return `${emojiPrefix}${verdict}  ${metrics.join(' · ')}`;

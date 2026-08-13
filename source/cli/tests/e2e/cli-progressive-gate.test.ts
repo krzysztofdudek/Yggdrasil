@@ -114,6 +114,10 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     // violation text, one warning among the run's warnings.
     expect(warningSection(stdout)).toContain(TODO_IN('beta'));
     expect(stdout).toContain('Warnings (2)');
+    // It also reads as the SAME kind of finding it would have been, with one
+    // phrase saying whose business it is — never as a raw internal code.
+    expect(warningSection(stdout)).toContain('enforced (outside changes)');
+    expect(stdout).not.toContain('aspect-violation-enforced-outside');
     expect(errorSection(stdout)).toBe('');
     // The header names what the change was measured against and how much of it
     // there was, so the count above can be read against something.
@@ -166,8 +170,9 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
   });
 
   it('gates the whole project, loudly, when the reference cannot be resolved', () => {
-    // The shape a shallow CI checkout produces: the named branch was never
-    // fetched, so there is no common ancestor to measure against.
+    // A full clone that simply has no such branch — the typo / renamed-branch /
+    // never-fetched shape. (The shallow-checkout shape is its own case below;
+    // the two produce deliberately different explanations.)
     const fixture = scaffoldReference('missing-reference', 'origin/main');
     fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
     run(['check', '--approve', '--only-deterministic'], fixture.dir);
@@ -183,7 +188,92 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     expect(stderr).toContain('whole project');
     expect(stderr).toContain('likely does not exist or was never fetched');
     expect(stderr).toContain('progressive.reference');
-    expect(stderr).toContain('yg check --full');
+    expect(stderr).toContain('git fetch');
+    // Not the shallow REMEDY: this clone has its whole history (the reason says
+    // so in as many words), and telling anyone to deepen it would send them
+    // after the wrong thing.
+    expect(stderr).not.toContain('git fetch --unshallow');
+  });
+
+  it('names the truncated history, not a missing branch, in a shallow checkout', () => {
+    // The CI default: clone one branch at depth 1. The reference is not behind,
+    // it is absent, and the fix is to fetch more history rather than to correct
+    // the configuration — a distinction the run has to get right, since acting
+    // on the other explanation changes nothing.
+    const fixture = scaffoldReference('shallow', 'origin/main');
+    fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+    const shallow = fixture.shallowCheckout('feature');
+
+    const { status, stdout, stderr } = run(['check'], shallow);
+
+    expect(status).toBe(1);
+    expect(headerOf(stdout)).not.toContain('outside your changes');
+    expect(stderr).toContain('shallow clone');
+    expect(stderr).toContain('git fetch --unshallow');
+    expect(stderr).toContain('checkout depth');
+    // …and NOT the full-clone explanation, which would send someone to edit a
+    // configuration key that is perfectly correct.
+    expect(stderr).not.toContain('progressive.reference in yg-config.yaml');
+  });
+
+  // Recording verdicts answers for the whole project — a deliberate property,
+  // since a verdict is a fact about the code rather than about who changed it.
+  // What must never happen is that being SILENT: the adopter's configured gate
+  // is not in force on such a run, the report fails on findings their change did
+  // not cause, and nothing on screen would say why.
+  describe('a run that records verdicts', () => {
+    it('says out loud that it answered for the whole project', () => {
+      const fixture = scaffoldReference('recording-notice', 'main');
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+
+      const { status, stderr } = run(['check', '--approve', '--only-deterministic'], fixture.dir);
+
+      expect(status).toBe(1);
+      expect(stderr).toContain('answered for the WHOLE project');
+      expect(stderr).toContain("Run 'yg check' on its own");
+    });
+
+    it('says it even when no flag was typed and the configuration chose it', () => {
+      // The worst version of the same shape: `auto_approve` promotes a bare
+      // `yg check` to the recording path, so the person asked for the plain gate
+      // and silently got the whole-project answer.
+      const fixture = createProgressiveFixture({
+        label: 'auto-approve',
+        progressiveReference: 'main',
+        autoApprove: 'deterministic',
+      });
+      fixtures.push(fixture);
+      expect(run(['check'], fixture.dir).status).toBe(1);
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+
+      const auto = run(['check'], fixture.dir);
+      const scoped = run(['check', '--no-approve'], fixture.dir);
+
+      // The two disagree about the build — which is exactly why the first has
+      // to explain itself.
+      expect(auto.status).toBe(1);
+      expect(auto.stderr).toContain('answered for the WHOLE project');
+      expect(scoped.status).toBe(0);
+      expect(headerOf(scoped.stdout)).toContain('outside your changes vs main');
+    });
+
+    it('stays quiet when the whole project was asked for explicitly', () => {
+      const fixture = scaffoldReference('recording-full', 'main');
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+
+      const { stderr } = run(['check', '--approve', '--only-deterministic', '--full'], fixture.dir);
+
+      expect(stderr).not.toContain('WHOLE project');
+    });
+
+    it('stays quiet on a project that never opted in', () => {
+      const fixture = scaffoldReference('recording-off', undefined);
+      fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
+
+      const { stderr } = run(['check', '--approve', '--only-deterministic'], fixture.dir);
+
+      expect(stderr).not.toContain('WHOLE project');
+    });
   });
 
   it('is byte-identical to the whole-project gate when the project never opted in', () => {
@@ -227,6 +317,14 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     const READABLE = '{"version":1,"verdicts":{},"nodes":{}}\n';
     const LOCK = '.yggdrasil/yg-lock.nondeterministic.json';
 
+    /**
+     * The branch is deliberately arranged to be GREEN if the record is read
+     * correctly: it edits `alpha` and re-records that component's verdict, so
+     * the only finding left is the refusal inherited from the reference. The
+     * exit code therefore carries the whole answer — a run that swallowed the
+     * unreadable record and measured against an empty one would pass, which is
+     * precisely the failure this row exists to catch.
+     */
     function scaffoldWithBaseRecord(label: string, atReference: string): ProgressiveFixture {
       const fixture = scaffoldReference(label, 'main');
       fixture.commit(LOCK, atReference);
@@ -236,19 +334,24 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       // reference already holds the readable copy there is nothing to restore,
       // and git rightly refuses an empty commit.)
       if (atReference !== READABLE) fixture.commit(LOCK, READABLE);
+      run(['check', '--approve', '--only-deterministic'], fixture.dir);
       return fixture;
     }
 
     it('measures normally against a readable-but-empty record', () => {
       const readable = scaffoldWithBaseRecord('base-readable', READABLE);
-      expect(headerOf(run(['check'], readable.dir).stdout)).toContain('outside your changes vs main');
+      const { status, stdout } = run(['check'], readable.dir);
+      expect(status).toBe(0);
+      expect(headerOf(stdout)).toContain('outside your changes vs main');
     });
 
     it('gates the whole project when the record at the reference is unparseable', () => {
       const garbled = scaffoldWithBaseRecord('base-garbled', '{ this is not json');
-      const { stdout, stderr } = run(['check'], garbled.dir);
+      const { status, stdout, stderr } = run(['check'], garbled.dir);
+      expect(status).toBe(1);
       expect(headerOf(stdout)).not.toContain('outside your changes');
       expect(stderr).toContain('whole project');
+      expect(stderr).toContain('Repair that file on the reference branch');
     });
 
     it('gates the whole project when the record at the reference was there but EMPTY', () => {
@@ -257,7 +360,8 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       // identically — as nothing — and the second is a record whose entries
       // this change destroyed.
       const emptied = scaffoldWithBaseRecord('base-emptied', '');
-      const { stdout, stderr } = run(['check'], emptied.dir);
+      const { status, stdout, stderr } = run(['check'], emptied.dir);
+      expect(status).toBe(1);
       expect(headerOf(stdout)).not.toContain('outside your changes');
       expect(stderr).toContain('whole project');
     });
@@ -268,7 +372,10 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       // such file at all, and that absence IS provable.
       const never = scaffoldReference('base-absent', 'main');
       never.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
-      expect(headerOf(run(['check'], never.dir).stdout)).toContain('outside your changes vs main');
+      run(['check', '--approve', '--only-deterministic'], never.dir);
+      const { status, stdout } = run(['check'], never.dir);
+      expect(status).toBe(0);
+      expect(headerOf(stdout)).toContain('outside your changes vs main');
     });
   });
 
@@ -313,6 +420,10 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
 
       expect(status).toBe(0);
       expect(warningSection(stdout)).toContain("No fresh log entry for node 'alpha'");
+      // Three obligations inherited from the reference — the log entry, the
+      // component's own unreviewed change, and beta's standing refusal — against
+      // one changed file that reached none of them.
+      expect(headerOf(stdout)).toContain('3 obligations outside your changes vs main (1 changed input)');
     });
 
     it('blocks on that same log refusal once the change reaches the component', () => {
@@ -329,6 +440,9 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       // answers for, its log included.
       expect(status).toBe(1);
       expect(errorSection(stdout)).toContain("No fresh log entry for node 'alpha'");
+      // Nothing is left outside — one declaration edit reached both components —
+      // and the header says so rather than falling silent about the measurement.
+      expect(headerOf(stdout)).toContain('0 obligations outside your changes vs main (1 changed input)');
     });
   });
 });

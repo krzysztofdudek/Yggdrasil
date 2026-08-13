@@ -85,11 +85,18 @@ with \`--aspect\` or plain \`yg check\`.
 ### \`--full\`: report the whole project
 
 A project can name a branch that changes are measured against (the
-\`progressive\` block — see \`yg schemas read config\`). When it does, \`yg check\`
-blocks only on what the current change is accountable for; everything it
-inherited from that branch is still listed and still counted, as a warning that
-does not fail the build. The header says how much sits outside the change and
-what it was measured against.
+\`progressive\` block — see \`yg schemas read config\`). When it does, a plain
+\`yg check\` blocks only on what the current change is accountable for;
+everything it inherited from that branch is still listed and still counted, as a
+warning that does not fail the build. The header says how much sits outside the
+change and what it was measured against.
+
+Measuring narrows what BLOCKS, not what gets reviewed: a run that RECORDS
+verdicts — \`--approve\`, or a bare run on a project configured to approve
+automatically — still answers for the whole project, and says so on stderr. So a
+scoped run can PASS while the same tree under \`--approve\` fails on inherited
+findings. That is not a contradiction to fix by re-running with \`--approve\`
+until it goes green: doing so reviews work that is not yours.
 
 \`\`\`bash
 yg check --full            # answer for the whole project: everything blocks again

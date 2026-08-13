@@ -264,11 +264,34 @@ export function outsideTwin(code: string): string {
 }
 
 /**
+ * Every outside twin, mapped back to the code it stands for. Built by applying
+ * {@link outsideTwin} to `SCOPED_CODES` — so the forward and reverse directions
+ * cannot disagree, and neither can drift from the set the moment a code is added
+ * to it. A consumer that needs to strip the suffix reads this map rather than
+ * slicing the string, for the same reason producers call `outsideTwin` rather
+ * than concatenating it: one spelling, in one place.
+ */
+const BASE_CODE_BY_OUTSIDE_TWIN: ReadonlyMap<string, string> = new Map(
+  Array.from(SCOPED_CODES, (code) => [outsideTwin(code), code] as const),
+);
+
+/**
  * The outside-twin of every `SCOPED_CODES` member, derived — never hand-listed.
  * A hand-listed copy would drift from `SCOPED_CODES` the first time this set
  * changes and nobody remembered to update a parallel list.
  */
-export const OUTSIDE_CODES = new Set<string>(Array.from(SCOPED_CODES, outsideTwin));
+export const OUTSIDE_CODES = new Set<string>(BASE_CODE_BY_OUTSIDE_TWIN.keys());
+
+/**
+ * The code an outside twin stands for, or `undefined` when the code is not a
+ * twin at all. Lets a renderer describe a twin exactly as it describes the
+ * finding it mirrors — one label rule, derived — instead of falling through to
+ * printing the raw code, which is how an internal identifier reaches a person's
+ * screen.
+ */
+export function baseCodeOfOutsideTwin(code: string): string | undefined {
+  return BASE_CODE_BY_OUTSIDE_TWIN.get(code);
+}
 
 /**
  * Non-blocking warning codes. Warnings are emitted at `severity: 'warning'` and

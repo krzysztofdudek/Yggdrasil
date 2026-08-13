@@ -1,5 +1,5 @@
 import type { CheckIssue } from '../core/check.js';
-import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, outsideTwin } from '../core/check-codes.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin } from '../core/check-codes.js';
 
 /**
  * The same codes, plus the `-outside` twin of every one of them that a change
@@ -188,7 +188,27 @@ export function issuePriorityRank(issue: CheckIssue): number {
   return base + 4;
 }
 
+/**
+ * How a finding put outside the change reads: exactly what the finding it
+ * mirrors reads, plus the one phrase that says whose business it is.
+ *
+ * DERIVED from the base code, never a second list of labels. A twin with no
+ * label rule of its own falls through to the bottom of {@link getIssueLabel} and
+ * renders as its raw code — `aspect-violation-enforced-outside` sitting beside
+ * `unverified (not yet reviewed)` — which puts an internal identifier on a
+ * person's screen and reads as a different, unexplained kind of finding rather
+ * than a familiar one the change did not cause.
+ */
+const OUTSIDE_LABEL_SUFFIX = ' (outside changes)';
+
 export function getIssueLabel(issue: CheckIssue): string {
+  // An outside twin borrows its mirror's label, whatever that turns out to be —
+  // including a future label rule added for the base code alone.
+  const baseCode = baseCodeOfOutsideTwin(issue.code);
+  if (baseCode !== undefined) {
+    return getIssueLabel({ ...issue, code: baseCode }) + OUTSIDE_LABEL_SUFFIX;
+  }
+
   // Verdict-lock states (spec §10).
   if (issue.code === 'unverified') return 'unverified';
   if (issue.code === 'prompt-too-large') return 'prompt-too-large';

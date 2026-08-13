@@ -347,3 +347,56 @@ describe('resolveProgressiveState — the explicit negative: touched === null ne
     expect(result.mode).toBe('global-fallback');
   });
 });
+
+// ── Every fallback owes a remedy, not just a diagnosis ───────────────────────
+
+/**
+ * A cause with no next step is half a message: the person is told their run
+ * answered for the whole project and left to work out what to do about it. Two
+ * of these causes are permanent properties of a repository — a graph that does
+ * not sit at the git root, a change that moves a submodule pointer — and a
+ * monorepo told "fix the cause and re-run" on every single run would be chasing
+ * something it cannot change, so those owe an explicit "nothing to fix" instead.
+ */
+describe('resolveProgressiveState — every fallback carries its own next step', () => {
+  const everyFallback: Array<[string, Partial<PreflightProbes>]> = [
+    ['unresolved merge-base, shallow clone', { mergeBase: null, shallow: true }],
+    ['unresolved merge-base, git unavailable', { mergeBase: null, shallow: null }],
+    ['unresolved merge-base, full clone', { mergeBase: null, shallow: false }],
+    ['unreadable diff', { touched: null }],
+    ['nested graph root', { toplevelMatchesProjectRoot: false }],
+    ['submodule gitlink in the diff', { submoduleGitlinkInDiff: true }],
+    ['empty touched set nothing corroborates', { touched: emptyTouched }],
+  ];
+
+  it.each(everyFallback)('%s states both a cause and a next step', (_label, overrides) => {
+    const result = resolveProgressiveState({ ...base, ...overrides });
+    expect(result.mode).toBe('global-fallback');
+    expect(result.reason).toBeTruthy();
+    expect(result.nextStep).toBeTruthy();
+  });
+
+  it('produces a DISTINCT next step per cause — never one sentence shared around', () => {
+    const steps = everyFallback.map(([, o]) => resolveProgressiveState({ ...base, ...o }).nextStep);
+    expect(new Set(steps).size).toBe(everyFallback.length);
+  });
+
+  it('says plainly that nothing needs fixing where nothing can be', () => {
+    for (const overrides of [{ toplevelMatchesProjectRoot: false }, { submoduleGitlinkInDiff: true }]) {
+      const result = resolveProgressiveState({ ...base, ...overrides } as PreflightProbes);
+      expect(result.nextStep).toMatch(/nothing to fix/i);
+    }
+  });
+
+  it('never attaches a next step to a mode that is not a fallback', () => {
+    for (const state of [
+      resolveProgressiveState(base),
+      resolveProgressiveState({ ...base, fullFlag: true }),
+      resolveProgressiveState({ ...base, configReference: undefined }),
+      resolveProgressiveState({ ...base, isAncestorHeadRef: true, touched: emptyTouched }),
+    ]) {
+      if (state.mode === 'global-fallback') continue;
+      expect(state.nextStep).toBeUndefined();
+    }
+  });
+});

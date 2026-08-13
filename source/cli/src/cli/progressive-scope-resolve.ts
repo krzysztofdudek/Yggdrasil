@@ -95,18 +95,77 @@ export type ChangeScopeDecision =
 
 /**
  * The notice a configured project gets when its change could not be measured.
+ *
  * `cause` is the state machine's own account of WHAT went wrong — it is the
  * `why`, never the `what`, because the person's first question is about their
- * build ("what did this run actually gate?"), not about git.
+ * build ("what did this run actually gate?"), not about git. `nextStep` is that
+ * cause's OWN remedy, and it is a required argument rather than an optional one
+ * with a generic default on purpose: a shared sentence like "fix the cause above
+ * and re-run" is not a next step, and two of these causes are permanent
+ * properties of a repository, where the only honest next step says that no
+ * action is needed at all.
  */
-function unmeasurable(reference: string, cause: string): ChangeScopeDecision {
+function unmeasurable(reference: string, cause: string, nextStep: string): ChangeScopeDecision {
   return {
     kind: 'unmeasurable',
     notice: {
-      what: `This change could not be measured against '${reference}', so this run gated the whole project.`,
+      what: `This change could not be measured against '${reference}', so this run gated the whole project — every finding blocks, exactly as 'yg check --full' would report it.`,
       why: cause,
-      next: "Fix the cause above and re-run — or run 'yg check --full' to ask for the whole-project gate on purpose, which gives this same result without this notice.",
+      next: nextStep,
     },
+  };
+}
+
+/** The remedy for a cause that has no specific one: try again. */
+const RE_RUN_NEXT =
+  'Re-run. If it persists, check that ordinary git commands succeed in this directory.';
+
+/**
+ * The reference this invocation would measure a change against, or `undefined`
+ * when no measurement was asked for at all — either the project named none, or
+ * the whole project was explicitly demanded.
+ *
+ * Answered by the SAME decision table that answers every other row, with every
+ * probe still at its zero value: the table's contract is that both of those rows
+ * are reachable that way, so this costs nothing, starts no git process, and — the
+ * point — cannot drift from what {@link resolveChangeScope} decides, the way an
+ * inline `reference !== undefined && !fullFlag` in a caller would.
+ */
+export function requestedReference(graph: Graph, fullFlag: boolean): string | undefined {
+  const reference = graph.config.progressive?.reference;
+  const withoutProbes = resolveProgressiveState({
+    configReference: reference,
+    fullFlag,
+    mergeBase: null,
+    isAncestorHeadRef: null,
+    worktreeClean: null,
+    treesIdenticalHeadMb: null,
+    touched: null,
+    toplevelMatchesProjectRoot: null,
+    shallow: null,
+    submoduleGitlinkInDiff: false,
+  });
+  return withoutProbes.mode === 'off' || withoutProbes.mode === 'full' ? undefined : reference;
+}
+
+/**
+ * What a run that RECORDS verdicts owes a project that measures its changes:
+ * the news that this particular run did not measure anything.
+ *
+ * Recording answers for the whole project. That is a deliberate property — a
+ * verdict is a fact about the code, not about who changed it — but it means the
+ * gate an adopter configured is not in force on this run, and silence about that
+ * is the dangerous part: the report fails on findings the change did not cause,
+ * with nothing to say why the setting appeared to do nothing. It also matters
+ * before the fact, not after: a scoped run that fails points at this very
+ * command, and following that pointer on a project with reviewer-backed rules
+ * spends real review on the whole inherited backlog.
+ */
+export function recordingRunNotice(reference: string): IssueMessage {
+  return {
+    what: `This run records verdicts, so it answered for the WHOLE project — your change was not measured against '${reference}'.`,
+    why: 'Measuring a change narrows what BLOCKS; it does not narrow what gets reviewed. So findings your change did not cause block here, and rules that need a reviewer can be reviewed for work that is not yours.',
+    next: "Run 'yg check' on its own for the gate scoped to your change. Keep this form for the full audit — or add --full to say that is what you meant, which also silences this notice.",
   };
 }
 
@@ -176,9 +235,11 @@ async function readBaseVerdictPairKeys(
   return keys;
 }
 
-/** The cause reported when the record above could not be read. */
+/** The cause, and the remedy, reported when the record above could not be read. */
 const UNREADABLE_BASE_RECORD =
   'the verdict record committed at the reference could not be read, so a change that DELETED recorded verdicts cannot be told apart from one that never had them — and the second reads as inherited debt.';
+const UNREADABLE_BASE_RECORD_NEXT =
+  'Repair that file on the reference branch (it is committed there, and unreadable as committed) — until then every run on this branch answers for the whole project.';
 
 /**
  * Did the part of the configuration that changes what the graph MEANS move
@@ -322,19 +383,29 @@ async function measure(input: ChangeScopeInput, reference: string): Promise<Chan
   const state = resolveProgressiveState(probes);
   if (state.mode === 'off' || state.mode === 'full') return { kind: 'whole-project' };
   if (state.mode === 'global-fallback') {
-    return unmeasurable(reference, state.reason ?? 'the state could not be established.');
+    return unmeasurable(
+      reference,
+      state.reason ?? 'the state could not be established.',
+      state.nextStep ?? RE_RUN_NEXT,
+    );
   }
   // Both remaining modes have a merge-base and a touched set by construction;
   // narrowing here keeps that a checked fact rather than an asserted one, and
   // the impossible case still falls the safe way.
   if (mergeBase === null || probes.touched === null) {
-    return unmeasurable(reference, 'the reference point and the changed-file set did not both resolve.');
+    return unmeasurable(
+      reference,
+      'the reference point and the changed-file set did not both resolve.',
+      RE_RUN_NEXT,
+    );
   }
 
   // An unreadable committed record at the reference is NOT an empty one — see
   // readBaseVerdictPairKeys. There is no honest scope without it.
   const baseVerdictPairKeys = await readBaseVerdictPairKeys(projectRoot, mergeBase);
-  if (baseVerdictPairKeys === null) return unmeasurable(reference, UNREADABLE_BASE_RECORD);
+  if (baseVerdictPairKeys === null) {
+    return unmeasurable(reference, UNREADABLE_BASE_RECORD, UNREADABLE_BASE_RECORD_NEXT);
+  }
 
   const typeCoverage = await resolveTypeCoverage(graph, coverageVisibleFiles);
   const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
@@ -373,28 +444,12 @@ async function measure(input: ChangeScopeInput, reference: string): Promise<Chan
  * one, and a refusal always carries the notice explaining it.
  */
 export async function resolveChangeScope(input: ChangeScopeInput): Promise<ChangeScopeDecision> {
-  const reference = input.graph.config.progressive?.reference;
-
-  // The two rows that need no probe at all, answered by the SAME table that
-  // answers every other row — the table's contract is that both are reachable
-  // with every probe still at its zero value, so asking it here costs nothing
-  // and keeps the doctrine in one place instead of duplicating two conditions.
-  const withoutProbes = resolveProgressiveState({
-    configReference: reference,
-    fullFlag: input.fullFlag,
-    mergeBase: null,
-    isAncestorHeadRef: null,
-    worktreeClean: null,
-    treesIdenticalHeadMb: null,
-    touched: null,
-    toplevelMatchesProjectRoot: null,
-    shallow: null,
-    submoduleGitlinkInDiff: false,
-  });
-  if (withoutProbes.mode === 'off' || withoutProbes.mode === 'full') return { kind: 'whole-project' };
+  // The two rows that need no probe at all — see requestedReference.
+  const reference = requestedReference(input.graph, input.fullFlag);
+  if (reference === undefined) return { kind: 'whole-project' };
 
   try {
-    return await measure(input, reference as string);
+    return await measure(input, reference);
   } catch (error) {
     // Every anticipated path already returned above; this is the backstop for
     // the ones that cannot be anticipated. It falls the same way as all of them
@@ -403,8 +458,9 @@ export async function resolveChangeScope(input: ChangeScopeInput): Promise<Chang
     const detail = error instanceof Error ? error.message : String(error);
     debugWrite(`[progressive] change scope could not be resolved: ${detail}`);
     return unmeasurable(
-      reference as string,
+      reference,
       `working out what this change reached failed unexpectedly (${detail}).`,
+      'Re-run. If it persists, set `debug: true` in yg-config.yaml and read .yggdrasil/.debug.log — an unexpected failure here is a defect, not a misconfiguration.',
     );
   }
 }

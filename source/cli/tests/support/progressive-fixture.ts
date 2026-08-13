@@ -72,6 +72,13 @@ export interface ProgressiveFixtureOptions {
    * touched at all.
    */
   alphaRelatesToBeta?: boolean;
+  /**
+   * Put `auto_approve` in the committed configuration, so a BARE `yg check`
+   * records verdicts with no flag typed at all. The shape that matters for
+   * progressive mode: the person asks for a plain gate and silently gets the
+   * recording path, which answers for the whole project.
+   */
+  autoApprove?: 'deterministic' | 'full';
 }
 
 export interface ProgressiveFixture {
@@ -93,6 +100,19 @@ export interface ProgressiveFixture {
   branchWithEdit(branch: string, relPath: string, content: string): void;
   /** The declaration file of one component, with `description` substituted in. */
   nodeDeclaration(dir: string, description: string): string;
+  /**
+   * A SHALLOW checkout of one branch, in its own directory: the CI shape where
+   * the reference branch is not merely behind but absent — history truncated to
+   * a single commit and no remote-tracking ref for anything else fetched.
+   * Returns the new directory; it is removed by {@link ProgressiveFixture.cleanup}
+   * along with everything else.
+   *
+   * Built by fetching rather than cloning on purpose: every git command here
+   * stays pinned to a fixture directory (see tests/support/git-fixture.ts), and
+   * `git clone` is the one operation that cannot be, since it creates the
+   * repository it would be pinned to.
+   */
+  shallowCheckout(branch: string): string;
   /** Remove the temp directory. Safe to call twice. */
   cleanup(): void;
 }
@@ -172,9 +192,10 @@ function defaultDescription(dir: string): string {
   return `The ${dir} service — one file, one rule, nothing else.`;
 }
 
-function configYaml(progressiveReference: string | undefined): string {
+function configYaml(opts: ProgressiveFixtureOptions): string {
   return [
     'version: "5.2.0"',
+    ...(opts.autoApprove !== undefined ? [`auto_approve: ${opts.autoApprove}`] : []),
     'coverage:',
     '  required:',
     '    - src/',
@@ -190,8 +211,8 @@ function configYaml(progressiveReference: string | undefined): string {
     // deterministic, so no reviewer is ever contacted; the endpoint is pinned
     // unreachable purely so a stray LLM pair could never reach a live service.
     '        endpoint: http://127.0.0.1:1',
-    ...(progressiveReference !== undefined
-      ? ['progressive:', `  reference: ${progressiveReference}`]
+    ...(opts.progressiveReference !== undefined
+      ? ['progressive:', `  reference: ${opts.progressiveReference}`]
       : []),
     '',
   ].join('\n');
@@ -223,7 +244,7 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
     nodeYaml(dir === 'alpha' ? 'Alpha' : 'Beta', dir, description, dir === 'alpha' ? alphaRelations : []);
 
   writeFileSync(path.join(ygg, 'yg-architecture.yaml'), architecture(opts.logRequired === true), 'utf-8');
-  writeFileSync(path.join(ygg, 'yg-config.yaml'), configYaml(opts.progressiveReference), 'utf-8');
+  writeFileSync(path.join(ygg, 'yg-config.yaml'), configYaml(opts), 'utf-8');
   writeFileSync(path.join(ygg, '.gitignore'), YGG_GITIGNORE, 'utf-8');
   writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'yg-aspect.yaml'), ASPECT_YAML, 'utf-8');
   writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'check.mjs'), CHECK_MJS, 'utf-8');
@@ -242,6 +263,9 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
   git(dir, ['init', '-q', '-b', REFERENCE_BRANCH]);
   git(dir, ['add', '-A']);
   git(dir, ['commit', '-qm', 'base']);
+
+  /** Extra directories this fixture created, cleaned up alongside its own. */
+  const shallowClones: string[] = [];
 
   const commit = (relPath: string, content: string): void => {
     const target = path.join(dir, relPath);
@@ -274,8 +298,23 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
       git(dir, ['checkout', '-q', '-b', branch, REFERENCE_BRANCH]);
       commit(relPath, content);
     },
+    shallowCheckout(branch: string): string {
+      const shallow = mkdtempSync(path.join(tmpdir(), `yg-progressive-${opts.label}-shallow-`));
+      shallowClones.push(shallow);
+      git(shallow, ['init', '-q']);
+      // A local path as a URL, which is what makes `--depth` meaningful: git
+      // takes a shortcut for a plain local path and copies the whole history.
+      git(shallow, ['remote', 'add', 'origin', `file://${dir}`]);
+      // ONE branch, ONE commit. Nothing else is fetched, so no remote-tracking
+      // ref exists for the reference branch — the reference is not behind, it is
+      // absent, and the truncated history is why.
+      git(shallow, ['fetch', '-q', '--depth', '1', 'origin', `${branch}:${branch}`]);
+      git(shallow, ['checkout', '-q', branch]);
+      return shallow;
+    },
     cleanup(): void {
       rmSync(dir, { recursive: true, force: true });
+      for (const clone of shallowClones.splice(0)) rmSync(clone, { recursive: true, force: true });
     },
   };
 }

@@ -5,7 +5,9 @@ import {
   FULL_WHAT_CODES,
   COVERAGE_GROUP_EXCLUDED_CODES,
   coverageBlockLabel,
+  getIssueLabel,
 } from '../../../src/cli/group-issues.js';
+import { OUTSIDE_CODES } from '../../../src/core/check-codes.js';
 import { computeSuggestedNext } from '../../../src/core/check.js';
 import type { CheckIssue } from '../../../src/core/check.js';
 
@@ -390,5 +392,38 @@ describe('render code sets — the -outside twins', () => {
     expect(coverageBlockLabel('unmapped-files')).toBe('unmapped');
     expect(coverageBlockLabel('unmapped-files-outside')).toBe('unmapped');
     expect(coverageBlockLabel('uncovered-advisory')).toBe('uncovered');
+  });
+});
+
+// ── Outside-twin labels ──────────────────────────────────────────────────────
+
+/**
+ * A finding put outside the change is the same KIND of finding it always was —
+ * it is non-blocking because this change did not cause it, not because it turned
+ * into something else. Its label says exactly that, and is DERIVED from the
+ * label of the code it mirrors: a second, hand-written list of twin labels would
+ * drift the first time a base label changed, and a twin missing from such a list
+ * falls through to rendering its own raw code, which is how an internal
+ * identifier reaches a person's screen.
+ */
+describe('getIssueLabel — outside twins', () => {
+  it('borrows the mirrored label and adds the one phrase that says whose business it is', () => {
+    expect(getIssueLabel(iss({ code: 'aspect-violation-enforced' }))).toBe('enforced');
+    expect(getIssueLabel(iss({ code: 'aspect-violation-enforced-outside' }))).toBe('enforced (outside changes)');
+    expect(getIssueLabel(iss({ code: 'unverified-outside' }))).toBe('unverified (outside changes)');
+    expect(getIssueLabel(iss({ code: 'log-conflict-outside' }))).toBe('log-conflict (outside changes)');
+  });
+
+  it('never renders a twin as its raw code — every one of them, not a sample', () => {
+    for (const code of OUTSIDE_CODES) {
+      expect(getIssueLabel(iss({ code }))).not.toBe(code);
+      expect(getIssueLabel(iss({ code }))).toContain('(outside changes)');
+    }
+  });
+
+  it('leaves every other code exactly as it was', () => {
+    for (const code of ['unverified', 'aspect-violation-enforced', 'unmapped-files', 'lock-invalid']) {
+      expect(getIssueLabel(iss({ code }))).not.toContain('outside changes');
+    }
   });
 });

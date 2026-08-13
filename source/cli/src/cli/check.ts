@@ -16,7 +16,7 @@ import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from 
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, resolveTopValue } from './check-render-views.js';
-import { resolveChangeScope } from './progressive-scope-resolve.js';
+import { recordingRunNotice, requestedReference, resolveChangeScope } from './progressive-scope-resolve.js';
 
 /**
  * Resolve the effective approve mode from explicit CLI flags and graph config.
@@ -317,6 +317,20 @@ export function registerCheckCommand(program: Command): void {
         // promotes bare `yg check` to a fill. Triage views always stay read-only.
         // --dry-run is a preview mode of fill: previews cost without writing.
         if (mode.approve) {
+          // A project that measures its changes must be TOLD when a run does not
+          // measure: recording verdicts answers for the whole project, so the
+          // gate the adopter configured is not in force here. Silence would be
+          // read as the setting having no effect — and this branch is reachable
+          // with no flag typed at all (auto_approve in the config), where nothing
+          // else on screen hints that a whole-project answer was even a choice.
+          // Suppressed under --full, which is the person saying they meant it.
+          const measuredReference = requestedReference(graph, opts.full === true);
+          if (measuredReference !== undefined) {
+            process.stderr.write(
+              chalk.yellow(`Notice: ${buildIssueMessage(recordingRunNotice(measuredReference))}`) + '\n',
+            );
+          }
+
           // Banner: warn before spending on the LLM reviewer, but ONLY for
           // config-driven full auto-fill (not deterministic, not explicit --approve).
           const isConfigFull =

@@ -209,10 +209,15 @@ yg check --full
 ```
 
 A project can name a branch to measure changes against (the `progressive` block
-in `yg schemas read config`). When it does, `yg check` blocks only on what your
-change is accountable for; anything it inherited from that branch is still
-listed and still counted, as a warning that does not fail the build. The header
-says how much sits outside your change and what it was measured against.
+in `yg schemas read config`). When it does, a plain `yg check` blocks only on
+what your change is accountable for; anything it inherited from that branch is
+still listed and still counted, as a warning that does not fail the build. The
+header says how much sits outside your change and what it was measured against.
+
+Measuring narrows what BLOCKS, not what gets reviewed, so a run that records
+verdicts — `--approve`, or a bare run on a project configured to approve
+automatically — still answers for the whole project. Such a run says so on
+stderr rather than leaving you to wonder why the setting appeared to do nothing.
 
 `--full` answers for the whole project instead: every finding blocks again,
 whatever your change touched. Reach for it on the integration leg of CI, for an

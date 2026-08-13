@@ -1050,6 +1050,28 @@ describe('check render — header change-scope segment', () => {
     expect(out).not.toContain('changed input');
   });
 
+  it('does not claim nothing is in scope while something in scope is blocking', () => {
+    // Zero changed inputs is not proof that nothing was in scope: a change made
+    // ENTIRELY of engine output — a commit deleting entries from the committed
+    // verdict record — counts as zero (those files are dropped unread) while the
+    // obligations whose verdicts it destroyed are in scope and do block. The
+    // sentence would then contradict the error list printed right under it.
+    const blocking: CheckIssue = {
+      severity: 'error',
+      code: 'unverified',
+      rule: 'unverified',
+      messageData: { what: 'w', why: 'y', next: 'yg check --approve' },
+    };
+    const out = stripAnsi(formatOutput({
+      ...baseResult([blocking]),
+      outsideCount: 0,
+      progressiveReference: 'main',
+      changedInputCount: 0,
+    }, { kind: 'full' }));
+    expect(out.split('\n')[0]).toContain('0 obligations outside your changes vs main (0 changed inputs)');
+    expect(out).not.toContain('nothing in scope');
+  });
+
   it('is absent entirely when the run measured nothing', () => {
     const out = stripAnsi(formatOutput(baseResult([]), { kind: 'full' }));
     expect(out).not.toContain('outside your changes');

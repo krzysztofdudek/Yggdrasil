@@ -15,11 +15,6 @@
  * un-replayable.
  *
  * ── The one invariant every branch below protects ───────────────────────
- * Ordering note: among the fallback rows, order decides only WHICH
- * explanation a person is given (every one of them gates the whole graph),
- * so they run most-upstream-cause first — see the block comment on those
- * rows for the one case where that distinction was got wrong and fixed.
- *
  * `honest-empty` is the ONLY quiet-green outcome — the run reports nothing
  * in scope and exits clean. Reaching it on a guess rather than a proof is
  * exactly the silent-green hole this state machine exists to close: a rule
@@ -30,6 +25,12 @@
  * proof — most importantly an empty touched set on its own — must land in
  * `global-fallback` instead, never in `honest-empty` and never quietly in
  * `scoped` (there is nothing to scope from an unproven or absent diff).
+ *
+ * ── Ordering among the fallback rows ────────────────────────────────────
+ * Every fallback row produces the same outcome, so their order decides one
+ * thing only: which explanation a person is given when more than one fires.
+ * They run most-upstream-CAUSE first — see the block comment on those rows
+ * for the one case where that distinction was got wrong and fixed.
  */
 import type { ChangedFiles } from '../utils/git-introspect.js';
 
@@ -94,15 +95,24 @@ export interface PreflightProbes {
 }
 
 /**
- * The verdict. `reason` is set on every `global-fallback` (never on any
- * other mode) and names the SPECIFIC cause, not a generic "state machine
- * declined" string — a caller renders it through
- * `formatters/message-builder.ts`'s what/why/next shape, and a generic
- * reason would give that renderer nothing to work with.
+ * The verdict. `reason` and `nextStep` are set on every `global-fallback`
+ * (never on any other mode) and name the SPECIFIC cause and the SPECIFIC
+ * thing to do about it — not a generic "state machine declined" string. A
+ * caller renders the pair through `formatters/message-builder.ts`'s
+ * what/why/next shape, so a generic reason or one shared next step would give
+ * that renderer nothing to work with, and the person nothing to act on.
+ *
+ * `nextStep` is a real answer even where nothing CAN be done: two of the
+ * causes below are permanent properties of the repository (a graph that does
+ * not sit at the git root; a change that moves a submodule pointer), and a
+ * monorepo told to "fix the cause and re-run" on every single run would be
+ * chasing something it cannot change. Those say plainly that no action is
+ * needed and what the run did instead.
  */
 export interface ProgressiveState {
   mode: 'off' | 'full' | 'honest-empty' | 'scoped' | 'global-fallback';
   reason?: string;
+  nextStep?: string;
 }
 
 /**
@@ -174,7 +184,9 @@ export function resolveProgressiveState(p: PreflightProbes): ProgressiveState {
       return {
         mode: 'global-fallback',
         reason:
-          'no merge-base with the configured reference could be found, and this is a shallow clone — the common ancestor is likely outside the truncated history. Fetch more history (e.g. `git fetch --unshallow`) and re-run.',
+          'no merge-base with the configured reference could be found, and this is a shallow clone — the common ancestor is likely outside the truncated history.',
+        nextStep:
+          'Deepen the history and re-run: `git fetch --unshallow` locally, or raise the checkout depth in the CI job (many default to depth 1).',
       };
     }
     if (p.shallow === null) {
@@ -182,12 +194,16 @@ export function resolveProgressiveState(p: PreflightProbes): ProgressiveState {
         mode: 'global-fallback',
         reason:
           'no merge-base with the configured reference could be found, and git itself did not answer the shallow-clone probe either — this looks like a broader git failure (missing git, or this is not a git repository), not just an unresolved reference.',
+        nextStep:
+          'Check that git is installed and that this directory is inside a git work tree (`git status` should succeed here), then re-run.',
       };
     }
     return {
       mode: 'global-fallback',
       reason:
-        'no merge-base with the configured reference could be found, even though this is a full (non-shallow) clone — the configured reference likely does not exist or was never fetched. Check progressive.reference in yg-config.yaml.',
+        'no merge-base with the configured reference could be found, even though this is a full (non-shallow) clone — the configured reference likely does not exist or was never fetched.',
+      nextStep:
+        'Fetch the branch (`git fetch <remote> <branch>`), or correct `progressive.reference` in yg-config.yaml to a branch this clone has, then re-run.',
     };
   }
 
@@ -201,6 +217,8 @@ export function resolveProgressiveState(p: PreflightProbes): ProgressiveState {
       mode: 'global-fallback',
       reason:
         'the changed-files diff against the configured reference could not be read (git status/diff failed), so there is no touched set to scope against.',
+      nextStep:
+        'Check that `git status` and `git diff` succeed in this directory — a stale index lock or a partially-written index stops both — then re-run.',
     };
   }
 
@@ -215,6 +233,8 @@ export function resolveProgressiveState(p: PreflightProbes): ProgressiveState {
       mode: 'global-fallback',
       reason:
         'the git work-tree top level does not match (or could not be confirmed to match) the project root — a nested graph or monorepo subdirectory would have every touched path resolved against the wrong root.',
+      nextStep:
+        'Nothing to fix: a graph that does not sit at the repository root always answers for the whole project. Remove `progressive.reference` from yg-config.yaml if you would rather not be told each run.',
     };
   }
 
@@ -226,6 +246,8 @@ export function resolveProgressiveState(p: PreflightProbes): ProgressiveState {
       mode: 'global-fallback',
       reason:
         'a submodule gitlink appears in the changed-files diff, and scoping cannot resolve a gitlink to a plain file path.',
+      nextStep:
+        'Nothing to fix: a change that moves a submodule pointer always answers for the whole project. Changes that leave the pointer alone are measured normally again.',
     };
   }
 
@@ -261,6 +283,8 @@ export function resolveProgressiveState(p: PreflightProbes): ProgressiveState {
       mode: 'global-fallback',
       reason:
         'the touched set came back empty, but nothing proved the state actually clean (the tree-identity and worktree probes did not corroborate it) — treating this as an enumeration failure rather than honest-empty.',
+      nextStep:
+        'Re-run. If it persists, compare `git status` and `git diff <reference>...HEAD` by hand — this state means the two disagreed about what changed.',
     };
   }
 
