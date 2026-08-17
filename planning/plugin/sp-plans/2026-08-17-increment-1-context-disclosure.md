@@ -246,7 +246,7 @@ node source/cli/dist/bin.js check --approve
   The notice is an `IssueMessage` (`{what, why, next}`), **not** a one-line string. Its `why` and
   `next` are the resolver's own, reused verbatim (D9); its `what` is context's own. Printed
   exactly where and how `cli/check.ts:335-341` prints its own notice — to **stderr**, as
-  `chalk.yellow('Notice: ' + buildIssueMessage({ what, why: notice.why, next: notice.next }) + '\n')` —
+  `chalk.yellow('Notice: ' + buildIssueMessage({ what, why: notice.why, next: notice.next })) + '\n'` —
   which keeps stdout's ≤ 30-line brief budget intact.
 - **D4:** Arm preview counts `PairComputation.pairs` whose `subjectFiles` contain the file
   (post-`scope.files` filtering, so it is the true invalidation set), split by
