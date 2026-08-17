@@ -228,22 +228,23 @@ node source/cli/dist/bin.js check --approve
   `resolveChangeScope` returns one of three kinds; each is handled by name:
   - `scoped` → measured. Per-aspect marking is emitted. If it also carries `notice` (the
     measurement succeeded and still reached everything — an architecture/config-vocabulary
-    change), that notice is printed too. Note that "nothing has moved" (work at or behind the
-    reference, tree clean) is ALSO this kind, with an empty burn: the header then reads
-    `your change so far: 0 files; this file is not in it` and every rule marks `(inherited)`,
-    which is exactly `docs/progressive-mode.md`'s row for that state ("Every eligible finding is
-    reported as inherited … no notice, because nothing went wrong").
-  - `unmeasurable` → its `notice` is printed and per-aspect marking is omitted.
+    change), a context-scoped notice is printed too (D9). Note that "nothing has moved" (work at
+    or behind the reference, tree clean) is ALSO this kind, with an empty burn: the header then
+    reads `your change so far: 0 files; this file is not in it` and every rule marks
+    `(inherited)`, which is exactly `docs/progressive-mode.md`'s row for that state ("Every
+    eligible finding is reported as inherited … no notice, because nothing went wrong").
+  - `unmeasurable` → a context-scoped notice is printed (D9) and per-aspect marking is omitted.
   - `whole-project` → **no notice field exists on this kind**. Nothing is printed and the scope
     section is absent. This kind covers only the two rows `docs/progressive-mode.md` describes as
     never attempting a measurement — "No branch named in the config" and `yg check --full` — and
     the config-reference gate below already excludes the first, so in `yg context` it is a
     defensive branch rather than the common case.
 
-  The notice is an `IssueMessage` (`{what, why, next}`), **not** a one-line string, so it is
-  printed exactly where and how `cli/check.ts:335-341` prints it — to **stderr**, as
-  `chalk.yellow('Notice: ' + buildIssueMessage(notice))` — which keeps stdout's ≤ 30-line brief
-  budget intact and keeps one spelling of the sentence in the codebase.
+  The notice is an `IssueMessage` (`{what, why, next}`), **not** a one-line string. Its `why` and
+  `next` are the resolver's own, reused verbatim (D9); its `what` is context's own. Printed
+  exactly where and how `cli/check.ts:335-341` prints its own notice — to **stderr**, as
+  `chalk.yellow('Notice: ' + buildIssueMessage({ what, why: notice.why, next: notice.next }))` —
+  which keeps stdout's ≤ 30-line brief budget intact.
 - **D4:** Arm preview counts `PairComputation.pairs` whose `subjectFiles` contain the file
   (post-`scope.files` filtering, so it is the true invalidation set), split by
   `kind: 'llm' | 'deterministic'`; consensus multipliers are NOT applied. The preview says
@@ -274,6 +275,15 @@ node source/cli/dist/bin.js check --approve
   none at the truncation tail), and it is a remark about the whole file's structure, not about the
   one rule `--aspect` was asked to expand. It is untouched on the default full view, whose length
   nothing constrains, so no existing output changes.
+- **D9:** `computeScopeMarking` does not print `decision.notice` verbatim. Both notice producers
+  (`progressive-scope-resolve.ts:139`, `:176`) hard-code a WHAT describing a run that "gated the
+  whole project — every finding blocks, exactly as 'yg check --full' would report it", which is
+  false when printed by `yg context`: it produces no findings and gates nothing. Context reuses
+  the resolver's `why` and `next` verbatim but renders its own WHAT instead —
+  `Scope marking unavailable — this context view could not be measured against '<reference>'`.
+  (This is also why the two views carry the marking asymmetrically: the full view gets the
+  `(yours)`/`(inherited)` suffixes but no scope header naming the reference, while the brief gets
+  both — intended, because the full view's header area is the mapping line, already dense.)
 
 ---
 
@@ -535,7 +545,7 @@ Expected: PASS (all 9).
 Then prove the append inert — this edit is the one change to `context-file.ts` that lands BEFORE
 Task 2 captures the byte baseline, so nothing else would catch it having moved the full view:
 
-Run: `npx vitest run tests/unit/formatters/context-file.test.ts tests/unit/cli/context-file-type-coverage.test.ts`
+Run: `npx vitest run tests/unit/formatters/context-file.test.ts tests/unit/formatters/context-references.test.ts tests/unit/cli/context-file-type-coverage.test.ts`
 Expected: PASS, unchanged.
 
 - [ ] **Step 5: Map the new test file, typecheck, gate ritual, commit**
@@ -575,13 +585,13 @@ git commit -m "feat(context): brief renderer with scope suffixes, arm preview an
     legal — verified against `.yggdrasil/aspects/command-contract-shape/check.mjs`.)
     Task 4 appends one optional 4th parameter to it (`shared?: { edges?; repoFiles? }`, see
     there); nothing in this task passes it, and no earlier call site changes.
-    In this task it assembles only `nextPointers`; later tasks fill the rest:
+    In this task it assembles only the first two `nextPointers`; later tasks fill the rest:
     1. `next: yg log read --node <ownerPath>` — only when an owner node exists,
-    2. `next: yg context --node <parent-of-owner>` — only when the owner has a parent node,
-    3. `next: yg context --file <p> --aspect <first-aspect-id>` — only when the file has ≥ 1
-       EFFECTIVE aspect, read from the same list the renderer and `--aspect` read
-       (`data.aspects` for a node-owned file, `data.typeCoverage.applied` for a type-covered one),
-       so a type-covered file offers the pointer too rather than silently dropping it.
+    2. `next: yg context --node <parent-of-owner>` — only when the owner has a parent node.
+
+    The third pointer, `next: yg context --file <p> --aspect <first-aspect-id>`, is added in
+    Task 3 once `--aspect` is registered — advertising it here would name a flag commander does
+    not yet recognize and errors on.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -622,14 +632,13 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
 }
 
 describe('composeBriefExtras — trail pointers', () => {
-  it('offers the owner log, the parent node, and the first rule, in that order', async () => {
+  it('offers the owner log and the parent node, in that order', async () => {
     const graph = await loadGraph(FIXTURE);
     const data = buildFileContextData(graph, OWNED_FILE, 'orders/order-service');
     const extras = await composeBriefExtras(graph, OWNED_FILE, data);
     expect(extras.nextPointers[0]).toBe('next: yg log read --node orders/order-service');
     expect(extras.nextPointers[1]).toBe('next: yg context --node orders');
-    expect(extras.nextPointers[2]).toBe(`next: yg context --file ${OWNED_FILE} --aspect ${data.aspects[0].aspectId}`);
-    expect(extras.nextPointers.length).toBeLessThanOrEqual(3);
+    expect(extras.nextPointers.length).toBeLessThanOrEqual(2);
   });
 });
 
@@ -767,6 +776,11 @@ git add -A && git commit -m "feat(context): --brief flag renders the compact lay
   - WHAT: `Rule '<id>' is not one of the rules enforced on <file>.`
   - WHY: `--aspect names a rule from this file's own effective set; a rule attached elsewhere in the graph is not enforced here.`
   - NEXT: `Run: yg context --file <file> --brief to list this file's rules, then retry with one of them.`
+- `composeBriefExtras` (Task 2) gains its deferred third `nextPointers` entry now that `--aspect`
+  exists: `next: yg context --file <p> --aspect <first-aspect-id>` — only when the file has ≥ 1
+  EFFECTIVE aspect, read from the same list the renderer and `--aspect` read (`data.aspects` for a
+  node-owned file, `data.typeCoverage.applied` for a type-covered one), so a type-covered file
+  offers the pointer too rather than silently dropping it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -840,6 +854,19 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
   });
 ```
 
+Also extend the `composeBriefExtras — trail pointers` describe block Task 2 wrote, now that the
+third pointer exists:
+
+```ts
+  it('offers the first rule as a third pointer once --aspect exists', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const data = buildFileContextData(graph, OWNED_FILE, 'orders/order-service');
+    const extras = await composeBriefExtras(graph, OWNED_FILE, data);
+    expect(extras.nextPointers[2]).toBe(`next: yg context --file ${OWNED_FILE} --aspect ${data.aspects[0].aspectId}`);
+    expect(extras.nextPointers.length).toBeLessThanOrEqual(3);
+  });
+```
+
 - [ ] **Step 2: Run both suites, verify the new cases fail** (`formatFileContextAspect` is not
   exported; `--aspect` is an unknown option). Run `npm run build` first.
 
@@ -851,6 +878,7 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
   `--node` is refused by the same guard Task 2 added — WHAT `--aspect is only available with
   --file.`, WHY `--aspect expands one rule from one file's own effective set; a component's rules
   are listed by yg context --node itself.`, NEXT `Run: yg context --file <path> --aspect <id>.`
+  Also extend `composeBriefExtras` with the deferred third `nextPointers` entry described above.
 
 - [ ] **Step 4: Run both suites plus `build-context.test.ts` and
   `context-file-type-coverage.test.ts`; verify all pass, and that the byte-identity assertion
@@ -964,7 +992,9 @@ it('omits the line for a file no rule reviews', () => {
     reviewedAspect: { endpoint: 'http://127.0.0.1:1/never', perFile: true, sourceFilesOnly: true } });
   fixtures.push(f);
   f.commit('src/alpha/NOTES.md', 'no rule reviews this file\n');
-  const { stdout } = run(['context', '--file', 'src/alpha/NOTES.md', '--brief'], f.dir);
+  const { stdout, status } = run(['context', '--file', 'src/alpha/NOTES.md', '--brief'], f.dir);
+  expect(status).toBe(0);
+  expect(stdout).toContain('Must satisfy:');
   expect(stdout).not.toContain('invalidates');
 });
 ```
@@ -1115,7 +1145,9 @@ it, beside the other in-process cases.
   `{ target: cli/tests/support, type: uses }`).
   `source/cli/src/cli/progressive-scope-resolve.ts` needs **no change**: its exported entry is
   already callable from any command (verified below).
-- Test: `source/cli/tests/unit/cli/build-context-progressive.test.ts` (create)
+- Test: `source/cli/tests/unit/cli/build-context-progressive.test.ts` (create); extend
+  `source/cli/tests/unit/formatters/context-file-brief.test.ts` with one in-process positive case
+  for the full view (D2 lacked one until this task widens `formatFileContext`).
 
 **Interfaces — verified against the working tree, not assumed:**
 
@@ -1161,8 +1193,8 @@ it, beside the other in-process cases.
    * `aspectIds` is the file's effective list (`data.aspects`, or `data.typeCoverage.applied`);
    * `pairs` and `repoFiles` are whatever whole-graph enumeration and repo walk the caller made
    * for THIS invocation — this function makes neither of its own, so no caller can pay for a
-   * second one. Prints the decision's `notice` to stderr
-   * itself — one print site, as `cli/check.ts:335-341`'s own comment argues for.
+   * second one. Prints a context-scoped notice to stderr itself when the decision carries one
+   * (D9) — one print site, as `cli/check.ts:335-341`'s own comment argues for.
    */
   export async function computeScopeMarking(
     graph: Graph,
@@ -1181,7 +1213,7 @@ it, beside the other in-process cases.
   from `../core/pairs.js` (`pairs.ts:67`) — a type-only import, so no new relation.
 - `graph.config.progressive?.reference !== undefined` gates the work, and the three callers gate at
   the same place for the same reason, differing only in what they still owe once the gate opens.
-  The brief path walks and enumerates regardless (Task 4's arm preview needs both), so for it the
+  The brief path walks and enumerates (Task 4's arm preview needs both), so for it the
   gate skips only this call. BOTH full views test the reference FIRST and skip the enumeration and
   this call together when it is absent — otherwise every plain `yg context --file` in a
   reference-less project would start paying for work it has no use for, and the byte-identity pin
@@ -1204,11 +1236,13 @@ it, beside the other in-process cases.
     (`1 file` singular), and `scopeByAspect` maps each of the file's aspects to `'yours'` when ANY
     pair carrying that `aspectId` whose `subjectFiles` include this file satisfies
     `pairIsInScope(burn, aspectId, unitKey, known)`, else `'inherited'`. When
-    `decision.notice` is also set, print it (below).
-  - `kind === 'unmeasurable'`: no `scopeHeaderText`, no `scopeByAspect`; print the notice.
+    `decision.notice` is also set, print a context-scoped notice (D9, below).
+  - `kind === 'unmeasurable'`: no `scopeHeaderText`, no `scopeByAspect`; print a context-scoped
+    notice (D9).
   - `kind === 'whole-project'`: nothing at all — no header, no marking, no notice.
-  - Printing a notice means, verbatim in the shape `cli/check.ts:335-341` uses:
-    `process.stderr.write(chalk.yellow('Notice: ' + buildIssueMessage(decision.notice)) + '\n')`.
+  - Printing a notice means building a NEW `IssueMessage` — D9's WHAT, `decision.notice.why` and
+    `decision.notice.next` reused verbatim — then, in the shape `cli/check.ts:335-341` uses:
+    `process.stderr.write(chalk.yellow('Notice: ' + buildIssueMessage({ what, why: decision.notice.why, next: decision.notice.next })) + '\n')`.
     stderr, so the ≤ 30-line stdout budget is untouched and a hook reading stdout is unaffected.
 - In `context-file.ts`, `formatFileContext` widens to
   `export function formatFileContext(data: FileContextData, scopeByAspect?: ReadonlyMap<string, 'yours' | 'inherited'>): string`
@@ -1274,6 +1308,43 @@ it('adds no scope marking and no notice to a project that named no reference', (
 });
 ```
 
+D2's full-view marking otherwise has no POSITIVE test — every case above drives `--brief`. Two
+more spawned cases close that gap, one at each of the two aspect-header sites (D2):
+
+```ts
+it('marks a rule in the full view too, without --brief', () => {
+  const f = createProgressiveFixture({ label: 'ctx-full-yours', progressiveReference: REFERENCE_BRANCH });
+  fixtures.push(f);
+  f.branchWithEdit('work', 'src/alpha/alpha.ts', 'export const alpha = 2;\n');
+  const { stdout, status } = run(['context', '--file', 'src/alpha/alpha.ts'], f.dir);
+  expect(status).toBe(0);
+  expect(stdout).toMatch(/no-todo-comments.*\(yours\)/);
+});
+
+it('marks a rule at the type-covered aspect-header site too', () => {
+  const dir = createTypeLevelProgressiveFixture();
+  try {
+    const { stdout, status } = run(['context', '--file', 'src/leaf/a.ts'], dir);
+    expect(status).toBe(0);
+    expect(stdout).toContain('Owner: type:leaf');
+    expect(stdout).toMatch(/\[\w+, unverified\].*\((?:yours|inherited)\)/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+```
+
+`createTypeLevelProgressiveFixture` is a small helper local to this test file — no shared fixture
+module gains type-level coverage over this increment. It builds on `copyTypeLevelFixture` (Task
+5): copy `tests/fixtures/type-level-engine` to a temp dir, append `progressive:\n  reference: main`
+to its committed `.yggdrasil/yg-config.yaml`, then use `runGitFixture` / `gitFixtureEnv`
+(`tests/support/git-fixture.ts`, the same primitives `progressive-fixture.ts` is built on) to
+`git init`, commit everything on `main`, `checkout -b work`, append a line to `src/leaf/a.ts`, and
+commit again — the same shape `branchWithEdit` gives a component fixture, written out directly
+because `createProgressiveFixture` builds only component-owned files, never a type-covered one.
+The `[\w+, unverified]` half of the regex is what pins the match to `context-file.ts:96`'s line
+shape rather than the node-owned one at `:139`, which never carries that caveat.
+
 Add in-process cases for the `'yours'` / `'inherited'` mapping itself so the branch is covered by
 the coverage gate — and load them from a **progressive fixture**, not from
 `tests/fixtures/sample-project`: that fixture names no reference, so `composeBriefExtras` over it
@@ -1281,6 +1352,22 @@ short-circuits before `resolveChangeScope` and would cover the opt-out branch on
 `const f = createProgressiveFixture({ label: 'ctx-inproc', progressiveReference: REFERENCE_BRANCH });`,
 then `f.branchWithEdit(...)`, then `await loadGraph(f.dir)` and `composeBriefExtras` against it —
 a real on-disk graph in a real git repository, so no rule about fabricated data is bent.
+
+Also extend `context-file-brief.test.ts` (Task 1) with the one in-process case D2's full view
+otherwise lacks entirely — `formatFileContext` added to that file's existing import from
+`context-file.js`:
+
+```ts
+it('appends scope suffixes at the full-view aspect-header line', () => {
+  const scopeByAspect = new Map<string, 'yours' | 'inherited'>([
+    [base.aspects[0].aspectId, 'yours'],
+    [base.aspects[1].aspectId, 'inherited'],
+  ]);
+  const out = formatFileContext(base, scopeByAspect);
+  expect(out).toMatch(/what-why-next.*\(yours\)/);
+  expect(out).toMatch(/no-direct-db.*\(inherited\)/);
+});
+```
 
 - [ ] **Step 2: Run, verify failures.**
 
@@ -1314,10 +1401,12 @@ a real on-disk graph in a real git repository, so no rule about fabricated data 
   `max_direct_relations.limit` of 30, so 29 needs no ceiling edit). If Task 4 already added that
   relation for `build-context-brief.test.ts`, only the mapping line is new.
 
-- [ ] **Step 4: Run the new suite, the Task 2–5 suites — Task 2's committed-baseline pin is the
-  byte-identity assertion for this task too, and the widened `formatFileContext` signature is
-  exactly what it guards — and `npx vitest run tests/unit/core/check-progressive.test.ts` (must be
-  untouched).**
+- [ ] **Step 4: Run the new suite, the Task 2–5 suites,
+  `tests/unit/formatters/context-file-brief.test.ts` (this task's own extension), and
+  `npx vitest run tests/unit/formatters/context-references.test.ts` — Task 2's committed-baseline
+  pin is the byte-identity assertion for this task too, and the widened `formatFileContext`
+  signature is exactly what both it and the references suite guard — and
+  `npx vitest run tests/unit/core/check-progressive.test.ts` (must be untouched).**
 
 - [ ] **Step 5: Gate ritual, commit** —
   `feat(context): progressive scope marking — yours vs inherited, honest fallbacks`
