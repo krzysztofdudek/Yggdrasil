@@ -93,7 +93,7 @@ fabricated data):
   `/needs-node-context \[enforced, unverified\] —/` — matching `context-file.ts:96`
   (`    <id> [<status>, unverified] — <desc>`), NOT the compact view's tag-first ordering.
   That suite is therefore re-run in every task that can change what either full view prints —
-  Tasks 2, 3 and 6 — and it is the only thing standing between D2's second suffix site
+  Tasks 2, 3, 4 and 6 — and it is the only thing standing between D2's second suffix site
   (`context-file.ts:96`) and a silent change to the default typed view. (Task 1 also edits
   `context-file.ts`, but purely by appending new exports; Task 1 Step 4 re-runs the existing
   renderer and typed-view suites to prove that append inert, because Task 2's baseline is
@@ -289,6 +289,8 @@ node source/cli/dist/bin.js check --approve
   - **`unmeasurable`** (the reference could not be resolved at all — no marking is emitted on this
     branch): WHAT is
     `Scope marking unavailable — this context view could not be measured against '<reference>'`.
+    The `unmeasurable` union member itself carries no `referenceName`, so `<reference>` is filled
+    from `graph.config.progressive.reference` — the same committed config value the gate reads.
   - **`scoped` carrying a `notice`** (the measurement succeeded and reached everything — an
     architecture/config-vocabulary change — and per-aspect marking IS emitted alongside the
     notice, D3): the resolver's hard-coded WHAT would be false here, since this run did measure a
@@ -713,6 +715,7 @@ The `BASELINE` file the pin reads must be captured FIRST, in Step 1, before any 
 already in; it only appended new exports to `context-file.ts` and changed no byte of what
 `formatFileContext` renders, so a capture taken here is still the pre-increment output.) Capture
 it from the repo root, with `$COPY` the fixture copy dir and `$REPO` the repo root:
+`mkdir -p source/cli/tests/fixtures/context-baselines`
 `(cd "$COPY" && node "$REPO/source/cli/dist/bin.js" context --file src/orders/order.service.ts) > source/cli/tests/fixtures/context-baselines/sample-project-order-service.txt`
 (never run in-place against the fixture itself: the run leaves gitignored engine state behind),
 and commit the result.
@@ -1042,7 +1045,9 @@ it('reports a reviewer-only file as costing no free checks', async () => {
 
 - [ ] **Step 2: Run, verify failure.**
 - [ ] **Step 3: Implement in `composeBriefExtras`,** per the interface above.
-- [ ] **Step 4: Run the suite plus the byte-identity assertion; verify all pass.**
+- [ ] **Step 4: Run the suite plus the byte-identity assertion and the typed-view suite
+  (`tests/unit/cli/context-file-type-coverage.test.ts` — this task edits the type-covered
+  full-view path via the hoisted walk and widened helpers); verify all pass.**
 - [ ] **Step 5: Update the node description, run the gate ritual, commit** —
   `feat(context): arm preview counts the pairs an edit would invalidate`
 
