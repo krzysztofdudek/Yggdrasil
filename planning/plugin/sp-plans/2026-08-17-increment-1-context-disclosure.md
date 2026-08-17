@@ -23,9 +23,40 @@ scopeMarking, log-gate, flows) reusing existing engines read-only:
   `computeSourceFingerprint` / `readLock` / `readLogContent` / `hasFreshLogEntry` (all already
   imported) for the owner's log-gate line.
 
-No engine module changes; no lock writes, no reviewer contact, no filesystem writes. Two new
-imports do cross a node boundary, so the graph declaration of `cli/commands/build-context` is
-edited in Task 6 (see its steps) — this increment is **not** graph-free.
+No engine module changes; no lock writes, no reviewer contact, no filesystem writes. This
+increment is **not** graph-free, on two counts: two new imports cross a node boundary, so the
+graph declaration of `cli/commands/build-context` is edited in Task 6 (see its steps); and every
+new test file must be declared in a test-suite node's `mapping:` in the SAME commit that creates
+it (see **New test files are graph work** below).
+
+### New test files are graph work
+
+The `test-suite` architecture type is `enforce: strict` over `source/cli/tests/**` (excluding
+`tests/fixtures/**`), and every one of the 45 existing files under `tests/unit/cli/` is named
+individually in some node's `mapping:` — there is no directory-glob catch-all. An unmapped new
+test file is therefore a **blocking `yg check` error**, verified by adding a throwaway file and
+running the real binary:
+
+```text
+File 'source/cli/tests/unit/cli/<new>.test.ts' satisfies when of type 'test-suite' (enforce: strict):
+Fix: Create yg-node.yaml with type: test-suite and add '…' to its mapping.
+```
+
+So each task that creates a test file also edits the owning node in the same commit:
+
+| Test file | Owning node | Edit |
+| --- | --- | --- |
+| `tests/unit/formatters/context-file-brief.test.ts` (Task 1) | `cli/tests/unit/support/formatters` | add to `mapping:`. It already declares `uses cli/formatters` — no new relation. |
+| `tests/unit/cli/build-context-brief.test.ts` (Task 2) | `cli/tests/unit/cli/general` | add to `mapping:`. It already declares `uses` on `cli/commands/build-context`, `cli/core/context`, `cli/core/loader`, `cli/tests/fixtures`. |
+| `tests/unit/cli/build-context-progressive.test.ts` (Task 6) | `cli/tests/unit/cli/general` | add to `mapping:`. |
+
+Separately, `{ target: cli/tests/support, type: uses }` joins `cli/tests/unit/cli/general` in
+**Task 4** — the first task whose test imports `progressive-fixture.ts`. That node declares 28
+relations today against a `max_direct_relations.limit` of 30, so 29 fits with no ceiling edit,
+and Task 6 reuses the same relation.
+
+`tests/fixtures/` is mapped by directory prefix (`cli/tests/fixtures`), so Task 2's committed
+output baseline needs no mapping edit.
 
 **Tech Stack:** TypeScript (strict, no exported `any`), vitest under `source/cli/tests/unit/`.
 Two established test shapes are used, both over real on-disk projects (the repo forbids
@@ -59,8 +90,9 @@ fabricated data):
 - Brief output ≤ 30 lines for a node-owned file. Worst case with every extra present and the
   aspect list at its cap: path 1 + Owner 1 + scope header 1 + `Must satisfy:` 1 + 8 aspects × 2
   lines 16 + arm preview 1 + Depends on 1 + Dependents 1 + log gate 1 + flows 1 + 3 `next:` 3
-  = **27**, or 28 with the truncation tail. When the aspect list would exceed the cap it is
-  truncated with a final line `  … and N more — run yg context --file <p> for all`.
+  = **28**, or **29** with the truncation tail (which appears only when the list exceeds the cap,
+  never at exactly 8). Two lines of headroom under 30. When the aspect list would exceed the cap
+  it is truncated with a final line `  … and N more — run yg context --file <p> for all`.
 - Coverage stays ≥ 90 % (gate step). A spawned-binary test contributes **zero** coverage of
   `src/**` (separate process), so every new branch also gets an in-process test.
 - One CHANGELOG entry under `## [Unreleased]` for the whole increment (Task 7), release-notes
@@ -68,7 +100,8 @@ fabricated data):
 - `templates/rules.ts` is deliberately NOT edited in this increment (decision D1), so no digest
   regeneration and no `init --upgrade` sweep across `examples/*/` is required.
 - New CLI flags are registered in the commander style `build-context.ts` already uses
-  (`build-context.ts:574-579`); the `contextAction` parameter type
+  (the `--node` / `--file` options at `build-context.ts:576-577`, inside the command chain at
+  `:573-578`); the `contextAction` parameter type
   (`{ node?: string; file?: string }`, `build-context.ts:342`) is widened in the same edit.
 - Every task that changes what `yg context --file` prints also updates the `description:` of
   `.yggdrasil/model/cli/commands/build-context/yg-node.yaml` in the same commit — the repo's
@@ -77,18 +110,23 @@ fabricated data):
 
 ### Aspects that actually bite on the files this plan touches
 
-Read from `.yggdrasil/yg-architecture.yaml` (`command`, `formatter` node types), not assumed:
+Read from the effective sets the CLI itself reports (`yg context --file <path>` on each file),
+not from the architecture's type block alone — the type block omits what the node chain adds:
 
 - `cli/commands/build-context` (type `command`): `cli-command-contract` (LLM),
-  `command-error-via-buildissuemessage`, `command-exit-codes` (0/1 only),
+  `command-error-via-buildissuemessage`, `command-exit-codes` (0/1 only — reached through
+  `cli-command-contract`'s `implies`, not the type's own list),
   `command-contract-shape` (exactly one `register*Command` export — an extra non-`register*`
   named export such as `composeBriefExtras` is **not** a violation; the check counts only
   `/^register[A-Z]\w*Command$/`), `diagnostic-logging`, `sibling-test-file`, `source-hygiene`,
-  `source-no-raw-control-chars`, plus the node's own `what-why-next` (LLM). Type
-  `log_required: true`.
+  `source-no-raw-control-chars`, plus `what-why-next`, `deterministic` and `posix-paths-output`
+  (all three LLM, inherited down the node chain). Type `log_required: true`.
 - `cli/formatters` (type `formatter`): `what-why-next` (LLM), `source-hygiene`,
-  `source-no-raw-control-chars`, plus the node's inherited `deterministic` and
+  `source-no-raw-control-chars`, plus the inherited `deterministic` and
   `posix-paths-output` (both LLM).
+- **Every new test file** (type `test-suite`): `test-deterministic` (LLM, `scope.per: file` —
+  one new reviewer pair per file this plan creates, filled by the per-commit ritual's
+  `check --approve`), `self-contained-references`, `source-no-raw-control-chars`.
 - `source-hygiene` expands to `posix-paths-source`, `no-direct-minimatch`, `no-shell-injection`,
   `prototype-safe-registry-lookup`, `owner-resolution-single-source`, `self-contained-references`.
   **`self-contained-references` bites this plan directly**: a test's own `it`/`describe` name may
@@ -106,8 +144,9 @@ under `core/`, `io/` or `ast/`.
 `scripts/repo-check.sh`'s final step is `yg check --approve --only-deterministic`, which
 refills **deterministic** verdicts only. Editing `context-file.ts` and `build-context.ts`
 invalidates their **LLM** pairs (`what-why-next`, `deterministic`, `posix-paths-output`,
-`cli-command-contract`), and those stay unverified — so a bare `git commit` fails the gate on
-`yg check`, not on lint. Before each task's commit, from the repo root:
+`cli-command-contract`), and each new test file adds an unfilled `test-deterministic` pair; all
+of those stay unverified — so a bare `git commit` fails the gate on `yg check`, not on lint.
+Before each task's commit, from the repo root:
 
 ```sh
 (cd source/cli && npm run build)          # dist/bin.js — spawned tests skip without it
@@ -136,14 +175,20 @@ node source/cli/dist/bin.js check --approve
   `resolveChangeScope` returns one of three kinds; each is handled by name:
   - `scoped` → measured. Per-aspect marking is emitted. If it also carries `notice` (the
     measurement succeeded and still reached everything — an architecture/config-vocabulary
-    change), that notice is printed too.
+    change), that notice is printed too. Note that "nothing has moved" (work at or behind the
+    reference, tree clean) is ALSO this kind, with an empty burn: the header then reads
+    `your change so far: 0 files; this file is not in it` and every rule marks `(inherited)`,
+    which is exactly `docs/progressive-mode.md`'s row for that state ("Every eligible finding is
+    reported as inherited … no notice, because nothing went wrong").
   - `unmeasurable` → its `notice` is printed and per-aspect marking is omitted.
   - `whole-project` → **no notice field exists on this kind**. Nothing is printed and the scope
-    section is absent — matching `docs/progressive-mode.md`'s own row for it ("no notice, because
-    nothing went wrong").
+    section is absent. This kind covers only the two rows `docs/progressive-mode.md` describes as
+    never attempting a measurement — "No branch named in the config" and `yg check --full` — and
+    the config-reference gate below already excludes the first, so in `yg context` it is a
+    defensive branch rather than the common case.
 
   The notice is an `IssueMessage` (`{what, why, next}`), **not** a one-line string, so it is
-  printed exactly where and how `cli/check.ts:334-339` prints it — to **stderr**, as
+  printed exactly where and how `cli/check.ts:336-340` prints it — to **stderr**, as
   `chalk.yellow('Notice: ' + buildIssueMessage(notice))` — which keeps stdout's ≤ 30-line brief
   budget intact and keeps one spelling of the sentence in the codebase.
 - **D4:** Arm preview counts `PairComputation.pairs` whose `subjectFiles` contain the file
@@ -157,10 +202,18 @@ node source/cli/dist/bin.js check --approve
   0 by design (see `build-context.ts:530`'s attention-note comment), so it does not adopt that
   obligation: an unreadable subject is recorded via `debugWrite` and the arm-preview line is
   suppressed entirely for that invocation rather than printed as a count that silently omits
-  files. Same choice `buildTypeCoveredFileContextData` already makes for the same call.
+  files. `buildTypeCoveredFileContextData` makes the same call and does not block on it either —
+  it destructures `{ drops, pairs }` and drops `unreadable` on the floor. This plan is
+  deliberately one notch stricter than that precedent: silence plus a debug line, never a number
+  that is quietly short.
 - **D6:** The marking words are `(yours)` and `(inherited)` — §C2's own vocabulary, and
   `docs/progressive-mode.md`'s ("reported as inherited debt"). Not "(outside changes)", which
   appears nowhere in the product.
+- **D7:** §C1 sketches the third trail pointer as "node aspect list"; this plan makes it
+  `yg context --file <p> --aspect <first-aspect-id>` instead. A one-rule expansion of a rule the
+  brief just named is the pointer the reader can actually act on next, and it is the surface
+  Task 3 ships; a separate node-wide aspect listing is a different command with a different
+  subject. Recorded as a deviation rather than taken silently.
 
 ---
 
@@ -168,7 +221,8 @@ node source/cli/dist/bin.js check --approve
 
 **Files:**
 
-- Modify: `source/cli/src/formatters/context-file.ts`
+- Modify: `source/cli/src/formatters/context-file.ts`,
+  `.yggdrasil/model/cli/tests/unit/support/formatters/yg-node.yaml` (map the new test file)
 - Test: `source/cli/tests/unit/formatters/context-file-brief.test.ts` (create)
 
 **Interfaces:**
@@ -413,11 +467,14 @@ export function formatFileContextBrief(data: FileContextData, extras: FileBriefE
 Run: `cd source/cli && npx vitest run tests/unit/formatters/context-file-brief.test.ts`
 Expected: PASS (all 9).
 
-- [ ] **Step 5: Typecheck, gate ritual, commit**
+- [ ] **Step 5: Map the new test file, typecheck, gate ritual, commit**
 
 ```sh
+# add source/cli/tests/unit/formatters/context-file-brief.test.ts to the mapping: of
+# .yggdrasil/model/cli/tests/unit/support/formatters/yg-node.yaml — without it yg check
+# fails with type-strict-orphan on the new file
 cd source/cli && npm run typecheck && npm run build
-cd .. && node source/cli/dist/bin.js check --approve      # refills cli/formatters' LLM pairs; no log entry needed (formatter type)
+cd .. && node source/cli/dist/bin.js check --approve      # refills cli/formatters' LLM pairs and the new file's test-deterministic pair; no log entry needed (formatter type)
 git add source/cli/src/formatters/context-file.ts source/cli/tests/unit/formatters/context-file-brief.test.ts .yggdrasil
 git commit -m "feat(context): brief renderer with scope suffixes, arm preview and trail pointers"
 ```
@@ -429,7 +486,8 @@ git commit -m "feat(context): brief renderer with scope suffixes, arm preview an
 **Files:**
 
 - Modify: `source/cli/src/cli/build-context.ts`,
-  `.yggdrasil/model/cli/commands/build-context/yg-node.yaml` (description)
+  `.yggdrasil/model/cli/commands/build-context/yg-node.yaml` (description),
+  `.yggdrasil/model/cli/tests/unit/cli/general/yg-node.yaml` (map the new test file)
 - Test: `source/cli/tests/unit/cli/build-context-brief.test.ts` (create)
 
 **Interfaces:**
@@ -559,10 +617,14 @@ nothing.
 - [ ] **Step 4: Run the new test plus `tests/unit/cli/build-context.test.ts` and
   `tests/unit/cli/context-file-type-coverage.test.ts`; verify all pass.**
 
-- [ ] **Step 5: Update the node description, run the gate ritual, commit**
+- [ ] **Step 5: Update the node description, map the new test file, run the gate ritual, commit**
 
 ```sh
 # edit .yggdrasil/model/cli/commands/build-context/yg-node.yaml description: add the --brief view
+# add source/cli/tests/unit/cli/build-context-brief.test.ts to the mapping: of
+# .yggdrasil/model/cli/tests/unit/cli/general/yg-node.yaml (no new relation needed — that node
+# already declares uses on cli/commands/build-context, cli/core/context, cli/core/loader,
+# cli/tests/fixtures)
 (cd source/cli && npm run build)
 node source/cli/dist/bin.js log add --node cli/commands/build-context --reason "yg context --file gains a compact one-line-per-rule view so an agent can read a file's obligations without paging through the full package; the default output is unchanged and pinned against a committed baseline."
 node source/cli/dist/bin.js check --approve
@@ -694,7 +756,8 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
 **Files:**
 
 - Modify: `source/cli/src/cli/build-context.ts`,
-  `.yggdrasil/model/cli/commands/build-context/yg-node.yaml` (description)
+  `.yggdrasil/model/cli/commands/build-context/yg-node.yaml` (description),
+  `.yggdrasil/model/cli/tests/unit/cli/general/yg-node.yaml` (new `cli/tests/support` relation)
 - Test: extend `source/cli/tests/unit/cli/build-context-brief.test.ts`
 
 **Interfaces:**
@@ -718,13 +781,23 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
 - **Cost note:** this adds one whole-repo walk plus one whole-graph pair enumeration to every
   `--brief` invocation. Compute both ONCE per invocation and thread the result to Task 6's scope
   marking rather than enumerating twice; the plugin's post-edit hook is the consumer, and it runs
-  this per file edit.
+  this per file edit. Sharing the walk is not free by default: `computeTypeCoverageForContext`
+  takes only `(graph)` and calls `walkRepoFiles` itself (`build-context.ts:103`). Widen that
+  private helper to `(graph, repoFiles?: string[])` and fall back to its own walk when the
+  argument is absent — a local, behavior-preserving change to a non-exported function, so no
+  graph or contract consequence.
 
 - [ ] **Step 1: Write the failing tests** — build a real project with both reviewer kinds using
   `createProgressiveFixture` from `source/cli/tests/support/progressive-fixture.ts` (it is
-  importable from `tests/unit/`: it imports only node builtins and `git-fixture.ts`):
+  importable from `tests/unit/`: it imports only node builtins and `git-fixture.ts`). The two
+  spawned cases below go **inside** the existing `describe.skipIf(!distExists)` block, like every
+  other binary-driven case in this file; `afterEach` joins the file's `vitest` import. This is the
+  first import of `tests/support/` from this test file, so **this task** adds
+  `{ target: cli/tests/support, type: uses }` to `.yggdrasil/model/cli/tests/unit/cli/general/yg-node.yaml`
+  (28 declared relations against a limit of 30 — 29 fits). Task 6 then reuses it:
 
 ```ts
+import { afterEach } from 'vitest';
 import { createProgressiveFixture, type ProgressiveFixture } from '../../support/progressive-fixture.js';
 
 const fixtures: ProgressiveFixture[] = [];
@@ -798,8 +871,9 @@ and no graph edit, so it must not be entangled with Task 6's.
     then `computeSourceFingerprint(graph, ownerPath)` compared against
     `readLock(graph.rootPath).nodes[ownerPath]?.source`, then
     `hasFreshLogEntry(await readLogContent(projectRoot, ownerPath), lock.nodes[ownerPath]?.log)`.
-    Every one of those symbols is ALREADY imported by `build-context.ts` (lines 14, 22, 29, 31) —
-    no new import, no new relation. When the owner's type does not set `log_required`, the line
+    Every one of those symbols is ALREADY imported by `build-context.ts` —
+    `computeSourceFingerprint` and `FileUnreadableError` at line 22, `readLock` at 29,
+    `readLogContent` / `hasFreshLogEntry` at 31 — so no new import and no new relation. When the owner's type does not set `log_required`, the line
     is omitted rather than printed as "no": a brief carries no zero-information lines.
     A `FileUnreadableError` from the fingerprint is caught and the line omitted, exactly as
     `attachLockObservability` catches it.
@@ -857,8 +931,12 @@ it('offers no log-gate or flows line for a file enforced by its type alone', asy
 
 `buildNodeContextData` is imported from `../../../src/core/context-builder.js`; the flows
 assertion reads the real fixture rather than hard-coding a name, so it cannot go stale if the
-fixture gains a flow. `copyTypeLevelFixture` is the same three-line `mkdtempSync` + `cpSync`
-helper as `copyFixture`, pointed at `tests/fixtures/type-level-engine`.
+fixture gains a flow. (`orders/order-service` does belong to `checkout-flow` today, so the
+`flows.length > 0` leg is the one that runs.) `copyTypeLevelFixture` is the same three-line
+`mkdtempSync` + `cpSync` helper as `copyFixture`, pointed at `tests/fixtures/type-level-engine`,
+whose `src/leaf/a.ts` renders `Owner: type:leaf` — the same file and fixture
+`context-file-type-coverage.test.ts` already drives. The three spawned cases go inside the
+`describe.skipIf(!distExists)` block; only the flows case is in-process.
 
 - [ ] **Step 2: Run, verify failure.**
 - [ ] **Step 3: Implement,** per the interface above.
@@ -875,7 +953,9 @@ helper as `copyFixture`, pointed at `tests/fixtures/type-level-engine`.
 - Modify: `source/cli/src/cli/build-context.ts`; `source/cli/src/formatters/context-file.ts`
   (full-view suffixes at BOTH aspect-header sites, D2);
   `.yggdrasil/model/cli/commands/build-context/yg-node.yaml` (**relations, `max_direct_relations`
-  and description** — see Step 3b).
+  and description** — see Step 3b);
+  `.yggdrasil/model/cli/tests/unit/cli/general/yg-node.yaml` (map the new test file **and** add
+  `{ target: cli/tests/support, type: uses }`).
   `source/cli/src/cli/progressive-scope-resolve.ts` needs **no change**: its exported entry is
   already callable from any command (verified below).
 - Test: `source/cli/tests/unit/cli/build-context-progressive.test.ts` (create)
@@ -886,10 +966,11 @@ helper as `copyFixture`, pointed at `tests/fixtures/type-level-engine`.
   function `cli/check.ts:324` calls (`progressive-scope-resolve.ts:496`). Its input is
   `{ graph: Graph; projectRoot: string; coverageVisibleFiles: string[]; fullFlag: boolean }`.
   `build-context.ts` does **not** already hold `coverageVisibleFiles` on the node-owned `--file`
-  path — it must produce it with `await walkRepoFiles(projectRoot)` (already imported, line 20),
-  which is the same call `computeTypeCoverageForContext` makes; compute it once and share it with
-  Task 4's type-coverage call. `fullFlag: false` — `yg context` has no `--full`.
-- `ChangeScopeDecision` is a three-way union (`progressive-scope-resolve.ts:100-124`):
+  path — it must produce it with `await walkRepoFiles(projectRoot)` (already imported, line 20).
+  That is the same walk `computeTypeCoverageForContext` performs internally, so pass the result
+  into the widened helper Task 4 introduces rather than walking the repo twice.
+  `fullFlag: false` — `yg context` has no `--full`.
+- `ChangeScopeDecision` is a three-way union (`progressive-scope-resolve.ts:100-121`):
   `{ kind: 'whole-project' }` (NO notice field), `{ kind: 'scoped'; burn: BurnSet; referenceName: string; blobOidByPath; notice?: IssueMessage }`,
   `{ kind: 'unmeasurable'; notice: IssueMessage }`. Handle all three by name (D3).
 - `pairIsInScope(scope: BurnSet, aspectId: string, unitKey: string, known: ReadonlySet<string>): boolean`
@@ -901,7 +982,7 @@ helper as `copyFixture`, pointed at `tests/fixtures/type-level-engine`.
   identical derivation `knownPairKeys` performs, one layer up from `VerifiedPair`.
   `progressivePairKey` is imported from `../core/progressive-scope.js` (`:210`) rather than
   re-spelling `` `${aspectId} ${unitKey}` ``.
-- `BurnSet` supplies the header's numbers directly (`core/progressive-scope.ts:283-336`):
+- `BurnSet` supplies the header's numbers directly (`core/progressive-scope.ts:276-337`):
   `burn.changedInputCount` (documented as "the number a person is shown as 'N changed file(s)'")
   and `burn.files: Set<string>` (repo-relative POSIX) for the in-it test.
 
@@ -932,7 +1013,12 @@ helper as `copyFixture`, pointed at `tests/fixtures/type-level-engine`.
   `tests/unit/core/check-progressive.test.ts:28` builds a `BurnSet` by hand for direct
   `pairIsInScope` calls only; it cannot be threaded through the CLI, and fabricating one would
   break the repo's no-artificial-mocking rule. Use `createProgressiveFixture` exactly as
-  `tests/e2e/cli-progressive-gate.test.ts` does:
+  `tests/e2e/cli-progressive-gate.test.ts` does. The new file repeats the same six-line preamble
+  Task 2's file established — `BIN_PATH`, `distExists`, `run()`, the `fixtures[]` array and its
+  `afterEach` cleanup — and every spawned case below sits inside a
+  `describe.skipIf(!distExists)` block, so the suite fails loudly on a missing build rather than
+  passing over zero cases. `'main'` is `REFERENCE_BRANCH`, exported by the fixture module; import
+  it rather than re-typing the literal:
 
 ```ts
 it('marks a rule on a file the change touched as yours', () => {
@@ -980,7 +1066,12 @@ it('is byte-identical for a project that named no reference', () => {
 ```
 
 Add in-process cases for the `'yours'` / `'inherited'` mapping itself so the branch is covered by
-the coverage gate: call `composeBriefExtras` against the fixture project loaded with `loadGraph`.
+the coverage gate — and load them from a **progressive fixture**, not from
+`tests/fixtures/sample-project`: that fixture names no reference, so `composeBriefExtras` over it
+short-circuits before `resolveChangeScope` and would cover the opt-out branch only. The shape is
+`const f = createProgressiveFixture({ label: 'ctx-inproc', progressiveReference: REFERENCE_BRANCH });`,
+then `f.branchWithEdit(...)`, then `await loadGraph(f.dir)` and `composeBriefExtras` against it —
+a real on-disk graph in a real git repository, so no rule about fabricated data is bent.
 
 - [ ] **Step 2: Run, verify failures.**
 
@@ -1004,6 +1095,12 @@ the coverage gate: call `composeBriefExtras` against the fixture project loaded 
     `yg check` gates on, which means reaching the scope resolver and the burn-set key helper
     rather than re-deriving either.
   - extend `description:` with the scope-marking behavior and the three-way honesty rule (D3).
+
+  In `.yggdrasil/model/cli/tests/unit/cli/general/yg-node.yaml`: add
+  `source/cli/tests/unit/cli/build-context-progressive.test.ts` to `mapping:` and
+  `{ target: cli/tests/support, type: uses }` to `relations:` (28 declared today against a
+  `max_direct_relations.limit` of 30, so 29 needs no ceiling edit). If Task 4 already added that
+  relation for `build-context-brief.test.ts`, only the mapping line is new.
 
 - [ ] **Step 4: Run the new suite, the Task 2–5 suites, and
   `npx vitest run tests/unit/core/check-progressive.test.ts` (must be untouched).**
@@ -1048,18 +1145,31 @@ the coverage gate: call `composeBriefExtras` against the fixture project loaded 
   C2 — yours/inherited T6, scope header T6, honest fallback T6 (D3 covers all three decision
   kinds, including `whole-project`, which carries no notice), arm preview T4,
   measurement reused rather than re-derived T6 (`resolveChangeScope` + `pairIsInScope`, never a
-  second copy of either). C3 (roots conventions) is NOT here — §5's graph lands it in increment 8
-  with R7/R8. MCP consumption is the plugin increment; T1's pure renderer is the seam it calls.
+  second copy of either). One deviation from §C1's sketch is recorded rather than taken silently
+  (D7, the third trail pointer). C3 (roots conventions) is NOT here — §5's increment order lands
+  it in increment 8 with R7/R8. MCP consumption is the plugin increment; T1's pure renderer is
+  the seam it calls.
 - **API truth:** every symbol, field and line reference above was read from the working tree.
   Three claims an earlier draft made were false and are corrected here: `pairIsInScope` takes a
   fourth `known` argument whose omission silently marks everything `(yours)`; the resolver's
   message field is `notice: IssueMessage` on two of three kinds, not a one-line string on all
   three; and `FileContextAspect.source` has no producer, so `--aspect` renders no `Source:` line.
-- **Gate reality:** the graph edit in T6 Step 3b is mandatory (the node sits at exactly its
-  declared 21-relation ceiling), the `command` type's `log_required: true` makes a `yg log add`
-  part of every `build-context.ts` commit, and `repo-check.sh`'s closing
-  `check --approve --only-deterministic` does not refill the LLM pairs these edits invalidate —
-  hence the per-commit ritual. Commits are per task; no step commits.
+  The fixture facts T2/T4/T5 assert on were re-derived by running the engines, not read off the
+  YAML: `orders/order-service` maps exactly `src/orders/order.service.ts`, carries exactly two
+  pairs (`requires-audit` and the `requires-logging` it implies, both `kind: 'llm'`, both
+  per-node), has parent `orders`, and participates in `checkout-flow`.
+- **Gate reality:** three separate mandatory graph edits, not one. (a) T6 Step 3b's relation +
+  ceiling raise on `cli/commands/build-context` — the node sits at exactly its declared
+  21-relation ceiling today. (b) Every new test file must be named in a test-suite node's
+  `mapping:`; `test-suite` is `enforce: strict` and an unmapped file is a blocking
+  `type-strict-orphan`, confirmed by running the real binary against a throwaway file. (c) The
+  `cli/tests/support` relation for `progressive-fixture.ts`. Beyond the graph: the `command`
+  type's `log_required: true` makes a `yg log add` part of every `build-context.ts` commit;
+  `repo-check.sh`'s closing `check --approve --only-deterministic` does not refill the LLM pairs
+  these edits invalidate (`what-why-next`, `deterministic`, `posix-paths-output`,
+  `cli-command-contract`, and each new file's `test-deterministic`) — hence the per-commit
+  ritual; and `check --approve` is keyless here because the `standard` tier's provider is
+  `claude-code`, read from `.yggdrasil/yg-config.yaml`. Commits are per task; no step commits.
 - **Placeholder scan:** clean. Every "mirror file X" pointer was opened and verified to contain
   the pattern it is cited for: `tests/unit/core/context-builder.test.ts` (in-process `loadGraph`
   over `tests/fixtures/sample-project`), `tests/unit/cli/context-file-type-coverage.test.ts`
@@ -1070,4 +1180,10 @@ the coverage gate: call `composeBriefExtras` against the fixture project loaded 
   helper cannot be threaded into a CLI run.
 - **Type consistency:** `FileBriefExtras` names match between T1 (producer) and T2/T4/T5/T6
   (consumers); `'inherited'` is both the map value and the rendered word, so there is no
-  second mapping to drift.
+  second mapping to drift. Both `Map` literals in T1's tests were compiled against a strict
+  `tsc` to confirm the contextual `'yours' | 'inherited'` inference holds — `tsconfig.check.json`
+  typechecks `tests/**/*.ts`, so a widened `Map<string, string>` there would fail the gate's
+  first step, not merely read oddly.
+- **Line budget:** the worst-case arithmetic in Global Constraints was recomputed line by line
+  against T1 Step 3's implementation and against T1's own 8-aspect assertion: 28 lines at the
+  cap, 29 with the truncation tail. The earlier "27" was one short.
