@@ -228,12 +228,15 @@ node source/cli/dist/bin.js check --approve
   `resolveChangeScope` returns one of three kinds; each is handled by name:
   - `scoped` → measured. Per-aspect marking is emitted. If it also carries `notice` (the
     measurement succeeded and still reached everything — an architecture/config-vocabulary
-    change), a context-scoped notice is printed too (D9). Note that "nothing has moved" (work at
-    or behind the reference, tree clean) is ALSO this kind, with an empty burn: the header then
-    reads `your change so far: 0 files; this file is not in it` and every rule marks
-    `(inherited)`, which is exactly `docs/progressive-mode.md`'s row for that state ("Every
-    eligible finding is reported as inherited … no notice, because nothing went wrong").
-  - `unmeasurable` → a context-scoped notice is printed (D9) and per-aspect marking is omitted.
+    change), a context-scoped notice is printed too, using D9's measured-with-caveat WHAT (the
+    marking stays on this branch — the notice is additional, not a replacement). Note that
+    "nothing has moved" (work at or behind the reference, tree clean) is ALSO this kind, with an
+    empty burn: the header then reads `your change so far: 0 files; this file is not in it` and
+    every rule marks `(inherited)`, which is exactly `docs/progressive-mode.md`'s row for that
+    state ("Every eligible finding is reported as inherited … no notice, because nothing went
+    wrong").
+  - `unmeasurable` → a context-scoped notice is printed, using D9's unmeasurable WHAT, and
+    per-aspect marking is omitted.
   - `whole-project` → **no notice field exists on this kind**. Nothing is printed and the scope
     section is absent. This kind covers only the two rows `docs/progressive-mode.md` describes as
     never attempting a measurement — "No branch named in the config" and `yg check --full` — and
@@ -277,10 +280,18 @@ node source/cli/dist/bin.js check --approve
   nothing constrains, so no existing output changes.
 - **D9:** `computeScopeMarking` does not print `decision.notice` verbatim. Both notice producers
   (`progressive-scope-resolve.ts:139`, `:176`) hard-code a WHAT describing a run that "gated the
-  whole project — every finding blocks, exactly as 'yg check --full' would report it", which is
-  false when printed by `yg context`: it produces no findings and gates nothing. Context reuses
-  the resolver's `why` and `next` verbatim but renders its own WHAT instead —
-  `Scope marking unavailable — this context view could not be measured against '<reference>'`.
+  whole project — every finding blocks, exactly as 'yg check --full' would report it". That is
+  true for one of context's two notice-bearing branches and false for the other, so D9 renders one
+  of two WHATs depending on which branch produced the notice — both reuse the resolver's `why` and
+  `next` verbatim, only the WHAT differs:
+  - **`unmeasurable`** (the reference could not be resolved at all — no marking is emitted on this
+    branch): WHAT is
+    `Scope marking unavailable — this context view could not be measured against '<reference>'`.
+  - **`scoped` carrying a `notice`** (the measurement succeeded and reached everything — an
+    architecture/config-vocabulary change — and per-aspect marking IS emitted alongside the
+    notice, D3): the resolver's hard-coded WHAT would be false here, since this run did measure a
+    scope and did mark every aspect; nothing was gated. WHAT is instead
+    `Scope marking measured against '<reference>' — with a caveat:`.
   (This is also why the two views carry the marking asymmetrically: the full view gets the
   `(yours)`/`(inherited)` suffixes but no scope header naming the reference, while the brief gets
   both — intended, because the full view's header area is the mapping line, already dense.)
@@ -691,6 +702,10 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
 });
 ```
 
+The `toBeLessThanOrEqual(2)` above reflects the two pointers this task ships; the ceiling is
+raised to 3, and a third expected pointer added to this same assertion, once the flag that owns
+the third pointer lands (Task 3's implementation step).
+
 The `BASELINE` file the pin reads must be captured FIRST, in Step 1, before any edit to
 `build-context.ts` — a baseline captured after the edit proves nothing. (Task 1's commit is
 already in; it only appended new exports to `context-file.ts` and changed no byte of what
@@ -879,6 +894,13 @@ third pointer exists:
   --file.`, WHY `--aspect expands one rule from one file's own effective set; a component's rules
   are listed by yg context --node itself.`, NEXT `Run: yg context --file <path> --aspect <id>.`
   Also extend `composeBriefExtras` with the deferred third `nextPointers` entry described above.
+- Update the pointer-count assertion in `tests/unit/cli/build-context-brief.test.ts` from ≤ 2 to
+  ≤ 3 and extend its expected-pointer list with the `--aspect` pointer: in the pre-existing
+  `composeBriefExtras — trail pointers` test, change
+  `expect(extras.nextPointers.length).toBeLessThanOrEqual(2);` to
+  `expect(extras.nextPointers.length).toBeLessThanOrEqual(3);`, and immediately above it add
+  ``expect(extras.nextPointers[2]).toBe(`next: yg context --file ${OWNED_FILE} --aspect ${data.aspects[0].aspectId}`);``.
+  Left at ≤ 2, that pre-existing test now fails every run once this file carries a third pointer.
 
 - [ ] **Step 4: Run both suites plus `build-context.test.ts` and
   `context-file-type-coverage.test.ts`; verify all pass, and that the byte-identity assertion
@@ -1236,11 +1258,14 @@ it, beside the other in-process cases.
     (`1 file` singular), and `scopeByAspect` maps each of the file's aspects to `'yours'` when ANY
     pair carrying that `aspectId` whose `subjectFiles` include this file satisfies
     `pairIsInScope(burn, aspectId, unitKey, known)`, else `'inherited'`. When
-    `decision.notice` is also set, print a context-scoped notice (D9, below).
+    `decision.notice` is also set, print a context-scoped notice (D9's measured-with-caveat WHAT,
+    below) — `scopeHeaderText` and `scopeByAspect` are still returned on this branch; the notice
+    is additional, not a replacement.
   - `kind === 'unmeasurable'`: no `scopeHeaderText`, no `scopeByAspect`; print a context-scoped
-    notice (D9).
+    notice (D9's unmeasurable WHAT).
   - `kind === 'whole-project'`: nothing at all — no header, no marking, no notice.
-  - Printing a notice means building a NEW `IssueMessage` — D9's WHAT, `decision.notice.why` and
+  - Printing a notice means building a NEW `IssueMessage` — D9's WHAT for the branch that produced
+    the notice (unmeasurable, or scoped-with-caveat), `decision.notice.why` and
     `decision.notice.next` reused verbatim — then, in the shape `cli/check.ts:335-341` uses:
     `process.stderr.write(chalk.yellow('Notice: ' + buildIssueMessage({ what, why: decision.notice.why, next: decision.notice.next })) + '\n')`.
     stderr, so the ≤ 30-line stdout budget is untouched and a hook reading stdout is unaffected.
@@ -1335,13 +1360,18 @@ it('marks a rule at the type-covered aspect-header site too', () => {
 ```
 
 `createTypeLevelProgressiveFixture` is a small helper local to this test file — no shared fixture
-module gains type-level coverage over this increment. It builds on `copyTypeLevelFixture` (Task
-5): copy `tests/fixtures/type-level-engine` to a temp dir, append `progressive:\n  reference: main`
-to its committed `.yggdrasil/yg-config.yaml`, then use `runGitFixture` / `gitFixtureEnv`
-(`tests/support/git-fixture.ts`, the same primitives `progressive-fixture.ts` is built on) to
-`git init`, commit everything on `main`, `checkout -b work`, append a line to `src/leaf/a.ts`, and
-commit again — the same shape `branchWithEdit` gives a component fixture, written out directly
-because `createProgressiveFixture` builds only component-owned files, never a type-covered one.
+module gains type-level coverage over this increment, and `copyTypeLevelFixture` is itself local
+to `build-context-brief.test.ts` (Task 5), so it cannot be imported here. Instead of calling it,
+this helper inlines its own copy of the same fixture-copy line: `mkdtempSync` a temp dir, then
+`cpSync(path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine'), dir, { recursive: true })`
+— the exact copy call Task 5's helper makes, mirrored rather than shared, run before `git init`.
+It then appends `` `progressive:\n  reference: ${REFERENCE_BRANCH}\n` `` (the `REFERENCE_BRANCH`
+imported at Step 1 above, not the literal `main`) to the copied `.yggdrasil/yg-config.yaml`, then
+uses `runGitFixture` / `gitFixtureEnv` (`tests/support/git-fixture.ts`, the same primitives
+`progressive-fixture.ts` is built on) to `git init`, commit everything on `REFERENCE_BRANCH`,
+`checkout -b work`, append a line to `src/leaf/a.ts`, and commit again — the same shape
+`branchWithEdit` gives a component fixture, written out directly because `createProgressiveFixture`
+builds only component-owned files, never a type-covered one.
 The `[\w+, unverified]` half of the regex is what pins the match to `context-file.ts:96`'s line
 shape rather than the node-owned one at `:139`, which never carries that caveat.
 
