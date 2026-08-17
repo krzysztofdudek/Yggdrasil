@@ -193,7 +193,10 @@ Status is rendering only — it never changes a verdict's validity.
 | enforced | yes            | error — blocks \`yg check\`     |
 
 Advisory never blocks; enforced always does; only \`draft\` removes a pair from the
-expected set. Deep reference: \`yg knowledge read aspect-status\`.
+expected set. (The single exception, and only when progressive mode is on: an
+enforced finding the current change did not reach renders as a warning, and
+\`yg check --full\` blocks on it again. The pair's status is unchanged.) Deep
+reference: \`yg knowledge read aspect-status\`.
 
 ## Organizing aspects in directories
 

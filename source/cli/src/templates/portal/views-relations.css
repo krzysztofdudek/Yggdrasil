@@ -196,6 +196,11 @@
   height: 12px;
   border-radius: 50%;
 }
+.mtx-swatch-diag {
+  border-radius: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border-subtle);
+}
 .mtx-mirror {
   border: 1px solid var(--border-subtle);
   border-radius: 8px;

@@ -1,0 +1,5 @@
+name: NoTodoComments
+description: "Source files must not ship TODO / FIXME markers in comments — track work in the issue tracker, not the code."
+reviewer:
+  type: deterministic
+status: enforced

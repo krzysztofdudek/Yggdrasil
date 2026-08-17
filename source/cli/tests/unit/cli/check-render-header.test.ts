@@ -35,6 +35,7 @@ function baseResult(issues: CheckIssue[]): CheckResult {
     draftSkipped: 0,
     verifiedDet: 0,
     verifiedLlm: 0,
+    pairs: [],
   };
 }
 
@@ -56,6 +57,7 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
       draftSkipped: 0,
       verifiedDet: 0,
       verifiedLlm: 0,
+      pairs: [],
     };
   }
   function warningsOnlyGreenResult(): CheckResult {
@@ -81,6 +83,7 @@ describe('check render — PASS (auto-filled) header marker (task 3.4)', () => {
       draftSkipped: 0,
       verifiedDet: 0,
       verifiedLlm: 0,
+      pairs: [],
     };
   }
 
@@ -1011,5 +1014,67 @@ describe('type-visibility block — a run that watched the disposition happen na
     expect(out).toContain('Attached but not enforced');
     expect(out).toMatch(/no component to run it on.*other-static-rule \(1\)/);
     expect(out).not.toMatch(/component context.*validates-input/);
+  });
+});
+
+// ── Change-scope segment ──────────────────────────────────────────────────────
+
+/**
+ * The header's account of a run that measured a change against a reference
+ * branch. Three shapes, and the third is the one the feature-off guarantee
+ * rests on: a run that measured nothing says nothing, rather than printing a
+ * zero, so a project that never opted in reads exactly as it always did.
+ */
+describe('check render — header change-scope segment', () => {
+  const measured = (over: Partial<CheckResult>): CheckResult => ({ ...baseResult([]), ...over });
+
+  it('names the reference and the size of the change it measured', () => {
+    const out = stripAnsi(formatOutput(measured({
+      outsideCount: 3,
+      progressiveReference: 'origin/main',
+      changedInputCount: 2,
+    }), { kind: 'full' }));
+    expect(out.split('\n')[0]).toContain('3 obligations outside your changes vs origin/main (2 changed inputs)');
+  });
+
+  it('says nothing is in scope for a checkout carrying no change at all', () => {
+    // Deliberately NOT "0 changed inputs": that reads as "this run proved
+    // nothing", when what it proved is that everything it found was already
+    // there.
+    const out = stripAnsi(formatOutput(measured({
+      outsideCount: 1,
+      progressiveReference: 'main',
+      changedInputCount: 0,
+    }), { kind: 'full' }));
+    expect(out.split('\n')[0]).toContain('nothing in scope; 1 obligation outside your changes vs main');
+    expect(out).not.toContain('changed input');
+  });
+
+  it('does not claim nothing is in scope while something in scope is blocking', () => {
+    // Zero changed inputs is not proof that nothing was in scope: a change made
+    // ENTIRELY of engine output — a commit deleting entries from the committed
+    // verdict record — counts as zero (those files are dropped unread) while the
+    // obligations whose verdicts it destroyed are in scope and do block. The
+    // sentence would then contradict the error list printed right under it.
+    const blocking: CheckIssue = {
+      severity: 'error',
+      code: 'unverified',
+      rule: 'unverified',
+      messageData: { what: 'w', why: 'y', next: 'yg check --approve' },
+    };
+    const out = stripAnsi(formatOutput({
+      ...baseResult([blocking]),
+      outsideCount: 0,
+      progressiveReference: 'main',
+      changedInputCount: 0,
+    }, { kind: 'full' }));
+    expect(out.split('\n')[0]).toContain('0 obligations outside your changes vs main (0 changed inputs)');
+    expect(out).not.toContain('nothing in scope');
+  });
+
+  it('is absent entirely when the run measured nothing', () => {
+    const out = stripAnsi(formatOutput(baseResult([]), { kind: 'full' }));
+    expect(out).not.toContain('outside your changes');
+    expect(out).not.toContain('nothing in scope');
   });
 });

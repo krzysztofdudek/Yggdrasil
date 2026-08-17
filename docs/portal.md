@@ -12,8 +12,9 @@ verified against the code as it stands right now.
 It is built for a glance and for a drill-down. The overview gives you a
 plain-language verdict — "no failures, a few advisories worth a look" — and the
 counts behind it. From there you can open any component to see why it passed (or
-what it still needs), or open any rule to read its actual text and every place
-it lands.
+what it still needs) — rule by rule, each one marked with its enforcement level
+(blocking the build, advisory only, or still in draft and not yet enforced) — or
+open any rule to read its actual text and every place it lands.
 
 ## Open it
 
@@ -53,7 +54,8 @@ write it elsewhere.
 
 A row of views down the side, each answering a different question:
 
-- **Overview** — where the repo stands, in one sentence, plus the residue worth a
+- **Overview** — where the repo stands, in one sentence, counting what actually
+  stops the build apart from what is only a heads-up, plus the residue worth a
   look: components with no rule yet, source files not mapped to anything, and any
   active waivers. With `coverage.type_level` on, a file satisfied by the
   type-level lattice is never counted in "not mapped to anything" — a file whose
@@ -72,18 +74,35 @@ A row of views down the side, each answering a different question:
   that nothing does.
 - **Coverage & audit** — the full ledger. Every expected check, every verdict,
   with a single honest bar: the only green is a check a reviewer actually ran and
-  approved against the current code. Free local checks and reviewer-judged checks
-  are shown apart, and a needs-attention worklist lists what to fix, in priority
-  order. With `coverage.type_level` on, every type-covered file is listed by name
-  with the type that covers it — one with an applicable rule under the checked
-  total (its own real verdict sits in the bar above, not on this line), one
-  matched by a type with nothing that applies under its own "checked by nothing"
-  line, and one whose type's rules an aspect `implies` cycle blocked under its
-  own "could not be worked out" line, naming the cycle. Each of these three
-  listings longer than twelve entries is capped, with the remainder summarized as
-  a count. Separately, and regardless of whether `coverage.type_level` is on, a
-  file under a `coverage.excluded` root is listed by name too, in its own,
-  uncapped "deliberately excluded from coverage, never enforced" block.
+  approved against the current code. Every non-empty band on that bar stays
+  visible, however small its slice, so a handful of refusals is never too thin to
+  see. Free local checks and reviewer-judged checks are shown apart, and a
+  needs-attention worklist gathers what still needs fixing: findings that stop
+  the build are grouped separately from advisory ones, and each finding names the
+  real components and files it actually touches. When the fix is the same for
+  everyone it names, it is shown once; when it differs from one subject to the
+  next, each subject gets its own fix instead of borrowing one that does not
+  apply to it. A finding with no component or file of its own — one that names
+  the whole project rather than a part of it — carries its full explanation in
+  place of a subject list. Gaps in coverage (files nothing was ever asked to
+  check) get their own block, separate from the rule findings. The command line
+  caps this list to keep a terminal readable; the portal page does not — it shows
+  every group in full.
+
+  With `coverage.type_level` on, every type-covered file is listed by name with
+  the type that covers it. One with a rule that actually reaches it carries its
+  own real verdict right there — verified, refused, an advisory warning, or
+  not-yet-verified, each shown with the reviewer's reason wherever it has one —
+  the same verdict already folded into the bar above; naming the file just makes
+  it possible to see which one it is. One matched by a type with nothing that
+  applies sits under its own "checked by nothing" line instead, with no verdict
+  to show, because nothing ever checked it. And one whose type's rules an aspect
+  `implies` cycle blocked sits under its own "could not be worked out" line,
+  naming the cycle. Each of these three listings longer than twelve entries is
+  capped, with the remainder summarized as a count. Separately, and regardless of
+  whether `coverage.type_level` is on, a file under a `coverage.excluded` root is
+  listed by name too, in its own, uncapped "deliberately excluded from coverage,
+  never enforced" block.
 
   ![The portal's coverage and audit view — the honest verdict bar over every expected check, with the needs-attention worklist](/portal-coverage.png)
 
@@ -99,7 +118,11 @@ A row of views down the side, each answering a different question:
   component, the rules each kind carries by default, and which components are of
   that kind.
 - **Relations & boundaries** — what each component is allowed to depend on, what it
-  actually depends on, and where the two disagree.
+  actually depends on, and where the two disagree. A kind with no declared
+  restriction reads as free to depend on any other kind, not as forbidden from
+  depending on everything; an empty entry, by contrast, really does mean nothing
+  is permitted there. If the allow-list itself could not be read for a kind, that
+  shows as a gap in the data — never as a ban that was never actually declared.
 - **Dependency structure** — the shape of how components depend on one another, in
   plain language: the dependencies that reach farthest across the tree, how the
   component groups at each level depend on one another (and where those
@@ -114,9 +137,18 @@ A row of views down the side, each answering a different question:
 - **Flows** — your business processes, each participant marked with its honest
   state, so a single weak link in a flow is never hidden behind an otherwise-green
   picture.
-- **Suppressions** — every deliberate waiver, with the reason and a flag on the
-  risky ones (a wildcard, an unbounded range), because a waived check is not a
-  pass.
+- **Suppressions** — every deliberate waiver, sorted riskiest first, with the
+  reason and a flag on the risky ones: a wildcard that silences every rule on
+  its line, an aspect id that names no known rule (likely a typo or a rename
+  that outlived the field it renamed), an aspect that is still draft (the
+  reviewer never runs there, so the waiver is a no-op), a rule that by design
+  can never raise a false alarm (so the waiver is not actually silencing
+  anything that could have fired), or a range that runs unbounded — because a
+  waived check is not a pass. A clean waiver names its real reach — a single
+  line, a range, or the whole file — instead of calling every waiver "bounded"
+  alike, and when the suppression markers found on disk outnumber the waivers
+  actually listed, the page says so too: a range's closing marker is not
+  itself a waiver, so the two totals can genuinely differ.
 - **Structure** and **Start here** — the component tree with a filter, and a short
   guided walk for someone seeing the project for the first time.
 

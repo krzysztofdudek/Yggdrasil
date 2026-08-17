@@ -32,3 +32,4 @@ mapping:
   - source/cli/src/portal/derive-rest.ts
   - source/cli/src/portal/derive-boundary.ts
   - source/cli/src/portal/derive-metrics.ts
+  - source/cli/src/portal/derive-type-coverage.ts

@@ -26,7 +26,14 @@ import { collectDescendants } from '../core/graph/traversal.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import { parseLog } from '../core/parsing/log-parser.js';
 import { groupIssues, type IssueGroup } from '../cli/group-issues.js';
-import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput, SourceFileCountMarkerInput } from './contract.js';
+import type { BoundaryInput, SuppressionMarkerInput, FreshnessMarkerInput, SourceFileCountMarkerInput, PortalTypeAllowed } from './contract.js';
+// RELATION_TYPES only — this facade already declares its cli/relations/core relation
+// (allowed-types.ts is re-exported from there), so this import adds no new coupling.
+// allowedRelationTypes itself is NOT imported here: resolveAllowedRelations below reads
+// def.relations/relationDefault directly (see its doc comment for why), so importing the
+// (fromType, toType)-pair function would be dead weight. It is still the reference
+// semantics this function mirrors — cross-checked against it in the test suite.
+import { RELATION_TYPES } from '../relations/allowed-types.js';
 import { computePortalBoundary as computeBoundaryImpl } from './api/boundary.js';
 import { runSuppressionsScan, scanPortalSuppressions as adaptSuppressions } from './api/suppress-scan.js';
 import { collectMappingEntries, collectTypeCoveredFiles } from './api/suppress-eligibility.js';
@@ -79,6 +86,27 @@ export {
   TOP_TUNNELS,
 } from '../core/graph-metrics.js';
 export type { DeclaredRelation, StructEdge, EdgeOrigin, QuotientView } from '../core/graph-metrics.js';
+
+// ── Resolved relation allow-list (architecture "what may depend on what" matrix) ──
+
+/** Resolved per-relation-type allow-list for one node type — default/'*'/[] settled
+ *  with the SAME semantics as allowedRelationTypes (the relation-target-forbidden
+ *  validator's mirror). 'any' ⇔ this relation type may target every type. */
+export function resolveAllowedRelations(graph: Graph, typeId: string): PortalTypeAllowed[] {
+  const def = graph.architecture?.node_types?.[typeId];
+  if (!def) return [];
+  const lists = def.relations;
+  const policy = def.relationDefault ?? 'allow';
+  const out: PortalTypeAllowed[] = [];
+  for (const rt of RELATION_TYPES) {
+    const targets = lists?.[rt];
+    if (targets === undefined) { if (policy === 'allow') out.push({ type: rt, targets: 'any' }); continue; }
+    if (targets.length === 0) continue;                       // explicit [] = forbidden
+    if (targets.includes('*')) { out.push({ type: rt, targets: 'any' }); continue; }
+    out.push({ type: rt, targets: [...targets] });
+  }
+  return out;
+}
 
 // ── Graph + repo loading ─────────────────────────────────────────────────────
 
@@ -150,6 +178,16 @@ export async function runPortalCheck(
     rulesArtifacts: await readRulesArtifacts(path.dirname(graph.rootPath)),
     trackedFiles: listGitTrackedFiles(path.dirname(graph.rootPath)),
     precomputedTypeCoverage,
+    // DELIBERATELY unscoped, and not an omission to be "fixed" later. Every
+    // other input above is supplied precisely because leaving it out would make
+    // the portal quietly report less than the command line does. This one is
+    // the opposite: the portal is the whole project's standing picture — what
+    // is verified, what is refused, what is owed — read by someone who did not
+    // necessarily make the current change and is not being asked to answer for
+    // it. Narrowing it to one change's scope would hide real, outstanding work
+    // behind whatever happened to be edited in this working tree. The command
+    // line is where a change is judged; this page is where the project is.
+    changeScope: undefined,
   });
 }
 
@@ -230,6 +268,16 @@ export function groupPortalIssues(issues: CheckIssue[]): IssueGroup[] {
   return groupIssues(issues);
 }
 
+/** The shape `groupPortalIssues` returns — re-exported (type-only, no new relation: this
+ *  facade already declares the `cli/group-issues` coupling above) so the pipeline can name
+ *  a group's fields (`toGroup` in derive-rest.ts) without importing `cli/group-issues` itself. */
+export type { IssueGroup };
+
+/** Reuse the CLI's own coverage-code partition so the portal worklist splits
+ *  coverage issues out of rule-grouping exactly like the terminal's grouped
+ *  renderer (renderErrorSection / renderWarningSection). */
+export { FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES } from '../cli/group-issues.js';
+
 // ── FULL live boundary (phantom + declared-only + forbidden-type) ─────────────
 
 /**
@@ -258,20 +306,44 @@ export async function computePortalBoundary(
  * Scan the repo for active yg-suppress waivers and adapt them into the portal's flat
  * marker shape. Reuses the SAME scan `yg suppressions` runs. `typeCoverage` is the
  * caller's own classification, so a type-covered file is a waiver site here too.
+ *
+ * `underApproximatingAspectIds` (aspects declaring `errs: 'under'` — a deterministic
+ * check that produces no false positives by design) is computed here the SAME way
+ * `cli/suppressions.ts` computes it for the command-line inventory, and threaded into
+ * BOTH the scan (so its case-(d) "waives a check that cannot false-alarm" warning now
+ * also fires on the portal path, which it never did while this call passed `undefined`)
+ * and the adapter (so each marker's resolved `risk` can read `'errs-under'`). Returns
+ * the adapted markers ALONGSIDE the scan's raw `totalMarkers` (including non-waiver
+ * `enable` markers) so the caller can fill `PortalCounts.suppressionMarkers` without a
+ * second scan.
  */
 export async function scanPortalSuppressions(
   graph: Graph,
   projectRoot: string,
   repoFiles: string[],
   typeCoverage?: TypeCoverageResult,
-): Promise<SuppressionMarkerInput[]> {
+): Promise<{ markers: SuppressionMarkerInput[]; totalMarkers: number }> {
   const knownAspectIds = new Set(graph.aspects.map((a) => a.id));
   const draftAspectIds = new Set(
     graph.aspects.filter((a) => (a.status ?? 'enforced') === 'draft').map((a) => a.id),
   );
+  const underApproximatingAspectIds = new Set(
+    graph.aspects.filter((a) => a.errs === 'under').map((a) => a.id),
+  );
   const typeCoveredFiles = collectTypeCoveredFiles(typeCoverage?.covered);
-  const report = await runSuppressionsScan(projectRoot, repoFiles, knownAspectIds, collectMappingEntries(graph), undefined, typeCoveredFiles, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
-  return adaptSuppressions(report, knownAspectIds, draftAspectIds);
+  const report = await runSuppressionsScan(
+    projectRoot,
+    repoFiles,
+    knownAspectIds,
+    collectMappingEntries(graph),
+    underApproximatingAspectIds,
+    typeCoveredFiles,
+    graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
+  );
+  return {
+    markers: adaptSuppressions(report, knownAspectIds, draftAspectIds, underApproximatingAspectIds),
+    totalMarkers: report.totalMarkers,
+  };
 }
 
 // ── Attestation provenance: committed-lock hash + git commit ref (read-only) ──

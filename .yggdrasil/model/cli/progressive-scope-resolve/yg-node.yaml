@@ -1,0 +1,59 @@
+name: Progressive Scope Resolve
+type: command-support
+description: "Resolves the CHANGE SCOPE a `yg check` run gates against: which of
+  the run's obligations the current change is accountable for, measured against
+  the reference branch the project names in its configuration. It resolves the
+  git facts (merge-base, ancestry, work-tree cleanliness, tree identity, the
+  changed-file set, the work-tree top level, shallow-clone state, and whether
+  any submodule pointer appears among the changed paths), hands them to the
+  preflight decision table, and — only for a state that table agrees can be
+  measured — enumerates the run's expected obligations, reads the stored
+  verdicts they carry, reads the committed verdict record as it stood at the
+  reference, and asks the burn engine which of them the change reaches.
+
+  It answers that ONE question and hands the answer to the engine as plain
+  data. It decides nothing about any individual finding: which findings stop
+  blocking is a separate ladder with exactly one copy, in the check engine's own
+  classification step. This component once carried a second, simplified copy of
+  that ladder for an informational preview line, and the two could disagree
+  about the same finding; the preview and its copy are gone, and nothing here
+  reads a finding at all any more.
+
+  Two invariants shape the rest. First, a project that named no reference is
+  indistinguishable from one where this does not exist — the decision table is
+  consulted before any git process starts, so such a project's run is
+  byte-for-byte the one the command always produced. Second, every uncertainty
+  falls toward gating MORE: a state that cannot be resolved honestly never
+  becomes an empty scope (the positive claim 'this change reached nothing',
+  which would stop every finding in the report from blocking) but the
+  whole-project gate plus a notice naming the cause — including the case where
+  the verdict record committed at the reference cannot be read, since 'the
+  reference held no verdicts' and 'the record could not be read' are the same
+  empty set, and reading the second as the first would silently switch off the
+  check that notices a change deleting verdicts outright."
+aspects: []
+relations:
+  - target: cli/progressive-preflight
+    type: calls
+  - target: cli/core/progressive-scope
+    type: calls
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/core/check
+    type: calls
+  - target: cli/core/type-coverage
+    type: calls
+  - target: cli/io/lock-store
+    type: calls
+  - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/lock
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/cli/progressive-scope-resolve.ts

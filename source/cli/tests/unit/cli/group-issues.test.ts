@@ -1,5 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { groupIssues, CODE_ONLY_GROUP_CODES, FULL_WHAT_CODES } from '../../../src/cli/group-issues.js';
+import {
+  groupIssues,
+  CODE_ONLY_GROUP_CODES,
+  FULL_WHAT_CODES,
+  COVERAGE_GROUP_EXCLUDED_CODES,
+  coverageBlockLabel,
+  getIssueLabel,
+  issuePriorityRank,
+} from '../../../src/cli/group-issues.js';
+import { OUTSIDE_CODES } from '../../../src/core/check-codes.js';
 import { computeSuggestedNext } from '../../../src/core/check.js';
 import type { CheckIssue } from '../../../src/core/check.js';
 
@@ -331,5 +340,127 @@ describe('computeSuggestedNext — a pair this run proved cannot run never displ
       }),
     ];
     expect(computeSuggestedNext(errors)).toBe(cannotRunNext);
+  });
+});
+
+// ── Twins of the scoped codes, derived rather than hand-listed ───────────────
+
+/**
+ * Each of the three render sets decides how a code is presented: collapsed into
+ * one group, shown with its full actionable body, or pulled out as a file-list
+ * block. A finding put outside the change is the SAME finding — it must present
+ * the same way, or being outside the change silently costs a reader the
+ * reviewer's reason, the violation list, or the file names.
+ */
+describe('render code sets — the -outside twins', () => {
+  it('collapses `unverified-outside` by code, exactly as its untwinned form does', () => {
+    expect(CODE_ONLY_GROUP_CODES.has('unverified-outside')).toBe(true);
+    const groups = groupIssues([
+      iss({ severity: 'warning', code: 'unverified-outside', aspectId: 'audit-logging', nodePath: 'a' }),
+      iss({ severity: 'warning', code: 'unverified-outside', aspectId: 'retention', nodePath: 'b' }),
+      iss({ severity: 'warning', code: 'unverified-outside', aspectId: 'naming', nodePath: 'c' }),
+    ]);
+    // One block, not one per aspect — otherwise a run reporting inherited debt
+    // fragments into dozens of blocks and pushes real warnings past the cap.
+    expect(groups).toHaveLength(1);
+    expect(groups[0].pairCount).toBe(3);
+    expect(groups[0].aspectId).toBeUndefined();
+  });
+
+  it('keeps the full actionable body for every twin that can carry one', () => {
+    for (const code of [
+      'aspect-violation-enforced-outside',
+      'relation-undeclared-dependency-outside',
+      'type-relation-forbidden-outside',
+    ]) {
+      expect(FULL_WHAT_CODES.has(code), code).toBe(true);
+    }
+  });
+
+  it('invents no twin for a code a change scope can never twin', () => {
+    // `aspect-violation-advisory` is already a warning, so it is not scoped and
+    // no twin of it ever exists. A blanket `.map(outsideTwin)` would have put a
+    // code here that nothing can ever produce.
+    expect(FULL_WHAT_CODES.has('aspect-violation-advisory-outside')).toBe(false);
+  });
+
+  it('routes the inherited half of a split coverage finding to the file-list block', () => {
+    expect(COVERAGE_GROUP_EXCLUDED_CODES.has('unmapped-files-outside')).toBe(true);
+    expect(COVERAGE_GROUP_EXCLUDED_CODES.has('uncovered-advisory-outside')).toBe(false);
+  });
+
+  it('labels the inherited half by what it is, and says whose business it is', () => {
+    // Both halves of a split coverage finding appear in ONE report. Sharing a
+    // single word between them left the two distinguishable only by which
+    // severity section they happened to sit in — the marker every other
+    // outside-changes finding carries has to be here too.
+    expect(coverageBlockLabel('unmapped-files')).toBe('unmapped');
+    expect(coverageBlockLabel('unmapped-files-outside')).toBe('unmapped (outside changes)');
+    expect(coverageBlockLabel('uncovered-advisory')).toBe('uncovered');
+  });
+});
+
+/**
+ * Before this fix, EVERY warning shared one rank and fell back to alphabetical
+ * label order — including a `-outside` twin, whose label is exactly its base
+ * code's label plus " (outside changes)". A twin mirroring an early-alphabet
+ * base code (e.g. `aspect-violation-enforced` → "enforced") then sorted AHEAD
+ * of an unrelated genuine warning whose own label happens to sort later,
+ * purely by accident of which word its mirrored finding used — inherited debt
+ * outranking a warning the change actually caused. issuePriorityRank now
+ * sub-ranks every twin after every ordinary warning, so this cannot happen
+ * regardless of either one's label.
+ */
+describe('issuePriorityRank — -outside twins sort last among warnings', () => {
+  it('ranks a twin strictly below an ordinary warning of the same severity', () => {
+    const twin = iss({ severity: 'warning', code: 'unverified-outside' });
+    const ordinary = iss({ severity: 'warning', code: 'aspect-violation-advisory' });
+    expect(issuePriorityRank(twin)).toBeGreaterThan(issuePriorityRank(ordinary));
+  });
+
+  it('sorts a genuine warning ahead of a twin even when the twin\'s OWN label would sort first', () => {
+    const twin = iss({ severity: 'warning', code: 'unverified-outside', nodePath: 'a' });
+    // A code no aspect ever produces — chosen only so its label (which falls
+    // through getIssueLabel to the raw code) sorts AFTER the twin's label
+    // ('unverified (outside changes)') under a pure alphabetical tie-break.
+    const ordinary = iss({ severity: 'warning', code: 'zzz-unrelated-warning', nodePath: 'b' });
+    expect(getIssueLabel(twin) < getIssueLabel(ordinary)).toBe(true);
+    // Label-only ordering (the pre-fix behavior) would render the twin FIRST —
+    // exactly backwards. The fix ranks by severity/scope first, THEN label.
+    const groups = groupIssues([twin, ordinary]);
+    expect(groups.map((g) => g.code)).toEqual(['zzz-unrelated-warning', 'unverified-outside']);
+  });
+});
+
+// ── Outside-twin labels ──────────────────────────────────────────────────────
+
+/**
+ * A finding put outside the change is the same KIND of finding it always was —
+ * it is non-blocking because this change did not cause it, not because it turned
+ * into something else. Its label says exactly that, and is DERIVED from the
+ * label of the code it mirrors: a second, hand-written list of twin labels would
+ * drift the first time a base label changed, and a twin missing from such a list
+ * falls through to rendering its own raw code, which is how an internal
+ * identifier reaches a person's screen.
+ */
+describe('getIssueLabel — outside twins', () => {
+  it('borrows the mirrored label and adds the one phrase that says whose business it is', () => {
+    expect(getIssueLabel(iss({ code: 'aspect-violation-enforced' }))).toBe('enforced');
+    expect(getIssueLabel(iss({ code: 'aspect-violation-enforced-outside' }))).toBe('enforced (outside changes)');
+    expect(getIssueLabel(iss({ code: 'unverified-outside' }))).toBe('unverified (outside changes)');
+    expect(getIssueLabel(iss({ code: 'log-conflict-outside' }))).toBe('log-conflict (outside changes)');
+  });
+
+  it('never renders a twin as its raw code — every one of them, not a sample', () => {
+    for (const code of OUTSIDE_CODES) {
+      expect(getIssueLabel(iss({ code }))).not.toBe(code);
+      expect(getIssueLabel(iss({ code }))).toContain('(outside changes)');
+    }
+  });
+
+  it('leaves every other code exactly as it was', () => {
+    for (const code of ['unverified', 'aspect-violation-enforced', 'unmapped-files', 'lock-invalid']) {
+      expect(getIssueLabel(iss({ code }))).not.toContain('outside changes');
+    }
   });
 });

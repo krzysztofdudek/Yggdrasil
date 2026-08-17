@@ -15,6 +15,7 @@
 
 import type { ValidationIssue } from '../model/validation.js';
 import type { TypeVisibilityReport } from './type-visibility.js';
+import type { VerifiedPair } from './verify-lock.js';
 
 export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   /** All issues have a code -- override optional from ValidationIssue */
@@ -23,8 +24,6 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   uncoveredFiles?: string[];
   /** For unmapped-files: total count of uncovered files */
   uncoveredCount?: number;
-  /** For aspect-newly-active / aspect-violation-*: the aspect this issue concerns */
-  aspectId?: string;
   /**
    * For pair-derived issues (unverified / refused): the reviewer kind of the
    * pair. Lets the CLI's `--summary` view split per-node counts into
@@ -33,9 +32,13 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
    * structural), which the summary buckets as "other".
    */
   pairKind?: 'llm' | 'deterministic';
-  /** Pair-derived issues only: `pair.unitKey`, so a nodeless member's FILE can
-   *  render even though `nodePath` is undefined (same as a repo-level issue). */
-  unitKey?: string;
+  // `aspectId` / `unitKey` / `flowName` / `relationEdges` are inherited from
+  // `ValidationIssue` (model/validation.ts) — every non-pair emit site that
+  // stamps them (ambiguous-node-type, type-relation-forbidden,
+  // description-missing's aspect/flow cases, tracked-file-gitignored,
+  // type-strict-orphan, strict-overlap-conflict) produces a plain
+  // `ValidationIssue`, not a `CheckIssue`, so the fields have to live on the
+  // shared base to type-check there. See that interface for the full doc.
 }
 
 export interface CheckResult {
@@ -62,6 +65,15 @@ export interface CheckResult {
   verifiedDet: number;
   /** Count of VERIFIED LLM pairs. See `verifiedDet`. */
   verifiedLlm: number;
+  /**
+   * Every expected pair this run classified against the lock (verified,
+   * refused, unverified, prompt-too-large, or companion-error) — the SAME
+   * list `verifiedDet`/`verifiedLlm` are tallied from. A future classification
+   * step reads `pair.subjectFiles` off these to match a finding back to the
+   * files a change touched; nothing reads this field yet. Empty (never
+   * undefined) when the lock could not be read.
+   */
+  pairs: VerifiedPair[];
   /**
    * Whether `coverage.type_level` was on this run — gates the header's
    * node-owned/type-covered split and the zero-classifying-types notice.
@@ -96,4 +108,37 @@ export interface CheckResult {
   excludedFiles?: number;
   /** Per-file type-tier enforcement report. Undefined at flag-off. */
   typeVisibility?: TypeVisibilityReport;
+  /**
+   * How many enforced obligations fell OUTSIDE the change scope this run was
+   * given — one per `-outside` twin the classification produced, except the
+   * aggregate coverage twin, which counts the uncovered files it names (it is
+   * one finding standing for many obligations). Undefined whenever no scope was
+   * supplied, which is every run that does not opt in.
+   */
+  outsideCount?: number;
+  /** The plain name the change was measured against, for the report to quote. */
+  progressiveReference?: string;
+  /** How many changed paths that measurement actually accounted for. */
+  changedInputCount?: number;
+  /**
+   * How many findings the byte guard KEPT blocking — ones this run was about to
+   * report as inherited until their files turned out to differ from what the
+   * reference branch holds, whatever git said about them.
+   *
+   * Reported rather than kept internal because the number is also the symptom of
+   * a whole failure class: on a repository where a content filter sits between
+   * the stored blob and the working copy (a committed `.gitattributes` with
+   * `text eol=` or a `filter=` driver, large-file storage), every file
+   * legitimately differs, so every inherited finding is kept on every run and the
+   * measurement has effectively switched itself off. Without this number that
+   * state is indistinguishable from an ordinary red build. Undefined whenever no
+   * scope was supplied, which is every run that does not opt in.
+   */
+  byteGuardKept?: number;
+  /**
+   * The reference tree's object ids are in a format this build cannot reproduce,
+   * so the content check could not be made at all this run. Undefined whenever no
+   * scope was supplied.
+   */
+  byteGuardUnavailable?: boolean;
 }

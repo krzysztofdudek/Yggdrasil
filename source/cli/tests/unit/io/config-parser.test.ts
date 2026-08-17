@@ -1081,4 +1081,129 @@ quality:
     });
   });
 
+  // progressive — the reference a progressive run measures its scope against.
+  // Absent ⇒ the whole block is undefined and progressive mode is off (today's
+  // behavior, byte-identical). Strict when present, mirroring `signals`/`events`:
+  // the block must be a mapping, an unknown sibling is rejected with its own
+  // code, and `reference` must be a non-blank string. Committed-only, exactly
+  // like coverage.type_level: the reference decides how much of the graph a run
+  // gates, so a gitignored yg-secrets.yaml must never be able to move it.
+  describe('progressive', () => {
+    /** Write a config body (already including a version) to a fresh tmp dir and parse it. */
+    async function parseWith(body: string): Promise<YggConfig> {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-progressive-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      await writeFile(filePath, `version: "5.1.0"\n${body}`, 'utf-8');
+      try {
+        return await parseConfig(filePath, { skipSecretsOverlay: true });
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('is undefined when the key is absent (mode off)', async () => {
+      const cfg = await parseWith('debug: true\n');
+      expect(cfg.progressive).toBeUndefined();
+    });
+
+    it('parses a reference', async () => {
+      const cfg = await parseWith('progressive:\n  reference: origin/main\n');
+      expect(cfg.progressive).toEqual({ reference: 'origin/main' });
+    });
+
+    // The one shape that used to slip through every guard: a mapping, with no
+    // unknown sibling and no blank value to reject, that named nothing — so it
+    // parsed cleanly and turned the mode on in name only. That is exactly the
+    // silent no-op the rules on either side of it exist to make impossible, and
+    // it is what the user-facing page promises cannot happen.
+    it('refuses an empty block rather than turning the mode on in name only', async () => {
+      await expect(parseWith('progressive: {}\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
+      await expect(parseWith('progressive: {}\n'))
+        .rejects.toThrow(/progressive is present but names no reference/);
+    });
+
+    // The same block written the other way round — a key with nothing indented
+    // under it, which YAML reads as null. Refused by the mapping guard, but the
+    // promise is about the CONFIG, not about one spelling of it, so both ways of
+    // writing "on but naming nothing" are pinned here.
+    it('refuses a block with nothing under it at all', async () => {
+      await expect(parseWith('progressive:\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
+    });
+
+    it('rejects an unknown sibling key with config-progressive-unknown-key', async () => {
+      await expect(parseWith('progressive:\n  referense: origin/main\n'))
+        .rejects.toMatchObject({ code: 'config-progressive-unknown-key' });
+      await expect(parseWith('progressive:\n  referense: origin/main\n'))
+        .rejects.toThrow(/referense/);
+    });
+
+    it('rejects a non-mapping progressive block', async () => {
+      await expect(parseWith('progressive: origin/main\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
+      await expect(parseWith('progressive: origin/main\n'))
+        .rejects.toThrow(/progressive must be a mapping/);
+    });
+
+    it('rejects a non-string reference', async () => {
+      await expect(parseWith('progressive:\n  reference: 42\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
+      await expect(parseWith('progressive:\n  reference: 42\n'))
+        .rejects.toThrow(/progressive\.reference must be a non-empty string/);
+    });
+
+    it('rejects a blank reference rather than silently gating nothing', async () => {
+      await expect(parseWith('progressive:\n  reference: "   "\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
+    });
+
+    it('trims surrounding whitespace off the reference', async () => {
+      const cfg = await parseWith('progressive:\n  reference: "  origin/main  "\n');
+      expect(cfg.progressive?.reference).toBe('origin/main');
+    });
+
+    it('cannot be introduced by the secrets overlay (committed-only)', async () => {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-progressive-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      try {
+        await writeFile(filePath, 'version: "5.1.0"\ndebug: true\n', 'utf-8');
+        await writeFile(path.join(dir, 'yg-secrets.yaml'), 'progressive:\n  reference: origin/main\n', 'utf-8');
+        // Default read: the overlay IS merged for everything else, but a
+        // reference that exists only in the gitignored file must not turn
+        // progressive mode on.
+        const cfg = await parseConfig(filePath);
+        expect(cfg.progressive).toBeUndefined();
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('cannot be re-pointed by the secrets overlay (committed value wins)', async () => {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-progressive-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      try {
+        await writeFile(filePath, 'version: "5.1.0"\nprogressive:\n  reference: origin/main\n', 'utf-8');
+        await writeFile(path.join(dir, 'yg-secrets.yaml'), 'progressive:\n  reference: HEAD\n', 'utf-8');
+        const cfg = await parseConfig(filePath);
+        expect(cfg.progressive?.reference).toBe('origin/main');
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('the committed value survives an overlay that omits progressive entirely', async () => {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-progressive-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      try {
+        await writeFile(filePath, 'version: "5.1.0"\nprogressive:\n  reference: origin/main\n', 'utf-8');
+        await writeFile(path.join(dir, 'yg-secrets.yaml'), 'debug: true\n', 'utf-8');
+        const cfg = await parseConfig(filePath);
+        expect(cfg.progressive?.reference).toBe('origin/main');
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
 });

@@ -1,0 +1,57 @@
+name: Check Progressive Classification Unit Tests
+type: test-suite
+description: "Unit tests for the change-scope classification step — one case
+  per classification rule and, deliberately, per negative: a code outside the
+  scoped tier is untouched whatever its severity, an existing warning is
+  untouched, an outside twin is never re-twinned, a pair-keyed finding is
+  matched on the shared pair key (and a re-spelled key provably fails to
+  match), a finding naming a pair this run never enumerated stays blocking, a
+  component-keyed finding honours the log-only carve-out without letting it
+  rescue a non-log finding on the same component, a file-keyed and an
+  edge-list-keyed finding are matched on their own files, a finding with
+  missing or unrecognized identity stays blocking, the aggregate coverage
+  finding is split into a blocking and an inherited half each regenerated from
+  its own file list, a global scope is the identity function, and the outside
+  tally counts one per twin with the coverage half counted by its files. Built
+  against hand-built findings and hand-built burn sets (no fixture project, no
+  mocking).
+
+  Also the byte guard's GATHERING half, in both of its forms. The FINDING form
+  is checked once per identity a finding can carry — a component (resolved to
+  that component's own files through the graph's path patterns, the rung a
+  rule-check-only gathering missed entirely), a rule check, a file named by a
+  unit key, the two ends of every dependency edge, and the inherited half alone
+  of the aggregate coverage finding — plus every reason a finding is left alone
+  (already in scope, already a warning, a code never downgradable, no file it
+  could ask about), the fallback to a component's rule-check subjects when there
+  is no file walk, reading a shared file once, and preferring bytes the run has
+  already read over a second trip to disk. The PAIR form, which the fill stage
+  uses before any finding exists, is checked on the same axes: a failing
+  out-of-scope pair is gathered (including a valid verdict whose prompt outgrew
+  its tier, an error despite the pair being verified), while a passing pair, an
+  advisory refusal and an already-burned pair are skipped, and an unreadable
+  subject is carried as null rather than dropped. Both forms are checked in the
+  states where they do nothing and read nothing — no change scope, no reference
+  listing, a scope that already went global — and in the one where the reference
+  records ids the build cannot reproduce, which is reported rather than
+  swallowed. Both forms are also checked for the component -> rule-check index
+  they hand the decision and for resolving a component to the SAME files as each
+  other (asserted as an equality between the two halves, since sameness is the
+  property that broke, plus the shared fallback to rule-check subjects when no
+  file walk was supplied), and the per-identity file derivation is tested
+  directly — including the fixed-project-file rung, which no downgradable code
+  reaches today and which is therefore proved here rather than left as an
+  uncovered line. Every case runs against real files in a real throwaway
+  directory, since the one thing this half exists to do is the disk read the
+  pure comparer must not."
+aspects: []
+relations:
+  - target: cli/core/check
+    type: uses
+  - target: cli/core/check-codes
+    type: uses
+  - target: cli/core/progressive-scope
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/check-progressive.test.ts
+  - source/cli/tests/unit/core/check-byte-guard.test.ts

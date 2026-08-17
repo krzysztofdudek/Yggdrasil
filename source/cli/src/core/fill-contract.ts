@@ -92,6 +92,21 @@ export interface RunFillOptions {
    *  degenerate case that keeps every existing verdict path byte-identical.
    *  Never affects verdicts, only speed. */
   detConcurrency?: number;
+  /** INJECTED change scope: which of this run's obligations the current change is
+   *  accountable for, resolved by the CLI boundary from git output it read itself
+   *  (core reads no git here, exactly as on the read path). Typed off
+   *  RunCheckOptions so the two can never describe different shapes.
+   *
+   *  It narrows exactly one thing: the PAID fill set. Deterministic fills cost
+   *  nothing and their recorded observations are what a later scope computation
+   *  reads, so the free half stays whole-project; the mandatory-log gate stays
+   *  all-or-nothing over every component owning an unverified pair. It is also
+   *  forwarded to this stage's own report, so a recording run gates on exactly
+   *  what a plain read of the same working tree gates on.
+   *
+   *  Absent ⇒ the run answers for the whole project, which is what `--full` and
+   *  a project that never named a reference both mean. */
+  changeScope?: RunCheckOptions['changeScope'];
   /** Best-effort, io-side sink for the convergence sentinel's evidence dump
    *  (core/fill-divergence.ts). Injected from the CLI boundary so this engine
    *  module takes no core → io dependency; when absent the sentinel still emits

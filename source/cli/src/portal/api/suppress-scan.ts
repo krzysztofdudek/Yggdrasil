@@ -11,7 +11,6 @@ import { debugWrite } from '../../utils/debug-log.js';
 import { isNoiseFile, isMappedSource, isTypeCoveredSource, computeSuppressionScanUniverse } from './suppress-eligibility.js';
 import { NO_COVERAGE_EXCLUDED } from '../../io/repo-scanner.js';
 import type { CoverageConfig } from '../../model/graph.js';
-import type { SuppressionMarkerInput } from '../contract.js';
 
 /**
  * portal/api/suppress-scan — the suppression scan, relocated here so the portal
@@ -20,8 +19,10 @@ import type { SuppressionMarkerInput } from '../contract.js';
  *
  * The scan logic is byte-for-byte the same one `yg suppressions` has always run, moved
  * verbatim from the command module — so the command's behavior and tests are unchanged.
- * `scanPortalSuppressions` adapts the report into the portal's flat marker shape (with a
- * resolved per-marker `risk` flag) for the live inventory.
+ * `scanPortalSuppressions`, which adapts the report into the portal's flat marker shape
+ * (with a resolved per-marker `risk` flag) for the live inventory, lives in the sibling
+ * `suppress-adapt.ts` — split out so this file stays within its own file-size boundary,
+ * re-exported below so an existing caller of this module's public surface needs no change.
  */
 
 // ── Types ──────────────────────────────────────────────────
@@ -316,85 +317,9 @@ export function formatSuppressionsOutput(report: SuppressionsReport): string {
 }
 
 // ── Portal adaptation ─────────────────────────────────────
+//
+// `scanPortalSuppressions` (report → the portal's flat, risk-resolved marker shape) lives in
+// `./suppress-adapt.js`, split out to keep this file within its own size boundary; re-exported
+// here so every existing caller of this module's public surface keeps working unchanged.
 
-/**
- * Adapt the suppression report into the portal's flat marker shape, resolving each
- * marker's `risk` flag. Only the genuine, reviewer-honored waiver KINDS are inventoried
- * (`single` and `disable` — the markers that actually silence a check); `enable` markers
- * are range terminators, not waivers, so they are not surfaced as inventory entries.
- *
- * Risk resolution (first match wins, most-severe first):
- *   - wildcard  — a `*` marker (silences every aspect, present and future).
- *   - typo      — names an aspect id absent from the graph (no effect; likely a rename).
- *   - inert     — names a DRAFT aspect (the reviewer never runs there, so the waiver is a no-op).
- *   - unbounded — a `disable` with no matching `enable` in the same file (open range),
- *                 EXCEPT a file-head unclosed disable, which `yg suppressions` classifies
- *                 `file-level` (the sanctioned whole-file waiver): it is no-risk here too,
- *                 so the portal inventory and `yg suppressions` never disagree on it.
- */
-export function scanPortalSuppressions(
-  report: SuppressionsReport,
-  knownAspectIds: Set<string>,
-  draftAspectIds: Set<string>,
-): SuppressionMarkerInput[] {
-  // Re-derive open (unbounded) disable lines per file so each marker can be tagged.
-  const unboundedByFile = new Map<string, Set<number>>();
-  for (const { file, markers } of report.fileEntries) {
-    const disableStack = new Map<string, number[]>();
-    for (const m of markers) {
-      if (m.kind === 'disable') {
-        const stack = disableStack.get(m.aspectId) ?? [];
-        stack.push(m.line);
-        disableStack.set(m.aspectId, stack);
-      } else if (m.kind === 'enable') {
-        const stack = disableStack.get(m.aspectId);
-        if (stack && stack.length > 0) {
-          stack.pop();
-          if (stack.length === 0) disableStack.delete(m.aspectId);
-        }
-      }
-    }
-    const open = new Set<number>();
-    for (const lines of disableStack.values()) for (const l of lines) open.add(l);
-    if (open.size > 0) unboundedByFile.set(file, open);
-  }
-
-  const out: SuppressionMarkerInput[] = [];
-  for (const { file, markers } of report.fileEntries) {
-    const open = unboundedByFile.get(file);
-    for (const m of markers) {
-      if (m.kind === 'enable') continue; // range terminator, not a waiver entry
-      const risk = resolveRisk(m, file, open, knownAspectIds, draftAspectIds, report.fileLevelKeys);
-      out.push({
-        file,
-        line: m.line,
-        aspectId: m.aspectId,
-        reason: m.reason,
-        ...(risk ? { risk } : {}),
-      });
-    }
-  }
-  return out;
-}
-
-function resolveRisk(
-  m: SuppressionMarkerInfo,
-  file: string,
-  openLines: Set<number> | undefined,
-  knownAspectIds: Set<string>,
-  draftAspectIds: Set<string>,
-  fileLevelKeys: Set<string> | undefined,
-): SuppressionMarkerInput['risk'] | undefined {
-  if (m.wildcard) return 'wildcard';
-  if (!knownAspectIds.has(m.aspectId)) return 'typo';
-  if (draftAspectIds.has(m.aspectId)) return 'inert';
-  if (m.kind === 'disable' && openLines?.has(m.line)) {
-    // A file-head unclosed disable is the sanctioned whole-file waiver: `yg suppressions`
-    // classifies it `file-level` and does NOT warn "Unbounded". Honor the SAME signal
-    // (the scan's `fileLevelKeys`, computed once from each marker's `atFileHead`) so the
-    // portal inventory agrees with the CLI — such a marker is no-risk, never 'unbounded'.
-    if (fileLevelKeys?.has(`${file}:${m.line}`)) return undefined;
-    return 'unbounded';
-  }
-  return undefined;
-}
+export { scanPortalSuppressions } from './suppress-adapt.js';

@@ -1,0 +1,5 @@
+name: Api
+type: module
+description: "API surface — groups the service nodes for the portal-basic fixture."
+aspects: []
+relations: []

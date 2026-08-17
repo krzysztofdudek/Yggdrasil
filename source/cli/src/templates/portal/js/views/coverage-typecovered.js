@@ -39,9 +39,10 @@
   /**
    * A count key in the SAME shape as `key` above, for a count that is not one of the
    * nine honest states — a type-covered file has its own real verdict (verified,
-   * refused, or unverified, tallied in the bar above), so this key must never borrow a
-   * state's badge or label for it. Plain neutral glyph + a literal label. Also used by
-   * coverage-view.js's excluded-files block, which is likewise neither pass nor fail.
+   * refused, warning, or unverified — each rendered per-row via `enforcedRow` below),
+   * so this key must never borrow a state's badge or label for it. Plain neutral glyph
+   * + a literal label. Also used by coverage-view.js's excluded-files block, which is
+   * likewise neither pass nor fail.
    */
   function neutralKey(count, label, suffix) {
     var k = dom.el('span', 'cov-key');
@@ -86,22 +87,75 @@
   var TYPE_COVERED_LIST_CAP = 12;
 
   /**
-   * One row per entry (capped at `TYPE_COVERED_LIST_CAP`, with a trailing "... and N more" row
-   * beyond that), in a plain mono list. `formatRow` renders one entry's text; defaults to the
-   * `path — type-covered as <type>` form the enforced/unenforced lists use — the uncomputable
-   * list passes its own formatter to also name the cycle on every row.
+   * Sort priority for `typeCoveredList`'s pre-cap ordering: refused first, then an advisory
+   * warning, then no-recorded-verdict, then a clean verified row last. Worse-first so that on a
+   * project with more type-covered files than the cap, a real refusal can never be the row that
+   * gets pushed past the fold by a run of verified rows ahead of it in raw path order — per-row
+   * verdict visibility is the whole point of this listing. An entry with no `pairState` at all
+   * (the unenforced and uncomputable lists, which carry no per-row verdict to prioritize) ranks
+   * last of all and ties with every other such entry, so those two lists fall straight through to
+   * the path tie-break below and render exactly as before.
    */
-  function typeCoveredList(cls, entries, formatRow) {
+  function pairStateRank(state) {
+    switch (state) {
+      case 'refused': return 0;
+      case 'warning': return 1;
+      case 'unverified': return 2;
+      case 'verified': return 3;
+      default: return 4;
+    }
+  }
+
+  /**
+   * One row per entry (capped at `TYPE_COVERED_LIST_CAP`, with a trailing "... and N more" row
+   * beyond that), in a plain mono list. Entries are sorted worst-`pairState`-first (see
+   * `pairStateRank`) before the cap is applied, with path as the tie-break, so the ordering stays
+   * stable rather than shuffling on every render. `formatRow` renders one entry's text; defaults
+   * to the `path — type-covered as <type>` form the enforced/unenforced lists use — the
+   * uncomputable list passes its own formatter to also name the cycle on every row. `buildRow`,
+   * when given, replaces the plain text row entirely with a caller-built DOM node (the enforced
+   * list's `enforcedRow` below, which needs a real state badge — never a plain-text row can carry
+   * that) — `formatRow` is ignored for the shown rows in that case, but the "... and N more"
+   * summary row always stays plain text regardless of which one was passed.
+   */
+  function typeCoveredList(cls, entries, formatRow, buildRow) {
     var render = formatRow || function (e) { return e.path + ' — type-covered as ' + e.type; };
     var list = dom.el('div', 'cov-typelist ' + cls);
-    var shown = entries.slice(0, TYPE_COVERED_LIST_CAP);
+    var sorted = entries.slice().sort(function (a, b) {
+      var byState = pairStateRank(a.pairState) - pairStateRank(b.pairState);
+      if (byState !== 0) return byState;
+      return a.path < b.path ? -1 : a.path > b.path ? 1 : 0;
+    });
+    var shown = sorted.slice(0, TYPE_COVERED_LIST_CAP);
     for (var i = 0; i < shown.length; i += 1) {
-      list.appendChild(dom.el('div', 'cov-typerow mono', render(shown[i])));
+      list.appendChild(buildRow ? buildRow(shown[i]) : dom.el('div', 'cov-typerow mono', render(shown[i])));
     }
-    if (entries.length > TYPE_COVERED_LIST_CAP) {
-      list.appendChild(dom.el('div', 'cov-typerow cov-typerow-more', '... and ' + (entries.length - TYPE_COVERED_LIST_CAP) + ' more'));
+    if (sorted.length > TYPE_COVERED_LIST_CAP) {
+      list.appendChild(dom.el('div', 'cov-typerow cov-typerow-more', '... and ' + (sorted.length - TYPE_COVERED_LIST_CAP) + ' more'));
     }
     return list;
+  }
+
+  /**
+   * One row in the ENFORCED type-covered list — the one list whose entries carry a real
+   * `pairState` (verified / refused / unverified / warning; never `n/a` — see
+   * `PortalTypeCoveredFile.pairState`'s own doc). Renders the honest state badge from the
+   * shared state model (never an ad-hoc glyph or color), then the path + matched type, then —
+   * for `refused` AND `warning` only — the refusal reason(s) beneath the row, reusing the same
+   * `.cov-member-what` pre-wrapped muted-line treatment the worklist already uses for a
+   * reviewer's reason text. `warning` gets its reason rendered too: an advisory refusal is
+   * still a refusal with a real reason, and dropping it here would repeat the exact information
+   * loss this per-row rendering exists to remove. The unenforced/uncomputable lists never call
+   * this — neither carries a `pairState` to badge.
+   */
+  function enforcedRow(f) {
+    var row = dom.el('div', 'cov-typerow mono');
+    row.appendChild(Yg.states.badge(f.pairState));
+    row.appendChild(dom.el('span', null, ' ' + f.path + ' — type-covered as ' + f.type));
+    if (f.reasons && f.reasons.length && (f.pairState === 'refused' || f.pairState === 'warning')) {
+      row.appendChild(dom.el('span', 'cov-member-what', f.reasons.join('\n')));
+    }
+    return row;
   }
 
   /**
@@ -123,13 +177,19 @@
     var typeCoveredEnforced = typeCoveredEntries.filter(function (f) { return f.enforced; });
     var typeCoveredUnenforced = typeCoveredEntries.filter(function (f) { return !f.enforced; });
 
-    // `enforced` names architecture-level status, never a recorded verdict — how many of
-    // the enforced files have no recorded lock entry AT ALL for at least one of their rules.
-    // Cheaper than a full re-verification of every nodeless pair in the whole project, so
-    // this catches a pair the lock has never recorded at all, never one whose recorded
-    // verdict has gone stale since a source edit — unlike `yg owner --file` / `yg context
-    // --file`, scoped to one file each, which catch both.
-    var typeCoveredUnverified = typeCoveredEnforced.filter(function (f) { return f.unverified; }).length;
+    // `enforced` names architecture-level status, never a recorded verdict — the real verdict
+    // per enforced file is `pairState` (worst-state-wins over its nodeless pairs, an advisory
+    // refusal already folded down to `warning` by the same `displayPairState` transform every
+    // other surface reads through). Three SEPARATE, honest counts — never folded into one
+    // bucket, and a `warning` never silently added to `refused` (that would repeat the exact
+    // "refused reads as unverified" collapse this per-file rendering exists to remove):
+    //   - refusedCount    — a real, blocking "no" (== what yg check blocks on).
+    //   - warningCount    — a refusal on an ADVISORY aspect: non-blocking signal, its own figure.
+    //   - unverifiedCount — no recorded verdict at all yet (cold, or gone stale since an edit).
+    // A file whose pairState is `verified` contributes to none of the three — it needs no callout.
+    var refusedCount = typeCoveredEnforced.filter(function (f) { return f.pairState === 'refused'; }).length;
+    var warningCount = typeCoveredEnforced.filter(function (f) { return f.pairState === 'warning'; }).length;
+    var unverifiedCount = typeCoveredEnforced.filter(function (f) { return f.pairState === 'unverified'; }).length;
 
     // Shown as its own line, never inside "not in coverage fraction", so it is never read
     // as excluded from the ratio it actually contributes to. Omitted when zero (typeLevel
@@ -138,13 +198,16 @@
       ledger.appendChild(dom.el('div', 'cov-hair'));
       var typeCovered = dom.el('div', 'cov-nonpair');
       typeCovered.appendChild(dom.el('span', 'cov-nptag', 'counted above, no component of their own:'));
-      var enforcedSuffix = 'satisfied by a matched type' +
-        (typeCoveredUnverified > 0 ? '; ' + typeCoveredUnverified + ' with no recorded verdict' : '');
+      var enforcedSuffix = 'satisfied by a matched type';
+      if (refusedCount > 0 || warningCount > 0 || unverifiedCount > 0) {
+        var clause = refusedCount + ' refused';
+        if (warningCount > 0) clause += ', ' + warningCount + ' advisory';
+        clause += ', ' + unverifiedCount + ' with no recorded verdict';
+        enforcedSuffix += '; ' + clause;
+      }
       typeCovered.appendChild(neutralKey(typeCoveredEnforced.length, 'type-covered', enforcedSuffix));
       ledger.appendChild(typeCovered);
-      ledger.appendChild(typeCoveredList('cov-typelist-ok', typeCoveredEnforced, function (e) {
-        return e.path + ' — type-covered as ' + e.type + (e.unverified ? ' — unverified' : '');
-      }));
+      ledger.appendChild(typeCoveredList('cov-typelist-ok', typeCoveredEnforced, null, enforcedRow));
     }
 
     // A file matched by a type whose cascade produced NO applicable rule at all: no pair,

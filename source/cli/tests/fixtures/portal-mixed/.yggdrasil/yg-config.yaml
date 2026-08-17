@@ -1,0 +1,14 @@
+quality:
+  max_direct_relations: 10
+
+reviewer:
+  tiers:
+    standard:
+      provider: ollama
+      consensus: 1
+      config:
+        model: test
+        # Reserved port 1 (tcpmux) — guaranteed unreachable. This fixture's only
+        # aspect is deterministic, so no reviewer is ever contacted; the endpoint is
+        # pinned unreachable purely so a stray LLM pair could never reach a live service.
+        endpoint: http://127.0.0.1:1

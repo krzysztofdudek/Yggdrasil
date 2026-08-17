@@ -1,0 +1,5 @@
+name: NoFixmeComments
+description: "Source files must not ship FIXME markers in comments — track work in the issue tracker, not the code. Advisory: a genuine finding here is a heads-up, not a blocker."
+reviewer:
+  type: deterministic
+status: advisory

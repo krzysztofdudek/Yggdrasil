@@ -1,9 +1,13 @@
 name: Git Helpers Unit Tests
 type: test-suite
 description: "Unit tests for git and repository utility modules: git command
-  helpers, git introspection, and repository scanning"
+  helpers, git introspection, and repository scanning. The tree-listing probe
+  is checked against the engine's own object-id computation over a real
+  repository — every blob in a real tree, a binary file among them — because
+  that equality is the whole basis of the byte guard and is the one claim a
+  test built on fabricated values cannot make."
 aspects: []
-relations: [ { target: cli/io/stores, type: uses }, { target: cli/utils, type: uses }, { target: cli/tests/support, type: uses } ]
+relations: [ { target: cli/io/stores, type: uses }, { target: cli/utils, type: uses }, { target: cli/tests/support, type: uses }, { target: cli/core/progressive-scope, type: uses } ]
 mapping:
   - source/cli/tests/unit/utils/git.test.ts
   - source/cli/tests/unit/utils/git-introspect.test.ts

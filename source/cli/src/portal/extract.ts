@@ -17,25 +17,19 @@ import {
   computePortalSourceFileCounts,
   computePortalLockHash,
   readGitCommitRef,
-  describeCascadeCycle,
   PORTAL_SCHEMA_SUPPORTED,
   isPortalFileExcludedByCoverage,
   NO_COVERAGE_EXCLUDED,
   type LockVerification,
 } from './engine-api.js';
-import type {
-  PortalData,
-  PortalPairState,
-  PortalSuppression,
-  PortalTypeCoveredFile,
-  PortalTypeCoveredUncomputableFile,
-} from './contract.js';
+import type { PortalData, PortalPairState, PortalSuppression } from './contract.js';
 import { buildPortalNodes, displayPairState, type SuppressionsByFile } from './derive-nodes.js';
 import { buildAspects, buildFlows, buildTypes } from './derive-catalogue.js';
 import { buildSuppressions, buildHubs, buildResidue, buildWorklist } from './derive-rest.js';
 import { buildBoundary } from './derive-boundary.js';
 import { deriveStructure, type StructureTypeWidening } from './derive-metrics.js';
 import { buildCounts } from './derive-counts.js';
+import { buildTypeCoveredFiles } from './derive-type-coverage.js';
 
 /**
  * Extract the portal data contract from a project's graph + lock.
@@ -112,7 +106,10 @@ export async function extractPortalData(
 
   // Live suppression inventory (the facade reaches the ast/suppress scan). Indexed by
   // file so each node's mapped files pick up exactly the markers detected in them.
-  const suppressionMarkers = await scanPortalSuppressions(graph, projectRoot, repoFiles, typeCoverageResult);
+  // `totalSuppressionMarkers` (the scan's raw count, INCLUDING non-waiver `enable`
+  // markers) feeds `counts.suppressionMarkers` in the residue-track post-pass below.
+  const { markers: suppressionMarkers, totalMarkers: totalSuppressionMarkers } =
+    await scanPortalSuppressions(graph, projectRoot, repoFiles, typeCoverageResult);
   const flatSuppressions = buildSuppressions(suppressionMarkers);
   const suppressions = indexSuppressionsByFile(flatSuppressions);
 
@@ -178,63 +175,23 @@ export async function extractPortalData(
     (f) => !typeCoveredPaths.has(f) && isPortalFileExcludedByCoverage(f, coverageExclusion),
   );
 
-  // Per-file enforcement state for every type-covered file: "enforced" means at least one
-  // non-draft rule from the matched type's cascade actually applies to THIS file — read off
-  // the SAME nodeless expected pairs already computed above for the pair-count seam
-  // (`expected`), just re-indexed per file instead of only totalled, so this costs no second
-  // pass computation. A file with zero such pairs matched a type but has nothing that checks
-  // it — `yg check`'s own "satisfy coverage with no enforcement" state — and must never
-  // render the same as a file with a real pair (verified, refused, or unverified).
-  //
-  // A file an aspect `implies` cycle stopped from being resolved at all
-  // (`expected.uncomputableTypeCoverage`) is a THIRD, disjoint state: resolution never ran
-  // for it, so it is neither "enforced" nor the zero-rule state above — `core/type-visibility.ts`
-  // (the same producer `yg check`, `yg context --file`, and `yg owner --file` already read)
-  // excludes it from both for the identical reason. Folding it into `enforced: false` here
-  // would render it with the SAME "satisfy coverage with no enforcement" wording those three
-  // surfaces refuse to use for it — a resolved claim where the honest answer is unknown.
-  const enforcedTypeCoveredFiles = new Set<string>();
-  for (const p of expected.pairs) {
-    if (p.nodePath !== undefined) continue;
-    for (const f of p.subjectFiles) enforcedTypeCoveredFiles.add(f);
-  }
-  // `enforced` names architecture-level status, never a recorded verdict —
-  // `verification.pairs` (already computed above, at line 100/130/150's own
-  // cost, for the counts/node/aspect derivations) already carries a REAL
-  // per-pair re-verification for every nodeless pair too, because `typeCoverage`
-  // was threaded into `readAndVerifyLock` at the top of this function. Reading
-  // that result again here costs nothing further: no second pass, no extra I/O.
-  // A pair's state is `'verified'` or `'refused'` exactly when the lock holds a
-  // CURRENT valid entry for it (the input hash still matches); anything else —
-  // missing entirely, or present but stale since a source edit — is the same
-  // "no valid verdict on record" fact `yg check`, `yg owner --file`, and `yg
-  // context --file` already name for the identical pair, so the portal cannot
-  // answer more weakly than the verification it is already holding.
-  const unverifiedTypeCoveredFiles = new Set<string>();
-  for (const vp of verification.pairs) {
-    if (vp.pair.nodePath !== undefined) continue;
-    if (vp.state.kind === 'verified' || vp.state.kind === 'refused') continue;
-    for (const f of vp.pair.subjectFiles) unverifiedTypeCoveredFiles.add(f);
-  }
-  const uncomputableByFile = new Map<string, string>(); // file -> why (describeCascadeCycle's sentence)
-  for (const u of expected.uncomputableTypeCoverage) {
-    uncomputableByFile.set(u.file, describeCascadeCycle(u.cycle));
-  }
-  const typeCoveredEntries: PortalTypeCoveredFile[] = [];
-  const typeCoveredUncomputableEntries: PortalTypeCoveredUncomputableFile[] = [];
-  for (const [path, type] of typeCoveredMap) {
-    const why = uncomputableByFile.get(path);
-    if (why !== undefined) {
-      typeCoveredUncomputableEntries.push({ path, type, why });
-    } else {
-      typeCoveredEntries.push({ path, type, enforced: enforcedTypeCoveredFiles.has(path), unverified: unverifiedTypeCoveredFiles.has(path) });
-    }
-  }
+  // Per-file enforcement state for every type-covered file (enforced / honest pairState /
+  // uncomputable-by-implies-cycle) — a self-contained derivation over `expected` and
+  // `verification.pairs` already computed above, split into its own module (see
+  // derive-type-coverage.ts's own doc for the full "enforced" vs. "uncomputable" reasoning and
+  // the worstPairState-on-empty-array guard it protects).
+  const { entries: typeCoveredEntries, uncomputableEntries: typeCoveredUncomputableEntries } =
+    buildTypeCoveredFiles(expected, verification.pairs, typeCoveredMap);
 
   const residue = buildResidue(nodes, genuinelyUncovered, typeCoveredEntries, excludedFileList, typeCoveredUncomputableEntries);
-  const worklist = buildWorklist(checkResult);
+  // buildWorklist mirrors the CLI's own grouped/coverage split (renderErrorSection /
+  // renderWarningSection / renderUnmappedBlock) — `groups` is the rule-grouped worklist,
+  // `coverage` is the file-list block(s) `COVERAGE_GROUP_EXCLUDED_CODES` partitions out of
+  // grouping. Both are surfaced on `PortalData` (see `worklistCoverage`'s own doc there) so
+  // excluding coverage codes from grouping can never silently drop them from "needs attention".
+  const { groups: worklist, coverage: worklistCoverage } = buildWorklist(checkResult);
 
-  // Residue-track count post-pass. These four counts are NOT part of the count-parity
+  // Residue-track count post-pass. These five counts are NOT part of the count-parity
   // identity (verified/refused/unverified/coverage/severities) — they are the additive
   // honest-residue counts the header + Overview residue links display. buildCounts cannot
   // populate them: each depends on data derived AFTER the counts seam (the per-node array,
@@ -242,6 +199,7 @@ export async function extractPortalData(
   // exist. Deriving them from the SAME built data the views render guarantees the header
   // number can never disagree with the list beneath it (the "0 waived" lie this fixes).
   counts.suppressed = flatSuppressions.length;
+  counts.suppressionMarkers = totalSuppressionMarkers;
   counts.noRule = residue.noRuleNodes.length;
   counts.notApplicable = nodes.reduce((sum, n) => sum + n.notApplicable.length, 0);
   counts.typeCoveredUnenforced = residue.typeCovered.filter((f) => !f.enforced).length;
@@ -306,6 +264,7 @@ export async function extractPortalData(
     suppressions: flatSuppressions,
     hubs,
     worklist,
+    worklistCoverage,
     residue,
   };
 

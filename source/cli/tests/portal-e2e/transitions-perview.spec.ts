@@ -56,18 +56,39 @@ test.describe('§3a D — V1 Overview transitions', () => {
 test.describe('§3a D — V2 Coverage transitions', () => {
   test('worklist row "open" → SHELL-panel of the offending node', async ({ page, basicPage }) => {
     await page.goto(basicPage + '#/view/coverage');
-    await page.locator('.cov-worow .cov-deeplink').first().click();
+    // The member's deeplink button is a SIBLING of its group's `.cov-worow` header (inside
+    // the shared `.cov-worow-wrap`), never nested inside the header's own single-line flex
+    // row — coverage-worklist.js keeps `groupRow` and `headerRow` as separate elements so the
+    // deeplink can sit beside the header without breaking its single-line layout.
+    await page.locator('.cov-worow-wrap .cov-deeplink').first().click();
     const panel = page.locator('.app-panel');
     await expect(panel).toHaveClass(/open/);
     // The first unverified-group node is api/orders or api/users.
     await expect(panel.locator('.pan-path')).toHaveText(/api\/(orders|users)/);
   });
 
-  test('rule-group header "fix:" → V5 aspect detail', async ({ page, basicPage }) => {
+  test('rule-group header "fix:" → V5 aspect detail — only when the group carries a real aspect id', async ({ page, basicPage, typeCoveragePage }) => {
+    // portal-basic's plain (unapproved) coverage page: 'unverified' spans BOTH aspects it
+    // names (code-only grouping collapses the aspect id away) and 'rules-digest-stale' names
+    // no aspect at all (a repository-level finding) — NEITHER group carries a single real
+    // aspectId. Rendering a header link unconditionally and navigating using the group's
+    // display LABEL (e.g. "unverified (not yet reviewed)") as if it were a real aspect id
+    // would produce a dead link. The honest behavior is NO link here, not a link to nowhere.
     await page.goto(basicPage + '#/view/coverage');
-    await page.locator('.cov-rulehdr').first().click();
+    await expect(page.locator('.cov-rulehdr')).toHaveCount(0);
+
+    // portal-type-coverage, deterministically filled: the 'enforced' group is a single
+    // aspect-violation-enforced refusal and DOES carry a real aspectId (no-todo-comments), so
+    // its header renders a link — and clicking it navigates to THAT real aspect, never the
+    // group's own display label ("enforced").
+    await page.goto(typeCoveragePage + '#/view/coverage');
+    const link = page.locator('.cov-rulehdr', { hasText: 'no-todo-comments' });
+    await expect(link).toHaveCount(1);
+    await link.click();
     await expect(page).toHaveURL(/#\/(aspect|view\/rulebook)/);
     await expect(page.locator('.rb-table')).toBeVisible();
+    // The inspector panel that opens names the SAME aspect the header linked to.
+    await expect(page.locator('.pan-aspect')).toContainText('no-todo-comments');
   });
 
   test('LIVE boundary counter → V4 Relations', async ({ page, basicPage }) => {

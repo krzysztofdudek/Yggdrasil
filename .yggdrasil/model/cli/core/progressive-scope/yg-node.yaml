@@ -1,0 +1,61 @@
+name: Progressive Scope
+type: engine
+description: "Pure burn-set engine for progressive mode. Three parts. The
+  structural reach helpers answer which other graph elements one starting point
+  reaches: impliesClosure (unconditional structural closure over an aspect's
+  `implies` edges, deliberately not the node-bound, `when`-filtered
+  expandImpliesFiltered in core/graph/aspects.ts), buildReverseTargetIndex
+  (target nodePath -> every node declaring ANY relation to it, not only
+  port-consuming ones), and collectFlowParticipants (a flow's declared nodes
+  plus their descendants). computeBurnSet then composes them into the burn
+  table itself: given the touched set, the run's expected pairs and the
+  observation lists their stored verdicts carry, which pairs, node-keyed
+  issues, per-file issues and node logs the change is accountable for. Every
+  node a reach admits is burned WHOLE — its pairs AND its node-keyed issues —
+  because some reaches produce node-keyed findings and nothing else: editing
+  one node's declaration can make another node's import an undeclared
+  cross-node edge, and that finding names only the second node. With
+  the log.md carve-out (a log entry re-gates only that node's log channel, and
+  never enters the node set),
+  cold pairs failing closed via allowed-reads, and architecture / config
+  vocabulary escalating to the global gate. extractConfigVocabulary and
+  configVocabularyChanged decide that last one from two raw config texts the
+  caller supplies. Inverted indexes throughout: O(pairs + changed files), never
+  their product. Third, the BYTE GUARD: gitObjectDigest reads the repository's
+  object format off the recorded ids (the older 40-hex form or the newer
+  64-hex one; anything else disables the guard rather than mismatching every
+  file), hashGitBlob reproduces git's own object-id form under that digest
+  (over the header 'blob <byteLength>\\0' then the RAW bytes — never a decoded
+  string, so a binary subject compares correctly rather than mismatching
+  forever), and forceInScopeOnByteMismatch re-admits every candidate finding
+  whose files disagree with what the reference tree recorded. That is what
+  stops a file marked assume-unchanged or skip-worktree — which git reports as
+  unmodified however it was edited — from having its live findings re-coded as
+  inherited debt. A re-admitted file is put back in all THREE places the burn
+  table would have put it (files, its owning component TOGETHER WITH every rule
+  check that component owns — burnNode's own shape, so the answer is never
+  narrower than the honest table's for the same file — and the candidate's own
+  pair key when it has one), because a finding keyed by a component or a file is
+  decided by the first two and never by the third; changedInputCount follows
+  files, as it does in computeBurnSet. keptByByteGuard reads how many findings
+  were re-admitted off the two burn sets rather than off finding identity, since
+  the aggregate coverage finding is rebuilt by classification rather than handed
+  back and would otherwise count as nothing. It may only ADD: every set comes back a
+  superset, global is untouched, and with nothing forced the input object itself
+  is returned. A null listing skips the guard entirely rather than being read as
+  an empty one. No I/O of any kind — graph, ids and bytes in, sets out."
+relations:
+  - target: cli/core/graph
+    type: calls
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/structure
+    type: calls
+  - target: cli/relations/core
+    type: calls
+  - target: cli/model/lock
+    type: uses
+  - target: cli/io/stores
+    type: calls
+mapping:
+  - source/cli/src/core/progressive-scope.ts

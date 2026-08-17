@@ -11,15 +11,23 @@
  *      whole fill (no fills, no LLM calls).
  *   2. Classify pairs through the SAME engine plain check uses (verifyLock) —
  *      one implementation, so a verdict fill writes here verifies there.
- *      prompt-too-large pairs are SKIPPED (gate precedence, §4).
- *   3. Pre-dispatch header: counts.
- *   4. Log gate (§9), ALL-OR-NOTHING: if ANY log_required node's source
- *      fingerprint drifted with no fresh entry, the run fills NOTHING (throws
- *      FillGatingError before any deterministic or LLM fill) and stays red.
+ *      prompt-too-large pairs are SKIPPED (gate precedence, §4). When the caller
+ *      supplies a change scope, the PAID half of the fill set is narrowed to the
+ *      obligations that change is accountable for; the free deterministic half
+ *      is always the whole project.
+ *   3. Pre-dispatch header: counts — of what will actually be filled, plus what
+ *      was deliberately left alone and why.
+ *   4. Log gate (§9), ALL-OR-NOTHING and deliberately UNNARROWED: if ANY
+ *      log_required node's source fingerprint drifted with no fresh entry, the
+ *      run fills NOTHING (throws FillGatingError before any deterministic or LLM
+ *      fill) and stays red — including for a component the current change never
+ *      reached, since a recorded verdict must not rest on an unexplained edit
+ *      whoever made it.
  *   5. Deterministic fills FIRST (free) → deterministic gate (a node with an
  *      enforced det refusal skips its LLM fills this run).
  *   6. LLM fills (grouped by tier; one provider per tier; run-scoped caches).
- *   7. Positive closure (§7.5): a node with all enforced pairs approved records
+ *   7. Positive closure (§7.5): a node with all enforced pairs settled — approved
+ *      this run, or deliberately left unbought by a change-scoped run — records
  *      its source fingerprint + log baseline.
  *   8. GC + canonical rewrite (§3.2).
  *   9. Re-run the read (runCheck) and return its result.
@@ -100,7 +108,7 @@ import { runLlmPhase } from './fill-llm-phase.js';
 import { logGateBlocks } from './fill-log-gate.js';
 import { applyPositiveClosure } from './fill-closure.js';
 import { garbageCollectAndRewrite } from './fill-gc.js';
-import { reportDivergenceIfDetected } from './fill-divergence.js';
+import { countPostUnverified, reportDivergenceIfDetected } from './fill-divergence.js';
 import { ProgressTracker } from './fill-progress.js';
 // ── Relation pass (parse + resolve) — same index runCheck's own pass builds,
 //    so a `relations:` applicability atom is answered identically here. ──
@@ -197,21 +205,28 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   }
 
   // ── Step 2: Classify pairs through the SAME engine plain check uses. ───────
+  // The change scope narrows the PAID half of the fill set and nothing else —
+  // see fill-classify.ts. `nodeSet` below stays the unfiltered log-gate set;
+  // every number this run reports comes from the report sets beside it.
   const lock = readLock(graph.rootPath);
-  const classification = await classifyFillPairs(graph, lock, typeCoverageInput, onlyDeterministic);
+  const classification = await classifyFillPairs(
+    graph, lock, typeCoverageInput, onlyDeterministic, opts.changeScope, opts.coverageVisibleFiles,
+  );
   const {
-    verification, unverifiedPairs, detPairs, llmPairs, skippedLlmPairs,
-    aspectById, deterministicAspectIds, detAspectIdsOnDisk, nodeSet, fileSet, reviewerCallBudget,
+    verification, unverifiedPairs, detPairs, llmPairs, skippedLlmPairs, skippedOutsideLlmPairs,
+    skippedOutsideLlmPairKeys, aspectById, deterministicAspectIds, detAspectIdsOnDisk, nodeSet,
+    reportNodeSet, reportFileSet, reviewerCallBudget,
   } = classification;
 
   // ── Step 3: Pre-dispatch header (EXACT). ──────────────────────────────────
   writeDispatchHeader({
-    unverifiedPairs: unverifiedPairs.length,
-    nodeCount: nodeSet.size,
-    fileCount: fileSet.size,
+    fillPairs: detPairs.length + llmPairs.length,
+    nodeCount: reportNodeSet.size,
+    fileCount: reportFileSet.size,
     detPairs: detPairs.length,
     reviewerCallBudget,
     skippedLlmPairs,
+    skippedOutsideLlmPairs,
   }, write);
 
   // ── Dry-run: cost preview, no writes. ──────────────────────────────────────
@@ -221,7 +236,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // log gate below (a cost preview must not require a fresh log entry); only the
   // step-1 structural/config gate, which already ran above, can abort a preview.
   if (dryRun) {
-    writeDryRunBreakdown(graph, { unverifiedPairs, aspectById, onlyDeterministic, reviewerCallBudget }, write);
+    writeDryRunBreakdown(graph, { detPairs, llmPairs, aspectById, reviewerCallBudget }, write);
     const prunePreview = await previewPruneSummary(graph, lock, {
       typeCoverage: typeCoverageInput,
       detAspectIdsOnDisk,
@@ -240,6 +255,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       // re-parsing every mapped source file to rediscover what is already here.
       precomputedRelationPass: relPassResult,
       precomputedVerification: verification,
+      // The same measurement the preview priced against, so the report under a
+      // budget describes the same run that budget is for: a preview that priced
+      // only the change's obligations must not then print a wall of findings
+      // the change is not accountable for as though the fill would clear them.
+      changeScope: opts.changeScope,
     });
     return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0, runtimeDispositions: [] };
   }
@@ -276,7 +296,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     throw new FillGatingError([{
       code: 'log-entry-required',
       what: `${blockedNodes.size} node(s) need a fresh log entry before --approve.`,
-      why: 'Source changed on log_required nodes without a justification entry; nothing was approved this run.',
+      why: 'Their source has drifted from the state their recorded verdicts were written over — by earlier commits as easily as by anything in progress now — and log_required nodes owe a justification entry for that. Nothing was approved this run.',
       next: 'Add the log entries listed above (yg log add), then re-run: yg check --approve',
     }]);
   }
@@ -360,7 +380,15 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // Skipped under --only-deterministic: closure records source + log baseline to the
   // COMMITTED logs file, which a deterministic-only / CI run must never write.
   if (!onlyDeterministic) {
-    await applyPositiveClosure(graph, projectRoot, lock, blockedNodes, writer.persistLock, typeCoverageInput);
+    // The skipped set is what lets closure tell a pair this run was told not to
+    // buy from one that is unverified because something went wrong. Without it a
+    // scoped run would leave every such component's cycle open forever, and an
+    // open cycle lets ONE justification entry answer for every later edit — see
+    // applyPositiveClosure's own note on (c).
+    await applyPositiveClosure(
+      graph, projectRoot, lock, blockedNodes, writer.persistLock, typeCoverageInput,
+      skippedOutsideLlmPairKeys,
+    );
   }
 
   // ── Step 8: GC + canonical rewrite (§3.2). ────────────────────────────────
@@ -384,6 +412,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     companionRuntimeErrors: llm.companionRuntimeErrors,
     malformedSuppressErrors: det.malformedSuppressErrors,
     skippedLlmPairs,
+    skippedOutsideLlmPairs,
     infraReport: llm.infraReport,
   }, write, emitIssue);
 
@@ -415,6 +444,12 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     // (plain `yg check`, or a later separate invocation) passes nothing here and
     // gets runCheck's own empty-array default — the qualified fallback wording.
     runtimeDispositions: det.runtimeDispositions,
+    // This run's own measurement, so a recording run and a plain read of the
+    // same working tree agree about the build. Without it the two disagreed by
+    // construction: a project could pass `yg check` and fail `yg check
+    // --approve` on findings the change never reached, and the command the
+    // failing report pointed at was the one that answered for everything.
+    changeScope: opts.changeScope,
   });
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────
@@ -427,7 +462,13 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // fill flow, and is wrapped in a swallow-all — a sentinel failure must never
   // fail a fill.
   try {
-    const postUnverified = checkResult.issues.filter((i) => i.code === 'unverified').length;
+    // Both spellings of the same finding — see countPostUnverified.
+    const postUnverified = countPostUnverified(checkResult.issues);
+    // Deliberately the UNFILTERED classification count, not the fill set: the
+    // pathology is "the classifier found nothing to do, yet pairs are still
+    // unverified afterwards". A run that found work and then narrowed it away
+    // has an obvious, honest reason for the leftovers, and priming the sentinel
+    // with the narrowed number would fire it on every scoped run.
     const shape = { toFill: unverifiedPairs.length, postUnverified, lockWrites: writer.lockWrites };
     await reportDivergenceIfDetected(shape, lock, {
       emitIssue,

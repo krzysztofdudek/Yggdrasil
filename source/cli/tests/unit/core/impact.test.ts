@@ -651,6 +651,33 @@ describe('touchedReferencesFile', () => {
     expect(touchedReferencesFile([['graph-children:cli/x', 'h']], '.yggdrasil/model/cli/y/yg-node.yaml')).toBe(false);
   });
 
+  it('graph-children:<parentNodePath> also matches a DIRECT child’s own yg-node.yaml', () => {
+    // A directory becomes a node exactly when it gains a yg-node.yaml, so adding
+    // or deleting that file is what moves the recorded children() membership —
+    // and the unit that observed it is often not the parent at all.
+    expect(
+      touchedReferencesFile([['graph-children:cli/x', 'h']], '.yggdrasil/model/cli/x/child/yg-node.yaml'),
+    ).toBe(true);
+  });
+
+  it('graph-children:<parentNodePath> does NOT match a grandchild’s yg-node.yaml', () => {
+    // cli/x/child/deep is a child of cli/x/child, not of cli/x — the loader
+    // refuses to descend past a directory with no yg-node.yaml, so a node two
+    // levels down can only move the INTERMEDIATE node's children.
+    expect(
+      touchedReferencesFile(
+        [['graph-children:cli/x', 'h']],
+        '.yggdrasil/model/cli/x/child/deep/yg-node.yaml',
+      ),
+    ).toBe(false);
+  });
+
+  it('graph-children:<parentNodePath> does not match a non-yaml file under a child', () => {
+    expect(
+      touchedReferencesFile([['graph-children:cli/x', 'h']], '.yggdrasil/model/cli/x/child/log.md'),
+    ).toBe(false);
+  });
+
   it('graph-flow:<flowName> whose yg-flow.yaml matches repoRelative returns true', () => {
     // target='checkout' → .yggdrasil/flows/checkout/yg-flow.yaml
     const repoRel = '.yggdrasil/flows/checkout/yg-flow.yaml';

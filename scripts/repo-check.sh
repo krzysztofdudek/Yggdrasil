@@ -183,6 +183,21 @@ run_step "Rules: digest freshness (root + examples)" "$REPO_ROOT" "
     [ -d \"\$d.yggdrasil\" ] || continue
     verify_one \"\${d%/}\" || fail=1
   done
+  # A test fixture is not an adopter example — most carry a .yggdrasil/ graph with no
+  # agent-rules install on purpose (they exist to test the graph, not to demonstrate the
+  # install), so entering every fixture the way the examples/*/ loop does would fail this
+  # step on fixtures that never opted into a digest anchor at all. Opt-in instead: any
+  # fixture whose AGENTS.md already carries a 'yggdrasil:digest' anchor asked to be kept
+  # fresh, so verify only those. This is what actually catches a fixture like
+  # portal-coverage-only (whose AGENTS.md pins a real digest sha256 so its e2e spec can
+  # assert on an install-carrying project) going stale after a templates/digest.ts edit —
+  # this step used to check only the repo root and examples/*/, so that drift surfaced as
+  # unrelated-looking portal e2e failures instead of here.
+  for d in source/cli/tests/fixtures/*/; do
+    d=\"\${d%/}\"
+    grep -q 'yggdrasil:digest' \"\$d/AGENTS.md\" 2>/dev/null || continue
+    verify_one \"\$d\" || fail=1
+  done
   exit \$fail
 "
 # Standing measurement, never a gate on its own: reports the largest LLM reviewer

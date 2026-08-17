@@ -21,6 +21,89 @@ export const useEmoji: boolean = chalk.level > 0;
 
 // ── Header ─────────────────────────────────────────────────
 
+/**
+ * The header's account of a run that measured a change against a reference
+ * branch: how much of the project's enforced debt this run declined to block
+ * on, and how big the change it measured was.
+ *
+ * Absent — not zeroed — for every run that measured nothing: no reference
+ * configured, the whole project explicitly asked for, or a state that could not
+ * be measured (which gets its own notice instead). That absence is what keeps a
+ * project that never opted in byte-identical to what this command always
+ * printed.
+ *
+ * The two shapes are genuinely different statements, not one sentence with a
+ * zero in it. "Nothing in scope" is the answer for a checkout that carries no
+ * change at all — a reference branch in CI, a clean working copy — where a
+ * count of changed inputs would only invite the reading "0 files, therefore
+ * this run proved nothing". It did prove something: that everything it found
+ * was already there.
+ *
+ * That sentence is claimed only when the report can back it up, which is why it
+ * reads `errorCount` as well. A count of zero changed inputs is not quite proof
+ * that nothing was in scope: a change consisting ONLY of engine output — a
+ * commit that deletes entries from the committed verdict record, say — is
+ * counted as zero changed inputs (those files are dropped unread) while the
+ * obligations whose verdicts it destroyed ARE in scope and DO block. Printing
+ * "nothing in scope" beside those errors would contradict the very list under
+ * it, so a run with anything blocking gets the plain shape instead, zero and
+ * all.
+ *
+ * Exported because the `--aspect` drill-in view (check-render-views.ts) OVERWRITES
+ * the header line this normally feeds with its own aspect-scoped verdict, which
+ * silently dropped the change-scope segment; that view calls this directly,
+ * with the SAME `errorCount` (the true total, not the aspect-filtered one) the
+ * plain header would have used, so it reprints the identical sentence rather
+ * than computing a second, aspect-scoped number nothing else in the report
+ * shows.
+ */
+export function renderChangeScope(result: CheckResult, errorCount: number): string | undefined {
+  const reference = result.progressiveReference;
+  if (reference === undefined) return undefined;
+  const outside = result.outsideCount ?? 0;
+  const changed = result.changedInputCount ?? 0;
+  const obligations = `${outside} obligation${outside === 1 ? '' : 's'} outside your changes vs ${reference}`;
+  return changed === 0 && errorCount === 0
+    ? `nothing in scope; ${obligations}`
+    : `${obligations} (${changed} changed input${changed === 1 ? '' : 's'})`;
+}
+
+/**
+ * The one line the content check owes a person, or nothing when it has nothing
+ * to say. A standing statement of fact, printed ahead of every view beside the
+ * other such lines — never an issue, never counted, never blocking.
+ *
+ * It exists because both of the states it reports are otherwise INVISIBLE. A
+ * finding the content check kept is reported exactly like any other blocking
+ * finding, so a repository where every file legitimately differs from its stored
+ * form — a committed `.gitattributes` with `text eol=`/`filter=`, or large-file
+ * storage, on any platform and in CI as readily as on a laptop — has every
+ * inherited finding kept on every run while the header goes on claiming a
+ * measurement was made. That is a mode which has effectively switched itself off,
+ * and it must say so in its own output rather than only in its documentation. The
+ * second state is the same failure with a different cause: ids this build cannot
+ * reproduce, where the check could not be made at all.
+ *
+ * The closing clause names the cost that state actually carries, which is not
+ * the extra gating: nothing is left inherited, so a recording run pays to review
+ * the whole project. That is ordinary behaviour for a run with nothing outside
+ * it — it predates any of this — but it is what a person on such a checkout
+ * feels, and it is worth saying beside the reason.
+ *
+ * Says nothing at all in the ordinary case (zero kept, ids readable), so a run
+ * that never met either state prints exactly what it always printed.
+ */
+export function renderByteGuardNotice(result: CheckResult): string | undefined {
+  const reference = result.progressiveReference;
+  if (reference === undefined) return undefined;
+  if (result.byteGuardUnavailable === true) {
+    return `Content check skipped: '${reference}' records file identifiers this version cannot reproduce, so findings were judged on git's report of what changed and nothing else.`;
+  }
+  const kept = result.byteGuardKept ?? 0;
+  if (kept === 0) return undefined;
+  return `Content check: ${kept} finding${kept === 1 ? '' : 's'} kept in scope — the file${kept === 1 ? '' : 's'} behind ${kept === 1 ? 'it' : 'them'} differ${kept === 1 ? 's' : ''} from '${reference}' although git reports no change there. If that happens to everything on every run, something is rewriting files between storage and your working copy (a committed .gitattributes 'text eol='/'filter=', or large-file storage) — nothing is then inherited, so 'yg check --approve' pays to review the whole project.`;
+}
+
 export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji): string {
   let verdict: string;
   if (errorCount > 0) {
@@ -69,6 +152,9 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
   if (result.draftSkipped > 0) {
     metrics.push(`${result.draftSkipped} draft`);
   }
+
+  const changeScope = renderChangeScope(result, errorCount);
+  if (changeScope !== undefined) metrics.push(changeScope);
 
   return `${emojiPrefix}${verdict}  ${metrics.join(' · ')}`;
 }

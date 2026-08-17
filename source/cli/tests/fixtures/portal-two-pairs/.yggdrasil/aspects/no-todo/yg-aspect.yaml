@@ -1,0 +1,7 @@
+name: NoTodo
+description: "Source files must not ship a TODO marker — track outstanding work in the issue tracker, not in code."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+errs: under

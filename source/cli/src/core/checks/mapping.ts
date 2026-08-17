@@ -1,6 +1,7 @@
 import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 import type { ValidationIssue } from '../../model/validation.js';
+import { fileUnit } from '../../model/lock.js';
 import { normalizeMappingPaths } from '../../io/paths.js';
 import { expandMappingPaths, expandMappingPathsWithinOwnGraph } from '../../io/hash.js';
 import { mappingEntryMatchesFile, isGlobPattern, normalizeMappingPath } from '../../utils/mapping-path.js';
@@ -120,7 +121,15 @@ export async function checkStrictBackwardCoverage(
   const repoFiles = filterExcludedFromGraph(await walkRepoFiles(projectRoot), exclusion);
   const issues: ValidationIssue[] = [];
   const unreadable: ValidationIssue[] = [];
-  const overlapPairsSeen = new Set<string>();
+  // Keyed by sorted type-pair, holding the ISSUE OBJECT already pushed into
+  // `issues` for that pair (not just a seen-flag): a later file matching the
+  // same pair must not push a second issue (dedup, unchanged), but its file
+  // must still be recorded on the first issue's `relationEdges` — the
+  // structured field has to carry every matching file, not only the one the
+  // message samples. Mutating the already-pushed object in place (rather than
+  // deferring the push) keeps `issues`' push order/count/timing byte-identical
+  // to before this field existed.
+  const overlapIssueByPair = new Map<string, ValidationIssue>();
 
   // File→owner resolution must agree with the runtime child-precedence rule
   // (getChildMappingExclusions and the live relation-conformance owner index):
@@ -177,9 +186,18 @@ export async function checkStrictBackwardCoverage(
       for (let i = 0; i < sorted.length; i++) {
         for (let j = i + 1; j < sorted.length; j++) {
           const key = `${sorted[i]}|${sorted[j]}`;
-          if (overlapPairsSeen.has(key)) continue;
-          overlapPairsSeen.add(key);
-          issues.push({
+          const existing = overlapIssueByPair.get(key);
+          if (existing) {
+            // Same pair, a later file: message stays the first file's example
+            // (sampling is a display concern), but the edge list must be
+            // complete. No real from/to relationship exists here — one file,
+            // not a pair, is the subject — so each entry is a self-referencing
+            // {fromFile, toFile}, reusing type-relation-forbidden's aggregate
+            // edge-list shape rather than adding a second field for it.
+            existing.relationEdges!.push({ fromFile: relPath, toFile: relPath });
+            continue;
+          }
+          const issue: ValidationIssue = {
             severity: 'error',
             code: 'strict-overlap-conflict',
             rule: 'strict-overlap-conflict',
@@ -188,7 +206,10 @@ export async function checkStrictBackwardCoverage(
               why: `Both types declare enforce: strict — each demands that any matching file be owned by a node of its type. With the one-owner rule, satisfying both simultaneously is impossible.`,
               next: `Narrow one of the when predicates so they cannot both match the same file.\nRun: yg impact --type ${sorted[i]}\nRun: yg impact --type ${sorted[j]}`,
             }),
-          });
+            relationEdges: [{ fromFile: relPath, toFile: relPath }],
+          };
+          overlapIssueByPair.set(key, issue);
+          issues.push(issue);
         }
       }
       continue; // Conflict supersedes orphan/misplaced for this file.
@@ -239,6 +260,7 @@ export async function checkStrictBackwardCoverage(
           why: `Type '${typeId}' has enforce: strict — every file satisfying its when must belong to a mapping of a node of type '${typeId}'. Otherwise the file looks like a ${typeId} but bypasses ${typeId}-level enforcement.`,
           next: `Create yg-node.yaml with type: ${typeId} and add '${relPath}' to its mapping.`,
         }),
+        unitKey: fileUnit(relPath),
       });
     } else if (owner.nodeType !== typeId) {
       issues.push({

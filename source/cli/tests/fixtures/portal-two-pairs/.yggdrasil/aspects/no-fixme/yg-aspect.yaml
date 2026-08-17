@@ -1,0 +1,7 @@
+name: NoFixme
+description: "Source files must not ship a FIXME marker — track outstanding work in the issue tracker, not in code."
+reviewer:
+  type: deterministic
+scope:
+  per: file
+errs: under

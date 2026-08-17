@@ -45,8 +45,10 @@ test.describe('§3a SHELL-panel — Node Attestation + global transitions', () =
     const aspRow = panel.locator('.pan-asprow').first();
     await expect(aspRow.locator('.pan-aspname')).toHaveText('no-todo-comments');
     await expect(aspRow.locator('.pan-badge')).toContainText('deterministic');
-    // The unverified caveat appears — an honest "we don't know", never a stale pass.
-    await expect(aspRow).toContainText('not a stale pass');
+    // The enforcement-level chip is present and reflects this rule's real status (enforced).
+    await expect(aspRow.locator('.pan-status')).toHaveText('enforced');
+    // The unverified caveat appears, status-aware: enforced blocks until reviewed.
+    await expect(aspRow).toContainText('blocks until reviewed');
   });
 
   test('the effective-aspect name opens the rule in the inspector panel', async ({ page, basicPage }) => {

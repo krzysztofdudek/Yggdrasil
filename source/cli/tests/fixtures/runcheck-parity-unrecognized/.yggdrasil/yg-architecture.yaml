@@ -1,0 +1,9 @@
+node_types:
+  module:
+    description: 'Organizational grouping — owns no files of its own'
+    log_required: false
+  engine:
+    description: 'Engine unit — owns source files'
+    log_required: false
+    when:
+      path: "**"

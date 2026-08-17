@@ -1,0 +1,7 @@
+name: Code
+type: leaf
+description: "All source for the suppress-forms fixture — one node mapping the whole src/ tree so every waiver shape (file / range / line) sits on a real, checked file."
+aspects: []
+relations: []
+mapping:
+  - src/

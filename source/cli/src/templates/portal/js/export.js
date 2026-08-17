@@ -32,13 +32,18 @@
       .join('\r\n');
   }
 
-  /** CSV of the suppression inventory: every active waiver with its resolved risk flag. */
+  /**
+   * CSV of the suppression inventory: every active waiver with its resolved risk flag and its
+   * span (`form` — line / range / file). The page's own listing shows both; the export must not
+   * show less than the page does — a whole-file waiver and a single-line one otherwise exported
+   * indistinguishably from each other.
+   */
   function buildSuppressionsCsv(data) {
-    var rows = [['file', 'line', 'aspect', 'risk', 'reason']];
+    var rows = [['file', 'line', 'aspect', 'form', 'risk', 'reason']];
     var sups = (data.suppressions || []).slice();
     for (var i = 0; i < sups.length; i += 1) {
       var s = sups[i];
-      rows.push([s.file, s.line, s.aspectId, s.risk || 'none', s.reason || '']);
+      rows.push([s.file, s.line, s.aspectId, s.form || '', s.risk || 'none', s.reason || '']);
     }
     return csvRows(rows);
   }

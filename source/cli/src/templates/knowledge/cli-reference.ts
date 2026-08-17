@@ -82,6 +82,56 @@ never a silent full dump — for the single suggested-next group use bare
 matching the count the build enforces. Orient with \`--summary\`/\`--top\`, drill
 with \`--aspect\` or plain \`yg check\`.
 
+### \`--full\`: report the whole project
+
+A project can name a branch that changes are measured against (the
+\`progressive\` block — see \`yg schemas read config\`). When it does, a plain
+\`yg check\` blocks only on what the current change is accountable for;
+everything it inherited from that branch is still listed and still counted, as a
+warning that does not fail the build. The header says how much sits outside the
+change and what it was measured against.
+
+When progressive mode is on, a run that RECORDS verdicts — \`--approve\`, or a
+bare run on a project configured to approve automatically — is measured the same
+way: it reports what a plain run reports, and it reviews only the rules the
+current change is accountable for. It says how many reviewed rules it left
+outside the change; \`yg check --full --approve\` is what reviews those. Checks
+that run locally still cover the whole project, because they cost nothing.
+
+One thing a recording run still answers for whole: if a component's type
+requires a log entry and its source has moved past the entry its log records,
+the run stops and asks for that entry — whoever moved the code. So a plain read
+can PASS while \`--approve\` stops on a component the current change never
+touched. That is not a contradiction: the read is telling you what your change
+is answerable for, and the recording run is refusing to record over an edit
+nobody described. Add the entry it names; do not re-run until it goes green.
+
+\`\`\`bash
+yg check --full            # answer for the whole project: everything blocks again
+\`\`\`
+
+Unlike the views above this one is NOT a triage view: it hides no finding, and
+it combines freely with \`--approve\` and with any other flag. It only ever
+tightens the gate — it can turn an inherited finding back into a blocking one,
+never the reverse. On a project that names no branch there is nothing to measure
+against, so every run already answers for the whole project and this flag
+changes nothing at all.
+
+An inherited finding is a finding, not someone else's problem: it is
+non-blocking because this change did not cause it, never because it stopped
+mattering. Do not silence one, and do not clear a pile of them under cover of an
+unrelated change — \`yg check --full\` is how you look at all of it deliberately.
+
+One consequence to plan a pipeline around, true whenever progressive mode is on:
+ON THE BRANCH BEING MEASURED AGAINST, a plain \`yg check\` has nothing in scope —
+nothing changed relative to it — so it reports every eligible finding as outside
+the change and PASSES, however much is outstanding there. That is what measuring
+against a branch means, not a threshold anyone can tune, and it is why the
+integration leg must be \`yg check --full\`: it is the only run that answers for
+that branch. What still blocks there: the graph's own integrity (an undefined
+rule, a cycle, an unreadable file) and any finding the run could not attribute to
+a file or component — neither is ever narrowed by the measurement.
+
 ### Silent structural-deviation index (attention only)
 
 As a byproduct, a plain \`yg check\` also maintains a local, gitignored
@@ -106,7 +156,7 @@ NOTHING, and makes no reviewer calls.
 
 ## yg check --approve
 
-Fill every unverified pair, then report. The only writer of verdicts (alongside
+Fill every unverified pair the run answers for, then report. The only writer of verdicts (alongside
 \`yg log merge-resolve\`, which writes the per-node log baseline). Explicit flags
 (\`--approve\`, \`--no-approve\`, \`--only-deterministic\`) always override any
 \`auto_approve\` setting in \`yg-config.yaml\`.
@@ -128,8 +178,13 @@ triggers a full fill and the PASS header shows \`(auto-filled)\` to distinguish 
 from a clean read-only pass. A pre-run banner on stderr warns that reviewer
 calls will be made.
 
-Verification is repo-wide and all-or-nothing. The one scoping flag is
-\`--only-deterministic\`: it runs the deterministic fills only (no LLM, no key) and
+Verification is all-or-nothing: a run fills every pair it is answering for, or
+(when the mandatory-log gate stops it) nothing at all. By default it answers for
+the whole project. When progressive mode is on, it still runs every free
+deterministic check project-wide but buys reviewer work only for the rules the
+current change is accountable for, and names how many it left — see \`--full\`
+above. \`--only-deterministic\` is a different lever again, and the only one that
+is free: it runs the deterministic fills only (no LLM, no key) and
 writes ONLY the gitignored deterministic cache — the committed lock files are
 never touched (positive closure is skipped, GC is scoped to the cache), so a CI or
 pre-commit run produces zero committed-lock churn. A fresh checkout has no
@@ -974,7 +1029,19 @@ the fix is always \`yg init --upgrade\`.
 
 ## Validator issue codes — verification and status
 
-The validator (\`yg check\`) emits the following issue codes:
+The validator (\`yg check\`) emits the following issue codes.
+
+SEVERITY BELOW IS THE WHOLE-PROJECT ANSWER: what \`yg check\` reports on a project
+that names no reference branch (the default), and what \`yg check --full\` reports
+on one that does. With progressive mode on (\`progressive.reference\` set), most of
+these are listed as a non-blocking warning when the current change did not reach
+them, whatever their severity below. The exceptions — the graph's own integrity
+codes, anything that stops a recording run before it writes, the log gate at
+recording time, and any finding the run cannot attribute to a file or a
+component — never are; see \`yg knowledge read configuration\` (the \`progressive\`
+section). \`error (always)\` in the column means NOT STATUS-GOVERNED — an error
+whatever a rule's \`draft\`/\`advisory\`/\`enforced\` level says — not "unconditional
+under every configuration".
 
 | Code | Severity | Meaning |
 |------|----------|---------|

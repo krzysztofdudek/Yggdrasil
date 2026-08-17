@@ -3,7 +3,15 @@ type: command-support
 description: "Command-layer helper that collapses a flat CheckIssue list into
   grouped IssueGroup records for the yg check grouped output view. Houses
   the shared FULL_WHAT_CODES, getIssueLabel, and issuePriorityRank utilities
-  consumed by both the grouping logic and the check command renderer."
+  consumed by both the grouping logic and the check command renderer. Every
+  -outside twin code set (CODE_ONLY_GROUP_CODES, FULL_WHAT_CODES,
+  COVERAGE_GROUP_EXCLUDED_CODES) is DERIVED from SCOPED_CODES rather than
+  hand-listed, and getIssueLabel borrows its mirror's label for a twin rather
+  than a second label rule. issuePriorityRank sub-ranks a -outside twin after
+  every ordinary warning (never merely tied and left to alphabetical label
+  order), so a run whose only warnings are inherited debt cannot bury a
+  genuine advisory finding beneath it in the grouped Warnings section or a
+  --top slice."
 mapping:
   - source/cli/src/cli/group-issues.ts
 relations:

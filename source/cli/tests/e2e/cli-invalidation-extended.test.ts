@@ -340,7 +340,7 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
       appendFileSync(ordersFile(dir), '\n// benign source edit needing a log\n');
       const noLog = run(['check', '--approve'], dir);
       expect(noLog.status).toBe(1);
-      expect(noLog.all).toContain("No fresh log entry for node 'services/orders' — mandatory before --approve when source changed.");
+      expect(noLog.all).toContain("No fresh log entry for node 'services/orders' — mandatory before recording verdicts when its source drifted.");
       expect(noLog.all).toContain('log_required: true');
 
       // Provide the fresh log entry and re-fill — orders settles green.

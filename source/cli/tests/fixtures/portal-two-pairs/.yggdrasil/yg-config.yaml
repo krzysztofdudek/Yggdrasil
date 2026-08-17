@@ -1,0 +1,9 @@
+version: "5.2.0"
+
+# The one committed fixture where a SINGLE type-covered file carries TWO
+# independent nodeless pairs — one refused, one verified — so a real
+# extraction exercises the worst-state-wins fold instead of a lone pair.
+coverage:
+  required:
+    - "/"
+  type_level: true

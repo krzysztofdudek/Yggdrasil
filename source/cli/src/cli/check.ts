@@ -16,6 +16,7 @@ import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from 
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, resolveTopValue } from './check-render-views.js';
+import { resolveChangeScope } from './progressive-scope-resolve.js';
 
 /**
  * Resolve the effective approve mode from explicit CLI flags and graph config.
@@ -100,10 +101,16 @@ export function registerCheckCommand(program: Command): void {
     .option('--details', 'Read-only: ungrouped, one block per issue (full per-pair detail). Opposite of the default grouped view.')
     .option('--aspect <id>', "Read-only: drill into one rule — show only that aspect's issues, grouped, with the full per-node detail.")
     .option('-q, --quiet', 'Suppress --approve progress on stderr (only the final report + exit code). No-op with a plain read; with --dry-run the budget preview still prints (--dry-run wins).')
+    // Asks for the whole project to be answered for, regardless of what it
+    // measures a change against — the explicit "prove everything" invocation a
+    // CI integration leg and a maintainer audit both want. It is the ONE flag
+    // that only ever tightens the gate: it can turn an inherited finding back
+    // into a blocking one, never the reverse, so it is safe to hand to anyone.
+    .option('--full', 'Answer for the whole project, ignoring any configured reference branch.')
     // Hidden calibration instrument: print the raw per-file structural measurements grouped by
     // family, with the outliers marked, then exit 0. Writes nothing, makes no LLM calls.
     .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
-    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; quiet?: boolean; attentionDump?: boolean }) => {
+    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; quiet?: boolean; full?: boolean; attentionDump?: boolean }) => {
       try {
         const cwd = process.cwd();
         const graph = await loadGraphOrAbort(cwd, { tolerateInvalidConfig: true });
@@ -306,16 +313,58 @@ export function registerCheckCommand(program: Command): void {
           opts.approve === undefined &&
           opts.onlyDeterministic !== true;
 
+        // What this run is accountable for — resolved ONCE, for both paths below.
+        // Inert unless the project committed a reference branch to measure
+        // changes against: with none it resolves before any git process runs, and
+        // both paths are byte-for-byte what this command always produced. A
+        // project that DID name one and whose change could not be measured gets
+        // the same whole-project gate plus a notice saying so — never a silently
+        // empty scope, which would downgrade every finding in the report AND
+        // leave every rule outside it unreviewed.
+        const decision = await resolveChangeScope({
+          graph,
+          projectRoot,
+          coverageVisibleFiles: repoFiles,
+          fullFlag: opts.full === true,
+        });
+        // One print site for both notices a measured run can owe: the refusal to
+        // guess at a scope, and the measurement that succeeded and still reached
+        // the whole project. Two sites would let the second drift out of the
+        // what/why/next shape the first established, which is the shape every
+        // other whole-project outcome is already reported in.
+        const scopeNotice =
+          decision.kind === 'unmeasurable' ? decision.notice
+          : decision.kind === 'scoped' ? decision.notice
+          : undefined;
+        if (scopeNotice !== undefined) {
+          process.stderr.write(chalk.yellow(`Notice: ${buildIssueMessage(scopeNotice)}`) + '\n');
+        }
+        const changeScope =
+          decision.kind === 'scoped'
+            ? {
+                burn: decision.burn,
+                referenceName: decision.referenceName,
+                blobOidByPath: decision.blobOidByPath,
+              }
+            : undefined;
+
         // Fill path: runs when --approve is explicit OR when auto_approve in config
         // promotes bare `yg check` to a fill. Triage views always stay read-only.
         // --dry-run is a preview mode of fill: previews cost without writing.
         if (mode.approve) {
           // Banner: warn before spending on the LLM reviewer, but ONLY for
           // config-driven full auto-fill (not deterministic, not explicit --approve).
+          // Under a measured change it can promise less: the reviewer is called
+          // for what the change is accountable for and nothing else, which on a
+          // branch that reached no reviewer-backed rule is nothing at all.
           const isConfigFull =
             isConfigDrivenFill && graph.config?.auto_approve === 'full';
           if (isConfigFull && !opts.dryRun) {
-            process.stderr.write("auto-approve: full — bare 'yg check' will call the reviewer.\n");
+            process.stderr.write(
+              changeScope !== undefined
+                ? "auto-approve: full — bare 'yg check' will call the reviewer for anything your change is accountable for.\n"
+                : "auto-approve: full — bare 'yg check' will call the reviewer.\n",
+            );
           }
 
           try {
@@ -376,6 +425,13 @@ export function registerCheckCommand(program: Command): void {
               // line instead of wrapping into a new row on every redraw.
               columns: process.stderr.columns,
               emitIssue: (m) => { process.stderr.write(buildIssueMessage(m) + '\n'); },
+              // The measurement above, or undefined for a run answering for the
+              // whole project. Present, it narrows the reviewer work this run
+              // pays for to the change's own obligations — the free
+              // deterministic half and the mandatory-log gate stay
+              // whole-project — and the report it prints afterwards gates on
+              // exactly what a plain read of the same tree gates on.
+              changeScope: changeScope,
               // Best-effort, synchronous io writer for the convergence sentinel's
               // evidence dump — wired here so the engine takes no core → io
               // dependency. It never throws into the fill.
@@ -427,6 +483,11 @@ export function registerCheckCommand(program: Command): void {
           now: () => new Date(),
           trackedFiles: tracked,
           rulesArtifacts: await readRulesArtifacts(projectRoot),
+          // The measurement above, or undefined for a run answering for the
+          // whole project. Absent, every finding keeps the code and severity it
+          // always had; present, a finding this change is not accountable for
+          // becomes its non-blocking counterpart — still named, still counted.
+          changeScope: changeScope,
         });
         await applyHonestCoverageSplit(result, graph, repoFiles);
         process.stdout.write(formatOutput(result, view));

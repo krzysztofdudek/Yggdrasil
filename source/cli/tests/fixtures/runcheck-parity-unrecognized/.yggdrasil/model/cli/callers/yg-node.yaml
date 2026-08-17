@@ -1,0 +1,15 @@
+name: Callers
+type: engine
+description: >-
+  A single runCheck call site passing every DERIVED option and neither the
+  hand-signed member nor any key the rule could invent, so at rest it is silent.
+  It is the second half of each near miss's proof: delete the requirement one of
+  them targets and this call site is refused for the omission the moment that
+  read starts deriving.
+aspects:
+  - runcheck-injected-input-parity
+relations:
+  - target: cli/core/check
+    type: calls
+mapping:
+  - src/callers/

@@ -11,6 +11,7 @@
 
 import { describe, it, expect } from 'vitest';
 import {
+  countPostUnverified,
   isZeroFillDivergence,
   buildDivergenceDump,
   divergenceNotice,
@@ -44,6 +45,39 @@ describe('isZeroFillDivergence — the exact fire shape', () => {
 
   it('is SILENT when pairs were filled and none remain unverified (the happy path)', () => {
     expect(isZeroFillDivergence({ toFill: 5, postUnverified: 0, lockWrites: 5 })).toBe(false);
+  });
+});
+
+// The sentinel is primed with a count of what the report still leaves without a
+// verdict. On a run measured against a change, a pair the change did not reach
+// keeps its finding under a different code — and it is exactly as unverified as
+// one that kept the plain code. Counting only the plain code would blind the
+// sentinel on precisely those runs.
+describe('countPostUnverified — both spellings of an unverified pair', () => {
+  it('counts a finding the change reached', () => {
+    expect(countPostUnverified([{ code: 'unverified' }])).toBe(1);
+  });
+
+  it('counts one the change did not reach, under its non-blocking code', () => {
+    expect(countPostUnverified([{ code: 'unverified-outside' }])).toBe(1);
+  });
+
+  it('counts both together, and nothing else in the report', () => {
+    expect(
+      countPostUnverified([
+        { code: 'unverified' },
+        { code: 'unverified-outside' },
+        { code: 'aspect-violation-enforced' },
+        { code: 'aspect-violation-enforced-outside' },
+        { code: 'unmapped-files' },
+        {},
+      ]),
+    ).toBe(2);
+  });
+
+  it('counts nothing in a report with no unverified pair at all', () => {
+    expect(countPostUnverified([])).toBe(0);
+    expect(countPostUnverified([{ code: 'rules-digest-stale' }])).toBe(0);
   });
 });
 

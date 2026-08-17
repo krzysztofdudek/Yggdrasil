@@ -1,0 +1,63 @@
+name: E2E Tests — Progressive Gate
+type: test-suite
+description: "Subprocess E2E for the progressive gate on `yg check`, driven
+  through the real built binary over throwaway git repositories holding a
+  minimal real graph: two components, one deterministic rule, and one refusal
+  recorded on the reference branch that no later change touches. It walks every
+  state the command can land in — a change that violates a rule in a file it
+  touched (blocking); the same violation inherited from the reference while the
+  change goes elsewhere (reported, counted, not blocking); the same branch with
+  the whole project demanded (blocking again); a clean checkout of the reference
+  and a branch that commits and then reverts (both quiet, both reporting nothing
+  in scope rather than reading as a failure to enumerate the change); and a
+  reference that cannot be resolved (whole-project gate plus a notice naming the
+  cause and the fix).
+
+  Three of its cases carry more weight than the rest. A project that never named
+  a reference must be byte-identical to the whole-project gate — asserted as two
+  real runs compared on both streams and the exit code, not as matching exit
+  codes. An unreadable verdict record at the reference must gate everything
+  rather than be measured against an empty one, which would quietly disable the
+  check that notices a change deleting verdicts. And a component reached through
+  ANOTHER component's declaration is re-gated whole, its log included — so a log
+  refusal a project has been carrying starts blocking on a branch that never
+  touched that component's own files. The last is intended behaviour recorded as
+  a test precisely so it is not later mistaken for a defect.
+
+  A second suite covers the BYTE GUARD over the same fixture family: git is told
+  to report a modified file as unmodified (`update-index --assume-unchanged`, and
+  the `--skip-worktree` bit), and the run must still block on that file — as an
+  unreviewed pair, as a recorded refusal of the hidden content, and on a branch
+  whose own committed change is honest. Every one of those cases asserts the
+  SECOND component's inherited refusal is still only a warning in the same run,
+  which is what separates 'the guard re-admitted this one obligation' from 'the
+  run gave up and gated everything'. One group covers the class a rule-check-only
+  guard left open: a hidden edit introducing an undeclared cross-component
+  dependency, whose finding names a component and no rule check at all — it must
+  block, count the hidden file among the changed inputs, print the line saying
+  the check kept a finding and what can cause that, and produce the same finding
+  when the identical edit is committed honestly. One case proves the advice a
+  blocked run gives actually works: a re-admitted reviewer-judged rule is bought
+  and settled by `yg check --approve` against an in-process mock reviewer, rather
+  than being declined as outside the change and blocking forever — and a second
+  group does the same one layer down, where the hidden edit lands on a
+  NEIGHBOURING file of the same component and a per-file reviewed rule means the
+  component owes several separate reviews: what the advised command buys, and
+  whether the run clears, must match what an honest visible commit of the
+  identical edit produces. One case covers the only finding classification
+  rebuilds rather than hands back — an uncovered file — which must both block and
+  be counted in the line reporting what the check kept. A further group covers a
+  component file that is NO rule's review subject, on a component whose only rule
+  is reviewer-judged: a mapped documentation file beside a source-scoped rule, and
+  a binary asset with no rule configuration at all (a prose rule is never handed
+  bytes it cannot read as text). Each is measured visible and hidden, and the two
+  must buy the same reviews and reach the same verdict. Two cases pin
+  the other direction: a hidden file whose bytes did not actually change produces
+  a byte-identical report to the run before it was hidden, and a project that
+  names no reference is byte-identical to the whole-project gate with the evasion
+  present on both sides."
+aspects: []
+relations: [ { target: cli/tests/support, type: uses }, { target: cli/tests/e2e/support, type: uses } ]
+mapping:
+  - source/cli/tests/e2e/cli-progressive-gate.test.ts
+  - source/cli/tests/e2e/cli-progressive-byte-guard.test.ts

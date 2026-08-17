@@ -68,6 +68,12 @@
     badge.setAttribute('title', kindPlain(a));
     badge.setAttribute('aria-label', kindLabel + ' — ' + kindPlain(a));
     row.appendChild(badge);
+    // The enforcement-level chip — a SEPARATE axis from the pairState badge below (that one is
+    // the verdict; this one is whether a verdict blocks at all). Status is populated for every
+    // effective-aspect row (including indirectly-attached ones), so this never renders blank.
+    var statusChip = dom.el('span', 'pan-status pan-status-' + a.status, a.status);
+    statusChip.setAttribute('title', 'Enforcement level: ' + a.status);
+    row.appendChild(statusChip);
     // The provenance / attach channel, with a plain definition (own / ancestor / type / flow / …).
     var chanId = CHANNELS[a.channel] || a.origin || '';
     var chan = dom.el('span', 'pan-chan', chanId);
@@ -107,7 +113,15 @@
         row.appendChild(dom.el('div', 'pan-caveat', 'Advisory rule — non-blocking signal, not a pass and not a clean check.'));
       }
     } else if (a.pairState === 'unverified') {
-      row.appendChild(dom.el('div', 'pan-caveat', 'Inputs changed or were never checked — not a stale pass. Run the reviewer to confirm.'));
+      // Status-aware: an ENFORCED rule's unverified row blocks the build until reviewed; an
+      // ADVISORY rule's would only warn. Never the same sentence for both — that would collapse
+      // two different consequences into one wording (draft rules never reach 'unverified'; see
+      // the pairState derivation in derive-nodes.ts, so only these two branches occur here).
+      var unverifiedMsg =
+        a.status === 'enforced'
+          ? 'Inputs changed or were never checked — blocks until reviewed.'
+          : 'Inputs changed or were never checked — would warn, not block.';
+      row.appendChild(dom.el('div', 'pan-caveat', unverifiedMsg));
     }
     return row;
   }

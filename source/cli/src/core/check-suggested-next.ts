@@ -10,9 +10,37 @@
  * names is the same group `yg check --top` renders first.
  */
 
-import { STRUCTURAL_CODES, COMPLETENESS_CODES } from './check-codes.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, OUTSIDE_CODES } from './check-codes.js';
+import { countOutside } from './check-progressive.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { CheckIssue } from './check-contract.js';
+
+/**
+ * The one line a run points at when nothing blocks and at least one finding was
+ * put outside the change.
+ *
+ * It outranks every OTHER warning's own `next`, not just the twins' — which is
+ * a stronger rule than it first looks and is deliberate. Skipping only the twins
+ * left the highest-ranking survivor speaking for the run, and the two warnings
+ * that rank highest here (an advisory aspect violation, then whatever sorts
+ * first alphabetically) carry guidance about re-reviewing the WHOLE project:
+ * a progressive-green run would end by telling an agent to run a repo-wide
+ * review it never asked for, clearing inherited debt the change did not cause
+ * and spending reviewer calls to do it. While anything sits outside the change,
+ * the honest next step is the audit that shows all of it at once.
+ *
+ * The noun is the header's, deliberately: both surfaces report the SAME number
+ * (`countOutside`, one definition), and the header calls it plain "obligations".
+ * This line once called them "enforced obligations", which is wrong twice over —
+ * `countOutside` sums uncovered files, missing descriptions and undeclared
+ * dependencies alongside enforced pairs, and "enforced" is a specific status word
+ * everywhere else in the product, so a reader could reasonably take the two
+ * numbers for different things. Same count, same word, same pluralisation.
+ */
+function standingOutsideLine(outsideWarnings: CheckIssue[]): string {
+  const count = countOutside(outsideWarnings);
+  return `${count} obligation${count === 1 ? '' : 's'} outside your changes — run 'yg check --full' for the complete audit`;
+}
 
 /**
  * Among the error issues carrying a given per-aspect `code`, pick the one whose
@@ -38,7 +66,8 @@ function pickByAspectIdLocale(errors: CheckIssue[], code: string): CheckIssue | 
  *
  * Each lock issue carries its own kind-appropriate `next` in messageData
  * (cached three-exit for an LLM refusal, fix-violations for a deterministic
- * refusal, size remedies for prompt-too-large). With no error remaining,
+ * refusal, size remedies for prompt-too-large). With no error remaining: when
+ * ANY finding was put outside the change, point at the full audit; otherwise
  * surface the highest-priority warning's `next` — advisory aspect-violation
  * first, else the alphabetically-first warning — so a warnings-only run still
  * points somewhere.
@@ -49,6 +78,10 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   if (errors.length === 0) {
     const warnings = issues.filter(i => i.severity === 'warning');
     if (warnings.length === 0) return null;
+    // Anything outside the change takes the line, ahead of every warning below
+    // — including the advisory branch, which otherwise outranks everything and
+    // whose `next` points at a repo-wide review. See standingOutsideLine.
+    if (warnings.some(i => OUTSIDE_CODES.has(i.code))) return standingOutsideLine(warnings);
     // Advisory aspect violations rank first among warnings (matching groupIssues'
     // label sort, where the 'advisory' label precedes every other warning label).
     // Among several advisory warnings, pick the alphabetically-first aspectId — the
@@ -65,6 +98,8 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
     // run still points somewhere, per the agent-facing contract. Use the SAME
     // (code, nodePath) tie-break as the structural / "any remaining error" branches
     // below so the surfaced line stays consistent with what `--top` renders first.
+    // No twin can reach here — the branch above already took the line — so this
+    // is the pre-scope behaviour, unchanged.
     const first = [...warnings].sort((a, b) =>
       a.code.localeCompare(b.code, 'en') ||
       (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];
@@ -140,6 +175,12 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   //    exactly the rule this line names. Emission order let the two surfaces
   //    drift (e.g. `event-unpaired` shown by --top but `yaml-invalid` named here).
   const structuralErrors = errors.filter(i => STRUCTURAL_CODES.has(i.code));
+  // Under a change scope the aggregate coverage finding is SPLIT in two, and
+  // only the half naming files the change actually touched keeps this code and
+  // error severity — the inherited half is a `-outside` warning. So this filter
+  // is the blocking partition by construction, and the counts read off it below
+  // are the number of files the change itself must answer for, never the whole
+  // inherited backlog. Unscoped runs are unaffected: there is only ever one.
   const coverageErrors = errors.filter(i => i.code === 'unmapped-files');
   if (structuralErrors.length > 0) {
     const first = [...structuralErrors].sort((a, b) =>

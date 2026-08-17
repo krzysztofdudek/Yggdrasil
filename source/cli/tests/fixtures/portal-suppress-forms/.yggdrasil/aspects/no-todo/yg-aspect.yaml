@@ -1,0 +1,6 @@
+name: NoTodo
+description: "Source files must not ship a TODO marker — track outstanding work in the issue tracker, not in code. No errs label (unlike no-console): a plain deterministic check, so a waiver against it never reads 'errs-under'."
+reviewer:
+  type: deterministic
+scope:
+  per: file

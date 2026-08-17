@@ -241,6 +241,9 @@
   margin-top: 6px;
   font-size: 12px;
 }
+/* Deliberately NOT display: flex — enforcedRow's (coverage-typecovered.js) reason line
+   (.cov-member-what) is a block-level child that must wrap onto its own row below the path/type
+   text, not sit beside it on one flex row. */
 .cov-typerow {
   color: var(--text-secondary);
 }
@@ -303,7 +306,7 @@
 .cov-jump-residue {
   color: var(--text-secondary);
 }
-.cov-card,
+.cov-cardlist,
 .cov-calm {
   border: 1px solid var(--border);
   border-radius: 10px;

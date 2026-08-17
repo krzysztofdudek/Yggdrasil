@@ -24,7 +24,9 @@ like \`--approve\` (may call the reviewer). Explicit CLI flags (\`--approve\`,
 \`--no-approve\`, \`--only-deterministic\`) ALWAYS override \`auto_approve\`. CI and
 pre-commit should always use the explicit flag form to stay key-free and
 deterministic regardless of project config. \`yg check --approve\` fills every
-unverified pair and then reports. With \`--only-deterministic\` it fills ONLY
+unverified pair it answers for and then reports (the whole project, or — under
+progressive mode — every free check plus the reviewer work your change is
+accountable for). With \`--only-deterministic\` it fills ONLY
 deterministic pairs (free, keyless) and writes ONLY the gitignored cache — never
 the committed files — so it is the CI / pre-commit gate (a fresh checkout has no
 deterministic cache, so this rematerializes it; it also re-hashes the committed
@@ -259,10 +261,14 @@ This differs from aspect verdicts in two ways:
   every \`yg check\` (plain or \`--approve\`) — it never reads or writes a lock entry,
   so it is never stale and never needs re-validation.
 - **No status, no waiver.** A relation refusal (\`relation-undeclared-dependency\`)
-  is always an error and blocks \`yg check\`. There is no \`content.md\` to sharpen
-  and it is not \`yg-suppress\`-able. The only exits are **declare the relation**
-  (add an architecture-allowed relation edge) or **remove the dependency**. The
-  next run recomputes and the refusal clears the moment the code or graph matches.
+  is always an error, and with no reference branch named (the default) it blocks
+  \`yg check\` unconditionally. There is no \`content.md\` to sharpen and it is not
+  \`yg-suppress\`-able. The only exits are **declare the relation** (add an
+  architecture-allowed relation edge) or **remove the dependency**. The next run
+  recomputes and the refusal clears the moment the code or graph matches.
+  Where it blocks — and only that — moves when progressive mode is on (the
+  project sets \`progressive.reference\`): a refusal the current change did not
+  reach is listed as a warning, and \`yg check --full\` blocks on it again.
 
 ## Caching policy
 

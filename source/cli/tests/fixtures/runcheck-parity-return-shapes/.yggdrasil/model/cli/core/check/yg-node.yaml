@@ -1,0 +1,13 @@
+name: Check
+type: engine
+description: >-
+  A runCheck seam whose rewrites reach the returned issue set without ever being
+  bound to a name a return hands back: one sits directly in the issues property
+  of a returned object literal, the other is the returned expression itself.
+  Both are shapes the rule documents as recognized, and both were unreachable
+  while it gave up whenever no return named an identifier — which is exactly
+  what a body written this way produces.
+aspects: []
+relations: []
+mapping:
+  - src/core/check.ts

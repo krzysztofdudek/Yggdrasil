@@ -74,3 +74,27 @@ Corrected a comment on the type-covered file's unverified field: it claimed to c
 extractPortalData's unverifiedTypeCoveredFiles now reads straight off the full lock verification the pipeline already computes for every other count, instead of a separate cheap presence-only pass over the lock -- a stale, previously-approved verdict on a type-covered file's nodeless pair now marks it unverified exactly as yg check would, at no added cost since the underlying verification already ran.
 ## [2026-08-06T13:56:35.457Z]
 Each refresh reused the very first render list of files belonging to a node, so a file added or deleted after the server started stayed invisible for as long as it kept running, while a check run in a terminal alongside it already saw the truth. Every refresh now clears that memory first, alongside the nested-project boundaries it already re-derived, so what is served is what is on disk.
+## [2026-08-10T18:25:11.912Z]
+The needs-attention list is now derived the way the build gate derives its own
+grouping: blocking findings and advisory findings are separated before anything
+is collapsed, so one group can never contain both and present whichever severity
+happened to sort first. Each finding carries its real subjects — components, and
+files enforced by their architecture type alone — and, where the remedy differs
+between subjects, each subject's own remedy instead of the first subject's
+standing in for every one of them. A finding that names no component at all
+carries its own text, because for such a finding that text is the entire content;
+it previously arrived empty.
+
+Coverage gaps are kept apart from rule groups and carry their own block. Without
+that separation a project whose only failure is an unmapped file would present a
+list with nothing in it, and an empty list had been the trigger for declaring the
+whole project clear.
+
+Files enforced by their architecture type alone now carry their real verdict,
+including refusals and the reasons behind them. Previously only the absence of a
+recorded verdict was tracked, and a refusal IS a recorded verdict, so a refused
+file was indistinguishable from a passing one and its reason appeared nowhere at
+all. The fold that decides a file's state prefers the worst state among its
+checks and is never applied to an empty set, because the reducer it uses seeds
+from a passing value and would otherwise report green for a file that nothing
+checks.

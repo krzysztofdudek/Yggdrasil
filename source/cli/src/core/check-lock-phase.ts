@@ -32,6 +32,7 @@ import { verifyLock } from './verify-lock.js';
 import type { LockVerification } from './verify-lock.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { FileFacts, RelationPassResult } from '../relations/pass.js';
+import type { VerifiedPair } from './verify-lock.js';
 import { relationRefusedMessage, typeGateForbiddenMessage } from '../relations/messages.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { computeTypeGateFindings } from '../relations/type-gate.js';
@@ -46,6 +47,16 @@ export interface LockPhaseResult {
   /** Verified-pair tallies, split by reviewer kind. Both 0 when the lock is invalid. */
   verifiedDet: number;
   verifiedLlm: number;
+  /**
+   * Every expected pair this call classified against the lock — verified,
+   * refused, unverified, prompt-too-large, or companion-error — the same list
+   * `emitPairIssue` already walks to produce `issues` above. Exposed so a
+   * caller can match an issue back to the subject files a pair covers
+   * (`pair.subjectFiles`) without re-deriving expected pairs itself. Empty
+   * when the lock is invalid, the same fail-closed posture as
+   * `verifiedDet`/`verifiedLlm`.
+   */
+  pairs: VerifiedPair[];
   /** Per-file type-tier enforcement report. Undefined at flag-off, and on an invalid lock. */
   typeVisibility: TypeVisibilityReport | undefined;
   /** Per-file feature facts + content hashes, for the optional feature-field index write. */
@@ -71,8 +82,16 @@ export async function runLockPhase(args: {
    * lock failing closed on this path exactly as on any other.
    */
   precomputedVerification: LockVerification | undefined;
+  /**
+   * The caller's own byte cache for this run, filled as every subject file is
+   * read for re-hashing. Supplied by `runCheck` so its byte guard compares the
+   * SAME bytes the verdicts were hashed from instead of reading them a second
+   * time; absent for every other caller, and then the verification allocates
+   * and releases its own exactly as it always did.
+   */
+  byteCache: Map<string, Buffer | null> | undefined;
 }): Promise<LockPhaseResult> {
-  const { graph, projectRoot, typeCoverageInput, earlyTypeCoverage, relResult, runtimeDispositions, precomputedVerification } = args;
+  const { graph, projectRoot, typeCoverageInput, earlyTypeCoverage, relResult, runtimeDispositions, precomputedVerification, byteCache } = args;
 
   // Captured from the relation pass (run once by the orchestrator, ahead of
   // validate()) for the optional feature-field index write. Stays null if the
@@ -92,9 +111,12 @@ export async function runLockPhase(args: {
   let verifiedLlm = 0;
   // Same lock-invalid posture as verifiedDet.
   let typeVisibility: TypeVisibilityReport | undefined;
+  // Same lock-invalid posture as verifiedDet: empty until a readable lock is verified.
+  let pairs: VerifiedPair[] = [];
   try {
     const lock = readLock(graph.rootPath);
-    const verification = precomputedVerification ?? await verifyLock(graph, lock, typeCoverageInput);
+    const verification = precomputedVerification ?? await verifyLock(graph, lock, typeCoverageInput, byteCache);
+    pairs = verification.pairs;
     const runtimeRows = toRuntimeVisibilityRows(runtimeDispositions ?? []);
     typeVisibility = earlyTypeCoverage
       ? buildTypeVisibility(graph, earlyTypeCoverage.covered, verification.drops, runtimeRows, toAppliedPairs(verification.pairs.map((vp) => vp.pair)), verification.uncomputableTypeCoverage)
@@ -160,6 +182,10 @@ export async function runLockPhase(args: {
           code: 'type-relation-forbidden',
           rule: 'type-relation-forbidden',
           messageData: typeGateForbiddenMessage(finding),
+          // Every violating edge in this type-pair's bucket, not just the five
+          // the message samples (typeGateForbiddenMessage) — the structured
+          // field is for machines and must be complete.
+          relationEdges: finding.edges,
         });
       }
     }
@@ -217,5 +243,5 @@ export async function runLockPhase(args: {
     }
   }
 
-  return { issues: lockIssues, verifiedDet, verifiedLlm, typeVisibility, featureFactsByPath, featureHashByPath };
+  return { issues: lockIssues, verifiedDet, verifiedLlm, typeVisibility, featureFactsByPath, featureHashByPath, pairs };
 }

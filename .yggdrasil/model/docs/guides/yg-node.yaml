@@ -1,5 +1,5 @@
 name: Adopter Guides
-description: "Task-oriented adopter documentation — every user-facing guide under docs/: the home page and getting-started, the how-it-works model, the core concept pages (aspects, nodes, relations/flows/ports), the lock, the portal, the CLI reference, concurrency, the structural-attention hint, configuration, conditional aspects, aspect status, platform integrations, the reviewers reference, the model-swap protocol, the meta-modeling deep dive, and the dogfood showcase. Modeled as ONE node so internal-link resolution can see the whole doc set — a split would let a link to a page in a sibling node read as broken."
+description: "Task-oriented adopter documentation — every user-facing guide under docs/: the home page and getting-started, the how-it-works model, the core concept pages (aspects, nodes, relations/flows/ports), the lock, the portal, the CLI reference, concurrency, the structural-attention hint, configuration, progressive mode, conditional aspects, aspect status, platform integrations, the reviewers reference, the model-swap protocol, the meta-modeling deep dive, and the dogfood showcase. Modeled as ONE node so internal-link resolution can see the whole doc set — a split would let a link to a page in a sibling node read as broken."
 type: doc-page
 aspects:
   - docs-internal-links
@@ -17,6 +17,7 @@ mapping:
   - docs/concurrency.md
   - docs/feature-field.md
   - docs/configuration.md
+  - docs/progressive-mode.md
   - docs/conditional-aspects.md
   - docs/aspect-status.md
   - docs/platforms.md

@@ -73,6 +73,23 @@ export interface YggConfig {
   events?: { committed_llm?: boolean };
   /** Coverage scope. Absent ⇒ DEFAULT_COVERAGE (whole repo required = today's behavior). */
   coverage?: CoverageConfig;
+  /**
+   * Progressive-mode settings. Absent ⇒ progressive mode is OFF and every run
+   * behaves exactly as it always has. `reference` names the committed branch or
+   * ref a run measures its change against (e.g. `origin/main`) — the point the
+   * touched set is diffed from.
+   *
+   * COMMITTED-ONLY, like `coverage.typeLevel`: read from the committed
+   * `yg-config.yaml` before the gitignored `yg-secrets.yaml` overlay is merged.
+   * The reference decides how much of the graph a run answers for, so a local,
+   * unshared file must never be able to move it.
+   *
+   * `reference` is REQUIRED whenever the block is present — the parser refuses a
+   * block that names none (io/config-parser.ts), so "present" and "measuring
+   * against something" are the same state and no reader has to handle a block
+   * that is on and inert.
+   */
+  progressive?: { reference: string };
 }
 
 // ============================================================

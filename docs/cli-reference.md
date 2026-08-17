@@ -16,7 +16,7 @@ This page is for inspecting or debugging your graph and enforcement state.
 | `yg context --file <path>` / `--node <path>` | Assemble context package |
 | `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis |
 | `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)) |
-| `yg check --approve` | Verify every unverified pair and record the verdicts in the lock |
+| `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
 | `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes only the gitignored cache |
 | `yg log add` / `read` / `merge-resolve` | Per-node append-only business log |
 
@@ -186,14 +186,21 @@ yg check --approve --quiet  # suppress progress output during --approve (stderr)
 
 `--top N` renders the N highest-priority **rule groups**, in the same priority
 order the `Next:` line draws from. A bare `--top` (no value) renders exactly
-one group — the suggested-next one, the one concrete thing to fix next.
+one group — the suggested-next one, the one concrete thing to fix next. Among
+warnings, a finding put outside your change (see `--full` below) always sorts
+last: a run whose only warnings are inherited debt never buries a genuine
+advisory finding under it.
 `--summary` prints one line per node — `K unverified (J deterministic-free, L
-LLM), M refused` — plus an `other` bucket for non-pair errors (coverage, log,
-relation, structural) so the per-node totals reconcile with the header.
+LLM), M refused` — plus an `outside changes` bucket for findings your change is
+not accountable for and an `other` bucket for every other non-pair error
+(coverage, log, relation, structural), so the per-node totals reconcile with
+the header.
 `--details` expands the output to the old per-pair view (useful when you need to
 see every individual file in a group). `--aspect <id>` restricts output to pairs
 of a single aspect, useful for drilling into one rule after seeing it in the
-grouped view. An **unknown / mistyped** `--aspect` id is a guided error naming
+grouped view — on a project that measures changes against a reference branch,
+the aspect-scoped header still names how much sits outside your change, same as
+the plain header. An **unknown / mistyped** `--aspect` id is a guided error naming
 the id (run `yg aspects` for the real list) rather than a misleading `0 of N`
 view; when a valid aspect simply has no issues this run while other errors remain,
 the drill-in still surfaces the global `Next:` so you are never left at a dead end.
@@ -201,6 +208,60 @@ the drill-in still surfaces the global `Next:` so you are never left at a dead e
 final report on stdout. With `--dry-run` the budget preview is the command's
 deliverable, so `--dry-run` wins over `--quiet` — the budget still prints on
 stdout; `--quiet` only suppresses the non-dry-run progress.
+
+#### `--full` — answer for the whole project
+
+```bash
+yg check --full
+```
+
+A project can name a branch to measure changes against (the `progressive` block
+in `yg schemas read config`). When it does, a plain `yg check` blocks only on
+what your change is accountable for; anything it inherited from that branch is
+still listed and still counted, as a warning that does not fail the build. The
+header says how much sits outside your change and what it was measured against.
+Every such warning reads exactly like the finding it mirrors — same label, same
+why — with one addition, `(outside changes)`, so it never reads as a raw
+internal code; its `Fix:` line is left off rather than repeating a command that
+would, for this one finding, be misleading (see below), since the WHY is still
+true regardless of who caused it.
+
+A run that records verdicts — `--approve`, or a bare run on a project
+configured to approve automatically — is measured the same way, so it reports
+what a plain run reports and reviews only the rules your change is accountable
+for. It says how many it left for later, and `yg check --full --approve` is what
+reviews those. Checks that run locally still cover the whole project: they cost
+nothing, and what they observe is what the next measurement reads.
+
+One thing stays whole-project on purpose. If a component's source has moved past
+the last entry its log records, and its type requires one, a recording run stops
+and asks for that entry — whoever moved the code, and whether or not your change
+went near it. Recording answers for the code as it stands, so it will not record
+over an unexplained edit; a plain read of the same branch can pass while that run
+stops, and the message says which component it is waiting on.
+
+`--full` answers for the whole project instead: every finding blocks again,
+whatever your change touched. Reach for it on the integration leg of CI, for an
+audit, or any time you want the report read plainly with no reference to what
+you happen to be working on. It only ever tightens the gate — it can turn an
+inherited finding back into a blocking one, never the reverse — so it is always
+safe to add.
+
+On a project that names a branch, the integration leg needs it. On the branch
+being measured against, a plain `yg check` has nothing in scope — nothing changed
+relative to it — so it reports every eligible finding as outside the change and
+passes, however much is outstanding there. That is what "measured against this
+branch" means, and `yg check --full` is the only run that answers for that branch.
+(Findings progressive mode never narrows — the graph's own integrity, and any
+finding the run cannot attribute to a file or component — still block there.)
+
+It is not a triage view: it hides no finding, and it combines freely with
+`--approve` and with any of the flags above. On a project that names no branch
+there is nothing to measure against, so every run already answers for the whole
+project and `--full` changes nothing at all.
+
+Full picture, including how to wire the two CI legs and what decides whether a
+finding is yours: [Progressive mode](/progressive-mode).
 
 **Precedence:** explicit CLI flags (`--approve`, `--no-approve`,
 `--only-deterministic`) override `auto_approve` in `yg-config.yaml`. The config
@@ -218,8 +279,12 @@ rule group with `--aspect <id>` or the full view with plain `yg check`.
 
 #### `--approve` — fill unverified pairs
 
-`yg check --approve` runs every unverified pair, repo-wide (there is no scoping —
-verification is all-or-nothing), then reports. Deterministic pairs run first,
+`yg check --approve` runs every unverified pair it is answering for, then
+reports — all of them, or (when a missing log entry stops the run) none. By
+default that is the whole project; on a project that measures changes against a
+branch it is the whole project for the checks that run locally, and the rules
+your change is accountable for for the ones a reviewer judges (see `--full`
+above). Deterministic pairs run first,
 locally, for free; a node with an enforced deterministic refusal has its LLM
 pairs skipped this run. LLM pairs then go to the reviewer per tier and consensus.
 Each real verdict — approved or refused — is recorded in the lock; infrastructure
@@ -265,7 +330,9 @@ calling the reviewer, running any `check.mjs`, or writing a single byte to any l
 file**. The reviewer-call total is an **upper bound**: a node with an enforced
 deterministic refusal has its LLM pairs skipped, and a fresh refusal or an
 infrastructure failure can leave a pair unfilled, so the real `--approve` bills at
-most that many calls.
+most that many calls. On a project that measures changes against a reference
+branch, the preview prices what your change is accountable for — the same work
+the real run would buy — and names how many reviewed rules it left outside it.
 
 The preview always exits 0, even when enforced pairs are unverified — it never
 blocks the build. The only thing that aborts a preview is a broken configuration
@@ -298,7 +365,16 @@ stale one is still caught in the trailing report.
 #### Verification and aspect-status issue codes
 
 The validator emits the following codes (see [Aspect Status](/aspect-status) for
-status semantics):
+status semantics).
+
+**Severity here is the whole-project answer**: what `yg check` reports on a project
+that names no reference branch — the default — and what `yg check --full` reports on
+one that does. With [progressive mode](/progressive-mode) on, most of these findings
+are listed as a non-blocking warning when your change did not reach them, whatever
+their severity below; [what never becomes a warning](/progressive-mode#what-never-becomes-a-warning)
+is the list of the ones that never are. `error (always)` in the column means the code
+is not governed by aspect status — it is an error whatever a rule's
+`draft`/`advisory`/`enforced` level says.
 
 | Code | Severity | Meaning |
 |------|----------|---------|
