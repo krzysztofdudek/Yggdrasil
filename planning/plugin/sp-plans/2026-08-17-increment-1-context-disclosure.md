@@ -89,10 +89,15 @@ fabricated data):
   differently, and the difference is deliberate: the **node-owned** shape gets the committed
   byte-for-byte baseline captured in Task 2 and re-run in Tasks 3–6; the **type-covered** shape
   has no byte baseline and is guarded by the existing `tests/unit/cli/context-file-type-coverage.test.ts`,
-  whose assertions already pin the typed view's lines verbatim (`[enforced, unverified] pure-fn — …`).
-  That suite is therefore re-run in every task that touches `context-file.ts` — Tasks 2, 3 and 6 —
-  and it is the only thing standing between D2's second suffix site (`context-file.ts:96`) and a
-  silent change to the default typed view.
+  whose assertions already pin the typed view's line shape — id FIRST, tag second, e.g.
+  `/needs-node-context \[enforced, unverified\] —/` — matching `context-file.ts:96`
+  (`    <id> [<status>, unverified] — <desc>`), NOT the compact view's tag-first ordering.
+  That suite is therefore re-run in every task that can change what either full view prints —
+  Tasks 2, 3 and 6 — and it is the only thing standing between D2's second suffix site
+  (`context-file.ts:96`) and a silent change to the default typed view. (Task 1 also edits
+  `context-file.ts`, but purely by appending new exports; Task 1 Step 4 re-runs the existing
+  renderer and typed-view suites to prove that append inert, because Task 2's baseline is
+  captured after Task 1's commit and would otherwise bake in any damage it did.)
 - Formatters render already-decided text; business decisions live in the caller
   (`build-context.ts`) — the same division `context-file.ts`'s own comments mandate
   (`FileTypeCoverageView.chainTerminationText`).
@@ -162,7 +167,9 @@ not from the architecture's type block alone — the type block omits what the n
   case-insensitively on a word boundary. That last one collides head-on with this increment's
   own subject: consecutive `//` lines are joined into one paragraph before matching, so a comment
   that wraps "… about the SHAPE of **the brief** …" across two lines fires just the same. Write
-  "the compact view", "the `--brief` view", or the function's own name — never the bare phrase — in any
+  "the compact view", "the `--brief` view", or the function's own name — never the bare phrase, and
+  never the possessive either (`\bthe brief\b` matches "the brief's": the `\b` sits between `f` and
+  `'s`) — in any
   comment or test name inside `context-file.ts`, `build-context.ts`, or the new test files. The
   restriction is on comments and test names only: `buildIssueMessage` strings, docs and the
   CHANGELOG are never scanned, so the user-facing wording in Task 2 and Task 3 is unaffected.
@@ -525,6 +532,12 @@ export function formatFileContextBrief(data: FileContextData, extras: FileBriefE
 Run: `cd source/cli && npx vitest run tests/unit/formatters/context-file-brief.test.ts`
 Expected: PASS (all 9).
 
+Then prove the append inert — this edit is the one change to `context-file.ts` that lands BEFORE
+Task 2 captures the byte baseline, so nothing else would catch it having moved the full view:
+
+Run: `npx vitest run tests/unit/formatters/context-file.test.ts tests/unit/cli/context-file-type-coverage.test.ts`
+Expected: PASS, unchanged.
+
 - [ ] **Step 5: Map the new test file, typecheck, gate ritual, commit**
 
 ```sh
@@ -555,9 +568,13 @@ git commit -m "feat(context): brief renderer with scope suffixes, arm preview an
   - `yg context --file <p> --brief` CLI behavior. `contextAction`'s parameter type widens from
     `{ node?: string; file?: string }` to `{ node?: string; file?: string; brief?: boolean }`.
   - `export async function composeBriefExtras(graph: Graph, filePath: string, data: FileContextData): Promise<FileBriefExtras>` —
-    a named export marked `/** Exported so the brief's assembly decisions are testable in-process; not part of the CLI surface. */`.
+    a named export marked `/** Exported so the compact view's assembly decisions are testable in-process; not part of the CLI surface. */`
+    — **not** "the brief's": `\bthe brief\b` matches through the possessive `'s`, and this
+    JSDoc lands in `build-context.ts`, where `self-contained-references` scans every comment.
     (`command-contract-shape` counts only `register*Command` exports, so this extra export is
     legal — verified against `.yggdrasil/aspects/command-contract-shape/check.mjs`.)
+    Task 4 appends one optional 4th parameter to it (`shared?: { edges?; repoFiles? }`, see
+    there); nothing in this task passes it, and no earlier call site changes.
     In this task it assembles only `nextPointers`; later tasks fill the rest:
     1. `next: yg log read --node <ownerPath>` — only when an owner node exists,
     2. `next: yg context --node <parent-of-owner>` — only when the owner has a parent node,
@@ -586,8 +603,8 @@ const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'sample-project');
 const distExists = existsSync(BIN_PATH);
 
-// The fixture's one node-owned file, read off orders/order-service's `mapping:`
-// (it maps exactly this path) rather than guessed: the assertions below are
+// The one file orders/order-service maps, read off its own `mapping:` rather
+// than guessed (the fixture maps several other files to other nodes): the assertions below are
 // about the SHAPE of the compact view, and a wrong path would fail them for the
 // wrong reason.
 const OWNED_FILE = 'src/orders/order.service.ts';
@@ -643,8 +660,9 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
 
   it('leaves the default full view byte-identical when no new flag is passed', () => {
     // A REAL run of the built binary against a capture taken before this
-    // command's output path was touched at all, byte for byte. Re-run after
-    // every later task; it is the increment's regression floor.
+    // command's output path was touched at all, byte for byte. The default
+    // view is a contract with every consumer that already reads it: if adding
+    // a flag ever moves one byte of it, this is what says so.
     const dir = copyFixture();
     try {
       const withoutFlag = run(['context', '--file', OWNED_FILE], dir);
@@ -878,6 +896,14 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
     cannot know that — narrow it with an explicit check before spreading rather than asserting.
     The node-owned branch computes no edge index and needs none — no nodeless pair is enumerated
     for a file a component owns.
+  - **`composeBriefExtras` cannot reach that edge index through its Task 2 signature**, so this
+    task appends a 4th parameter carrying only what the caller already computed:
+    `shared?: { edges?: TypedEdgeIndex; repoFiles?: string[] }` (`TypedEdgeIndex` is already
+    type-imported at `build-context.ts:36`). The node-owned call site (`:525-527`) passes nothing
+    — it holds neither — and the helper falls back to its own `walkRepoFiles`; the type-covered
+    call site (`:459-460`) passes both, since that branch has already walked and already holds
+    `edges` from `:435`. Computing `edges` inside `composeBriefExtras` instead would run a THIRD
+    relation pass on a path that just ran one.
 - Produces: `armPreviewText` inside `composeBriefExtras`:
   `editing this file invalidates N pairs (M free / K reviewer pairs) — price a fill: yg check --approve --dry-run`
   where N counts pairs whose `subjectFiles` includes `toPosixPath(file)`, M those with
@@ -891,7 +917,14 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
   takes only `(graph)` and calls `walkRepoFiles` itself (`build-context.ts:103`). Widen that
   private helper to `(graph, repoFiles?: string[])` and fall back to its own walk when the
   argument is absent — a local, behavior-preserving change to a non-exported function, so no
-  graph or contract consequence. Sharing is bounded, not total: under progressive mode Task 6's
+  graph or contract consequence. Widen `computeRelationEdgesForContext` (`:121`) the same way,
+  to `(graph, projectRoot, repoFiles?)` forwarding to it: it is the type-covered branch's OWN
+  walk site (`:122`), so leaving it alone would have that branch walk twice however carefully the
+  rest threads. With both widened, the type-covered branch hoists
+  `const repoFiles = await walkRepoFiles(repoRoot)` ABOVE `:435` and threads it into
+  `computeRelationEdgesForContext` and into `composeBriefExtras`'s `shared` — that hoist is what
+  makes `repoFiles` something the branch can hand on at all, since neither helper returns it.
+  Sharing is bounded, not total: under progressive mode Task 6's
   `resolveChangeScope` runs its OWN `resolveTypeCoverage` + `computeExpectedPairs`
   (`progressive-scope-resolve.ts:447-448`) behind a signature that accepts neither result, so the
   enumeration still happens twice on a measured run. That is pre-existing and out of scope here;
@@ -1126,8 +1159,9 @@ it, beside the other in-process cases.
   /**
    * Exported so both context views read ONE measurement; not part of the CLI surface.
    * `aspectIds` is the file's effective list (`data.aspects`, or `data.typeCoverage.applied`);
-   * `pairs` and `repoFiles` are the SINGLE whole-graph enumeration and the SINGLE repo walk the
-   * caller already made for the arm preview, never fresh ones. Prints the decision's `notice` to stderr
+   * `pairs` and `repoFiles` are whatever whole-graph enumeration and repo walk the caller made
+   * for THIS invocation — this function makes neither of its own, so no caller can pay for a
+   * second one. Prints the decision's `notice` to stderr
    * itself — one print site, as `cli/check.ts:335-341`'s own comment argues for.
    */
   export async function computeScopeMarking(
@@ -1145,19 +1179,24 @@ it, beside the other in-process cases.
   (`context-file.ts:96`) is reachable only from `:460`, so wiring the node-owned call alone would
   leave it dead code and a type-covered file silently unmarked. `ExpectedPair` is imported as a type
   from `../core/pairs.js` (`pairs.ts:67`) — a type-only import, so no new relation.
-- `graph.config.progressive?.reference !== undefined` gates the work, and the two callers gate at
-  different depths because they already pay different prices. The brief path walks and enumerates
-  regardless (Task 4's arm preview needs both), so for it the gate skips only this call. The
-  **node-owned** full view enumerates nothing today (`:525-527` is `buildFileContextData` and a
-  render, no walk), so it tests the reference FIRST and skips the walk, the enumeration and this
-  call together — otherwise every plain `yg context --file` in a reference-less project would start
-  paying for a whole-repo walk it has no use for. The **type-covered** full view is not in that
-  position and must not be described as if it were: it already walks (`computeRelationEdgesForContext`
-  at `:435` calls `computeTypeCoverageForContext`, which calls `walkRepoFiles`) and already
-  enumerates the whole graph (`buildTypeCoveredFileContextData`, `build-context.ts:156`). Reference
-  present or not, it therefore reuses the walk and enumeration it has rather than making new ones —
-  the same widened helper and the same threading Task 4 introduces — and the reference gate there
-  saves only `resolveChangeScope` itself.
+- `graph.config.progressive?.reference !== undefined` gates the work, and the three callers gate at
+  the same place for the same reason, differing only in what they still owe once the gate opens.
+  The brief path walks and enumerates regardless (Task 4's arm preview needs both), so for it the
+  gate skips only this call. BOTH full views test the reference FIRST and skip the enumeration and
+  this call together when it is absent — otherwise every plain `yg context --file` in a
+  reference-less project would start paying for work it has no use for, and the byte-identity pin
+  would be bought with a whole-repo walk. What differs is the walk: the **node-owned** full view
+  performs none today (`:525-527` is `buildFileContextData` and a render), so with a reference
+  present it makes one; the **type-covered** full view already walks inside
+  `computeRelationEdgesForContext` (`:435` → `:122` → `walkRepoFiles`), so it reuses the single
+  hoisted `walkRepoFiles(repoRoot)` Task 4 lifted above `:435` and threaded through both widened
+  helpers — no second walk, reference or no reference.
+  Neither view can reuse an existing ENUMERATION, and this plan does not
+  pretend otherwise: `buildTypeCoveredFileContextData`'s `computeExpectedPairs` (`:156`) is a
+  function-local built over a SINGLE-entry `covered` map (`:154`) and is never returned, so the
+  type-covered view makes one new whole-graph enumeration of its own — the same shape Task 4
+  prescribes, whole-repo `typeCoverage` with `edges` spread on — and passes its `pairs` plus the
+  hoisted `repoFiles` here.
   `computeScopeMarking` re-tests the condition defensively and returns `{}`. With a reference
   present:
   - `kind === 'scoped'`: `scopeHeaderText` =
