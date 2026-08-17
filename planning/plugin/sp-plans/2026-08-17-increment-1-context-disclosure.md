@@ -279,7 +279,7 @@ node source/cli/dist/bin.js check --approve
   one rule `--aspect` was asked to expand. It is untouched on the default full view, whose length
   nothing constrains, so no existing output changes.
 - **D9:** `computeScopeMarking` does not print `decision.notice` verbatim. Both notice producers
-  (`progressive-scope-resolve.ts:139`, `:176`) hard-code a WHAT describing a run that "gated the
+  (`progressive-scope-resolve.ts:139`, `:175`) hard-code a WHAT describing a run that "gated the
   whole project — every finding blocks, exactly as 'yg check --full' would report it". That is
   true for one of context's two notice-bearing branches and false for the other, so D9 renders one
   of two WHATs depending on which branch produced the notice — both reuse the resolver's `why` and
@@ -709,10 +709,11 @@ the third pointer lands (Task 3's implementation step).
 The `BASELINE` file the pin reads must be captured FIRST, in Step 1, before any edit to
 `build-context.ts` — a baseline captured after the edit proves nothing. (Task 1's commit is
 already in; it only appended new exports to `context-file.ts` and changed no byte of what
-`formatFileContext` renders, so a capture taken here is still the pre-increment output.) Capture it with
-`node source/cli/dist/bin.js context --file src/orders/order.service.ts > …` run inside a COPY of
-the fixture (never in-place: the run leaves gitignored engine state behind), writing to
-`source/cli/tests/fixtures/context-baselines/sample-project-order-service.txt`, and commit it.
+`formatFileContext` renders, so a capture taken here is still the pre-increment output.) Capture
+it from the repo root, with `$COPY` the fixture copy dir and `$REPO` the repo root:
+`(cd "$COPY" && node "$REPO/source/cli/dist/bin.js" context --file src/orders/order.service.ts) > source/cli/tests/fixtures/context-baselines/sample-project-order-service.txt`
+(never run in-place against the fixture itself: the run leaves gitignored engine state behind),
+and commit the result.
 Note it captures stdout only, so it includes the `<file> -> <node>` resolution line the command
 writes there.
 
@@ -1236,8 +1237,12 @@ it, beside the other in-process cases.
   from `../core/pairs.js` (`pairs.ts:67`) — a type-only import, so no new relation.
 - `graph.config.progressive?.reference !== undefined` gates the work, and the three callers gate at
   the same place for the same reason, differing only in what they still owe once the gate opens.
-  The brief path walks and enumerates (Task 4's arm preview needs both), so for it the
-  gate skips only this call. BOTH full views test the reference FIRST and skip the enumeration and
+  On the brief path, `composeBriefExtras` computes
+  `repoFiles = shared?.repoFiles ?? await walkRepoFiles(projectRootFromGraph(graph.rootPath))`
+  once, feeding both the arm preview and this call — it cannot be assumed as a byproduct of the
+  arm preview's own work, because `computeTypeCoverageForContext` returns before walking whenever
+  `coverage.type_level` is off. So for the brief path the gate skips only this call. BOTH full
+  views test the reference FIRST and skip the enumeration and
   this call together when it is absent — otherwise every plain `yg context --file` in a
   reference-less project would start paying for work it has no use for, and the byte-identity pin
   would be bought with a whole-repo walk. What differs is the walk: the **node-owned** full view
@@ -1282,10 +1287,12 @@ it, beside the other in-process cases.
   `pairIsInScope` calls only; it cannot be threaded through the CLI, and fabricating one would
   break the repo's no-artificial-mocking rule. Use `createProgressiveFixture` exactly as
   `tests/e2e/cli-progressive-gate.test.ts` does. The new file repeats the same six-line preamble
-  Task 2's file established — `BIN_PATH`, `distExists`, `run()`, the `fixtures[]` array and its
-  `afterEach` cleanup — and every spawned case below sits inside a
-  `describe.skipIf(!distExists)` block, so the suite fails loudly on a missing build rather than
-  passing over zero cases. `'main'` is `REFERENCE_BRANCH`, exported by the fixture module; import
+  established across the earlier files it draws on — `BIN_PATH`, `distExists` and `run()` from
+  Task 2's file, the `fixtures[]` array and its `afterEach` cleanup from Task 4's — and every
+  spawned case below sits inside a `describe.skipIf(!distExists)` block, so the suite fails loudly
+  on a missing build rather than passing over zero cases. The local
+  `createTypeLevelProgressiveFixture` helper additionally needs `CLI_ROOT` plus `path` and
+  `node:fs` imports, which this new file must bring in itself. `'main'` is `REFERENCE_BRANCH`, exported by the fixture module; import
   it rather than re-typing the literal:
 
 ```ts
