@@ -85,8 +85,14 @@ fabricated data):
   bypass it, never `--no-verify`). See **Per-commit gate ritual** below — a bare `git commit`
   after touching these files goes RED, and the reason is not lint.
 - Default `yg context --file <p>` output stays **byte-identical** when none of the new flags is
-  passed and the project has no `progressive:` block — pinned in Task 2 for both full-view
-  shapes (node-owned and type-covered) and re-asserted in Task 6.
+  passed and the project has no `progressive:` block. The two full-view shapes are guarded
+  differently, and the difference is deliberate: the **node-owned** shape gets the committed
+  byte-for-byte baseline captured in Task 2 and re-run in Tasks 3–6; the **type-covered** shape
+  has no byte baseline and is guarded by the existing `tests/unit/cli/context-file-type-coverage.test.ts`,
+  whose assertions already pin the typed view's lines verbatim (`[enforced, unverified] pure-fn — …`).
+  That suite is therefore re-run in every task that touches `context-file.ts` — Tasks 2, 3 and 6 —
+  and it is the only thing standing between D2's second suffix site (`context-file.ts:96`) and a
+  silent change to the default typed view.
 - Formatters render already-decided text; business decisions live in the caller
   (`build-context.ts`) — the same division `context-file.ts`'s own comments mandate
   (`FileTypeCoverageView.chainTerminationText`).
@@ -106,7 +112,13 @@ fabricated data):
   structural-attention note — two more stdout lines, a blank one and a sentence — is suppressed
   under `--brief` and `--aspect` (decision D8).
 - Coverage stays ≥ 90 % (gate step). A spawned-binary test contributes **zero** coverage of
-  `src/**` (separate process), so every new branch also gets an in-process test.
+  `src/**` (separate process), so every new branch of an EXPORTED function gets an in-process
+  test too — that is what Tasks 4, 5 and 6 each add beside their spawned cases. The exception is
+  the option-handling code inside `contextAction` itself (the `--brief` / `--aspect` dispatch and
+  the `--node` refusals): it is not exported and it ends in `process.exit`, which would kill the
+  vitest worker, so it stays spawned-only exactly as `tests/unit/cli/build-context.test.ts`
+  already leaves it. Keep the assembly logic in `composeBriefExtras` / `computeScopeMarking`,
+  where it IS reachable in-process, and keep `contextAction`'s new code to dispatch.
 - One CHANGELOG entry under `## [Unreleased]` for the whole increment (Task 7), release-notes
   voice.
 - `templates/rules.ts` is deliberately NOT edited in this increment (decision D1), so no digest
@@ -141,9 +153,19 @@ not from the architecture's type block alone — the type block omits what the n
   `check --approve`), `self-contained-references`, `source-no-raw-control-chars`.
 - `source-hygiene` expands to `posix-paths-source`, `no-direct-minimatch`, `no-shell-injection`,
   `prototype-safe-registry-lookup`, `owner-resolution-single-source`, `self-contained-references`.
-  **`self-contained-references` bites this plan directly**: a test's own `it`/`describe` name may
-  not carry a bare `(Task N)`, `(Step N)` or `(Phase N)` citation. Name tests after the behavior,
-  never after this plan.
+  **`self-contained-references` bites this plan twice, and the second bite is the one that will
+  actually fire.** (a) A test's own `it`/`describe` name may not carry a bare `(Task N)`,
+  `(Step N)` or `(Phase N)` citation — name tests after the behavior, never after this plan.
+  (b) The check ALSO refuses a fixed list of vague phrases in **every comment paragraph and every
+  test name** (`.yggdrasil/aspects/self-contained-references/check.mjs`'s `VAGUE_PHRASES`):
+  `this task`, `a/the later task`, `master plan`, `fix round` — and **`the brief`**, matched
+  case-insensitively on a word boundary. That last one collides head-on with this increment's
+  own subject: consecutive `//` lines are joined into one paragraph before matching, so a comment
+  that wraps "… about the SHAPE of **the brief** …" across two lines fires just the same. Write
+  "the compact view", "the `--brief` view", or the function's own name — never the bare phrase — in any
+  comment or test name inside `context-file.ts`, `build-context.ts`, or the new test files. The
+  restriction is on comments and test names only: `buildIssueMessage` strings, docs and the
+  CHANGELOG are never scanned, so the user-facing wording in Task 2 and Task 3 is unaffected.
 - All paths written to stdout go through `toPosixPath` (`posixPath()` local helper in
   `context-file.ts:70`).
 
@@ -190,6 +212,11 @@ node source/cli/dist/bin.js check --approve
   aspect-header sites, not one — the node-owned line (`context-file.ts:139`,
   `  <id> [<status>] — <desc>`) and the type-covered line (`context-file.ts:96`,
   `    <id> [<status>, unverified] — <desc>`) — and both take the suffix.
+  The `--aspect` expansion (Task 3) is the deliberate exception and carries **no** marking: it is
+  reached from a brief that just marked that same rule one line earlier (D7 makes it the third
+  trail pointer), and repeating the word there would mean a third derivation of one sentence about
+  one rule. It also runs before any scope resolution on its path, so `--aspect` stays the one
+  surface here that starts no git process. Recorded so the exception is a decision, not a gap.
 - **D3:** When the change scope cannot be measured, context never guesses and never re-words.
   `resolveChangeScope` returns one of three kinds; each is handled by name:
   - `scoped` → measured. Per-aspect marking is emitted. If it also carries `notice` (the
@@ -450,8 +477,8 @@ function briefAspectLines(a: FileContextAspect, scope?: 'yours' | 'inherited'): 
   const suffix = scope === undefined ? '' : ` (${scope})`;
   const head = `  [${status}${caveat}] ${a.aspectId} — ${briefDescription(a.aspectDescription)}${suffix}`;
   // A draft rule has no reviewer and no verdict; the full view withholds its
-  // read path for exactly that reason, and the brief must not contradict it by
-  // pointing at a rule source nothing is judged against.
+  // read path for exactly that reason, and the compact view must not contradict
+  // it by pointing at a rule source nothing is judged against.
   if (status === 'draft') return [head, '    (reviewer skipped; aspect is draft)'];
   return [head, `    read: ${posixPath(a.verifiedAgainst)}`];
 }
@@ -561,8 +588,8 @@ const distExists = existsSync(BIN_PATH);
 
 // The fixture's one node-owned file, read off orders/order-service's `mapping:`
 // (it maps exactly this path) rather than guessed: the assertions below are
-// about the SHAPE of the brief, and a wrong path would fail them for the wrong
-// reason.
+// about the SHAPE of the compact view, and a wrong path would fail them for the
+// wrong reason.
 const OWNED_FILE = 'src/orders/order.service.ts';
 const BASELINE = path.join(CLI_ROOT, 'tests', 'fixtures', 'context-baselines', 'sample-project-order-service.txt');
 
@@ -626,7 +653,7 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
       expect(withoutFlag.stdout).toBe(readFileSync(BASELINE, 'utf-8'));
       expect(withoutFlag.stdout).toContain('Must satisfy:');
       expect(withoutFlag.stdout).toContain('Node context: run yg context --node');
-      // The brief is a DIFFERENT rendering, not a reformat of the same text.
+      // The compact view is a DIFFERENT rendering, not a reformat of the same text.
       const brief = run(['context', '--file', OWNED_FILE, '--brief'], dir);
       expect(brief.stdout).not.toBe(withoutFlag.stdout);
       expect(brief.stdout.length).toBeLessThan(withoutFlag.stdout.length);
@@ -741,7 +768,7 @@ describe('formatFileContextAspect', () => {
     }],
   };
 
-  it('keeps the whole description the brief truncated, and every read path', () => {
+  it('keeps the whole description a compact line would truncate, and every read path', () => {
     const out = formatFileContextAspect(withRefs, 'what-why-next')!;
     expect(out).toContain('Second sentence is kept here.');
     expect(out).toContain('read: .yggdrasil/aspects/what-why-next/content.md');
@@ -836,7 +863,21 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
   - `includeDraft` stays at its default `false`, so draft pairs never appear (D4) — do not
     re-filter for status;
   - a non-empty `unreadable` suppresses the whole preview line (D5) and is recorded via
-    `debugWrite`.
+    `debugWrite`;
+  - **on the type-covered branch the `typeCoverage` argument must carry `edges`.**
+    `TypeCoverageInput.edges` (`pairs.ts:134`) is the statically-resolved import index a
+    `relations:` atom in a rule's `when:` is answered from, and `computeTypeCoverageForContext`
+    never sets it, while `buildTypeCoveredFileContextData` — the thing that produced the rule list
+    the preview sits under — always does (`build-context.ts:155`, from the `edges` computed at
+    `:435`). Count and list would then disagree inside one brief: a relation-gated rule printed in
+    `Must satisfy:` but missing from N, which contradicts D4's "true invalidation set". So on that
+    branch pass the helper's result with the `edges` the branch already holds spread onto it. The
+    helper's return type is `TypeCoverageInput | undefined` and only the `undefined` case is a
+    compile problem: on this branch it cannot happen (the branch body sits inside
+    `if (graph.config.coverage?.typeLevel)` at `:425`, the helper's own condition), but TypeScript
+    cannot know that — narrow it with an explicit check before spreading rather than asserting.
+    The node-owned branch computes no edge index and needs none — no nodeless pair is enumerated
+    for a file a component owns.
 - Produces: `armPreviewText` inside `composeBriefExtras`:
   `editing this file invalidates N pairs (M free / K reviewer pairs) — price a fill: yg check --approve --dry-run`
   where N counts pairs whose `subjectFiles` includes `toPosixPath(file)`, M those with
@@ -1085,8 +1126,8 @@ it, beside the other in-process cases.
   /**
    * Exported so both context views read ONE measurement; not part of the CLI surface.
    * `aspectIds` is the file's effective list (`data.aspects`, or `data.typeCoverage.applied`);
-   * `pairs` and `repoFiles` are the SINGLE whole-graph enumeration and the SINGLE repo walk this
-   * invocation already made (Task 4), never fresh ones. Prints the decision's `notice` to stderr
+   * `pairs` and `repoFiles` are the SINGLE whole-graph enumeration and the SINGLE repo walk the
+   * caller already made for the arm preview, never fresh ones. Prints the decision's `notice` to stderr
    * itself — one print site, as `cli/check.ts:335-341`'s own comment argues for.
    */
   export async function computeScopeMarking(
@@ -1107,9 +1148,16 @@ it, beside the other in-process cases.
 - `graph.config.progressive?.reference !== undefined` gates the work, and the two callers gate at
   different depths because they already pay different prices. The brief path walks and enumerates
   regardless (Task 4's arm preview needs both), so for it the gate skips only this call. The
-  full-view path enumerates nothing today, so it tests the reference FIRST and skips the walk, the
-  enumeration and this call together — otherwise every plain `yg context --file` in a
-  reference-less project would start paying for a whole-repo walk it has no use for.
+  **node-owned** full view enumerates nothing today (`:525-527` is `buildFileContextData` and a
+  render, no walk), so it tests the reference FIRST and skips the walk, the enumeration and this
+  call together — otherwise every plain `yg context --file` in a reference-less project would start
+  paying for a whole-repo walk it has no use for. The **type-covered** full view is not in that
+  position and must not be described as if it were: it already walks (`computeRelationEdgesForContext`
+  at `:435` calls `computeTypeCoverageForContext`, which calls `walkRepoFiles`) and already
+  enumerates the whole graph (`buildTypeCoveredFileContextData`, `build-context.ts:156`). Reference
+  present or not, it therefore reuses the walk and enumeration it has rather than making new ones —
+  the same widened helper and the same threading Task 4 introduces — and the reference gate there
+  saves only `resolveChangeScope` itself.
   `computeScopeMarking` re-tests the condition defensively and returns `{}`. With a reference
   present:
   - `kind === 'scoped'`: `scopeHeaderText` =
