@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- **`.mts` and `.cts` files are now recognized as TypeScript.** The language registry only mapped
+  `.ts`, so module-variant TypeScript files were invisible to every analysis surface — never parsed,
+  never classified, never checked — even though the TypeScript import resolver already resolved
+  specifiers to `.mts`/`.cts` paths. Both extensions now map to the TypeScript grammar, closing the
+  inconsistency.
+
 ## [5.7.2] - 2026-08-09
 
 ### Fixed

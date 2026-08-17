@@ -16,6 +16,7 @@
     "**/dist/**",
     "**/tests/**",
     ".plans/**",
+    "planning/**",
     ".lab/**",
     ".temp/**",
     ".superpowers/**",

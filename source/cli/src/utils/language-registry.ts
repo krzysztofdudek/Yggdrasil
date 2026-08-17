@@ -24,7 +24,7 @@ export interface LanguageDef {
 export const LANGUAGES: Record<string, LanguageDef> = {
   typescript: {
     id: 'typescript',
-    extensions: ['.ts'],
+    extensions: ['.ts', '.mts', '.cts'],
     wasmFile: 'tree-sitter-typescript.wasm',
     wasmPackage: 'tree-sitter-typescript',
     grammarRepo: 'https://github.com/tree-sitter/tree-sitter-typescript',
