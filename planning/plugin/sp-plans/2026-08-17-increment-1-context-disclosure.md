@@ -39,7 +39,10 @@ running the real binary:
 
 ```text
 File 'source/cli/tests/unit/cli/<new>.test.ts' satisfies when of type 'test-suite' (enforce: strict):
-Fix: Create yg-node.yaml with type: test-suite and add '…' to its mapping.
+<match trace>
+But file is not in any node's mapping.
+…
+Fix: Create yg-node.yaml with type: test-suite and add '<that path>' to its mapping.
 ```
 
 So each task that creates a test file also edits the owning node in the same commit:
@@ -87,12 +90,18 @@ fabricated data):
 - Formatters render already-decided text; business decisions live in the caller
   (`build-context.ts`) — the same division `context-file.ts`'s own comments mandate
   (`FileTypeCoverageView.chainTerminationText`).
-- Brief output ≤ 30 lines for a node-owned file. Worst case with every extra present and the
-  aspect list at its cap: path 1 + Owner 1 + scope header 1 + `Must satisfy:` 1 + 8 aspects × 2
-  lines 16 + arm preview 1 + Depends on 1 + Dependents 1 + log gate 1 + flows 1 + 3 `next:` 3
-  = **28**, or **29** with the truncation tail (which appears only when the list exceeds the cap,
-  never at exactly 8). Two lines of headroom under 30. When the aspect list would exceed the cap
-  it is truncated with a final line `  … and N more — run yg context --file <p> for all`.
+- Brief output ≤ 30 lines for a node-owned file. Worst case for the RENDERER with every extra
+  present and the aspect list at its cap: path 1 + Owner 1 + scope header 1 + `Must satisfy:` 1
+  + 8 aspects × 2 lines 16 + arm preview 1 + Depends on 1 + Dependents 1 + log gate 1 + flows 1
+  + 3 `next:` 3 = **28**, or **29** with the truncation tail (which appears only when the list
+  exceeds the cap, never at exactly 8). When the aspect list would exceed the cap it is truncated
+  with a final line `  … and N more — run yg context --file <p> for all`.
+  **The CLI prints one more line than the renderer returns:** the node-owned `--file` path writes
+  `<file> -> <node>` to **stdout** before the context (`build-context.ts:489` — despite
+  `docs/cli-reference.md`'s claim that it goes to stderr), so a spawned-binary assertion over
+  stdout counts **29** at the cap and **30** with the truncation tail. One line of headroom at the
+  cap, none at the tail — do not add a line to the brief without re-deriving this. (The
+  type-covered path never reaches line 489 and so carries no such line.)
 - Coverage stays ≥ 90 % (gate step). A spawned-binary test contributes **zero** coverage of
   `src/**` (separate process), so every new branch also gets an in-process test.
 - One CHANGELOG entry under `## [Unreleased]` for the whole increment (Task 7), release-notes
@@ -137,14 +146,21 @@ not from the architecture's type block alone — the type block omits what the n
 
 The engine-scoped aspects (`no-buildissuemessage-in-engine`, `no-direct-fs`,
 `no-nondeterminism-direct`, `no-direct-console`) are inert here: this increment edits no file
-under `core/`, `io/` or `ast/`.
+under `core/`, `io/` or `ast/`. Four repo-wide deterministic rules ARE in the effective set of
+both source files above and are deliberately not listed as biting — `wasm-tree-lifecycle`,
+`events-reader-boundary`, `instrument-import-fence`, `rules-artifact-names-single-source`. None
+constrains anything this plan writes (no `parseFile` import, no events-reader or graph-metrics
+import, no artifact-name literal), and all four are deterministic, so `repo-check.sh`'s closing
+`check --approve --only-deterministic` refills them for free.
 
 ### Per-commit gate ritual
 
 `scripts/repo-check.sh`'s final step is `yg check --approve --only-deterministic`, which
 refills **deterministic** verdicts only. Editing `context-file.ts` and `build-context.ts`
-invalidates their **LLM** pairs (`what-why-next`, `deterministic`, `posix-paths-output`,
-`cli-command-contract`), and each new test file adds an unfilled `test-deterministic` pair; all
+invalidates their **LLM** pairs — `what-why-next`, `deterministic`, `posix-paths-output` for
+both, plus `cli-command-contract` and `diagnostic-logging` for the command file (both are
+`reviewer.type: llm`; `diagnostic-logging` is easy to miss because its subject is a catch block)
+— and each new test file adds an unfilled `test-deterministic` pair; all
 of those stay unverified — so a bare `git commit` fails the gate on `yg check`, not on lint.
 Before each task's commit, from the repo root:
 
@@ -188,7 +204,7 @@ node source/cli/dist/bin.js check --approve
     defensive branch rather than the common case.
 
   The notice is an `IssueMessage` (`{what, why, next}`), **not** a one-line string, so it is
-  printed exactly where and how `cli/check.ts:336-340` prints it — to **stderr**, as
+  printed exactly where and how `cli/check.ts:335-341` prints it — to **stderr**, as
   `chalk.yellow('Notice: ' + buildIssueMessage(notice))` — which keeps stdout's ≤ 30-line brief
   budget intact and keeps one spelling of the sentence in the codebase.
 - **D4:** Arm preview counts `PairComputation.pairs` whose `subjectFiles` contain the file
@@ -251,6 +267,11 @@ node source/cli/dist/bin.js check --approve
   ```
 
   Later tasks rely on exactly these names.
+
+  The renderer's `Owner: unmapped` branch is **defensive, not a CLI surface**: Task 2 leaves the
+  unmapped-file paths on their existing what/why/next error, which exits 1 before any renderer
+  runs. It is written and unit-tested here so the pure function is total over `FileContextData`
+  (the MCP/plugin consumer calls it directly), not because `--brief` will ever reach it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -510,7 +531,7 @@ git commit -m "feat(context): brief renderer with scope suffixes, arm preview an
 ```ts
 // source/cli/tests/unit/cli/build-context-brief.test.ts
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -525,10 +546,12 @@ const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'sample-project');
 const distExists = existsSync(BIN_PATH);
 
-// Resolve one real, node-owned file from the fixture rather than hard-coding a
-// guess: the assertions below are about the SHAPE of the brief, and a wrong
-// path would fail them for the wrong reason.
+// The fixture's one node-owned file, read off orders/order-service's `mapping:`
+// (it maps exactly this path) rather than guessed: the assertions below are
+// about the SHAPE of the brief, and a wrong path would fail them for the wrong
+// reason.
 const OWNED_FILE = 'src/orders/order.service.ts';
+const BASELINE = path.join(CLI_ROOT, 'tests', 'fixtures', 'context-baselines', 'sample-project-order-service.txt');
 
 function copyFixture(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-context-brief-'));
@@ -575,6 +598,8 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
     try {
       const withoutFlag = run(['context', '--file', OWNED_FILE], dir);
       expect(withoutFlag.status).toBe(0);
+      // THE pin: the committed pre-edit capture, byte for byte.
+      expect(withoutFlag.stdout).toBe(readFileSync(BASELINE, 'utf-8'));
       expect(withoutFlag.stdout).toContain('Must satisfy:');
       expect(withoutFlag.stdout).toContain('Node context: run yg context --node');
       // The brief is a DIFFERENT rendering, not a reformat of the same text.
@@ -588,13 +613,13 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
 });
 ```
 
-The byte-identity pin proper is the committed baseline: capture the current full output ONCE,
-before any edit to `build-context.ts`, into
-`source/cli/tests/fixtures/context-baselines/sample-project-order-service.txt` via
-`node source/cli/dist/bin.js context --file src/orders/order.service.ts > …` run inside a copy of
-the fixture, commit it, and assert `readFileSync(baseline, 'utf-8') === withoutFlag.stdout`. Do
-this in Step 1, before Step 3 changes anything — a baseline captured after the edit proves
-nothing.
+The `BASELINE` file the pin reads must be captured FIRST, in Step 1, before any edit to
+`build-context.ts` — a baseline captured after the edit proves nothing. Capture it with
+`node source/cli/dist/bin.js context --file src/orders/order.service.ts > …` run inside a COPY of
+the fixture (never in-place: the run leaves gitignored engine state behind), writing to
+`source/cli/tests/fixtures/context-baselines/sample-project-order-service.txt`, and commit it.
+Note it captures stdout only, so it includes the `<file> -> <node>` resolution line the command
+writes there.
 
 - [ ] **Step 2: Run the tests, verify they fail** (`composeBriefExtras` is not exported;
   `--brief` is an unknown option). Run: `cd source/cli && npm run build && npx vitest run tests/unit/cli/build-context-brief.test.ts`.
@@ -602,7 +627,7 @@ nothing.
 - [ ] **Step 3: Implement**
 
 - Register `.option('--brief', 'compact one-line-per-rule view (≤ 30 lines)')` beside the
-  existing `--node`/`--file` options at `build-context.ts:574-579`. **`--aspect` is NOT registered
+  existing `--node`/`--file` options at `build-context.ts:576-577`. **`--aspect` is NOT registered
   here** — a flag that parses but does nothing is a worse surface than an absent one; it lands
   with its behavior in Task 3.
 - Widen `contextAction`'s parameter type to include `brief?: boolean`.
@@ -785,7 +810,11 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
   takes only `(graph)` and calls `walkRepoFiles` itself (`build-context.ts:103`). Widen that
   private helper to `(graph, repoFiles?: string[])` and fall back to its own walk when the
   argument is absent — a local, behavior-preserving change to a non-exported function, so no
-  graph or contract consequence.
+  graph or contract consequence. Sharing is bounded, not total: under progressive mode Task 6's
+  `resolveChangeScope` runs its OWN `resolveTypeCoverage` + `computeExpectedPairs`
+  (`progressive-scope-resolve.ts:447-448`) behind a signature that accepts neither result, so the
+  enumeration still happens twice on a measured run. That is pre-existing and out of scope here;
+  do not widen the resolver's public input to chase it in this increment.
 
 - [ ] **Step 1: Write the failing tests** — build a real project with both reviewer kinds using
   `createProgressiveFixture` from `source/cli/tests/support/progressive-fixture.ts` (it is
@@ -1000,7 +1029,7 @@ whose `src/leaf/a.ts` renders `Owner: type:leaf` — the same file and fixture
     `decision.notice` is also set, print it (below).
   - `kind === 'unmeasurable'`: no `scopeHeaderText`, no `scopeByAspect`; print the notice.
   - `kind === 'whole-project'`: nothing at all — no header, no marking, no notice.
-  - Printing a notice means, verbatim in the shape `cli/check.ts:334-339` uses:
+  - Printing a notice means, verbatim in the shape `cli/check.ts:335-341` uses:
     `process.stderr.write(chalk.yellow('Notice: ' + buildIssueMessage(decision.notice)) + '\n')`.
     stderr, so the ≤ 30-line stdout budget is untouched and a hook reading stdout is unaffected.
 - In `context-file.ts`, an optional `scopeByAspect` parameter threaded into `formatFileContext`
@@ -1021,8 +1050,10 @@ whose `src/leaf/a.ts` renders `Owner: type:leaf` — the same file and fixture
   it rather than re-typing the literal:
 
 ```ts
+import { createProgressiveFixture, REFERENCE_BRANCH, type ProgressiveFixture } from '../../support/progressive-fixture.js';
+
 it('marks a rule on a file the change touched as yours', () => {
-  const f = createProgressiveFixture({ label: 'ctx-in', progressiveReference: 'main' });
+  const f = createProgressiveFixture({ label: 'ctx-in', progressiveReference: REFERENCE_BRANCH });
   fixtures.push(f);
   f.branchWithEdit('work', 'src/alpha/alpha.ts', 'export const alpha = 2;\n');
   const { stdout, status } = run(['context', '--file', 'src/alpha/alpha.ts', '--brief'], f.dir);
@@ -1032,7 +1063,7 @@ it('marks a rule on a file the change touched as yours', () => {
 });
 
 it('marks a rule on a file the change left alone as inherited', () => {
-  const f = createProgressiveFixture({ label: 'ctx-out', progressiveReference: 'main' });
+  const f = createProgressiveFixture({ label: 'ctx-out', progressiveReference: REFERENCE_BRANCH });
   fixtures.push(f);
   f.branchWithEdit('work', 'src/alpha/alpha.ts', 'export const alpha = 2;\n');
   const { stdout } = run(['context', '--file', 'src/beta/beta.ts', '--brief'], f.dir);
@@ -1120,6 +1151,10 @@ a real on-disk graph in a real git repository, so no rule about fabricated data 
   `CHANGELOG.md` (`## [Unreleased]` → `### Added`)
 - Test: none — the gate's docs and markdown steps cover it.
 
+Also correct one sentence already in that section while it is open: it says `--file` "Prints
+owner mapping to stderr", but `build-context.ts:489` writes `<file> -> <node>` to **stdout**.
+The brief's line budget is measured over stdout, so the docs and the budget must agree.
+
 - [ ] **Step 1: Write the docs sections.** The rendered brief example is COPIED from a real run
   (`node source/cli/dist/bin.js context --file <a real repo file> --brief`), never hand-typed.
   The CHANGELOG entry is one entry for the whole increment, in release-notes voice: what an
@@ -1167,7 +1202,7 @@ a real on-disk graph in a real git repository, so no rule about fabricated data 
   type's `log_required: true` makes a `yg log add` part of every `build-context.ts` commit;
   `repo-check.sh`'s closing `check --approve --only-deterministic` does not refill the LLM pairs
   these edits invalidate (`what-why-next`, `deterministic`, `posix-paths-output`,
-  `cli-command-contract`, and each new file's `test-deterministic`) — hence the per-commit
+  `cli-command-contract`, `diagnostic-logging`, and each new file's `test-deterministic`) — hence the per-commit
   ritual; and `check --approve` is keyless here because the `standard` tier's provider is
   `claude-code`, read from `.yggdrasil/yg-config.yaml`. Commits are per task; no step commits.
 - **Placeholder scan:** clean. Every "mirror file X" pointer was opened and verified to contain
@@ -1185,5 +1220,8 @@ a real on-disk graph in a real git repository, so no rule about fabricated data 
   typechecks `tests/**/*.ts`, so a widened `Map<string, string>` there would fail the gate's
   first step, not merely read oddly.
 - **Line budget:** the worst-case arithmetic in Global Constraints was recomputed line by line
-  against T1 Step 3's implementation and against T1's own 8-aspect assertion: 28 lines at the
-  cap, 29 with the truncation tail. The earlier "27" was one short.
+  against T1 Step 3's implementation and against T1's own 8-aspect assertion: the RENDERER
+  returns 28 lines at the cap, 29 with the truncation tail. The two assertions measure different
+  things and must not be conflated — T1's is over the renderer's return value (28/29), T2's and
+  T4–T6's are over spawned stdout, which carries the command's extra `<file> -> <node>`
+  resolution line (29/30). Both stay inside 30; the stdout side has no headroom left at the tail.
