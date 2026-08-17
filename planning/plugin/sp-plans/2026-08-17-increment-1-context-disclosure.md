@@ -246,7 +246,7 @@ node source/cli/dist/bin.js check --approve
   The notice is an `IssueMessage` (`{what, why, next}`), **not** a one-line string. Its `why` and
   `next` are the resolver's own, reused verbatim (D9); its `what` is context's own. Printed
   exactly where and how `cli/check.ts:335-341` prints its own notice — to **stderr**, as
-  `chalk.yellow('Notice: ' + buildIssueMessage({ what, why: notice.why, next: notice.next }))` —
+  `chalk.yellow('Notice: ' + buildIssueMessage({ what, why: notice.why, next: notice.next }) + '\n')` —
   which keeps stdout's ≤ 30-line brief budget intact.
 - **D4:** Arm preview counts `PairComputation.pairs` whose `subjectFiles` contain the file
   (post-`scope.files` filtering, so it is the true invalidation set), split by
@@ -317,7 +317,7 @@ node source/cli/dist/bin.js check --approve
   export interface FileBriefExtras {
     /** "editing this file invalidates N pairs (M free / K reviewer pairs) — …" — pre-rendered by the caller; absent → line omitted */
     armPreviewText?: string;
-    /** "your change so far: N files; this file is in it" — pre-rendered (D3); absent → no scope section */
+    /** "your change so far: N files; this file is in it" — pre-rendered; absent → no scope section */
     scopeHeaderText?: string;
     /** aspectId → 'yours' | 'inherited' (only when the change was measured) */
     scopeByAspect?: Map<string, 'yours' | 'inherited'>;
@@ -556,7 +556,7 @@ Expected: PASS (all 9).
 Then prove the append inert — this edit is the one change to `context-file.ts` that lands BEFORE
 Task 2 captures the byte baseline, so nothing else would catch it having moved the full view:
 
-Run: `npx vitest run tests/unit/formatters/context-file.test.ts tests/unit/formatters/context-references.test.ts tests/unit/cli/context-file-type-coverage.test.ts`
+Run: `cd source/cli && npx vitest run tests/unit/formatters/context-file.test.ts tests/unit/formatters/context-references.test.ts tests/unit/cli/context-file-type-coverage.test.ts`
 Expected: PASS, unchanged.
 
 - [ ] **Step 5: Map the new test file, typecheck, gate ritual, commit**
@@ -565,8 +565,8 @@ Expected: PASS, unchanged.
 # add source/cli/tests/unit/formatters/context-file-brief.test.ts to the mapping: of
 # .yggdrasil/model/cli/tests/unit/support/formatters/yg-node.yaml — without it yg check
 # fails with type-strict-orphan on the new file
-cd source/cli && npm run typecheck && npm run build
-cd .. && node source/cli/dist/bin.js check --approve      # refills cli/formatters' LLM pairs and the new file's test-deterministic pair; no log entry needed (formatter type)
+(cd source/cli && npm run typecheck && npm run build)
+node source/cli/dist/bin.js check --approve      # refills cli/formatters' LLM pairs and the new file's test-deterministic pair; no log entry needed (formatter type)
 git add source/cli/src/formatters/context-file.ts source/cli/tests/unit/formatters/context-file-brief.test.ts .yggdrasil
 git commit -m "feat(context): brief renderer with scope suffixes, arm preview and trail pointers"
 ```
@@ -799,7 +799,8 @@ git add -A && git commit -m "feat(context): --brief flag renders the compact lay
 
 - [ ] **Step 1: Write the failing tests**
 
-Renderer tests, added to `context-file-brief.test.ts`:
+Renderer tests, added to `context-file-brief.test.ts` — extend that file's existing import from
+`context-file.js` with `formatFileContextAspect`:
 
 ```ts
 describe('formatFileContextAspect', () => {
