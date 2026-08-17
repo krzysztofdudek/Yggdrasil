@@ -101,7 +101,10 @@ fabricated data):
   `docs/cli-reference.md`'s claim that it goes to stderr), so a spawned-binary assertion over
   stdout counts **29** at the cap and **30** with the truncation tail. One line of headroom at the
   cap, none at the tail — do not add a line to the brief without re-deriving this. (The
-  type-covered path never reaches line 489 and so carries no such line.)
+  type-covered path never reaches line 489 and so carries no such line.) Nothing else writes to
+  stdout on these paths, and that is what keeps the arithmetic total: the advisory
+  structural-attention note — two more stdout lines, a blank one and a sentence — is suppressed
+  under `--brief` and `--aspect` (decision D8).
 - Coverage stays ≥ 90 % (gate step). A spawned-binary test contributes **zero** coverage of
   `src/**` (separate process), so every new branch also gets an in-process test.
 - One CHANGELOG entry under `## [Unreleased]` for the whole increment (Task 7), release-notes
@@ -230,6 +233,13 @@ node source/cli/dist/bin.js check --approve
   brief just named is the pointer the reader can actually act on next, and it is the surface
   Task 3 ships; a separate node-wide aspect listing is a different command with a different
   subject. Recorded as a deviation rather than taken silently.
+- **D8:** The advisory structural-attention note (`maybeAppendAttentionLine`, called at
+  `build-context.ts:461-463` on the type-covered path and `:531-533` on the node-owned one) is NOT
+  printed under `--brief` or `--aspect`. It writes TWO further lines to stdout — a blank line and
+  a sentence — which the ≤ 30-line budget has no room for (one line of headroom at the aspect cap,
+  none at the truncation tail), and it is a remark about the whole file's structure, not about the
+  one rule `--aspect` was asked to expand. It is untouched on the default full view, whose length
+  nothing constrains, so no existing output changes.
 
 ---
 
@@ -593,10 +603,21 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
     }
   });
 
+  it('refuses the compact view for a component, naming the flag that fits', () => {
+    const dir = copyFixture();
+    try {
+      const { stderr, status } = run(['context', '--node', 'orders/order-service', '--brief'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('--brief is only available with --file');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('leaves the default full view byte-identical when no new flag is passed', () => {
-    // A REAL run of the built binary against the capture taken BEFORE any edit
-    // in this increment, byte for byte. Re-run after every later task; it is the
-    // increment's regression floor.
+    // A REAL run of the built binary against a capture taken before this
+    // command's output path was touched at all, byte for byte. Re-run after
+    // every later task; it is the increment's regression floor.
     const dir = copyFixture();
     try {
       const withoutFlag = run(['context', '--file', OWNED_FILE], dir);
@@ -617,7 +638,9 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
 ```
 
 The `BASELINE` file the pin reads must be captured FIRST, in Step 1, before any edit to
-`build-context.ts` — a baseline captured after the edit proves nothing. Capture it with
+`build-context.ts` — a baseline captured after the edit proves nothing. (Task 1's commit is
+already in; it only appended new exports to `context-file.ts` and changed no byte of what
+`formatFileContext` renders, so a capture taken here is still the pre-increment output.) Capture it with
 `node source/cli/dist/bin.js context --file src/orders/order.service.ts > …` run inside a COPY of
 the fixture (never in-place: the run leaves gitignored engine state behind), writing to
 `source/cli/tests/fixtures/context-baselines/sample-project-order-service.txt`, and commit it.
@@ -636,9 +659,19 @@ writes there.
 - Widen `contextAction`'s parameter type to include `brief?: boolean`.
 - In the `resolvedFilePath` branch (`build-context.ts:525-527`) and in the type-covered branch
   (`:459-460`), when `options.brief` is set call
-  `formatFileContextBrief(data, await composeBriefExtras(graph, displayFile, data))` instead of
-  `formatFileContext(data)`. The unmapped-file branches keep their existing what/why/next
-  messages — a file with no owner and no type has no rules to brief.
+  `formatFileContextBrief(data, await composeBriefExtras(graph, <file>, data))` instead of
+  `formatFileContext(data)`. `<file>` is `resolvedFilePath` at `:525-527` and `displayFile` at
+  `:459-460` — the two hold the same value (`toPosixPath(result.file)`), but `displayFile` is
+  block-scoped inside `if (options.file)` (declared `:370`, out of scope by `:525`), so naming it
+  in the lower branch would not compile. The unmapped-file branches keep their existing
+  what/why/next messages — a file with no owner and no type has no rules to brief.
+- Skip `maybeAppendAttentionLine` on both branches when `options.brief` is set (D8) — otherwise
+  the note's two stdout lines land inside the brief's budget.
+- `--brief` with `--node` is refused, beside the existing `--node`/`--file` exclusivity check
+  (`:352-359`) and in the same shape — `buildIssueMessage` to stderr, `process.exit(1)`:
+  - WHAT: `--brief is only available with --file.`
+  - WHY: `The brief compresses one file's obligations into a line per rule; --node already prints the component view, which has no per-file rule list to compress.`
+  - NEXT: `Run: yg context --file <path> --brief, or yg context --node <path> for the component view.`
 - `composeBriefExtras` derives the parent node path by trimming the last `/`-segment of
   `data.ownerPath` and checking `graph.nodes.has(...)`; it emits nothing for a root-level owner.
 
@@ -768,7 +801,11 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
 - [ ] **Step 3: Implement** the renderer, then register
   `.option('--aspect <id>', 'expand one rule in full (wins over --brief)')` and add the CLI
   branch: `--aspect` is checked BEFORE `--brief` in both the node-owned and type-covered file
-  branches; `undefined` from the renderer routes to the what/why/next error above.
+  branches; `undefined` from the renderer routes to the what/why/next error above. As with
+  `--brief`: the attention note is skipped on this path too (D8), and `--aspect` passed with
+  `--node` is refused by the same guard Task 2 added — WHAT `--aspect is only available with
+  --file.`, WHY `--aspect expands one rule from one file's own effective set; a component's rules
+  are listed by yg context --node itself.`, NEXT `Run: yg context --file <path> --aspect <id>.`
 
 - [ ] **Step 4: Run both suites plus `build-context.test.ts` and
   `context-file-type-coverage.test.ts`; verify all pass, and that the byte-identity assertion
@@ -935,6 +972,17 @@ it('says nothing about a written reason when the type does not demand one', () =
   expect(stdout).not.toContain('Log entry required before approve');
 });
 
+it('derives the owed-reason state from the graph, not from the printed line', async () => {
+  // In-process twin of the spawned case above: the log-gate branch is new
+  // `src/**` code, and a spawned run contributes no coverage of it.
+  const f = createProgressiveFixture({ label: 'gate-inproc', logRequired: true });
+  fixtures.push(f);
+  const graph = await loadGraph(f.dir);
+  const data = buildFileContextData(graph, 'src/alpha/alpha.ts', 'alpha');
+  const extras = await composeBriefExtras(graph, 'src/alpha/alpha.ts', data);
+  expect(extras.logGateText).toBe('Log entry required before approve: yes (fresh entry present: no)');
+});
+
 it('names the flows the owning component participates in, and omits the line when it is in none', async () => {
   const graph = await loadGraph(FIXTURE);
   const data = buildFileContextData(graph, OWNED_FILE, 'orders/order-service');
@@ -970,7 +1018,8 @@ fixture gains a flow. (`orders/order-service` does belong to `checkout-flow` tod
 `mkdtempSync` + `cpSync` helper as `copyFixture`, pointed at `tests/fixtures/type-level-engine`,
 whose `src/leaf/a.ts` renders `Owner: type:leaf` — the same file and fixture
 `context-file-type-coverage.test.ts` already drives. The three spawned cases go inside the
-`describe.skipIf(!distExists)` block; only the flows case is in-process.
+`describe.skipIf(!distExists)` block; the flows case and its in-process log-gate twin sit outside
+it, beside the other in-process cases.
 
 - [ ] **Step 2: Run, verify failure.**
 - [ ] **Step 3: Implement,** per the interface above.
@@ -1049,8 +1098,11 @@ whose `src/leaf/a.ts` renders `Owner: type:leaf` — the same file and fixture
   ): Promise<ScopeMarking>;
   ```
 
-  `composeBriefExtras` calls it and copies both fields into `FileBriefExtras`; the full-view path
-  calls it and passes `scopeByAspect` to `formatFileContext`. `ExpectedPair` is imported as a type
+  `composeBriefExtras` calls it and copies both fields into `FileBriefExtras`; BOTH full-view call
+  sites call it and pass `scopeByAspect` to `formatFileContext` — the node-owned one at
+  `build-context.ts:527` and the type-covered one at `:460`. Both, not one: D2's second suffix site
+  (`context-file.ts:96`) is reachable only from `:460`, so wiring the node-owned call alone would
+  leave it dead code and a type-covered file silently unmarked. `ExpectedPair` is imported as a type
   from `../core/pairs.js` (`pairs.ts:67`) — a type-only import, so no new relation.
 - `graph.config.progressive?.reference !== undefined` gates the work, and the two callers gate at
   different depths because they already pay different prices. The brief path walks and enumerates
@@ -1147,8 +1199,9 @@ a real on-disk graph in a real git repository, so no rule about fabricated data 
 
 - [ ] **Step 3a: Implement** `computeScopeMarking` — the resolver call (guarded on the config
   reference), the three-way `kind` switch, the `known` set, the `scopeByAspect` mapping and the
-  single notice print — then wire its two consumers (`composeBriefExtras` and the full-view path)
-  and both full-view suffix sites.
+  single notice print — then wire its consumers: `composeBriefExtras`, and both full-view call
+  sites (`:527` node-owned, `:460` type-covered), each feeding its own suffix site in
+  `context-file.ts` (`:139` and `:96`).
 
 - [ ] **Step 3b: Update the graph — this task cannot pass `yg check` without it.**
   `build-context.ts` now statically imports two modules it never did:
@@ -1196,7 +1249,10 @@ a real on-disk graph in a real git repository, so no rule about fabricated data 
 
 Also correct one sentence already in that section while it is open: it says `--file` "Prints
 owner mapping to stderr", but `build-context.ts:489` writes `<file> -> <node>` to **stdout**.
-The brief's line budget is measured over stdout, so the docs and the budget must agree.
+The brief's line budget is measured over stdout, so the docs and the budget must agree. And the
+paragraph at `docs/cli-reference.md:69-74` — the advisory structural-attention line — gains the
+one clause D8 makes true: it ends the `--file` view in its default, full form only, not the
+compact or single-rule views.
 
 - [ ] **Step 1: Write the docs sections.** The rendered brief example is COPIED from a real run
   (`node source/cli/dist/bin.js context --file <a real repo file> --brief`), never hand-typed.
@@ -1270,3 +1326,6 @@ The brief's line budget is measured over stdout, so the docs and the budget must
   things and must not be conflated — T1's is over the renderer's return value (28/29), T2's and
   T4–T6's are over spawned stdout, which carries the command's extra `<file> -> <node>`
   resolution line (29/30). Both stay inside 30; the stdout side has no headroom left at the tail.
+  The third stdout writer on that path — the advisory attention note, two lines — is the reason
+  D8 exists: left running under `--brief` it would put a real invocation at 32 on a file the
+  attention index happens to name, so it is suppressed there and kept on the full view.
