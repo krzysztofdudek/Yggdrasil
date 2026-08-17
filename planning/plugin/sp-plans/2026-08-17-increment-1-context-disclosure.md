@@ -524,7 +524,10 @@ git commit -m "feat(context): brief renderer with scope suffixes, arm preview an
     In this task it assembles only `nextPointers`; later tasks fill the rest:
     1. `next: yg log read --node <ownerPath>` — only when an owner node exists,
     2. `next: yg context --node <parent-of-owner>` — only when the owner has a parent node,
-    3. `next: yg context --file <p> --aspect <first-aspect-id>` — only when ≥ 1 aspect.
+    3. `next: yg context --file <p> --aspect <first-aspect-id>` — only when the file has ≥ 1
+       EFFECTIVE aspect, read from the same list the renderer and `--aspect` read
+       (`data.aspects` for a node-owned file, `data.typeCoverage.applied` for a type-covered one),
+       so a type-covered file offers the pointer too rather than silently dropping it.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -591,9 +594,9 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
   });
 
   it('leaves the default full view byte-identical when no new flag is passed', () => {
-    // Two REAL runs of the same built binary compared byte for byte — the same
-    // way the progressive gate's own opt-out case is pinned. Re-run after every
-    // later task in this increment; it is the increment's regression floor.
+    // A REAL run of the built binary against the capture taken BEFORE any edit
+    // in this increment, byte for byte. Re-run after every later task; it is the
+    // increment's regression floor.
     const dir = copyFixture();
     try {
       const withoutFlag = run(['context', '--file', OWNED_FILE], dir);
@@ -826,7 +829,8 @@ CLI tests, added to `build-context-brief.test.ts` inside the `describe.skipIf(!d
   (28 declared relations against a limit of 30 — 29 fits). Task 6 then reuses it:
 
 ```ts
-import { afterEach } from 'vitest';
+// `afterEach` is added to the file's EXISTING `import { describe, it, expect } from 'vitest'`,
+// not imported a second time.
 import { createProgressiveFixture, type ProgressiveFixture } from '../../support/progressive-fixture.js';
 
 const fixtures: ProgressiveFixture[] = [];
@@ -896,7 +900,8 @@ and no graph edit, so it must not be entangled with Task 6's.
   component, therefore no log gate and no flow membership — both lines are absent):
   - `logGateText` = `Log entry required before approve: <yes|no> (fresh entry present: <yes|no>)`,
     derived by the SAME sequence `attachLockObservability` uses for the node view
-    (`build-context.ts:262-296`): `graph.architecture.node_types[<ownerType>]?.log_required`,
+    (its log-gate block, `build-context.ts:264-294`):
+    `graph.architecture.node_types[<ownerType>]?.log_required`,
     then `computeSourceFingerprint(graph, ownerPath)` compared against
     `readLock(graph.rootPath).nodes[ownerPath]?.source`, then
     `hasFreshLogEntry(await readLogContent(projectRoot, ownerPath), lock.nodes[ownerPath]?.log)`.
@@ -1017,10 +1022,44 @@ whose `src/leaf/a.ts` renders `Owner: type:leaf` — the same file and fixture
 
 **Produces:**
 
-- In `composeBriefExtras`, and in the full-view path, gated on
-  `graph.config.progressive?.reference !== undefined` (with no reference the resolver returns
-  `whole-project` before starting a git process, and this gate keeps `yg context` from paying for
-  the call at all):
+- One producer, two consumers. D2 puts the marking in the brief AND in the full view, and the
+  full view never calls `composeBriefExtras`, so the measurement is factored into its own named
+  export rather than duplicated — two derivations of the same sentence about the same file is
+  exactly how the two views would come to disagree:
+
+  ```ts
+  export interface ScopeMarking {
+    /** absent ⇒ no scope section (unmeasurable, or no reference configured) */
+    scopeHeaderText?: string;
+    scopeByAspect?: Map<string, 'yours' | 'inherited'>;
+  }
+  /**
+   * Exported so both context views read ONE measurement; not part of the CLI surface.
+   * `aspectIds` is the file's effective list (`data.aspects`, or `data.typeCoverage.applied`);
+   * `pairs` and `repoFiles` are the SINGLE whole-graph enumeration and the SINGLE repo walk this
+   * invocation already made (Task 4), never fresh ones. Prints the decision's `notice` to stderr
+   * itself — one print site, as `cli/check.ts:335-341`'s own comment argues for.
+   */
+  export async function computeScopeMarking(
+    graph: Graph,
+    filePath: string,
+    aspectIds: string[],
+    pairs: ExpectedPair[],
+    repoFiles: string[],
+  ): Promise<ScopeMarking>;
+  ```
+
+  `composeBriefExtras` calls it and copies both fields into `FileBriefExtras`; the full-view path
+  calls it and passes `scopeByAspect` to `formatFileContext`. `ExpectedPair` is imported as a type
+  from `../core/pairs.js` (`pairs.ts:67`) — a type-only import, so no new relation.
+- `graph.config.progressive?.reference !== undefined` gates the work, and the two callers gate at
+  different depths because they already pay different prices. The brief path walks and enumerates
+  regardless (Task 4's arm preview needs both), so for it the gate skips only this call. The
+  full-view path enumerates nothing today, so it tests the reference FIRST and skips the walk, the
+  enumeration and this call together — otherwise every plain `yg context --file` in a
+  reference-less project would start paying for a whole-repo walk it has no use for.
+  `computeScopeMarking` re-tests the condition defensively and returns `{}`. With a reference
+  present:
   - `kind === 'scoped'`: `scopeHeaderText` =
     `your change so far: ${burn.changedInputCount} files; this file is ${burn.files.has(posixFile) ? 'in it' : 'not in it'}`
     (`1 file` singular), and `scopeByAspect` maps each of the file's aspects to `'yours'` when ANY
@@ -1032,10 +1071,11 @@ whose `src/leaf/a.ts` renders `Owner: type:leaf` — the same file and fixture
   - Printing a notice means, verbatim in the shape `cli/check.ts:335-341` uses:
     `process.stderr.write(chalk.yellow('Notice: ' + buildIssueMessage(decision.notice)) + '\n')`.
     stderr, so the ≤ 30-line stdout budget is untouched and a hook reading stdout is unaffected.
-- In `context-file.ts`, an optional `scopeByAspect` parameter threaded into `formatFileContext`
-  appends ` (yours)` / ` (inherited)` at **both** aspect-header sites — the node-owned line at
-  `:139` and the type-covered line at `:96`. Absent parameter ⇒ byte-identical output, which is
-  what makes the pin below meaningful.
+- In `context-file.ts`, `formatFileContext` widens to
+  `export function formatFileContext(data: FileContextData, scopeByAspect?: ReadonlyMap<string, 'yours' | 'inherited'>): string`
+  and appends ` (yours)` / ` (inherited)` at **both** aspect-header sites — the node-owned line at
+  `:139` and the type-covered line at `:96`. Omitted argument ⇒ byte-identical output, which is
+  what makes the pin below meaningful, and every existing call site keeps compiling unchanged.
 
 - [ ] **Step 1: Write the failing tests** over real git repositories — there is **no injection
   seam** into `resolveChangeScope` (it shells to git), and the `burn()` helper in
@@ -1083,16 +1123,15 @@ it('says nothing about scope when the reference cannot be resolved, and explains
   expect(stderr).toContain('origin/never-fetched');
 });
 
-it('is byte-identical for a project that named no reference', () => {
+it('adds no scope marking and no notice to a project that named no reference', () => {
   const f = createProgressiveFixture({ label: 'ctx-optout' });   // no progressiveReference
   fixtures.push(f);
   const full = run(['context', '--file', 'src/alpha/alpha.ts'], f.dir);
   expect(full.status).toBe(0);
   expect(full.stdout).not.toContain('(yours)');
   expect(full.stdout).not.toContain('(inherited)');
+  expect(full.stdout).not.toContain('your change so far');
   expect(full.stderr).not.toContain('Notice:');
-  // And against the committed baseline captured in Task 2, for this repo's own fixture:
-  // readFileSync(BASELINE, 'utf-8') === run(['context','--file',OWNED_FILE], sampleDir).stdout
 });
 ```
 
@@ -1106,8 +1145,10 @@ a real on-disk graph in a real git repository, so no rule about fabricated data 
 
 - [ ] **Step 2: Run, verify failures.**
 
-- [ ] **Step 3a: Implement** the resolver call (guarded on the config reference), the three-way
-  `kind` switch, the `known` set, the `scopeByAspect` mapping, and both full-view suffix sites.
+- [ ] **Step 3a: Implement** `computeScopeMarking` — the resolver call (guarded on the config
+  reference), the three-way `kind` switch, the `known` set, the `scopeByAspect` mapping and the
+  single notice print — then wire its two consumers (`composeBriefExtras` and the full-view path)
+  and both full-view suffix sites.
 
 - [ ] **Step 3b: Update the graph — this task cannot pass `yg check` without it.**
   `build-context.ts` now statically imports two modules it never did:
@@ -1133,8 +1174,10 @@ a real on-disk graph in a real git repository, so no rule about fabricated data 
   `max_direct_relations.limit` of 30, so 29 needs no ceiling edit). If Task 4 already added that
   relation for `build-context-brief.test.ts`, only the mapping line is new.
 
-- [ ] **Step 4: Run the new suite, the Task 2–5 suites, and
-  `npx vitest run tests/unit/core/check-progressive.test.ts` (must be untouched).**
+- [ ] **Step 4: Run the new suite, the Task 2–5 suites — Task 2's committed-baseline pin is the
+  byte-identity assertion for this task too, and the widened `formatFileContext` signature is
+  exactly what it guards — and `npx vitest run tests/unit/core/check-progressive.test.ts` (must be
+  untouched).**
 
 - [ ] **Step 5: Gate ritual, commit** —
   `feat(context): progressive scope marking — yours vs inherited, honest fallbacks`
@@ -1215,7 +1258,9 @@ The brief's line budget is measured over stdout, so the docs and the budget must
   helper cannot be threaded into a CLI run.
 - **Type consistency:** `FileBriefExtras` names match between T1 (producer) and T2/T4/T5/T6
   (consumers); `'inherited'` is both the map value and the rendered word, so there is no
-  second mapping to drift. Both `Map` literals in T1's tests were compiled against a strict
+  second mapping to drift. `ScopeMarking.scopeByAspect` (T6) is the same `Map<string, 'yours' |
+  'inherited'>`, assignable straight into `FileBriefExtras` and into `formatFileContext`'s
+  `ReadonlyMap` parameter, so the brief and the full view cannot disagree about one file. Both `Map` literals in T1's tests were compiled against a strict
   `tsc` to confirm the contextual `'yours' | 'inherited'` inference holds — `tsconfig.check.json`
   typechecks `tests/**/*.ts`, so a widened `Map<string, string>` there would fail the gate's
   first step, not merely read oddly.
