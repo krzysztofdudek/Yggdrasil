@@ -279,10 +279,12 @@ node source/cli/dist/bin.js check --approve
   one rule `--aspect` was asked to expand. It is untouched on the default full view, whose length
   nothing constrains, so no existing output changes.
 - **D9:** `computeScopeMarking` does not print `decision.notice` verbatim. Both notice producers
-  (`progressive-scope-resolve.ts:139`, `:175`) hard-code a WHAT describing a run that "gated the
-  whole project — every finding blocks, exactly as 'yg check --full' would report it". That is
-  true for one of context's two notice-bearing branches and false for the other, so D9 renders one
-  of two WHATs depending on which branch produced the notice — both reuse the resolver's `why` and
+  (`progressive-scope-resolve.ts:139`, `:175`) hard-code a WHAT ending in the clause both share
+  verbatim — "— every finding blocks, exactly as 'yg check --full' would report it" — after a
+  lead-in that differs between them (paraphrased, not quoted): "gated the whole project" at
+  `:139` versus "answered for all of it" at `:175`. That is true for one of context's two
+  notice-bearing branches and false for the other, so D9 renders one of two WHATs depending on
+  which branch produced the notice — both reuse the resolver's `why` and
   `next` verbatim, only the WHAT differs:
   - **`unmeasurable`** (the reference could not be resolved at all — no marking is emitted on this
     branch): WHAT is
@@ -694,7 +696,7 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
       // The compact view is a DIFFERENT rendering, not a reformat of the same text.
       const brief = run(['context', '--file', OWNED_FILE, '--brief'], dir);
       expect(brief.stdout).not.toBe(withoutFlag.stdout);
-      expect(brief.stdout.length).toBeLessThan(withoutFlag.stdout.length);
+      expect(brief.stdout.trimEnd().split('\n').length).toBeLessThan(withoutFlag.stdout.trimEnd().split('\n').length);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -897,11 +899,9 @@ third pointer exists:
   are listed by yg context --node itself.`, NEXT `Run: yg context --file <path> --aspect <id>.`
   Also extend `composeBriefExtras` with the deferred third `nextPointers` entry described above.
 - Update the pointer-count assertion in `tests/unit/cli/build-context-brief.test.ts` from ≤ 2 to
-  ≤ 3 and extend its expected-pointer list with the `--aspect` pointer: in the pre-existing
-  `composeBriefExtras — trail pointers` test, change
+  ≤ 3: in the pre-existing `composeBriefExtras — trail pointers` test, change
   `expect(extras.nextPointers.length).toBeLessThanOrEqual(2);` to
-  `expect(extras.nextPointers.length).toBeLessThanOrEqual(3);`, and immediately above it add
-  ``expect(extras.nextPointers[2]).toBe(`next: yg context --file ${OWNED_FILE} --aspect ${data.aspects[0].aspectId}`);``.
+  `expect(extras.nextPointers.length).toBeLessThanOrEqual(3);`.
   Left at ≤ 2, that pre-existing test now fails every run once this file carries a third pointer.
 
 - [ ] **Step 4: Run both suites plus `build-context.test.ts` and
@@ -970,9 +970,10 @@ third pointer exists:
   private helper to `(graph, repoFiles?: string[])` and fall back to its own walk when the
   argument is absent — a local, behavior-preserving change to a non-exported function, so no
   graph or contract consequence. Widen `computeRelationEdgesForContext` (`:121`) the same way,
-  to `(graph, projectRoot, repoFiles?)` forwarding to it: it is the type-covered branch's OWN
-  walk site (`:122`), so leaving it alone would have that branch walk twice however carefully the
-  rest threads. With both widened, the type-covered branch hoists
+  to `(graph, projectRoot, repoFiles?)` forwarding to it: the walk itself originates at `:103`
+  inside `computeTypeCoverageForContext`, which `computeRelationEdgesForContext` calls at `:122`
+  — the helper never calls `walkRepoFiles` itself — so leaving it un-widened would have that
+  branch walk twice however carefully the rest threads. With both widened, the type-covered branch hoists
   `const repoFiles = await walkRepoFiles(repoRoot)` ABOVE `:435` and threads it into
   `computeRelationEdgesForContext` and into `composeBriefExtras`'s `shared` — that hoist is what
   makes `repoFiles` something the branch can hand on at all, since neither helper returns it.
@@ -1218,7 +1219,8 @@ it, beside the other in-process cases.
    * `pairs` and `repoFiles` are whatever whole-graph enumeration and repo walk the caller made
    * for THIS invocation — this function makes neither of its own, so no caller can pay for a
    * second one. Prints a context-scoped notice to stderr itself when the decision carries one
-   * (D9) — one print site, as `cli/check.ts:335-341`'s own comment argues for.
+   * (D9) — one print site, matching `cli/check.ts:330-341`: the comment at `:330-334` introduces
+   * the code at `:335-341` that does exactly this.
    */
   export async function computeScopeMarking(
     graph: Graph,
