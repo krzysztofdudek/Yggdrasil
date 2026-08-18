@@ -124,7 +124,7 @@ yg context --file <file-path> --aspect <rule-id>
     editing this file invalidates 20 pairs (15 free / 5 reviewer pairs) — price a fill: yg check --approve --dry-run
     Depends on: cli/core/loader · cli/core/context · cli/core/validator · …
     Dependents: 2 nodes
-    Log entry required before approve: no (fresh entry present: no)
+    Log entry required before approve: yes (fresh entry present: yes)
     Flows: Build context · Graph analysis
     next: yg log read --node cli/commands/build-context
     next: yg context --node cli/commands

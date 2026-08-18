@@ -20,7 +20,7 @@ import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { walkRepoFiles, resolveGraphExclusionSet, isExcludedFromGraph, isCoverageExcludedPath, NO_COVERAGE_EXCLUDED, describeExclusionSource, describeExclusionCause } from '../io/repo-scanner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
-import type { TypeCoverageInput, ExpectedPair } from '../core/pairs.js';
+import type { TypeCoverageInput, ExpectedPair, UnreadableSubject } from '../core/pairs.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';
 import { pairIsInScope } from '../core/check-progressive.js';
 import { progressivePairKey } from '../core/progressive-scope.js';
@@ -393,6 +393,14 @@ export interface ScopeMarking {
  * notice to stderr itself when the decision carries one
  * (D9) — one print site, matching `cli/check.ts:330-341`: the comment at `:330-334` introduces
  * the code at `:335-341` that does exactly this.
+ *
+ * `unreadable` is the SAME enumeration's own unreadable-subject list — the
+ * caller's `pairs` was built alongside it by one `computeExpectedPairs` call,
+ * so a non-empty `unreadable` means `pairs` is known short. Never mark scope
+ * on top of a known-short enumeration: a missing pair could be the one that
+ * would have made a rule 'yours', so marking it '(inherited)' anyway would be
+ * a positive false claim — the same honesty rule the arm preview already
+ * applies to its own suppressed count.
  */
 export async function computeScopeMarking(
   graph: Graph,
@@ -400,7 +408,12 @@ export async function computeScopeMarking(
   aspectIds: string[],
   pairs: ExpectedPair[],
   repoFiles: string[],
+  unreadable: UnreadableSubject[],
 ): Promise<ScopeMarking> {
+  if (unreadable.length > 0) {
+    debugWrite(`[build-context] scope marking suppressed: ${unreadable.length} unreadable subject(s), first: ${unreadable[0].path}`);
+    return {};
+  }
   const reference = graph.config.progressive?.reference;
   if (reference === undefined) return {};
 
@@ -503,13 +516,14 @@ export async function composeBriefExtras(
   // never sets edges itself, and without them a relation-gated rule would be
   // missing from this count while still printed under "Must satisfy:" above.
   //
-  // `wholeGraphPairs` survives the try block so the scope-marking call below
-  // can reuse this SAME whole-graph enumeration rather than making a second
-  // one — it stays undefined only on the rare failure this block already
-  // swallows, in which case scope marking is skipped too rather than paying
-  // for its own re-enumeration.
+  // `wholeGraphPairs` (and its sibling `wholeGraphUnreadable`) survive the try
+  // block so the scope-marking call below can reuse this SAME whole-graph
+  // enumeration rather than making a second one — both stay undefined only on
+  // the rare failure this block already swallows, in which case scope marking
+  // is skipped too rather than paying for its own re-enumeration.
   let armPreviewText: string | undefined;
   let wholeGraphPairs: ExpectedPair[] | undefined;
+  let wholeGraphUnreadable: UnreadableSubject[] | undefined;
   try {
     const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
     const typeCoverageWithEdges = shared?.edges !== undefined && typeCoverage !== undefined
@@ -517,6 +531,7 @@ export async function composeBriefExtras(
       : typeCoverage;
     const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageWithEdges });
     wholeGraphPairs = pairs;
+    wholeGraphUnreadable = unreadable;
     if (unreadable.length > 0) {
       // A non-empty unreadable set means the pair count above is not the true
       // invalidation set — printing it anyway would understate what an edit
@@ -548,7 +563,7 @@ export async function composeBriefExtras(
   let scopeHeaderText: string | undefined;
   let scopeByAspect: Map<string, 'yours' | 'inherited'> | undefined;
   if (graph.config.progressive?.reference !== undefined && wholeGraphPairs !== undefined) {
-    const marking = await computeScopeMarking(graph, filePath, effectiveAspects.map((a) => a.aspectId), wholeGraphPairs, repoFiles ?? []);
+    const marking = await computeScopeMarking(graph, filePath, effectiveAspects.map((a) => a.aspectId), wholeGraphPairs, repoFiles ?? [], wholeGraphUnreadable ?? []);
     scopeHeaderText = marking.scopeHeaderText;
     scopeByAspect = marking.scopeByAspect;
   }
@@ -757,8 +772,8 @@ export function registerBuildCommand(program: Command): void {
                   if (graph.config.progressive?.reference !== undefined) {
                     const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
                     const typeCoverageWithEdges = typeCoverage !== undefined ? { ...typeCoverage, edges } : typeCoverage;
-                    const { pairs } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageWithEdges });
-                    const marking = await computeScopeMarking(graph, displayFile, data.typeCoverage?.applied.map((a) => a.aspectId) ?? [], pairs, repoFiles);
+                    const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageWithEdges });
+                    const marking = await computeScopeMarking(graph, displayFile, data.typeCoverage?.applied.map((a) => a.aspectId) ?? [], pairs, repoFiles, unreadable);
                     scopeByAspect = marking.scopeByAspect;
                   }
                   process.stdout.write(formatFileContext(data, scopeByAspect));
@@ -853,8 +868,8 @@ export function registerBuildCommand(program: Command): void {
             if (graph.config.progressive?.reference !== undefined) {
               const repoFiles = await walkRepoFiles(projectRootFromGraph(graph.rootPath));
               const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
-              const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
-              const marking = await computeScopeMarking(graph, resolvedFilePath, data.aspects.map((a) => a.aspectId), pairs, repoFiles);
+              const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage });
+              const marking = await computeScopeMarking(graph, resolvedFilePath, data.aspects.map((a) => a.aspectId), pairs, repoFiles, unreadable);
               scopeByAspect = marking.scopeByAspect;
             }
             process.stdout.write(formatFileContext(data, scopeByAspect));

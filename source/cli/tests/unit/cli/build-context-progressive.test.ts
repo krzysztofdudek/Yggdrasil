@@ -8,7 +8,10 @@ import { createProgressiveFixture, REFERENCE_BRANCH, type ProgressiveFixture } f
 import { runGitFixture } from '../../support/git-fixture.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { buildFileContextData } from '../../../src/core/context-builder.js';
-import { composeBriefExtras } from '../../../src/cli/build-context.js';
+import { composeBriefExtras, computeScopeMarking } from '../../../src/cli/build-context.js';
+import { computeExpectedPairs } from '../../../src/core/pairs.js';
+import type { UnreadableSubject } from '../../../src/core/pairs.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
 
 // ---------------------------------------------------------------------------
 // Progressive-mode scope marking on `yg context --file` (D2, D3, D6): the
@@ -161,5 +164,27 @@ describe('computeScopeMarking — in-process yours/inherited mapping', () => {
     const extras = await composeBriefExtras(graph, 'src/beta/beta.ts', data);
     expect(extras.scopeHeaderText).toBe('your change so far: 1 file; this file is not in it');
     expect(extras.scopeByAspect?.get('no-todo-comments')).toBe('inherited');
+  });
+
+  it('returns no marking at all when the enumeration reports an unreadable subject', async () => {
+    // Same inputs as the "maps the changed file's rule to yours" case above,
+    // but with a non-empty `unreadable` argument — a known-short enumeration
+    // must never produce a false (inherited)/(yours) claim, so the whole
+    // marking is suppressed: no scopeByAspect, no scopeHeaderText.
+    const f = createProgressiveFixture({ label: 'ctx-inproc-unreadable', progressiveReference: REFERENCE_BRANCH });
+    fixtures.push(f);
+    f.branchWithEdit('work', 'src/alpha/alpha.ts', 'export const alpha = 2;\n');
+    const graph = await loadGraph(f.dir);
+    const { pairs } = await computeExpectedPairs(graph, {});
+    const repoFiles = await walkRepoFiles(f.dir);
+    const unreadable: UnreadableSubject[] = [{
+      nodePath: 'alpha',
+      aspectId: 'no-todo-comments',
+      path: 'src/alpha/alpha.ts',
+      reason: 'unreadable',
+      messageData: { what: 'unreadable', why: 'unreadable', next: 'unreadable' },
+    }];
+    const marking = await computeScopeMarking(graph, 'src/alpha/alpha.ts', ['no-todo-comments'], pairs, repoFiles, unreadable);
+    expect(marking).toEqual({});
   });
 });

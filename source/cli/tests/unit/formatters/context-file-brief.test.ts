@@ -113,7 +113,7 @@ describe('formatFileContextBrief', () => {
     expect(out.trimEnd().split('\n').length).toBeLessThanOrEqual(30);
   });
 
-  it('renders the type-covered variant with the same one-line-per-aspect shape', () => {
+  it('renders the type-covered variant with the same two-line-per-aspect shape', () => {
     const tc: FileContextData = { filePath: 'src/lib/util.ts', aspects: [], dependencies: [], dependentCount: 0,
       typeCoverage: { typeId: 'library', chainTerminationText: 'Inherited rules stop at the type.',
         applied: [{ aspectId: 'pure-fn', aspectDescription: 'Library files export pure functions.', verifiedAgainst: '.yggdrasil/aspects/pure-fn/check.mjs', status: 'enforced', unverified: true }],
