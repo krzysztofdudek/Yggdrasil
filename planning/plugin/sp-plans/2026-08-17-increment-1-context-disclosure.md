@@ -116,9 +116,13 @@ fabricated data):
   stdout on these paths, and that is what keeps the arithmetic total: the advisory
   structural-attention note — two more stdout lines, a blank one and a sentence — is suppressed
   under `--brief` and `--aspect` (decision D8).
-- Coverage stays ≥ 90 % (gate step). A spawned-binary test contributes **zero** coverage of
-  `src/**` (separate process), so every new branch of an EXPORTED function gets an in-process
-  test too — that is what Tasks 4, 5 and 6 each add beside their spawned cases. The exception is
+- Coverage stays ≥ 90 % (gate step) — but the gate's `coverage.exclude` drops `src/cli/**`
+  entirely (`vitest.config.ts:37`), so `build-context.ts` — and with it `composeBriefExtras` /
+  `computeScopeMarking` — is never counted toward that number either way. The in-process cases
+  Tasks 4, 5 and 6 each add beside their spawned cases exist for in-process testability of those
+  functions' assembly decisions, not for the coverage gate. `src/formatters/**` (`context-file.ts`)
+  IS measured, so every new branch this plan adds there needs a measured in-process case — that is
+  the actual coverage obligation here. The exception is
   the option-handling code inside `contextAction` itself (the `--brief` / `--aspect` dispatch and
   the `--node` refusals): it is not exported and it ends in `process.exit`, which would kill the
   vitest worker, so it stays spawned-only exactly as `tests/unit/cli/build-context.test.ts`
@@ -279,10 +283,12 @@ node source/cli/dist/bin.js check --approve
   one rule `--aspect` was asked to expand. It is untouched on the default full view, whose length
   nothing constrains, so no existing output changes.
 - **D9:** `computeScopeMarking` does not print `decision.notice` verbatim. Both notice producers
-  (`progressive-scope-resolve.ts:139`, `:175`) hard-code a WHAT ending in the clause both share
-  verbatim — "— every finding blocks, exactly as 'yg check --full' would report it" — after a
+  (`progressive-scope-resolve.ts:139`, `:175`) carrying the clause both share — "— every finding
+  blocks, exactly as 'yg check --full' would report it" — after a
   lead-in that differs between them (paraphrased, not quoted): "gated the whole project" at
-  `:139` versus "answered for all of it" at `:175`. That is true for one of context's two
+  `:139` versus "answered for all of it" at `:175` (whose WHAT continues with "It was still
+  measured against '<reference>': nothing was left out." — strengthening the measured-with-caveat
+  branch below). That is true for one of context's two
   notice-bearing branches and false for the other, so D9 renders one of two WHATs depending on
   which branch produced the notice — both reuse the resolver's `why` and
   `next` verbatim, only the WHAT differs:
@@ -715,6 +721,7 @@ The `BASELINE` file the pin reads must be captured FIRST, in Step 1, before any 
 already in; it only appended new exports to `context-file.ts` and changed no byte of what
 `formatFileContext` renders, so a capture taken here is still the pre-increment output.) Capture
 it from the repo root, with `$COPY` the fixture copy dir and `$REPO` the repo root:
+`COPY=$(mktemp -d) && cp -r source/cli/tests/fixtures/sample-project/. "$COPY"`
 `mkdir -p source/cli/tests/fixtures/context-baselines`
 `(cd "$COPY" && node "$REPO/source/cli/dist/bin.js" context --file src/orders/order.service.ts) > source/cli/tests/fixtures/context-baselines/sample-project-order-service.txt`
 (never run in-place against the fixture itself: the run leaves gitignored engine state behind),
@@ -1027,8 +1034,9 @@ it('omits the line for a file no rule reviews', () => {
 });
 ```
 
-Also add an in-process case so the branch is covered by the coverage gate. In
-`tests/fixtures/sample-project`, `orders/order-service` carries exactly two rules, both
+Also add an in-process case: `composeBriefExtras` lives in `src/cli/**`, which the coverage gate
+excludes, so this case is for in-process testability of the assembly decision, not the coverage
+gate. In `tests/fixtures/sample-project`, `orders/order-service` carries exactly two rules, both
 reviewer-judged and both per-component (`requires-audit`, which `implies requires-logging`;
 neither declares a `scope:`), so the assertion is exact:
 
@@ -1107,8 +1115,8 @@ it('says nothing about a written reason when the type does not demand one', () =
 });
 
 it('derives the owed-reason state from the graph, not from the printed line', async () => {
-  // In-process twin of the spawned case above: the log-gate branch is new
-  // `src/**` code, and a spawned run contributes no coverage of it.
+  // In-process twin of the spawned case above: spawned runs cannot reach
+  // in-process assembly decisions; this in-process case pins the log-gate line directly.
   const f = createProgressiveFixture({ label: 'gate-inproc', logRequired: true });
   fixtures.push(f);
   const graph = await loadGraph(f.dir);
@@ -1390,8 +1398,9 @@ builds only component-owned files, never a type-covered one.
 The `[\w+, unverified]` half of the regex is what pins the match to `context-file.ts:96`'s line
 shape rather than the node-owned one at `:139`, which never carries that caveat.
 
-Add in-process cases for the `'yours'` / `'inherited'` mapping itself so the branch is covered by
-the coverage gate — and load them from a **progressive fixture**, not from
+Add in-process cases for the `'yours'` / `'inherited'` mapping itself — `computeScopeMarking`
+lives in `src/cli/**`, which the coverage gate excludes, so these cases are for in-process
+testability of the mapping, not the coverage gate — and load them from a **progressive fixture**, not from
 `tests/fixtures/sample-project`: that fixture names no reference, so `composeBriefExtras` over it
 short-circuits before `resolveChangeScope` and would cover the opt-out branch only. The shape is
 `const f = createProgressiveFixture({ label: 'ctx-inproc', progressiveReference: REFERENCE_BRANCH });`,
@@ -1411,6 +1420,16 @@ it('appends scope suffixes at the full-view aspect-header line', () => {
   const out = formatFileContext(base, scopeByAspect);
   expect(out).toMatch(/what-why-next.*\(yours\)/);
   expect(out).toMatch(/no-direct-db.*\(inherited\)/);
+});
+
+it('appends scope suffixes at the type-covered aspect-header line', () => {
+  const tc: FileContextData = { filePath: 'src/lib/util.ts', aspects: [], dependencies: [], dependentCount: 0,
+    typeCoverage: { typeId: 'library', chainTerminationText: 'Inherited rules stop at the type.',
+      applied: [{ aspectId: 'pure-fn', aspectDescription: 'Library files export pure functions.', verifiedAgainst: '.yggdrasil/aspects/pure-fn/check.mjs', status: 'enforced', unverified: true }],
+      dropped: [] } };
+  const scopeByAspect = new Map<string, 'yours' | 'inherited'>([['pure-fn', 'yours']]);
+  const out = formatFileContext(tc, scopeByAspect);
+  expect(out).toMatch(/\[enforced, unverified\].*pure-fn.*\(yours\)/);
 });
 ```
 
