@@ -66,8 +66,8 @@ is the consumer that makes this cost work load-bearing.
   `tests/integration/portal-derive-rest.test.ts` — currently `cli/tests/unit/cli/general` at
   30, `cli/commands/build-context` at 23/23; if a count moves, update the pin's assertion AND
   its narrative comment in the same commit).
-- **Every step that runs a guard suite or `dist/bin.js` is preceded by `npm run build` in
-  `source/cli/`** — `dist/` is gitignored and never refreshed as a side effect; three of the
+- **Every step that runs a dist-spawning guard suite or `dist/bin.js` is preceded by
+  `npm run build` in `source/cli/`** (a pure in-process RED step needs no build) — `dist/` is gitignored and never refreshed as a side effect; three of the
   six guard suites spawn the built binary behind `describe.skipIf(!distExists)`, including
   the byte-identity baseline, and a stale build makes them pass vacuously against pre-change
   code.
@@ -176,7 +176,7 @@ export function effectiveAspects(data: FileContextData): FileContextAspect[] {
 
 - [ ] **Step 5: Run the guard suites** — the new case green, everything else byte-unchanged:
   `cd source/cli && npm run build && npx vitest run tests/unit/formatters/context-file-brief.test.ts tests/unit/formatters/context-file.test.ts tests/unit/cli/build-context-brief.test.ts tests/unit/cli/build-context-progressive.test.ts tests/unit/cli/context-file-type-coverage.test.ts tests/unit/cli/build-context.test.ts`
-  (build first — two suites spawn `dist/bin.js`; the six-suite guard list from Global
+  (build first — three suites spawn `dist/bin.js`; the six-suite guard list from Global
   Constraints). Then `npm run typecheck && npm run lint`.
 
 - [ ] **Step 6: Graph ritual + report** — `node source/cli/dist/bin.js check --approve` from
@@ -282,14 +282,14 @@ helper.
   output unobserved. Inside the retained gate, call the helper with
   `{ edges: shared?.edges, repoFiles, pairsWithUnreadable: { pairs: wholeGraphPairs,
   unreadable: wholeGraphUnreadable ?? [] }, typeCoverage: wholeGraphTypeCoverage }` — the
-  surviving variables are `wholeGraphPairs`/`wholeGraphUnreadable` (`:525-526`, `:534`; the
+  surviving variables are `wholeGraphPairs`/`wholeGraphUnreadable` (declared `:525-526`, assigned `:533`/`:534`; the
   `unreadable` binding at `:532` dies with the `try` block, and the retained gate narrows
   only `wholeGraphPairs`, hence the `?? []`, matching what `:566` passes today). The
   classification is try-local today (`const typeCoverage` at `:528`): hoist
   `let wholeGraphTypeCoverage: TypeCoverageInput | undefined;` alongside the other two
   hoisted variables, REPLACE the `const typeCoverage` binding at `:528` with an assignment
-  to the hoisted name, and update the two reads at `:529-531` (the `typeCoverageWithEdges`
-  construction) to read the hoisted name — no chained assignment. Without this the compact
+  to the hoisted name, and update the three reads at `:529-531` (the guard, the spread, and the else arm of the
+  `typeCoverageWithEdges` construction) to read the hoisted name — no chained assignment. Without this the compact
   site has no classification to forward and Task 3's classify-once case cannot go green.
   Type-covered full view: `{ edges, repoFiles }`. Node-owned full view: no precomputed
   argument beyond what it has today. Delete the three inlined blocks; the two full-view
@@ -311,7 +311,7 @@ helper.
 - Modify: `source/cli/src/cli/build-context.ts`
 - Modify: `source/cli/src/cli/progressive-scope-resolve.ts`
 - Test: Create `source/cli/tests/unit/cli/build-context-classify-once.test.ts`
-- Modify: `.yggdrasil/model/cli/tests/unit/cli/general/yg-node.yaml` (mapping + any relation)
+- Modify: `.yggdrasil/model/cli/tests/unit/cli/general/yg-node.yaml` (mapping + description + any relation)
 - Modify: `.yggdrasil/model/cli/progressive-scope-resolve/yg-node.yaml` (description — Step 6)
 - Modify: `source/cli/tests/integration/portal-derive-rest.test.ts` (leaderboard pin — Step 6)
 
@@ -332,7 +332,7 @@ helper.
   `precomputed?: { typeCoverage?: TypeCoverageInput; pairs?: ExpectedPair[] }` —
   `TypeCoverageInput` is `resolveTypeCoverage`'s real return type
   (`progressive-scope-resolve.ts:324`, already imported in both files; do NOT use
-  `TypeCoverageResult`, a different exported interface from `core/type-coverage.ts:13-25`
+  `TypeCoverageResult`, a different exported interface from `core/type-coverage.ts:13-36`
   that would typecheck nothing here). NO `unreadable` field: `measure()` discards
   enumeration unreadables today (`:448` destructures only `pairs`) and the honesty gate
   lives one layer up in `computeScopeMarking` — inventing a refusal here would create a new
@@ -374,9 +374,11 @@ enumeration would let the burn set differ. Therefore:
   - Case A (enumeration-once, node-owned): in-process `composeBriefExtras` on
     `createProgressiveFixture({ label: ..., progressiveReference: REFERENCE_BRANCH })` —
     the reference MUST be passed explicitly (it is off by default,
-    `tests/support/progressive-fixture.ts:51-62`; without it `computeScopeMarking` is never
-    reached and the test is vacuously green) — and cut a real measured branch like every
-    sibling in-process case does:
+    `tests/support/progressive-fixture.ts:52-62`; without it `computeScopeMarking` is never
+    reached and the test is vacuously green) — build `graph` and `data` exactly as the
+    sibling in-process cases do (`build-context-progressive.test.ts:151-153`: `loadGraph`
+    on the fixture dir, `buildFileContextData` for the node-owned file) and cut a real
+    measured branch like every sibling does:
     `f.branchWithEdit('work', 'src/alpha/alpha.ts', 'export const alpha = 2;\n');`.
     Assert `computeExpectedPairs` called EXACTLY ONCE for the whole call (a
     `beforeEach` `mockClear` on both spies, as the precedent file does, keeps every case
@@ -414,7 +416,8 @@ enumeration would let the burn set differ. Therefore:
     legitimately enumerates twice; assert EXACTLY TWO with a comment stating the rule inline (the type-covered
     enumeration carries an edges-resolved lattice, which the resolver's pessimistic
     edge-less contract — `progressive-scope-resolve.ts:308-320` — refuses to consume, so
-    this path pays a second, cheap enumeration by design), so a future third enumeration
+    this path pays a second enumeration — no second classification — by design; no cost
+    adjective: nothing here measures it), so a future third enumeration
     still fails.
   - Case C (direct threading): `resolveChangeScope` called directly with
     `precomputed: { typeCoverage, pairs }` built from one explicit enumeration on the Case-A
@@ -452,7 +455,8 @@ enumeration would let the burn set differ. Therefore:
   the entire scope resolution; on the type-covered paths the SITE'S OWN classification is
   computed once and reused by the resolver — the relation pass's separate seeding
   classification (`computeRelationEdgesForContext`'s first line, `build-context.ts:125`)
-  remains a third whole-repo call on type-covered invocations and is OUT OF SCOPE here:
+  remains a SECOND whole-repo classification on type-covered invocations after this change
+  (it was the third before) and is OUT OF SCOPE here:
   name that residual explicitly in your report (Case B cannot see it — the stubbed edge
   index deliberately keeps the relation pass out of the measured window).
 - [ ] **Step 3: The cache-boundary test stays green** — run
@@ -476,12 +480,15 @@ enumeration would let the burn set differ. Therefore:
   `git checkout -b work`; append a line to `src/leaf/a.ts`; then
   `git add -A && git -c user.name=yg-test -c user.email=yg-test@fixture.test commit -m edit`
   (the `add` is required — nothing is staged; the `-c` flags keep the measurement
-  independent of whatever identity the host carries). This is a throwaway timing measurement, deleted afterward. Then — remembering `dist/` is gitignored, so a bare
-  `git stash` does NOT swap the binary — time AFTER first (`npm run build`, then 3 runs of
-  `node <abs-path>/dist/bin.js context --file src/leaf/a.ts --brief` in the fixture dir,
-  median); then `git stash && npm run build`, time BEFORE; then `git stash pop &&
-  npm run build`. Record both medians in the report. The call-count test is the primary
-  evidence; the timing is corroboration, not a gate.
+  independent of whatever identity the host carries; the `cp -r` destination must not
+  already exist). Then the timing, remembering two traps — `dist/` is gitignored so a bare
+  `git stash` does NOT swap the binary, and the scratch dir is its own git repo so every
+  `git stash` runs FROM THE REPOSITORY ROOT: time AFTER first (`npm run build` in
+  `source/cli/`, then 3 runs of `node <abs-path>/dist/bin.js context --file src/leaf/a.ts
+  --brief` in the fixture dir, median); then from the repo root `git stash`, rebuild in
+  `source/cli/`, time BEFORE the same way; then `git stash pop` and rebuild. Record both
+  medians in the report; delete the scratch dir afterward. The call-count test is the
+  primary evidence; the timing is corroboration, not a gate.
 - [ ] **Step 6: Graph ritual + report** — mapping for the new test file; relation check (the
   new test imports `core/type-coverage` and `core/pairs` for spying — declare `uses` edges on
   the test node ONLY if the relation pass demands them). The general node currently sits at
@@ -592,12 +599,14 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
 - [ ] **Step 4: CHANGELOG.** One line under `## [Unreleased]` in a `### Changed` section —
   the file currently has `### Added`, `### Fixed`, `### Documentation` and no `### Changed`;
   create it between `### Added` and `### Fixed` (Keep-a-Changelog order). The line must not
-  over-claim — the type-covered paths deliberately keep a second (cheap) enumeration per the
-  contract ruling, and a relation-pass classification remains out of scope — so state the
-  unconditionally-true half: on projects that measure changes against a branch, the file
-  context views no longer repeat measurement work they already did in the same run, so they
-  cost materially less on large repositories. No counts, no path-specific claims —
-  adopter-voiced, no internals. (This is the increment's only changelog line;
+  over-claim — the type-covered paths deliberately keep a second enumeration per the
+  contract ruling, and a relation-pass classification remains out of scope — so state ONLY the
+  unconditionally-true half: on projects that measure changes against a branch, a file's
+  context view now reuses the classification it already made in the same run instead of
+  redoing it, so it costs less on large repositories. (The enumeration claim is NOT
+  unconditional — two of the four configurations still enumerate twice by design — and any
+  magnitude adjective must be backed by Task 3 Step 5's recorded medians or omitted.) No
+  counts, no path-specific claims — adopter-voiced, no internals. (This is the increment's only changelog line;
   Tasks 1-4 are internal.)
 - [ ] **Step 5: Graph ritual + report** — mapping unchanged; log entry only if command
   source drifted (it does not in this task — say so).
