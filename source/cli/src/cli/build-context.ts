@@ -6,7 +6,7 @@ import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { collectAncestors, buildNodeContextData, buildFileContextData } from '../core/context-builder.js';
 import { formatNodeContext } from '../formatters/context-node.js';
-import { formatFileContext, formatFileContextBrief } from '../formatters/context-file.js';
+import { formatFileContext, formatFileContextBrief, formatFileContextAspect } from '../formatters/context-file.js';
 import type { FileContextData, FileContextAspect, FileBriefExtras } from '../formatters/context-file.js';
 import { validate } from '../core/validator.js';
 import { findOwnerWithinOwnGraph } from './owner.js';
@@ -356,11 +356,15 @@ export async function composeBriefExtras(graph: Graph, filePath: string, data: F
       }
     }
   }
+  const effectiveAspects = data.ownerPath ? data.aspects : (data.typeCoverage?.applied ?? []);
+  if (effectiveAspects.length > 0) {
+    nextPointers.push(`next: yg context --file ${filePath} --aspect ${effectiveAspects[0].aspectId}`);
+  }
   return { nextPointers };
 }
 
 export function registerBuildCommand(program: Command): void {
-  const contextAction = async (options: { node?: string; file?: string; brief?: boolean }) => {
+  const contextAction = async (options: { node?: string; file?: string; brief?: boolean; aspect?: string }) => {
       try {
         if (!options.node && !options.file) {
           process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
@@ -383,6 +387,14 @@ export function registerBuildCommand(program: Command): void {
             what: "--brief is only available with --file.",
             why: "The brief compresses one file's obligations into a line per rule; --node already prints the component view, which has no per-file rule list to compress.",
             next: "Run: yg context --file <path> --brief, or yg context --node <path> for the component view.",
+          }) + '\n'));
+          process.exit(1);
+        }
+        if (options.aspect !== undefined && options.node) {
+          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+            what: "--aspect is only available with --file.",
+            why: "--aspect expands one rule from one file's own effective set; a component's rules are listed by yg context --node itself.",
+            next: "Run: yg context --file <path> --aspect <id>.",
           }) + '\n'));
           process.exit(1);
         }
@@ -486,7 +498,18 @@ export function registerBuildCommand(program: Command): void {
                   process.exit(1);
                 }
                 const data = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId, edges);
-                if (options.brief) {
+                if (options.aspect !== undefined) {
+                  const rendered = formatFileContextAspect(data, options.aspect);
+                  if (rendered === undefined) {
+                    process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+                      what: `Rule '${options.aspect}' is not one of the rules enforced on ${displayFile}.`,
+                      why: "--aspect names a rule from this file's own effective set; a rule attached elsewhere in the graph is not enforced here.",
+                      next: `Run: yg context --file ${displayFile} --brief to list this file's rules, then retry with one of them.`,
+                    }) + '\n'));
+                    process.exit(1);
+                  }
+                  process.stdout.write(rendered + '\n');
+                } else if (options.brief) {
                   process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, displayFile, data)));
                 } else {
                   process.stdout.write(formatFileContext(data));
@@ -557,7 +580,18 @@ export function registerBuildCommand(program: Command): void {
 
         if (resolvedFilePath) {
           const data = buildFileContextData(graph, resolvedFilePath, nodePath);
-          if (options.brief) {
+          if (options.aspect !== undefined) {
+            const rendered = formatFileContextAspect(data, options.aspect);
+            if (rendered === undefined) {
+              process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+                what: `Rule '${options.aspect}' is not one of the rules enforced on ${resolvedFilePath}.`,
+                why: "--aspect names a rule from this file's own effective set; a rule attached elsewhere in the graph is not enforced here.",
+                next: `Run: yg context --file ${resolvedFilePath} --brief to list this file's rules, then retry with one of them.`,
+              }) + '\n'));
+              process.exit(1);
+            }
+            process.stdout.write(rendered + '\n');
+          } else if (options.brief) {
             process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, resolvedFilePath, data)));
           } else {
             process.stdout.write(formatFileContext(data));
@@ -613,6 +647,7 @@ export function registerBuildCommand(program: Command): void {
     .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
     .option('--brief', 'compact one-line-per-rule view (≤ 30 lines)')
+    .option('--aspect <id>', 'expand one rule in full (wins over --brief)')
     .action(contextAction);
 
 }

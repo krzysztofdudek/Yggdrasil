@@ -51,7 +51,15 @@ describe('composeBriefExtras — trail pointers', () => {
     const extras = await composeBriefExtras(graph, OWNED_FILE, data);
     expect(extras.nextPointers[0]).toBe('next: yg log read --node orders/order-service');
     expect(extras.nextPointers[1]).toBe('next: yg context --node orders');
-    expect(extras.nextPointers.length).toBeLessThanOrEqual(2);
+    expect(extras.nextPointers.length).toBeLessThanOrEqual(3);
+  });
+
+  it('offers the first rule as a third pointer once --aspect exists', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const data = buildFileContextData(graph, OWNED_FILE, 'orders/order-service');
+    const extras = await composeBriefExtras(graph, OWNED_FILE, data);
+    expect(extras.nextPointers[2]).toBe(`next: yg context --file ${OWNED_FILE} --aspect ${data.aspects[0].aspectId}`);
+    expect(extras.nextPointers.length).toBeLessThanOrEqual(3);
   });
 });
 
@@ -109,6 +117,95 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
       expect(status).toBe(0);
       expect(stdout).toContain('  Owner: type:leaf');
       expect(stdout.trimEnd().split('\n').length).toBeLessThanOrEqual(30);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('expands one rule in full', () => {
+    const dir = copyFixture();
+    try {
+      const brief = run(['context', '--file', OWNED_FILE, '--brief'], dir);
+      const ruleId = /\[\w+\] ([a-z0-9-]+) —/.exec(brief.stdout)![1];
+      const { stdout, status } = run(['context', '--file', OWNED_FILE, '--aspect', ruleId], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain(ruleId);
+      expect(stdout).toContain('read: ');
+      expect(stdout).not.toContain('Must satisfy:');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses an unknown rule id with what, why and a next command', () => {
+    const dir = copyFixture();
+    try {
+      const { stderr, status } = run(['context', '--file', OWNED_FILE, '--aspect', 'no-such-rule'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain("Rule 'no-such-rule' is not one of the rules enforced on");
+      expect(stderr).toContain('--aspect names a rule from this file');
+      expect(stderr).toContain('--brief to list this file');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses --aspect together with --node, naming the same guard as --brief', () => {
+    const dir = copyFixture();
+    try {
+      const brief = run(['context', '--file', OWNED_FILE, '--brief'], dir);
+      const ruleId = /\[\w+\] ([a-z0-9-]+) —/.exec(brief.stdout)![1];
+      const { stderr, status } = run(['context', '--node', 'orders/order-service', '--aspect', ruleId], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('--aspect is only available with --file.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('expands one rule in full on a type-covered file', () => {
+    const dir = copyTypeFixture();
+    try {
+      const brief = run(['context', '--file', TYPE_COVERED_FILE, '--brief'], dir);
+      // Unlike the node-owned fixture, a type-covered aspect line can carry
+      // an ", unverified" caveat inside the brackets, so the id-extracting
+      // regex must not assume the tag is a single \w+ run.
+      const ruleId = /\[[^\]]+\] ([a-z0-9-]+) —/.exec(brief.stdout)![1];
+      const { stdout, status } = run(['context', '--file', TYPE_COVERED_FILE, '--aspect', ruleId], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain(ruleId);
+      expect(stdout).toContain('read: ');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('lets --aspect win over --brief, rendering the expansion rather than the compact view', () => {
+    const dir = copyFixture();
+    try {
+      const briefOnly = run(['context', '--file', OWNED_FILE, '--brief'], dir);
+      const ruleId = /\[\w+\] ([a-z0-9-]+) —/.exec(briefOnly.stdout)![1];
+      const aspectOnly = run(['context', '--file', OWNED_FILE, '--aspect', ruleId], dir);
+      const aspectAndBrief = run(['context', '--file', OWNED_FILE, '--aspect', ruleId, '--brief'], dir);
+      expect(aspectAndBrief.status).toBe(0);
+      // "Must satisfy:" is the header BOTH the full view and the compact
+      // view print above their per-rule list; the expansion never prints
+      // it. Combined with matching the flag-less expansion exactly, this
+      // shows --brief had no effect once --aspect is also present.
+      expect(aspectAndBrief.stdout).not.toContain('Must satisfy:');
+      expect(aspectAndBrief.stdout).toBe(aspectOnly.stdout);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('refuses an empty --aspect value with the unknown-id refusal, not a silent fallback', () => {
+    const dir = copyFixture();
+    try {
+      const { stderr, status } = run(['context', '--file', OWNED_FILE, '--aspect', ''], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain("Rule '' is not one of the rules enforced on");
+      expect(stderr).toContain('--aspect names a rule from this file');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

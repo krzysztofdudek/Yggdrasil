@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatFileContextBrief } from '../../../src/formatters/context-file.js';
+import { formatFileContextBrief, formatFileContextAspect } from '../../../src/formatters/context-file.js';
 import type { FileContextData } from '../../../src/formatters/context-file.js';
 
 const base: FileContextData = {
@@ -151,5 +151,78 @@ describe('formatFileContextBrief', () => {
     const noType = { ...base, ownerPath: 'model/cli/formatters', ownerType: undefined };
     const out = formatFileContextBrief(noType, { nextPointers: [] });
     expect(out).toMatch(/^ {2}Owner: model\/cli\/formatters \(unknown\)$/m);
+  });
+});
+
+describe('formatFileContextAspect', () => {
+  const withRefs: FileContextData = {
+    ...base,
+    aspects: [{
+      aspectId: 'what-why-next',
+      aspectDescription: 'Diagnostics use the shared builder. Second sentence is kept here.',
+      verifiedAgainst: '.yggdrasil/aspects/what-why-next/content.md',
+      status: 'enforced',
+      references: [{ path: 'src/formatters/message-builder.ts', description: 'The builder itself.' }],
+      companionReadPath: '.yggdrasil/aspects/what-why-next/companion.mjs',
+    }],
+  };
+
+  it('keeps the whole description a compact line would truncate, and every read path', () => {
+    const out = formatFileContextAspect(withRefs, 'what-why-next')!;
+    expect(out).toContain('Second sentence is kept here.');
+    expect(out).toContain('read: .yggdrasil/aspects/what-why-next/content.md');
+    expect(out).toContain('read: src/formatters/message-builder.ts — The builder itself.');
+    expect(out).toContain('read: .yggdrasil/aspects/what-why-next/companion.mjs');
+  });
+
+  it('returns undefined for a rule this file does not carry', () => {
+    expect(formatFileContextAspect(withRefs, 'no-such-rule')).toBeUndefined();
+  });
+
+  it('finds a rule on a type-covered file too', () => {
+    const tc: FileContextData = { filePath: 'src/lib/util.ts', aspects: [], dependencies: [], dependentCount: 0,
+      typeCoverage: { typeId: 'library', chainTerminationText: 'stops here.',
+        applied: [{ aspectId: 'pure-fn', aspectDescription: 'Library files export pure functions.', verifiedAgainst: '.yggdrasil/aspects/pure-fn/check.mjs', status: 'enforced', unverified: true }],
+        dropped: [] } };
+    expect(formatFileContextAspect(tc, 'pure-fn')).toContain('[enforced, unverified]');
+  });
+
+  it('stops after the description for a draft rule, with no read line at all', () => {
+    const draft: FileContextData = {
+      ...base,
+      aspects: [{ ...base.aspects[0], status: 'draft' }],
+    };
+    const out = formatFileContextAspect(draft, 'what-why-next')!;
+    expect(out).toContain('what-why-next [draft]');
+    expect(out).toContain(base.aspects[0].aspectDescription);
+    expect(out).toContain('    (reviewer skipped; aspect is draft)');
+    expect(out).not.toContain('read:');
+  });
+
+  it('returns undefined when the file has neither an owner nor type coverage', () => {
+    const orphan: FileContextData = { filePath: 'src/loose.ts', aspects: [], dependencies: [], dependentCount: 0 };
+    expect(formatFileContextAspect(orphan, 'anything')).toBeUndefined();
+  });
+
+  it('falls back to enforced status when the aspect omits it', () => {
+    const noStatus: FileContextData = {
+      ...base,
+      aspects: [{ aspectId: 'what-why-next', aspectDescription: base.aspects[0].aspectDescription, verifiedAgainst: base.aspects[0].verifiedAgainst }],
+    };
+    const out = formatFileContextAspect(noStatus, 'what-why-next')!;
+    expect(out.startsWith('what-why-next [enforced]')).toBe(true);
+  });
+
+  it('renders a bare read line when a reference has no description', () => {
+    const noDesc: FileContextData = {
+      ...base,
+      aspects: [{
+        ...withRefs.aspects[0],
+        references: [{ path: 'src/formatters/message-builder.ts' }],
+      }],
+    };
+    const out = formatFileContextAspect(noDesc, 'what-why-next')!;
+    const line = out.split('\n').find((l) => l.includes('message-builder.ts'))!;
+    expect(line).toBe('read: src/formatters/message-builder.ts');
   });
 });

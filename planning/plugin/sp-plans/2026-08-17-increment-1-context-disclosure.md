@@ -1573,3 +1573,19 @@ compact or single-rule views.
   The third stdout writer on that path — the advisory attention note, two lines — is the reason
   D8 exists: left running under `--brief` it would put a real invocation at 32 on a file the
   attention index happens to name, so it is suppressed there and kept on the full view.
+
+---
+
+## Post-review amendments (controller decisions during execution)
+
+- **D10 — draft rules in the `--aspect` expansion (amends Task 3's render list).** The dictated
+  render for `formatFileContextAspect` was silent on `status: 'draft'`, so a draft rule expanded
+  via `--aspect` printed the `read:` paths that both sibling views deliberately withhold (see the
+  rationale comment inside `briefAspectLines`). Amendment: the expansion view treats draft like
+  the full and compact views — after the status/id head and the full description it prints
+  `(reviewer skipped; aspect is draft)` and stops; no `read:` lines, no references, no companion.
+  A draft-specific test pins this.
+- **D11 — empty-string flag argument (amends Task 3's guard semantics).** `--aspect ""` is not
+  "flag absent": the guard and dispatch test `options.aspect !== undefined` instead of truthiness,
+  so an empty id flows into the ordinary unknown-id refusal rather than silently degrading to the
+  full or compact view.

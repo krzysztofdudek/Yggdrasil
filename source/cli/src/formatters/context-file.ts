@@ -262,3 +262,45 @@ export function formatFileContextBrief(data: FileContextData, extras: FileBriefE
   lines.push('');
   return lines.join('\n');
 }
+
+/**
+ * Expand exactly one rule from this file's own effective set in full — the
+ * FULL untruncated description, its status tag, and every read path — for
+ * `yg context --file <path> --aspect <id>`.
+ *
+ * Returns `undefined` when `aspectId` is not among the file's effective
+ * aspects (`data.aspects` for a node-owned file, `data.typeCoverage.applied`
+ * for a type-covered one) — the CLI owns the unknown-id error, not the
+ * formatter.
+ */
+export function formatFileContextAspect(data: FileContextData, aspectId: string): string | undefined {
+  const aspects = data.ownerPath ? data.aspects : (data.typeCoverage?.applied ?? []);
+  const aspect = aspects.find((a) => a.aspectId === aspectId);
+  if (!aspect) return undefined;
+
+  const lines: string[] = [];
+  const status = aspect.status ?? 'enforced';
+  const caveat = aspect.unverified ? ', unverified' : '';
+  lines.push(`${aspect.aspectId} [${status}${caveat}] — ${aspect.aspectDescription}`);
+  // A draft rule has no reviewer and no verdict — stop after the description
+  // rather than pointing at a rule source nothing is judged against, mirroring
+  // the compact view's draft notice.
+  if (status === 'draft') {
+    lines.push('    (reviewer skipped; aspect is draft)');
+    return lines.join('\n');
+  }
+  lines.push(`read: ${posixPath(aspect.verifiedAgainst)}`);
+  if (aspect.references) {
+    for (const ref of aspect.references) {
+      if (ref.description && ref.description.length > 0) {
+        lines.push(`read: ${posixPath(ref.path)} — ${truncateDescription(ref.description)}`);
+      } else {
+        lines.push(`read: ${posixPath(ref.path)}`);
+      }
+    }
+  }
+  if (aspect.companionReadPath) {
+    lines.push(`read: ${posixPath(aspect.companionReadPath)}`);
+  }
+  return lines.join('\n');
+}

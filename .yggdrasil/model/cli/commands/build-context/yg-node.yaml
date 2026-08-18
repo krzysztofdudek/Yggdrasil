@@ -36,8 +36,17 @@ description: "Assembles and outputs a context package for a node via yg
   pointers — starting with the owner's log read and its parent node's
   context, when they exist — instead of the full package's per-rule read
   paths and back-pointer prose. --brief is rejected with --node: the
-  component view has no per-file rule list to compress. The default (no
-  new flag) output is unchanged byte for byte,
+  component view has no per-file rule list to compress. --file also accepts
+  --aspect <id>, which wins over --brief: expands exactly one rule from this
+  file's own effective set in full — the untruncated description, its status
+  tag, and every read path — instead of the compact per-rule summary or the
+  full package. An id not among this file's own effective rules is a user
+  error (what/why/next), not routed through the generic crash handler.
+  --aspect is rejected with --node by a parallel guard to --brief's: a
+  component's rules are listed by yg context --node itself. The compact
+  view's own trail pointers include, once the file has at least one
+  effective rule, a next: pointer offering --aspect on that rule's id. The
+  default (no new flag) output is unchanged byte for byte,
   pinned against a committed baseline capture."
 aspects:
   - what-why-next
