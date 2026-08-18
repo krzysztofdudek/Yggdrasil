@@ -5,9 +5,11 @@
 > checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Pay down the debts the Increment-1 whole-branch review priced — one derivation for
-"this file's effective rules", one assembly for the scope marking, one classification and one
-pair enumeration per `yg context --file` invocation, and tests for the two decision branches
-and the worst-case line budget that shipped unpinned.
+"this file's effective rules", one assembly for the scope marking, one whole-repo
+classification per `yg context --file` invocation with one pair enumeration on the
+node-owned paths (the type-covered paths keep a second, edge-less enumeration — Task 3's
+contract ruling), and tests for the unpinned decision branch and the worst-case line
+budget.
 
 **Architecture:** Pure consolidation and cost work on the surface Increment 1 shipped
 (`source/cli/src/cli/build-context.ts`, `source/cli/src/formatters/context-file.ts`). No new
@@ -321,7 +323,7 @@ helper.
   three views cannot drift in HOW they measure, matching the one derivation of WHAT they
   measure).
 
-### Task 3: One classification and one enumeration per invocation
+### Task 3: One classification, and one enumeration where the contract allows it
 
 **Files:**
 - Modify: `source/cli/src/cli/build-context.ts`
@@ -474,13 +476,20 @@ enumeration would let the burn set differ. Therefore:
   `computeRelationEdgesForContext` (`build-context.ts:124-128`, module-private, one caller
   at `:717`) already computes a whole-repo classification as its first line and throws it
   away after seeding the relation pass. Widen its return from the edge index alone to
-  `{ edges, typeCoverage }` (adjust the one caller), and thread that `typeCoverage` into
-  `shared` at the compact call site (`:754` gains `typeCoverage`) and into
-  `assembleScopeMarking`'s `precomputed` at the type-covered full-view site — both fields
-  already exist in the Task-2 shapes, nothing new is invented. `composeBriefExtras` then
+  `{ edges, typeCoverage }` (adjust the one caller). Then widen `composeBriefExtras`'s
+  `shared` parameter to `{ edges?: TypedEdgeIndex; repoFiles?: string[]; typeCoverage?:
+  TypeCoverageInput }` (`build-context.ts:482` — additive and optional, so the existing
+  in-process callers and Task 3's own Case B compile unchanged; `shared.typeCoverage` is
+  NEW — only `assembleScopeMarking`'s `precomputed.typeCoverage` pre-exists from Task 2)
+  and pass the seed's classification there at `:754`, plus into `assembleScopeMarking`'s
+  `precomputed` at the type-covered full-view site. `composeBriefExtras` then
   uses `shared?.typeCoverage ?? await computeTypeCoverageForContext(...)` at its arm-preview
   classification (`:528` region), so a type-covered invocation classifies ONCE, at the seed.
-  Node-owned paths are unaffected (no relation pass runs there).
+  Node-owned paths are unaffected (no relation pass runs there). Update BOTH doc comments
+  the widening falsifies: `composeBriefExtras`'s `shared` paragraph (`:465-477` — "passes
+  both" becomes the walk, the edge index and the classification) and
+  `computeRelationEdgesForContext`'s own (`:112-128` — it now returns the classification it
+  seeds the pass with rather than discarding it).
 
   In `build-context.ts`: `computeScopeMarking` gains the two trailing optionals from the
   Produces block and threads `precomputed: { typeCoverage: precomputedTypeCoverage,
@@ -503,8 +512,10 @@ enumeration would let the burn set differ. Therefore:
   classification is the only one — reused by the arm preview and the resolver alike, ONE
   whole-repo classification per invocation, down from three. Note in your report that Case
   B's in-process window (stubbed edge index — the relation pass never runs there) exercises
-  the site-level and resolver-level reuse only; the seed-level reuse is exercised by the
-  spawned guard suites and corroborated by the Step 5 timing.
+  the site-level and resolver-level reuse only; the seed-level reuse has NO mechanical pin
+  (the seed lives in the unexported command action, out of in-process reach, and the
+  spawned suites assert output only) — Step 5's timing is its sole corroboration; say so
+  in your report.
 - [ ] **Step 3: The cache-boundary test stays green** — run
   `npx vitest run tests/unit/core/type-coverage.test.ts` (no new bare call sites) and
   `tests/unit/core/fill-classify-once.test.ts` (fill's own pin untouched).
@@ -662,10 +673,11 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   create it between `### Added` and `### Fixed` (Keep-a-Changelog order). The line must not
   over-claim — the type-covered paths deliberately keep a second enumeration per the
   contract ruling, and a relation-pass classification remains out of scope — so state ONLY the
-  half that is never an over-claim: on projects that measure changes against a branch and
-  classify files by architecture type, a file's context view now reuses the classification
-  it already made in the same run instead of redoing it, so it costs less on large
-  repositories. (The enumeration claim is NOT
+  half that is never an over-claim: on projects that classify files by architecture type, a
+  file's context view now reuses the classification it already made in the same run instead
+  of redoing it, so it costs less on large repositories (the seed-level reuse needs no
+  reference branch, so the branch-measurement conjunct would wrongly exclude a whole class
+  of beneficiaries). (The enumeration claim is NOT
   unconditional — two of the four configurations still enumerate twice by design — and any
   magnitude adjective must be backed by Task 3 Step 5's recorded medians or omitted.) No
   counts, no path-specific claims — adopter-voiced, no internals. (This is the increment's only changelog line;
@@ -684,8 +696,8 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   (`computeRelationEdgesForContext`'s first line) repeating the compact site's own on
   type-covered invocations; both existed at T4, before scope marking did. Task 3's Step 2b
   now pays it: the seed's classification is returned alongside `edges` and threaded through
-  the already-existing `shared.typeCoverage`, taking type-covered invocations to ONE
-  whole-repo classification.
+  a new optional `shared.typeCoverage` field (Step 2b widens the parameter), taking
+  type-covered invocations to ONE whole-repo classification.
 - **Explicitly deferred (not dropped):** the node-view freshness recompute
   (`build-context.ts:321-331` — the `deriveLogGateState → undefined` branch re-reads the
   lock to keep the node view's definite `logState`). Deliberate, four lines, commented, the
