@@ -119,4 +119,37 @@ describe('formatFileContextBrief', () => {
     expect(out).toContain('Owner: unmapped');
     expect(out).toContain('Candidate nodes: app · lib');
   });
+
+  it('caps the dependency list at 3 with an overflow marker', () => {
+    const many = { ...base, dependencies: [
+      { path: 'src/a.ts', consumed: ['calls'] },
+      { path: 'src/b.ts', consumed: ['calls'] },
+      { path: 'src/c.ts', consumed: ['calls'] },
+      { path: 'src/d.ts', consumed: ['calls'] },
+      { path: 'src/e.ts', consumed: ['calls'] },
+    ] };
+    const out = formatFileContextBrief(many, { nextPointers: [] });
+    expect(out).toContain('  Depends on: src/a.ts · src/b.ts · src/c.ts · …');
+    expect(out).not.toContain('src/d.ts');
+  });
+
+  it('an unmapped file with no candidates omits the candidate line', () => {
+    const un: FileContextData = { filePath: 'src/loose.ts', aspects: [], dependencies: [], dependentCount: 0 };
+    const out = formatFileContextBrief(un, { nextPointers: [] });
+    expect(out).toContain('  Owner: unmapped');
+    expect(out).not.toContain('Candidate nodes:');
+  });
+
+  it('falls back to enforced status when an aspect omits it', () => {
+    const noStatus = { ...base, aspects: [{ aspectId: 'what-why-next', aspectDescription: base.aspects[0].aspectDescription, verifiedAgainst: base.aspects[0].verifiedAgainst }] };
+    const out = formatFileContextBrief(noStatus, { nextPointers: [] });
+    const line = out.split('\n').find((l) => l.includes('what-why-next'))!;
+    expect(line.startsWith('  [enforced] ')).toBe(true);
+  });
+
+  it('falls back to unknown owner type when ownerType is omitted', () => {
+    const noType = { ...base, ownerPath: 'model/cli/formatters', ownerType: undefined };
+    const out = formatFileContextBrief(noType, { nextPointers: [] });
+    expect(out).toMatch(/^ {2}Owner: model\/cli\/formatters \(unknown\)$/m);
+  });
 });

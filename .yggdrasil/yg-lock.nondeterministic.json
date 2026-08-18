@@ -877,7 +877,7 @@
       "file:source/cli/tests/unit/dogfood-runcheck-parity-attach.test.ts": {"hash":"f6f340809e5515f3aa3fca0359b08881a6cef44c3d68817dc1a5a41a03316136","promptChars":9313,"verdict":"approved"},
       "file:source/cli/tests/unit/family-without-law.test.ts": {"hash":"87c5e61d9642dfcc764de6759d9cae8567d7c4cbbd3e1d9896b100671b2c165a","promptChars":18084,"verdict":"approved"},
       "file:source/cli/tests/unit/formatters/cli-preamble.test.ts": {"hash":"65d464822ac59147c3c7ff2f52e1a6e968974d9cf6f907749429873c9eef9cda","promptChars":9519,"verdict":"approved"},
-      "file:source/cli/tests/unit/formatters/context-file-brief.test.ts": {"hash":"9857f1660ca814efbb5d2cfd5f5be7cb84747d3a1b055e06c82c2121ccc596ce","promptChars":10545,"verdict":"approved"},
+      "file:source/cli/tests/unit/formatters/context-file-brief.test.ts": {"hash":"92643335d796cd15d0b143f4e5ac38f08bb92cc626b84dd02cda8612d52099df","promptChars":12266,"verdict":"approved"},
       "file:source/cli/tests/unit/formatters/context-file.test.ts": {"hash":"1badbe5541cb15e042d369ac8466002cce088159ab6f2a6a21214e5491a6e066","promptChars":16534,"verdict":"approved"},
       "file:source/cli/tests/unit/formatters/context-node.test.ts": {"hash":"780e6a145fc1323bcd3dc9b448d3747e5deef5636dfc860b4335db18a43d4856","promptChars":23332,"verdict":"approved"},
       "file:source/cli/tests/unit/formatters/context-references.test.ts": {"hash":"d9f224d009447e9c6d25548432be51388c52f142de767592b35bd77bc8166092","promptChars":7242,"verdict":"approved"},
