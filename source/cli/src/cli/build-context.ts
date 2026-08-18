@@ -227,6 +227,47 @@ async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeI
  * Pure read: no LLM calls, no writes. A garbled lock surfaces as LockInvalidError
  * (fail closed) — the caller's generic handler renders it.
  */
+/**
+ * Derive read-only log-gate state (spec §9) for a log-required node — the
+ * fingerprint-vs-lock comparison and freshness check, no side effects.
+ * Shared by attachLockObservability (node view, below) and composeBriefExtras
+ * (file view's compact line, below) so the two views' log-gate line can never
+ * disagree — the promise yg-node.yaml states for this command.
+ *
+ * Callers are expected to have already checked the node's type opts into
+ * log_required; this does not re-check it, because each caller's "not
+ * required" outward behavior differs and belongs at the call site (see both).
+ *
+ * Returns undefined when the source fingerprint cannot be read (an
+ * unreadable mapped file) — gate state cannot be honestly computed in that
+ * case; a caller decides for itself what to do about it. Reads the lock only
+ * when actually needed, so a caller that turns out not to need it (fingerprint
+ * unreadable) never pays the risk of a garbled lock's LockInvalidError.
+ */
+async function deriveLogGateState(
+  graph: Graph,
+  nodePath: string,
+): Promise<NodeLogState | undefined> {
+  let currentFingerprint: string | undefined;
+  try {
+    currentFingerprint = await computeSourceFingerprint(graph, nodePath);
+  } catch (e) {
+    if (!(e instanceof FileUnreadableError)) throw e;
+    debugWrite(`[build-context] source fingerprint for ${nodePath}: ${e.message}`);
+    return undefined;
+  }
+  const lock = readLock(graph.rootPath);
+  let required = false;
+  if (currentFingerprint !== undefined) {
+    const storedFingerprint = lock.nodes[nodePath]?.source;
+    required = currentFingerprint !== storedFingerprint;
+  }
+  const projectRoot = projectRootFromGraph(graph.rootPath);
+  const logContent = await readLogContent(projectRoot, nodePath);
+  const freshPresent = hasFreshLogEntry(logContent, lock.nodes[nodePath]?.log);
+  return { required, freshPresent };
+}
+
 async function attachLockObservability(
   graph: Graph,
   nodePath: string,
@@ -265,30 +306,26 @@ async function attachLockObservability(
   // A garbled lock throws LockInvalidError, which propagates to the command's
   // handler (fail closed) — context cannot honestly report gate state over an
   // unreadable lock.
-  const lock = readLock(graph.rootPath);
   const archType = graph.architecture.node_types[data.type];
   const logRequiredType = archType?.log_required ?? false;
   let required = false;
   let freshPresent = false;
   if (logRequiredType) {
-    let currentFingerprint: string | undefined;
-    try {
-      currentFingerprint = await computeSourceFingerprint(graph, nodePath);
-    } catch (e) {
-      // An unreadable mapped file makes the fingerprint uncomputable; gate state
-      // cannot be honestly computed. Leave it false — the file-unreadable error
-      // surfaces in yg check, which is where the user acts on it.
-      if (!(e instanceof FileUnreadableError)) throw e;
-      debugWrite(`[build-context] source fingerprint for ${nodePath}: ${e.message}`);
+    const state = await deriveLogGateState(graph, nodePath);
+    if (state) {
+      ({ required, freshPresent } = state);
+    } else {
+      // Fingerprint unreadable: deriveLogGateState stays honest and reports
+      // nothing, but this view has always reported a gate state regardless —
+      // required cannot be honestly computed (stays false, as before), while
+      // freshPresent does not depend on the fingerprint, so recompute it here
+      // rather than widen the helper's contract to guess it. (Contrast
+      // composeBriefExtras below, which omits its line entirely in this case.)
+      const lock = readLock(graph.rootPath);
+      const projectRoot = projectRootFromGraph(graph.rootPath);
+      const logContent = await readLogContent(projectRoot, nodePath);
+      freshPresent = hasFreshLogEntry(logContent, lock.nodes[nodePath]?.log);
     }
-    // Mapping-less nodes have an undefined fingerprint — the gate never fires.
-    if (currentFingerprint !== undefined) {
-      const storedFingerprint = lock.nodes[nodePath]?.source;
-      required = currentFingerprint !== storedFingerprint;
-    }
-    const projectRoot = projectRootFromGraph(graph.rootPath);
-    const logContent = await readLogContent(projectRoot, nodePath);
-    freshPresent = hasFreshLogEntry(logContent, lock.nodes[nodePath]?.log);
   }
   const logState: NodeLogState = { required, freshPresent };
   data.logState = logState;
@@ -409,7 +446,36 @@ export async function composeBriefExtras(
     debugWrite(`[build-context] arm preview skipped (best-effort): ${err instanceof Error ? err.message : String(err)}`);
   }
 
-  return { armPreviewText, nextPointers };
+  // The owner's log-gate state and flow membership — both absent for a
+  // type-covered file (no owning component, therefore no log gate and no
+  // flow membership to report), present only for a node-owned file. Derived
+  // by the same deriveLogGateState helper the node view uses (above), so
+  // the compact view's line can never disagree with what `yg context
+  // --node` reports for the same component.
+  let logGateText: string | undefined;
+  let flowsText: string | undefined;
+  if (data.ownerPath) {
+    const archType = graph.architecture.node_types[data.ownerType ?? ''];
+    const logRequiredType = archType?.log_required ?? false;
+    // A type that does not demand a written reason has nothing to report —
+    // a brief carries no zero-information lines, so the line is omitted
+    // rather than printed as "no".
+    // Contrast with the arm preview above: that block is best-effort and swallows every failure, while this log gate fails closed like the node view (a genuine LockInvalidError still propagates), the one exception being the honest "fingerprint unreadable" case below.
+    if (logRequiredType) {
+      const state = await deriveLogGateState(graph, data.ownerPath);
+      if (state) {
+        logGateText = `Log entry required before approve: ${state.required ? 'yes' : 'no'} (fresh entry present: ${state.freshPresent ? 'yes' : 'no'})`;
+      }
+      // else: fingerprint unreadable — deriveLogGateState already logged it
+      // to the debug log; the line is simply omitted here.
+    }
+    const flows = buildNodeContextData(graph, data.ownerPath).flows;
+    if (flows.length > 0) {
+      flowsText = `Flows: ${flows.map((fl) => fl.name).join(' · ')}`;
+    }
+  }
+
+  return { armPreviewText, nextPointers, logGateText, flowsText };
 }
 
 export function registerBuildCommand(program: Command): void {

@@ -54,7 +54,17 @@ description: "Assembles and outputs a context package for a node via yg
   pair enumeration yg check itself fills, and, for a file enforced by its
   type alone, from the SAME typed-edge index already computed for the rule
   list above it, so the count and the 'Must satisfy:' list can never
-  disagree about a relation-gated rule. The default (no new flag) output is
+  disagree about a relation-gated rule. For a node-owned file, the compact
+  view also carries the owner's log-gate state ('Log entry required before
+  approve: yes|no (fresh entry present: yes|no)') and the flows it
+  participates in ('Flows: <name> · <name>'), derived by the same log-gate
+  sequence and flow lookup the full node view already uses, so neither can
+  disagree with what yg context --node reports for the same component. Both
+  lines are omitted rather than printed as a zero-information default: the
+  log-gate line when the owner's type does not require one or its source
+  fingerprint cannot be read, the flows line when the owner participates in
+  no flow. A type-covered file has no owning component, so neither line
+  applies to it. The default (no new flag) output is
   unchanged byte for byte, pinned against a committed baseline capture."
 aspects:
   - what-why-next

@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { buildFileContextData } from '../../../src/core/context-builder.js';
+import { buildFileContextData, buildNodeContextData } from '../../../src/core/context-builder.js';
 import { composeBriefExtras } from '../../../src/cli/build-context.js';
 import { createProgressiveFixture, type ProgressiveFixture } from '../../support/progressive-fixture.js';
 
@@ -46,6 +46,9 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
 }
 
 describe('composeBriefExtras — trail pointers', () => {
+  const fixtures: ProgressiveFixture[] = [];
+  afterEach(() => { for (const f of fixtures.splice(0)) f.cleanup(); });
+
   it('offers the owner log and the parent node, in that order', async () => {
     const graph = await loadGraph(FIXTURE);
     const data = buildFileContextData(graph, OWNED_FILE, 'orders/order-service');
@@ -70,6 +73,29 @@ describe('composeBriefExtras — trail pointers', () => {
     expect(extras.armPreviewText).toBe(
       'editing this file invalidates 2 pairs (0 free / 2 reviewer pairs) — price a fill: yg check --approve --dry-run',
     );
+  });
+
+  it('derives the owed-reason state from the graph, not from the printed line', async () => {
+    // In-process twin of the spawned case above: spawned runs cannot reach
+    // in-process assembly decisions; this in-process case pins the log-gate line directly.
+    const f = createProgressiveFixture({ label: 'gate-inproc', logRequired: true });
+    fixtures.push(f);
+    const graph = await loadGraph(f.dir);
+    const data = buildFileContextData(graph, 'src/alpha/alpha.ts', 'alpha');
+    const extras = await composeBriefExtras(graph, 'src/alpha/alpha.ts', data);
+    expect(extras.logGateText).toBe('Log entry required before approve: yes (fresh entry present: no)');
+  });
+
+  it('names the flows the owning component participates in, and omits the line when it is in none', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const data = buildFileContextData(graph, OWNED_FILE, 'orders/order-service');
+    const extras = await composeBriefExtras(graph, OWNED_FILE, data);
+    const flows = buildNodeContextData(graph, 'orders/order-service').flows;
+    if (flows.length > 0) {
+      expect(extras.flowsText).toBe(`Flows: ${flows.map((fl) => fl.name).join(' · ')}`);
+    } else {
+      expect(extras.flowsText).toBeUndefined();
+    }
   });
 });
 
@@ -258,6 +284,38 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
       expect(status).toBe(1);
       expect(stderr).toContain("Rule '' is not one of the rules enforced on");
       expect(stderr).toContain('--aspect names a rule from this file');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('tells a component whose type demands a written reason that one is owed', () => {
+    // A fresh fixture has recorded no entry and no baseline, so the gate is open
+    // and nothing satisfies it yet — the honest state for a first edit.
+    const f = createProgressiveFixture({ label: 'gate', logRequired: true });
+    fixtures.push(f);
+    const { stdout, status } = run(['context', '--file', 'src/alpha/alpha.ts', '--brief'], f.dir);
+    expect(status).toBe(0);
+    expect(stdout).toContain('Log entry required before approve: yes (fresh entry present: no)');
+  });
+
+  it('says nothing about a written reason when the type does not demand one', () => {
+    const f = createProgressiveFixture({ label: 'no-gate' });   // logRequired defaults off
+    fixtures.push(f);
+    const { stdout } = run(['context', '--file', 'src/alpha/alpha.ts', '--brief'], f.dir);
+    expect(stdout).not.toContain('Log entry required before approve');
+  });
+
+  it('offers no log-gate or flows line for a file enforced by its type alone', () => {
+    // A type-covered file has no component, so neither fact exists to report.
+    // Driven through the built binary over tests/fixtures/type-level-engine, the
+    // same fixture tests/unit/cli/context-file-type-coverage.test.ts uses.
+    const dir = copyTypeFixture();
+    try {
+      const { stdout } = run(['context', '--file', 'src/leaf/a.ts', '--brief'], dir);
+      expect(stdout).toContain('Owner: type:leaf');
+      expect(stdout).not.toContain('Log entry required before approve');
+      expect(stdout).not.toContain('Flows:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
