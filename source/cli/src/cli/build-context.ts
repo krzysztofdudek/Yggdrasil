@@ -505,9 +505,10 @@ async function assembleScopeMarking(
   },
 ): Promise<ScopeMarking> {
   // Tested FIRST, before the walk below: a reference-less project must pay for neither
-  // the repo walk nor the whole-graph enumeration it has no use for. The call sites'
-  // own reference gates were removed in favor of this one, so its position is
-  // load-bearing — nothing may be hoisted above it.
+  // the repo walk nor the whole-graph enumeration it has no use for. The full-view call
+  // sites' own reference gates were removed in favor of this one (the compact site keeps
+  // its gate, which also narrows the arm preview's survived enumeration), so this check's
+  // position is load-bearing — nothing may be hoisted above it.
   if (graph.config.progressive?.reference === undefined) return {};
   const repoFiles = precomputed?.repoFiles ?? await walkRepoFiles(projectRootFromGraph(graph.rootPath));
   const typeCoverage =
@@ -518,9 +519,9 @@ async function assembleScopeMarking(
   const enumeration =
     precomputed?.pairsWithUnreadable ??
     (await (async () => {
-      // the compact site's edges-spread guard (its arm preview builds the same shape,
-      // :619-621) — its two conditions keep the node-owned full-view site on the
-      // un-spread arm:
+      // the compact site's edges-spread guard (its arm preview builds the same
+      // shape while assembling typeCoverageWithEdges) — its two conditions keep
+      // the node-owned full-view site on the un-spread arm:
       const input = precomputed?.edges !== undefined && typeCoverage !== undefined
         ? { typeCoverage: { ...typeCoverage, edges: precomputed.edges } }
         : { typeCoverage };
@@ -655,7 +656,9 @@ export async function composeBriefExtras(
   // the same config presence computeScopeMarking re-checks defensively, so a
   // reference-less project pays for neither the repo walk above nor this
   // call — and reuses the SAME whole-graph pairs enumeration and repo walk
-  // the arm preview above already made, never a second one.
+  // the arm preview above already made, never a second one AT THIS SITE (the
+  // resolver's own deliberately edge-less second enumeration on type-covered
+  // runs is the contract asymmetry, not a repeat of this one).
   let scopeHeaderText: string | undefined;
   let scopeByAspect: Map<string, 'yours' | 'inherited'> | undefined;
   if (graph.config.progressive?.reference !== undefined && wholeGraphPairs !== undefined) {

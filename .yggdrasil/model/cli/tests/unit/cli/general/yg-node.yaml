@@ -34,10 +34,11 @@ max_direct_relations:
     resolver, the outside-changes labels, which are asserted against the
     engine's own code sets rather than a re-spelled copy of them, and the
     classify/enumerate-once cost-invariant suite, which spies on
-    cli/core/type-coverage's own classification entry point), so its
+    cli/core/type-coverage's own classification entry point and builds a real
+    seeded classification through cli/io/file-content-cache's store), so its
     relation count tracks the real dependency surface of everything it tests.
-    The ceiling gives modest headroom above the current count (31) without
-    silencing a genuine future over-connection.
+    The ceiling sits exactly at the current count (32): every widening of this
+    umbrella's reach is a deliberate declaration, never silent headroom.
 relations:
   [
     { target: cli/commands/build-context, type: uses },
