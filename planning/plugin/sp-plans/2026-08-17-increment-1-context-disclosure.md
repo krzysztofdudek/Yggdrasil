@@ -721,6 +721,7 @@ The `BASELINE` file the pin reads must be captured FIRST, in Step 1, before any 
 already in; it only appended new exports to `context-file.ts` and changed no byte of what
 `formatFileContext` renders, so a capture taken here is still the pre-increment output.) Capture
 it from the repo root, with `$COPY` the fixture copy dir and `$REPO` the repo root:
+`REPO=$(pwd)`
 `COPY=$(mktemp -d) && cp -r source/cli/tests/fixtures/sample-project/. "$COPY"`
 `mkdir -p source/cli/tests/fixtures/context-baselines`
 `(cd "$COPY" && node "$REPO/source/cli/dist/bin.js" context --file src/orders/order.service.ts) > source/cli/tests/fixtures/context-baselines/sample-project-order-service.txt`
@@ -1038,7 +1039,8 @@ Also add an in-process case: `composeBriefExtras` lives in `src/cli/**`, which t
 excludes, so this case is for in-process testability of the assembly decision, not the coverage
 gate. In `tests/fixtures/sample-project`, `orders/order-service` carries exactly two rules, both
 reviewer-judged and both per-component (`requires-audit`, which `implies requires-logging`;
-neither declares a `scope:`), so the assertion is exact:
+neither declares a `scope:`) (also delivered by `checkout-flow`; same pair, deduped), so the
+assertion is exact:
 
 ```ts
 it('reports a reviewer-only file as costing no free checks', async () => {
@@ -1429,7 +1431,7 @@ it('appends scope suffixes at the type-covered aspect-header line', () => {
       dropped: [] } };
   const scopeByAspect = new Map<string, 'yours' | 'inherited'>([['pure-fn', 'yours']]);
   const out = formatFileContext(tc, scopeByAspect);
-  expect(out).toMatch(/\[enforced, unverified\].*pure-fn.*\(yours\)/);
+  expect(out).toMatch(/pure-fn.*\[enforced, unverified\].*\(yours\)/);
 });
 ```
 
@@ -1531,7 +1533,8 @@ compact or single-rule views.
   The fixture facts T2/T4/T5 assert on were re-derived by running the engines, not read off the
   YAML: `orders/order-service` maps exactly `src/orders/order.service.ts`, carries exactly two
   pairs (`requires-audit` and the `requires-logging` it implies, both `kind: 'llm'`, both
-  per-node), has parent `orders`, and participates in `checkout-flow`.
+  per-node) (also delivered by `checkout-flow`; same pair, deduped), has parent `orders`, and
+  participates in `checkout-flow`.
 - **Gate reality:** three separate mandatory graph edits, not one. (a) T6 Step 3b's relation +
   ceiling raise on `cli/commands/build-context` — the node sits at exactly its declared
   21-relation ceiling today. (b) Every new test file must be named in a test-suite node's
