@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 28, ahead of cli/core/fill at 25 and cli/core/check at 24', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 29, ahead of cli/core/fill at 25 and cli/core/check at 24', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -39,7 +39,10 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // unit test builds its expectations with), added alongside those unit tests
     // — taking it out ahead of the rest on its own, no tie-break needed. It sits
     // at 28 since the outside-changes label test began asserting against
-    // cli/core/check-codes' real code set rather than a hand-listed copy.
+    // cli/core/check-codes' real code set rather than a hand-listed copy, and
+    // at 29 since the compact-context suite began building progressive fixtures
+    // through cli/tests/support's shared factory (a `uses` edge declared when
+    // the arm-preview cases joined the umbrella).
     // Below it, the tie that used to sit at 24 has been broken: cli/core/fill
     // declared its own `calls` edge to cli/core/progressive-scope when the fill
     // stage began deciding which reviewer work a measured change is accountable
@@ -49,7 +52,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // accepting a change scope). cli/portal/engine-api is unaffected at 23.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
-    expect(data.hubs.fanOut[0].count).toBe(28);
+    expect(data.hubs.fanOut[0].count).toBe(29);
     expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[1].count).toBe(25);
     expect(data.hubs.fanOut[2].path).toBe('cli/core/check');

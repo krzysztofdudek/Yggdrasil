@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { buildFileContextData } from '../../../src/core/context-builder.js';
 import { composeBriefExtras } from '../../../src/cli/build-context.js';
+import { createProgressiveFixture, type ProgressiveFixture } from '../../support/progressive-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -61,9 +62,44 @@ describe('composeBriefExtras — trail pointers', () => {
     expect(extras.nextPointers[2]).toBe(`next: yg context --file ${OWNED_FILE} --aspect ${data.aspects[0].aspectId}`);
     expect(extras.nextPointers.length).toBeLessThanOrEqual(3);
   });
+
+  it('reports a reviewer-only file as costing no free checks', async () => {
+    const graph = await loadGraph(FIXTURE);
+    const data = buildFileContextData(graph, OWNED_FILE, 'orders/order-service');
+    const extras = await composeBriefExtras(graph, OWNED_FILE, data);
+    expect(extras.armPreviewText).toBe(
+      'editing this file invalidates 2 pairs (0 free / 2 reviewer pairs) — price a fill: yg check --approve --dry-run',
+    );
+  });
 });
 
 describe.skipIf(!distExists)('yg context --file --brief', () => {
+  const fixtures: ProgressiveFixture[] = [];
+  afterEach(() => { for (const f of fixtures.splice(0)) f.cleanup(); });
+
+  it('counts the pairs an edit would invalidate, split free vs reviewer', () => {
+    // deterministicAspect is on by default (no-todo-comments, per component);
+    // reviewedAspect adds a per-FILE reviewer-judged rule. The endpoint is a
+    // loopback that is never dialed: this preview contacts no reviewer.
+    const f = createProgressiveFixture({ label: 'arm', reviewedAspect: { endpoint: 'http://127.0.0.1:1/never', perFile: true } });
+    fixtures.push(f);
+    const { stdout, status } = run(['context', '--file', 'src/alpha/alpha.ts', '--brief'], f.dir);
+    expect(status).toBe(0);
+    expect(stdout).toContain('invalidates 2 pairs (1 free / 1 reviewer pair)');
+    expect(stdout).toContain('price a fill: yg check --approve --dry-run');
+  });
+
+  it('omits the line for a file no rule reviews', () => {
+    const f = createProgressiveFixture({ label: 'arm-none', deterministicAspect: false,
+      reviewedAspect: { endpoint: 'http://127.0.0.1:1/never', perFile: true, sourceFilesOnly: true } });
+    fixtures.push(f);
+    f.commit('src/alpha/NOTES.md', 'no rule reviews this file\n');
+    const { stdout, status } = run(['context', '--file', 'src/alpha/NOTES.md', '--brief'], f.dir);
+    expect(status).toBe(0);
+    expect(stdout).toContain('Must satisfy:');
+    expect(stdout).not.toContain('invalidates');
+  });
+
   it('is compact, one line per rule, and never exceeds the budget', () => {
     const dir = copyFixture();
     try {
@@ -117,6 +153,22 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
       expect(status).toBe(0);
       expect(stdout).toContain('  Owner: type:leaf');
       expect(stdout.trimEnd().split('\n').length).toBeLessThanOrEqual(30);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('shows the arm preview line for a type-covered file', () => {
+    // The type-covered --brief call site is the only one that threads its own
+    // relation-pass `edges` into composeBriefExtras (see the doc comment on
+    // composeBriefExtras) — this is the only test exercising that spread.
+    const dir = copyTypeFixture();
+    try {
+      const { stdout, status } = run(['context', '--file', TYPE_COVERED_FILE, '--brief'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toMatch(
+        /editing this file invalidates \d+ pairs? \(\d+ free \/ \d+ reviewer pairs?\) — price a fill: yg check --approve --dry-run/,
+      );
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

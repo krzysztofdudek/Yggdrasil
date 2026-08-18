@@ -30,7 +30,7 @@ max_direct_relations:
     resolver, and the outside-changes labels, which are asserted against the
     engine's own code sets rather than a re-spelled copy of them), so its
     relation count tracks the real dependency surface of everything it tests.
-    The ceiling gives modest headroom above the current count (28) without
+    The ceiling gives modest headroom above the current count (29) without
     silencing a genuine future over-connection.
 relations:
   [
@@ -61,7 +61,8 @@ relations:
     { target: cli/progressive-preflight, type: uses },
     { target: cli/progressive-scope-resolve, type: uses },
     { target: cli/core/check-codes, type: uses },
-    { target: cli/core/progressive-scope, type: uses }
+    { target: cli/core/progressive-scope, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts

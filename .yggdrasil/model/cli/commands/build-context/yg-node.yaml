@@ -46,8 +46,16 @@ description: "Assembles and outputs a context package for a node via yg
   component's rules are listed by yg context --node itself. The compact
   view's own trail pointers include, once the file has at least one
   effective rule, a next: pointer offering --aspect on that rule's id. The
-  default (no new flag) output is unchanged byte for byte,
-  pinned against a committed baseline capture."
+  compact view also prices an edit: an arm-preview line counting how many
+  pairs editing this file would invalidate, split into free (deterministic)
+  and reviewer (llm) pairs, omitted when the count is zero and suppressed
+  entirely when any subject file the count depends on could not be read (so
+  the line is never printed understated). Computed from the same expected-
+  pair enumeration yg check itself fills, and, for a file enforced by its
+  type alone, from the SAME typed-edge index already computed for the rule
+  list above it, so the count and the 'Must satisfy:' list can never
+  disagree about a relation-gated rule. The default (no new flag) output is
+  unchanged byte for byte, pinned against a committed baseline capture."
 aspects:
   - what-why-next
 max_direct_relations:

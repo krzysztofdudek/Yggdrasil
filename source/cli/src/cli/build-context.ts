@@ -97,11 +97,11 @@ function collectRelevantNodePaths(graph: Graph, nodePath: string): Set<string> {
  * The type-level classification lattice (coverage.type_level), classified for
  * this one `yg context` invocation. Undefined when the flag is off.
  */
-async function computeTypeCoverageForContext(graph: Graph): Promise<TypeCoverageInput | undefined> {
+async function computeTypeCoverageForContext(graph: Graph, repoFiles?: string[]): Promise<TypeCoverageInput | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
   const projectRoot = projectRootFromGraph(graph.rootPath);
-  const repoFiles = await walkRepoFiles(projectRoot);
-  const uncovered = scanUncoveredFiles(graph, repoFiles);
+  const files = repoFiles ?? await walkRepoFiles(projectRoot);
+  const uncovered = scanUncoveredFiles(graph, files);
   const result = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
   return { covered: result.covered, ambiguousPaths: result.ambiguous.map((a) => a.file) };
 }
@@ -118,8 +118,8 @@ async function computeTypeCoverageForContext(graph: Graph): Promise<TypeCoverage
  * always-false a caller with no edge index falls back to, even on the same
  * file `yg check` answers differently for.
  */
-async function computeRelationEdgesForContext(graph: Graph, projectRoot: string): Promise<TypedEdgeIndex> {
-  const typeCoverage = await computeTypeCoverageForContext(graph);
+async function computeRelationEdgesForContext(graph: Graph, projectRoot: string, repoFiles?: string[]): Promise<TypedEdgeIndex> {
+  const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
   const relResult = await runProjectRelationPass(graph, projectRoot, typeCoverage?.covered);
   return relResult.typedEdges;
 }
@@ -339,12 +339,24 @@ async function maybeAppendAttentionLine(graph: Graph, repoRelPosixPath: string):
 }
 
 /**
- * Assemble the compact view's non-formatting decisions — currently just the
- * trail pointers — as data the formatter itself does not compute.
+ * Assemble the compact view's non-formatting decisions — the trail pointers
+ * and the arm preview line — as data the formatter itself does not compute.
+ *
+ * `shared` carries what the caller already computed for this ONE invocation,
+ * so this function never re-walks the repo or re-runs the relation pass on a
+ * path that just ran one: the node-owned call site holds neither and passes
+ * nothing (falling back to its own walk below); the type-covered call site
+ * has already walked the repo and already holds `edges` from its own relation
+ * pass, and passes both.
  *
  * Exported so the compact view's assembly decisions are testable in-process; not part of the CLI surface.
  */
-export async function composeBriefExtras(graph: Graph, filePath: string, data: FileContextData): Promise<FileBriefExtras> {
+export async function composeBriefExtras(
+  graph: Graph,
+  filePath: string,
+  data: FileContextData,
+  shared?: { edges?: TypedEdgeIndex; repoFiles?: string[] },
+): Promise<FileBriefExtras> {
   const nextPointers: string[] = [];
   if (data.ownerPath) {
     nextPointers.push(`next: yg log read --node ${data.ownerPath}`);
@@ -360,7 +372,44 @@ export async function composeBriefExtras(graph: Graph, filePath: string, data: F
   if (effectiveAspects.length > 0) {
     nextPointers.push(`next: yg context --file ${filePath} --aspect ${effectiveAspects[0].aspectId}`);
   }
-  return { nextPointers };
+
+  // The arm preview: how many pairs editing this file would invalidate, split
+  // free (deterministic) vs reviewer (llm). typeCoverage must be passed to
+  // computeExpectedPairs, otherwise a type-covered file's nodeless pairs are
+  // never enumerated and the preview is always zero. On the type-covered
+  // branch the caller's `edges` must be spread onto it — computeTypeCoverageForContext
+  // never sets edges itself, and without them a relation-gated rule would be
+  // missing from this count while still printed under "Must satisfy:" above.
+  let armPreviewText: string | undefined;
+  try {
+    const typeCoverage = await computeTypeCoverageForContext(graph, shared?.repoFiles);
+    const typeCoverageWithEdges = shared?.edges !== undefined && typeCoverage !== undefined
+      ? { ...typeCoverage, edges: shared.edges }
+      : typeCoverage;
+    const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageWithEdges });
+    if (unreadable.length > 0) {
+      // A non-empty unreadable set means the pair count above is not the true
+      // invalidation set — printing it anyway would understate what an edit
+      // actually costs. Suppress the whole line rather than mislead.
+      debugWrite(`[build-context] arm preview suppressed: ${unreadable.length} unreadable subject(s), first: ${unreadable[0].path}`);
+    } else {
+      const posixFile = toPosixPath(filePath);
+      const filePairs = pairs.filter((p) => p.subjectFiles.includes(posixFile));
+      if (filePairs.length > 0) {
+        const free = filePairs.filter((p) => p.kind === 'deterministic').length;
+        const reviewer = filePairs.filter((p) => p.kind === 'llm').length;
+        armPreviewText = `editing this file invalidates ${filePairs.length} pair${filePairs.length === 1 ? '' : 's'} (${free} free / ${reviewer} reviewer pair${reviewer === 1 ? '' : 's'}) — price a fill: yg check --approve --dry-run`;
+      }
+    }
+  } catch (err) {
+    // Best-effort, same contract as maybeAppendAttentionLine above: this is a
+    // read-only preview on top of an already-successful `yg context --file`
+    // call, so a failure here must never abort output that would otherwise
+    // have printed — it just omits the line.
+    debugWrite(`[build-context] arm preview skipped (best-effort): ${err instanceof Error ? err.message : String(err)}`);
+  }
+
+  return { armPreviewText, nextPointers };
 }
 
 export function registerBuildCommand(program: Command): void {
@@ -466,6 +515,10 @@ export function registerBuildCommand(program: Command): void {
             if (graph.config.coverage?.typeLevel) {
               const typeMatch = await classifySingleFileCached(graph, result.file, new FileContentCache());
               if (typeMatch.bucket === 'covered') {
+                // Walked once for this invocation and threaded everywhere below
+                // that would otherwise re-walk the repo: into the relation pass
+                // and into composeBriefExtras's own type-coverage classification.
+                const repoFiles = await walkRepoFiles(repoRoot);
                 // Run the relation pass exactly once for this invocation — its
                 // typed-edge index is threaded into BOTH the cycle pre-check
                 // below and buildTypeCoveredFileContextData's own type-coverage
@@ -473,7 +526,7 @@ export function registerBuildCommand(program: Command): void {
                 // `when:` is answered from the SAME real, statically-resolved
                 // imports `yg check` enforces against, not the conservative
                 // always-false a caller with no edge index falls back to.
-                const edges = await computeRelationEdgesForContext(graph, repoRoot);
+                const edges = await computeRelationEdgesForContext(graph, repoRoot, repoFiles);
                 // An aspect `implies` cycle reachable from this type stops the
                 // cascade before it can decide what applies — computeTypeAspectCascade
                 // absorbs the cycle into a `cycle` marker rather than an empty
@@ -510,7 +563,7 @@ export function registerBuildCommand(program: Command): void {
                   }
                   process.stdout.write(rendered + '\n');
                 } else if (options.brief) {
-                  process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, displayFile, data)));
+                  process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, displayFile, data, { edges, repoFiles })));
                 } else {
                   process.stdout.write(formatFileContext(data));
                   if (graph.config.signals?.attention !== false) {
