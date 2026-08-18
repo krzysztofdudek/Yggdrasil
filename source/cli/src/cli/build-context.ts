@@ -120,11 +120,16 @@ async function computeTypeCoverageForContext(graph: Graph, repoFiles?: string[])
  * on the previewed file's attached rules would read the conservative
  * always-false a caller with no edge index falls back to, even on the same
  * file `yg check` answers differently for.
+ *
+ * Returns that seed classification alongside the edge index rather than
+ * discarding it after seeding the pass: it is the SAME whole-repo
+ * classification the arm preview and `assembleScopeMarking` would otherwise
+ * pay to compute again, and the caller threads it into both instead.
  */
-async function computeRelationEdgesForContext(graph: Graph, projectRoot: string, repoFiles?: string[]): Promise<TypedEdgeIndex> {
+async function computeRelationEdgesForContext(graph: Graph, projectRoot: string, repoFiles?: string[]): Promise<{ edges: TypedEdgeIndex; typeCoverage: TypeCoverageInput | undefined }> {
   const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
   const relResult = await runProjectRelationPass(graph, projectRoot, typeCoverage?.covered);
-  return relResult.typedEdges;
+  return { edges: relResult.typedEdges, typeCoverage };
 }
 
 /** The read-path (deterministic/aggregate/llm) home for one aspect's rule source, same convention buildNodeContextData/buildFileContextData already use. */
@@ -387,9 +392,14 @@ export interface ScopeMarking {
  * Exported so both context views read ONE measurement; not part of the CLI surface.
  * `aspectIds` is the file's effective list (`data.aspects`, or `data.typeCoverage.applied`);
  * `pairs` and `repoFiles` are whatever whole-graph enumeration and repo walk the caller made
- * for THIS invocation — this function adds no enumeration of its own on top of those inputs
- * (the resolver it calls, `resolveChangeScope`, does its own internal pair enumeration, which
- * is that function's cost, not an extra one this wrapper introduces). Prints a context-scoped
+ * for THIS invocation — this function adds no enumeration of its own on top of those inputs.
+ * `precomputedTypeCoverage` and `precomputedPairs` (both optional, trailing) are forwarded on
+ * to `resolveChangeScope`'s own `precomputed` field: the resolver reuses a forwarded
+ * classification and/or edge-less enumeration when one is given, and only the type-covered
+ * configurations still let it enumerate for itself (see `assembleScopeMarking`, the caller,
+ * for which of the three call sites hand which — classification is forwarded whenever the
+ * caller has one, pairs only when this invocation's own enumeration carried no edges-resolved
+ * lattice). Prints a context-scoped
  * notice to stderr itself when the decision carries one
  * (D9) — one print site, matching `cli/check.ts:330-341`: the comment at `:330-334` introduces
  * the code at `:335-341` that does exactly this.
@@ -409,6 +419,8 @@ export async function computeScopeMarking(
   pairs: ExpectedPair[],
   repoFiles: string[],
   unreadable: UnreadableSubject[],
+  precomputedTypeCoverage?: TypeCoverageInput,
+  precomputedPairs?: ExpectedPair[],
 ): Promise<ScopeMarking> {
   if (unreadable.length > 0) {
     debugWrite(`[build-context] scope marking suppressed: ${unreadable.length} unreadable subject(s), first: ${unreadable[0].path}`);
@@ -423,6 +435,7 @@ export async function computeScopeMarking(
     projectRoot,
     coverageVisibleFiles: repoFiles,
     fullFlag: false,
+    precomputed: { typeCoverage: precomputedTypeCoverage, pairs: precomputedPairs },
   });
 
   if (decision.kind === 'whole-project') return {};
@@ -500,7 +513,7 @@ async function assembleScopeMarking(
     precomputed?.pairsWithUnreadable ??
     (await (async () => {
       // the compact site's edges-spread guard (its arm preview builds the same shape,
-      // :574-576) — its two conditions keep the node-owned full-view site on the
+      // :619-621) — its two conditions keep the node-owned full-view site on the
       // un-spread arm:
       const input = precomputed?.edges !== undefined && typeCoverage !== undefined
         ? { typeCoverage: { ...typeCoverage, edges: precomputed.edges } }
@@ -508,7 +521,27 @@ async function assembleScopeMarking(
       const { pairs, unreadable } = await computeExpectedPairs(graph, input);
       return { pairs, unreadable };
     })());
-  return computeScopeMarking(graph, filePath, effectiveAspects(data).map((a) => a.aspectId), enumeration.pairs, repoFiles, enumeration.unreadable);
+  // Forwarded on to resolveChangeScope (via computeScopeMarking): the
+  // classification whenever this invocation has one — always this PRE-SPREAD
+  // `typeCoverage` binding, never the edges-spread one built into `enumeration`
+  // above. Pairs ONLY when this enumeration carried no edges-resolved lattice
+  // (`precomputed?.edges === undefined` —
+  // the node-owned paths): an edges-spread enumeration could let the burn set
+  // differ from resolveTypeCoverage's own pessimistic, edge-less contract
+  // (progressive-scope-resolve.ts:317-329), so the type-covered configurations
+  // hand the resolver only the classification and let it enumerate its own
+  // edge-less set.
+  const precomputedPairsForResolver = precomputed?.edges === undefined ? enumeration.pairs : undefined;
+  return computeScopeMarking(
+    graph,
+    filePath,
+    effectiveAspects(data).map((a) => a.aspectId),
+    enumeration.pairs,
+    repoFiles,
+    enumeration.unreadable,
+    typeCoverage,
+    precomputedPairsForResolver,
+  );
 }
 
 /**
@@ -516,11 +549,14 @@ async function assembleScopeMarking(
  * and the arm preview line — as data the formatter itself does not compute.
  *
  * `shared` carries what the caller already computed for this ONE invocation,
- * so this function never re-walks the repo or re-runs the relation pass on a
- * path that just ran one: the node-owned call site holds neither and passes
- * nothing (falling back to its own walk below); the type-covered call site
- * has already walked the repo and already holds `edges` from its own relation
- * pass, and passes both.
+ * so this function never re-walks the repo, re-runs the relation pass, or
+ * reclassifies on a path that already paid for one of those: the node-owned
+ * call site holds none of the three and passes nothing (falling back to its
+ * own walk and its own classification below); the type-covered call site has
+ * already walked the repo, already holds `edges` from its own relation pass,
+ * and already holds the classification that pass seeded itself with
+ * (`typeCoverage`) — and passes all three, so this function's own arm-preview
+ * classification is skipped entirely in favor of the forwarded one.
  *
  * Exported so the compact view's assembly decisions are testable in-process; not part of the CLI surface.
  */
@@ -528,7 +564,7 @@ export async function composeBriefExtras(
   graph: Graph,
   filePath: string,
   data: FileContextData,
-  shared?: { edges?: TypedEdgeIndex; repoFiles?: string[] },
+  shared?: { edges?: TypedEdgeIndex; repoFiles?: string[]; typeCoverage?: TypeCoverageInput },
 ): Promise<FileBriefExtras> {
   const nextPointers: string[] = [];
   if (data.ownerPath) {
@@ -575,7 +611,11 @@ export async function composeBriefExtras(
   let wholeGraphUnreadable: UnreadableSubject[] | undefined;
   let wholeGraphTypeCoverage: TypeCoverageInput | undefined;
   try {
-    wholeGraphTypeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
+    // The seed's classification, when the caller already paid for one
+    // (the type-covered call site, via computeRelationEdgesForContext) —
+    // forwarded rather than reclassified, so a type-covered invocation
+    // classifies ONCE, at the seed.
+    wholeGraphTypeCoverage = shared?.typeCoverage ?? await computeTypeCoverageForContext(graph, repoFiles);
     const typeCoverageWithEdges = shared?.edges !== undefined && wholeGraphTypeCoverage !== undefined
       ? { ...wholeGraphTypeCoverage, edges: shared.edges }
       : wholeGraphTypeCoverage;
@@ -759,8 +799,11 @@ export function registerBuildCommand(program: Command): void {
               const typeMatch = await classifySingleFileCached(graph, result.file, new FileContentCache());
               if (typeMatch.bucket === 'covered') {
                 // Walked once for this invocation and threaded everywhere below
-                // that would otherwise re-walk the repo: into the relation pass
-                // and into composeBriefExtras's own type-coverage classification.
+                // that would otherwise re-walk the repo: into the relation
+                // pass, into the seed classification the relation pass now
+                // returns instead of discarding, and into assembleScopeMarking
+                // (both directly, below, and via composeBriefExtras's own call
+                // to it).
                 const repoFiles = await walkRepoFiles(repoRoot);
                 // Run the relation pass exactly once for this invocation — its
                 // typed-edge index is threaded into BOTH the cycle pre-check
@@ -768,8 +811,13 @@ export function registerBuildCommand(program: Command): void {
                 // input, so a `relations:` atom in this file's attached rules'
                 // `when:` is answered from the SAME real, statically-resolved
                 // imports `yg check` enforces against, not the conservative
-                // always-false a caller with no edge index falls back to.
-                const edges = await computeRelationEdgesForContext(graph, repoRoot, repoFiles);
+                // always-false a caller with no edge index falls back to. The
+                // classification it seeds itself with is also the WHOLE-REPO
+                // classification composeBriefExtras and assembleScopeMarking
+                // would otherwise pay to compute again — threaded into both
+                // below, so a type-covered invocation classifies ONCE, at the
+                // seed.
+                const { edges, typeCoverage: seedTypeCoverage } = await computeRelationEdgesForContext(graph, repoRoot, repoFiles);
                 // An aspect `implies` cycle reachable from this type stops the
                 // cascade before it can decide what applies — computeTypeAspectCascade
                 // absorbs the cycle into a `cycle` marker rather than an empty
@@ -806,14 +854,15 @@ export function registerBuildCommand(program: Command): void {
                   }
                   process.stdout.write(rendered + '\n');
                 } else if (options.brief) {
-                  process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, displayFile, data, { edges, repoFiles })));
+                  process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, displayFile, data, { edges, repoFiles, typeCoverage: seedTypeCoverage })));
                 } else {
                   // Progressive-mode scope marking (D2/D3/D6), full view. This
                   // file's own `data` came from a single-entry covered map, so
                   // nothing computeExpectedPairs already did above is reusable
                   // here; `repoFiles` is the walk already made above for this
-                  // invocation — no second walk.
-                  const marking = await assembleScopeMarking(graph, displayFile, data, { edges, repoFiles });
+                  // invocation — no second walk; `typeCoverage` is the seed's
+                  // own classification, forwarded rather than reclassified.
+                  const marking = await assembleScopeMarking(graph, displayFile, data, { edges, repoFiles, typeCoverage: seedTypeCoverage });
                   process.stdout.write(formatFileContext(data, marking.scopeByAspect));
                   if (graph.config.signals?.attention !== false) {
                     await maybeAppendAttentionLine(graph, displayFile);

@@ -7,9 +7,16 @@ description: "Resolves the CHANGE SCOPE a `yg check` run gates against: which of
   changed-file set, the work-tree top level, shallow-clone state, and whether
   any submodule pointer appears among the changed paths), hands them to the
   preflight decision table, and — only for a state that table agrees can be
-  measured — enumerates the run's expected obligations, reads the stored
-  verdicts they carry, reads the committed verdict record as it stood at the
-  reference, and asks the burn engine which of them the change reaches.
+  measured — classifies and enumerates the run's expected obligations,
+  UNLESS the caller hands it an already-computed, edge-less pair set and/or
+  classification from the same invocation (`ChangeScopeInput.precomputed`),
+  which it then trusts instead of paying for its own; the caller owns both
+  the freshness guarantee and the guarantee that any forwarded pair set was
+  enumerated without an edges-resolved lattice, since this resolver's own
+  enumeration is deliberately a pessimistic, edge-less gate. It then reads the
+  stored verdicts the (forwarded or freshly enumerated) obligations carry,
+  reads the committed verdict record as it stood at the reference, and asks
+  the burn engine which of them the change reaches.
 
   It answers that ONE question and hands the answer to the engine as plain
   data. It decides nothing about any individual finding: which findings stop

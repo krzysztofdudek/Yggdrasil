@@ -18,19 +18,25 @@ description: "Unit tests for build and check CLI commands — build-command,
   fall-back names both its own cause and its own remedy; the one collapsing
   decision in the change-scope resolver built on it; and how a finding the
   change is not accountable for is labelled, derived from the label of the
-  finding it mirrors so no such finding can render as a raw internal code."
+  finding it mirrors so no such finding can render as a raw internal code. It
+  also carries a cost-invariant (call-count) suite pinning how many times
+  `yg context --file` classifies the type-level lattice and enumerates the
+  whole-graph pair set per invocation, by spying on the real classification
+  and enumeration entry points rather than re-deriving the counts by hand."
 aspects: []
 max_direct_relations:
-  limit: 31
+  limit: 32
   reason: >-
     Growth is honest, not accidental: this node is a shared test-suite umbrella
     covering an entire command's test files (build, check, and now the
     check-render-header/-groups/-views split, plus init and its shared
     helpers, plus the progressive-preflight state machine, the change-scope
-    resolver, and the outside-changes labels, which are asserted against the
-    engine's own code sets rather than a re-spelled copy of them), so its
+    resolver, the outside-changes labels, which are asserted against the
+    engine's own code sets rather than a re-spelled copy of them, and the
+    classify/enumerate-once cost-invariant suite, which spies on
+    cli/core/type-coverage's own classification entry point), so its
     relation count tracks the real dependency surface of everything it tests.
-    The ceiling gives modest headroom above the current count (30) without
+    The ceiling gives modest headroom above the current count (31) without
     silencing a genuine future over-connection.
 relations:
   [
@@ -63,13 +69,16 @@ relations:
     { target: cli/core/check-codes, type: uses },
     { target: cli/core/progressive-scope, type: uses },
     { target: cli/core/pairs, type: uses },
-    { target: cli/tests/support, type: uses }
+    { target: cli/tests/support, type: uses },
+    { target: cli/core/type-coverage, type: uses },
+    { target: cli/io/file-content-cache, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts
   - source/cli/tests/unit/cli/build-context.test.ts
   - source/cli/tests/unit/cli/build-context-brief.test.ts
   - source/cli/tests/unit/cli/build-context-progressive.test.ts
+  - source/cli/tests/unit/cli/build-context-classify-once.test.ts
   - source/cli/tests/unit/cli/check.test.ts
   - source/cli/tests/unit/cli/check-render-header.test.ts
   - source/cli/tests/unit/cli/check-render-groups.test.ts

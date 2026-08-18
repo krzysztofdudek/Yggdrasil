@@ -34,7 +34,7 @@ import { readFile } from 'node:fs/promises';
 import type { Graph } from '../model/graph.js';
 import { LOCK_NONDET_FILE_NAME } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
-import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
+import { computeExpectedPairs, type TypeCoverageInput, type ExpectedPair } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check-coverage-scan.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import {
@@ -84,6 +84,15 @@ export interface ChangeScopeInput {
   coverageVisibleFiles: string[];
   /** Whether the whole project was explicitly demanded on this invocation. */
   fullFlag: boolean;
+  /**
+   * An already-computed classification and/or edge-less whole-graph
+   * enumeration from THIS invocation — measure() trusts it instead of paying
+   * for its own; callers own the freshness guarantee AND the guarantee that
+   * forwarded pairs were enumerated WITHOUT an edges-resolved lattice — see
+   * resolveTypeCoverage's own doc for why the pessimistic, edge-less set is
+   * the contract.
+   */
+  precomputed?: { typeCoverage?: TypeCoverageInput; pairs?: ExpectedPair[] };
 }
 
 /**
@@ -444,8 +453,8 @@ async function measure(input: ChangeScopeInput, reference: string): Promise<Chan
     return unmeasurable(reference, UNREADABLE_BASE_RECORD, UNREADABLE_BASE_RECORD_NEXT);
   }
 
-  const typeCoverage = await resolveTypeCoverage(graph, coverageVisibleFiles);
-  const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
+  const typeCoverage = input.precomputed?.typeCoverage ?? await resolveTypeCoverage(graph, coverageVisibleFiles);
+  const pairs = input.precomputed?.pairs ?? (await computeExpectedPairs(graph, { typeCoverage })).pairs;
 
   const lock = readLock(graph.rootPath);
   const touchedListsByPairKey = new Map<string, Array<[string, string]>>();

@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 30, ahead of cli/core/fill at 25 and cli/core/check at 24', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 32, ahead of cli/core/fill at 25 and cli/core/check at 24', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -42,9 +42,13 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // cli/core/check-codes' real code set rather than a hand-listed copy, and
     // at 29 since the compact-context suite began building progressive fixtures
     // through cli/tests/support's shared factory (a `uses` edge declared when
-    // the arm-preview cases joined the umbrella), and at 30 since the scope
+    // the arm-preview cases joined the umbrella), at 30 since the scope
     // marking's honesty gate gained an in-process case that builds its
-    // unreadable-subject input from cli/core/pairs' own type.
+    // unreadable-subject input from cli/core/pairs' own type, and at 31 since
+    // the classify/enumerate-once cost-invariant suite declared its own `uses`
+    // edge to cli/core/type-coverage, whose real classification entry point it
+    // spies on — and at 32 since that suite's seed-reuse case began building a
+    // real classification input through cli/io/file-content-cache's store.
     // Below it, the tie that used to sit at 24 has been broken: cli/core/fill
     // declared its own `calls` edge to cli/core/progressive-scope when the fill
     // stage began deciding which reviewer work a measured change is accountable
@@ -60,7 +64,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // sorts before 'portal'), so build-context now leads engine-api by one place.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
-    expect(data.hubs.fanOut[0].count).toBe(30);
+    expect(data.hubs.fanOut[0].count).toBe(32);
     expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[1].count).toBe(25);
     expect(data.hubs.fanOut[2].path).toBe('cli/core/check');
