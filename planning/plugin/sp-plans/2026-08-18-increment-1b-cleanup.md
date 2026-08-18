@@ -39,8 +39,9 @@ is the consumer that makes this cost work load-bearing.
 - The `--brief` / `--aspect` / progressive outputs also stay byte-identical: the Increment-1
   suites (`build-context-brief.test.ts`, `build-context-progressive.test.ts`,
   `context-file-brief.test.ts`, `context-file.test.ts`) PLUS
-  `tests/unit/cli/context-file-type-coverage.test.ts` (the ONE suite pinning the
-  type-covered full view) and `tests/unit/cli/build-context.test.ts` (option-registration
+  `tests/unit/cli/context-file-type-coverage.test.ts` (the suite dedicated to the
+  type-covered full view; `build-context-progressive.test.ts:133` also pins its scope
+  suffix) and `tests/unit/cli/build-context.test.ts` (option-registration
   smoke) pass unchanged in every task — this six-suite list
   is "the guard suites" wherever a step names them. No assertion edits except where a task
   below explicitly says otherwise. Task 3 additionally re-runs the three progressive E2E
@@ -102,8 +103,8 @@ is the consumer that makes this cost work load-bearing.
 The invariant is currently stated five ways: three identical ternaries
 (`context-file.ts` in `formatFileContextBrief` and `formatFileContextAspect`;
 `build-context.ts:495` — a `const effectiveAspects = ...` local near the top of
-`composeBriefExtras`, feeding BOTH the third-pointer gate at `:497` and the scope-marking
-`aspectIds` at `:566`) and two hard-coded single-branch forms at the full-view
+`composeBriefExtras`, feeding the third-pointer gate at `:496`, its push at `:497`, and
+the scope-marking `aspectIds` at `:566`) and two hard-coded single-branch forms at the full-view
 scope-marking call sites (`data.typeCoverage?.applied.map((a) => a.aspectId) ?? []` on the
 type-covered branch — note the `?? []`, which the replacement absorbs — and
 `data.aspects.map(...)` on the node-owned branch). The two hard-coded forms are correct only
@@ -119,8 +120,8 @@ FUNCTION's `.length` — an always-true gate that typechecks), the `:497` pointe
 
 - [ ] **Step 1: Write the failing test**
 
-In `context-file-brief.test.ts`, add to the top-level describe (import `effectiveAspects`
-alongside the existing imports):
+In `context-file-brief.test.ts`, add a NEW top-level describe after the existing ones
+(import `effectiveAspects` alongside the existing imports):
 
 ```ts
 describe('effectiveAspects', () => {
@@ -300,7 +301,10 @@ helper.
   site has no classification to forward and Task 3's classify-once case cannot go green.
   (Note for the naming decision Task 1 bound: the `:566` reference to `governing` is
   deleted with the inlined block — the helper calls `effectiveAspects(data)` itself;
-  `:496`/`:497` keep `governing`. This is not a violation of Task 1's decision.)
+  `:496`/`:497` keep `governing`. This is not a violation of Task 1's decision. Comment
+  placement: the type-covered site's reference-first/skip-the-enumeration sentence moves
+  into the helper WITH the code it describes; only the single-entry-covered-map sentence
+  and the repoFiles-already-walked sentence stay at the site.)
   Type-covered full view: `{ edges, repoFiles }`. Node-owned full view: no precomputed
   argument beyond what it has today. Delete the three inlined blocks; the two full-view
   `reference !== undefined` gates MAY be deleted with them — the helper's own early return
@@ -396,8 +400,12 @@ enumeration would let the burn set differ. Therefore:
     re-enumerates).
   - Case B (classification-once, type-covered): use the
     `createTypeLevelProgressiveFixture` pattern from
-    `build-context-progressive.test.ts:60-79` (copies `tests/fixtures/type-level-engine` —
-    which HAS `coverage.type_level` on — and appends the reference). The type-covered
+    `build-context-progressive.test.ts:60-79` — copy ALL FIVE of its steps verbatim: copy
+    `tests/fixtures/type-level-engine` (which HAS `coverage.type_level` on), append the
+    reference, `git init -b main`/`add -A`/commit, `checkout -b work`, append to
+    `src/leaf/a.ts` and commit. The commits are load-bearing: without a merge base
+    `measure()` returns at the global-fallback row BEFORE it ever classifies, and the case
+    would pass at RED while pinning nothing. The type-covered
     `FileContextData` producer (`buildTypeCoveredFileContextData`) is module-private and
     `buildFileContextData` carries the wrong owner semantics, so build the third argument
     directly — this is NOT fabricated evidence (the fixture, graph, and config on disk are
@@ -429,21 +437,25 @@ enumeration would let the burn set differ. Therefore:
     this path pays a second enumeration — no second classification — by design; no cost
     adjective: nothing here measures it), so a future third enumeration
     still fails.
-  Run the file BEFORE implementing — `cd source/cli && npx vitest run
-  tests/unit/cli/build-context-classify-once.test.ts` (pure in-process; no build needed) —
-  and record the observed counts as the RED evidence.
   - Case C (direct threading): `resolveChangeScope` called directly with the full input —
     `{ graph, projectRoot: f.dir, coverageVisibleFiles: repoFiles, fullFlag: false,
-    precomputed: { typeCoverage, pairs } }` (the other fields are required by
-    `ChangeScopeInput`, and a wrong `projectRoot` or `fullFlag: true` would silently
-    resolve whole-project/unmeasurable) — `pairs` built from one explicit enumeration on
-    the Case-A fixture → assert `expect(decision.kind).toBe('scoped')` FIRST (a decision that
+    precomputed: { pairs } }` (no `typeCoverage` — this fixture classifies nothing by
+    construction; the other fields are required by `ChangeScopeInput`, and a wrong
+    `projectRoot` or `fullFlag: true` would silently resolve whole-project/unmeasurable) —
+    `pairs` built from one explicit enumeration on the Case-A fixture → assert `expect(decision.kind).toBe('scoped')` FIRST (a decision that
     short-circuits earlier would make the count assertion vacuous), then that the spies show
     the call added ZERO further classification or enumeration calls (mockClear before the
     call). Note in a comment that the classification half is vacuous on this fixture by
     construction (`createProgressiveFixture` emits no `coverage.type_level`, so
     classification is 0 before and after — Case B carries the classification proof); the
-    enumeration half is the load-bearing assertion here.
+    enumeration half is the load-bearing assertion here. Expected first run: FAIL — before
+    the fix `precomputed` is not a field on `ChangeScopeInput`, it is ignored at runtime,
+    and `measure()` enumerates for itself (enumeration spy at 1 instead of 0).
+
+  Run the file BEFORE implementing — `cd source/cli && npx vitest run
+  tests/unit/cli/build-context-classify-once.test.ts` (pure in-process; no build needed) —
+  and record all three cases' observed counts (A: 2 enumerations; B: 2 classifications;
+  C: 1 enumeration) as the RED evidence.
 
 - [ ] **Step 2: Implement.** In `progressive-scope-resolve.ts`: add the optional
   `precomputed` field to `ChangeScopeInput` with a doc comment ("an already-computed
@@ -461,7 +473,10 @@ enumeration would let the burn set differ. Therefore:
   passes the classification it computed or received, and sets `precomputedPairs =
   enumeration.pairs` ONLY when `precomputed?.edges === undefined` (the edge-less
   discriminator), with a comment citing the resolver's pessimism doc
-  (`progressive-scope-resolve.ts:308-320`). UPDATE `computeScopeMarking`'s own doc comment
+  (`progressive-scope-resolve.ts:308-320`). Widen the resolver's `core/pairs.js` import to
+  carry `type ExpectedPair` (today it imports only `computeExpectedPairs` and
+  `type TypeCoverageInput` — `:37`; `cli/core/pairs` is already a declared relation on that
+  node, so no graph edge changes). UPDATE `computeScopeMarking`'s own doc comment
   (`build-context.ts:386-404`): document both new trailing parameters, and replace the
   "the resolver ... does its own internal pair enumeration" clause with the new truth —
   the resolver reuses a forwarded edge-less enumeration when one is given, and only the
@@ -504,9 +519,12 @@ enumeration would let the burn set differ. Therefore:
   `source/cli/`, then 3 runs of `node <abs-path>/dist/bin.js context --file src/leaf/a.ts
   --brief` in the fixture dir, median); then from the repo root `git stash`, rebuild in
   `source/cli/`, time BEFORE the same way; then `git stash pop` and rebuild. Delete
-  `.yggdrasil/.type-class-cache/` and `.yggdrasil/.ast-cache/` in the fixture between runs
-  (the durable on-disk caches otherwise absorb from run 2 onward the very cost being
-  measured), or record the medians explicitly as warm-cache lower bounds. Record both
+  `.yggdrasil/.type-class-cache/` and `.yggdrasil/.ast-cache/` in the fixture before EVERY
+  timed run, including the first — the copied fixture already carries a warm AST cache from
+  this repo's own test runs, so deleting only between runs would mix two cost regimes in
+  one median. (The deletions dirty the scratch worktree; harmless — an unclean tree blocks
+  only the honest-empty row, never scoped.) Alternatively record the medians explicitly as
+  warm-cache lower bounds. Record both
   medians in the report; delete the scratch dir afterward. The call-count test is the
   primary evidence; the timing is corroboration, not a gate.
 - [ ] **Step 6: Graph ritual + report** — mapping for the new test file; relation check (the
@@ -605,7 +623,9 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   `beforeAll` copy+spawn storing `{ stdout, stderr, exitCode }`, and three `it`s asserting
   their distinct claims against the shared result. Keep each `it`'s title and assertions
   verbatim — only the execution is shared. The per-case `try/finally { rmSync(dir, ...) }`
-  cleanup becomes a matching `afterAll` — the fixture copy must not leak.
+  cleanup becomes a matching `afterAll` — the fixture copy must not leak. (Add `beforeAll`
+  and `afterAll` to the `vitest` import at `:1` — the file imports only
+  `describe, it, expect, afterEach` today.)
 - [ ] **Step 2: Write the worst-case budget pin.** One in-process case in
   `tests/unit/formatters/context-file-brief.test.ts` — the renderer is the budget's owner,
   that file already holds the 8-aspect cap fixture (`eight`, ~:18-26) this case is a sibling
@@ -614,8 +634,10 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   tail): scope header, 8×2 aspect lines + tail line, arm preview, 4+ dependencies (overflow
   marker), dependents, log gate, flows, 3 pointers — and assert
   `formatFileContextBrief(...).trimEnd().split('\n').length` equals EXACTLY the arithmetic
-  total (derive it in the test from named constants, with a comment mapping each line to the
-  arithmetic derived below — inline in the test, citing nothing outside the repo: path 1 + owner 1 + scope 1 + must-satisfy 1 + 16 + tail 1 + arm 1 + depends 1 +
+  total (derive it in the test from TEST-LOCAL named constants — `const CAP = 8; const
+  LINES_PER_RULE = 2;` etc.; do NOT export `BRIEF_ASPECT_CAP` from the formatter, this task
+  touches no source file — with a comment mapping each line to the arithmetic derived
+  below, inline in the test, citing nothing outside the repo: path 1 + owner 1 + scope 1 + must-satisfy 1 + 16 + tail 1 + arm 1 + depends 1 +
   dependents 1 + log 1 + flows 1 + next 3 = 29). Then assert the CLI-level claim against the MEASURED value, not the constant:
   `expect(rendered.trimEnd().split('\n').length + 1).toBe(30)` — the +1 stdout mapping
   line landing exactly on the option help's "≤ 30 lines" (asserting the constant against
@@ -643,6 +665,9 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
 
 - Order is strict: T1 → T2 → T3 (each shapes the next); T4 and T5 may run in either order
   after T3.
+- **Subsumed, not dropped:** the T4 task-review's deferred "redundant-classification
+  skip" (its minor #3) named the same duplicate whole-repo classification M4 prices — Task
+  3 removes it; no separate task is owed.
 - **Explicitly deferred (not dropped):** the node-view freshness recompute
   (`build-context.ts:321-331` — the `deriveLogGateState → undefined` branch re-reads the
   lock to keep the node view's definite `logState`). Deliberate, four lines, commented, the
