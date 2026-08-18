@@ -7,9 +7,10 @@
 **Goal:** Pay down the debts the Increment-1 whole-branch review priced — one derivation for
 "this file's effective rules", one assembly for the scope marking, one whole-repo
 classification per `yg context --file` invocation with one pair enumeration on the
-node-owned paths (the type-covered paths keep a second, edge-less enumeration — Task 3's
-contract ruling), and tests for the unpinned decision branch and the worst-case line
-budget.
+node-owned paths (the type-covered paths keep a second, edge-less enumeration in the
+marking chain — Task 3's contract ruling; the view-building enumeration at
+`build-context.ts:159` is untouched and out of scope), and tests for the unpinned decision
+branch and the worst-case line budget.
 
 **Architecture:** Pure consolidation and cost work on the surface Increment 1 shipped
 (`source/cli/src/cli/build-context.ts`, `source/cli/src/formatters/context-file.ts`). No new
@@ -42,7 +43,7 @@ is the consumer that makes this cost work load-bearing.
   suites (`build-context-brief.test.ts`, `build-context-progressive.test.ts`,
   `context-file-brief.test.ts`, `context-file.test.ts`) PLUS
   `tests/unit/cli/context-file-type-coverage.test.ts` (the suite dedicated to the
-  type-covered full view; `build-context-progressive.test.ts:133` also pins its scope
+  type-covered full view; `build-context-progressive.test.ts:133-142` also pins its scope
   suffix) and `tests/unit/cli/build-context.test.ts` (option-registration
   smoke) pass unchanged in every task — this six-suite list
   is "the guard suites" wherever a step names them. No assertion edits except where a task
@@ -80,8 +81,8 @@ is the consumer that makes this cost work load-bearing.
 - `scripts/repo-check.sh` green before every commit (controller runs it; 7 chmod-simulation
   failures under root are documented container artifacts, not yours).
 - No CHANGELOG entry per task; Task 5 closes the increment with ONE entry under
-  `## [Unreleased]` covering the user-relevant part (faster compact view) — internal
-  refactors are not release notes.
+  `## [Unreleased]` covering the user-relevant part (cheaper file context on
+  type-classified projects) — internal refactors are not release notes.
 - Line-number anchors below are from the post-4b608e2 tree; re-locate by the quoted code, not
   the number, and note drift in your report.
 
@@ -260,7 +261,8 @@ const typeCoverage =
 const enumeration =
   precomputed?.pairsWithUnreadable ??
   (await (async () => {
-    // reproduce the type-covered site's edges-spread guard verbatim:
+    // reproduce the compact site's edges-spread guard (:529-531) — its two conditions
+    // keep the node-owned full-view site on the un-spread arm:
     const input = precomputed?.edges !== undefined && typeCoverage !== undefined
       ? { typeCoverage: { ...typeCoverage, edges: precomputed.edges } }
       : { typeCoverage };
@@ -443,7 +445,10 @@ enumeration would let the burn set differ. Therefore:
     this path pays a second enumeration — no second classification — by design; no cost
     adjective: nothing here measures it), so a future third enumeration
     still fails.
-  - Case C (direct threading): `resolveChangeScope` called directly with the full input —
+  - Case C (direct threading): on its OWN fresh fixture (the Case-A recipe — a new
+    `createProgressiveFixture({ ..., progressiveReference: REFERENCE_BRANCH })` +
+    `branchWithEdit`; the per-case cleanup tears fixtures down, so never reuse Case A's
+    instance): `resolveChangeScope` called directly with the full input —
     `{ graph, projectRoot: f.dir, coverageVisibleFiles: repoFiles, fullFlag: false,
     precomputed: { pairs } }` (no `typeCoverage` — this fixture classifies nothing by
     construction; the other fields are required by `ChangeScopeInput`, and a wrong
@@ -488,8 +493,10 @@ enumeration would let the burn set differ. Therefore:
   Node-owned paths are unaffected (no relation pass runs there). Update BOTH doc comments
   the widening falsifies: `composeBriefExtras`'s `shared` paragraph (`:465-477` — "passes
   both" becomes the walk, the edge index and the classification) and
-  `computeRelationEdgesForContext`'s own (`:112-128` — it now returns the classification it
-  seeds the pass with rather than discarding it).
+  `computeRelationEdgesForContext`'s own (`:112-123` — it now returns the classification it
+  seeds the pass with rather than discarding it) — plus the inline note at `:706-708`,
+  whose second named consumer (composeBriefExtras's own classification) is gone: the walk
+  now feeds the relation pass, the seed classification, and `assembleScopeMarking`.
 
   In `build-context.ts`: `computeScopeMarking` gains the two trailing optionals from the
   Produces block and threads `precomputed: { typeCoverage: precomputedTypeCoverage,
