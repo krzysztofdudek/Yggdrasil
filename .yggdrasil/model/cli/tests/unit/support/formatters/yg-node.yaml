@@ -5,6 +5,7 @@ description: Unit tests for CLI context-output formatters — cli-preamble,
 mapping:
   - source/cli/tests/unit/formatters/cli-preamble.test.ts
   - source/cli/tests/unit/formatters/context-file.test.ts
+  - source/cli/tests/unit/formatters/context-file-brief.test.ts
   - source/cli/tests/unit/formatters/context-node.test.ts
   - source/cli/tests/unit/formatters/context-references.test.ts
 relations:

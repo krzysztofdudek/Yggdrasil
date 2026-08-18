@@ -186,3 +186,79 @@ export function formatFileContext(data: FileContextData): string {
 
   return lines.join('\n');
 }
+
+export interface FileBriefExtras {
+  /** "editing this file invalidates N pairs (M free / K reviewer pairs) — …" — pre-rendered by the caller; absent → line omitted */
+  armPreviewText?: string;
+  /** "your change so far: N files; this file is in it" — pre-rendered; absent → no scope section */
+  scopeHeaderText?: string;
+  /** aspectId → 'yours' | 'inherited' (only when the change was measured) */
+  scopeByAspect?: Map<string, 'yours' | 'inherited'>;
+  /** pre-rendered owner log-gate line; absent → line omitted */
+  logGateText?: string;
+  /** pre-rendered owner flows line; absent → line omitted */
+  flowsText?: string;
+  /** up to 3 pre-rendered "next:" lines */
+  nextPointers: string[];
+}
+
+const BRIEF_ASPECT_CAP = 8;
+
+/**
+ * The first sentence of a rule's description, capped by the SAME 80-char helper
+ * the full view already applies to reference descriptions — a brief that can be
+ * blown out to one 2000-character line by one verbose rule is not a brief.
+ */
+function briefDescription(text: string): string {
+  const trimmed = text.trim();
+  const m = /^.*?[.!?](?=\s|$)/.exec(trimmed);
+  return truncateDescription((m ? m[0] : trimmed).trim());
+}
+
+function briefAspectLines(a: FileContextAspect, scope?: 'yours' | 'inherited'): string[] {
+  const status = a.status ?? 'enforced';
+  const caveat = a.unverified ? ', unverified' : '';
+  const suffix = scope === undefined ? '' : ` (${scope})`;
+  const head = `  [${status}${caveat}] ${a.aspectId} — ${briefDescription(a.aspectDescription)}${suffix}`;
+  // A draft rule has no reviewer and no verdict; the full view withholds its
+  // read path for exactly that reason, and the compact view must not contradict
+  // it by pointing at a rule source nothing is judged against.
+  if (status === 'draft') return [head, '    (reviewer skipped; aspect is draft)'];
+  return [head, `    read: ${posixPath(a.verifiedAgainst)}`];
+}
+
+export function formatFileContextBrief(data: FileContextData, extras: FileBriefExtras): string {
+  const lines: string[] = [];
+  lines.push(posixPath(data.filePath));
+  if (data.ownerPath) {
+    lines.push(`  Owner: ${posixPath(data.ownerPath)} (${data.ownerType ?? 'unknown'})`);
+  } else if (data.typeCoverage) {
+    lines.push(`  Owner: type:${data.typeCoverage.typeId}`);
+  } else {
+    lines.push('  Owner: unmapped');
+    if (data.candidates && data.candidates.length > 0) {
+      lines.push(`  Candidate nodes: ${data.candidates.map((c) => posixPath(c.nodePath)).join(' · ')}`);
+    }
+  }
+  if (extras.scopeHeaderText) lines.push(`  ${extras.scopeHeaderText}`);
+  const aspects = data.ownerPath ? data.aspects : (data.typeCoverage?.applied ?? []);
+  if (aspects.length > 0) {
+    lines.push('  Must satisfy:');
+    for (const a of aspects.slice(0, BRIEF_ASPECT_CAP)) {
+      lines.push(...briefAspectLines(a, extras.scopeByAspect?.get(a.aspectId)));
+    }
+    if (aspects.length > BRIEF_ASPECT_CAP) {
+      lines.push(`  … and ${aspects.length - BRIEF_ASPECT_CAP} more — run yg context --file ${posixPath(data.filePath)} for all`);
+    }
+  }
+  if (extras.armPreviewText) lines.push(`  ${extras.armPreviewText}`);
+  if (data.dependencies.length > 0) {
+    lines.push(`  Depends on: ${data.dependencies.slice(0, 3).map((d) => posixPath(d.path)).join(' · ')}${data.dependencies.length > 3 ? ' · …' : ''}`);
+  }
+  if (data.dependentCount > 0) lines.push(`  Dependents: ${data.dependentCount} nodes`);
+  if (extras.logGateText) lines.push(`  ${extras.logGateText}`);
+  if (extras.flowsText) lines.push(`  ${extras.flowsText}`);
+  for (const p of extras.nextPointers.slice(0, 3)) lines.push(`  ${p}`);
+  lines.push('');
+  return lines.join('\n');
+}
