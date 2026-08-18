@@ -287,8 +287,10 @@ helper.
   only `wholeGraphPairs`, hence the `?? []`, matching what `:566` passes today). The
   classification is try-local today (`const typeCoverage` at `:528`): hoist
   `let wholeGraphTypeCoverage: TypeCoverageInput | undefined;` alongside the other two
-  hoisted variables and assign it at `:528` — without this the compact site has no
-  classification to forward and Task 3's classify-once case cannot go green.
+  hoisted variables, REPLACE the `const typeCoverage` binding at `:528` with an assignment
+  to the hoisted name, and update the two reads at `:529-531` (the `typeCoverageWithEdges`
+  construction) to read the hoisted name — no chained assignment. Without this the compact
+  site has no classification to forward and Task 3's classify-once case cannot go green.
   Type-covered full view: `{ edges, repoFiles }`. Node-owned full view: no precomputed
   argument beyond what it has today. Delete the three inlined blocks; the two full-view
   `reference !== undefined` gates MAY be deleted with them — the helper's own early return
@@ -343,7 +345,8 @@ helper.
   `measure()`; the caller must hand the forwardable set separately.)
   `assembleScopeMarking` (Task 2) passes the classification it computed or received, and
   passes `precomputedPairs` ONLY when `precomputed?.edges === undefined` — that flag IS the
-  edge-less discriminator for all four call sites (compact node-owned: `shared` absent;
+  edge-less discriminator for all four runtime configurations of the three call sites
+  (compact node-owned: `shared` absent;
   compact type-covered: `shared.edges` set; type-covered full view: `edges` set; node-owned
   full view: none). This is the route by which M4's head item (the duplicate whole-repo
   classification) actually dies.
@@ -375,8 +378,10 @@ enumeration would let the burn set differ. Therefore:
     reached and the test is vacuously green) — and cut a real measured branch like every
     sibling in-process case does:
     `f.branchWithEdit('work', 'src/alpha/alpha.ts', 'export const alpha = 2;\n');`.
-    Assert `computeExpectedPairs` called EXACTLY ONCE for the whole call. Expected first
-    run: FAIL with 2 calls (today `measure()` re-enumerates).
+    Assert `computeExpectedPairs` called EXACTLY ONCE for the whole call (a
+    `beforeEach` `mockClear` on both spies, as the precedent file does, keeps every case
+    self-contained). Expected first run: FAIL with 2 calls (today `measure()`
+    re-enumerates).
   - Case B (classification-once, type-covered): use the
     `createTypeLevelProgressiveFixture` pattern from
     `build-context-progressive.test.ts:60-79` (copies `tests/fixtures/type-level-engine` —
@@ -406,8 +411,11 @@ enumeration would let the burn set differ. Therefore:
     Assert `computeTypeCoverageCached` called EXACTLY ONCE. Expected first run: FAIL with
     2 calls (site + `measure()`'s `resolveTypeCoverage`). Do NOT assert
     `computeExpectedPairs === 1` here — per the contract ruling the type-covered path
-    legitimately enumerates twice; assert EXACTLY TWO with a comment citing the ruling, so
-    a future third enumeration still fails.
+    legitimately enumerates twice; assert EXACTLY TWO with a comment stating the rule inline (the type-covered
+    enumeration carries an edges-resolved lattice, which the resolver's pessimistic
+    edge-less contract — `progressive-scope-resolve.ts:308-320` — refuses to consume, so
+    this path pays a second, cheap enumeration by design), so a future third enumeration
+    still fails.
   - Case C (direct threading): `resolveChangeScope` called directly with
     `precomputed: { typeCoverage, pairs }` built from one explicit enumeration on the Case-A
     fixture → assert `expect(decision.kind).toBe('scoped')` FIRST (a decision that
@@ -422,7 +430,9 @@ enumeration would let the burn set differ. Therefore:
   `precomputed` field to `ChangeScopeInput` with a doc comment ("an already-computed
   classification and/or edge-less whole-graph enumeration from THIS invocation — measure()
   trusts it instead of paying for its own; callers own the freshness guarantee AND the
-  edge-less-pairs guarantee — see the contract ruling"); in `measure()`, use
+  guarantee that forwarded pairs were enumerated WITHOUT an edges-resolved lattice — see
+  resolveTypeCoverage's own doc above for why the pessimistic, edge-less set is the
+  contract" — state the rule inline and cite the in-repo doc, never a planning artifact); in `measure()`, use
   `input.precomputed?.typeCoverage ?? await resolveTypeCoverage(...)` and
   `input.precomputed?.pairs ?? (await computeExpectedPairs(graph, { typeCoverage })).pairs`.
   In `build-context.ts`: `computeScopeMarking` gains the two trailing optionals from the
@@ -432,17 +442,29 @@ enumeration would let the burn set differ. Therefore:
   passes the classification it computed or received, and sets `precomputedPairs =
   enumeration.pairs` ONLY when `precomputed?.edges === undefined` (the edge-less
   discriminator), with a comment citing the resolver's pessimism doc
-  (`progressive-scope-resolve.ts:308-320`). Verify: on the
+  (`progressive-scope-resolve.ts:308-320`). UPDATE `computeScopeMarking`'s own doc comment
+  (`build-context.ts:386-404`): document both new trailing parameters, and replace the
+  "the resolver ... does its own internal pair enumeration" clause with the new truth —
+  the resolver reuses a forwarded edge-less enumeration when one is given, and only the
+  type-covered configurations still let it enumerate for itself. (That clause was itself a
+  prior review fix; leaving it stale re-opens a closed defect.) Verify: on the
   node-owned `--brief` path the arm preview's single enumeration now serves the preview AND
-  the entire scope resolution; on the type-covered paths the classification is computed once
-  and only the resolver's own edge-less enumeration remains.
+  the entire scope resolution; on the type-covered paths the SITE'S OWN classification is
+  computed once and reused by the resolver — the relation pass's separate seeding
+  classification (`computeRelationEdgesForContext`'s first line, `build-context.ts:125`)
+  remains a third whole-repo call on type-covered invocations and is OUT OF SCOPE here:
+  name that residual explicitly in your report (Case B cannot see it — the stubbed edge
+  index deliberately keeps the relation pass out of the measured window).
 - [ ] **Step 3: The cache-boundary test stays green** — run
   `npx vitest run tests/unit/core/type-coverage.test.ts` (no new bare call sites) and
   `tests/unit/core/fill-classify-once.test.ts` (fill's own pin untouched).
 - [ ] **Step 4: Run the new test — GREEN**, plus the full Task-1-Step-5 guard suites, plus
-  `tests/unit/cli/check*.test.ts` and any suite named for `progressive` under
-  `tests/unit/cli/` (the `resolveChangeScope` signature is consumed by `yg check` — its
-  behavior must be provably unchanged when `precomputed` is absent).
+  `tests/unit/cli/check*.test.ts`, any suite named for `progressive` under
+  `tests/unit/cli/`, AND the three progressive E2E suites the Global Constraints promise for
+  this task: `tests/e2e/cli-progressive-gate.test.ts tests/e2e/cli-progressive-approve.test.ts
+  tests/e2e/cli-progressive-byte-guard.test.ts` (the `resolveChangeScope` signature is
+  consumed by `yg check` — its behavior must be provably unchanged when `precomputed` is
+  absent, and these are the end-to-end proof).
 - [ ] **Step 5: Measure and record.** This repo's own config has NO `progressive:` block and
   `type_level: false` — timing the repo itself proves nothing (the changed paths never run).
   `createTypeLevelProgressiveFixture` is a private test function — reproduce it by hand
@@ -451,9 +473,10 @@ enumeration would let the burn set differ. Therefore:
   `cp -r source/cli/tests/fixtures/type-level-engine <scratch-dir>`; append
   `progressive:\n  reference: main` to its `.yggdrasil/yg-config.yaml`; inside the dir
   `git init -b main && git add -A && git -c user.name=yg-test -c user.email=yg-test@fixture.test commit -m base`;
-  `git checkout -b work`; append a line to `src/leaf/a.ts`; commit with the same `-c`
-  identity flags (no configured git identity exists in a scratch dir — a bare commit fails
-  with exit 128). This is a throwaway timing measurement, deleted afterward. Then — remembering `dist/` is gitignored, so a bare
+  `git checkout -b work`; append a line to `src/leaf/a.ts`; then
+  `git add -A && git -c user.name=yg-test -c user.email=yg-test@fixture.test commit -m edit`
+  (the `add` is required — nothing is staged; the `-c` flags keep the measurement
+  independent of whatever identity the host carries). This is a throwaway timing measurement, deleted afterward. Then — remembering `dist/` is gitignored, so a bare
   `git stash` does NOT swap the binary — time AFTER first (`npm run build`, then 3 runs of
   `node <abs-path>/dist/bin.js context --file src/leaf/a.ts --brief` in the fixture dir,
   median); then `git stash && npm run build`, time BEFORE; then `git stash pop &&
@@ -466,8 +489,17 @@ enumeration would let the burn set differ. Therefore:
   new edge lands on 31/31 with stale prose: bump the limit with headroom if the maintainer
   convention allows, or at minimum update the reason text to the new count, AND move the
   fan-out leaderboard pin (`portal-derive-rest.test.ts` — title, assertion, narrative
-  comment) in the same commit. Log entry (product prose: a file's context now costs one
-  measurement, not two).
+  comment) in the same commit. TWO description updates in the same commit, both promised by
+  the Files list: (a) `cli/progressive-scope-resolve`'s node description — its unconditional
+  "enumerates the run's expected obligations" sentence becomes conditional (the resolver
+  classifies and enumerates for itself UNLESS the caller hands it an already-computed,
+  edge-less pair set and/or classification from the same invocation, which it then trusts;
+  the caller owns freshness and the edge-less guarantee) — `command-support` is not
+  log-gated and nothing mechanical catches a stale description here, this step is the only
+  guard; (b) one clause in `cli/tests/unit/cli/general`'s description noting the umbrella
+  now carries a cost-invariant (call-count) suite. Log entry for `cli/commands/build-context`
+  (product prose: a file's context reuses the measurement it already made instead of
+  repeating it).
 
 ### Task 4: Pin the measured-with-caveat branch; document the dead one
 
@@ -551,17 +583,21 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   marker), dependents, log gate, flows, 3 pointers — and assert
   `formatFileContextBrief(...).trimEnd().split('\n').length` equals EXACTLY the arithmetic
   total (derive it in the test from named constants, with a comment mapping each line to the
-  ledger: path 1 + owner 1 + scope 1 + must-satisfy 1 + 16 + tail 1 + arm 1 + depends 1 +
-  dependents 1 + log 1 + flows 1 + next 3 = 29). Then assert the CLI-level claim the ledger
-  cares about: `expect(RENDERER_WORST_CASE + 1).toBe(30)` — the +1 stdout mapping line
-  landing exactly on the option help's "≤ 30 lines" (no redundant `lessThanOrEqual` of the
-  same number). A future line added to the renderer breaks this test by name.
+  arithmetic derived below — inline in the test, citing nothing outside the repo: path 1 + owner 1 + scope 1 + must-satisfy 1 + 16 + tail 1 + arm 1 + depends 1 +
+  dependents 1 + log 1 + flows 1 + next 3 = 29). Then assert the CLI-level claim against the MEASURED value, not the constant:
+  `expect(rendered.trimEnd().split('\n').length + 1).toBe(30)` — the +1 stdout mapping
+  line landing exactly on the option help's "≤ 30 lines" (asserting the constant against
+  itself would be a tautology). A future line added to the renderer breaks this test by name.
 - [ ] **Step 3: Full guard suites + typecheck + lint.**
 - [ ] **Step 4: CHANGELOG.** One line under `## [Unreleased]` in a `### Changed` section —
   the file currently has `### Added`, `### Fixed`, `### Documentation` and no `### Changed`;
-  create it between `### Added` and `### Fixed` (Keep-a-Changelog order): the compact view
-  now performs the scope measurement once per invocation instead of twice, cutting its cost
-  on progressive projects — adopter-voiced, no internals. (This is the increment's only changelog line;
+  create it between `### Added` and `### Fixed` (Keep-a-Changelog order). The line must not
+  over-claim — the type-covered paths deliberately keep a second (cheap) enumeration per the
+  contract ruling, and a relation-pass classification remains out of scope — so state the
+  unconditionally-true half: on projects that measure changes against a branch, the file
+  context views no longer repeat measurement work they already did in the same run, so they
+  cost materially less on large repositories. No counts, no path-specific claims —
+  adopter-voiced, no internals. (This is the increment's only changelog line;
   Tasks 1-4 are internal.)
 - [ ] **Step 5: Graph ritual + report** — mapping unchanged; log entry only if command
   source drifted (it does not in this task — say so).
