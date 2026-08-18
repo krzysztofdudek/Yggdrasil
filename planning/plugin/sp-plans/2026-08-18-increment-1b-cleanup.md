@@ -38,9 +38,10 @@ is the consumer that makes this cost work load-bearing.
   report.
 - The `--brief` / `--aspect` / progressive outputs also stay byte-identical: the Increment-1
   suites (`build-context-brief.test.ts`, `build-context-progressive.test.ts`,
-  `context-file-brief.test.ts`, `context-file.test.ts`) PLUS the two suites that cover the
-  type-covered full view (`tests/unit/cli/context-file-type-coverage.test.ts`,
-  `tests/unit/cli/build-context.test.ts`) pass unchanged in every task — this six-suite list
+  `context-file-brief.test.ts`, `context-file.test.ts`) PLUS
+  `tests/unit/cli/context-file-type-coverage.test.ts` (the ONE suite pinning the
+  type-covered full view) and `tests/unit/cli/build-context.test.ts` (option-registration
+  smoke) pass unchanged in every task — this six-suite list
   is "the guard suites" wherever a step names them. No assertion edits except where a task
   below explicitly says otherwise. Task 3 additionally re-runs the three progressive E2E
   suites (`tests/e2e/cli-progressive-gate.test.ts`, `cli-progressive-approve.test.ts`,
@@ -56,7 +57,9 @@ is the consumer that makes this cost work load-bearing.
   Task 1 places `effectiveAspects` — the statement of which rules govern a file — in
   `context-file.ts` (co-located with the `FileContextData` type it reads and consumed by the
   renderer itself; the alternative would put a formatter's own read behind an import from
-  its caller). Do not move either.
+  its caller — note the `formatter` architecture type's own "no business logic" wording:
+  no aspect enforces it, and changing the architecture is the maintainer's call, so the
+  exception is recorded here instead). Do not move either.
 - Graph ritual per task, same as Increment 1: any file whose behavior-describing
   `description:` changes gets that edit in the same commit; the `cli/commands/build-context`
   node is log-gated (`yg log add` with self-contained WHY prose — no references to plans,
@@ -143,7 +146,11 @@ test file at ~:118/:181/:232 show the working minimal form — copy theirs if th
 not typecheck. Identity assertions via `toBe` are the point: the helper returns the same
 array, no copy.)
 
-- [ ] **Step 2: Run it — expect FAIL** (`effectiveAspects is not a function`):
+- [ ] **Step 2: Run it — expect FAIL.** Under this repo's vitest, a named import the
+  module does not export fails the WHOLE FILE at collection with
+  `does not provide an export named 'effectiveAspects'` — every case in the file reports
+  red, and that collection error IS the expected RED (do not read it as having broken the
+  existing suite):
   `cd source/cli && npx vitest run tests/unit/formatters/context-file-brief.test.ts`
 
 - [ ] **Step 3: Implement the helper in `context-file.ts`**, placed directly above
@@ -291,6 +298,9 @@ helper.
   to the hoisted name, and update the three reads at `:529-531` (the guard, the spread, and the else arm of the
   `typeCoverageWithEdges` construction) to read the hoisted name — no chained assignment. Without this the compact
   site has no classification to forward and Task 3's classify-once case cannot go green.
+  (Note for the naming decision Task 1 bound: the `:566` reference to `governing` is
+  deleted with the inlined block — the helper calls `effectiveAspects(data)` itself;
+  `:496`/`:497` keep `governing`. This is not a violation of Task 1's decision.)
   Type-covered full view: `{ edges, repoFiles }`. Node-owned full view: no precomputed
   argument beyond what it has today. Delete the three inlined blocks; the two full-view
   `reference !== undefined` gates MAY be deleted with them — the helper's own early return
@@ -419,9 +429,15 @@ enumeration would let the burn set differ. Therefore:
     this path pays a second enumeration — no second classification — by design; no cost
     adjective: nothing here measures it), so a future third enumeration
     still fails.
-  - Case C (direct threading): `resolveChangeScope` called directly with
-    `precomputed: { typeCoverage, pairs }` built from one explicit enumeration on the Case-A
-    fixture → assert `expect(decision.kind).toBe('scoped')` FIRST (a decision that
+  Run the file BEFORE implementing — `cd source/cli && npx vitest run
+  tests/unit/cli/build-context-classify-once.test.ts` (pure in-process; no build needed) —
+  and record the observed counts as the RED evidence.
+  - Case C (direct threading): `resolveChangeScope` called directly with the full input —
+    `{ graph, projectRoot: f.dir, coverageVisibleFiles: repoFiles, fullFlag: false,
+    precomputed: { typeCoverage, pairs } }` (the other fields are required by
+    `ChangeScopeInput`, and a wrong `projectRoot` or `fullFlag: true` would silently
+    resolve whole-project/unmeasurable) — `pairs` built from one explicit enumeration on
+    the Case-A fixture → assert `expect(decision.kind).toBe('scoped')` FIRST (a decision that
     short-circuits earlier would make the count assertion vacuous), then that the spies show
     the call added ZERO further classification or enumeration calls (mockClear before the
     call). Note in a comment that the classification half is vacuous on this fixture by
@@ -455,8 +471,9 @@ enumeration would let the burn set differ. Therefore:
   the entire scope resolution; on the type-covered paths the SITE'S OWN classification is
   computed once and reused by the resolver — the relation pass's separate seeding
   classification (`computeRelationEdgesForContext`'s first line, `build-context.ts:125`)
-  remains a SECOND whole-repo classification on type-covered invocations after this change
-  (it was the third before) and is OUT OF SCOPE here:
+  is the residual whole-repo classification on type-covered invocations (two remain after
+  this change, down from three — the seed chronologically runs FIRST, before the compact
+  site's) and is OUT OF SCOPE here:
   name that residual explicitly in your report (Case B cannot see it — the stubbed edge
   index deliberately keeps the relation pass out of the measured window).
 - [ ] **Step 3: The cache-boundary test stays green** — run
@@ -486,7 +503,10 @@ enumeration would let the burn set differ. Therefore:
   `git stash` runs FROM THE REPOSITORY ROOT: time AFTER first (`npm run build` in
   `source/cli/`, then 3 runs of `node <abs-path>/dist/bin.js context --file src/leaf/a.ts
   --brief` in the fixture dir, median); then from the repo root `git stash`, rebuild in
-  `source/cli/`, time BEFORE the same way; then `git stash pop` and rebuild. Record both
+  `source/cli/`, time BEFORE the same way; then `git stash pop` and rebuild. Delete
+  `.yggdrasil/.type-class-cache/` and `.yggdrasil/.ast-cache/` in the fixture between runs
+  (the durable on-disk caches otherwise absorb from run 2 onward the very cost being
+  measured), or record the medians explicitly as warm-cache lower bounds. Record both
   medians in the report; delete the scratch dir afterward. The call-count test is the
   primary evidence; the timing is corroboration, not a gate.
 - [ ] **Step 6: Graph ritual + report** — mapping for the new test file; relation check (the
@@ -544,8 +564,11 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   the fixture handle; if the helper offers a different commit primitive, use it — the
   two-commit shape is the requirement.) Name the trigger in a test comment.
 - [ ] **Step 2: Write the spawned case.** Coverage-closing for existing behavior (the
-  Increment-1 rule): write it to the real behavior, run, and if it FAILS, STOP and report —
-  a failure is a product bug. Fixture whose measured change touches
+  Increment-1 rule): write it to the real behavior, then run it with a fresh build —
+  `cd source/cli && npm run build && npx vitest run tests/unit/cli/build-context-progressive.test.ts`
+  — and confirm the new case ACTUALLY RAN: the spawned block is `describe.skipIf(!distExists)`,
+  so with no dist the whole block SKIPS, which is not a pass. If the case FAILS, STOP and
+  report — a failure is a product bug. Fixture whose measured change touches
   `.yggdrasil/yg-architecture.yaml` + an ordinary source file → spawn
   `context --file <ordinary-file> --brief`; assert exit 0, stderr contains
   `Scope marking measured against '` and `— with a caveat:`, stdout still carries a
@@ -567,8 +590,10 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
 - Modify: `CHANGELOG.md` (one line, Step 4)
 
 **Interfaces:**
-- Consumes: the budget arithmetic — the renderer's worst case WITH the scope header included
-  is 28 at the 8-rule cap and 29 with the truncation tail; the +1 stdout mapping line on the
+- Consumes: the budget arithmetic — on the two arms this command can reach (node-owned,
+  type-covered; the unmapped arm exits 1 before --brief is honored and can emit one line
+  more), the renderer's worst case WITH the scope header included is 28 at the 8-rule cap
+  and 29 with the truncation tail; the +1 stdout mapping line on the
   node-owned path makes the CLI's worst case exactly 30, matching the option help's "≤ 30
   lines". The three existing `type-level-engine` spawns (verified identical flags:
   `['context','--file','src/leaf/a.ts','--brief']` at ~:175, :187, :309; the fourth
@@ -601,9 +626,10 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   create it between `### Added` and `### Fixed` (Keep-a-Changelog order). The line must not
   over-claim — the type-covered paths deliberately keep a second enumeration per the
   contract ruling, and a relation-pass classification remains out of scope — so state ONLY the
-  unconditionally-true half: on projects that measure changes against a branch, a file's
-  context view now reuses the classification it already made in the same run instead of
-  redoing it, so it costs less on large repositories. (The enumeration claim is NOT
+  half that is never an over-claim: on projects that measure changes against a branch and
+  classify files by architecture type, a file's context view now reuses the classification
+  it already made in the same run instead of redoing it, so it costs less on large
+  repositories. (The enumeration claim is NOT
   unconditional — two of the four configurations still enumerate twice by design — and any
   magnitude adjective must be backed by Task 3 Step 5's recorded medians or omitted.) No
   counts, no path-specific claims — adopter-voiced, no internals. (This is the increment's only changelog line;
