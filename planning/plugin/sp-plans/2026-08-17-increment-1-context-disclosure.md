@@ -1037,7 +1037,8 @@ it('omits the line for a file no rule reviews', () => {
 
 Also add an in-process case: `composeBriefExtras` lives in `src/cli/**`, which the coverage gate
 excludes, so this case is for in-process testability of the assembly decision, not the coverage
-gate. In `tests/fixtures/sample-project`, `orders/order-service` carries exactly two rules, both
+gate. It goes beside the other in-process cases, outside the `describe.skipIf(!distExists)` block,
+since it needs no build. In `tests/fixtures/sample-project`, `orders/order-service` carries exactly two rules, both
 reviewer-judged and both per-component (`requires-audit`, which `implies requires-logging`;
 neither declares a `scope:`) (also delivered by `checkout-flow`; same pair, deduped), so the
 assertion is exact:
@@ -1308,8 +1309,8 @@ it, beside the other in-process cases.
   Task 2's file, the `fixtures[]` array and its `afterEach` cleanup from Task 4's — and every
   spawned case below sits inside a `describe.skipIf(!distExists)` block, so the suite fails loudly
   on a missing build rather than passing over zero cases. The local
-  `createTypeLevelProgressiveFixture` helper additionally needs `CLI_ROOT` plus `path` and
-  `node:fs` imports, which this new file must bring in itself. `'main'` is `REFERENCE_BRANCH`, exported by the fixture module; import
+  `createTypeLevelProgressiveFixture` helper additionally needs `CLI_ROOT` plus `path`,
+  `node:fs`, and `node:os`'s `tmpdir` imports, which this new file must bring in itself. `'main'` is `REFERENCE_BRANCH`, exported by the fixture module; import
   it rather than re-typing the literal:
 
 ```ts
