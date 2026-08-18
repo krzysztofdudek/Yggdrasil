@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { formatFileContextBrief, formatFileContextAspect, formatFileContext, effectiveAspects } from '../../../src/formatters/context-file.js';
-import type { FileContextData } from '../../../src/formatters/context-file.js';
+import type { FileContextData, FileBriefExtras } from '../../../src/formatters/context-file.js';
 
 const base: FileContextData = {
   filePath: 'src/app/handler.ts',
@@ -111,6 +111,73 @@ describe('formatFileContextBrief', () => {
       nextPointers: ['next: a', 'next: b', 'next: c'],
     });
     expect(out.trimEnd().split('\n').length).toBeLessThanOrEqual(30);
+  });
+
+  it('pins the exact worst-case line count at the aspect cap plus truncation tail, with every extra present', () => {
+    // The renderer owns the budget the option help advertises ("≤ 30 lines"),
+    // so the pin lives here rather than at a CLI call site. TEST-LOCAL
+    // constants only — BRIEF_ASPECT_CAP stays unexported so the formatter's
+    // budget shape cannot silently change without a test noticing; a future
+    // line added to formatFileContextBrief throws the exact-equality
+    // assertion below off by name.
+    const CAP = 8; // matches the formatter's private BRIEF_ASPECT_CAP
+    const LINES_PER_RULE = 2; // "[status] id — desc" + "read: ..." (or the draft note)
+    const PATH_LINE = 1;
+    const OWNER_LINE = 1;
+    const SCOPE_HEADER_LINE = 1;
+    const MUST_SATISFY_HEADER_LINE = 1;
+    const TRUNCATION_TAIL_LINE = 1; // present because the aspect count exceeds CAP
+    const ARM_PREVIEW_LINE = 1;
+    const DEPENDS_ON_LINE = 1; // one line regardless of overflow — the list is always capped at 3 + a marker
+    const DEPENDENTS_LINE = 1;
+    const LOG_GATE_LINE = 1;
+    const FLOWS_LINE = 1;
+    const NEXT_POINTER_LINES = 3; // capped at 3 by the renderer
+
+    // path 1 + owner 1 + scope 1 + must-satisfy 1 + 16 + tail 1 + arm 1 + depends 1 +
+    // dependents 1 + log 1 + flows 1 + next 3 = 29
+    const expectedTotal =
+      PATH_LINE + OWNER_LINE + SCOPE_HEADER_LINE + MUST_SATISFY_HEADER_LINE +
+      CAP * LINES_PER_RULE + TRUNCATION_TAIL_LINE + ARM_PREVIEW_LINE +
+      DEPENDS_ON_LINE + DEPENDENTS_LINE + LOG_GATE_LINE + FLOWS_LINE + NEXT_POINTER_LINES;
+    expect(expectedTotal).toBe(29);
+
+    // CAP + 1 aspects: the cap renders, the tail line reports the rest.
+    const nine: FileContextData = {
+      ...base,
+      aspects: Array.from({ length: CAP + 1 }, (_, i) => ({
+        aspectId: `rule-${i}`,
+        aspectDescription: `Rule ${i} does a thing.`,
+        verifiedAgainst: `.yggdrasil/aspects/rule-${i}/check.mjs`,
+        status: 'enforced' as const,
+      })),
+      // 4+ dependencies triggers the overflow marker but still renders as one line.
+      dependencies: [
+        { path: 'src/a.ts', consumed: ['calls'] },
+        { path: 'src/b.ts', consumed: ['calls'] },
+        { path: 'src/c.ts', consumed: ['calls'] },
+        { path: 'src/d.ts', consumed: ['calls'] },
+      ],
+      dependentCount: 3,
+    };
+    const extras: FileBriefExtras = {
+      armPreviewText: 'editing this file invalidates 4 pairs (3 free / 1 reviewer pair) — price a fill: yg check --approve --dry-run',
+      scopeHeaderText: 'your change so far: 2 files; this file is in it',
+      scopeByAspect: new Map(nine.aspects.map((a) => [a.aspectId, 'yours' as const])),
+      logGateText: 'Log entry required before approve: no (fresh entry present: no)',
+      flowsText: 'Flows: checkout',
+      nextPointers: ['next: a', 'next: b', 'next: c'],
+    };
+
+    const rendered = formatFileContextBrief(nine, extras);
+    expect(rendered.trimEnd().split('\n').length).toBe(expectedTotal);
+
+    // Restated in the CLI's own terms, matching the option help's "≤ 30 lines"
+    // exactly: the node-owned --brief path prints one extra stdout line ahead
+    // of the renderer's own output. This is implied by the assertion above,
+    // not an independent guard — it exists only so a reader can match the
+    // renderer's total to the CLI-level claim without re-deriving it.
+    expect(rendered.trimEnd().split('\n').length + 1).toBe(30);
   });
 
   it('renders the type-covered variant with the same two-line-per-aspect shape', () => {

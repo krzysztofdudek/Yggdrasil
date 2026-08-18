@@ -33,6 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`yg context --file` now has a compact view and a way to expand one rule.** Until now the only file-scoped view was everything at once — every rule's full text and every read path — which made it slow to skim before touching one file and gave an agent no way to pull just the one rule it actually needed. `--brief` compresses the same file's obligations into a view capped at 30 lines: the owner, up to 8 rules with a two-line summary each (status, a one-sentence description, and where to read the rest — an "and N more" pointer to the full view past the cap), a preview of how many pairs editing this file would invalidate and at what cost, its first few dependencies and its dependent count, the owning component's log-gate state and flow membership, and a short trail of `next:` commands. `--aspect <id>` goes the other way: it expands exactly one of the file's own rules in full — the complete description and every read path — for when the compact view, or the full dump, named a rule an agent still needs to see in full; an id naming a rule not enforced on this file (including an empty one) is refused with a pointer back to `--brief`. Both stay file-scoped and are refused with `--node`, which already gives the component-wide picture. On a project that measures changes against a reference branch (`progressive.reference`), both the compact and the full file view now also mark each judged rule `(yours)` or `(inherited)`, and the compact view adds one line naming how many files the current change touches — the same measurement `yg check` already reports, carried down to the one file an agent is about to edit.
 
+### Changed
+
+- On projects that classify files by architecture type, a file's context view now reuses the classification it already made in the same run instead of redoing it, so it costs less on large repositories.
+
 ### Fixed
 
 - **`.mts` and `.cts` files are now recognized as TypeScript.** The language registry only mapped

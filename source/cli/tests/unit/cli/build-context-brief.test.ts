@@ -1,4 +1,4 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeAll, afterAll } from 'vitest';
 import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -172,32 +172,49 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
     }
   });
 
-  it('shows the type-covered owner head for a file mapped only by type-level coverage', () => {
-    const dir = copyTypeFixture();
-    try {
-      const { stdout, status } = run(['context', '--file', TYPE_COVERED_FILE, '--brief'], dir);
+  describe('a type-covered file (shared spawn)', () => {
+    // The three cases below spawn the identical command against the identical
+    // fixture copy — the assertions are independent claims about that one
+    // run's output, so the copy+spawn happens once here rather than three times.
+    let dir: string;
+    let result: { stdout: string; stderr: string; status: number | null };
+
+    beforeAll(() => {
+      dir = copyTypeFixture();
+      result = run(['context', '--file', TYPE_COVERED_FILE, '--brief'], dir);
+    });
+
+    afterAll(() => {
+      rmSync(dir, { recursive: true, force: true });
+    });
+
+    it('shows the type-covered owner head for a file mapped only by type-level coverage', () => {
+      const { stdout, status } = result;
       expect(status).toBe(0);
       expect(stdout).toContain('  Owner: type:leaf');
       expect(stdout.trimEnd().split('\n').length).toBeLessThanOrEqual(30);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
+    });
 
-  it('shows the arm preview line for a type-covered file', () => {
-    // The type-covered --brief call site is the only one that threads its own
-    // relation-pass `edges` into composeBriefExtras (see the doc comment on
-    // composeBriefExtras) — this is the only test exercising that spread.
-    const dir = copyTypeFixture();
-    try {
-      const { stdout, status } = run(['context', '--file', TYPE_COVERED_FILE, '--brief'], dir);
+    it('shows the arm preview line for a type-covered file', () => {
+      // The type-covered --brief call site is the only one that threads its own
+      // relation-pass `edges` into composeBriefExtras (see the doc comment on
+      // composeBriefExtras) — this is the only test exercising that spread.
+      const { stdout, status } = result;
       expect(status).toBe(0);
       expect(stdout).toMatch(
         /editing this file invalidates \d+ pairs? \(\d+ free \/ \d+ reviewer pairs?\) — price a fill: yg check --approve --dry-run/,
       );
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
+    });
+
+    it('offers no log-gate or flows line for a file enforced by its type alone', () => {
+      // A type-covered file has no component, so neither fact exists to report.
+      // Driven through the built binary over tests/fixtures/type-level-engine, the
+      // same fixture tests/unit/cli/context-file-type-coverage.test.ts uses.
+      const { stdout } = result;
+      expect(stdout).toContain('Owner: type:leaf');
+      expect(stdout).not.toContain('Log entry required before approve');
+      expect(stdout).not.toContain('Flows:');
+    });
   });
 
   it('expands one rule in full', () => {
@@ -304,20 +321,5 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
     fixtures.push(f);
     const { stdout } = run(['context', '--file', 'src/alpha/alpha.ts', '--brief'], f.dir);
     expect(stdout).not.toContain('Log entry required before approve');
-  });
-
-  it('offers no log-gate or flows line for a file enforced by its type alone', () => {
-    // A type-covered file has no component, so neither fact exists to report.
-    // Driven through the built binary over tests/fixtures/type-level-engine, the
-    // same fixture tests/unit/cli/context-file-type-coverage.test.ts uses.
-    const dir = copyTypeFixture();
-    try {
-      const { stdout } = run(['context', '--file', 'src/leaf/a.ts', '--brief'], dir);
-      expect(stdout).toContain('Owner: type:leaf');
-      expect(stdout).not.toContain('Log entry required before approve');
-      expect(stdout).not.toContain('Flows:');
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
   });
 });
