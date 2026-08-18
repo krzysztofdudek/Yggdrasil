@@ -26,7 +26,7 @@ const eight: FileContextData = {
 };
 
 describe('formatFileContextBrief', () => {
-  it('renders one line per aspect: [status] id — first sentence, then its read path', () => {
+  it('renders two lines per aspect: [status] id — first sentence, then its read path', () => {
     const out = formatFileContextBrief(base, { nextPointers: [] });
     expect(out).toContain('src/app/handler.ts');
     expect(out).toContain('Owner: app/handler (command)');
@@ -61,6 +61,17 @@ describe('formatFileContextBrief', () => {
     });
     expect(out).toContain('your change so far: 2 files; this file is in it');
     expect(out).toMatch(/what-why-next.*\(yours\)/);
+    expect(out).toMatch(/no-direct-db.*\(inherited\)/);
+  });
+
+  it('omits the scope suffix for a draft rule in the compact view too, while a sibling non-draft rule still gets one', () => {
+    const withDraft = { ...base, aspects: [{ ...base.aspects[0], status: 'draft' as const }, base.aspects[1]] };
+    const out = formatFileContextBrief(withDraft, {
+      nextPointers: [],
+      scopeByAspect: new Map([['what-why-next', 'inherited'], ['no-direct-db', 'inherited']]),
+    });
+    const draftLine = out.split('\n').find((l) => l.includes('what-why-next'))!;
+    expect(draftLine).not.toMatch(/\(yours\)|\(inherited\)/);
     expect(out).toMatch(/no-direct-db.*\(inherited\)/);
   });
 

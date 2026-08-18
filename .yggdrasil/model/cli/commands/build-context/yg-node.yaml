@@ -29,7 +29,7 @@ description: "Assembles and outputs a context package for a node via yg
   a source edit, both counted the same way yg check's own qualified
   'unverified' wording counts them for the identical pair. '[enforced]'
   names architecture-level status, never a recorded verdict, so the two are
-  never conflated. --file also accepts --brief, a compact one-line-per-rule
+  never conflated. --file also accepts --brief, a compact two-line-per-rule
   view capped at 30 lines: owner line, up to 8 rules (each rendered as two
   lines: status, id and first sentence, then its read path or draft notice,
   with an overflow pointer past the cap), and up to a few 'next:' trail
@@ -68,10 +68,11 @@ description: "Assembles and outputs a context package for a node via yg
   unchanged byte for byte, pinned against a committed baseline capture.
   When the project names a progressive-mode reference, both the compact and
   full views also mark this file's rules with the same measurement yg check
-  gates on: each rule is suffixed '(yours)' when the current change is
-  accountable for it or '(inherited)' when it is not, and the compact view
-  additionally carries a scope header ('your change so far: N file(s); this
-  file is in/not in it'). Reaches the change-scope resolver and the
+  gates on: each judged rule is suffixed '(yours)' when the current change is
+  accountable for it or '(inherited)' when it is not — a draft rule carries
+  no suffix, since nothing judges it — and the compact view additionally
+  carries a scope header ('your change so far: N file(s); this file is
+  in/not in it'). Reaches the change-scope resolver and the
   burn-set key helper for this rather than re-deriving either, so the
   marking can never disagree with what yg check itself would gate. Honest
   about the two cases it cannot measure: a project that names no reference

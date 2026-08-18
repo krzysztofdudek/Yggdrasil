@@ -29,10 +29,14 @@ using their file-reading tool.
 ```bash
 yg context --node <node-path>
 yg context --file <file-path>
+yg context --file <file-path> --brief
+yg context --file <file-path> --aspect <rule-id>
 ```
 
 - `--file <path>` — Resolves the owning node automatically, then assembles context. Prints
-  owner mapping to stderr. If the file has no graph coverage but other files in the same
+  the resolved `<file> -> <node>` mapping to stdout, ahead of the view itself — except for a
+  type-covered file (matched by `coverage.type_level`, no owning node), which carries no such
+  line in any view. If the file has no graph coverage but other files in the same
   directory are mapped, lists candidate nodes with file counts and a hint to use `--node`.
   Exits 1 if no coverage. Mutually exclusive with `--node`. Under `coverage.type_level`, a
   file with no owning component but a matched architecture type gets a typed view instead
@@ -61,6 +65,92 @@ yg context --file <file-path>
         read: .yggdrasil/aspects/validates-input/check.mjs
   ```
 
+  On a project that measures changes against a reference branch
+  (`progressive.reference` in `yg-config.yaml`), this default full view also marks
+  each judged rule `(yours)` or `(inherited)` — see
+  [In `yg context`](/progressive-mode#in-yg-context), which covers both this view
+  and `--brief` below.
+
+- `--brief` — Compresses the same file's obligations into the compact view: an owner
+  line, a rule list capped at 8 entries (two lines per rule — the status, id, and a
+  one-sentence, 80-character-capped description, then its `read:` path, or, for a
+  draft rule, `(reviewer skipped; aspect is draft)` in place of a read path), an "and
+  N more" pointer to the full view once the cap is hit, an arm-preview line pricing
+  what editing this exact file would invalidate, up to 3 dependencies and a dependent
+  count, the owner's log-gate line and flow membership, and up to 3 `next:` trail
+  pointers. Only valid with `--file`; refused with `--node` — the node view already
+  lists every rule without needing compression. The whole view, including the
+  resolved `<file> -> <node>` line that precedes it (per above, omitted for a
+  type-covered file), stays within 30 lines of stdout. The arm-preview, log-gate, and flows
+  lines are each conditional and omitted when they do not apply — no rules are
+  armed on this file, the owning type does not require a log entry, or the
+  owning component belongs to no flow, respectively. The arm-preview line is
+  also suppressed whole — not merely reduced — whenever any rule's subject set
+  anywhere in the graph is unreadable, since the count it would print could no
+  longer be trusted.
+
+  When progressive mode is on (`progressive.reference` in `yg-config.yaml`; see
+  [Progressive mode](/progressive-mode)), a scope line follows the owner line, and
+  every judged rule (a draft rule never gets one — nothing has reviewed it) carries a
+  `(yours)` or `(inherited)` suffix. See
+  [In `yg context`](/progressive-mode#in-yg-context).
+
+  This is a real run, copied verbatim — not a shortened rule list, this file simply
+  has more than 8 rules in force:
+
+  ```text
+  $ yg context --file source/cli/src/cli/build-context.ts --brief
+  source/cli/src/cli/build-context.ts -> cli/commands/build-context
+  source/cli/src/cli/build-context.ts
+    Owner: cli/commands/build-context (command)
+    Must satisfy:
+    [enforced] what-why-next — Agent-visible diagnostic messages must use the what/why/next structure via...
+      read: .yggdrasil/aspects/what-why-next/content.md
+    [enforced] wasm-tree-lifecycle — web-tree-sitter Tree objects are WASM-heap allocations — not managed by the JS...
+      read: .yggdrasil/aspects/wasm-tree-lifecycle/check.mjs
+    [enforced] events-reader-boundary — G1 import boundary for the verdict-events telemetry sidecar, guarding both ends.
+      read: .yggdrasil/aspects/events-reader-boundary/check.mjs
+    [enforced] instrument-import-fence — Keeps the read-only structural instrument (yg structure) off the gating path...
+      read: .yggdrasil/aspects/instrument-import-fence/check.mjs
+    [enforced] rules-artifact-names-single-source — Keeps the three installed-artifact names (AGENTS.md, CLAUDE.md,...
+      read: .yggdrasil/aspects/rules-artifact-names-single-source/check.mjs
+    [enforced] source-no-raw-control-chars — No raw control byte may appear in a source file.
+      read: .yggdrasil/aspects/source-no-raw-control-chars/check.mjs
+    [enforced] cli-command-contract — Output, error handling, and exit code conventions for all CLI command handlers
+      read: .yggdrasil/aspects/cli-command-contract/content.md
+    [enforced] command-exit-codes — CLI commands use only exit codes 0 and 1 — process.exit(2) or higher is...
+      read: .yggdrasil/aspects/command-exit-codes/check.mjs
+    … and 13 more — run yg context --file source/cli/src/cli/build-context.ts for all
+    editing this file invalidates 20 pairs (15 free / 5 reviewer pairs) — price a fill: yg check --approve --dry-run
+    Depends on: cli/core/loader · cli/core/context · cli/core/validator · …
+    Dependents: 2 nodes
+    Log entry required before approve: no (fresh entry present: no)
+    Flows: Build context · Graph analysis
+    next: yg log read --node cli/commands/build-context
+    next: yg context --node cli/commands
+    next: yg context --file source/cli/src/cli/build-context.ts --aspect what-why-next
+  ```
+
+- `--aspect <id>` — Expands exactly one rule from the file's own effective set in
+  full: the untruncated description and every `read:` path (the rule's own text,
+  its references, its companion resolver where it ships one). The rule's own
+  description renders in full — never the compact view's first-sentence cap —
+  but a reference's note still carries the same 80-character cap the full view
+  applies to it. Wins over `--brief` when both are given. Only valid with `--file`;
+  refused with `--node`. An id that does not name one of the file's effective
+  rules — including an empty string, and including a rule that exists elsewhere in
+  the graph but is not enforced on this file — is refused, pointing at `--brief` to
+  list the file's rules first. A draft rule stops right after the description with
+  `(reviewer skipped; aspect is draft)` and prints no `read:` lines: nothing has
+  reviewed a draft rule yet, so there is nothing to point an agent at.
+
+  ```text
+  $ yg context --file source/cli/src/cli/build-context.ts --aspect what-why-next
+  source/cli/src/cli/build-context.ts -> cli/commands/build-context
+  what-why-next [enforced] — Agent-visible diagnostic messages must use the what/why/next structure via buildIssueMessage
+  read: .yggdrasil/aspects/what-why-next/content.md
+  ```
+
 The node view also reports, per effective aspect, how many files form its subject
 set (including `0 files — vacuous` when a `scope.files` filter excludes everything),
 and a log-state line — whether a fresh log entry is required before `yg check
@@ -71,7 +161,9 @@ structurally unusual among its node's other same-language files — a hint to re
 it more carefully, never a rule and never blocking (the command still exits 0).
 It is on by default; silence it with `signals: { attention: false }` in
 `yg-config.yaml`. See [Structural attention](/feature-field) for what it means
-and its honest limits.
+and its honest limits. This line only ever ends the `--file` view in its default,
+full form — `--brief` and `--aspect` never carry it, so a file the attention index
+names still fits the compact view's own line budget.
 
 ### `yg impact`
 

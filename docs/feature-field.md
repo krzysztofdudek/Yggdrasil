@@ -6,7 +6,7 @@ As you work in a file, Yggdrasil can point out when that file looks **structural
 
 ## What you see
 
-When you ask for a file's context ([`yg context --file`](/cli-reference#yg-context)) and that file stands out structurally from the other files around it, the output ends with a single plain line:
+When you ask for a file's context ([`yg context --file`](/cli-reference#yg-context)) in its default full view and that file stands out structurally from the other files around it, the output ends with a single plain line — the compact `--brief` and `--aspect` views never carry it:
 
 > This file is structurally unusual among this node's other TypeScript files — worth a closer read; no action required.
 

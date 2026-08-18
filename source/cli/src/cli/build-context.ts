@@ -607,7 +607,7 @@ export function registerBuildCommand(program: Command): void {
         if (options.brief && options.node) {
           process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
             what: "--brief is only available with --file.",
-            why: "The brief compresses one file's obligations into a line per rule; --node already prints the component view, which has no per-file rule list to compress.",
+            why: "The brief compresses one file's obligations into two lines per rule; --node already prints the component view, which has no per-file rule list to compress.",
             next: "Run: yg context --file <path> --brief, or yg context --node <path> for the component view.",
           }) + '\n'));
           process.exit(1);
@@ -909,7 +909,7 @@ export function registerBuildCommand(program: Command): void {
     .description('Assemble a context package for one node')
     .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
-    .option('--brief', 'compact one-line-per-rule view (≤ 30 lines)')
+    .option('--brief', 'compact two-line-per-rule view (≤ 30 lines)')
     .option('--aspect <id>', 'expand one rule in full (wins over --brief)')
     .action(contextAction);
 

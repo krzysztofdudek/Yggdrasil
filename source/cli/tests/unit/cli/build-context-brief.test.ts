@@ -126,7 +126,7 @@ describe.skipIf(!distExists)('yg context --file --brief', () => {
     expect(stdout).not.toContain('invalidates');
   });
 
-  it('is compact, one line per rule, and never exceeds the budget', () => {
+  it('is compact, two lines per rule, and never exceeds the budget', () => {
     const dir = copyFixture();
     try {
       const { stdout, status } = run(['context', '--file', OWNED_FILE, '--brief'], dir);

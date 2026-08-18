@@ -1594,3 +1594,12 @@ compact or single-rule views.
   rule printed directly above "(reviewer skipped; aspect is draft)" — but nothing judges a draft
   rule, so neither "yours" nor "inherited" is honest. Amendment: the formatter renders no scope
   suffix for a draft rule, in both full-view sites; a measured in-process case pins it.
+- **D12 extension — the draft-suffix rule covers every view.** The original D12 wording scoped the
+  no-suffix rule to the two full-view sites, leaving `briefAspectLines` stamping `(inherited)` on
+  draft rules in the compact view — the same dishonesty in a different view. The rule is
+  view-independent: a draft rule never carries a scope suffix anywhere. The compact renderer gains
+  the same guard and a measured sibling-contrast test.
+- **D13 — the CLI's own strings stop calling the compact view one-line-per-rule.** The dictated
+  option help ("compact one-line-per-rule view") and the --brief/--node refusal ("a line per
+  rule") contradict the real two-line rendering and now the docs. Both strings say two lines per
+  rule; the spawned tests that pin those strings move with them.

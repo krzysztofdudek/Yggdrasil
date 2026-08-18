@@ -246,6 +246,41 @@ you wondering whether the mode had quietly stopped working.
 | The verdict record committed at the reference cannot be read | Whole project, plus a notice: repair that file on the reference branch. |
 | Nothing appears to have changed, but nothing proved the working tree clean either | Whole project, plus a notice. Treated as a failed measurement, never as "nothing to do". |
 
+## In `yg context`
+
+`yg context --file <path>`, in both its default full view and its compact
+`--brief` view, carries the same measurement, per file, whenever
+`progressive.reference` is configured — the identical decision this page's
+[state table](#every-state-and-what-the-run-does) above resolves for `yg
+check`, reused rather than re-derived, so the two commands can never disagree
+about which rule on a file is yours.
+
+When the change was measured (the ordinary `scoped` row above, and the row
+where the change reaches the architecture, the coverage scope, the schema
+version, the reviewer tiers, or the `progressive` block itself, which measures
+successfully and still covers everything — that row also prints a stderr
+notice carrying the same "nothing to fix" reason and fix `yg check` reports
+for it), every rule
+the file lists carries a `(yours)` or `(inherited)` suffix — the same word
+this page uses everywhere else for the same distinction. A draft rule never gets one: nothing has
+reviewed it, so neither word would be honest. `--brief` alone also gains a
+line right after the owner line, naming how much of the change the measurement
+found:
+
+```text
+  your change so far: 3 files; this file is in it
+```
+
+When the change could not be measured (the `unmeasurable` rows — an
+unresolvable reference, a shallow clone, unreadable git state, an unreadable
+base record, and the rest), the command prints a notice with the same reason
+and the same fix as `yg check`'s, on stderr, and the file view itself falls back silently: no suffixes,
+no scope line, nothing that would misstate a measurement that did not happen.
+
+With no `progressive.reference` configured at all, `yg context` looks exactly
+as it always has — no suffixes, no scope line, no notice — the same as every
+other surface on this page when the mode is off.
+
 ## Recording verdicts under a measurement
 
 A run that records verdicts — `yg check --approve`, or a bare `yg check` on a

@@ -227,7 +227,9 @@ function briefDescription(text: string): string {
 function briefAspectLines(a: FileContextAspect, scope?: 'yours' | 'inherited'): string[] {
   const status = a.status ?? 'enforced';
   const caveat = a.unverified ? ', unverified' : '';
-  const suffix = scope === undefined ? '' : ` (${scope})`;
+  // A draft aspect is never judged by a reviewer, so neither "(yours)" nor
+  // "(inherited)" is honest for it — omit the scope suffix entirely.
+  const suffix = status !== 'draft' && scope !== undefined ? ` (${scope})` : '';
   const head = `  [${status}${caveat}] ${a.aspectId} — ${briefDescription(a.aspectDescription)}${suffix}`;
   // A draft rule has no reviewer and no verdict; the full view withholds its
   // read path for exactly that reason, and the compact view must not contradict
