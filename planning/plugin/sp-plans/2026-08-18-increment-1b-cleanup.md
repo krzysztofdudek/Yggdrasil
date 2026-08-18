@@ -165,8 +165,9 @@ array, no copy.)
 /**
  * THE single statement of which rules govern a file: a node-owned file answers with its
  * owner's effective aspects; a type-covered file with the applied list its type carries;
- * anything else with nothing. Every view (compact, expansion, scope marking) and every
- * caller-side decision reads this — never a local re-derivation — so "the list the renderer
+ * anything else with nothing. Every view that needs the set AS A LIST (compact,
+ * expansion, scope marking) and every caller-side decision reads this — never a local
+ * re-derivation — so "the list the renderer
  * shows" and "the list a pointer or a suffix is computed from" cannot drift apart.
  */
 export function effectiveAspects(data: FileContextData): FileContextAspect[] {
@@ -453,7 +454,7 @@ enumeration would let the burn set differ. Therefore:
     precomputed: { pairs } }` (no `typeCoverage` — this fixture classifies nothing by
     construction; the other fields are required by `ChangeScopeInput`, and a wrong
     `projectRoot` or `fullFlag: true` would silently resolve whole-project/unmeasurable) —
-    `pairs` built from one explicit enumeration on the Case-A fixture → assert `expect(decision.kind).toBe('scoped')` FIRST (a decision that
+    `pairs` built from one explicit enumeration on this case's own fixture → assert `expect(decision.kind).toBe('scoped')` FIRST (a decision that
     short-circuits earlier would make the count assertion vacuous), then that the spies show
     the call added ZERO further classification or enumeration calls (mockClear before the
     call). Note in a comment that the classification half is vacuous on this fixture by
@@ -473,7 +474,7 @@ enumeration would let the burn set differ. Therefore:
   classification and/or edge-less whole-graph enumeration from THIS invocation — measure()
   trusts it instead of paying for its own; callers own the freshness guarantee AND the
   guarantee that forwarded pairs were enumerated WITHOUT an edges-resolved lattice — see
-  resolveTypeCoverage's own doc above for why the pessimistic, edge-less set is the
+  resolveTypeCoverage's own doc for why the pessimistic, edge-less set is the
   contract" — state the rule inline and cite the in-repo doc, never a planning artifact); in `measure()`, use
   `input.precomputed?.typeCoverage ?? await resolveTypeCoverage(...)` and
   `input.precomputed?.pairs ?? (await computeExpectedPairs(graph, { typeCoverage })).pairs`.
@@ -679,7 +680,8 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   the file currently has `### Added`, `### Fixed`, `### Documentation` and no `### Changed`;
   create it between `### Added` and `### Fixed` (Keep-a-Changelog order). The line must not
   over-claim — the type-covered paths deliberately keep a second enumeration per the
-  contract ruling, and a relation-pass classification remains out of scope — so state ONLY the
+  contract ruling, and one relation-pass classification necessarily remains (it is the
+  surviving, reused one — not an extra) — so state ONLY the
   half that is never an over-claim: on projects that classify files by architecture type, a
   file's context view now reuses the classification it already made in the same run instead
   of redoing it, so it costs less on large repositories (the seed-level reuse needs no
