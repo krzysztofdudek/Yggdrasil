@@ -6,7 +6,7 @@ import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { collectAncestors, buildNodeContextData, buildFileContextData } from '../core/context-builder.js';
 import { formatNodeContext } from '../formatters/context-node.js';
-import { formatFileContext, formatFileContextBrief, formatFileContextAspect } from '../formatters/context-file.js';
+import { formatFileContext, formatFileContextBrief, formatFileContextAspect, effectiveAspects } from '../formatters/context-file.js';
 import type { FileContextData, FileContextAspect, FileBriefExtras } from '../formatters/context-file.js';
 import { validate } from '../core/validator.js';
 import { findOwnerWithinOwnGraph } from './owner.js';
@@ -492,9 +492,9 @@ export async function composeBriefExtras(
       }
     }
   }
-  const effectiveAspects = data.ownerPath ? data.aspects : (data.typeCoverage?.applied ?? []);
-  if (effectiveAspects.length > 0) {
-    nextPointers.push(`next: yg context --file ${filePath} --aspect ${effectiveAspects[0].aspectId}`);
+  const governing = effectiveAspects(data);
+  if (governing.length > 0) {
+    nextPointers.push(`next: yg context --file ${filePath} --aspect ${governing[0].aspectId}`);
   }
 
   // repoFiles for the scope-marking measurement below, hoisted so the arm
@@ -563,7 +563,7 @@ export async function composeBriefExtras(
   let scopeHeaderText: string | undefined;
   let scopeByAspect: Map<string, 'yours' | 'inherited'> | undefined;
   if (graph.config.progressive?.reference !== undefined && wholeGraphPairs !== undefined) {
-    const marking = await computeScopeMarking(graph, filePath, effectiveAspects.map((a) => a.aspectId), wholeGraphPairs, repoFiles ?? [], wholeGraphUnreadable ?? []);
+    const marking = await computeScopeMarking(graph, filePath, governing.map((a) => a.aspectId), wholeGraphPairs, repoFiles ?? [], wholeGraphUnreadable ?? []);
     scopeHeaderText = marking.scopeHeaderText;
     scopeByAspect = marking.scopeByAspect;
   }
@@ -773,7 +773,7 @@ export function registerBuildCommand(program: Command): void {
                     const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
                     const typeCoverageWithEdges = typeCoverage !== undefined ? { ...typeCoverage, edges } : typeCoverage;
                     const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageWithEdges });
-                    const marking = await computeScopeMarking(graph, displayFile, data.typeCoverage?.applied.map((a) => a.aspectId) ?? [], pairs, repoFiles, unreadable);
+                    const marking = await computeScopeMarking(graph, displayFile, effectiveAspects(data).map((a) => a.aspectId), pairs, repoFiles, unreadable);
                     scopeByAspect = marking.scopeByAspect;
                   }
                   process.stdout.write(formatFileContext(data, scopeByAspect));
@@ -869,7 +869,7 @@ export function registerBuildCommand(program: Command): void {
               const repoFiles = await walkRepoFiles(projectRootFromGraph(graph.rootPath));
               const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
               const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage });
-              const marking = await computeScopeMarking(graph, resolvedFilePath, data.aspects.map((a) => a.aspectId), pairs, repoFiles, unreadable);
+              const marking = await computeScopeMarking(graph, resolvedFilePath, effectiveAspects(data).map((a) => a.aspectId), pairs, repoFiles, unreadable);
               scopeByAspect = marking.scopeByAspect;
             }
             process.stdout.write(formatFileContext(data, scopeByAspect));

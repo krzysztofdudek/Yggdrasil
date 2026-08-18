@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatFileContextBrief, formatFileContextAspect, formatFileContext } from '../../../src/formatters/context-file.js';
+import { formatFileContextBrief, formatFileContextAspect, formatFileContext, effectiveAspects } from '../../../src/formatters/context-file.js';
 import type { FileContextData } from '../../../src/formatters/context-file.js';
 
 const base: FileContextData = {
@@ -272,5 +272,21 @@ describe('formatFileContextAspect', () => {
     const out = formatFileContextAspect(noDesc, 'what-why-next')!;
     const line = out.split('\n').find((l) => l.includes('message-builder.ts'))!;
     expect(line).toBe('read: src/formatters/message-builder.ts');
+  });
+});
+
+describe('effectiveAspects', () => {
+  it('is the single source for "which rules govern this file" across owner kinds', () => {
+    const owned = { ...base };
+    expect(effectiveAspects(owned)).toBe(owned.aspects);
+    const typeCovered: FileContextData = {
+      filePath: 'src/leaf/a.ts', aspects: [], dependencies: [], dependentCount: 0,
+      typeCoverage: { typeId: 'leaf', applied: base.aspects, chainTerminationText: 'Inherited rules stop at the type.', dropped: [] },
+    };
+    expect(effectiveAspects(typeCovered)).toBe(base.aspects);
+    const unmapped: FileContextData = {
+      filePath: 'src/loose.ts', aspects: [], dependencies: [], dependentCount: 0,
+    };
+    expect(effectiveAspects(unmapped)).toEqual([]);
   });
 });

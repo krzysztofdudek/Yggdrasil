@@ -238,6 +238,18 @@ function briefAspectLines(a: FileContextAspect, scope?: 'yours' | 'inherited'): 
   return [head, `    read: ${posixPath(a.verifiedAgainst)}`];
 }
 
+/**
+ * THE single statement of which rules govern a file: a node-owned file answers with its
+ * owner's effective aspects; a type-covered file with the applied list its type carries;
+ * anything else with nothing. Every view that needs the set AS A LIST (compact,
+ * expansion, scope marking) and every caller-side decision reads this — never a local
+ * re-derivation — so "the list the renderer
+ * shows" and "the list a pointer or a suffix is computed from" cannot drift apart.
+ */
+export function effectiveAspects(data: FileContextData): FileContextAspect[] {
+  return data.ownerPath ? data.aspects : (data.typeCoverage?.applied ?? []);
+}
+
 export function formatFileContextBrief(data: FileContextData, extras: FileBriefExtras): string {
   const lines: string[] = [];
   lines.push(posixPath(data.filePath));
@@ -252,7 +264,7 @@ export function formatFileContextBrief(data: FileContextData, extras: FileBriefE
     }
   }
   if (extras.scopeHeaderText) lines.push(`  ${extras.scopeHeaderText}`);
-  const aspects = data.ownerPath ? data.aspects : (data.typeCoverage?.applied ?? []);
+  const aspects = effectiveAspects(data);
   if (aspects.length > 0) {
     lines.push('  Must satisfy:');
     for (const a of aspects.slice(0, BRIEF_ASPECT_CAP)) {
@@ -285,7 +297,7 @@ export function formatFileContextBrief(data: FileContextData, extras: FileBriefE
  * formatter.
  */
 export function formatFileContextAspect(data: FileContextData, aspectId: string): string | undefined {
-  const aspects = data.ownerPath ? data.aspects : (data.typeCoverage?.applied ?? []);
+  const aspects = effectiveAspects(data);
   const aspect = aspects.find((a) => a.aspectId === aspectId);
   if (!aspect) return undefined;
 

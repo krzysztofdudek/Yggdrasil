@@ -100,3 +100,5 @@ The computeScopeMarking doc comment overstated its no-double-enumeration guarant
 The --brief option help and the --brief/--node refusal message both described the compact file view as one line per rule, but every rule in that view actually renders across two lines (status/id/description, then a read path or draft notice) — the strings now say two lines per rule so the CLI stops misdescribing its own output shape.
 ## [2026-08-18T12:28:39.017Z]
 The check gate's one remaining warning is an overdue review_by date (2026-08-16) on the read-or-default-via-helper aspect, unrelated to this pass's wording fixes to the build-context description, the CLI reference docs, progressive-mode docs, and two stale test titles. Left untouched since renewing or retiring a review date needs the user's decision, not a unilateral change.
+## [2026-08-18T19:25:41.879Z]
+File-level rule visibility (compact view, single-rule expansion, and scope marking) now reads which rules govern a file from one shared producer instead of five separate copies of the same owner-vs-type-coverage decision, so the different views of a file can no longer disagree about its rule set.
