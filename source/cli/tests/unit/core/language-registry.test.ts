@@ -60,7 +60,7 @@ describe('language registry', () => {
   });
 
   it('getExtensionsForLanguage returns extensions for known language', () => {
-    expect(getExtensionsForLanguage('typescript')).toEqual(['.ts']);
+    expect(getExtensionsForLanguage('typescript')).toEqual(['.ts', '.mts', '.cts']);
     expect(getExtensionsForLanguage('javascript')).toEqual(['.js', '.mjs', '.cjs', '.jsx']);
   });
 

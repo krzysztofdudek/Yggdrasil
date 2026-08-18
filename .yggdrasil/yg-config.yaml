@@ -1,6 +1,14 @@
 version: "5.2.0"
 quality:
   max_direct_relations: 20
+# planning/ holds committed design docs and strategic plans — working documents
+# for humans and agents, not part of the enforced architecture. Excluding them
+# keeps the unmapped-files gate about source/docs surfaces the graph actually
+# governs (same spirit as the gitignored .plans/, but for docs worth sharing).
+coverage:
+  required: ["/"]
+  excluded: ["planning"]
+  type_level: false
 parallel: 10
 debug: false
 # This repo dogfoods the committed, team-shared record of LLM verification
