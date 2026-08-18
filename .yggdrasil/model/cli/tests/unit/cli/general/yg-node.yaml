@@ -66,6 +66,7 @@ relations:
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts
   - source/cli/tests/unit/cli/build-context.test.ts
+  - source/cli/tests/unit/cli/build-context-brief.test.ts
   - source/cli/tests/unit/cli/check.test.ts
   - source/cli/tests/unit/cli/check-render-header.test.ts
   - source/cli/tests/unit/cli/check-render-groups.test.ts

@@ -1,0 +1,19 @@
+src/orders/order.service.ts -> orders/order-service
+src/orders/order.service.ts
+  Owner: orders/order-service (service)
+
+Must satisfy:
+
+  requires-audit [enforced] — x
+    read: .yggdrasil/aspects/requires-audit/content.md
+
+  requires-logging [enforced] — Consistent structured logging across services
+    read: .yggdrasil/aspects/requires-logging/content.md
+
+Dependencies consumed:
+  auth/auth-api — 
+  users/user-repo — 
+
+Dependents: 2 nodes — run yg impact --file src/orders/order.service.ts
+
+Node context: run yg context --node orders/order-service

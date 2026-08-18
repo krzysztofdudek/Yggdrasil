@@ -6,8 +6,8 @@ import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { collectAncestors, buildNodeContextData, buildFileContextData } from '../core/context-builder.js';
 import { formatNodeContext } from '../formatters/context-node.js';
-import { formatFileContext } from '../formatters/context-file.js';
-import type { FileContextData, FileContextAspect } from '../formatters/context-file.js';
+import { formatFileContext, formatFileContextBrief } from '../formatters/context-file.js';
+import type { FileContextData, FileContextAspect, FileBriefExtras } from '../formatters/context-file.js';
 import { validate } from '../core/validator.js';
 import { findOwnerWithinOwnGraph } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
@@ -338,8 +338,29 @@ async function maybeAppendAttentionLine(graph: Graph, repoRelPosixPath: string):
   }
 }
 
+/**
+ * Assemble the compact view's non-formatting decisions — currently just the
+ * trail pointers — as data the formatter itself does not compute.
+ *
+ * Exported so the compact view's assembly decisions are testable in-process; not part of the CLI surface.
+ */
+export async function composeBriefExtras(graph: Graph, filePath: string, data: FileContextData): Promise<FileBriefExtras> {
+  const nextPointers: string[] = [];
+  if (data.ownerPath) {
+    nextPointers.push(`next: yg log read --node ${data.ownerPath}`);
+    const lastSlashAt = data.ownerPath.lastIndexOf('/');
+    if (lastSlashAt !== -1) {
+      const parentPath = data.ownerPath.slice(0, lastSlashAt);
+      if (graph.nodes.has(parentPath)) {
+        nextPointers.push(`next: yg context --node ${parentPath}`);
+      }
+    }
+  }
+  return { nextPointers };
+}
+
 export function registerBuildCommand(program: Command): void {
-  const contextAction = async (options: { node?: string; file?: string }) => {
+  const contextAction = async (options: { node?: string; file?: string; brief?: boolean }) => {
       try {
         if (!options.node && !options.file) {
           process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
@@ -354,6 +375,14 @@ export function registerBuildCommand(program: Command): void {
             what: "Conflicting options.",
             why: "'--node' and '--file' are mutually exclusive.",
             next: "Use one or the other, not both.",
+          }) + '\n'));
+          process.exit(1);
+        }
+        if (options.brief && options.node) {
+          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+            what: "--brief is only available with --file.",
+            why: "The brief compresses one file's obligations into a line per rule; --node already prints the component view, which has no per-file rule list to compress.",
+            next: "Run: yg context --file <path> --brief, or yg context --node <path> for the component view.",
           }) + '\n'));
           process.exit(1);
         }
@@ -457,9 +486,13 @@ export function registerBuildCommand(program: Command): void {
                   process.exit(1);
                 }
                 const data = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId, edges);
-                process.stdout.write(formatFileContext(data));
-                if (graph.config.signals?.attention !== false) {
-                  await maybeAppendAttentionLine(graph, displayFile);
+                if (options.brief) {
+                  process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, displayFile, data)));
+                } else {
+                  process.stdout.write(formatFileContext(data));
+                  if (graph.config.signals?.attention !== false) {
+                    await maybeAppendAttentionLine(graph, displayFile);
+                  }
                 }
                 process.exit(0);
               }
@@ -524,12 +557,16 @@ export function registerBuildCommand(program: Command): void {
 
         if (resolvedFilePath) {
           const data = buildFileContextData(graph, resolvedFilePath, nodePath);
-          process.stdout.write(formatFileContext(data));
-          // Advisory structural-attention note. Default ON; the off-switch is
-          // signals.attention: false (absent `signals` ⇒ ON). Read-only,
-          // best-effort, non-blocking — yg context --file stays exit 0.
-          if (graph.config.signals?.attention !== false) {
-            await maybeAppendAttentionLine(graph, resolvedFilePath);
+          if (options.brief) {
+            process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, resolvedFilePath, data)));
+          } else {
+            process.stdout.write(formatFileContext(data));
+            // Advisory structural-attention note. Default ON; the off-switch is
+            // signals.attention: false (absent `signals` ⇒ ON). Read-only,
+            // best-effort, non-blocking — yg context --file stays exit 0.
+            if (graph.config.signals?.attention !== false) {
+              await maybeAppendAttentionLine(graph, resolvedFilePath);
+            }
           }
         } else {
           const data = buildNodeContextData(graph, nodePath);
@@ -575,6 +612,7 @@ export function registerBuildCommand(program: Command): void {
     .description('Assemble a context package for one node')
     .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
+    .option('--brief', 'compact one-line-per-rule view (≤ 30 lines)')
     .action(contextAction);
 
 }
