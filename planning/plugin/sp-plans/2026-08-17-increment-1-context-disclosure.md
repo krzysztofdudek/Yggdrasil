@@ -566,7 +566,7 @@ Expected: PASS (all 9).
 Then prove the append inert — this edit is the one change to `context-file.ts` that lands BEFORE
 Task 2 captures the byte baseline, so nothing else would catch it having moved the full view:
 
-Run: `cd source/cli && npx vitest run tests/unit/formatters/context-file.test.ts tests/unit/formatters/context-references.test.ts tests/unit/cli/context-file-type-coverage.test.ts`
+Run: `cd source/cli && npm run build && npx vitest run tests/unit/formatters/context-file.test.ts tests/unit/formatters/context-references.test.ts tests/unit/cli/context-file-type-coverage.test.ts`
 Expected: PASS, unchanged.
 
 - [ ] **Step 5: Map the new test file, typecheck, gate ritual, commit**
