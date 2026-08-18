@@ -21,11 +21,12 @@ harness, re-run per task. The cost fix copies the codebase's own precedent
 (repo convention — no mocks except the call-count spy pattern `fill-classify-once` already
 established).
 
-**Spec:** The `### Increment-level issues`, `### Deferred-debt assessment` and `### Seam
-verification` sections of the Increment-1 whole-branch review, as recorded in
-`.superpowers/sdd/2026-08-17-increment-1-context-disclosure/progress.md` (SHIP verdict entry
-and the cleanup-queue entry), plus the caching-API reference reproduced in relevant parts
-inside Task 3 below. The strategic context is §C1/§C2 of
+**Spec:** The Increment-1 whole-branch review's findings as recorded in the SHIP-verdict and
+cleanup-queue ledger entries near the end of
+`.superpowers/sdd/2026-08-17-increment-1-context-disclosure/progress.md` (the ledger is
+flat prose — the review's own section headings are not reproduced there; the cleanup-queue
+line carries the whole item list), plus the caching-API reference reproduced in relevant
+parts inside Task 3 below. The strategic context is §C1/§C2 of
 `planning/plugin/2026-08-17-plugin-marketplace-plan.md` — the plugin increment's per-edit hook
 is the consumer that makes this cost work load-bearing.
 
@@ -62,6 +63,11 @@ is the consumer that makes this cost work load-bearing.
   `tests/integration/portal-derive-rest.test.ts` — currently `cli/tests/unit/cli/general` at
   30, `cli/commands/build-context` at 23/23; if a count moves, update the pin's assertion AND
   its narrative comment in the same commit).
+- **Every step that runs a guard suite or `dist/bin.js` is preceded by `npm run build` in
+  `source/cli/`** — `dist/` is gitignored and never refreshed as a side effect; two of the
+  six guard suites spawn the built binary behind `describe.skipIf(!distExists)`, including
+  the byte-identity baseline, and a stale build makes them pass vacuously against pre-change
+  code.
 - `scripts/repo-check.sh` green before every commit (controller runs it; 7 chmod-simulation
   failures under root are documented container artifacts, not yours).
 - No CHANGELOG entry per task; Task 5 closes the increment with ONE entry under
@@ -100,8 +106,10 @@ unforgeable.
 
 **Naming decision (binding):** the new export collides with the existing local
 `const effectiveAspects` at `build-context.ts:495`. The local is RENAMED to
-`const governing = effectiveAspects(data);` and its two consumers (`:497`, `:566`) read
-`governing`. Do not shadow, do not alias the import.
+`const governing = effectiveAspects(data);` and ALL THREE of its references read
+`governing`: the `:496` length gate (miss this one and it silently reads the imported
+FUNCTION's `.length` — an always-true gate that typechecks), the `:497` pointer, and the
+`:566` scope-marking map. Do not shadow, do not alias the import.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -115,7 +123,7 @@ describe('effectiveAspects', () => {
     expect(effectiveAspects(owned)).toBe(owned.aspects);
     const typeCovered: FileContextData = {
       filePath: 'src/leaf/a.ts', aspects: [], dependencies: [], dependentCount: 0,
-      typeCoverage: { typeId: 'leaf', applied: base.aspects, chainTerminationText: undefined, dropped: [] },
+      typeCoverage: { typeId: 'leaf', applied: base.aspects, chainTerminationText: 'Inherited rules stop at the type.', dropped: [] },
     };
     expect(effectiveAspects(typeCovered)).toBe(base.aspects);
     const unmapped: FileContextData = {
@@ -156,16 +164,17 @@ export function effectiveAspects(data: FileContextData): FileContextAspect[] {
   `formatFileContextBrief` (`const aspects = data.ownerPath ? data.aspects :
   (data.typeCoverage?.applied ?? []);`) and the identical one opening
   `formatFileContextAspect`. In `build-context.ts`: the `const effectiveAspects = ...` local
-  at `:495` becomes `const governing = effectiveAspects(data);` with `:497` and `:566`
-  reading `governing` (the binding naming decision above); and the two full-view
+  at `:495` becomes `const governing = effectiveAspects(data);` with `:496`, `:497` and
+  `:566` reading `governing` (the binding naming decision above); and the two full-view
   scope-marking call sites — replace `data.typeCoverage?.applied.map((a) => a.aspectId) ?? []`
   and `data.aspects.map((a) => a.aspectId)` with `effectiveAspects(data).map((a) =>
   a.aspectId)` (the `?? []` is absorbed by the helper). The import of `effectiveAspects`
   joins the existing `formatFileContext...` import line — same module, no new graph relation.
 
 - [ ] **Step 5: Run the guard suites** — the new case green, everything else byte-unchanged:
-  `npx vitest run tests/unit/formatters/context-file-brief.test.ts tests/unit/formatters/context-file.test.ts tests/unit/cli/build-context-brief.test.ts tests/unit/cli/build-context-progressive.test.ts tests/unit/cli/context-file-type-coverage.test.ts tests/unit/cli/build-context.test.ts`
-  (the six-suite guard list from Global Constraints). Then `npm run typecheck && npm run lint`.
+  `npm run build && npx vitest run tests/unit/formatters/context-file-brief.test.ts tests/unit/formatters/context-file.test.ts tests/unit/cli/build-context-brief.test.ts tests/unit/cli/build-context-progressive.test.ts tests/unit/cli/context-file-type-coverage.test.ts tests/unit/cli/build-context.test.ts`
+  (build first — two suites spawn `dist/bin.js`; the six-suite guard list from Global
+  Constraints). Then `npm run typecheck && npm run lint`.
 
 - [ ] **Step 6: Graph ritual + report** — `node source/cli/dist/bin.js check --approve` from
   repo root (log-gate: this changes no behavior, but the formatter and command sources drift →
@@ -210,6 +219,8 @@ async function assembleScopeMarking(
     edges?: TypedEdgeIndex;
     repoFiles?: string[];
     pairsWithUnreadable?: { pairs: ExpectedPair[]; unreadable: UnreadableSubject[] };
+    /** the classification the caller already paid for — forwarded, never recomputed */
+    typeCoverage?: TypeCoverageInput;
   },
 ): Promise<ScopeMarking> {
 ```
@@ -222,18 +233,26 @@ enumerated would recreate the exact double-pay Task 3 exists to remove, and woul
 Task 3's call-count test unsatisfiable):
 
 ```ts
+const typeCoverage =
+  precomputed?.typeCoverage ??
+  (precomputed?.pairsWithUnreadable === undefined
+    ? await computeTypeCoverageForContext(graph, repoFiles)
+    : undefined);
 const enumeration =
   precomputed?.pairsWithUnreadable ??
   (await (async () => {
-    const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
     // reproduce the type-covered site's edges-spread guard verbatim:
     const input = precomputed?.edges !== undefined && typeCoverage !== undefined
       ? { typeCoverage: { ...typeCoverage, edges: precomputed.edges } }
       : { typeCoverage };
-    const { pairs, unreadable } = computeExpectedPairs(graph, input);
+    const { pairs, unreadable } = await computeExpectedPairs(graph, input);
     return { pairs, unreadable };
   })());
 ```
+
+(`typeCoverage` is kept in scope — Task 3 forwards it into the marking. A site that supplied
+`pairsWithUnreadable` supplies `typeCoverage` alongside it when it has one; the helper never
+classifies on that branch.)
 
 (Adapt the `input` literal to the exact shape the current type-covered full-view site builds
 — copy its code, do not re-derive.) Then
@@ -246,17 +265,23 @@ than rewriting them.
   gate at `:565` — `if (graph.config.progressive?.reference !== undefined &&
   wholeGraphPairs !== undefined)` — is RETAINED VERBATIM. It is load-bearing twice over:
   when the arm-preview block throws, marking is deliberately skipped rather than paying for
-  its own re-enumeration (the comment at `:521-523` says exactly this), and the byte-identity
+  its own re-enumeration (the comment at `:519-523` says exactly this — the skip sentence is `:522-523`), and the byte-identity
   suites do not exercise that path, so a helper that silently enumerated there would change
   output unobserved. Inside the retained gate, call the helper with
   `{ edges: shared?.edges, repoFiles, pairsWithUnreadable: { pairs: wholeGraphPairs,
-  unreadable: wholeGraphUnreadable } }` — the surviving variable is `wholeGraphUnreadable`
-  (`:526`, `:534`; the `unreadable` binding at `:532` dies with the `try` block).
+  unreadable: wholeGraphUnreadable ?? [] }, typeCoverage: wholeGraphTypeCoverage }` — the
+  surviving variables are `wholeGraphPairs`/`wholeGraphUnreadable` (`:525-526`, `:534`; the
+  `unreadable` binding at `:532` dies with the `try` block, and the retained gate narrows
+  only `wholeGraphPairs`, hence the `?? []`, matching what `:566` passes today). The
+  classification is try-local today (`const typeCoverage` at `:528`): hoist
+  `let wholeGraphTypeCoverage: TypeCoverageInput | undefined;` alongside the other two
+  hoisted variables and assign it at `:528` — without this the compact site has no
+  classification to forward and Task 3's classify-once case cannot go green.
   Type-covered full view: `{ edges, repoFiles }`. Node-owned full view: no precomputed
   argument beyond what it has today. Delete the three inlined blocks.
 
-- [ ] **Step 3: Prove byte-identity** — full guard suite run as in Task 1 Step 5 (all four
-  suites + typecheck + lint). The in-process `computeScopeMarking` cases and every spawned
+- [ ] **Step 3: Prove byte-identity** — full guard suite run as in Task 1 Step 5 (all six
+  suites, build first, + typecheck + lint). The in-process `computeScopeMarking` cases and every spawned
   progressive case must pass UNCHANGED.
 
 - [ ] **Step 4: Graph ritual + report** — as Task 1 Step 6 (log entry: one assembly so the
@@ -285,56 +310,78 @@ than rewriting them.
     `precomputedTypeCoverage`; `tests/unit/core/fill-classify-once.test.ts` pins one
     classification per run by spying `computeTypeCoverageCached` call counts.
 - Produces: `ChangeScopeInput` gains
-  `precomputed?: { typeCoverage?: TypeCoverageResult; pairs?: ExpectedPair[] }` (match
-  `resolveTypeCoverage`'s actual return type — read it; NO `unreadable` field: `measure()`
-  discards enumeration unreadables today (`:448` destructures only `pairs`) and the honesty
-  gate lives one layer up in `computeScopeMarking` — inventing a refusal here would create a
-  new `yg check`-reachable path); `measure()` uses supplied values instead of re-deriving
-  when present. `computeScopeMarking` gains a TRAILING optional
-  `precomputedTypeCoverage?` parameter (trailing so the six-argument positional call in the
-  guard suite at `build-context-progressive.test.ts:187` still compiles UNCHANGED) and
-  `assembleScopeMarking` (Task 2) passes the classification it computed — this is the route
-  by which M4's head item (the duplicate whole-repo classification) actually dies.
+  `precomputed?: { typeCoverage?: TypeCoverageInput; pairs?: ExpectedPair[] }` —
+  `TypeCoverageInput` is `resolveTypeCoverage`'s real return type
+  (`progressive-scope-resolve.ts:324`, already imported in both files; do NOT use
+  `TypeCoverageResult`, a different exported interface from `core/type-coverage.ts:13-25`
+  that would typecheck nothing here). NO `unreadable` field: `measure()` discards
+  enumeration unreadables today (`:448` destructures only `pairs`) and the honesty gate
+  lives one layer up in `computeScopeMarking` — inventing a refusal here would create a new
+  `yg check`-reachable path. `measure()` uses supplied values instead of re-deriving when
+  present. `computeScopeMarking` gains TWO TRAILING optionals —
+  `precomputedTypeCoverage?: TypeCoverageInput, precomputedPairs?: ExpectedPair[]` — both
+  after `unreadable`, so the six-argument positional call in the guard suite at
+  `build-context-progressive.test.ts:187` still compiles UNCHANGED. (Two, not one: the
+  existing `pairs` parameter may be edges-resolved and so may NOT be forwarded to
+  `measure()`; the caller must hand the forwardable set separately.)
+  `assembleScopeMarking` (Task 2) passes the classification it computed or received, and
+  passes `precomputedPairs` ONLY when `precomputed?.edges === undefined` — that flag IS the
+  edge-less discriminator for all four call sites (compact node-owned: `shared` absent;
+  compact type-covered: `shared.edges` set; type-covered full view: `edges` set; node-owned
+  full view: none). This is the route by which M4's head item (the duplicate whole-repo
+  classification) actually dies.
 
 **Contract ruling (binding) — what may be forwarded to `measure()`:**
-`resolveTypeCoverage`'s doc (`progressive-scope-resolve.ts:313-320`) deliberately keeps the
+`resolveTypeCoverage`'s doc (`progressive-scope-resolve.ts:308-320`; the edge-less paragraph is `:313-319`) deliberately keeps the
 resolver's enumeration EDGE-LESS — a pessimistic gate. Forwarding an edges-resolved
 enumeration would let the burn set differ. Therefore:
 - the CLASSIFICATION (`typeCoverage` result — edge-independent, the expensive half) is
-  forwarded from EVERY site that has one;
+  forwarded from EVERY site that has one — always the PRE-SPREAD `typeCoverage` binding,
+  never `typeCoverageWithEdges` (`build-context.ts:529-531`): the spread is exactly what
+  the ruling excludes;
 - PAIRS are forwarded ONLY from sites whose enumeration carried no `edges` spread — i.e. the
   node-owned paths (no `shared.edges`). The type-covered sites forward classification only
   and accept `measure()`'s own (cheap, edge-less) enumeration; a comment at the threading
   site records this asymmetry and cites the resolver's doc.
 
 - [ ] **Step 1: Write the failing call-count test** (new file
-  `build-context-classify-once.test.ts`), mirroring `fill-classify-once.test.ts`'s spy
-  pattern exactly (read it first and copy its mocking mechanics — `vi.mock` with
-  `importOriginal` and `...actual` spread on `core/type-coverage.js` and `core/pairs.js`;
-  the spread preserves `FileUnreadableError`'s class identity for the `instanceof` at
-  ~`build-context.ts:258`). Fixture choice is load-bearing — the wrong one is green before
+  `build-context-classify-once.test.ts`), mirroring `fill-classify-once.test.ts`'s
+  `vi.mock`/`importOriginal`/`...actual` mechanics — applied to TWO modules
+  (`core/type-coverage.js` and `core/pairs.js`) where the precedent mocks one; the
+  `...actual` spread preserves `FileUnreadableError`'s class identity for the `instanceof`
+  at ~`build-context.ts:258`. Fixture choice is load-bearing — the wrong one is green before
   the fix:
   - Case A (enumeration-once, node-owned): in-process `composeBriefExtras` on
     `createProgressiveFixture({ label: ..., progressiveReference: REFERENCE_BRANCH })` —
     the reference MUST be passed explicitly (it is off by default,
-    `tests/support/progressive-fixture.ts:54-63`; without it `computeScopeMarking` is never
-    reached and the test is vacuously green). Assert `computeExpectedPairs` called EXACTLY
-    ONCE for the whole call. Expected first run: FAIL with 2 calls (today `measure()`
-    re-enumerates).
+    `tests/support/progressive-fixture.ts:51-62`; without it `computeScopeMarking` is never
+    reached and the test is vacuously green) — and cut a real measured branch like every
+    sibling in-process case does:
+    `f.branchWithEdit('work', 'src/alpha/alpha.ts', 'export const alpha = 2;\n');`.
+    Assert `computeExpectedPairs` called EXACTLY ONCE for the whole call. Expected first
+    run: FAIL with 2 calls (today `measure()` re-enumerates).
   - Case B (classification-once, type-covered): use the
     `createTypeLevelProgressiveFixture` pattern from
     `build-context-progressive.test.ts:60-79` (copies `tests/fixtures/type-level-engine` —
     which HAS `coverage.type_level` on — and appends the reference); in-process
-    `composeBriefExtras` on the type-covered file with `shared` carrying edges+repoFiles as
-    the CLI does. Assert `computeTypeCoverageCached` called EXACTLY ONCE for the whole call.
-    Expected first run: FAIL with 2+ calls (site + `measure()`'s `resolveTypeCoverage`).
-    (Do NOT assert `computeExpectedPairs === 1` here — per the contract ruling the
-    type-covered path legitimately enumerates twice; assert it is EXACTLY TWO with a comment
-    citing the ruling, so a future third enumeration still fails.)
+    `composeBriefExtras` on the type-covered file with
+    `shared = { edges: { edgesFrom: () => [] }, repoFiles }` — a stub `TypedEdgeIndex`
+    (one-method interface, `relations/pass.ts:103-108`) suffices to take the edges-spread
+    branch and classifies nothing itself (`computeRelationEdgesForContext` is not exported,
+    and running the real relation pass would pollute the counts). Call
+    `mockComputeTypeCoverage.mockClear()` and `mockComputeExpectedPairs.mockClear()`
+    IMMEDIATELY before the measured `composeBriefExtras` call so only it is counted.
+    Assert `computeTypeCoverageCached` called EXACTLY ONCE. Expected first run: FAIL with
+    2 calls (site + `measure()`'s `resolveTypeCoverage`). Do NOT assert
+    `computeExpectedPairs === 1` here — per the contract ruling the type-covered path
+    legitimately enumerates twice; assert EXACTLY TWO with a comment citing the ruling, so
+    a future third enumeration still fails.
   - Case C (direct threading): `resolveChangeScope` called directly with
     `precomputed: { typeCoverage, pairs }` built from one explicit enumeration on the Case-A
-    fixture → the spies show the call added ZERO further classification or enumeration
-    calls.
+    fixture → assert `expect(decision.kind).toBe('scoped')` FIRST (a decision that
+    short-circuits earlier would make the count assertion vacuous), then that the spies show
+    the call added ZERO further classification or enumeration calls (mockClear before the
+    call).
 
 - [ ] **Step 2: Implement.** In `progressive-scope-resolve.ts`: add the optional
   `precomputed` field to `ChangeScopeInput` with a doc comment ("an already-computed
@@ -343,11 +390,14 @@ enumeration would let the burn set differ. Therefore:
   edge-less-pairs guarantee — see the contract ruling"); in `measure()`, use
   `input.precomputed?.typeCoverage ?? await resolveTypeCoverage(...)` and
   `input.precomputed?.pairs ?? (await computeExpectedPairs(graph, { typeCoverage })).pairs`.
-  In `build-context.ts`: `computeScopeMarking` gains the trailing
-  `precomputedTypeCoverage?` parameter and threads `precomputed: { typeCoverage:
-  precomputedTypeCoverage, pairs: <only when edge-less — see the ruling> }` into
-  `resolveChangeScope`; `assembleScopeMarking` (Task 2) passes the classification it
-  computed (or received) and, on the node-owned paths only, the pairs. Verify: on the
+  In `build-context.ts`: `computeScopeMarking` gains the two trailing optionals from the
+  Produces block and threads `precomputed: { typeCoverage: precomputedTypeCoverage,
+  pairs: precomputedPairs }` into `resolveChangeScope` (either may be undefined — the `??`
+  fallbacks in `measure()` handle each independently); `assembleScopeMarking` (Task 2)
+  passes the classification it computed or received, and sets `precomputedPairs =
+  enumeration.pairs` ONLY when `precomputed?.edges === undefined` (the edge-less
+  discriminator), with a comment citing the resolver's pessimism doc
+  (`progressive-scope-resolve.ts:308-320`). Verify: on the
   node-owned `--brief` path the arm preview's single enumeration now serves the preview AND
   the entire scope resolution; on the type-covered paths the classification is computed once
   and only the resolver's own edge-less enumeration remains.
@@ -360,10 +410,16 @@ enumeration would let the burn set differ. Therefore:
   behavior must be provably unchanged when `precomputed` is absent).
 - [ ] **Step 5: Measure and record.** This repo's own config has NO `progressive:` block and
   `type_level: false` — timing the repo itself proves nothing (the changed paths never run).
-  Instead: build a `createTypeLevelProgressiveFixture` directory once, then time
-  `node <abs-path-to>/dist/bin.js context --file src/leaf/a.ts --brief` inside it (3 runs,
-  median) before your change (`git stash`) and after. Record both medians in the report. The
-  call-count test is the primary evidence; the timing is corroboration, not a gate.
+  `createTypeLevelProgressiveFixture` is a private test function — reproduce it by hand
+  once: `cp -r source/cli/tests/fixtures/type-level-engine <scratch-dir>`; append
+  `progressive:\n  reference: main` to its `.yggdrasil/yg-config.yaml`; inside the dir
+  `git init -b main && git add -A && git commit -m base`; `git checkout -b work`; append a
+  line to `src/leaf/a.ts`; commit. Then — remembering `dist/` is gitignored, so a bare
+  `git stash` does NOT swap the binary — time AFTER first (`npm run build`, then 3 runs of
+  `node <abs-path>/dist/bin.js context --file src/leaf/a.ts --brief` in the fixture dir,
+  median); then `git stash && npm run build`, time BEFORE; then `git stash pop &&
+  npm run build`. Record both medians in the report. The call-count test is the primary
+  evidence; the timing is corroboration, not a gate.
 - [ ] **Step 6: Graph ritual + report** — mapping for the new test file; relation check (the
   new test imports `core/type-coverage` and `core/pairs` for spying — declare `uses` edges on
   the test node ONLY if the relation pass demands them). The general node currently sits at
@@ -389,14 +445,23 @@ enumeration would let the burn set differ. Therefore:
 The review asked for two branch tests; the `whole-project` branch turned out to be DEAD from
 this command: `resolveChangeScope` returns it only when `requestedReference` is undefined or
 the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
-`progressive-preflight.ts:133-135`, `:143-145`), and `computeScopeMarking` hardcodes
+`progressive-preflight.ts:133-135`, `:144-146`), and `computeScopeMarking` hardcodes
 `fullFlag: false` and is entered only with a defined reference. Do NOT try to construct it.
 
 - [ ] **Step 1: Verify the caveat trigger from the source, then build the fixture.** A
   `scoped` decision carries `notice` when the burn has a `globalCause`; editing
-  `.yggdrasil/yg-architecture.yaml` sets it (`core/progressive-scope.ts:598`), and
-  `createProgressiveFixture` writes that file (`progressive-fixture.ts:345`) with
-  `branchWithEdit` able to commit an edit to it. Name the trigger in a test comment.
+  `.yggdrasil/yg-architecture.yaml` sets it (`core/progressive-scope.ts:598` →
+  `globalCause` at `:661-668` → notice at `progressive-scope-resolve.ts:481-482`).
+  `createProgressiveFixture` writes that file (`progressive-fixture.ts:345`), but its
+  architecture generator is private and `branchWithEdit` commits exactly ONE path — so the
+  measured branch is built in two commits: first
+  `f.branchWithEdit('work', 'src/alpha/alpha.ts', 'export const alpha = 2;\n')`, then
+  `f.commit('.yggdrasil/yg-architecture.yaml', readFileSync(join(f.dir,
+  '.yggdrasil/yg-architecture.yaml'), 'utf-8').replace("'Discrete service unit'",
+  "'Discrete service unit — reworded'"))` — a description-only edit, so the graph still
+  loads while the architecture file lands in the touched set. (Verify `f.commit` exists on
+  the fixture handle; if the helper offers a different commit primitive, use it — the
+  two-commit shape is the requirement.) Name the trigger in a test comment.
 - [ ] **Step 2: Write the spawned case.** Coverage-closing for existing behavior (the
   Increment-1 rule): write it to the real behavior, run, and if it FAILS, STOP and report —
   a failure is a product bug. Fixture whose measured change touches
@@ -445,9 +510,10 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   `formatFileContextBrief(...).trimEnd().split('\n').length` equals EXACTLY the arithmetic
   total (derive it in the test from named constants, with a comment mapping each line to the
   ledger: path 1 + owner 1 + scope 1 + must-satisfy 1 + 16 + tail 1 + arm 1 + depends 1 +
-  dependents 1 + log 1 + flows 1 + next 3 = 29), and `toBeLessThanOrEqual(29)` — leaving the
-  +1 stdout mapping line inside the CLI's 30. A future line added to the renderer breaks
-  this test by name.
+  dependents 1 + log 1 + flows 1 + next 3 = 29). Then assert the CLI-level claim the ledger
+  cares about: `expect(RENDERER_WORST_CASE + 1).toBe(30)` — the +1 stdout mapping line
+  landing exactly on the option help's "≤ 30 lines" (no redundant `lessThanOrEqual` of the
+  same number). A future line added to the renderer breaks this test by name.
 - [ ] **Step 3: Full guard suites + typecheck + lint.**
 - [ ] **Step 4: CHANGELOG.** One line under `## [Unreleased]` → `### Changed` (or the
   section the file's house style uses for performance): the compact view now performs the
