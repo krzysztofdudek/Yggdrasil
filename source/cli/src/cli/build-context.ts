@@ -463,6 +463,55 @@ export async function computeScopeMarking(
 }
 
 /**
+ * THE single gate-walk-classify-enumerate-mark sequence behind `yg context
+ * --file`'s scope marking: gate on `progressive.reference` → walk the repo →
+ * classify by type → enumerate expected pairs → `computeScopeMarking`. All
+ * three call sites (compact, type-covered full view, node-owned full view)
+ * call this instead of each re-expressing the same sequence; the per-site
+ * differences — whether a walk, a relation edge index, a classification, or
+ * a whole-graph enumeration already happened for THIS invocation — live in
+ * `precomputed`, never in a copied block. Module-private: not part of the
+ * CLI surface.
+ */
+async function assembleScopeMarking(
+  graph: Graph,
+  filePath: string,
+  data: FileContextData,
+  precomputed?: {
+    edges?: TypedEdgeIndex;
+    repoFiles?: string[];
+    pairsWithUnreadable?: { pairs: ExpectedPair[]; unreadable: UnreadableSubject[] };
+    /** the classification the caller already paid for — forwarded, never recomputed */
+    typeCoverage?: TypeCoverageInput;
+  },
+): Promise<ScopeMarking> {
+  // Tested FIRST, before the walk below: a reference-less project must pay for neither
+  // the repo walk nor the whole-graph enumeration it has no use for. The call sites'
+  // own reference gates were removed in favor of this one, so its position is
+  // load-bearing — nothing may be hoisted above it.
+  if (graph.config.progressive?.reference === undefined) return {};
+  const repoFiles = precomputed?.repoFiles ?? await walkRepoFiles(projectRootFromGraph(graph.rootPath));
+  const typeCoverage =
+    precomputed?.typeCoverage ??
+    (precomputed?.pairsWithUnreadable === undefined
+      ? await computeTypeCoverageForContext(graph, repoFiles)
+      : undefined);
+  const enumeration =
+    precomputed?.pairsWithUnreadable ??
+    (await (async () => {
+      // the compact site's edges-spread guard (its arm preview builds the same shape,
+      // :574-576) — its two conditions keep the node-owned full-view site on the
+      // un-spread arm:
+      const input = precomputed?.edges !== undefined && typeCoverage !== undefined
+        ? { typeCoverage: { ...typeCoverage, edges: precomputed.edges } }
+        : { typeCoverage };
+      const { pairs, unreadable } = await computeExpectedPairs(graph, input);
+      return { pairs, unreadable };
+    })());
+  return computeScopeMarking(graph, filePath, effectiveAspects(data).map((a) => a.aspectId), enumeration.pairs, repoFiles, enumeration.unreadable);
+}
+
+/**
  * Assemble the compact view's non-formatting decisions — the trail pointers
  * and the arm preview line — as data the formatter itself does not compute.
  *
@@ -524,11 +573,12 @@ export async function composeBriefExtras(
   let armPreviewText: string | undefined;
   let wholeGraphPairs: ExpectedPair[] | undefined;
   let wholeGraphUnreadable: UnreadableSubject[] | undefined;
+  let wholeGraphTypeCoverage: TypeCoverageInput | undefined;
   try {
-    const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
-    const typeCoverageWithEdges = shared?.edges !== undefined && typeCoverage !== undefined
-      ? { ...typeCoverage, edges: shared.edges }
-      : typeCoverage;
+    wholeGraphTypeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
+    const typeCoverageWithEdges = shared?.edges !== undefined && wholeGraphTypeCoverage !== undefined
+      ? { ...wholeGraphTypeCoverage, edges: shared.edges }
+      : wholeGraphTypeCoverage;
     const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageWithEdges });
     wholeGraphPairs = pairs;
     wholeGraphUnreadable = unreadable;
@@ -563,7 +613,12 @@ export async function composeBriefExtras(
   let scopeHeaderText: string | undefined;
   let scopeByAspect: Map<string, 'yours' | 'inherited'> | undefined;
   if (graph.config.progressive?.reference !== undefined && wholeGraphPairs !== undefined) {
-    const marking = await computeScopeMarking(graph, filePath, governing.map((a) => a.aspectId), wholeGraphPairs, repoFiles ?? [], wholeGraphUnreadable ?? []);
+    const marking = await assembleScopeMarking(graph, filePath, data, {
+      edges: shared?.edges,
+      repoFiles,
+      pairsWithUnreadable: { pairs: wholeGraphPairs, unreadable: wholeGraphUnreadable ?? [] },
+      typeCoverage: wholeGraphTypeCoverage,
+    });
     scopeHeaderText = marking.scopeHeaderText;
     scopeByAspect = marking.scopeByAspect;
   }
@@ -753,30 +808,13 @@ export function registerBuildCommand(program: Command): void {
                 } else if (options.brief) {
                   process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, displayFile, data, { edges, repoFiles })));
                 } else {
-                  // Progressive-mode scope marking (D2/D3/D6), full view. Tests
-                  // the reference FIRST and skips the enumeration below when
-                  // absent — otherwise a plain `yg context --file` in a
-                  // reference-less project would pay for a whole-graph
-                  // enumeration it has no use for, and the byte-identity pin
-                  // below would be bought with work that changes nothing it
-                  // prints. Neither computeExpectedPairs call above (the
-                  // single-entry `covered` map building this file's own
-                  // `data`) is reusable here — this is a fresh whole-graph
-                  // enumeration, same shape composeBriefExtras's own arm
-                  // preview makes, edges spread onto typeCoverage so a
-                  // relation-gated rule elsewhere in the graph is not
-                  // silently mismeasured. `repoFiles` is the walk already
-                  // made above for this invocation — no second walk, whether
-                  // or not a reference is configured.
-                  let scopeByAspect: Map<string, 'yours' | 'inherited'> | undefined;
-                  if (graph.config.progressive?.reference !== undefined) {
-                    const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
-                    const typeCoverageWithEdges = typeCoverage !== undefined ? { ...typeCoverage, edges } : typeCoverage;
-                    const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageWithEdges });
-                    const marking = await computeScopeMarking(graph, displayFile, effectiveAspects(data).map((a) => a.aspectId), pairs, repoFiles, unreadable);
-                    scopeByAspect = marking.scopeByAspect;
-                  }
-                  process.stdout.write(formatFileContext(data, scopeByAspect));
+                  // Progressive-mode scope marking (D2/D3/D6), full view. This
+                  // file's own `data` came from a single-entry covered map, so
+                  // nothing computeExpectedPairs already did above is reusable
+                  // here; `repoFiles` is the walk already made above for this
+                  // invocation — no second walk.
+                  const marking = await assembleScopeMarking(graph, displayFile, data, { edges, repoFiles });
+                  process.stdout.write(formatFileContext(data, marking.scopeByAspect));
                   if (graph.config.signals?.attention !== false) {
                     await maybeAppendAttentionLine(graph, displayFile);
                   }
@@ -858,21 +896,13 @@ export function registerBuildCommand(program: Command): void {
           } else if (options.brief) {
             process.stdout.write(formatFileContextBrief(data, await composeBriefExtras(graph, resolvedFilePath, data)));
           } else {
-            // Progressive-mode scope marking (D2/D3/D6), full view. Tests the
-            // reference FIRST and skips the walk and enumeration below when
-            // absent — this call site holds neither today (no type-level
-            // classification runs for a node-owned file), so with a reference
-            // present it makes exactly one repo walk, same as
+            // Progressive-mode scope marking (D2/D3/D6), full view. This call
+            // site holds neither a walk nor a classification today (no
+            // type-level classification runs for a node-owned file), so the
+            // helper makes its own — exactly one repo walk, same as
             // composeBriefExtras's own node-owned path.
-            let scopeByAspect: Map<string, 'yours' | 'inherited'> | undefined;
-            if (graph.config.progressive?.reference !== undefined) {
-              const repoFiles = await walkRepoFiles(projectRootFromGraph(graph.rootPath));
-              const typeCoverage = await computeTypeCoverageForContext(graph, repoFiles);
-              const { pairs, unreadable } = await computeExpectedPairs(graph, { typeCoverage });
-              const marking = await computeScopeMarking(graph, resolvedFilePath, effectiveAspects(data).map((a) => a.aspectId), pairs, repoFiles, unreadable);
-              scopeByAspect = marking.scopeByAspect;
-            }
-            process.stdout.write(formatFileContext(data, scopeByAspect));
+            const marking = await assembleScopeMarking(graph, resolvedFilePath, data);
+            process.stdout.write(formatFileContext(data, marking.scopeByAspect));
             // Advisory structural-attention note. Default ON; the off-switch is
             // signals.attention: false (absent `signals` ⇒ ON). Read-only,
             // best-effort, non-blocking — yg context --file stays exit 0.
