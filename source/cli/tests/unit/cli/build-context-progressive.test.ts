@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, cpSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, cpSync, appendFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,7 +19,8 @@ import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
 // file(s); this file is in/not in it" header, in both the compact view and
 // the full view, plus the two honest fallbacks — no reference configured
 // (silence) and a reference that cannot be resolved (a stderr notice, no
-// marking).
+// marking) — and the third outcome between them: a measured change that
+// reaches a globally-gated file marks AND prints its caveat notice.
 //
 // Driven over real throwaway git repositories via `createProgressiveFixture`,
 // the same fixture family `tests/e2e/cli-progressive-gate.test.ts` uses:
@@ -128,6 +129,39 @@ describe.skipIf(!distExists)('yg context --file --brief — progressive scope ma
     const { stdout, status } = run(['context', '--file', 'src/alpha/alpha.ts'], f.dir);
     expect(status).toBe(0);
     expect(stdout).toMatch(/no-todo-comments.*\(yours\)/);
+  });
+
+  it('measures with a caveat when the change also touches the architecture file', () => {
+    const f = createProgressiveFixture({ label: 'ctx-global-caveat', progressiveReference: REFERENCE_BRANCH });
+    fixtures.push(f);
+    // Trigger, verified from source: touching .yggdrasil/yg-architecture.yaml sets
+    // `architectureMoved` in the burn computation (core/progressive-scope.ts:598-599), which
+    // becomes `globalCause: 'architecture'` (:661-668). Back in resolveChangeScope, that
+    // produces a `notice` on a decision that is STILL `kind: 'scoped'`
+    // (src/cli/progressive-scope-resolve.ts:490-493) — the measured-WITH-A-CAVEAT branch, distinct
+    // from `kind: 'unmeasurable'`. computeScopeMarking's own `decision.notice !== undefined`
+    // arm (build-context.ts) is what prints the "Scope marking measured against '<ref>' —
+    // with a caveat:" WHAT. `createProgressiveFixture`'s architecture generator is private and
+    // `branchWithEdit` commits exactly one path, so the measured branch needs two commits: an
+    // ordinary source edit, then a description-only architecture reword (graph still loads;
+    // the architecture file lands in the touched set).
+    f.branchWithEdit('work', 'src/alpha/alpha.ts', 'export const alpha = 2;\n');
+    const architecturePath = path.join(f.dir, '.yggdrasil', 'yg-architecture.yaml');
+    f.commit(
+      '.yggdrasil/yg-architecture.yaml',
+      readFileSync(architecturePath, 'utf-8').replace(
+        "'Discrete service unit'",
+        "'Discrete service unit — reworded'",
+      ),
+    );
+    const { stdout, stderr, status } = run(['context', '--file', 'src/alpha/alpha.ts', '--brief'], f.dir);
+    expect(status).toBe(0);
+    expect(stderr).toContain(`Scope marking measured against '${REFERENCE_BRANCH}'`);
+    expect(stderr).toContain('— with a caveat:');
+    // A global burn puts every pair in scope (pairIsInScope short-circuits on
+    // scope.global), so under this fixture every rule reads (yours) — pin that.
+    expect(stdout).toMatch(/\(yours\)/);
+    expect(stdout).not.toMatch(/\(inherited\)/);
   });
 
   it('marks a rule at the type-covered aspect-header site too', () => {

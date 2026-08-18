@@ -438,6 +438,12 @@ export async function computeScopeMarking(
     precomputed: { typeCoverage: precomputedTypeCoverage, pairs: precomputedPairs },
   });
 
+  // Defensively unreachable from this command: BOTH of `resolveChangeScope`'s
+  // `whole-project` returns — the pre-probe one via `requestedReference()`, and the
+  // post-probe `state.mode === 'off' || 'full'` one inside `measure()` — need either an
+  // absent configured reference or the `--full` flag, and this call site has neither:
+  // `reference` is checked defined above and `fullFlag` is hardcoded `false`.
+  // Kept for the day a caller changes that.
   if (decision.kind === 'whole-project') return {};
 
   if (decision.kind === 'unmeasurable') {

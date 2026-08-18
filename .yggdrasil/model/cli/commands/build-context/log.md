@@ -112,3 +112,7 @@ A file's context view now reuses the whole-repo type-level classification and pa
 Tightened a code comment explaining which classification is forwarded to progressive-mode scope resolution, with no change to behavior.
 ## [2026-08-18T21:04:07.897Z]
 Corrected line-number citations left stale by the classify-once fix: the resolveTypeCoverage doc-comment span, the arm-preview edges-spread anchor, and a test comment pointing at the log-gate's FileUnreadableError check. Added a sibling test case pinning the consumer half of the classification seed reuse — a forwarded typeCoverage now provably classifies zero times rather than only being exercised by its fallback path — plus a non-vacuity note on the existing node-owned case.
+## [2026-08-18T21:27:15.562Z]
+Recorded the whole-project scope-marking branch as defensively unreachable from this command inline in the source, and added a spawned test pinning the measured-with-caveat scope marking so a change that also edits the architecture file is proven to print its caveat notice while still marking rules yours or inherited.
+## [2026-08-18T21:35:44.088Z]
+The unreachable-branch note on the scope marking's whole-project arm now accounts for both of the resolver's whole-project return paths, not just the pre-probe one: each needs an absent reference or a full-audit request, and this command supplies neither. A note that names only half the mechanism reads as wrong to anyone who greps the other half, which defeats the purpose of documenting a defensive guard.
