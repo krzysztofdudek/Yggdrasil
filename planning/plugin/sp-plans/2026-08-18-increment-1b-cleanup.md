@@ -302,9 +302,11 @@ helper.
   (Note for the naming decision Task 1 bound: the `:566` reference to `governing` is
   deleted with the inlined block — the helper calls `effectiveAspects(data)` itself;
   `:496`/`:497` keep `governing`. This is not a violation of Task 1's decision. Comment
-  placement: the type-covered site's reference-first/skip-the-enumeration sentence moves
-  into the helper WITH the code it describes; only the single-entry-covered-map sentence
-  and the repoFiles-already-walked sentence stay at the site.)
+  placement: the reference-first/skip-the-enumeration sentence AND the fresh-whole-graph-
+  enumeration/edges-spread clause move into the helper WITH the code they describe; what
+  stays at the site is only the why-hand-over clause — this file's own `data` came from a
+  single-entry covered map so nothing above is reusable, and `repoFiles` is the walk
+  already made.)
   Type-covered full view: `{ edges, repoFiles }`. Node-owned full view: no precomputed
   argument beyond what it has today. Delete the three inlined blocks; the two full-view
   `reference !== undefined` gates MAY be deleted with them — the helper's own early return
@@ -403,7 +405,9 @@ enumeration would let the burn set differ. Therefore:
     `build-context-progressive.test.ts:60-79` — copy ALL FIVE of its steps verbatim: copy
     `tests/fixtures/type-level-engine` (which HAS `coverage.type_level` on), append the
     reference, `git init -b main`/`add -A`/commit, `checkout -b work`, append to
-    `src/leaf/a.ts` and commit. The commits are load-bearing: without a merge base
+    `src/leaf/a.ts`, `git add -A`, and commit (the add is required — nothing is staged).
+    Bind `const graph = await loadGraph(dir);` before the dictated `repoFiles` line. The
+    commits are load-bearing: without a merge base
     `measure()` returns at the global-fallback row BEFORE it ever classifies, and the case
     would pass at RED while pinning nothing. The type-covered
     `FileContextData` producer (`buildTypeCoveredFileContextData`) is module-private and
@@ -466,6 +470,18 @@ enumeration would let the burn set differ. Therefore:
   contract" — state the rule inline and cite the in-repo doc, never a planning artifact); in `measure()`, use
   `input.precomputed?.typeCoverage ?? await resolveTypeCoverage(...)` and
   `input.precomputed?.pairs ?? (await computeExpectedPairs(graph, { typeCoverage })).pairs`.
+  **Step 2b (the seed classification — the T4-review's deferred skip):**
+  `computeRelationEdgesForContext` (`build-context.ts:124-128`, module-private, one caller
+  at `:717`) already computes a whole-repo classification as its first line and throws it
+  away after seeding the relation pass. Widen its return from the edge index alone to
+  `{ edges, typeCoverage }` (adjust the one caller), and thread that `typeCoverage` into
+  `shared` at the compact call site (`:754` gains `typeCoverage`) and into
+  `assembleScopeMarking`'s `precomputed` at the type-covered full-view site — both fields
+  already exist in the Task-2 shapes, nothing new is invented. `composeBriefExtras` then
+  uses `shared?.typeCoverage ?? await computeTypeCoverageForContext(...)` at its arm-preview
+  classification (`:528` region), so a type-covered invocation classifies ONCE, at the seed.
+  Node-owned paths are unaffected (no relation pass runs there).
+
   In `build-context.ts`: `computeScopeMarking` gains the two trailing optionals from the
   Produces block and threads `precomputed: { typeCoverage: precomputedTypeCoverage,
   pairs: precomputedPairs }` into `resolveChangeScope` (either may be undefined — the `??`
@@ -483,14 +499,12 @@ enumeration would let the burn set differ. Therefore:
   type-covered configurations still let it enumerate for itself. (That clause was itself a
   prior review fix; leaving it stale re-opens a closed defect.) Verify: on the
   node-owned `--brief` path the arm preview's single enumeration now serves the preview AND
-  the entire scope resolution; on the type-covered paths the SITE'S OWN classification is
-  computed once and reused by the resolver — the relation pass's separate seeding
-  classification (`computeRelationEdgesForContext`'s first line, `build-context.ts:125`)
-  is the residual whole-repo classification on type-covered invocations (two remain after
-  this change, down from three — the seed chronologically runs FIRST, before the compact
-  site's) and is OUT OF SCOPE here:
-  name that residual explicitly in your report (Case B cannot see it — the stubbed edge
-  index deliberately keeps the relation pass out of the measured window).
+  the entire scope resolution; on the type-covered paths, with Step 2b, the SEED'S
+  classification is the only one — reused by the arm preview and the resolver alike, ONE
+  whole-repo classification per invocation, down from three. Note in your report that Case
+  B's in-process window (stubbed edge index — the relation pass never runs there) exercises
+  the site-level and resolver-level reuse only; the seed-level reuse is exercised by the
+  spawned guard suites and corroborated by the Step 5 timing.
 - [ ] **Step 3: The cache-boundary test stays green** — run
   `npx vitest run tests/unit/core/type-coverage.test.ts` (no new bare call sites) and
   `tests/unit/core/fill-classify-once.test.ts` (fill's own pin untouched).
@@ -638,10 +652,10 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
   LINES_PER_RULE = 2;` etc.; do NOT export `BRIEF_ASPECT_CAP` from the formatter, this task
   touches no source file — with a comment mapping each line to the arithmetic derived
   below, inline in the test, citing nothing outside the repo: path 1 + owner 1 + scope 1 + must-satisfy 1 + 16 + tail 1 + arm 1 + depends 1 +
-  dependents 1 + log 1 + flows 1 + next 3 = 29). Then assert the CLI-level claim against the MEASURED value, not the constant:
+  dependents 1 + log 1 + flows 1 + next 3 = 29). Then restate the CLI-level claim in the option help's own terms:
   `expect(rendered.trimEnd().split('\n').length + 1).toBe(30)` — the +1 stdout mapping
-  line landing exactly on the option help's "≤ 30 lines" (asserting the constant against
-  itself would be a tautology). A future line added to the renderer breaks this test by name.
+  line landing exactly on "≤ 30 lines". (Implied by the first assertion, kept as
+  documentation, not an independent guard — say so in its comment.) A future line added to the renderer breaks this test by name.
 - [ ] **Step 3: Full guard suites + typecheck + lint.**
 - [ ] **Step 4: CHANGELOG.** One line under `## [Unreleased]` in a `### Changed` section —
   the file currently has `### Added`, `### Fixed`, `### Documentation` and no `### Changed`;
@@ -665,9 +679,13 @@ the state mode is `off`/`full` (`progressive-scope-resolve.ts:498-499`, `:421`;
 
 - Order is strict: T1 → T2 → T3 (each shapes the next); T4 and T5 may run in either order
   after T3.
-- **Subsumed, not dropped:** the T4 task-review's deferred "redundant-classification
-  skip" (its minor #3) named the same duplicate whole-repo classification M4 prices — Task
-  3 removes it; no separate task is owed.
+- **The T4 task-review's deferred "redundant-classification skip" (its minor #3)** named
+  the OTHER duplicate — the relation-pass seeding classification
+  (`computeRelationEdgesForContext`'s first line) repeating the compact site's own on
+  type-covered invocations; both existed at T4, before scope marking did. Task 3's Step 2b
+  now pays it: the seed's classification is returned alongside `edges` and threaded through
+  the already-existing `shared.typeCoverage`, taking type-covered invocations to ONE
+  whole-repo classification.
 - **Explicitly deferred (not dropped):** the node-view freshness recompute
   (`build-context.ts:321-331` — the `deriveLogGateState → undefined` branch re-reads the
   lock to keep the node view's definite `logState`). Deliberate, four lines, commented, the
