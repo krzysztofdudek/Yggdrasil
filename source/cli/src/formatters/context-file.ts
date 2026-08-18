@@ -71,7 +71,7 @@ function posixPath(p: string): string {
   return toPosixPath(p);
 }
 
-export function formatFileContext(data: FileContextData): string {
+export function formatFileContext(data: FileContextData, scopeByAspect?: ReadonlyMap<string, 'yours' | 'inherited'>): string {
   const lines: string[] = [];
 
   lines.push(posixPath(data.filePath));
@@ -93,7 +93,12 @@ export function formatFileContext(data: FileContextData): string {
       lines.push('');
       for (const aspect of tc.applied) {
         const caveat = aspect.unverified ? ', unverified' : '';
-        lines.push(`    ${aspect.aspectId} [${aspect.status ?? 'enforced'}${caveat}] — ${aspect.aspectDescription}`);
+        const status = aspect.status ?? 'enforced';
+        // A draft aspect is never judged by a reviewer, so neither "(yours)" nor
+        // "(inherited)" is honest for it — omit the scope suffix entirely.
+        const mark = status !== 'draft' ? scopeByAspect?.get(aspect.aspectId) : undefined;
+        const scopeSuffix = mark !== undefined ? ` (${mark})` : '';
+        lines.push(`    ${aspect.aspectId} [${status}${caveat}] — ${aspect.aspectDescription}${scopeSuffix}`);
         lines.push(`      read: ${posixPath(aspect.verifiedAgainst)}`);
       }
       lines.push('');
@@ -136,7 +141,11 @@ export function formatFileContext(data: FileContextData): string {
     lines.push('');
     for (const aspect of data.aspects) {
       const status = aspect.status ?? 'enforced';
-      lines.push(`  ${aspect.aspectId} [${status}] — ${aspect.aspectDescription}`);
+      // A draft aspect is never judged by a reviewer, so neither "(yours)" nor
+      // "(inherited)" is honest for it — omit the scope suffix entirely.
+      const mark = status !== 'draft' ? scopeByAspect?.get(aspect.aspectId) : undefined;
+      const scopeSuffix = mark !== undefined ? ` (${mark})` : '';
+      lines.push(`  ${aspect.aspectId} [${status}] — ${aspect.aspectDescription}${scopeSuffix}`);
       if (status === 'draft') {
         lines.push('    (reviewer skipped; aspect is draft)');
         if (aspect.source) {

@@ -1589,3 +1589,8 @@ compact or single-rule views.
   "flag absent": the guard and dispatch test `options.aspect !== undefined` instead of truthiness,
   so an empty id flows into the ordinary unknown-id refusal rather than silently degrading to the
   full or compact view.
+- **D12 — draft rules carry no scope suffix (amends Task 6's mapping).** `computeExpectedPairs`
+  excludes draft aspects, so the dictated `else 'inherited'` mapping stamped `(inherited)` on a
+  rule printed directly above "(reviewer skipped; aspect is draft)" — but nothing judges a draft
+  rule, so neither "yours" nor "inherited" is honest. Amendment: the formatter renders no scope
+  suffix for a draft rule, in both full-view sites; a measured in-process case pins it.

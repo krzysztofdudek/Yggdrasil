@@ -65,11 +65,25 @@ description: "Assembles and outputs a context package for a node via yg
   fingerprint cannot be read, the flows line when the owner participates in
   no flow. A type-covered file has no owning component, so neither line
   applies to it. The default (no new flag) output is
-  unchanged byte for byte, pinned against a committed baseline capture."
+  unchanged byte for byte, pinned against a committed baseline capture.
+  When the project names a progressive-mode reference, both the compact and
+  full views also mark this file's rules with the same measurement yg check
+  gates on: each rule is suffixed '(yours)' when the current change is
+  accountable for it or '(inherited)' when it is not, and the compact view
+  additionally carries a scope header ('your change so far: N file(s); this
+  file is in/not in it'). Reaches the change-scope resolver and the
+  burn-set key helper for this rather than re-deriving either, so the
+  marking can never disagree with what yg check itself would gate. Honest
+  about the two cases it cannot measure: a project that names no reference
+  gets no header and no suffixes at all (silent opt-out, byte-identical to
+  before this measurement existed), and a project whose change could not be
+  measured against its named reference gets neither header nor suffixes
+  but a what/why/next notice on stderr explaining why, leaving stdout's
+  <= 30-line budget untouched."
 aspects:
   - what-why-next
 max_direct_relations:
-  limit: 21
+  limit: 23
   reason: >-
     Reviewed and accepted at exactly this count. Composition is this command's
     entire purpose: it assembles the complete context package a reader needs
@@ -83,7 +97,12 @@ max_direct_relations:
     every other command node here follows. A high count is a description of
     the work rather than a symptom, and splitting the orchestration would
     scatter the single place that must stay consistent with what yg check
-    enforces without reducing any actual coupling.
+    enforces without reducing any actual coupling. Raised from 21 to 23 for
+    progressive-mode scope marking: the context view now answers what a
+    change is accountable for using the same measurement yg check gates on,
+    which means reaching the scope resolver (cli/progressive-scope-resolve)
+    and the burn-set key helper (cli/core/progressive-scope) rather than
+    re-deriving either.
 relations:
   - target: cli/core/loader
     type: calls
@@ -127,6 +146,10 @@ relations:
   - target: cli/core/verify-lock
     type: calls
   - target: cli/relations/core
+    type: calls
+  - target: cli/progressive-scope-resolve
+    type: calls
+  - target: cli/core/progressive-scope
     type: calls
 mapping:
   - source/cli/src/cli/build-context.ts

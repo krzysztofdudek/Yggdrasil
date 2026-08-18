@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatFileContextBrief, formatFileContextAspect } from '../../../src/formatters/context-file.js';
+import { formatFileContextBrief, formatFileContextAspect, formatFileContext } from '../../../src/formatters/context-file.js';
 import type { FileContextData } from '../../../src/formatters/context-file.js';
 
 const base: FileContextData = {
@@ -151,6 +151,43 @@ describe('formatFileContextBrief', () => {
     const noType = { ...base, ownerPath: 'model/cli/formatters', ownerType: undefined };
     const out = formatFileContextBrief(noType, { nextPointers: [] });
     expect(out).toMatch(/^ {2}Owner: model\/cli\/formatters \(unknown\)$/m);
+  });
+});
+
+describe('formatFileContext — scope suffixes', () => {
+  it('appends scope suffixes at the full-view aspect-header line', () => {
+    const scopeByAspect = new Map<string, 'yours' | 'inherited'>([
+      [base.aspects[0].aspectId, 'yours'],
+      [base.aspects[1].aspectId, 'inherited'],
+    ]);
+    const out = formatFileContext(base, scopeByAspect);
+    expect(out).toMatch(/what-why-next.*\(yours\)/);
+    expect(out).toMatch(/no-direct-db.*\(inherited\)/);
+  });
+
+  it('appends scope suffixes at the type-covered aspect-header line', () => {
+    const tc: FileContextData = { filePath: 'src/lib/util.ts', aspects: [], dependencies: [], dependentCount: 0,
+      typeCoverage: { typeId: 'library', chainTerminationText: 'Inherited rules stop at the type.',
+        applied: [{ aspectId: 'pure-fn', aspectDescription: 'Library files export pure functions.', verifiedAgainst: '.yggdrasil/aspects/pure-fn/check.mjs', status: 'enforced', unverified: true }],
+        dropped: [] } };
+    const scopeByAspect = new Map<string, 'yours' | 'inherited'>([['pure-fn', 'yours']]);
+    const out = formatFileContext(tc, scopeByAspect);
+    expect(out).toMatch(/pure-fn.*\[enforced, unverified\].*\(yours\)/);
+  });
+
+  it('omits the scope suffix for a draft rule while a sibling non-draft rule still gets one', () => {
+    const withDraft: FileContextData = {
+      ...base,
+      aspects: [{ ...base.aspects[0], status: 'draft' }, base.aspects[1]],
+    };
+    const scopeByAspect = new Map<string, 'yours' | 'inherited'>([
+      [withDraft.aspects[0].aspectId, 'inherited'],
+      [withDraft.aspects[1].aspectId, 'inherited'],
+    ]);
+    const out = formatFileContext(withDraft, scopeByAspect);
+    const draftLine = out.split('\n').find((l) => l.includes('what-why-next'))!;
+    expect(draftLine).not.toMatch(/\(yours\)|\(inherited\)/);
+    expect(out).toMatch(/no-direct-db.*\(inherited\)/);
   });
 });
 
