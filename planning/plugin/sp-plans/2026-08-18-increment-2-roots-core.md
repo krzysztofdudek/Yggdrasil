@@ -52,9 +52,10 @@ dictated block goes back to the maintainer.
   the schema doc, and the docs pages `configuration.md` and `cli-reference.md` —
   and nowhere else before Task 8, which adds the adopter docs page and the changelog
   entry. The Increment-1
-  guard suites (`build-context-brief.test.ts`, `build-context-progressive.test.ts`,
-  `context-file-brief.test.ts`, `context-file.test.ts`, `context-file-type-coverage.test.ts`,
-  `build-context.test.ts`) pass unchanged in every task, plus `cli-ast-languages.test.ts`
+  guard suites (`tests/unit/cli/`: `build-context-brief.test.ts`,
+  `build-context-progressive.test.ts`, `context-file-type-coverage.test.ts`,
+  `build-context.test.ts`; `tests/unit/formatters/`: `context-file-brief.test.ts`,
+  `context-file.test.ts`) pass unchanged in every task, plus `cli-ast-languages.test.ts`
   (the parser-pool surface roots now shares). Build first (`cd source/cli && npm run build`)
   before any dist-spawning suite — a `describe.skipIf(!distExists)` skip is NOT a pass.
 - **Dormant without config.** A project whose `yg-config.yaml` has no `roots:` block gets
@@ -178,7 +179,7 @@ dictated block goes back to the maintainer.
   nothing about how any existing config parses", which is exactly this block's
   situation too — no graph schema version bump; `init-scaffold.ts:29-33`
   (`GITATTRIBUTES_LINES`) and `:89-124` (`YGGDRASIL_GITIGNORE_LINES`);
-  canonical-JSON/atomic-write precedents (`io/type-class-cache.ts:8-31` versioning,
+  canonical-JSON/atomic-write precedents (`io/type-class-cache.ts:8-32` versioning (the const itself sits at `:32`),
   `io/atomic-write.ts`).
 - Produces: `RootsConfig` (typed, spec §4.5 keys verbatim minus `version`/`daemon`,
   defaults applied at parse) as `YggConfig['roots']` (absent block ⇒ `undefined` ⇒
@@ -192,13 +193,18 @@ dictated block goes back to the maintainer.
   time: `rootsVersion` = Task 1's constant; `configHash` = Task 1's `rootsConfigHash`;
   `seedsHash`/`decisionsHash`/`ledgerHash` = computed BY `stores.ts` itself (sha256 of
   each store file's canonical content, absent file = hash of empty — this is what Task
-  1 Step 5's decisionsHash test exercises); `bindingHash` = Task 3's `binding.ts`
-  (sha256 of the canonical derived binding; design §6 assigns it there);
+  1 Step 5's decisionsHash test exercises); `bindingHash` — Task 3's `binding.ts`
+  produces the PER-GRAMMAR hash (design §6 assigns it there) and the HEADER value is
+  the Task-6 pipeline's ALL-GRAMMAR fold of those (spec `:237`: "covers all derived
+  sets" — the per-grammar hash is never written to the header directly);
   `candidateCountLog2` = Task 6's `mine` (spec §9.4a says it is recorded in the
   header) — both of these engine-produced values SURFACE to the command through the
   pipeline's `RootsIndexResult` return (Task 6 dictates it; the body alone cannot
   carry header fields); `headSha`, `clock` (HEAD committer timestamp, spec's clock
-  rule), and
+  rule — and the NON-GIT decision, stated: the new helpers fail SOFT to null,
+  matching `utils/git.ts`'s existing fail-soft precedent, so a non-git repo still
+  mines — R1-R3 needs no history — and its header carries null git fields as a
+  recorded fact, not an error), and
   `dirtyHash` = the Task-8 COMMAND, via small ADDITIVE
   exported helpers Task 8 adds to `src/utils/git.ts` (utility layer — it has no
   HEAD-sha/timestamp getter today; hashing via the io helpers, which command legally
@@ -591,8 +597,10 @@ dictated block goes back to the maintainer.
   exporting PURE `deriveBinding(nodeTypes): RootsBinding` — the scope/import/decorator
   node-kind sets with the lexical `@`/`[` marker rule and the decoration attribution
   window `(loRow, bodyRow]` — per spec §6.2 (`v6-spec.md:228-240`) read IN FULL — plus
-  `bindingHash(binding): string` (sha256 of the canonical-JSON binding; the Task-8
-  command writes it into the model header); the
+  `bindingHash(binding): string` (sha256 of the canonical-JSON binding — the
+  PER-GRAMMAR hash; the Task-6 pipeline folds all used grammars' hashes into the
+  single header value, and that fold — not this per-grammar hash — is what the
+  Task-8 command writes; say so in binding.ts's own comment); the
   prototype's `bindingFor()` (`prototype-roots2.mjs:34-45`) and `extractScopes`' window
   logic (`:85-91`) are the semantics reference. Tasks 4-7 consume `RootsBinding`.
 
@@ -665,6 +673,10 @@ dictated block goes back to the maintainer.
   `files` is the FULL repo listing, NOT the parsed subset — §6.8's package markers
   (`go.mod`, `pom.xml`, `*.csproj`, `*.sln`, `setup.cfg`) have no registered grammar
   and vanish from any post-grammar-filter list, silently losing Java/Go/C# roots.
+  Config `include`/`exclude` (§4.5 `v6-spec.md:143`) are applied HERE too: spec
+  §21.3 (`:721`) merges the §6.8 built-in exclusion list with config `exclude`, and
+  `partitions.ts` owns that merge (globs via `mapping-path`'s `globMatch`, per the
+  lint story); the pipeline's walk feeds the unfiltered listing in.
   (3) `finalizeUnits(rawScopes, partitions): ScopeUnit[]` — assigns final
   partitionIds, resolves MODULE scopes (spec §6.3 `:241-243` — "nearest of partition
   root or first directory with ≥ 3 code files" is partition-dependent, which is why
@@ -707,13 +719,24 @@ dictated block goes back to the maintainer.
 
 **Interfaces:**
 - Consumes: `FeatureBag`/`ScopeUnit` (Task 4).
-- Produces: `induceRoles(units, weights): RoleAssignment` — pre-bucketed weighted
+- Produces: `induceRoles(units, weights, config): RoleAssignment` — clustering runs PER
+  PARTITION (§8.3 `v6-spec.md:331` — group by the `partitionId` each `ScopeUnit`
+  carries; never cluster the repo flat), pre-bucketed weighted
   clustering (Lance-Williams, weighted DL, weighted medoids), clone-aware ambiguity
   (`cloneMedoidJaccard >= 0.6` runner-up skip), the persisted `assignments` map (the
   sticky-resolution ENABLER — see the scope correction below), and REAL
   `role_lift` (held-out DL with overlap-group exclusion and decorative demotion — spec
   §8.10 `v6-spec.md:359-362`; NO reference implementation exists, the prototype's proxy
-  at `:252-255` is explicitly not it — implement fresh from the formula and derive unit
+  at `:252-255` is explicitly not it). OWNERSHIP SPLIT, because §8.10's formula is
+  "computed from the same counts as §9.4 in one pass" (`:361`) and the §9.4 counting
+  layer is Task 6's: THIS task implements `role_lift` as a PURE function over
+  supplied counts (the formula, the overlap-group exclusion, the ≤0 ⇒ decorative
+  rule — with unit fixtures over hand-supplied counts), and documents on
+  `RoleAssignment` what decorative demotion means for consumers (a decorative role
+  contributes no conventions and no shadows; members fall back to `_all`); Task 6
+  INVOKES it from the real §9.4 counts in its one counting pass and honors the
+  demotion when building role cells — never a second implementation of the posterior
+  math. Implement fresh from the formula and derive unit
   fixtures from the spec's own worked values where its appendix provides them). Spec §8
   (`v6-spec.md:314-365`) read IN FULL — INCLUDING §8.9(b) file-scope derived roles
   (`:357`), which design §12 lists as "specified but never built": it is THIS task's,
@@ -730,11 +753,16 @@ dictated block goes back to the maintainer.
 
 - [ ] **Step 1: TDD** — clustering fixtures (hand-computable small bags: merge order,
   DL deltas, medoid selection), clone-ambiguity case, an assignments-map persistence
-  case (keys carry the `#k` ordinal), and role_lift cases
+  case (keys carry the `#k` ordinal, and the `"-1"` ambiguity marker Appendix D
+  binds at `v6-spec.md:875-876` is pinned too), and role_lift cases
   derived from the spec formula (state each expected value's derivation in a comment).
 - [ ] **Step 2: Implement.** Weighted math exactly per spec; weight inputs arrive as a
-  parameter (the R4 seam — a `WeightFn` interface with the R1-visible default of
-  uniform weights; document the seam so R4 slots in without signature change).
+  parameter (the R4 seam — a `WeightFn` interface whose R1-visible default is the
+  CONSTANT `weights.noLifecycleWeight` — 0.3, config-supplied, per spec §9.1
+  (`v6-spec.md:375-378`, value at `:167`); NOT 1.0 — the weight scales every
+  weighted term in §8.3's cut criterion, so the hand-computed clustering fixtures
+  must be derived at 0.3; document the seam so R4 slots in without signature
+  change).
 - [ ] **Step 3: Graph, guard suites, ritual, report.**
 
 ### Task 6: Acceptance chain (R3b)
@@ -750,15 +778,31 @@ dictated block goes back to the maintainer.
   seam decision (stores.ts stays generic and untouched). ITS SHAPE IS NOT INVENTED:
   spec Appendix D (`v6-spec.md:861-896`) is the NORMATIVE `model.json` body — read it
   IN FULL and follow it key-for-key (string keys only; header excluded from the
-  content hash; `:896`'s no-wall-clock constraint binds). R1-R3 populates every
-  Appendix-D key whose inputs exist this increment (per-partition `vocab`,
-  `alphabets` — load-bearing for §9.3's categorical K — `roles[]` with
-  roleKey/label/medoidFeatures/definingFeatureGroups/roleLift/ambiguityRate, the §8.6
-  `assignments` map, `facts[]` with the full record including `hookEligible` and the
-  survived populations `nConformRaw`/`nTotalRaw` (`:881`, `:886`), `moduleOfFile`,
-  `seeds`, `coverageRole`/`coverageAll`/`debtBits`) and leaves STRUCTURALLY ABSENT
-  the history-fed keys (`historyStats`, `cochange`, `agentShare` — R4/R5), each
-  absence stated in a comment. And `mine(input): MinedModel` — the FULL chain,
+  content hash; `:896`'s no-wall-clock constraint binds). The key accounting is
+  EXHAUSTIVE — every Appendix-D key, per-record fields included, is in exactly one
+  bucket, and anything found in the appendix but not here follows the same rule
+  (populate if its inputs exist this increment, else structurally absent, each
+  absence stated in a comment):
+  POPULATED — per-partition `vocab`, `alphabets` (load-bearing for §9.3's
+  categorical K), `roles[]` with roleKey/label/size/medoidFeatures/
+  definingFeatureGroups/roleLift/ambiguityRate, the §8.6 `assignments` map, `facts[]`'s
+  §9.4-computable fields including `hookEligible` and the survived populations
+  `nConformRaw`/`nTotalRaw` (`:881`, `:886`), `moduleOfFile`, `seeds`.
+  WRITTEN AS THEIR HONEST DEGENERATE VALUES — `denyEligible: false` on every fact
+  (nothing can be deny-eligible before R6 calibration exists), and
+  `coverageRole`/`coverageAll`/`debtBits`/`debtPerInstance` as ZEROS: their only
+  definition is §16.2 (`v6-spec.md:654`), computed over HOOK-ELIGIBLE facts with
+  §9.10 governance and §9.7's Δ — later-package machinery — and under this
+  increment's fail-closed rule every fact is `hookEligible: false`, so zero is the
+  true value, written with a comment citing §16.2, NEVER computed over accepted
+  facts (that would be the exact acceptance/eligibility conflation this increment
+  exists to fix).
+  STRUCTURALLY ABSENT — `historyStats`, `cochange`, `agentShare` (history-fed,
+  R4/R5); `couplingByFile`/`couplingByModule` (Appendix G.3 `:1018` defines coupling
+  as a CO-CHANGE percentile — history-fed, R4 — NOT static import coupling: do not
+  fabricate it from imports); within `facts[]`: `calib` (§14, R6), `trend`/`cohorts`
+  (§9.5, R6), `hookShapedConform` (ledger, R4), `exemplars` (§9.11), and
+  `stabilityDays` per the §9.4g rule above. And `mine(input): MinedModel` — the FULL chain,
   decomposed from the prototype's single `mine()` (`:175-251`) into named stages,
   with §9.4a ACCEPTANCE and §9.4c HOOK ELIGIBILITY as SEPARATE stages: acceptance
   (`:395`) is bits_saved ≥ acceptMarginBits ∧ n_raw ≥ minInstancesRaw ∧ n_eff ≥
@@ -770,7 +814,11 @@ dictated block goes back to the maintainer.
   only possible if eligibility is a flag, not a filter). Then: KT/MDL vs parent
   posterior, index cost, vacuous
   filter, two-tier absence τ (3.5 vocabulary / 4.5 structural), placement group-only,
-  fallback buckets, locality lattice (dirMin 25, redundant + nested-refinement pruning),
+  fallback buckets, DECORATIVE-ROLE DEMOTION (invoke Task 5's pure `role_lift` from
+  this pass's own counts — §8.10 `:361` "one pass"; a role with role_lift ≤ 0
+  contributes no role cells and no shadows, its members fall back to `_all`, and the
+  computed value is recorded on `roles[]`), locality lattice (dirMin 25, redundant +
+  nested-refinement pruning),
   correlation dedup, seeds cap `seedCapFraction` (0.5) × `n_eff_real`
   (`v6-spec.md:382`; `n_eff_real` is the EFFECTIVE — weighted — sum over REAL,
   pre-seed instances: not the raw instance count, and not the post-seed effective sum;
@@ -788,7 +836,11 @@ dictated block goes back to the maintainer.
   fail-closed branch, NOT a permissive default. Null-prototype/own-property reads on
   every mined-value map. CONFIG THREADING, decided here: the constants this plan
   names (τ 3.5/4.5, dirMin 25, seedCapFraction 0.5, factCap 400, the §7.2 support
-  floors, minInstancesRaw/Eff, acceptMarginBits) are §4.5 DEFAULTS, not fixed
+  floors, minInstancesRaw/Eff, acceptMarginBits, eligibilityMinRawShare 2/3, and the
+  `roles.*` family Task 5 consumes — clusterSampleCap, minClusterSize,
+  minOwnFeatures, cloneMedoidJaccard 0.6, roleAmbiguityGap, roleMinMembership,
+  spec `:178`/`:198-199` — which is why `induceRoles` takes `config`) are §4.5
+  DEFAULTS, not fixed
   constants — §4.5's own `:205` list names what IS deliberately non-config (the 300
   floor, KT α=½, dedup lead selection, …) and none of these is on it. Every stage
   that consumes a §4.5 key takes it as a parameter threaded from the parsed
@@ -882,8 +934,10 @@ dictated block goes back to the maintainer.
   speaks nothing" — so `MinedModel` MUST record per-fact eligibility for this to be
   assertable; Task 6 owns that field); (b) unit-level at the mine stage,
   which DOES take the optional AgeFn: a hand-built case where injecting a synthetic
-  AgeFn flips the same fact from silent to accepted, proving the branch points the
-  right way (a "history-stripped golden" would prove nothing here — without any
+  AgeFn flips the same fact's `hookEligible` from false to true — the fact is
+  ACCEPTED either way (an AgeFn feeds only §9.4c's survived-raw gate; it cannot move
+  bits_saved or the instance counts, so acceptance never changes) — proving the
+  branch points the right way (a "history-stripped golden" would prove nothing here — without any
   AgeFn, stripped and unstripped goldens are indistinguishable by construction);
   **determinism control** (double `runRootsIndex` → byte-identical MinedModel; note
   the blob cache is R4 — nothing writes `.cache/` this increment, so cache
@@ -907,8 +961,7 @@ dictated block goes back to the maintainer.
   300+ scopes is a scripted-builder job, not hand-typing: the builder spec generates
   files programmatically (loops emitting many small, honest source files — e.g. 60
   files × 5-6 scopes). AND the generated files must dodge §6.8's built-in exclusion
-  globs (`v6-spec.md:271`: `**/fixtures/**`, `**/migrations/**`, `*.test.*`,
-  `*.spec.*`, `*.d.ts`, …) — a golden whose files are named like tests mines
+  globs (`v6-spec.md:271` — quote it EXACTLY when porting, e.g. `**/fixtures/**`, `**/migrations/**`, `*.test.*`, `*.spec.*`, `**/*.d.ts**`, …) — a golden whose files are named like tests mines
   nothing; the exclusion applies to paths INSIDE the golden repo, not to where the
   bundle lives in this repo's tree. The prototype report's mined examples are the
   shape reference.
@@ -1006,7 +1059,11 @@ dictated block goes back to the maintainer.
 - [ ] **Step 2: Implement `cli/roots.ts` + registration + the sibling unit test.**
 - [ ] **Step 3: Docs** — one adopter-facing page: what roots is (advisory convention
   mining), dormant-by-default, the two commands, the storage layout, what R1-R3 does NOT
-  yet do (no speech, no hooks, no promotion — coming packages). Verify every behavior
+  yet do (no speech, no hooks, no promotion — coming packages). The per-command
+  CLI-REFERENCE entries (docs/cli-reference.md + its knowledge twin) stay R9's
+  (`plugin-marketplace-plan.md:131`) — this page is the adopter guide, not the
+  reference; state that boundary in the report so the omission reads as scoped, not
+  missed. Verify every behavior
   claim against the built binary. Wire the three mechanical joins (mapping, sidebar,
   node description). CHANGELOG: ONE `### Added` entry, adopter-voiced.
 - [ ] **Step 4: Graph (command node + log entries), guard suites + the THREE progressive
@@ -1037,7 +1094,9 @@ dictated block goes back to the maintainer.
   recorded so no reviewer reads them as omissions: (a) R1 sketches a 16-file
   `src/roots/` skeleton; this plan creates only the files R1-R3 actually populates —
   an empty mapped stub is dead weight in the graph, and later packages add their own
-  files when they have content for them. (b) "`rootsVersion` migrations ride the
+  files when they have content for them — while `partitions.ts` and `pipeline.ts`
+  are deliberate ADDITIONS beyond that sketch (the phase split and the composition
+  seam earned their own modules). (b) "`rootsVersion` migrations ride the
   existing `migrations/` infra" is vacuous at version 1: the constant lands in Task 1,
   and the FIRST migration is authored by whichever future package first bumps it.
   And one conscious PULL-FORWARD in the other direction: R9's list includes the
