@@ -3,7 +3,14 @@ type: test-suite
 description: "Shared test-fixture builders used across unit test suites (e.g.
   buildTestGraph for graph resolver tests, seedLock for lock-backed verdict
   tests, defaultRootsConfig — a fully-defaulted RootsConfig driven through the
-  public parseConfig rather than a hand-built literal — for roots tests)"
+  public parseConfig rather than a hand-built literal — for roots tests, and
+  roots-golden-fixture.ts — Task 7's golden-repo plumbing: withBuiltGolden
+  replays a committed golden's builder spec into a real temp git working
+  tree, and composeMineInputPieces runs the mining engine's own
+  parseAndExtractAll -> derivePartitions -> finalizeUnits -> buildVocabularies
+  -> enumerate -> induceRoles stage sequence over it, stopping one stage
+  short of mine() so a caller can inject its own AgeFn or permuted bags —
+  the exact seam runRootsIndex itself does not expose)"
 aspects: []
 relations:
   [
@@ -18,7 +25,9 @@ relations:
     { target: cli/io/stores, type: uses },
     { target: cli/model/graph, type: uses },
     { target: cli/model/lock, type: uses },
-    { target: cli/relations/extractors, type: uses }
+    { target: cli/relations/extractors, type: uses },
+    { target: cli/roots/engine, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/helpers/build-test-graph.ts
@@ -27,3 +36,4 @@ mapping:
   - source/cli/tests/unit/helpers/seed-lock.ts
   - source/cli/tests/unit/helpers/with-parsed-files.ts
   - source/cli/tests/unit/helpers/roots-config.ts
+  - source/cli/tests/unit/helpers/roots-golden-fixture.ts

@@ -6,4 +6,4 @@ repos/** -text
 /.yggdrasil/roots/decisions.jsonl merge=union
 /.yggdrasil/roots/ledger.jsonl merge=union
 /.yggdrasil/roots/model.json linguist-generated=true
-*.bundle binary
+*.bundle binary -text -eol

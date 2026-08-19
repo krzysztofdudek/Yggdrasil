@@ -82,13 +82,39 @@ description: "Unit tests for the roots convention-mining module: the roots
   per-grammar-per-process binding cache, a full `runRootsIndex` double-run
   proving header-excluded byte-shape stability, the forParsing mining-only
   test-pattern exclusion surviving the marker-scan listing, and
-  bindingSetHash's insertion-order independence). Later roots tasks add
-  sibling test files to this same node's mapping as their modules land."
+  bindingSetHash's insertion-order independence); and Task 7's proof
+  harness — the seven committed golden repositories (spec §20.2/design
+  §13.2: builder spec + `git bundle` pairs under tests/fixtures/roots/golden/,
+  each with its own builder<->bundle equivalence check) plus the
+  increment-wide controls, spread across five sibling files purely for
+  reviewer-prompt headroom: golden.test.ts (the typescript golden, carrying
+  the alphabets-union regression guard for BOTH kinds' `auto.nameshape`, an
+  exactly hand-counted `candidateCountLog2` pin, a live forParsing
+  round-trip proving the mining-only test-pattern exclusion is not a
+  vacuous negative, and a real, hand-derived `deviantsN`); golden-more.test.ts
+  (tsx/javascript/java/go — MUST-mine/MUST-NOT-mine per golden, §9.4e dedup
+  observed directly on java/go's own lead facts); golden-python.test.ts (the
+  deliberately role-rich python golden: real role-conditioned MUST-mine
+  facts a partition-average baseline stays silent on); golden-data.test.ts
+  (design §5.4's data+code mix: MUST-mine on file/module surfaces,
+  MUST-NOT-mine — structurally, not statistically — on every scope-level
+  enumerator over the json/yaml/toml files); and golden-controls.test.ts
+  (the null control: a deterministic seeded per-surface within-domain
+  shuffle on the role-rich python golden destroys every role-conditioned
+  fact; the fail-closed control's two halves — every golden's real
+  `runRootsIndex` output shows zero `hookEligible` facts, and a hand-built
+  unit-level fixture proves a synthetic AgeFn flips it true without moving
+  acceptance; and the determinism control — double `runRootsIndex` yields a
+  byte-identical `MinedModel`). Scope boundary stated in golden.test.ts's
+  own header: the six prototype-measured grammars plus data are R1-R3's;
+  the remaining seven code-grammar goldens and the mutation harness are
+  R10's."
 aspects: []
 relations:
   [
     { target: cli/roots/engine, type: uses },
     { target: cli/roots/stores, type: uses },
+    { target: cli/tests/fixtures, type: uses },
     { target: cli/io/parsers/config, type: uses },
     { target: cli/io/stores, type: uses },
     { target: cli/model/graph, type: uses },
@@ -113,3 +139,8 @@ mapping:
   - source/cli/tests/unit/roots/mine.test.ts
   - source/cli/tests/unit/roots/mine-invariants.test.ts
   - source/cli/tests/unit/roots/pipeline.test.ts
+  - source/cli/tests/unit/roots/golden.test.ts
+  - source/cli/tests/unit/roots/golden-more.test.ts
+  - source/cli/tests/unit/roots/golden-python.test.ts
+  - source/cli/tests/unit/roots/golden-data.test.ts
+  - source/cli/tests/unit/roots/golden-controls.test.ts
