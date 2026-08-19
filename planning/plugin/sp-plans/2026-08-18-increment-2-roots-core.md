@@ -224,7 +224,9 @@ dictated block goes back to the maintainer.
   dirty-file content hashes with **`.yggdrasil/roots/**` files EXCLUDED** — `index`
   itself writes those, so an unfiltered dirty list would make the header churn on
   every run; Task 8's double-index byte-identity assertion is what catches that;
-  explicit null ONLY for `lastIndexedSha` (R4 resume state), and `rolesStale` is
+  explicit null ONLY for `lastIndexedSha` in a git repo (R4 resume state; in the
+  non-git case the git trio is also null, per the fail-soft clause above), and
+  `rolesStale` is
   written as `false` — R1-R3 always fully re-induces, so `false` is knowable and
   honest where null would claim ignorance), `seeds.jsonl`,
   `decisions.jsonl`, `ledger.jsonl`, and
@@ -384,8 +386,9 @@ dictated block goes back to the maintainer.
   and drops the managed trailing `*` on two entries) — true up the whole table, and
   say so in the report so the fix does not read as new drift. The same completeness
   sweep applies to `templates/knowledge/configuration.ts`: its annotated example
-  runs `:14-80` and the `signals:`/`events:`/`progressive:` precedent blocks a
-  `roots:` block should copy sit at `:60-79` — plus the `:315-333` gitignore list.
+  runs `:14-81` and the `signals:`/`events:`/`progressive:` precedent blocks a
+  `roots:` block should copy sit at `:60-80` — plus the gitignore fenced list at
+  `:321-331` inside the "Local state" section.
   NOTE: the knowledge gitignore list AND `onboarding.ts`'s copy are ALREADY stale in
   exactly the same two ways as the docs table (missing `*.tmp`, dropped trailing
   `*`) — true up all three copies to the source constant, not just the one being
@@ -452,6 +455,9 @@ dictated block goes back to the maintainer.
   Step 3 for why a separate `eslint-rules/` directory is a trap)
 - Test: `source/cli/tests/unit/roots/genericity-lint.test.ts` (spawns the eslint CLI —
   imports nothing from `src/**` or the config, so it creates no graph edge)
+- Test: `source/cli/tests/unit/roots/git-fixture-determinism.test.ts` (Step 1 states
+  its content; it joins the Task-1 `model/cli/tests/unit/roots/` node's `mapping:` —
+  per-file, like every unit-test node)
 
 **Interfaces:**
 - Consumes: `git-fixture.ts`'s ACTUAL exports — `gitFixtureEnv`, `runGitFixture`, and
@@ -483,8 +489,9 @@ dictated block goes back to the maintainer.
   message); `buildGoldenRepo` scripts it through the deterministic fixture;
   `assertGoldenBundleEquivalence` rebuilds from the spec, clones the committed bundle,
   and asserts head-SHA equality plus file-content equality. Committed artifacts live
-  under `tests/fixtures/roots/golden/<name>/` as `<name>.bundle` + the builder spec
-  beside it — the equivalence test is what keeps bundle and builder from drifting.
+  under `tests/fixtures/roots/golden/<name>/` as `<name>.bundle` (binary — add a
+  `*.bundle -diff` line to the repo `.gitattributes` in the same commit so diffs
+  stay quiet) + the builder spec beside it — the equivalence test is what keeps bundle and builder from drifting.
 - [ ] **Step 3: Genericity lint — with proof it fires.** The repo's eslint config carries a
   documented failure precedent (`eslint.config.js:4-10`: a resolver-based architecture rule
   silently no-opped and was removed). The rule therefore must NOT depend on module
@@ -650,7 +657,9 @@ dictated block goes back to the maintainer.
 - Modify: `.yggdrasil/model/cli/roots/engine/yg-node.yaml` (mapping + relations)
 
 **Interfaces:**
-- Consumes: `RootsBinding` (Task 3), parses via `withParsedFile`.
+- Consumes: `RootsBinding`, the decoration-marker predicate, and the
+  attribution-window helper (all Task 3 exports — consume them, do not re-derive);
+  parses via `withParsedFile`.
 - Produces — THE PARSE SEAM AND THE PHASE ORDER, fixed here. Per-file extraction is
   PURE and SYNCHRONOUS over an already-parsed tree, and the async walk (list files,
   read, parse) belongs to the Task-6 pipeline (tests parse their snippets via
@@ -746,8 +755,8 @@ dictated block goes back to the maintainer.
   Appendix B rows are the source; read the appendix), real source snippets per measured
   grammar, exact expected feature bags; partition cases (package roots, the 300-scope
   floor, `_repo` merge) hand-built and hand-derived; anonymous-scope (`<anon>` +
-  ordinal) and same-name-overload (`#k`) key cases — §6.4 makes both binding and a
-  collapsed key silently merges two scopes' identities.
+  ordinal) and same-name-overload (`#k`) key cases — §6.4 makes both markers
+  binding, because a collapsed key silently merges two scopes' identities.
 - [ ] **Step 2: Implement the three phases (extract.ts's `extractUnits` +
   `finalizeUnits`, partitions.ts between them), then enumerate.ts** to the tables;
   ordinals/skeyR/stable_id everywhere a key leaves the module.
@@ -1003,8 +1012,9 @@ dictated block goes back to the maintainer.
   ours). Task 7's "a golden whose files are named like tests mines nothing" rests
   exactly here. Bindings are derived ONCE per grammar per process and
   cached (spec §6.2 `v6-spec.md:237` makes the cache normative; the prototype's
-  `bindings` map at `:35` is the shape). This is what Task 7's goldens drive
-  in-process and
+  `bindings` map at `:35` is the shape). (then, ON `parseAndExtractAll`'s output, `derivePartitions` → `finalizeUnits` —
+  the prefix already ran `extractUnits`; never call it twice). This is what Task 7's
+  goldens drive in-process and
   what the Task-8 command calls; it does NOT persist (the command composes
   `runRootsIndex` + `stores.ts`).
 
@@ -1164,8 +1174,8 @@ dictated block goes back to the maintainer.
   (design §3, `integration-design.md:74-75`: "Naming uses Yggdrasil's vocabulary: index
   (like a build)" — the design's vocabulary decision; the prototype's `learn` verb
   appears nowhere in the design's surface; spec §19's
-  command list has `index [--full]`, and in R1-R3 every run is full, so the flag is
-  accepted-and-ignored-free territory: implement plain `index`, note `--full` becomes
+  command list has `index [--full]`, and in R1-R3 every run is full — do NOT ship an
+  accepted-but-ignored flag: implement plain `index`, and note `--full` becomes
   meaningful with R4's incrementality) — on a repo WITHOUT a `roots:` block it SCAFFOLDS the block with defaults,
   printed first, then proceeds (`integration-design.md:399-400` is explicit:
   "`yg roots index` on a repo without the block scaffolds it with defaults, printed
@@ -1198,14 +1208,17 @@ dictated block goes back to the maintainer.
   MINIMAL `.yggdrasil/yg-config.yaml` into the clone (the schema `version:` key; the
   `roots:` block present or absent per case — nothing else; `runRootsIndex` needs
   config, not the graph, and `cli/roots.ts` accordingly loads CONFIG ONLY, never
-  `loadGraphOrAbort` — mining touches no graph, I10). Cases: with a `roots:` block,
+  `loadGraphOrAbort` — mining touches no graph, I10; concretely it composes
+  `findYggRoot` (`io/paths.ts:20`) + `parseConfig` (`config-parser.ts:112`) itself,
+  since the only existing `parseConfig` call site lives inside the graph loader —
+  both edges are sanctioned for `command`). Cases: with a `roots:` block,
   `yg roots index` exits 0 and writes a model whose header carries
   rootsVersion+configHash; running `index` a SECOND time yields a byte-identical
   `model.json` — header included (the header-level determinism proof, and the
   assertion that catches a `dirtyHash` folding in roots' own outputs); WITHOUT the
   block, `index` SCAFFOLDS it with defaults — printed first — into the existing
   `yg-config.yaml` (the merge-a-block writer follows the
-  `init-reviewer-setup.ts:251-256` `writeReviewerConfig` precedent; name the new
+  `init-reviewer-setup.ts:263-301` `writeReviewerConfig` precedent; name the new
   writer in cli/roots.ts) and then proceeds to mine, exiting 0; `yg roots status`
   reports what `index` mined, and `status` ALWAYS exits 0, reporting dormancy as
   INFORMATION — spec `v6-spec.md:706` ("All read surfaces exit 0 by default") and
