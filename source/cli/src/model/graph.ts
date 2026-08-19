@@ -90,6 +90,173 @@ export interface YggConfig {
    * that is on and inert.
    */
   progressive?: { reference: string };
+  /**
+   * Roots convention-mining configuration. Absent ⇒ `undefined` ⇒ the roots
+   * engine is DORMANT: no store read, no directory created, no runtime change
+   * anywhere in the CLI. Present ⇒ every key below is filled (parser-applied
+   * defaults for any key the block omits) — `io/config-parser.ts` parses this
+   * block inline beside `signals`/`events`, the same established seam.
+   *
+   * Field-for-field, this is the roots engine's own configuration surface:
+   * `include`/`exclude` (file selection), `partition` (module/partition
+   * detection), `history` (how much git history to walk), `enumerate`
+   * (per-surface support/top-K vocabulary caps), `weights` (survival/decay
+   * weighting), `mdl` (minimum-description-length acceptance thresholds),
+   * `thresholds` (statistical gap/precision thresholds), `calib` (calibration
+   * horizon and event minimums), `trend` (trend-window and nucleation
+   * detection), `cochange` (co-change pair mining), `ledger` (hook-mark
+   * release timing), `budgets` (hook/session time and message caps), `health`
+   * (self-measurement thresholds), `completeness` (feedback-once caps),
+   * `seed_tension` (maintainer-seed tension thresholds), `report` (report
+   * length caps), `hooks` (per-agent hook enablement), `roles` (role
+   * induction/clustering thresholds), `sessions` (session pruning). None of
+   * this is validated or interpreted by the CLI outside the roots engine —
+   * this type only carries the parsed, defaulted shape so both the parser
+   * (io/config-parser.ts) and the engine (src/roots/**) can share one
+   * definition. Two engine keys are deliberately excluded from this type:
+   * `version` (a roots-internal schema version, not this field's concern) and
+   * `daemon` (a background-process feature with no code in this increment).
+   */
+  roots?: RootsConfig;
+}
+
+/**
+ * Roots convention-mining configuration — every top-level section the roots
+ * engine reads, always fully populated once `YggConfig.roots` is present (the
+ * parser fills any key the adopter's `roots:` block omits with its documented
+ * default). Field meanings and defaults are documented once, at the parser's
+ * `DEFAULT_ROOTS` constant (`io/config-parser.ts`) — this type only fixes the
+ * shape both the parser and the roots engine agree on.
+ */
+export interface RootsConfig {
+  include: string[];
+  exclude: string[];
+  partition: { mode: string };
+  history: {
+    full: boolean;
+    windowMonths: number;
+    maxCommits: number;
+    megaCommitFileCap: number;
+    churnEarlyDays: number;
+    blobMaxBytes: number;
+    lifecycleFileMaxKb: number;
+    lifecycleMaxAppearances: number;
+    agentIdentities: string[];
+  };
+  enumerate: {
+    support: { nodeType: number; call: number; import: number; supertype: number; shape: number; decorator: number };
+    topK: { nodeType: number; call: number; import: number; supertype: number; shape: number; decorator: number };
+    shapeDepth: number;
+    shapeMaxStatements: number;
+    pathSegments: number;
+    localVarSampleMax: number;
+  };
+  weights: {
+    survivalFullDays: number;
+    freshPenaltyDays: number;
+    agentBase: number;
+    agentPromoteDays: number;
+    baseFloor: number;
+    hookShapedWeight: number;
+    noLifecycleWeight: number;
+    dirtyWeight: number;
+    seedDefaultWeight: number;
+    seedCapFraction: number;
+  };
+  mdl: {
+    acceptMarginBits: number;
+    minInstancesRaw: number;
+    minInstancesEff: number;
+    factCap: number;
+    dedupJaccard: number;
+    dirContextMinScopes: number;
+  };
+  thresholds: {
+    preferenceGapBits: number;
+    absenceGapBits: number;
+    absenceGapBitsStructural: number;
+    eligibilityMinRawShare: number;
+    denyExtraBits: number;
+    denyMinPrecision: number;
+    roleAmbiguityGap: number;
+    roleMinMembership: number;
+    couplingPercentileForDeny: number;
+  };
+  calib: {
+    horizonDays: number;
+    settleDays: number;
+    minEventsConvention: number;
+    minEventsFamily: number;
+    minEventsDeny: number;
+    targetPrecision: number;
+  };
+  trend: {
+    windowDays: number;
+    windowCount: number;
+    maxWindows: number;
+    attractorSlopeK: number;
+    lowSampleMin: number;
+    cohortBy: string;
+    nucleation: { minSlopePerQuarter: number; minWindows: number; minHumanAuthors: number };
+  };
+  cochange: { minSupport: number; minConfidence: number; maxPairs: number };
+  ledger: { releaseStableDays: number; releaseMinDaysAfterMark: number };
+  budgets: {
+    maxMessagesPerResponse: number;
+    sessionMaxWarnings: number;
+    hookHardTimeoutMs: number;
+    hookColdBudgetMs: number;
+    daemonBudgetMs: number;
+    bashSweepDebounceMs: number;
+    bashSweepMaxFiles: number;
+    bashFloodThreshold: number;
+  };
+  health: { minCompliance: number; minSamples: number; telemetryRetentionDays: number; agentShareAlarm: number };
+  completeness: { mode: string; maxItems: number };
+  seed_tension: { minFc: number; minN: number };
+  report: { topFacts: number };
+  hooks: {
+    claudeCode: {
+      postTool: boolean;
+      preTool: boolean;
+      bash: boolean;
+      userPromptBrief: boolean;
+      stopCompleteness: boolean;
+    };
+  };
+  roles: {
+    clusterSampleCap: number;
+    reinduceTouchedFraction: number;
+    reinduceTouchedMin: number;
+    minClusterSize: number;
+    minOwnFeatures: number;
+    cloneMedoidJaccard: number;
+  };
+  sessions: { pruneDays: number };
+}
+
+/**
+ * One line of the committed, append-only `seeds.jsonl` store — a maintainer's
+ * authored prior nudging the mined statistics toward a named scope's surfaces.
+ * The record type CROSSES the roots-engine/roots-store boundary: `stores.ts`
+ * (roots-store) reads seeds.jsonl typed as `SeedEntry[]`, and the mining engine
+ * (roots-engine) consumes those values as an explicit parameter — never by
+ * importing the store itself, since the roots-engine relation allowlist has no
+ * roots-store edge. Declared in the types layer (this file) so both sides
+ * import the same shape without either depending on the other.
+ */
+export interface SeedEntry {
+  /** sha256(scopeStableId ∥ author ∥ createdAt), truncated to 16 hex chars. */
+  seedId: string;
+  scopeRef: { path: string; qualifiedName: string };
+  /** The mined surfaces this seed nudges (e.g. `call`, `import`, `decorator`). */
+  surfaces: string[];
+  weight: number;
+  /** Whether this seed encodes an architectural (structural) preference. */
+  arch: boolean;
+  note?: string;
+  author: string;
+  createdAt: string;
 }
 
 // ============================================================

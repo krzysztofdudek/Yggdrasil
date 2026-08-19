@@ -1,0 +1,12 @@
+name: Roots
+type: module
+description: "Parent node for the roots convention-mining module (source/cli/src/roots/**)
+  — config, storage, binding derivation, extraction, enumeration, role induction,
+  and the MDL acceptance chain. Children split by architecture type: engine (pure
+  mining computation) and stores (persistence for the mined model under
+  .yggdrasil/roots/). The CLI command that composes them (source/cli/src/cli/roots.ts)
+  is classified as the existing `command` type, not either child type here, so it
+  lands under model/cli/commands/ instead of this subtree once it exists — this
+  umbrella owns only the roots/** module itself."
+aspects: []
+relations: []

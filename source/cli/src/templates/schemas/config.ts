@@ -89,6 +89,27 @@ events:                           # optional — where LLM verification-fill eve
                                   #   events always stay local (keyless CI = zero churn). Must be boolean; unknown
                                   #   keys rejected. Never folded into any verdict hash — flipping it invalidates nothing.
 
+roots:                            # optional — roots convention-mining engine config. Absent = fully dormant:
+                                  #   no store read, no directory created, no runtime change anywhere.
+                                  #   Present: every key below is filled with its documented default when
+                                  #   omitted; an unknown key at ANY depth of this block is a hard error.
+                                  #   Top-level sections — include and exclude are string lists, the other
+                                  #   eighteen are mappings: include, exclude (file selection),
+                                  #   partition (module/partition detection), history (git-history walk
+                                  #   bounds), enumerate (per-surface vocabulary support/top-K caps), weights
+                                  #   (survival/decay weighting), mdl (minimum-description-length acceptance
+                                  #   thresholds), thresholds (statistical gap/precision thresholds), calib
+                                  #   (calibration horizon and event minimums), trend (trend-window and
+                                  #   nucleation detection), cochange (co-change pair mining), ledger
+                                  #   (hook-mark release timing), budgets (hook/session time and message
+                                  #   caps), health (self-measurement thresholds), completeness (feedback-once
+                                  #   caps), seed_tension (maintainer-seed tension thresholds), report (report
+                                  #   length caps), hooks (per-agent hook enablement), roles (role
+                                  #   induction/clustering thresholds), sessions (session pruning). The full
+                                  #   leaf-level defaults are built into the CLI itself and are printed in
+                                  #   the error message whenever a value fails validation; this file
+                                  #   confirms the block exists and is dormant unless present.
+
 reviewer:                         # required only once a judgment (LLM) rule is actually effective —
                                   # used during yg check --approve or when auto_approve triggers a fill.
                                   # A script-only / keyless project (deterministic aspects only, or none)

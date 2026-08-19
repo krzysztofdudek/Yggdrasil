@@ -8,7 +8,10 @@ import { runVersionUpgrade, ensureGitattributes, ensureYggdrasilGitignore, regis
 const LOCK_LINE = '/.yggdrasil/yg-lock.*.json linguist-generated=true';
 const ADVISE_LINE = '/.yggdrasil/advise-decisions.jsonl merge=union';
 const EVENTS_LINE = '/.yggdrasil/yg-events.llm.jsonl merge=union';
-const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '*.tmp'];
+const ROOTS_DECISIONS_LINE = '/.yggdrasil/roots/decisions.jsonl merge=union';
+const ROOTS_LEDGER_LINE = '/.yggdrasil/roots/ledger.jsonl merge=union';
+const ROOTS_MODEL_LINE = '/.yggdrasil/roots/model.json linguist-generated=true';
+const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '*.tmp', 'roots/.cache/', 'roots/.state/'];
 
 async function scaffoldExistingYgg(projectRoot: string, version: string): Promise<string> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
@@ -351,6 +354,9 @@ describe('runVersionUpgrade', () => {
     const ga = await readFile(path.join(projectRoot, '.gitattributes'), 'utf-8');
     expect(ga).toContain(LOCK_LINE);
     expect(ga).toContain(ADVISE_LINE);
+    expect(ga).toContain(ROOTS_DECISIONS_LINE);
+    expect(ga).toContain(ROOTS_LEDGER_LINE);
+    expect(ga).toContain(ROOTS_MODEL_LINE);
   });
 });
 
@@ -367,13 +373,13 @@ describe('ensureGitattributes', () => {
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n`);
+    expect(ga).toBe(`${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n${ROOTS_DECISIONS_LINE}\n${ROOTS_LEDGER_LINE}\n${ROOTS_MODEL_LINE}\n`);
   });
 
   it('leaves the file unchanged when all managed lines are already present', async () => {
     const repoRoot = await mkdtemp(path.join(tmpdir(), 'yg-gitattr-'));
     dirsToCleanup.push(repoRoot);
-    const original = `* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n`;
+    const original = `* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n${ROOTS_DECISIONS_LINE}\n${ROOTS_LEDGER_LINE}\n${ROOTS_MODEL_LINE}\n`;
     await writeFile(path.join(repoRoot, '.gitattributes'), original, 'utf-8');
 
     await ensureGitattributes(repoRoot);
@@ -391,7 +397,7 @@ describe('ensureGitattributes', () => {
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n`);
+    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n${ROOTS_DECISIONS_LINE}\n${ROOTS_LEDGER_LINE}\n${ROOTS_MODEL_LINE}\n`);
     // The lock line is not duplicated.
     expect(ga.split('\n').filter((l) => l.trim() === LOCK_LINE)).toHaveLength(1);
   });
@@ -406,10 +412,13 @@ describe('ensureGitattributes', () => {
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n`);
+    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n${ROOTS_DECISIONS_LINE}\n${ROOTS_LEDGER_LINE}\n${ROOTS_MODEL_LINE}\n`);
     expect(ga.split('\n').filter((l) => l.trim() === LOCK_LINE)).toHaveLength(1);
     expect(ga.split('\n').filter((l) => l.trim() === ADVISE_LINE)).toHaveLength(1);
     expect(ga.split('\n').filter((l) => l.trim() === EVENTS_LINE)).toHaveLength(1);
+    expect(ga.split('\n').filter((l) => l.trim() === ROOTS_DECISIONS_LINE)).toHaveLength(1);
+    expect(ga.split('\n').filter((l) => l.trim() === ROOTS_LEDGER_LINE)).toHaveLength(1);
+    expect(ga.split('\n').filter((l) => l.trim() === ROOTS_MODEL_LINE)).toHaveLength(1);
   });
 
   it('inserts a separating newline when the existing file lacks a trailing one', async () => {
@@ -420,7 +429,7 @@ describe('ensureGitattributes', () => {
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n`);
+    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${EVENTS_LINE}\n${ROOTS_DECISIONS_LINE}\n${ROOTS_LEDGER_LINE}\n${ROOTS_MODEL_LINE}\n`);
   });
 });
 
@@ -467,8 +476,8 @@ describe('ensureYggdrasilGitignore', () => {
     await ensureYggdrasilGitignore(yggRoot);
 
     const gi = await readFile(path.join(yggRoot, '.gitignore'), 'utf-8');
-    // The missing lines (.ast-cache/, .type-class-cache/, .debug.log, .yg-lock.deterministic.json, .yg-events.jsonl*, .yg-fill-divergence.log*, .feature-field.json, *.tmp) were appended once; existing content preserved.
-    expect(gi).toBe('custom-local-state\nyg-secrets.yaml\n.symbols-cache/\n.ast-cache/\n.type-class-cache/\n.debug.log\n.yg-lock.deterministic.json\n.yg-events.jsonl*\n.yg-fill-divergence.log*\n.feature-field.json\n*.tmp\n');
+    // The missing lines (.ast-cache/, .type-class-cache/, .debug.log, .yg-lock.deterministic.json, .yg-events.jsonl*, .yg-fill-divergence.log*, .feature-field.json, *.tmp, roots/.cache/, roots/.state/) were appended once; existing content preserved.
+    expect(gi).toBe('custom-local-state\nyg-secrets.yaml\n.symbols-cache/\n.ast-cache/\n.type-class-cache/\n.debug.log\n.yg-lock.deterministic.json\n.yg-events.jsonl*\n.yg-fill-divergence.log*\n.feature-field.json\n*.tmp\nroots/.cache/\nroots/.state/\n');
     for (const line of GITIGNORE_LINES) {
       const occurrences = gi.split('\n').filter((l) => l.trim() === line).length;
       expect(occurrences).toBe(1);

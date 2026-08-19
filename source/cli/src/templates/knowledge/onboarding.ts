@@ -328,8 +328,9 @@ record a refusal.
    config\`); in the hand-config path also write \`.yggdrasil/.gitignore\`
    with the lines \`yg init\` ships (\`yg-secrets.yaml\`, \`.symbols-cache/\`,
    \`.ast-cache/\`, \`.type-class-cache/\`, \`.debug.log\`,
-   \`.yg-lock.deterministic.json\`, \`.yg-events.jsonl\`,
-   \`.yg-fill-divergence.log\`, \`.feature-field.json\`)
+   \`.yg-lock.deterministic.json\`, \`.yg-events.jsonl*\`,
+   \`.yg-fill-divergence.log*\`, \`.feature-field.json\`, \`*.tmp\`,
+   \`roots/.cache/\`, \`roots/.state/\`)
    so the derived caches the demos generate never surface as untracked files
    and break the porcelain proof. Add the scaffold's side files (the three
    agent-rules artifacts — \`AGENTS.md\`, the \`CLAUDE.md\` import,

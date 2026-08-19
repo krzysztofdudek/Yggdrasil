@@ -1,0 +1,4 @@
+## [2026-08-19T09:24:18.974Z]
+Lands the roots store: generic model.json header/body I/O (writeModel/readModel), the I2a RootsModelHeader type, the rootsVersion schema constant, a typed seeds.jsonl reader, and a per-store-file content hash used to compute the header's seedsHash/decisionsHash/ledgerHash fields. Canonical-JSON (deep-sorted keys) plus atomic temp-file-then-rename writes, mirroring the committed lock triad's own discipline.
+## [2026-08-19T09:52:54.883Z]
+Hardened the model reader and completed the store layout: reading a snapshot written under a different schema version now fails loudly naming both versions instead of silently misreading fields, the gitignored derived-cache and runtime-state directory paths are now exported by the one module that owns the store layout so later work cannot scatter them, and the three missing-file read paths route through the shared missing-file helper instead of three hand-rolled copies.

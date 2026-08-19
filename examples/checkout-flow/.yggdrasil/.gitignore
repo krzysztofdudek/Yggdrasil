@@ -9,3 +9,5 @@ yg-secrets.yaml
 .type-class-cache/
 .yg-events.jsonl*
 *.tmp
+roots/.cache/
+roots/.state/

@@ -998,8 +998,11 @@ fixed later by exporting the variable (or editing \`yg-secrets.yaml\`) before
 \`yg check --approve\`. This keeps API keys out of shell history — there is no
 flag-based alternative to set a credential, by design.
 
-\`yg init\` maintains \`.gitattributes\` so the committed lock files
-(\`yg-lock.*.json\`) are marked \`linguist-generated\`. Run from repository root only.
+\`yg init\` maintains \`.gitattributes\`: the committed lock files
+(\`yg-lock.*.json\`) and the roots model snapshot (\`roots/model.json\`) are
+marked \`linguist-generated\`; the advise-decisions register, the committed
+LLM-events stream, and the two committed roots logs (\`roots/decisions.jsonl\`,
+\`roots/ledger.jsonl\`) are marked \`merge=union\`. Run from repository root only.
 Never from a subdirectory.
 
 ## yg prime

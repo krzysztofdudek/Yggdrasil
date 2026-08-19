@@ -1234,9 +1234,13 @@ key is read only from its own environment variable
 keeping keys out of shell history; a missing key is non-fatal and can be set
 later before `yg check --approve`.
 
-`yg init` also maintains a `.gitattributes` entry marking the committed lock files
-as generated (`linguist-generated=true`), adds the gitignored deterministic cache
-(`.yg-lock.deterministic.json`) to `.yggdrasil/.gitignore`, and writes
+`yg init` also maintains the repo-root `.gitattributes`: it marks the committed
+lock files and the roots model snapshot as generated (`linguist-generated=true`),
+marks the advise-decisions register, the committed LLM-events stream, and the
+two committed roots logs as `merge=union` (so entries appended on different
+branches combine instead of conflicting), adds the gitignored deterministic
+cache (`.yg-lock.deterministic.json`) and the roots engine's own gitignored
+caches (`roots/.cache/`, `roots/.state/`) to `.yggdrasil/.gitignore`, and writes
 `max_prompt_chars: 50000` into the generated reviewer tier.
 
 `yg init --upgrade` lifts the config version to the current one and refreshes

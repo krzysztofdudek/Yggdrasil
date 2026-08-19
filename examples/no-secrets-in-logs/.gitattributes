@@ -1,3 +1,6 @@
 /.yggdrasil/yg-lock.*.json linguist-generated=true
 /.yggdrasil/advise-decisions.jsonl merge=union
 /.yggdrasil/yg-events.llm.jsonl merge=union
+/.yggdrasil/roots/decisions.jsonl merge=union
+/.yggdrasil/roots/ledger.jsonl merge=union
+/.yggdrasil/roots/model.json linguist-generated=true

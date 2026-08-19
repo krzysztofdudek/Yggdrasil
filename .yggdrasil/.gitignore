@@ -10,3 +10,5 @@ yg-secrets.yaml
 .yg-fill-divergence.log*
 .type-class-cache/
 *.tmp
+roots/.cache/
+roots/.state/

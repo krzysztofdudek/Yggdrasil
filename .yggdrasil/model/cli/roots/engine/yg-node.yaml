@@ -1,0 +1,15 @@
+name: Roots Engine
+type: roots-engine
+description: "Roots mining engine — pure, deterministic convention-mining
+  computation. Currently maps only the config seam (config.ts: rootsConfigHash,
+  a pure sha256-of-canonical-JSON fold over the parsed roots config subtree);
+  binding derivation, extraction, enumeration, role induction, and the MDL
+  acceptance chain join this node's mapping as those modules land under
+  source/cli/src/roots/."
+relations:
+  - target: cli/io/stores
+    type: calls
+  - target: cli/model/graph
+    type: uses
+mapping:
+  - source/cli/src/roots/config.ts

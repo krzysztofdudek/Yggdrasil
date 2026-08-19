@@ -34,20 +34,21 @@ refreshes the agent-rules files.
 - **signals** — Attention-layer switches (optional). Its only key today is `attention` (default `true`): the advisory "structurally unusual" note in `yg context --file`. Set `false` to silence it. See [Signals](#signals) below and [Structural attention](/feature-field).
 - **events** — Committed-events opt-in (optional). Its only key today is `committed_llm` (default `false`): opt into a committed, team-shared record of LLM verification events. See [Events](#events) below.
 - **progressive** — Names the branch your changes are measured against (optional; absent means off). Its only key today is `reference`. With it set, a plain `yg check` blocks only on what your change reaches, and everything inherited from that branch is listed as a non-blocking warning. See [Progressive mode](#progressive-mode) below and the [Progressive mode](/progressive-mode) page.
+- **roots** — Roots convention-mining engine configuration (optional; absent means fully dormant — no store read, no directory created, no runtime change anywhere). See [Roots](#roots) below.
 
-Those ten are the whole of it — `version`, `reviewer`, `coverage`, `quality`,
-`parallel`, `debug`, `auto_approve`, `signals`, `events`, `progressive`.
+Those eleven are the whole of it — `version`, `reviewer`, `coverage`, `quality`,
+`parallel`, `debug`, `auto_approve`, `signals`, `events`, `progressive`, `roots`.
 
 ::: warning A typo at the top level is silent
-The parser reads the ten keys above and ignores anything else it finds at the top
+The parser reads the eleven keys above and ignores anything else it finds at the top
 level, with no error and no warning. So `auto_aprove: full` does not enable
 auto-approval — it does nothing at all, and the check that would tell you so does
 not exist. Several nested places *are* guarded: a misspelled key directly under
 `reviewer:` or inside a tier is a hard `config-reviewer-unknown-key` /
-`config-tier-unknown-key` error, and `signals:`, `events:`, `coverage:` and
-`progressive:` all reject unknown keys too. Copy the names from this page rather
-than typing them from memory, and confirm a setting took effect by watching the
-behaviour change.
+`config-tier-unknown-key` error, and `signals:`, `events:`, `coverage:`,
+`progressive:` and `roots:` (at any depth) all reject unknown keys too. Copy the
+names from this page rather than typing them from memory, and confirm a setting
+took effect by watching the behaviour change.
 :::
 
 Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),
@@ -92,6 +93,10 @@ events:                               # Optional — committed-events opt-in (de
 
 # progressive:                        # Optional — absent means off (every run answers for the whole project)
 #   reference: origin/main            # Branch your changes are measured against
+
+# roots:                               # Optional — absent means fully dormant (no store, no runtime change)
+#   include: ["**/*"]                  # Twenty top-level sections; every one gets its documented
+#   exclude: []                        # default when omitted. See "Roots" below for the full list.
 ```
 
 ---
@@ -360,9 +365,12 @@ separately.
 | `.type-class-cache/` | The type-level classification lattice's per-file cache, keyed by a file's own path together with its raw byte content and the architecture's classifying types — skips re-evaluating a file's classifying-type predicates when none of its path, its content, or the architecture's classifying types have changed. |
 | `.debug.log` | The opt-in command log written when `debug: true`. |
 | `.yg-lock.deterministic.json` | The script-rule verdict cache — rebuilt free and keyless by `yg check --approve --only-deterministic`. |
-| `.yg-events.jsonl` | The verdict-events telemetry sidecar (see [Verdict-events sidecar](/reviewers#verdict-events-sidecar)). |
-| `.yg-fill-divergence.log` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run (see [Running in parallel](/concurrency)). |
+| `.yg-events.jsonl*` | The verdict-events telemetry sidecar, including its `.1` rotation (see [Verdict-events sidecar](/reviewers#verdict-events-sidecar)). |
+| `.yg-fill-divergence.log*` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run, including its `.1` rotation (see [Running in parallel](/concurrency)). |
 | `.feature-field.json` | The silent structural-deviation index behind the [structural-attention](/feature-field) hint. |
+| `*.tmp` | An atomic write's half-finished temp file, orphaned only by a hard kill (`yg check` sweeps stale ones on startup). |
+| `roots/.cache/` | The roots engine's blob cache and build lock — content-addressed, sharded, rebuilt free on the next `index` run. |
+| `roots/.state/` | The roots engine's telemetry, session, and incident state — local and durable, but never part of the mined model. |
 
 Every one of them is rebuildable, so a fresh clone missing all of them is a normal
 state, not a broken one. The only thing a fresh clone *notices* is the absent
@@ -537,6 +545,68 @@ no other key — a misspelled key is rejected so a typo can't silently leave the
 shared record disabled. A machine on an older CLI writes only locally and does
 not contribute to the shared file, so a reader that combines the two says as
 much rather than treating the committed record as complete.
+
+---
+
+## Roots
+
+`roots` is an optional section configuring the roots convention-mining engine.
+It is absent by default, and absent means **fully dormant**: no store is read,
+no directory under `.yggdrasil/roots/` is created, and nothing about `yg check`,
+`yg context`, or any other command changes.
+
+```yaml
+# .yggdrasil/yg-config.yaml
+roots:
+  history:
+    windowMonths: 24
+  weights:
+    seedDefaultWeight: 8
+```
+
+When the block is present, every key is filled with its documented default for
+whatever it omits — the example above sets two values and leaves the other
+eighteen sections (and every other key within `history` and `weights`) at their
+defaults. An unknown key is rejected **at any depth** of this block, the same
+strictness as `signals:`/`events:`/`progressive:`, because a typo here would
+otherwise leave the roots engine silently mining with a different setting than
+the config appears to say.
+
+Twenty top-level sections — `include` and `exclude` are string lists, the
+other eighteen are mappings:
+
+| Section | Governs |
+| --- | --- |
+| `include` / `exclude` | Which files the engine walks. |
+| `partition` | Module/partition-root detection. |
+| `history` | How much git history is walked, and its safety caps. |
+| `enumerate` | Per-surface vocabulary support floors and top-K caps. |
+| `weights` | Survival/decay weighting of mined instances. |
+| `mdl` | Minimum-description-length acceptance thresholds. |
+| `thresholds` | Statistical gap and precision thresholds. |
+| `calib` | Calibration horizon and minimum event counts. |
+| `trend` | Trend-window sizing and nucleation detection. |
+| `cochange` | Co-change pair mining. |
+| `ledger` | Hook-mark release timing. |
+| `budgets` | Hook and session time/message caps. |
+| `health` | Self-measurement thresholds. |
+| `completeness` | Feedback-once caps. |
+| `seed_tension` | Maintainer-seed tension thresholds. |
+| `report` | Report length caps. |
+| `hooks` | Per-agent hook enablement. |
+| `roles` | Role induction and clustering thresholds. |
+| `sessions` | Session pruning. |
+
+Every field's exact default is built into the CLI itself and is printed in the
+error message whenever a value fails validation — this page documents the
+section names and the dormancy contract, which is what changes CLI behavior;
+the individual thresholds are the mining engine's own tuning surface.
+
+Two keys from the roots engine's underlying configuration schema are **not**
+part of this block: `version` (an internal schema version for the mined store,
+unrelated to this file's own `version:`) and `daemon` (a background-process
+feature that is not yet available). Setting either under `roots:` is
+rejected the same as any other unknown key.
 
 ---
 

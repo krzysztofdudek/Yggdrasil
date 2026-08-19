@@ -1,0 +1,21 @@
+name: Roots Store
+type: roots-store
+description: "Roots store — persistence for the mined convention model. Owns the
+  generic model.json header/body I/O (writeModel/readModel), the I2a header type
+  (RootsModelHeader), the rootsVersion schema constant, the seeds.jsonl reader
+  (typed via SeedEntry), and the per-store-file content hash used to compose the
+  header's seedsHash/decisionsHash/ledgerHash fields. The seams here (the header
+  shape, the generic body I/O, the store-file hash contract) are deliberately
+  frozen: later roots modules extend the engine node's own mapping instead of
+  reopening this file."
+relations:
+  - target: cli/io/atomic-write
+    type: calls
+    consumes:
+      - write-atomic
+  - target: cli/io/stores
+    type: calls
+  - target: cli/model/graph
+    type: uses
+mapping:
+  - source/cli/src/roots/stores.ts

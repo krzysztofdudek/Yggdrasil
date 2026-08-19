@@ -1,0 +1,21 @@
+name: Roots Unit Tests
+type: test-suite
+description: "Unit tests for the roots convention-mining module: the roots
+  config seam (parseConfig's roots: block plus rootsConfigHash), the roots
+  store (model.json header/body I/O, seeds.jsonl, per-store-file hashing), and
+  the dormancy pin proving a project with no roots: block gets zero runtime
+  change from this module's presence. Later roots tasks add sibling test
+  files to this same node's mapping as their modules land."
+aspects: []
+relations:
+  [
+    { target: cli/roots/engine, type: uses },
+    { target: cli/roots/stores, type: uses },
+    { target: cli/io/parsers/config, type: uses },
+    { target: cli/io/stores, type: uses },
+    { target: cli/model/graph, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/roots/config.test.ts
+  - source/cli/tests/unit/roots/stores.test.ts
+  - source/cli/tests/unit/roots/dormancy.test.ts

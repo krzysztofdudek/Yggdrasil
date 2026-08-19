@@ -77,6 +77,20 @@ progressive:                      # Optional — names the branch changes are me
                                   #   counted as a non-blocking warning, and yg check --full answers
                                   #   for the whole project again. Committed-config only; the block
                                   #   accepts only reference, and it must be a non-blank string.
+
+roots:                            # Optional — roots convention-mining engine config.
+                                  #   Absent ⇒ FULLY DORMANT: no store read, no directory created,
+                                  #   no runtime change anywhere. Present ⇒ every one of its twenty
+                                  #   top-level sections (include, exclude, partition, history,
+                                  #   enumerate, weights, mdl, thresholds, calib, trend, cochange,
+                                  #   ledger, budgets, health, completeness, seed_tension, report,
+                                  #   hooks, roles, sessions) is filled with its documented default
+                                  #   for whatever key it omits. An unknown key at ANY depth of this
+                                  #   block is a hard error, same strictness as signals:/events:.
+                                  #   Every field's exact default lives in \`yg schemas read config\`,
+                                  #   not duplicated here.
+  history:
+    windowMonths: 24              #   Example: override one leaf, everything else stays default.
 \`\`\`
 
 ## Reviewer tiers
@@ -326,9 +340,12 @@ yg-secrets.yaml               # provider API keys
 .type-class-cache/            # the type-level classification lattice's path-and-content-keyed cache
 .debug.log                    # the opt-in command debug log
 .yg-lock.deterministic.json   # the free deterministic-verdict cache (rebuilt keyless)
-.yg-events.jsonl              # the local verdict-events telemetry sidecar
-.yg-fill-divergence.log       # forensic dump written only on a fill convergence divergence
+.yg-events.jsonl*             # the local verdict-events telemetry sidecar, plus its .1 rotation
+.yg-fill-divergence.log*      # forensic dump written only on a fill convergence divergence, plus its .1 rotation
 .feature-field.json           # the local structural-deviation attention index
+*.tmp                         # an atomic write's half-finished temp file, orphaned by a hard kill
+roots/.cache/                 # the roots engine's blob cache and build lock (rebuildable)
+roots/.state/                 # the roots engine's telemetry/session/incident state (local, durable)
 \`\`\`
 
 It is written idempotently on fresh \`yg init\` AND on every \`yg init --upgrade\`

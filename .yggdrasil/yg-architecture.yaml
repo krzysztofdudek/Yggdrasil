@@ -58,7 +58,7 @@ node_types:
     log_required: true
     parents: [module]
     relations:
-      calls: [engine, parser-adapter, persistence-adapter, relations-adapter, llm-shared, llm-subprocess-base, formatter, utility, ast-adapter, structure-adapter, template, command, command-support, knowledge-doc, schema-doc, migration, portal-pipeline, portal-engine-api, portal-server]
+      calls: [engine, parser-adapter, persistence-adapter, relations-adapter, llm-shared, llm-subprocess-base, formatter, utility, ast-adapter, structure-adapter, template, command, command-support, knowledge-doc, schema-doc, migration, portal-pipeline, portal-engine-api, portal-server, roots-engine, roots-store]
       uses: [types, test-suite, portal-contract]
       default: deny
 
@@ -734,4 +734,44 @@ node_types:
       - portal/no-network-egress
     parents: [module]
     relations:
+      default: deny
+
+  roots-engine:
+    description: "Roots mining engine — deterministic convention-mining computation: binding derivation from grammar node-types, scope extraction and enumeration, role induction, and MDL acceptance. Pure functions over parsed source and store-loaded state; parsers come only from the shared pool, grammars only from the language registry; never reads or writes the architecture graph — findings are advisory by construction."
+    enforce: strict
+    when:
+      all_of:
+        - path: "source/cli/src/roots/*.ts"
+        - not:
+            path: "source/cli/src/roots/stores.ts"
+        - not:
+            path: "**/*.test.ts"
+    aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
+      - deterministic
+      - no-direct-fs
+      - no-direct-console
+      - source-hygiene
+    log_required: true
+    parents: [module]
+    relations:
+      calls: [roots-engine, ast-adapter, persistence-adapter, utility]
+      uses: [types]
+      default: deny
+
+  roots-store:
+    description: "Roots store — persistence for the mined convention model: the committed snapshot and union-merged event logs under .yggdrasil/roots/, plus the gitignored derived caches beside them. Canonical-JSON, atomic, schema-versioned writes — the lock stores' discipline applied to mined state."
+    enforce: strict
+    when:
+      path: "source/cli/src/roots/stores.ts"
+    aspects:
+      - id: source-no-raw-control-chars
+        status: enforced
+      - source-hygiene
+    log_required: true
+    parents: [module]
+    relations:
+      calls: [persistence-adapter, utility]
+      uses: [types]
       default: deny

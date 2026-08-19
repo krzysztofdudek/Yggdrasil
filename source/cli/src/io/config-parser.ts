@@ -7,6 +7,7 @@ import type {
   LlmConfig,
   ReviewerConfig,
   CoverageConfig,
+  RootsConfig,
 } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 import { KNOWN_PROVIDERS } from '../utils/known-providers.js';
@@ -25,6 +26,232 @@ const DEFAULT_QUALITY: QualityConfig = {
 };
 
 export const DEFAULT_COVERAGE: CoverageConfig = { required: ['/'], excluded: [], typeLevel: false };
+
+/**
+ * Every default value for the roots convention-mining config, keyed exactly as
+ * the `roots:` block's own keys (verbatim from the roots engine's configuration
+ * spec, minus `version` and `daemon` — see the `roots?:` field's own comment on
+ * `YggConfig` in model/graph.ts for why those two are out of scope). This is
+ * also the SHAPE `parseRootsSection` below validates against: every leaf here
+ * fixes both the expected TYPE (string / number / boolean / string array /
+ * nested mapping) and the value used whenever the adopter's config omits that
+ * key. Never handed out by reference — the walker deep-copies every default it
+ * emits, so parsed configs never alias this object.
+ */
+const DEFAULT_ROOTS: RootsConfig = {
+  include: ['**/*'],
+  exclude: [],
+  partition: { mode: 'auto' },
+  history: {
+    full: true,
+    windowMonths: 24,
+    maxCommits: 0,
+    megaCommitFileCap: 30,
+    churnEarlyDays: 14,
+    blobMaxBytes: 1500000,
+    lifecycleFileMaxKb: 300,
+    lifecycleMaxAppearances: 200,
+    agentIdentities: ['claude', 'copilot', 'cursor', 'codex', 'devin', '\\bbot\\b', 'gpt', 'gemini', 'dependabot'],
+  },
+  enumerate: {
+    support: { nodeType: 20, call: 8, import: 5, supertype: 4, shape: 15, decorator: 8 },
+    topK: { nodeType: 30, call: 80, import: 60, supertype: 30, shape: 40, decorator: 40 },
+    shapeDepth: 2,
+    shapeMaxStatements: 20,
+    pathSegments: 3,
+    localVarSampleMax: 20,
+  },
+  weights: {
+    survivalFullDays: 120,
+    freshPenaltyDays: 14,
+    agentBase: 0.15,
+    agentPromoteDays: 180,
+    baseFloor: 0.05,
+    hookShapedWeight: 0.15,
+    noLifecycleWeight: 0.3,
+    dirtyWeight: 0.3,
+    seedDefaultWeight: 8,
+    seedCapFraction: 0.5,
+  },
+  mdl: {
+    acceptMarginBits: 4.0,
+    minInstancesRaw: 5,
+    minInstancesEff: 3,
+    factCap: 400,
+    dedupJaccard: 0.9,
+    dirContextMinScopes: 25,
+  },
+  thresholds: {
+    preferenceGapBits: 2.5,
+    absenceGapBits: 3.5,
+    absenceGapBitsStructural: 4.5,
+    eligibilityMinRawShare: 0.6666666666666666,
+    denyExtraBits: 1.5,
+    denyMinPrecision: 0.9,
+    roleAmbiguityGap: 0.15,
+    roleMinMembership: 0.35,
+    couplingPercentileForDeny: 75,
+  },
+  calib: {
+    horizonDays: 365,
+    settleDays: 30,
+    minEventsConvention: 12,
+    minEventsFamily: 30,
+    minEventsDeny: 35,
+    targetPrecision: 0.8,
+  },
+  trend: {
+    windowDays: 90,
+    windowCount: 8,
+    maxWindows: 24,
+    attractorSlopeK: 2.0,
+    lowSampleMin: 8,
+    cohortBy: 'birthYear',
+    nucleation: { minSlopePerQuarter: 0.02, minWindows: 3, minHumanAuthors: 2 },
+  },
+  cochange: { minSupport: 8, minConfidence: 0.75, maxPairs: 5000 },
+  ledger: { releaseStableDays: 90, releaseMinDaysAfterMark: 14 },
+  budgets: {
+    maxMessagesPerResponse: 3,
+    sessionMaxWarnings: 12,
+    hookHardTimeoutMs: 900,
+    hookColdBudgetMs: 700,
+    daemonBudgetMs: 50,
+    bashSweepDebounceMs: 5000,
+    bashSweepMaxFiles: 5,
+    bashFloodThreshold: 20,
+  },
+  health: { minCompliance: 0.3, minSamples: 8, telemetryRetentionDays: 180, agentShareAlarm: 0.85 },
+  completeness: { mode: 'stop-feedback-once', maxItems: 5 },
+  seed_tension: { minFc: 1.5, minN: 10 },
+  report: { topFacts: 20 },
+  hooks: {
+    claudeCode: { postTool: true, preTool: false, bash: true, userPromptBrief: false, stopCompleteness: true },
+  },
+  roles: {
+    clusterSampleCap: 700,
+    reinduceTouchedFraction: 0.05,
+    reinduceTouchedMin: 200,
+    minClusterSize: 3,
+    minOwnFeatures: 2,
+    cloneMedoidJaccard: 0.6,
+  },
+  sessions: { pruneDays: 7 },
+};
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Merge one section of the `roots:` config subtree onto its documented
+ * defaults, at ANY depth, rejecting anything the adopter's config gets wrong:
+ * a non-mapping section, an unknown key (a typo would otherwise leave the
+ * roots engine silently using a different setting than the config appears to
+ * say), or a value whose type does not match its default's type (a string
+ * where a number belongs, and so on). Driven entirely by the SHAPE of
+ * `defaults` — every default's own runtime type fixes what a present value at
+ * that key must be: a string-array default requires a string-array value, a
+ * plain-object default recurses one level deeper, and every other default
+ * (string / number / boolean) requires a value of that same `typeof`. This is
+ * a general-purpose walker precisely because the roots config subtree is ~90
+ * leaf keys deep across 20 sections (spec-verbatim, not this parser's
+ * invention) — one bespoke validator per key would be pure repetition of the
+ * same four checks and would drift from `DEFAULT_ROOTS` the moment either one
+ * changed without the other. `label` is the dotted path used in every error
+ * message (e.g. `roots.history.agentIdentities`), so a nested failure still
+ * names exactly where it happened.
+ */
+function parseRootsSection<T>(raw: unknown, defaults: T, label: string, filename: string): T {
+  if (raw === undefined) return defaults;
+  if (!isPlainRecord(raw)) {
+    throw new ConfigParseError({
+      what: `${filename}: ${label} must be a mapping (got ${JSON.stringify(raw)}).`,
+      why: `${label} holds the roots configuration keys documented in \`yg schemas read config\`; a non-mapping value cannot carry them.`,
+      next: `Set ${label} to a mapping, or remove it to use its defaults.`,
+    }, 'config-roots-invalid');
+  }
+
+  const defaultsRecord = defaults as Record<string, unknown>;
+  const knownKeys = Object.keys(defaultsRecord);
+  for (const key of Object.keys(raw)) {
+    if (!knownKeys.includes(key)) {
+      throw new ConfigParseError({
+        what: `${filename}: unknown key '${key}' under ${label}:`,
+        why: `${label} accepts only: ${knownKeys.join(', ')}. An unrecognized key is almost always a typo, and a silently ignored typo means the roots engine quietly uses a different setting than the config appears to say.`,
+        next: `Fix the key to one of: ${knownKeys.join(', ')}, or remove it.`,
+      }, 'config-roots-unknown-key');
+    }
+  }
+
+  const result = {} as Record<string, unknown>;
+  for (const key of knownKeys) {
+    const defaultVal = defaultsRecord[key];
+    const rawVal = raw[key];
+    const childLabel = `${label}.${key}`;
+
+    if (rawVal === undefined) {
+      // Deep-copy, never alias: handing out a reference into DEFAULT_ROOTS
+      // lets one caller's mutation poison every later parse in the process —
+      // the exact bug class the coverage seam below already fixed once.
+      result[key] = structuredClone(defaultVal);
+      continue;
+    }
+
+    if (Array.isArray(defaultVal)) {
+      if (!Array.isArray(rawVal) || rawVal.some((x) => typeof x !== 'string')) {
+        throw new ConfigParseError({
+          what: `${filename}: ${childLabel} must be a list of strings (got ${JSON.stringify(rawVal)}).`,
+          why: `${childLabel} is a string list; a non-list (or non-string-element) value cannot be used the same way.`,
+          next: `Set ${childLabel} to a YAML list of strings, or remove it to use the default.`,
+        }, 'config-roots-invalid');
+      }
+      result[key] = rawVal;
+    } else if (isPlainRecord(defaultVal)) {
+      result[key] = parseRootsSection(rawVal, defaultVal, childLabel, filename);
+    } else if (typeof defaultVal === 'number') {
+      if (typeof rawVal !== 'number' || !Number.isFinite(rawVal)) {
+        throw new ConfigParseError({
+          what: `${filename}: ${childLabel} must be a number (got ${JSON.stringify(rawVal)}).`,
+          why: `${childLabel} is a numeric threshold read by the roots engine; a non-numeric value cannot be compared or scaled.`,
+          next: `Set ${childLabel} to a number, or remove it to use the default (${String(defaultVal)}).`,
+        }, 'config-roots-invalid');
+      }
+      result[key] = rawVal;
+    } else if (typeof defaultVal === 'boolean') {
+      if (typeof rawVal !== 'boolean') {
+        throw new ConfigParseError({
+          what: `${filename}: ${childLabel} must be a boolean (got ${JSON.stringify(rawVal)}).`,
+          why: `${childLabel} is an on/off switch read by the roots engine; only true or false is meaningful.`,
+          next: `Set ${childLabel} to true or false, or remove it to use the default (${String(defaultVal)}).`,
+        }, 'config-roots-invalid');
+      }
+      result[key] = rawVal;
+    } else {
+      // string
+      if (typeof rawVal !== 'string') {
+        throw new ConfigParseError({
+          what: `${filename}: ${childLabel} must be a string (got ${JSON.stringify(rawVal)}).`,
+          why: `${childLabel} is read by the roots engine as text; a non-string value cannot be used the same way.`,
+          next: `Set ${childLabel} to a string, or remove it to use the default (${JSON.stringify(defaultVal)}).`,
+        }, 'config-roots-invalid');
+      }
+      result[key] = rawVal;
+    }
+  }
+
+  return result as T;
+}
+
+/**
+ * Parse the top-level `roots:` block. Absent (`raw === undefined`) is handled
+ * by the caller (`parseConfig`), which never invokes this function in that
+ * case — the block's DOMINANT behavior is dormancy, and `config.roots` stays
+ * `undefined` rather than ever being called with a synthetic empty object.
+ */
+function parseRootsConfig(raw: unknown, filename: string): RootsConfig {
+  return parseRootsSection(raw, DEFAULT_ROOTS, 'roots', filename);
+}
 
 function parseStringArray(raw: unknown, field: string, filename: string): string[] {
   if (raw === undefined) return [];
@@ -364,6 +591,22 @@ export async function parseConfig(
     progressive = { reference: prog.reference.trim() };
   }
 
+  // roots — optional convention-mining configuration. Absent ⇒ undefined,
+  // and NOTHING else in the CLI changes: no store read, no directory
+  // created, no runtime behavior anywhere outside the roots engine. Present
+  // ⇒ every key is filled (parseRootsConfig applies §4.5's defaults to
+  // whatever the block omits) — unlike signals/events/progressive, this is
+  // not a small enumerated switch section but the roots engine's whole
+  // configuration surface, so it is parsed by the general-purpose
+  // parseRootsSection walker above rather than a bespoke per-key block.
+  // Read from `baseRaw`, NOT the merged `raw`: like coverage.type_level and
+  // progressive, the roots block is committed-only — a gitignored secrets
+  // overlay must not be able to wake the miner on one machine, and the parsed
+  // block's hash ends up in a committed artifact, which must not depend on
+  // local overlay state.
+  const roots: RootsConfig | undefined =
+    baseRaw.roots !== undefined ? parseRootsConfig(baseRaw.roots, filename) : undefined;
+
   // A fresh object, never a mutation of whatever parseCoverage returned: when
   // coverage: is absent, parseCoverage returns the shared DEFAULT_COVERAGE
   // export BY REFERENCE (core/check.ts and cli/init.ts also fall back to that
@@ -383,6 +626,7 @@ export async function parseConfig(
     events,
     coverage,
     progressive,
+    roots,
   };
 }
 
