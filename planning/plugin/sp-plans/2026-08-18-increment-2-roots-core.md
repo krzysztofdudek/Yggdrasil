@@ -45,7 +45,10 @@ dictated block goes back to the maintainer.
 
 ## Global Constraints
 
-- **Additive increment.** No existing CLI output changes byte-for-byte: the Increment-1
+- **Additive increment.** No existing VERIFICATION-SURFACE output changes byte-for-byte
+  (`yg check`/`yg context`/`yg build-context` — the guard suites prove it). Three STATIC
+  TEXT surfaces change deliberately in Task 1 and nowhere else: the init-scaffold managed
+  lists, the knowledge/schema topic text, and `docs/configuration.md`. The Increment-1
   guard suites (`build-context-brief.test.ts`, `build-context-progressive.test.ts`,
   `context-file-brief.test.ts`, `context-file.test.ts`, `context-file-type-coverage.test.ts`,
   `build-context.test.ts`) pass unchanged in every task, plus `cli-ast-languages.test.ts`
@@ -53,10 +56,12 @@ dictated block goes back to the maintainer.
   before any dist-spawning suite — a `describe.skipIf(!distExists)` skip is NOT a pass.
 - **Dormant without config.** A project whose `yg-config.yaml` has no `roots:` block gets
   ZERO runtime change from this increment — `yg check`/`yg context` output, exit codes,
-  files written, cost: all identical. ONE carved exception, by design
-  (`integration-design.md:145-149`): `yg init --upgrade` manages the roots
-  gitignore/gitattributes scaffold lines unconditionally — inert entries for paths that
-  do not exist yet. Task 1 pins runtime dormancy with a spawned test against a
+  files written, cost: all identical. The carved exceptions are the static surfaces the
+  Additive-increment bullet names: `yg init --upgrade` manages the roots
+  gitignore/gitattributes scaffold lines unconditionally, by design
+  (`integration-design.md:164-165` states the propagation mechanism) — inert entries
+  for paths that do not exist yet — and the knowledge/schema/docs text describes the
+  new block for everyone. Task 1 pins runtime dormancy with a spawned test against a
   pre-captured golden (its Step 6 states the capture mechanics) and it is re-run in
   every later task.
 - **One parser path.** Roots obtains parses ONLY through `ast/parser.ts` and grammars
@@ -83,8 +88,11 @@ dictated block goes back to the maintainer.
   node's `mapping:`; new import edges between mapped nodes get declared relations — WATCH
   `max_direct_relations` ceilings and the fan-out leaderboard pin in
   `tests/integration/portal-derive-rest.test.ts` (currently `cli/tests/unit/cli/general`
-  at 32/32; Task 1 creates NEW nodes whose relations may enter the ranking — if any pinned
-  count or ordering moves, update title+assertion+narrative in the same commit); log-gating
+  at 32/32 — and the pin is FIVE rows, not one: the test pins five paths and five counts
+  (32/25/24/23/23) plus the title and a narrative comment, so any movement means updating
+  the whole set coherently; Task 1 creates NEW nodes whose relations may enter the
+  ranking — if any pinned count or ordering moves, update title+assertion+narrative in
+  the same commit); log-gating
   is widespread, NOT command-only — `log_required: true` sits on `command`, `engine`,
   `parser-adapter`, `persistence-adapter`, `ast-adapter`, `migration` and more, plus both
   new roots types, so whenever a task's diff touches a log-gated node's mapped files or
@@ -125,7 +133,7 @@ dictated block goes back to the maintainer.
 - Create: `source/cli/src/roots/stores.ts`
 - Modify: `source/cli/src/model/graph.ts` (the `RootsConfig` type + an optional
   `roots?: RootsConfig` field on `YggConfig` — the exact seam `signals`/`events` ride,
-  `graph.ts:63`/`:73`; this node is log-gated)
+  `graph.ts:63`/`:73`; the `types` type is NOT log-gated, so no log entry for this one)
 - Modify: `source/cli/src/io/config-parser.ts` (parse the `roots:` block INLINE beside
   `signals:`/`events:`)
 - Modify: `source/cli/src/cli/init-scaffold.ts` (gitignore + gitattributes lines)
@@ -134,10 +142,12 @@ dictated block goes back to the maintainer.
   rendered `.gitattributes`/`.gitignore`); extend the pins to include the new lines,
   never weaken them
 - Modify: `source/cli/src/templates/knowledge/configuration.ts` (its prose reproduces
-  the gitignore list at `:315-333` and documents the config blocks) and
-  `source/cli/src/templates/schemas/config.ts` (the schema doc gains the `roots:`
-  block's keys — the `signals:`/`events:` entries at `:81`/`:85` are the precedent).
-  Neither edit touches the digest gate: that gate regenerates from
+  the gitignore list at `:315-333` and documents the config blocks),
+  `source/cli/src/templates/knowledge/onboarding.ts` (`:328-336` lists the same
+  entries), `docs/configuration.md` (`:355-365` gitignore table + the config-block
+  sections), and `source/cli/src/templates/schemas/config.ts` (the schema doc gains the
+  `roots:` block's keys — the `signals:`/`events:` entries at `:81`/`:85` are the
+  precedent). None of these touches the digest gate: that gate regenerates from
   `templates/digest.ts`/`rules.ts` only, which this increment never edits.
 - Test: `source/cli/tests/unit/roots/config.test.ts` (drives parsing through the public
   `parseConfig`), `source/cli/tests/unit/roots/stores.test.ts`
@@ -194,7 +204,6 @@ dictated block goes back to the maintainer.
       - deterministic
       - no-direct-fs
       - no-direct-console
-      - no-nondeterminism-direct
       - source-hygiene
     log_required: true
     parents: [module]
@@ -211,7 +220,6 @@ dictated block goes back to the maintainer.
     aspects:
       - id: source-no-raw-control-chars
         status: enforced
-      - atomic-write-contract
       - source-hygiene
     log_required: true
     parents: [module]
@@ -221,12 +229,23 @@ dictated block goes back to the maintainer.
       default: deny
 ```
 
-  Every aspect id above already exists (the six engine aspects are carried by the
-  existing `engine` type; `atomic-write-contract` by `persistence-adapter` — verify each
-  id resolves before committing). Note `deriveBinding`'s disk read does NOT live in
-  engine (Task 3 puts the loader in the ast layer), so `no-direct-fs` holds; engine may
-  still CALL persistence-adapter helpers for repo scanning, the same allowance the core
-  `engine` type has. Plus exactly ONE ALLOWLIST EDIT to an existing type, inside the same
+  ASPECT APPLICABILITY IS NOT ID RESOLUTION. Every aspect definition carries its own
+  global `when:` predicate, and an attachment whose predicate fails is SILENTLY skipped
+  (`src/model/when.ts:3-6` states the contract; no check code reports a
+  never-applying attachment). That is why two seemingly-natural aspects are DELIBERATELY
+  ABSENT above: `no-nondeterminism-direct` is type-scoped to
+  engine/reviewer-dispatch/rule-script and its checker scans only `src/core/**`, and
+  `atomic-write-contract` is type-scoped to persistence-adapter with a checker gated to
+  `src/io/*.ts` — on the new types both would advertise enforcement that never runs.
+  Roots determinism is enforced by the LLM-reviewed `deterministic` aspect plus Task 7's
+  determinism control; store discipline is pinned by Task 1 Step 5's tests. Before
+  committing, read each REMAINING aspect's `.yggdrasil/aspects/<id>/yg-aspect.yaml` and
+  verify its `when:` (if any) admits the new types — if one is type-scoped, STOP and
+  report rather than shipping an inert attachment. Note `deriveBinding`'s disk read does
+  NOT live in engine (Task 3 puts the loader in the ast layer), so `no-direct-fs` holds;
+  engine may still CALL persistence-adapter helpers for repo scanning — the core
+  `engine` type has that allowance, and `relations-adapter` is the even closer
+  precedent: it carries `deterministic` while walking and parsing the whole repo. Plus exactly ONE ALLOWLIST EDIT to an existing type, inside the same
   approval: `command`'s `calls:` gains `roots-engine` and `roots-store` (the Task-8
   command composes them). NOTHING else in the file changes. Rationale worth keeping in
   the report: roots-engine deliberately has NO `formatter` edge — engine-layer code must
@@ -252,8 +271,10 @@ dictated block goes back to the maintainer.
   roots — because the established error contract is `ConfigParseError` (a parser-adapter
   export at `config-parser.ts:17`) and engine-layer code must call neither it nor
   `buildIssueMessage`; delegation would force an illegal edge in one direction or the
-  other. The `RootsConfig` type (and defaults) declares in `model/graph.ts` (types
-  layer, importable from both sides); `parseConfig` fills `config.roots` with the §4.5
+  other. The `RootsConfig` TYPE declares in `model/graph.ts` (types layer, importable
+  from both sides); the DEFAULTS const lives in `config-parser.ts` beside
+  `DEFAULT_QUALITY`/`DEFAULT_COVERAGE` (`:23`/`:26` — that is where this repo keeps
+  config defaults); `parseConfig` fills `config.roots` with the §4.5
   keys verbatim minus `version`/`daemon`, per-key defaults from the spec, unknown keys
   at ANY depth of the subtree → `ConfigParseError` in the established what/why/next
   shape. `src/roots/config.ts` holds only `rootsConfigHash` = sha256 of the
@@ -269,8 +290,15 @@ dictated block goes back to the maintainer.
   not all `merge=union`; copy the design's lines, don't paraphrase) — and the
   `roots/.cache/`+`roots/.state/` gitignore lines (paths relative to `.yggdrasil/`, per
   the design's note) — through the existing managed-list machinery, never ad-hoc. Then
-  true up every surface that byte-pins or reproduces those lists:
-  `tests/unit/cli/init-upgrade.test.ts` and `templates/knowledge/configuration.ts`.
+  true up EVERY surface that byte-pins or reproduces those lists — there are FOUR:
+  `tests/unit/cli/init-upgrade.test.ts` (byte-pins), `templates/knowledge/configuration.ts`
+  (`:315-333` prose list), `templates/knowledge/onboarding.ts` (`:328-336` lists the same
+  entries), and `docs/configuration.md` (`:355-365` table of managed gitignore entries —
+  and since that page also documents the config blocks, add the `roots:` block section
+  there in the same pass, matching the `signals:`/`events:` sections' shape). Finally,
+  keep this repo's own dogfood artifacts in sync: run the built binary's `init --upgrade`
+  from repo root AND from each `examples/*/` that carries its own `.yggdrasil/`, so the
+  committed `.gitattributes`/`.yggdrasil/.gitignore` copies match the new managed lists.
 - [ ] **Step 5: Tests (TDD — write first, red, then implement).** `config.test.ts`
   drives everything through the PUBLIC `parseConfig` (real yg-config.yaml files in tmp
   dirs, matching how the signals/events behavior is tested): absent block →
@@ -290,8 +318,9 @@ dictated block goes back to the maintainer.
   tests tree's spawn convention — report the choice). Graph: map the new test dir (a
   new `model/cli/tests/unit/roots/` node — `model/cli/tests/unit/` holds per-area
   children, follow that convention); declare relations; log entries for every log-gated
-  node the diff touched (`cli/io/parsers/config`, `cli/model/graph`, the new roots
-  nodes — the check names them); run the guard suites (build first) + typecheck + lint
+  node the diff touched (`cli/io/parsers/config` and the new roots nodes;
+  `cli/model/graph` is type `types`, NOT log-gated — the check names the true set); run
+  the guard suites (build first) + typecheck + lint
   + `check --approve`. Report anchor drift and any leaderboard-pin movement.
 
 ### Task 2: Test infrastructure — determinism, goldens harness, genericity lint
@@ -311,9 +340,9 @@ dictated block goes back to the maintainer.
 - Test: extend `source/cli/tests/support/` coverage per the tests tree's convention
 
 **Interfaces:**
-- Consumes: `git-fixture.ts`'s ACTUAL exports — exactly `gitFixtureEnv` and
-  `runGitFixture` (130 lines; there are no commit/init helpers to extend) — and its
-  identity pinning (`FIXTURE_IDENTITY`, `:71-76`).
+- Consumes: `git-fixture.ts`'s ACTUAL exports — `gitFixtureEnv`, `runGitFixture`, and
+  the `RunGitFixtureOptions` type (130 lines; there are no commit/init helpers to
+  extend) — and its identity pinning (`FIXTURE_IDENTITY`, `:71-76`).
 - Produces: NEW deterministic-history exports (`GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`
   pinned per commit from a fixed epoch + per-commit increment, `TZ=UTC`,
   `-c init.defaultBranch=main`) — spec §20.2's named prerequisite;
@@ -331,7 +360,7 @@ dictated block goes back to the maintainer.
 - [ ] **Step 2: Golden harness — bundles, not directories.** A working golden repo
   cannot be committed as a plain directory (its `.git` would become a gitlink); the
   authorities are explicit that goldens ship as builder specs + `git bundle`s
-  (spec §20.2 `v6-spec.md:715`, design §13.2 `integration-design.md:493`).
+  (spec §20.2 `v6-spec.md:715`, design §13.2 `integration-design.md:487-490`).
   `roots-golden.ts`: a golden spec = ordered commit list (author id, files map,
   message); `buildGoldenRepo` scripts it through the deterministic fixture;
   `assertGoldenBundleEquivalence` rebuilds from the spec, clones the committed bundle,
@@ -348,8 +377,12 @@ dictated block goes back to the maintainer.
   for relative specifiers (no resolver, no filesystem), then checks the normalized
   repo-relative path against the allowlist: `src/roots/`, `src/ast/` (parser pool +
   the Task-3 node-types loader + `ast/types` re-exports), `src/utils/language-registry`,
-  `src/io/`, `src/model/` (the `RootsConfig` type), `src/formatters/message-builder`,
-  plus `node:` builtins. Everything else errors, as does any specifier matching
+  `src/io/`, `src/model/` (the `RootsConfig` type), plus `node:` builtins — NO
+  `src/formatters/` entry: the graph gives roots-engine no formatter edge, and the lint
+  must not be permissive where the graph is restrictive (within `src/io/` the graph
+  still constrains finer — engine may call persistence-adapter helpers but not the
+  `*-parser.ts` files typed parser-adapter; the lint's io allowance is the coarse
+  fence, the graph the fine one). Everything else errors, as does any specifier matching
   `/tree-sitter|\.wasm/` — including `'web-tree-sitter'`: roots gets AST TYPES
   (`Tree`, nodes) via re-exports from `src/ast/types.ts`, never from the package
   (Task 3 adds the re-export if absent). Also error on per-language switch heuristics:
@@ -364,12 +397,17 @@ dictated block goes back to the maintainer.
   by every architecture `when:` (a blocking coverage error needing an UNAUTHORIZED
   third architecture edit), unlinted by `"lint": "eslint src/ tests/"`, and imported
   by nothing precedented. THE PROOF: `genericity-lint.test.ts` SPAWNS the eslint CLI
-  with `--stdin --stdin-filename source/cli/src/roots/virtual.ts --format json` (a
-  virtual filename makes the flat-config scoping apply without writing into `src/`,
-  and spawning means the test imports nothing — no graph edge): one clean source
-  passes, one source with a banned import AND a banned extension literal reports
-  BOTH — so a silent no-op regression fails red, the exact failure mode the config's
-  note warns about.
+  from cwd `source/cli` (the only cwd where `eslint.config.js` is found) with
+  `--stdin --stdin-filename src/roots/virtual.ts --format json` — the filename is
+  CONFIG-RELATIVE: eslint resolves it against cwd, so a `source/cli/`-prefixed value
+  would double the prefix and silently miss the `files: ['src/roots/**']` scope while
+  globally-scoped rules still fire, faking a working run. A virtual filename makes the
+  flat-config scoping apply without writing into `src/`, and spawning means the test
+  imports nothing — no graph edge. The test asserts THREE things: the clean source
+  passes, the dirty source (banned import AND banned extension literal) reports BOTH,
+  and the dirty run's output actually contains the genericity rule's own id — the
+  last assertion is what catches the scope-miss failure mode dead. So a silent no-op
+  regression fails red, the exact failure mode the config's note warns about.
 - [ ] **Step 4: Guard suites + graph ritual + report** (as Task 1 Step 6; the lint join
   must leave `npm run lint` green on the whole existing tree).
 
@@ -380,15 +418,27 @@ dictated block goes back to the maintainer.
 - Create: `source/cli/src/ast/node-types.ts` (the disk loader — ast-adapter-classified by
   the existing `when:`, so no architecture edit; roots-engine's `no-direct-fs` forbids the
   read living in `binding.ts` itself)
-- Modify: `source/cli/src/ast/parser.ts` — its wasm-path resolution (`GRAMMAR_DIRS`
-  `:16-19`, `resolveWasm` `:69`) is MODULE-PRIVATE today; export the minimal locator the
-  loader needs (additive export, no behavior change)
+- Create is self-contained — `node-types.ts` does NOT reuse `parser.ts`'s wasm
+  resolution, because it cannot: `node-types.json` exists ONLY under `dist/grammars/`
+  (the build copies it there via `tsup.config.ts`'s per-grammar candidate table; the
+  node_modules dev-fallback locations `resolveWasm` probes have wasm but NO
+  node-types.json at the probed paths). Dictated resolution: two candidates, first hit
+  wins — `<moduleDir>/../grammars/` (correct when running from `dist/`) and
+  `<packageRoot>/dist/grammars/` (correct when running from `src/` under vitest;
+  packageRoot found by package.json walk-up); if neither directory exists, THROW loudly
+  naming the build command — never skip, never return empty (the built-binary guard's
+  philosophy; the gate builds before tests, so in CI the directory is always there).
+  Read via `node:fs` directly, exactly as `parser.ts` itself does (`:4`) —
+  ast-adapter's allowlist has NO persistence-adapter edge, so the io-helpers instinct
+  would create an unsanctioned relation. No change to `parser.ts` needed.
 - Modify: `source/cli/src/ast/types.ts` — add `export type` re-exports for the
-  web-tree-sitter types roots needs (`Tree`, node types), if not already exported; roots
-  never imports the package directly (Task 2's lint bans it)
-- Modify: `.yggdrasil/model/cli/ast/runtime/yg-node.yaml` (`node-types.ts` joins its
-  `mapping:` beside `parser.ts`/`parse-cache.ts`/`runner.ts`) — ast-adapter is
-  log-gated, so this drift needs its `yg log add`
+  web-tree-sitter types roots needs (`Tree`, node types); verified: it imports
+  `type { Tree }` today WITHOUT re-exporting it, so this step is genuinely needed;
+  roots never imports the package directly (Task 2's lint bans it)
+- Modify: BOTH ast model nodes — `.yggdrasil/model/cli/ast/runtime/yg-node.yaml`
+  (`node-types.ts` joins its `mapping:` beside `parser.ts`/`parse-cache.ts`/`runner.ts`)
+  AND `.yggdrasil/model/cli/ast/report/yg-node.yaml` (`types.ts` maps THERE, not to
+  runtime) — ast-adapter is log-gated, so BOTH drifts need their own `yg log add`
 - Create: `source/cli/tests/fixtures/roots/bindings/<asset>.json` × 16
 - Test: `source/cli/tests/unit/roots/binding.test.ts`
 - Modify: `.yggdrasil/model/cli/roots/engine/yg-node.yaml` (`binding.ts` joins the
@@ -407,7 +457,7 @@ dictated block goes back to the maintainer.
   filenames cannot be cheaply renamed later — get this right now); `binding.ts`
   exporting PURE `deriveBinding(nodeTypes): RootsBinding` — the scope/import/decorator
   node-kind sets with the lexical `@`/`[` marker rule and the decoration attribution
-  window `(loRow, bodyRow]` — per spec §6.2 (`v6-spec.md:228-247`) read IN FULL; the
+  window `(loRow, bodyRow]` — per spec §6.2 (`v6-spec.md:228-240`) read IN FULL; the
   prototype's `bindingFor()` (`prototype-roots2.mjs:34-45`) and `extractScopes`' window
   logic (`:85-91`) are the semantics reference. Tasks 4-7 consume `RootsBinding`.
 
@@ -432,7 +482,8 @@ dictated block goes back to the maintainer.
   doc or spec section number (the `self-contained-references` aspect bans exactly that
   shape).
 - [ ] **Step 4: Graph (binding.ts joins the engine node's mapping; ast/registry
-  relations declared; the ast-adapter log entry), guard suites, ritual, report.**
+  relations declared; the TWO ast-adapter log entries — `cli/ast/runtime` and
+  `cli/ast/report`), guard suites, ritual, report.**
 
 ### Task 4: Extraction and enumeration (R2b)
 
@@ -450,9 +501,12 @@ dictated block goes back to the maintainer.
   and the async walk (list files, read, parse) belongs to the Task-6 pipeline (tests
   parse their snippets via `withParsedFile` directly). Extraction covers spec §6.3 IN
   FULL (`v6-spec.md:241-243`): one FILE scope per file and MODULE scopes, not just
-  named-body scopes — the prototype does these inside `learn`
-  (`prototype-roots2.mjs:409-423`), NOT inside `extractScopes`, so port from both
-  sites. `partitions.ts` exports `derivePartitions(files): PartitionMap` per spec §6.8
+  named-body scopes. The prototype splits these across two sites — the FILE scope is
+  pushed inside `extractScopes` itself (`prototype-roots2.mjs:113`), while MODULE
+  scopes are built inside `learn` (`:420-428`) — port BOTH into `extractUnits` (the
+  module-scope grouping may need the cross-file view; if so it lives in a sibling
+  export in extract.ts fed by the pipeline, not in `learn`-style inline code).
+  `partitions.ts` exports `derivePartitions(files): PartitionMap` per spec §6.8
   IN FULL (`v6-spec.md:267-274`: package-root detection, the 300-scope floor, `_repo`
   merge, the built-in exclusion list). Scope keys: ordinals computed DURING extraction
   (not post-hoc), `skeyR` keys, and `stable_id` =
@@ -461,7 +515,7 @@ dictated block goes back to the maintainer.
   `buildVocabularies(units, partitions)` (the §7.2 per-partition vocabulary builder —
   deterministic selection) and `enumerate(units, vocab): FeatureBag[]` — the twelve
   enumerators with relative-import normalization, per spec §7.1-7.2
-  (`v6-spec.md:277-311`) read IN FULL; prototype `extractScopes` (`:70-120`) is the
+  (`v6-spec.md:277-304`) read IN FULL; prototype `extractScopes` (`:70-120`) is the
   per-scope semantics reference. Tasks 5-7 consume all these shapes.
 
 - [ ] **Step 1: TDD table-driven enumerator tests** — one table per enumerator (spec
@@ -521,22 +575,28 @@ dictated block goes back to the maintainer.
   fallback buckets, locality lattice (dirMin 25, redundant + nested-refinement pruning),
   correlation dedup, seeds cap `seedCapFraction` (0.5) × n_eff_REAL (`:382` — the real
   count, not the effective sum), §9.4g stability days, §9.4h factCap 400. Spec §9 read
-  IN FULL through §9.4 (`v6-spec.md:366-430`); §9.5-§9.11 (trends, drift, telemetry
-  weighting) belong to LATER packages — out of R1-R3, consciously. The R3/R4 seam:
+  IN FULL through §9.4 (`v6-spec.md:366-430`); §9.5-§9.11 (trends, severity, DENY
+  eligibility, the verdict function, exemplar ranking) belong to LATER packages — out
+  of R1-R3, consciously. The R3/R4 seam:
   `mine` takes the same `WeightFn` plus an optional `AgeFn` — absent AgeFn = the
   fail-closed branch, NOT a permissive default. Null-prototype/own-property reads on
   every mined-value map. ALSO: `pipeline.ts` exporting the async composition
-  `runRootsIndex(repoRoot, config): MinedModel` — list files via the io scanner
-  (persistence-adapter helpers; engine may call them, same as the core `engine` type),
+  `runRootsIndex(repoRoot, config): MinedModel` — list files AND read their contents
+  via existing io helpers (persistence-adapter — the scanner for listing, the io
+  file-read helper for content; engine carries `no-direct-fs`, so `node:fs` is not an
+  option here, and engine may call persistence-adapter same as the core `engine` type),
   parse via `withParsedFile`, then extract → partitions → vocabularies → enumerate →
   roles → mine, all pure stages. This is what Task 7's goldens drive in-process and
   what the Task-8 command calls; it does NOT persist (the command composes
   `runRootsIndex` + `stores.ts`).
 
-- [ ] **Step 1: TDD** — MDL math against spec Appendix E's WORKED SCENARIOS E.1-E.7
-  (note: the appendix names a generator script `tests/fixtures/derive-e.ts` that does
-  NOT exist in the tree — the scenarios' stated numbers are the source, each expected
-  number's derivation restated in a comment); the fail-closed case (no AgeFn → zero
+- [ ] **Step 1: TDD** — MDL math against spec Appendix E's WORKED SCENARIOS **E.2-E.4
+  ONLY** (fire-ability, role acceptance, the false-convention control): E.1 and
+  E.5-E.7 exercise later-package machinery (trends §9.5, severity/novelty §9.7,
+  calibration/DENY §14) that this increment does not build. Note: the appendix names a
+  generator script `tests/fixtures/derive-e.ts` that does NOT exist in the tree — the
+  scenarios' stated numbers are the source, each expected number's derivation restated
+  in a comment. Also: the fail-closed case (no AgeFn → zero
   survived → the fact is silent) as its own named test; tau tiers; lattice pruning
   cases; dedup; caps.
 - [ ] **Step 2: Implement as named stage functions** composed by `mine` — each stage
@@ -567,8 +627,9 @@ dictated block goes back to the maintainer.
   accepts nothing history-gated), **determinism control** (double mine → byte-identical
   MinedModel; cache-state independence). Scope: the SIX prototype-measured code grammars
   plus the data golden ONLY (`plugin-marketplace-plan.md:260`) — the other seven code
-  grammars' goldens are R9's, and this boundary is stated in the test file's header
-  comment.
+  grammars' goldens and the mutation harness belong to **R10** (Verification hardening,
+  `plugin-marketplace-plan.md:134-138`; NOT R9, which is protocol/product integrations),
+  and this boundary is stated in the test file's header comment.
 
 - [ ] **Step 1:** Author each golden's builder spec (small, honest repos: enough scopes
   per role for the acceptance math to clear its own thresholds — derive minimum counts
@@ -588,8 +649,10 @@ dictated block goes back to the maintainer.
 - Create: the command's model node under `model/cli/commands/` (read the siblings'
   file/naming convention there first)
 - Test: `source/cli/tests/e2e/cli-roots-basic.test.ts` (spawned) + the sibling unit test
-  the `command` type's `sibling-test-file` aspect demands (read the aspect; match where
-  existing commands keep theirs)
+  the `command` type's `sibling-test-file` aspect demands — its checker also requires
+  the command node to DECLARE `{type: uses, target: cli/tests/unit/cli}` (see
+  `model/cli/commands/advise/yg-node.yaml` for the convention), else it reports
+  `missing-relation`; match where existing commands keep their tests
 - Modify: `docs/` — one new adopter-facing page, which needs THREE mechanical joins,
   not just the file: the page joins `.yggdrasil/model/docs/guides/yg-node.yaml`'s
   `mapping:` (else unmapped-files), the VitePress sidebar
@@ -601,7 +664,7 @@ dictated block goes back to the maintainer.
 - Consumes: everything above.
 - Produces: the MINIMAL command surface R1-R3 needs and no more — exactly two
   commands, named by the DESIGN's vocabulary, not the prototype's: **`yg roots index`**
-  (design §3, `integration-design.md:78`: "Naming uses Yggdrasil's vocabulary: index
+  (design §3, `integration-design.md:74-75`: "Naming uses Yggdrasil's vocabulary: index
   (like a build)" — the prototype's `learn` verb was explicitly rejected; spec §19's
   command list has `index [--full]`, and in R1-R3 every run is full, so the flag is
   accepted-and-ignored-free territory: implement plain `index`, note `--full` becomes
@@ -628,7 +691,9 @@ dictated block goes back to the maintainer.
   claim against the built binary. Wire the three mechanical joins (mapping, sidebar,
   node description). CHANGELOG: ONE `### Added` entry, adopter-voiced.
 - [ ] **Step 4: Graph (command node + log entries), guard suites + the THREE progressive
-  E2E suites (unchanged behavior proof), markdownlint, docs build, ritual, report.**
+  E2E suites — `tests/e2e/cli-progressive-approve.test.ts`, `cli-progressive-byte-guard.test.ts`,
+  `cli-progressive-gate.test.ts` (unchanged behavior proof) — markdownlint, docs build,
+  ritual, report.**
 
 ---
 
@@ -646,3 +711,10 @@ dictated block goes back to the maintainer.
 - Spec-fidelity risk is the increment's biggest: every task's reviewer must verify the
   implementer actually read the cited spec sections (formulas match the spec, not the
   prototype's simplifications, wherever §12 lists a productionized row).
+- **Two conscious narrowings of R1's own text** (`plugin-marketplace-plan.md:45-52`),
+  recorded so no reviewer reads them as omissions: (a) R1 sketches a 16-file
+  `src/roots/` skeleton; this plan creates only the files R1-R3 actually populates —
+  an empty mapped stub is dead weight in the graph, and later packages add their own
+  files when they have content for them. (b) "`rootsVersion` migrations ride the
+  existing `migrations/` infra" is vacuous at version 1: the constant lands in Task 1,
+  and the FIRST migration is authored by whichever future package first bumps it.
