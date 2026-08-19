@@ -2,16 +2,28 @@ name: Roots Engine
 type: roots-engine
 description: "Roots mining engine — pure, deterministic convention-mining
   computation. Maps the config seam (config.ts: rootsConfigHash, a pure
-  sha256-of-canonical-JSON fold over the parsed roots config subtree) and
+  sha256-of-canonical-JSON fold over the parsed roots config subtree),
   binding derivation (binding.ts: deriveBinding — spec §6.2's scope/import/
-  decorator node-type sets and heritage pattern, derived purely from a
+  decorator node-type sets, heritage pattern, and the grammar's complete
+  declared named node-type vocabulary (E3's literal grammar-whose-vocabulary-
+  holds-t domain, threaded through extraction onto every raw scope rather
+  than reconstructed later from a file's extension), derived purely from a
   grammar's already-parsed node-types.json; the lexical decoration-marker
-  predicate and decoration attribution-window test Task 4's extraction module
-  consumes; bindingHash, the per-grammar canonical-JSON content hash a later
-  pipeline folds across every grammar used into the model header's own
-  bindingHash field). Extraction, enumeration, role induction, and the MDL
-  acceptance chain join this node's mapping as those modules land under
-  source/cli/src/roots/."
+  predicate and decoration attribution-window test extract.ts consumes;
+  bindingHash, the per-grammar canonical-JSON content hash a later pipeline
+  folds across every grammar used into the model header's own bindingHash
+  field), and the three-phase extraction/enumeration split (spec §6-§7):
+  extract.ts's extractUnits (per-file, pure, sync scope discovery — named-body
+  scopes plus the one file scope, occurrence ordinals, decoration/heritage
+  attribution) and finalizeUnits (final partitionIds, module-scope synthesis,
+  skeyR, stable_id); partitions.ts's derivePartitions (spec §6.8 package-root
+  detection, the 300-scope floor, the _repo merge, J4) and the
+  makeRootsFileFilters two-flavor exclusion factory; enumerate.ts's
+  buildVocabularies (spec §7.2 per-partition vocabulary selection) and
+  enumerate (the twelve generic feature-space enumerators, spec §5's sparse
+  boolean domains, and the §7.3 static surface-to-overlap-group map). Role
+  induction and the MDL acceptance chain join this node's mapping as those
+  modules land under source/cli/src/roots/."
 relations:
   - target: cli/io/stores
     type: calls
@@ -19,6 +31,13 @@ relations:
     type: uses
   - target: cli/ast/runtime
     type: calls
+  - target: cli/ast/report
+    type: calls
+  - target: cli/utils
+    type: calls
 mapping:
   - source/cli/src/roots/config.ts
   - source/cli/src/roots/binding.ts
+  - source/cli/src/roots/extract.ts
+  - source/cli/src/roots/partitions.ts
+  - source/cli/src/roots/enumerate.ts

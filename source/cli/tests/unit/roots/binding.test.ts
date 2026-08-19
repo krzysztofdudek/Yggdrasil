@@ -125,6 +125,7 @@ describe('bindingHash — pure, stable content hash of a derived binding', () =>
       decorators: binding.decorators,
       imports: binding.imports,
       scope: binding.scope,
+      nodeTypeVocabulary: binding.nodeTypeVocabulary,
     };
     expect(bindingHash(reordered)).toBe(bindingHash(binding));
   });

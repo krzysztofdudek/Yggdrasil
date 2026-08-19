@@ -41,6 +41,34 @@ export interface RootsBinding {
   /** Node type names matching `IMPORT_NODE_TYPE_PATTERN`, not `_`-prefixed. */
   imports: string[];
   /**
+   * REWORK R3: every NAMED node type this grammar's `node-types.json`
+   * declares at all — the grammar's complete declared node-type vocabulary
+   * (spec §7.1 E3's LITERAL domain: "methods in a grammar whose vocabulary
+   * holds `<t>`", `v6-spec.md:213`), independent of what extraction ever
+   * OBSERVES in any given repository or partition. "Named" excludes the
+   * grammar's own anonymous/literal-token entries (punctuation, keywords
+   * emitted as bare strings — e.g. `!=`, `{`) via `nodeType.named !== false`,
+   * the same distinction tree-sitter's own `named`/`namedChildren` draws, AND
+   * excludes `_`-prefixed HIDDEN grammar-internal supertypes (the same
+   * exclusion `imports` already applies below, for the identical reason: a
+   * hidden type is never emitted as a real node's `.type` in an actual
+   * parse). `<t>` values this product ever tests against (statement/
+   * expression/declaration/clause-shaped node types) are always named,
+   * visible types, so both exclusions only shrink a vocabulary set that
+   * would otherwise never be queried, never drop a real `<t>`. Unlike
+   * `scope`/`imports`/`decorators`, this set is NOT filtered by any
+   * structural rule (no field-shape test, no name-pattern match) — it is
+   * the grammar's raw visible-named-type namespace, which is exactly what
+   * "a grammar whose vocabulary holds `<t>`" means literally. `enumerate.ts`
+   * reads this (via
+   * `extract.ts`'s `RawScope.grammarNodeTypeVocabulary`, threaded at
+   * extraction time since only extraction knows which grammar produced a
+   * given file) to resolve E3's domain WITHOUT an extension-observed proxy —
+   * see that file's own header comment for why the proxy this field replaces
+   * was a poison risk.
+   */
+  nodeTypeVocabulary: string[];
+  /**
    * Node type names matching `DECORATOR_NODE_TYPE_PATTERN` — the coarse,
    * grammar-NAME-only match. This set alone over-matches (TypeScript's
    * `type_annotation` satisfies it); a candidate counts as a real decoration
@@ -93,6 +121,7 @@ export function deriveBinding(nodeTypes: NodeTypeEntry[]): RootsBinding {
   const scope = new Set<string>();
   const imports = new Set<string>();
   const decorators = new Set<string>();
+  const nodeTypeVocabulary = new Set<string>();
 
   for (const nodeType of nodeTypes) {
     const fields = nodeType.fields ?? {};
@@ -109,12 +138,27 @@ export function deriveBinding(nodeTypes: NodeTypeEntry[]): RootsBinding {
     if (DECORATOR_NODE_TYPE_PATTERN.test(nodeType.type)) {
       decorators.add(nodeType.type);
     }
+    // REWORK R3: `named !== false` — an entry with no `named` key at all is
+    // treated as named (node-types.json's own schema only ever sets `named`
+    // explicitly to `false` for anonymous/literal-token entries; every named
+    // entry either omits the key or sets it `true`), matching `nodeTypeVocabulary`'s
+    // own doc. `_`-prefixed entries are excluded too, for the SAME reason
+    // `imports` above excludes them: an underscore-prefixed type is a HIDDEN
+    // grammar-internal supertype (a rule-composition abstraction, e.g. Go's
+    // own `_statement`/`_expression`) that tree-sitter never emits as a real
+    // node's `.type` in an actual parse — it can never appear in
+    // `nodeTypesSeen`, so including it here would only pad the vocabulary
+    // with tokens `auto.has:<t>` could never legitimately test.
+    if (nodeType.named !== false && !nodeType.type.startsWith('_')) {
+      nodeTypeVocabulary.add(nodeType.type);
+    }
   }
 
   return {
     scope: [...scope].sort(),
     imports: [...imports].sort(),
     decorators: [...decorators].sort(),
+    nodeTypeVocabulary: [...nodeTypeVocabulary].sort(),
     heritagePattern: HERITAGE_NODE_TYPE_PATTERN.source,
   };
 }

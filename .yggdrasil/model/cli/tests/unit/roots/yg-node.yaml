@@ -18,8 +18,20 @@ description: "Unit tests for the roots convention-mining module: the roots
   loader's happy and loud-failure paths, a build assertion that every
   registry-shipped grammar resolves a readable node-types.json, and the
   lexical decoration-marker/attribution-window helpers table-driven across
-  the six measured grammars' decorator kinds). Later roots tasks add sibling
-  test files to this same node's mapping as their modules land."
+  the six measured grammars' decorator kinds), and extraction/enumeration
+  (extract.test.ts: scope discovery, ordinals, qualifiedName/stable_id
+  identity, the decoration marker/window regressions applied at extraction
+  level, §6.1 error tolerance, §6.7 no-descend and the visit cap, module-scope
+  synthesis; partitions.test.ts: package-root detection, the 300-scope floor,
+  the _repo merge, J4, and the two-flavor exclusion factory; enumerate.test.ts:
+  one table-driven case per applicable Appendix B enumerator against real
+  parsed TypeScript, vocabulary support/top-K selection, the grammar-declared
+  node-type-vocabulary E3 domain (verified against a mixed TypeScript/Python
+  fixture, where a TS-only construct is out of domain for every Python
+  scope), the spec §5 sparse-vs-dense counting property test exercised over
+  every bool surface a mixed-grammar fixture produces, and the §7.3
+  overlap-group map. Later roots tasks add sibling test files to this same
+  node's mapping as their modules land."
 aspects: []
 relations:
   [
@@ -29,6 +41,7 @@ relations:
     { target: cli/io/stores, type: uses },
     { target: cli/model/graph, type: uses },
     { target: cli/tests/support, type: uses },
+    { target: cli/tests/unit/helpers, type: uses },
     { target: cli/ast/runtime, type: uses },
     { target: cli/language-registry, type: uses }
   ]
@@ -40,3 +53,6 @@ mapping:
   - source/cli/tests/unit/roots/roots-golden.test.ts
   - source/cli/tests/unit/roots/genericity-lint.test.ts
   - source/cli/tests/unit/roots/binding.test.ts
+  - source/cli/tests/unit/roots/extract.test.ts
+  - source/cli/tests/unit/roots/partitions.test.ts
+  - source/cli/tests/unit/roots/enumerate.test.ts

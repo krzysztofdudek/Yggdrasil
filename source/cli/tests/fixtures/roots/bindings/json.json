@@ -2,5 +2,19 @@
   "decorators": [],
   "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
   "imports": [],
+  "nodeTypeVocabulary": [
+    "array",
+    "comment",
+    "document",
+    "escape_sequence",
+    "false",
+    "null",
+    "number",
+    "object",
+    "pair",
+    "string",
+    "string_content",
+    "true"
+  ],
   "scope": []
 }

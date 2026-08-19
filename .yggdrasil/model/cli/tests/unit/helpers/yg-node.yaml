@@ -2,7 +2,8 @@ name: Test Helpers
 type: test-suite
 description: "Shared test-fixture builders used across unit test suites (e.g.
   buildTestGraph for graph resolver tests, seedLock for lock-backed verdict
-  tests)"
+  tests, defaultRootsConfig — a fully-defaulted RootsConfig driven through the
+  public parseConfig rather than a hand-built literal — for roots tests)"
 aspects: []
 relations:
   [
@@ -13,7 +14,9 @@ relations:
     { target: cli/core/pairs, type: uses },
     { target: cli/core/reviewer-tiers, type: uses },
     { target: cli/io/lock-store, type: uses },
+    { target: cli/io/parsers/config, type: uses },
     { target: cli/io/stores, type: uses },
+    { target: cli/model/graph, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/relations/extractors, type: uses }
   ]
@@ -23,3 +26,4 @@ mapping:
   - source/cli/tests/unit/helpers/build-test-graph-structure.test.ts
   - source/cli/tests/unit/helpers/seed-lock.ts
   - source/cli/tests/unit/helpers/with-parsed-files.ts
+  - source/cli/tests/unit/helpers/roots-config.ts

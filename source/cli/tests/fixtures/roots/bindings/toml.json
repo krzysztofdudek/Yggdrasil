@@ -2,5 +2,26 @@
   "decorators": [],
   "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
   "imports": [],
+  "nodeTypeVocabulary": [
+    "array",
+    "bare_key",
+    "boolean",
+    "comment",
+    "document",
+    "dotted_key",
+    "escape_sequence",
+    "float",
+    "inline_table",
+    "integer",
+    "local_date",
+    "local_date_time",
+    "local_time",
+    "offset_date_time",
+    "pair",
+    "quoted_key",
+    "string",
+    "table",
+    "table_array_element"
+  ],
   "scope": []
 }
