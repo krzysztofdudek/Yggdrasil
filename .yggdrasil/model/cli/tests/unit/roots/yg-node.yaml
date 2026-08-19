@@ -30,8 +30,22 @@ description: "Unit tests for the roots convention-mining module: the roots
   fixture, where a TS-only construct is out of domain for every Python
   scope), the spec §5 sparse-vs-dense counting property test exercised over
   every bool surface a mixed-grammar fixture produces, and the §7.3
-  overlap-group map. Later roots tasks add sibling test files to this same
-  node's mapping as their modules land."
+  overlap-group map; and role induction (roles.test.ts: the §8.1 feature
+  bag incl. casing-boundary tokenization and the 5-distinct-import cap, §8.2
+  Jaccard, §8.3's per-partition bucket-weighted clustering with an
+  independently-verified incremental-DL MDL cut and a live mutation
+  round-trip on the cut-improvement comparison, §8.4/8.5's nearest-medoid
+  classifier with a live mutation round-trip on the clone-aware runner-up
+  skip, a weighted-medoid tie-break round-trip, §8.6's assignments-map
+  persistence (the #k ordinal and the '-1' ambiguity marker), §8.8's role
+  identity (role_key/label/definingFeatureGroups, each group fresh
+  end-to-end incl. decorator and import-segments), a live mutation
+  round-trip on per-partition isolation and on the minClusterSize floor,
+  §8.9(b)'s file-role plurality incl. a lexicographic tie-break round-trip
+  and w_base weighting, and §8.10's role_lift pure function incl. a live
+  mutation round-trip on the overlap-group held-out exclusion and a
+  decorative-role (role_lift <= 0) case). Later roots tasks add sibling test
+  files to this same node's mapping as their modules land."
 aspects: []
 relations:
   [
@@ -56,3 +70,4 @@ mapping:
   - source/cli/tests/unit/roots/extract.test.ts
   - source/cli/tests/unit/roots/partitions.test.ts
   - source/cli/tests/unit/roots/enumerate.test.ts
+  - source/cli/tests/unit/roots/roles.test.ts

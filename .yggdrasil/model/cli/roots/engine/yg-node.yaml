@@ -21,9 +21,22 @@ description: "Roots mining engine — pure, deterministic convention-mining
   makeRootsFileFilters two-flavor exclusion factory; enumerate.ts's
   buildVocabularies (spec §7.2 per-partition vocabulary selection) and
   enumerate (the twelve generic feature-space enumerators, spec §5's sparse
-  boolean domains, and the §7.3 static surface-to-overlap-group map). Role
-  induction and the MDL acceptance chain join this node's mapping as those
-  modules land under source/cli/src/roots/."
+  boolean domains, and the §7.3 static surface-to-overlap-group map); and
+  role induction (spec §8, roles.ts): buildRoleFeatureBag (the §8.1
+  catalog-free feature bag — tok:/sup:/dec:/imp:, the _untyped
+  minOwnFeatures gate), roleJaccard (§8.2), induceRoles (§8.3's per-partition
+  bucket-weighted average-linkage clustering with an incremental-DL MDL cut,
+  §8.4's own-features-only nearest-medoid classifier, §8.5's clone-aware
+  ambiguity, §8.6's assignments-map ENABLING half, §8.8's role identity —
+  role_key/label/definingFeatureGroups, both fresh from the spec text with
+  no reference implementation — and §8.9(b)'s file-role plurality, also
+  fresh from the spec text), and roleLift (§8.10's pure formula over
+  supplied counts, held-out overlap-group exclusion, the isDecorativeRole
+  <=0 test) — the OWNERSHIP SPLIT stated on `RoleInfo`'s own doc: role_lift
+  is invoked from the real §9.4 counts by the (not yet landed) MDL
+  acceptance chain's one counting pass, never a second implementation of
+  that math. The MDL acceptance chain joins this node's mapping as it lands
+  under source/cli/src/roots/."
 relations:
   - target: cli/io/stores
     type: calls
@@ -41,3 +54,4 @@ mapping:
   - source/cli/src/roots/extract.ts
   - source/cli/src/roots/partitions.ts
   - source/cli/src/roots/enumerate.ts
+  - source/cli/src/roots/roles.ts
