@@ -47,8 +47,9 @@ dictated block goes back to the maintainer.
 
 - **Additive increment.** No existing VERIFICATION-SURFACE output changes byte-for-byte
   (`yg check`/`yg context`/`yg build-context` — the guard suites prove it). Three STATIC
-  TEXT surfaces change deliberately in Task 1 and nowhere else: the init-scaffold managed
-  lists, the knowledge/schema topic text, and `docs/configuration.md`. The Increment-1
+  TEXT surfaces change deliberately in Task 1 — the init-scaffold managed lists, the
+  knowledge/schema topic text, and `docs/configuration.md` — and nowhere else before
+  Task 8, which adds the adopter docs page and the changelog entry. The Increment-1
   guard suites (`build-context-brief.test.ts`, `build-context-progressive.test.ts`,
   `context-file-brief.test.ts`, `context-file.test.ts`, `context-file-type-coverage.test.ts`,
   `build-context.test.ts`) pass unchanged in every task, plus `cli-ast-languages.test.ts`
@@ -94,8 +95,8 @@ dictated block goes back to the maintainer.
   at 32/32 — and the pin is more than one row: the test pins five leaderboard paths and
   counts (32/25/24/23/23), a sixth value (`cli/commands/aspect-test` at exactly 20 with
   a `<23` bound), a descending-order invariant, the title, and a narrative comment, so
-  any movement means updating the whole set coherently; Task 1 creates NEW nodes whose
-  relations may enter the
+  any movement means updating the whole set coherently; Tasks 1 AND 8 create NEW nodes
+  whose relations may enter the
   ranking — if any pinned count or ordering moves, update title+assertion+narrative in
   the same commit); log-gating
   is widespread, NOT command-only — `log_required: true` sits on `command`, `engine`,
@@ -109,9 +110,10 @@ dictated block goes back to the maintainer.
   rules and derivations self-contained; a bare "spec §X" or "Appendix E.3" citation is
   exactly the banned shape. FILE-SIZE DISCIPLINE: roots-engine carries the per-file LLM
   `deterministic` review, and the reviewer prompt ceiling is `max_prompt_chars: 72000`
-  (raised four times already for large engine files; repo-check's headroom step reports
-  the margin but never fails) — keep `mine.ts`/`enumerate.ts` comfortably under it by
-  splitting stages into the module layout the tasks already dictate.
+  (raised four times already for recurring large-file hot spots — the rules template
+  and the check command; repo-check's headroom step reports the margin but never
+  fails) — keep `mine.ts`/`enumerate.ts` comfortably under it by splitting stages into
+  the module layout the tasks already dictate.
   The LLM-reviewed aspects on the new types (e.g. `deterministic`) are filled by that same
   `check --approve` through the keyless `claude-code` provider — expect the fill to take
   real minutes on roots-heavy tasks; that is the ritual working, not a hang.
@@ -183,8 +185,13 @@ dictated block goes back to the maintainer.
   `model.json` (the I2a header field list is stated INLINE at
   `integration-design.md:139-142` — rootsVersion, headSha, lastIndexedSha, clock,
   bindingHash, configHash, seedsHash, decisionsHash, ledgerHash, dirtyHash,
-  candidateCountLog2, rolesStale; R1-R3 fills what it computes and stores explicit
-  nulls for the rest, honestly), `seeds.jsonl`, `decisions.jsonl`, `ledger.jsonl`, and
+  candidateCountLog2, rolesStale; R1-R3 fills what it computes — including
+  `bindingHash` (exported by Task 3's `binding.ts` as the sha256 of the canonical
+  derived binding; design §6 assigns it there and §5's cache story keys on it) and
+  `candidateCountLog2` (computed by Task 6's `mine`, spec §9.4a) — with the Task-8
+  command writing both into the header at persist time, and stores explicit nulls
+  ONLY for what R1-R3 genuinely cannot compute: the R4 history fields), `seeds.jsonl`,
+  `decisions.jsonl`, `ledger.jsonl`, and
   the gitignored `.cache/`/`.state/` roots — every write canonical + atomic +
   schema-versioned (`rootsVersion`). THE MODEL-BODY SEAM, fixed here so no later task
   reopens this file: `stores.ts` owns `RootsModelHeader` (the I2a list above) and is
@@ -193,7 +200,17 @@ dictated block goes back to the maintainer.
   body as `unknown` for the caller to narrow. The body's concrete type (`MinedModel`)
   is declared in Task 6's `mine.ts` (engine-side, where it is produced), and Task 8
   composes the two — `stores.ts` is NOT touched after this task, so the log-gated
-  `roots-store` node drifts only once. Tasks 3-8 import these names.
+  `roots-store` node drifts only once. THE SEEDS SEAM, fixed here for the same reason:
+  the record types of the jsonl stores that CROSS the engine boundary (`SeedEntry`,
+  for seeds.jsonl) declare in `model/graph.ts` beside `RootsConfig` (types layer —
+  both roots types have `uses: [types]`, so stores reads them typed and engine
+  consumes them as values WITHOUT any engine→store edge); the prototype's pipeline
+  reads seeds off disk itself (`learn` at `prototype-roots2.mjs:439`), which does NOT
+  port — under the dictated allowlist engine cannot call the store, so seeds flow as
+  an explicit PARAMETER: the Task-8 command loads them via `stores.ts` and passes
+  them into the Task-6 pipeline. WHO IMPORTS WHAT: the command and tests import the
+  store API; engine files NEVER import `stores.ts` — store-shaped values reach engine
+  through parameters and shared types only.
 
 - [ ] **Step 1: The approved architecture block.** The file's real per-type schema
   (verified at ff71299): single-line quoted `description:`; `enforce: strict`; `when:` as
@@ -244,7 +261,7 @@ dictated block goes back to the maintainer.
     log_required: true
     parents: [module]
     relations:
-      calls: [roots-engine, persistence-adapter, utility]
+      calls: [persistence-adapter, utility]
       uses: [types]
       default: deny
 ```
@@ -275,7 +292,9 @@ dictated block goes back to the maintainer.
   command composes them). NOTHING else in the file changes. Rationale worth keeping in
   the report: roots-engine deliberately has NO `formatter` edge — engine-layer code must
   not call `buildIssueMessage` (the `no-buildissuemessage-in-engine` rule on io/core/ast
-  applies to this layer equally); engine returns structured data or throws typed errors,
+  states the same PRINCIPLE — its checker is path-gated to those trees and inert on
+  roots, so here the missing edge is the enforcement); engine returns structured data
+  or throws typed errors,
   and the command formats. If the file's schema demands a field these blocks omit, or an
   aspect id fails to resolve, STOP and report rather than inventing values.
 
@@ -351,8 +370,10 @@ dictated block goes back to the maintainer.
   freshly built binary on the same fixture and asserts byte-identity with the golden —
   `tests/e2e/cli-aspects-health.test.ts:134-138` (`DEFAULT_ASPECTS_GOLDEN`) is the
   existing precedent proving this pattern works and the output is byte-stable.
-  Lives in its own spawned test file (`tests/unit/roots/dormancy.test.ts` or per the
-  tests tree's spawn convention — report the choice). Graph: map the new test dir (a
+  Lives at `tests/unit/roots/dormancy.test.ts` — decided: the unit tree, mapped by
+  this step's own `model/cli/tests/unit/roots/` node (spawning from a unit test is
+  fine and precedented by Task 2's lint proof; an `e2e/` home would need its own
+  per-family e2e node for no benefit). Graph: map the new test dir (a
   new `model/cli/tests/unit/roots/` node — `model/cli/tests/unit/` holds per-area
   children, follow that convention); declare relations; log entries for every log-gated
   node the diff touched (`cli/io/parsers/config` and the new roots nodes;
@@ -422,10 +443,14 @@ dictated block goes back to the maintainer.
   helpers but not the `*-parser.ts` files typed parser-adapter), `src/model/` (the
   `RootsConfig` type), plus `node:` builtins — NO `src/formatters/` entry: the graph
   gives roots-engine no formatter edge, and the lint must not be permissive where the
-  graph is restrictive (a DELIBERATE departure from
-  `integration-design.md:253-254`, which allowed `message-builder` as a roots import —
-  that allowance predates the inline-config-parsing decision that removed roots' only
-  message-building need). Everything else errors, as does any specifier matching
+  graph is restrictive. (That is a DELIBERATE departure from the design §6 preamble's
+  import allowance at `integration-design.md:223-225`, which listed
+  `formatters/message-builder.ts` among roots' permitted imports — an allowance that
+  predates the inline-config-parsing decision that removed roots' only
+  message-building need. The `:252` mandate that CLI-facing errors go through
+  `buildIssueMessage` still holds — it is honored by the Task-8 COMMAND, which formats
+  what the engine returns as structured data.) Everything else errors, as does any
+  specifier matching
   `/tree-sitter|\.wasm/` — including `'web-tree-sitter'`: roots gets AST TYPES
   (`Tree`, nodes) via re-exports from `src/ast/types.ts`, never from the package
   (Task 3 adds the re-export if absent). Also error on per-language switch heuristics:
@@ -511,7 +536,9 @@ dictated block goes back to the maintainer.
   filenames cannot be cheaply renamed later — get this right now); `binding.ts`
   exporting PURE `deriveBinding(nodeTypes): RootsBinding` — the scope/import/decorator
   node-kind sets with the lexical `@`/`[` marker rule and the decoration attribution
-  window `(loRow, bodyRow]` — per spec §6.2 (`v6-spec.md:228-240`) read IN FULL; the
+  window `(loRow, bodyRow]` — per spec §6.2 (`v6-spec.md:228-240`) read IN FULL — plus
+  `bindingHash(binding): string` (sha256 of the canonical-JSON binding; the Task-8
+  command writes it into the model header); the
   prototype's `bindingFor()` (`prototype-roots2.mjs:34-45`) and `extractScopes`' window
   logic (`:85-91`) are the semantics reference. Tasks 4-7 consume `RootsBinding`.
 
@@ -643,7 +670,11 @@ dictated block goes back to the maintainer.
   `mine` takes the same `WeightFn` plus an optional `AgeFn` — absent AgeFn = the
   fail-closed branch, NOT a permissive default. Null-prototype/own-property reads on
   every mined-value map. ALSO: `pipeline.ts` exporting the async composition
-  `runRootsIndex(repoRoot, config): Promise<MinedModel>` — list files AND read their contents
+  `runRootsIndex(repoRoot, config, seeds: SeedEntry[]): Promise<MinedModel>` — seeds
+  arrive as a PARAMETER per Task 1's seeds seam (engine never reads the store; the
+  prototype's in-`learn` seed read at `:439` does not port; an empty array is the
+  no-seeds case, and Task 7's goldens pass whatever their fixtures carry) — list
+  files AND read their contents
   via existing io helpers (persistence-adapter — the scanner for listing, the io
   file-read helper for content; engine carries `no-direct-fs`, so `node:fs` is not an
   option here, and engine may call persistence-adapter same as the core `engine` type),
@@ -706,13 +737,20 @@ dictated block goes back to the maintainer.
 
 **Files:**
 - Create: `source/cli/src/cli/roots.ts` (exports `registerRootsCommand` — the `content:`
-  regex in the `command` type's `when:` is what classifies it; `src/roots/cli.ts` would
-  orphan outside every type's `when:`)
+  regex in the `command` type's `when:` is what classifies it; a `src/roots/cli.ts`
+  would instead match `roots-engine`'s `when:` and be judged as pure engine code —
+  no console, no formatter, no Commander — which a command cannot satisfy)
 - Modify: `source/cli/src/bin.ts` (registration)
-- Create: the command's model node under `model/cli/commands/` (read the siblings'
-  file/naming convention there first) AND the e2e test's model node under
+- Create: THREE model nodes — the command's node under `model/cli/commands/` (read the
+  siblings' file/naming convention there first); the e2e test's node under
   `model/cli/tests/e2e/` (the tree keeps per-file/family e2e nodes there — a new
-  spawned suite without one is an unmapped file)
+  spawned suite without one is an unmapped file); AND a new
+  `model/cli/tests/unit/cli/roots/` node mapping the sibling unit test. Do NOT map the
+  sibling test into `cli/tests/unit/cli/general` — that umbrella's
+  `max_direct_relations` ceiling is DELIBERATELY exact at 32 and the leaderboard test
+  pins it, so a 33rd relation turns a pinned integration test red; a child node costs
+  nothing, and `sibling-test-file`'s checker walks descendants, so it satisfies the
+  aspect.
 - Test: `source/cli/tests/e2e/cli-roots-basic.test.ts` (spawned) + the sibling unit test
   the `command` type's `sibling-test-file` aspect demands — its checker derives the
   expected filename from the command file's stem, so `src/cli/roots.ts` requires
@@ -735,8 +773,10 @@ dictated block goes back to the maintainer.
   (like a build)" — the prototype's `learn` verb was explicitly rejected; spec §19's
   command list has `index [--full]`, and in R1-R3 every run is full, so the flag is
   accepted-and-ignored-free territory: implement plain `index`, note `--full` becomes
-  meaningful with R4's incrementality) — runs `runRootsIndex` and persists via
-  `stores.ts`; refuses with what/why/next when no `roots:` block — and
+  meaningful with R4's incrementality) — loads seeds via `stores.ts` (empty on a
+  fresh repo), runs `runRootsIndex(repoRoot, config, seeds)`, and persists the result
+  via `stores.ts` (the command is the ONLY composer of store and engine, per Task 1's
+  seams); refuses with what/why/next when no `roots:` block — and
   **`yg roots status`** (reads the model, reports field/fact counts and dormancy
   honestly; NO `--exit-code` — that flag is a later package's single opt-in gate).
   Registration per `bin.ts` + `preamble.ts` patterns. The `command` type's aspects bind
@@ -788,3 +828,9 @@ dictated block goes back to the maintainer.
   files when they have content for them. (b) "`rootsVersion` migrations ride the
   existing `migrations/` infra" is vacuous at version 1: the constant lands in Task 1,
   and the FIRST migration is authored by whichever future package first bumps it.
+  And one conscious PULL-FORWARD in the other direction: R9's list includes the
+  `roots:` schema-doc addition and user-docs pages, but AGENTS.md's doc-consistency
+  rule ("changes are not complete until every document describing that behavior is
+  consistent") makes deferring them dishonest once the block and commands exist — so
+  Task 1 documents the config block and Task 8 ships the adopter page now, and R9
+  keeps only what R4+ behavior adds later.
