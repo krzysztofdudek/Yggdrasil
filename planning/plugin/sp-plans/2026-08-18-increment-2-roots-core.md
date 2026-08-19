@@ -46,10 +46,12 @@ dictated block goes back to the maintainer.
 ## Global Constraints
 
 - **Additive increment.** No existing VERIFICATION-SURFACE output changes byte-for-byte
-  (`yg check`/`yg context`/`yg build-context` — the guard suites prove it). Three STATIC
-  TEXT surfaces change deliberately in Task 1 — the init-scaffold managed lists, the
-  knowledge/schema topic text, and `docs/configuration.md` — and nowhere else before
-  Task 8, which adds the adopter docs page and the changelog entry. The Increment-1
+  (`yg check`/`yg context`/`yg build-context` — the guard suites prove it). The STATIC
+  TEXT surfaces that change deliberately in Task 1 are exactly: the init-scaffold
+  managed lists, the knowledge topic text (configuration, onboarding, cli-reference),
+  the schema doc, and the docs pages `configuration.md` and `cli-reference.md` —
+  and nowhere else before Task 8, which adds the adopter docs page and the changelog
+  entry. The Increment-1
   guard suites (`build-context-brief.test.ts`, `build-context-progressive.test.ts`,
   `context-file-brief.test.ts`, `context-file.test.ts`, `context-file-type-coverage.test.ts`,
   `build-context.test.ts`) pass unchanged in every task, plus `cli-ast-languages.test.ts`
@@ -183,14 +185,22 @@ dictated block goes back to the maintainer.
   dormant); `rootsConfigHash(config): string` (sha256 of the canonical-JSON of the
   parsed subtree — pure, engine-side); `stores.ts` exporting typed read/write for
   `model.json` (the I2a header field list is stated INLINE at
-  `integration-design.md:139-142` — rootsVersion, headSha, lastIndexedSha, clock,
+  `integration-design.md:140-142` — rootsVersion, headSha, lastIndexedSha, clock,
   bindingHash, configHash, seedsHash, decisionsHash, ledgerHash, dirtyHash,
-  candidateCountLog2, rolesStale; R1-R3 fills what it computes — including
-  `bindingHash` (exported by Task 3's `binding.ts` as the sha256 of the canonical
-  derived binding; design §6 assigns it there and §5's cache story keys on it) and
-  `candidateCountLog2` (computed by Task 6's `mine`, spec §9.4a) — with the Task-8
-  command writing both into the header at persist time, and stores explicit nulls
-  ONLY for what R1-R3 genuinely cannot compute: the R4 history fields), `seeds.jsonl`,
+  candidateCountLog2, rolesStale; EVERY field has an assigned producer — this is the
+  full ownership table, and Task 8's command assembles the header from it at persist
+  time: `rootsVersion` = Task 1's constant; `configHash` = Task 1's `rootsConfigHash`;
+  `seedsHash`/`decisionsHash`/`ledgerHash` = computed BY `stores.ts` itself (sha256 of
+  each store file's canonical content, absent file = hash of empty — this is what Task
+  1 Step 5's decisionsHash test exercises); `bindingHash` = Task 3's `binding.ts`
+  (sha256 of the canonical derived binding; design §6 assigns it there);
+  `candidateCountLog2` = Task 6's `mine` (spec §9.4a says it is recorded in the
+  header); `headSha`, `clock` (HEAD committer timestamp, spec's clock rule), and
+  `dirtyHash` (dirty-file content hashes) = the Task-8 COMMAND, via small ADDITIVE
+  exported helpers Task 8 adds to `src/utils/git.ts` (utility layer — it has no
+  HEAD-sha/timestamp getter today; hashing via the io helpers, which command legally
+  calls); explicit nulls ONLY for `lastIndexedSha` and `rolesStale`, the two genuinely
+  R4 fields — resume state and incremental re-induction), `seeds.jsonl`,
   `decisions.jsonl`, `ledger.jsonl`, and
   the gitignored `.cache/`/`.state/` roots — every write canonical + atomic +
   schema-versioned (`rootsVersion`). THE MODEL-BODY SEAM, fixed here so no later task
@@ -220,7 +230,7 @@ dictated block goes back to the maintainer.
   `parents: [module]`; `relations:` with `calls:`/`uses:`/`default: deny`. Overlap is
   resolved by DISJOINTNESS BY CONSTRUCTION, not precedence — peers carve each other out
   (see the `engine` type, `:86-115`, carving out the two `reviewer-dispatch` files with
-  `not:` at `:98-99`, `reviewer-dispatch` itself at `:116-135`; and `command` vs
+  `not:` at `:98-99`, `reviewer-dispatch` itself at `:116-134`; and `command` vs
   `command-support`: the `content:` regex at `:48` vs its negation at `:74`). Append to
   `node_types:` exactly these two types:
 
@@ -327,7 +337,7 @@ dictated block goes back to the maintainer.
 - [ ] **Step 4: Stores.** Read design §4 IN FULL (`integration-design.md:122-165`).
   Implement `stores.ts`: layout exactly as §4 (committed `model.json` + `seeds.jsonl` +
   `decisions.jsonl` + `ledger.jsonl`; gitignored `.cache/`, `.state/`), the I2a model
-  header (field list inline at `:139-142`), `rootsVersion` constant, reads tolerant of
+  header (field list inline at `:140-142`), `rootsVersion` constant, reads tolerant of
   absent files (dormant/fresh repos), writes canonical+atomic. Extend `init-scaffold.ts`
   with EXACTLY the three `.gitattributes` lines design §4 states at `:146-150` — two
   `merge=union` entries plus the `linguist-generated` entry for `model.json` (they are
@@ -337,9 +347,15 @@ dictated block goes back to the maintainer.
   true up EVERY surface that byte-pins or reproduces those lists — there are FOUR:
   `tests/unit/cli/init-upgrade.test.ts` (byte-pins), `templates/knowledge/configuration.ts`
   (`:315-333` prose list), `templates/knowledge/onboarding.ts` (`:328-336` lists the same
-  entries), and `docs/configuration.md` (`:355-365` table of managed gitignore entries —
-  and since that page also documents the config blocks, add the `roots:` block section
-  there in the same pass, matching the `signals:`/`events:` sections' shape).
+  entries), and `docs/configuration.md` — which needs MORE than its `:355-365`
+  gitignore table: that page asserts the top-level key count in THREE places that all
+  go false with an eleventh key ("Those ten are the whole of it" + the key list at
+  `:38-39`, the warning box "the parser reads the ten keys above" at `:41-42`, and the
+  `### Optional` bullet list at `:29-37`), plus the full annotated example at `:58` —
+  update every one of them AND add the `roots:` block section, matching the
+  `signals:`/`events:` sections' shape (`:483`/`:506`). The same completeness sweep
+  applies to `templates/knowledge/configuration.ts`: its annotated example
+  (`:14-45`) and section structure, not just the `:315-333` gitignore list.
   Checked-and-clear, so do NOT touch it: `tests/support/progressive-fixture.ts`'s
   `YGG_GITIGNORE` (`:264-272`) is a deliberately trimmed subset ("trimmed to the
   entries this fixture can actually produce") and no progressive test runs
@@ -372,7 +388,8 @@ dictated block goes back to the maintainer.
   existing precedent proving this pattern works and the output is byte-stable.
   Lives at `tests/unit/roots/dormancy.test.ts` — decided: the unit tree, mapped by
   this step's own `model/cli/tests/unit/roots/` node (spawning from a unit test is
-  fine and precedented by Task 2's lint proof; an `e2e/` home would need its own
+  fine — the committed precedent is `tests/unit/bounty2/gitignore.test.ts:50`, which
+  spawns `dist/bin.js` from the unit tree today; an `e2e/` home would need its own
   per-family e2e node for no benefit). Graph: map the new test dir (a
   new `model/cli/tests/unit/roots/` node — `model/cli/tests/unit/` holds per-area
   children, follow that convention); declare relations; log entries for every log-gated
@@ -413,12 +430,14 @@ dictated block goes back to the maintainer.
   helpers (e.g. a deterministic env builder taking a commit index, layered on
   `gitFixtureEnv`) — the existing two exports' behavior stays byte-identical for every
   current caller; `TZ=UTC` goes only in the NEW deterministic env, never the shared
-  block. Test: two builds of the same scripted history produce IDENTICAL commit SHAs
-  (the real determinism proof).
+  block. Test: `tests/unit/support/git-fixture-determinism.test.ts` (the
+  `model/cli/tests/unit/` tree already has a per-area `support` child — map it there):
+  two builds of the same scripted history produce IDENTICAL commit SHAs (the real
+  determinism proof).
 - [ ] **Step 2: Golden harness — bundles, not directories.** A working golden repo
   cannot be committed as a plain directory (its `.git` would become a gitlink); the
   authorities are explicit that goldens ship as builder specs + `git bundle`s
-  (spec §20.2 `v6-spec.md:715`, design §13.2 `integration-design.md:487-490`).
+  (spec §20.2 `v6-spec.md:713`, design §13.2 `integration-design.md:487-490`).
   `roots-golden.ts`: a golden spec = ordered commit list (author id, files map,
   message); `buildGoldenRepo` scripts it through the deterministic fixture;
   `assertGoldenBundleEquivalence` rebuilds from the spec, clones the committed bundle,
@@ -506,7 +525,11 @@ dictated block goes back to the maintainer.
   philosophy; the gate builds before tests, so in CI the directory is always there).
   Read via `node:fs` directly, exactly as `parser.ts` itself does (`:4`) —
   ast-adapter's allowlist has NO persistence-adapter edge, so the io-helpers instinct
-  would create an unsanctioned relation. No change to `parser.ts` needed.
+  would create an unsanctioned relation. No change to `parser.ts` needed. Coverage
+  note: `src/ast/**` IS coverage-measured and the throw branch never fires in CI (the
+  gate builds before tests) — make the candidate list injectable (an optional
+  parameter defaulting to the two real candidates) so the error branch gets a direct
+  unit test instead of dead uncovered lines.
 - Modify: `source/cli/src/ast/types.ts` — add `export type` re-exports for the
   web-tree-sitter types roots needs (`Tree`, node types); verified: it imports
   `type { Tree }` today WITHOUT re-exporting it, so this step is genuinely needed;
@@ -531,8 +554,16 @@ dictated block goes back to the maintainer.
   keys on the asset name" — concretely: strip the `tree-sitter-` prefix and `.wasm`
   suffix, so `tree-sitter-c_sharp.wasm` → asset `c_sharp` → fixture `c_sharp.json`,
   and the loader reads `tree-sitter-<asset>.node-types.json`); the asset name derives
-  from the registry entry's wasm
-  filename, and the 16 committed snapshot fixtures are named `<asset>.json` (committed
+  from the registry entry's wasm filename. `RootsBinding` carries the FULL §6.2
+  derivation, not just the three node-kind sets: also the HERITAGE node-type matcher
+  (the prototype's `heritageRe` at `:39`) and the scope-KIND rule (`type` when the
+  body subtree contains a further scope, else `method` — prototype `:81-82`). And
+  because `deriveBinding` is pure over node-types and cannot itself apply
+  extraction-time rules, `binding.ts` ALSO exports the two helpers Task 4 calls:
+  the lexical decoration-marker predicate (text begins `@`/`[` after whitespace) and
+  the attribution-window test over `(loRow, bodyRow]` — named exports with unit
+  tests here, so Task 4 consumes them instead of re-deriving. The 16 committed
+  snapshot fixtures are named `<asset>.json` (committed
   filenames cannot be cheaply renamed later — get this right now); `binding.ts`
   exporting PURE `deriveBinding(nodeTypes): RootsBinding` — the scope/import/decorator
   node-kind sets with the lexical `@`/`[` marker rule and the decoration attribution
@@ -577,34 +608,43 @@ dictated block goes back to the maintainer.
 
 **Interfaces:**
 - Consumes: `RootsBinding` (Task 3), parses via `withParsedFile`.
-- Produces — THE PARSE SEAM, fixed here: extraction is PURE and SYNCHRONOUS over an
-  already-parsed tree — `extractUnits(relPath, source, tree, binding): ScopeUnit[]` —
-  and the async walk (list files, read, parse) belongs to the Task-6 pipeline (tests
-  parse their snippets via `withParsedFile` directly). Extraction covers spec §6.3 IN
-  FULL (`v6-spec.md:241-243`): one FILE scope per file and MODULE scopes, not just
-  named-body scopes. The prototype splits these across two sites — the FILE scope is
-  pushed inside `extractScopes` itself (`prototype-roots2.mjs:113`), while MODULE
-  scopes are built inside `learn` (`:420-428`) — port BOTH into `extractUnits` (the
-  module-scope grouping may need the cross-file view; if so it lives in a sibling
-  export in extract.ts fed by the pipeline, not in `learn`-style inline code).
-  `partitions.ts` exports `derivePartitions(files): PartitionMap` per spec §6.8
-  IN FULL (`v6-spec.md:267-274`: package-root detection, the 300-scope floor, `_repo`
-  merge, the built-in exclusion list). Scope keys: ordinals computed DURING extraction
-  (not post-hoc), `skeyR` keys, and `stable_id` =
-  sha256hex(partitionId∥relPath∥kind∥qualifiedName∥arity)[:16] — the PRODUCTION scheme,
-  spec §6.4 `v6-spec.md:245`, NOT the prototype's simple key. `enumerate.ts` exports
-  `buildVocabularies(units, partitions)` (the §7.2 per-partition vocabulary builder —
-  deterministic selection) and `enumerate(units, vocab): FeatureBag[]` — the twelve
-  enumerators with relative-import normalization, per spec §7.1-7.2
-  (`v6-spec.md:277-304`) read IN FULL; prototype `extractScopes` (`:70-120`) is the
-  per-scope semantics reference. Tasks 5-7 consume all these shapes.
+- Produces — THE PARSE SEAM AND THE PHASE ORDER, fixed here. Per-file extraction is
+  PURE and SYNCHRONOUS over an already-parsed tree, and the async walk (list files,
+  read, parse) belongs to the Task-6 pipeline (tests parse their snippets via
+  `withParsedFile` directly). But partitioning depends on SCOPE counts (spec §6.8's
+  300-SCOPE floor, `v6-spec.md:268` — a partition under 300 scopes merges into
+  `_repo`) and `stable_id`/module resolution depend on the FINAL partitionId — so
+  extraction is TWO-PHASE, matching the prototype's real order (file walk for roots
+  at `prototype-roots2.mjs:427-429`, merge over SCOPES at `:431-435`):
+  (1) `extractUnits(relPath, source, tree, binding): RawScope[]` — per-file, pure:
+  named-body scopes AND the one FILE scope per file (the prototype pushes it inside
+  `extractScopes` at `:113`), ordinals computed DURING extraction (not post-hoc),
+  kinds, decorations — NO partitionId, NO stable_id yet.
+  (2) `derivePartitions(files, rawScopes): PartitionMap` in `partitions.ts` — spec
+  §6.8 IN FULL (`v6-spec.md:267-274`): package-root detection from the file walk, the
+  300-scope floor over the raw scopes, `_repo` merge, the built-in exclusion list.
+  (3) `finalizeUnits(rawScopes, partitions): ScopeUnit[]` — assigns final
+  partitionIds, resolves MODULE scopes (spec §6.3 `:241-243` — "nearest of partition
+  root or first directory with ≥ 3 code files" is partition-dependent, which is why
+  the prototype builds module scopes cross-file in `learn` at `:420-426`), and mints
+  the keys: `skeyR` (the prototype's `rel#kind#name[#ord]` key at `:121`) and
+  `stable_id` = sha256hex(partitionId∥relPath∥kind∥qualifiedName∥arity)[:16] — the
+  PRODUCTION scheme, spec §6.4 `v6-spec.md:245`, NOT the prototype's simple key.
+  `enumerate.ts` exports `buildVocabularies(units, partitions)` (the §7.2
+  per-partition vocabulary builder — deterministic selection) and
+  `enumerate(units, vocab): FeatureBag[]` — the twelve enumerators with
+  relative-import normalization, per spec §7.1-7.2 (`v6-spec.md:277-304`) read IN
+  FULL; prototype `extractScopes` (`:70-120`) is the per-scope semantics reference.
+  Tasks 5-7 consume all these shapes; Task 6's pipeline composes them in exactly this
+  phase order.
 
 - [ ] **Step 1: TDD table-driven enumerator tests** — one table per enumerator (spec
   Appendix B rows are the source; read the appendix), real source snippets per measured
   grammar, exact expected feature bags; partition cases (package roots, the 300-scope
   floor, `_repo` merge) hand-built and hand-derived.
-- [ ] **Step 2: Implement extract.ts + partitions.ts, then enumerate.ts** to the
-  tables; ordinals/skeyR/stable_id everywhere a key leaves the module.
+- [ ] **Step 2: Implement the three phases (extract.ts's `extractUnits` +
+  `finalizeUnits`, partitions.ts between them), then enumerate.ts** to the tables;
+  ordinals/skeyR/stable_id everywhere a key leaves the module.
 - [ ] **Step 3: §7.3 tautology filter** (productionized here per R3's ownership note —
   implement it in enumerate.ts where candidate features are born, since its absence
   mis-sizes the repo-wide `C` count; spec §7.3 `v6-spec.md:306-308`).
@@ -627,7 +667,7 @@ dictated block goes back to the maintainer.
   §8.10 `v6-spec.md:359-362`; NO reference implementation exists, the prototype's proxy
   at `:252-255` is explicitly not it — implement fresh from the formula and derive unit
   fixtures from the spec's own worked values where its appendix provides them). Spec §8
-  (`v6-spec.md:314-362`) read IN FULL — INCLUDING §8.9(b) file-scope derived roles
+  (`v6-spec.md:314-365`) read IN FULL — INCLUDING §8.9(b) file-scope derived roles
   (`:357`), which design §12 lists as "specified but never built": it is THIS task's,
   implemented fresh from the spec text like role_lift. Prototype
   `induceRoles`/`assignAll` (`:135-173`) is the clustering semantics reference. Task 6
@@ -663,7 +703,11 @@ dictated block goes back to the maintainer.
   pre-seed instances: not the raw instance count, and not the post-seed effective sum;
   the prototype computes it at `:201-202` by summing `counts`, which accumulate
   weights, before seeds are added with zero raw weight), §9.4g stability days, §9.4h
-  factCap 400. Spec §9 read
+  factCap 400 — and §9.4g's R3 SHAPE stated plainly: stability days compute from
+  trend windows, trends are a later package, so in this increment the field is
+  STRUCTURALLY ABSENT (the spec's own "absent trends ⇒ omitted" rule) — implement the
+  stage so absence is the modeled outcome, with a unit case asserting it, never a
+  fabricated value. Spec §9 read
   IN FULL through §9.4 (`v6-spec.md:366-430`); §9.5-§9.11 (trends, severity, DENY
   eligibility, the verdict function, exemplar ranking) belong to LATER packages — out
   of R1-R3, consciously. The R3/R4 seam:
@@ -673,20 +717,32 @@ dictated block goes back to the maintainer.
   `runRootsIndex(repoRoot, config, seeds: SeedEntry[]): Promise<MinedModel>` — seeds
   arrive as a PARAMETER per Task 1's seeds seam (engine never reads the store; the
   prototype's in-`learn` seed read at `:439` does not port; an empty array is the
-  no-seeds case, and Task 7's goldens pass whatever their fixtures carry) — list
-  files AND read their contents
+  no-seeds case, and Task 7's goldens pass whatever their fixtures carry). The
+  pipeline itself constructs the R1 defaults — the uniform `WeightFn`, and NO AgeFn —
+  and R4 will widen this via a trailing options parameter (the same
+  no-signature-break seam Task 5 documents for `induceRoles`); `mine.ts` also exports
+  an `isMinedModel` narrowing guard, because `readModel` returns the body as
+  `unknown` and Task 8's `status` is the first consumer that must narrow it (command
+  → roots-engine is a sanctioned edge). The pipeline lists
+  files AND reads their contents
   via existing io helpers (persistence-adapter — the scanner for listing, the io
   file-read helper for content; engine carries `no-direct-fs`, so `node:fs` is not an
   option here, and engine may call persistence-adapter same as the core `engine` type),
-  parse via `withParsedFile`, then extract → partitions → vocabularies → enumerate →
-  roles → mine, all pure stages. This is what Task 7's goldens drive in-process and
+  parse via `withParsedFile`, then Task 4's three phases in order — extractUnits per
+  file → derivePartitions → finalizeUnits — then vocabularies → enumerate → roles →
+  mine, all pure stages. Files whose extension has no registered grammar are SKIPPED
+  via a registry lookup BEFORE parsing (`getParser` throws on unknown extensions — the
+  registry, not the exception, is the filter). This is what Task 7's goldens drive
+  in-process and
   what the Task-8 command calls; it does NOT persist (the command composes
   `runRootsIndex` + `stores.ts`).
 
 - [ ] **Step 1: TDD** — MDL math against spec Appendix E's WORKED SCENARIOS **E.2-E.4
   ONLY** (fire-ability, role acceptance, the false-convention control): E.1 and
-  E.5-E.7 exercise later-package machinery (trends §9.5, severity/novelty §9.7,
-  calibration/DENY §14) that this increment does not build. Note: the appendix names a
+  E.5-E.7 exercise machinery this increment does not build — E.1 states Δ values, the
+  §9.7 verdict-function quantity whose finite-n condition is the fire-ability gate we
+  DO build; E.5 is the attractor/survived-raw impossibility argument; E.6 is §9.7
+  novelty capping; E.7 is §14 calibration/DENY Wilson floors. Note: the appendix names a
   generator script `tests/fixtures/derive-e.ts` that does NOT exist in the tree — the
   scenarios' stated numbers are the source, each expected number's derivation restated
   in a comment. Also: the fail-closed case (no AgeFn → zero
@@ -714,11 +770,24 @@ dictated block goes back to the maintainer.
   builder⇒bundle equivalence check per golden, the SEVENTH golden `data/` (mixed
   json/yaml/toml — design §5.4/§13.2's mandated data golden: empty scope sets flow
   through the whole pipeline without error and without inventing structural
-  conventions), and three increment-wide controls:
-  **null control** (shuffled-label null on every golden → 0 accepted role/locality
-  conventions), **fail-closed control** (a golden with history stripped mines a field and
-  accepts nothing history-gated), **determinism control** (double mine → byte-identical
-  MinedModel; cache-state independence). Scope: the SIX prototype-measured code grammars
+  conventions), and three increment-wide controls — each with a REAL injection point,
+  stated here because `runRootsIndex` deliberately exposes none:
+  **null control** (spec Appendix H.6's shuffled-label null) — composes the EXPORTED
+  stages directly instead of the pipeline wrapper: run extract→partitions→finalize→
+  vocabularies→enumerate on a golden, PERMUTE each surface's values across scopes
+  between enumerate and mine, then assert mine accepts 0 role/locality conventions;
+  **fail-closed control** — two halves, both executable NOW: (a) pipeline-level, every
+  golden's MinedModel contains ZERO history-gated acceptances (no AgeFn exists in
+  R1-R3, so survived-raw must hold everything back — a golden that accepts a
+  history-gated fact proves the inversion bug); (b) unit-level at the mine stage,
+  which DOES take the optional AgeFn: a hand-built case where injecting a synthetic
+  AgeFn flips the same fact from silent to accepted, proving the branch points the
+  right way (a "history-stripped golden" would prove nothing here — without any
+  AgeFn, stripped and unstripped goldens are indistinguishable by construction);
+  **determinism control** (double `runRootsIndex` → byte-identical MinedModel; note
+  the blob cache is R4 — nothing writes `.cache/` this increment, so cache
+  independence is NOT claimable yet and is not asserted). Scope: the SIX
+  prototype-measured code grammars
   plus the data golden ONLY (`plugin-marketplace-plan.md:260`) — the other seven code
   grammars' goldens and the mutation harness belong to **R10** ("roots test suites
   (design §13)", `plugin-marketplace-plan.md:134-138`; NOT R9, which is
@@ -741,6 +810,12 @@ dictated block goes back to the maintainer.
   would instead match `roots-engine`'s `when:` and be judged as pure engine code —
   no console, no formatter, no Commander — which a command cannot satisfy)
 - Modify: `source/cli/src/bin.ts` (registration)
+- Modify: `source/cli/src/utils/git.ts` (additive exported helpers for HEAD sha, HEAD
+  committer timestamp, and the dirty-file list — the header fields Task 1's ownership
+  table assigns to this command; the `utility` type is not log-gated)
+- Modify: `.yggdrasil/model/cli/tests/unit/cli/yg-node.yaml` description — it
+  enumerates its children by name and is ALREADY stale (lists four, seven exist);
+  true it up while adding the eighth (`roots`)
 - Create: THREE model nodes — the command's node under `model/cli/commands/` (read the
   siblings' file/naming convention there first); the e2e test's node under
   `model/cli/tests/e2e/` (the tree keeps per-file/family e2e nodes there — a new
@@ -758,11 +833,13 @@ dictated block goes back to the maintainer.
   the command node to DECLARE `{type: uses, target: cli/tests/unit/cli}` (see
   `model/cli/commands/advise/yg-node.yaml` for the convention), else it reports
   `missing-relation`
-- Modify: `docs/` — one new adopter-facing page, which needs THREE mechanical joins,
+- Modify: `docs/` — one new adopter-facing page, which needs FOUR mechanical joins,
   not just the file: the page joins `.yggdrasil/model/docs/guides/yg-node.yaml`'s
   `mapping:` (else unmapped-files), the VitePress sidebar
-  (`docs/.vitepress/config.*`), and that docs node's description (it enumerates its
-  pages by name)
+  (`docs/.vitepress/config.*`), that docs node's description (it enumerates its
+  pages by name), and the node's inherited `docs-internal-links` aspect (every
+  internal link on the new page must resolve — write links to real pages, not
+  planned ones)
 - Modify: `CHANGELOG.md`
 
 **Interfaces:**
@@ -778,7 +855,12 @@ dictated block goes back to the maintainer.
   via `stores.ts` (the command is the ONLY composer of store and engine, per Task 1's
   seams); refuses with what/why/next when no `roots:` block — and
   **`yg roots status`** (reads the model, reports field/fact counts and dormancy
-  honestly; NO `--exit-code` — that flag is a later package's single opt-in gate).
+  honestly; NO `--exit-code` and NO `--diagnose` — `status` itself is a RECORDED
+  partial pull-forward from R7, whose scope of record owns the full
+  `status [--exit-code] [--diagnose]` gate surface: R1-R3 ships only the read-only
+  view, because a mined model nobody can inspect is unverifiable by the E2E and
+  useless to adopters; R7 later adds the gating flags to this same command — see the
+  execution notes' pull-forward record).
   Registration per `bin.ts` + `preamble.ts` patterns. The `command` type's aspects bind
   automatically (source-no-raw-control-chars, cli-command-contract,
   command-contract-shape, diagnostic-logging, command-error-via-buildissuemessage,
@@ -833,4 +915,7 @@ dictated block goes back to the maintainer.
   rule ("changes are not complete until every document describing that behavior is
   consistent") makes deferring them dishonest once the block and commands exist — so
   Task 1 documents the config block and Task 8 ships the adopter page now, and R9
-  keeps only what R4+ behavior adds later.
+  keeps only what R4+ behavior adds later. And a SECOND recorded pull-forward:
+  `yg roots status` (read-only form only) comes forward from R7's
+  `status [--exit-code] [--diagnose]` — the gating flags stay R7's; what R1-R3 ships
+  is the inspection half a verifiable increment cannot do without.
