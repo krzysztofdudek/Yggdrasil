@@ -566,10 +566,32 @@ export interface RoleInfo {
  * there is no stickiness to apply or test at build time, only a map to
  * persist for a LATER build (or the hook path) to read stickily. A conscious
  * deferral, not an oversight.
+ *
+ * `ambiguousRank1` (keyed identically to `assignments`, `skeyR` ->
+ * `roleKey`) carries, for EVERY ambiguous method/type scope (the ones
+ * `assignments` itself records as the literal `'-1'`), which medoid it was
+ * actually rank-1 closest to — the one piece `assignments`' own `'-1'`
+ * marker discards. §8.5's weight-index table wants an ambiguous scope
+ * counted in its RANK-1 role's cell at half weight
+ * (`w(s,q)·(ambiguous?0.5:1)`), which is unreachable from `assignments`
+ * alone: `'-1'` names no medoid. This map is BUILD-TIME-ONLY — it exists so
+ * the downstream counting pass (`mine.ts`) can locate an ambiguous scope's
+ * own rank-1 role cell; it is NOT part of Appendix D's `model.json` shape
+ * and MUST NEVER be serialized into a snapshot (no such field exists in the
+ * appendix's `assignments` record, and §8.6's STICKY-ROLES resolution path
+ * reads `assignments` alone — an ambiguous scope stays ambiguous on
+ * resolution, exactly as today; this map only feeds the SAME build's own
+ * counting pass, never a later one). A confident scope, or a scope with no
+ * role at all, carries no entry here — only `assignments[key] === '-1'`
+ * scopes are ever keys of this map, and every such key IS present here
+ * (the same totality argument as `assignments`' own population loop below:
+ * `rank1RoleIndex` and `roleKeyByIndex` are total over every ambiguous
+ * scope reaching that loop).
  */
 export interface RoleAssignment {
   roles: RoleInfo[];
   assignments: Record<string, string>;
+  ambiguousRank1: Record<string, string>;
 }
 
 /** Spec §8.10's demotion test: `role_lift <= 0` ⇒ decorative. The single source of truth `RoleInfo`'s own doc points consumers at. */
@@ -785,6 +807,7 @@ function inducePartitionRoles(
   config: RootsConfig,
   outRoles: RoleInfo[],
   outAssignments: Record<string, string>,
+  outAmbiguousRank1: Record<string, string>,
 ): void {
   const rolesCfg = config.roles;
   const thresholds = config.thresholds;
@@ -949,11 +972,16 @@ function inducePartitionRoles(
   // `idx` in `[0, medoids.length)` (the loop above proves this — see its
   // own comment), and `rank1RoleIndex`'s values are always indices
   // `classifyAgainstMedoids` returned, which are always in that same range.
+  // Alongside it, `outAmbiguousRank1` records the SAME roleKey for an
+  // ambiguous member too — see `RoleAssignment.ambiguousRank1`'s own doc for
+  // why `assignments`' `'-1'` cannot carry it.
   for (const item of eligible) {
     const idx = rank1RoleIndex.get(item.unit.stableId);
     if (idx === undefined) continue;
     const roleKey = roleKeyByIndex.get(idx) as string;
-    outAssignments[item.unit.skeyR] = ambiguousStableIds.has(item.unit.stableId) ? '-1' : roleKey;
+    const ambiguous = ambiguousStableIds.has(item.unit.stableId);
+    outAssignments[item.unit.skeyR] = ambiguous ? '-1' : roleKey;
+    if (ambiguous) outAmbiguousRank1[item.unit.skeyR] = roleKey;
   }
 
   deriveFileRoleAssignments(partitionUnits, eligible, rank1RoleIndex, roleKeyByIndex, weights, outAssignments);
@@ -993,13 +1021,14 @@ export function induceRoles(units: readonly ScopeUnit[], weights: WeightFn, conf
 
   const roles: RoleInfo[] = [];
   const assignments: Record<string, string> = {};
+  const ambiguousRank1: Record<string, string> = {};
 
   for (const partitionId of [...byPartition.keys()].sort()) {
-    inducePartitionRoles(partitionId, byPartition.get(partitionId) as ScopeUnit[], weights, config, roles, assignments);
+    inducePartitionRoles(partitionId, byPartition.get(partitionId) as ScopeUnit[], weights, config, roles, assignments, ambiguousRank1);
   }
 
   roles.sort(compareRoles);
-  return { roles, assignments };
+  return { roles, assignments, ambiguousRank1 };
 }
 
 /**

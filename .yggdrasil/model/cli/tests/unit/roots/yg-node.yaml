@@ -44,8 +44,46 @@ description: "Unit tests for the roots convention-mining module: the roots
   §8.9(b)'s file-role plurality incl. a lexicographic tie-break round-trip
   and w_base weighting, and §8.10's role_lift pure function incl. a live
   mutation round-trip on the overlap-group held-out exclusion and a
-  decorative-role (role_lift <= 0) case). Later roots tasks add sibling test
-  files to this same node's mapping as their modules land."
+  decorative-role (role_lift <= 0) case; roles-ambiguous.test.ts, a sibling
+  kept separate purely for reviewer-prompt headroom: the REWORK-added
+  `RoleAssignment.ambiguousRank1` companion map — an ambiguous scope's
+  rank-1 roleKey survives alongside `assignments`' own `'-1'`, a confident
+  scope carries no entry, a scope with no role at all carries no entry in
+  either map, and a fully non-ambiguous induction leaves the map empty);
+  and the MDL acceptance chain
+  (mine.test.ts: the Appendix E worked scenarios E.2 fire-ability, E.3
+  role-acceptance S1-S5, and E.4 index-cost pinned directly against
+  `scoreCandidate`/`indexCostBits`/`isFireable`; full `mine()` runs over
+  hand-built fixtures proving acceptance and hook eligibility are separate
+  stages, the fail-closed survived-raw default and its AgeFn flip, the §7.3
+  tautology skip's placement, decorative
+  demotion, the §9.4d vacuous filter, §9.4e dedup, the §9.4h factCap, config
+  threading, and Appendix-D shape conformance incl. `roles[]` carrying no
+  `partitionId`; mine-invariants.test.ts, a sibling kept separate purely for
+  reviewer-prompt headroom: the REWORK fixes — a multi-kind categorical
+  alphabet unions rather than last-kind-overwrites (H1), deviantsN as the
+  RAW non-conforming population per Appendix D's own worked record rather
+  than nTotalRaw-nConformRaw (H2), the boolean candidate universe derived
+  from DOMAIN intersection rather than observed-true bag keys plus the
+  §9.4d vacuous filter's partition-wide (not kind-scoped) true-raw
+  population (H3, incl. the reviewer's cross-kind Probe-C), ambiguous role
+  members joining their rank-1 role's cell at half weight with role_lift's
+  n_eff(r) summing ALL rank-1 members at full weight via `ambiguousRank1`
+  (AMB), a Map+Object.fromEntries counts serialization surviving a
+  '__proto__'-named value (L1), an Object.hasOwn guard on a seed-supplied
+  surface name (L2), moduleOfFile derived from finalizeUnits' own minted
+  module units (L3), plus dedicated mutation-kill tests for the acceptance
+  conjuncts, C's exact candidate count, factCap ranking, dedup's per-cell
+  scoping, directory-context creation boundaries, each hook-eligibility
+  gate, the seed cap, and canonical-decimal/fire-ability/tau-tier/
+  freshPenaltyDays boundaries; pipeline.test.ts: `parseAndExtractAll`'s §6.1
+  oversize
+  exclusion and malformed-file tolerance over a real tmp-dir mini-repo, the
+  per-grammar-per-process binding cache, a full `runRootsIndex` double-run
+  proving header-excluded byte-shape stability, the forParsing mining-only
+  test-pattern exclusion surviving the marker-scan listing, and
+  bindingSetHash's insertion-order independence). Later roots tasks add
+  sibling test files to this same node's mapping as their modules land."
 aspects: []
 relations:
   [
@@ -71,3 +109,7 @@ mapping:
   - source/cli/tests/unit/roots/partitions.test.ts
   - source/cli/tests/unit/roots/enumerate.test.ts
   - source/cli/tests/unit/roots/roles.test.ts
+  - source/cli/tests/unit/roots/roles-ambiguous.test.ts
+  - source/cli/tests/unit/roots/mine.test.ts
+  - source/cli/tests/unit/roots/mine-invariants.test.ts
+  - source/cli/tests/unit/roots/pipeline.test.ts

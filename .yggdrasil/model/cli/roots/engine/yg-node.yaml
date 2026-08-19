@@ -27,16 +27,48 @@ description: "Roots mining engine — pure, deterministic convention-mining
   minOwnFeatures gate), roleJaccard (§8.2), induceRoles (§8.3's per-partition
   bucket-weighted average-linkage clustering with an incremental-DL MDL cut,
   §8.4's own-features-only nearest-medoid classifier, §8.5's clone-aware
-  ambiguity, §8.6's assignments-map ENABLING half, §8.8's role identity —
+  ambiguity, §8.6's assignments-map ENABLING half plus its own
+  build-time-only `ambiguousRank1` companion map (an ambiguous scope's
+  rank-1 roleKey, keyed identically to `assignments`, recovering what
+  `assignments`' own `'-1'` marker discards — never serialized, consumed
+  only by mine.ts's own role-cell/seed/role_lift stages below), §8.8's role identity —
   role_key/label/definingFeatureGroups, both fresh from the spec text with
   no reference implementation — and §8.9(b)'s file-role plurality, also
   fresh from the spec text), and roleLift (§8.10's pure formula over
   supplied counts, held-out overlap-group exclusion, the isDecorativeRole
   <=0 test) — the OWNERSHIP SPLIT stated on `RoleInfo`'s own doc: role_lift
-  is invoked from the real §9.4 counts by the (not yet landed) MDL
-  acceptance chain's one counting pass, never a second implementation of
-  that math. The MDL acceptance chain joins this node's mapping as it lands
-  under source/cli/src/roots/."
+  is invoked from the real §9.4 counts by the MDL acceptance chain's one
+  counting pass, never a second implementation of that math — landed here as
+  mine.ts (the Appendix-D MinedModel body, mine()'s named stages: cell
+  construction over enumerate.ts's sparse bags+domains — a boolean
+  surface's candidate universe per kind is domain-intersection-derived, not
+  observed-true-bag-key-derived, so a cross-kind surface (e.g.
+  auto.deco:/auto.extends:, spanning method+type) stays mineable on a kind
+  where it is always false; role cells admit an ambiguous member (via
+  roles.ts's own `ambiguousRank1`) at half weight alongside confident
+  members at full weight, §8.5's own weight-index rule — seed injection,
+  role_lift + decorative demotion (role_lift's n_eff(r) sums EVERY rank-1
+  member, ambiguous included, at full w_base — a different population from
+  the half-weighted role-cell counts), the repo-wide candidate count C with the
+  §7.3 tautology skip applied before it, §9.4a/b/c scoring with acceptance
+  and hook-eligibility as separate stages — eligibility gates 1-4 are
+  flag-setters, never fact-droppers — the §9.4d vacuous filter (its own
+  true-raw population is summed partition-wide across every kind sharing a
+  surface's domain, not scoped to one cell's own kind), §9.4i
+  redundant-refinement pruning, §9.4e correlation dedup (scoped strictly
+  within one cell — an identical conform set in two different cells never
+  merges), the §9.4h factCap cull (ranked by bits-per-instance), and
+  moduleOfFile (derived from finalizeUnits' own already-minted `module`
+  units, never an independent re-walk) and mine-stages.ts (the split-out cell-counting/KT-scoring
+  math, kept in a sibling file purely to stay under the per-file LLM-review
+  prompt ceiling; its serialized `counts`/`moduleOfFile` records build via
+  `Map` + `Object.fromEntries`, never plain-object bracket-assignment, so a
+  mined value literally named `'__proto__'` is never silently dropped). pipeline.ts composes every stage — parseAndExtractAll
+  (the walk+filter+parse+extract prefix, spec §6.1's robustness rules) and
+  runRootsIndex (partitions → finalizeUnits → vocabularies → enumerate →
+  roles → mine, constructing R1's WeightFn=weights.noLifecycleWeight default
+  and no AgeFn) — without persisting; stores.ts stays untouched, per Task 1's
+  seam."
 relations:
   - target: cli/io/stores
     type: calls
@@ -48,6 +80,8 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/language-registry
+    type: calls
 mapping:
   - source/cli/src/roots/config.ts
   - source/cli/src/roots/binding.ts
@@ -55,3 +89,6 @@ mapping:
   - source/cli/src/roots/partitions.ts
   - source/cli/src/roots/enumerate.ts
   - source/cli/src/roots/roles.ts
+  - source/cli/src/roots/mine.ts
+  - source/cli/src/roots/mine-stages.ts
+  - source/cli/src/roots/pipeline.ts
