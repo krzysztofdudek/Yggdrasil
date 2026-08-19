@@ -128,3 +128,134 @@ export function runGitFixture(
     env: gitFixtureEnv(fixtureDir, extraEnv),
   });
 }
+
+// =============================================================================
+// Deterministic-history extension (spec §20.2 / design §13.2's named
+// prerequisite for golden git repositories under
+// tests/fixtures/roots/golden/**): scripted histories whose commit SHAs are
+// reproducible across machines and runs, so a committed `git bundle` can be
+// asserted equal to a fresh replay of its builder spec.
+//
+// ADDITIVE ONLY. `gitFixtureEnv` and `runGitFixture` above are UNCHANGED —
+// every existing caller keeps its current behavior byte-for-byte. `TZ=UTC`
+// and the pinned author/committer dates live ONLY in the exports below, never
+// in the shared env-building block those two functions share.
+// =============================================================================
+
+/**
+ * Fixed epoch every deterministic history counts commits from —
+ * 2024-01-01T00:00:00Z. The exact instant carries no meaning beyond being the
+ * same on every machine that builds the history; it is never compared against
+ * a real calendar date.
+ */
+const DETERMINISTIC_EPOCH_MS = Date.parse('2024-01-01T00:00:00Z');
+
+/**
+ * Wall-clock spacing between two consecutive commits in a deterministic
+ * history — 60 seconds, comfortably above git's one-second timestamp
+ * resolution so two commits scripted in the same history can never collide
+ * on the same instant.
+ */
+const DETERMINISTIC_COMMIT_INTERVAL_MS = 60_000;
+
+/**
+ * The ISO-8601 "…Z" timestamp (spec §20.2's required form for
+ * `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`) for the commit at `commitIndex`
+ * (0-based, in the order a scripted history makes its commits): the fixed
+ * epoch plus one interval per prior commit. The same index always yields the
+ * same instant, regardless of when or where the history is built.
+ */
+export function deterministicCommitDate(commitIndex: number): string {
+  return new Date(DETERMINISTIC_EPOCH_MS + commitIndex * DETERMINISTIC_COMMIT_INTERVAL_MS).toISOString();
+}
+
+/**
+ * `gitFixtureEnv`, layered with the remaining knobs a deterministic history's
+ * commit operations need (spec §20.2): `TZ=UTC` (so a date with no explicit
+ * offset can never be interpreted against the host's local zone),
+ * `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` pinned to `commitIndex`'s instant,
+ * and `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_SYSTEM` both forced to `/dev/null`.
+ *
+ * The config pin exists because `gitFixtureEnv` alone still lets the child
+ * `git` process READ the host's global/system config — nothing scrubs
+ * `core.autocrlf`, `commit.gpgsign`, `init.templateDir`, or `core.hooksPath`.
+ * `core.autocrlf=true` on the host alone is enough to change every blob (and
+ * therefore every tree and commit) SHA a deterministic history produces,
+ * which defeats the entire point of this module. Pointing both config search
+ * paths at `/dev/null` (git's documented way to disable a config level
+ * outright) makes a deterministic history depend only on git's built-in
+ * defaults plus what this module itself sets — never on whatever is on the
+ * machine building it. This pin is intentionally NOT in `gitFixtureEnv`
+ * itself: existing (non-deterministic) fixture callers keep inheriting host
+ * config exactly as before, byte-identical to their pre-existing behavior.
+ *
+ * `extraEnv` is folded into the underlying `gitFixtureEnv` call — meaning it
+ * is merged BEFORE that function's own isolation pins (`GIT_DIR` etc.), the
+ * same safety order `gitFixtureEnv` documents for its own `extraEnv`
+ * parameter — so a caller can vary per-commit identity (author name/email)
+ * through it without any risk of weakening the fixture pin. `TZ`/the two
+ * dates/the config pins are applied AFTER that, so they always win: a
+ * deterministic history's dates and config isolation are never left open to
+ * override.
+ */
+export function deterministicGitFixtureEnv(
+  fixtureDir: string,
+  commitIndex: number,
+  extraEnv: NodeJS.ProcessEnv = {},
+): NodeJS.ProcessEnv {
+  const date = deterministicCommitDate(commitIndex);
+  return {
+    ...gitFixtureEnv(fixtureDir, extraEnv),
+    TZ: 'UTC',
+    GIT_AUTHOR_DATE: date,
+    GIT_COMMITTER_DATE: date,
+    GIT_CONFIG_GLOBAL: '/dev/null',
+    GIT_CONFIG_SYSTEM: '/dev/null',
+  };
+}
+
+/**
+ * `runGitFixture`, using {@link deterministicGitFixtureEnv} in place of
+ * {@link gitFixtureEnv} — for any git operation inside a deterministic
+ * history that itself creates a commit (or otherwise needs the pinned
+ * date/timezone). A deliberately separate function body from
+ * `runGitFixture`'s own, rather than a refactor of it, so that function's
+ * behavior stays untouched for every existing caller.
+ */
+export function runDeterministicGitFixture(
+  fixtureDir: string,
+  args: string[],
+  commitIndex: number,
+  opts: RunGitFixtureOptions = {},
+): SpawnSyncReturns<string> {
+  const { extraEnv, ...spawnOpts } = opts;
+  return spawnSync('git', args, {
+    cwd: path.resolve(fixtureDir),
+    encoding: 'utf-8',
+    ...spawnOpts,
+    env: deterministicGitFixtureEnv(fixtureDir, commitIndex, extraEnv),
+  });
+}
+
+/**
+ * `git init` for a deterministic history: pins the default branch via
+ * `-c init.defaultBranch=main` (spec §20.2's third determinism knob), rather
+ * than relying on the host's `init.defaultBranch` config or the installed
+ * git version's own default — so the branch a fresh clone of the resulting
+ * history checks out is the same on every machine.
+ *
+ * Runs through {@link runDeterministicGitFixture} (not the plain
+ * `runGitFixture`), at commit index 0 — `init` never reads
+ * `GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE`, so the index is inert here, but
+ * routing through the deterministic runner is what applies `TZ=UTC` and the
+ * `GIT_CONFIG_GLOBAL`/`GIT_CONFIG_SYSTEM` scrubbing (see
+ * {@link deterministicGitFixtureEnv}) at init time too, not just at commit
+ * time — `init` itself consults host config (e.g. `init.defaultBranch`, were
+ * it not pinned explicitly here) and CAN write hook files from a host
+ * `init.templateDir`, so isolating it the same way as every later commit
+ * closes that gap rather than leaving init as the one unpinned step in an
+ * otherwise fully deterministic history.
+ */
+export function initDeterministicGitFixture(fixtureDir: string): SpawnSyncReturns<string> {
+  return runDeterministicGitFixture(fixtureDir, ['-c', 'init.defaultBranch=main', 'init', '-q'], 0);
+}

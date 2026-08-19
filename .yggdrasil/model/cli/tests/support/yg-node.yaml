@@ -1,4 +1,4 @@
-name: Tests — Shared Git Fixtures
+name: Tests — Shared Git Fixtures & Goldens
 type: test-suite
 description: "Cross-tier test support: a git-fixture isolation helper used by unit,
   integration, and e2e suites that spawn throwaway `git init`/`add`/`commit`
@@ -6,7 +6,10 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   an explicit absolute GIT_DIR (disabling all repository discovery) and scrubs the
   inherited GIT_* discovery variables, so a fixture write can never touch the real
   repository's index — the isolation that keeps the pre-commit gate from ever
-  capturing a partial staged set.
+  capturing a partial staged set. It also carries an additive deterministic-history
+  extension (pinned GIT_AUTHOR_DATE/GIT_COMMITTER_DATE from a fixed epoch, TZ=UTC,
+  a pinned default branch) for scripted histories whose commit SHAs reproduce
+  exactly across machines and runs.
 
   Built on that isolation, it also owns the builder for a minimal REAL Yggdrasil
   project inside such a repository: two components with one file each, one
@@ -15,10 +18,18 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   repository holds a pre-existing failure no later change touches. The initial
   commit lands on the reference branch and the builder can cut a branch off it
   and commit an edit, which is what lets a suite exercise anything that measures
-  a change against a committed reference. Both helpers import only Node builtins;
-  nothing from src/**."
+  a change against a committed reference.
+
+  A third file builds and verifies golden git repositories on top of the
+  deterministic-history extension: a golden spec (an ordered commit list) replays
+  into a real scripted repository, and an equivalence check proves a committed
+  `git bundle` snapshot still matches what its spec produces — the mechanism a
+  golden fixture needs because a working repository cannot itself be committed as
+  a plain directory tree. All three files import only Node builtins; nothing from
+  src/**."
 aspects: []
 relations: []
 mapping:
   - source/cli/tests/support/git-fixture.ts
   - source/cli/tests/support/progressive-fixture.ts
+  - source/cli/tests/support/roots-golden.ts
