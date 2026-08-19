@@ -682,20 +682,25 @@ dictated block goes back to the maintainer.
   clause) — spec
   §6.8 IN FULL (`v6-spec.md:267-271`): package-root detection from the file walk, the
   300-scope floor over the raw scopes, `_repo` merge, the built-in exclusion list.
-  `files` is the `isMinedFile`-FILTERED listing, NOT the parsed subset and NOT the
+  `files` is the EXCLUSION-FILTERED listing, NOT the parsed subset and NOT the
   raw walk: spec §6.6 step 1 (`v6-spec.md:255`) enumerates "filtered", so the marker
   scan runs AFTER the §6.8+config exclusion merge (else `dist/package.json`,
   `vendor/*/go.mod`, `build/pom.xml` become partition roots in repos that commit
   those trees) but BEFORE any grammar filter — §6.8's package markers (`go.mod`,
   `pom.xml`, `*.csproj`, `*.sln`, `setup.cfg`) have no registered grammar and would
   vanish from a post-grammar-filter list, silently losing Java/Go/C# roots. The
-  composition, exactly: listing → `isMinedFile` → marker scan; listing →
-  `isMinedFile` ∧ registered-grammar → parse.
+  composition, exactly (the two predicate flavors are `partitions.ts`'s, see its
+  factory below): listing → merged EXCLUSIONS → marker scan; listing → `include` ∧
+  merged exclusions ∧ registered-grammar → parse.
   Config `include`/`exclude` (§4.5 `v6-spec.md:146`) are applied HERE too: spec
   §21.3 (`:721`) merges the §6.8 built-in exclusion list with config `exclude`, and
   `partitions.ts` owns that merge (globs via `mapping-path`'s `globMatch`, per the
-  lint story), EXPORTING the result as a predicate — `isMinedFile(relPath)`: matches
-  `include` (default `**/*`) AND fails the merged exclusion set. That predicate is
+  lint story), EXPORTING a FACTORY — `makeIsMinedFile(config)` returning the predicate (the
+  predicate needs config; the factory form makes the call site unambiguous). TWO
+  predicate flavors, deliberately: the MARKER SCAN filters by the merged EXCLUSIONS
+  ONLY (the prototype's walk applies `EXCL` alone at `:428` — a narrowed `include`
+  like `["src/**"]` must not hide a root `go.mod` and vanish the partition root),
+  while the PARSE set additionally requires an `include` match (default `**/*`). That predicate is
   what keeps excluded scopes OUT of mining end-to-end — it filters BOTH consumers:
   the package-root marker scan (spec §6.6's enumeration is "filtered", `:255`) and,
   composed with the grammar filter, the parse set (Task 6).
@@ -709,11 +714,23 @@ dictated block goes back to the maintainer.
   the keys: `skeyR` (the prototype's `rel#kind#name[#ord]` key at `:121`) and
   `stable_id` = sha256hex(partitionId∥relPath∥kind∥qualifiedName∥arity)[:16] — the
   PRODUCTION scheme, spec §6.4 `v6-spec.md:245`, NOT the prototype's simple key.
-  `enumerate.ts` exports `buildVocabularies(units, partitions)` (the §7.2
-  per-partition vocabulary builder — deterministic selection) and
-  `enumerate(units, vocab): FeatureBag[]` — the twelve enumerators with
-  relative-import normalization, per spec §7.1-7.2 (`v6-spec.md:277-304`) read IN
-  FULL; prototype `extractScopes` (`:70-120`) is the per-scope semantics reference.
+  `enumerate.ts` exports `buildVocabularies(units, partitions, config)` (the §7.2
+  per-partition vocabulary builder — deterministic selection; config carries the
+  `enumerate.*` floors and caps) and
+  `enumerate(units, vocab, config): { bags: FeatureBag[], domains: DomainMap }` —
+  the twelve enumerators with relative-import normalization, per spec §7.1-7.2
+  (`v6-spec.md:277-304`) read IN FULL, AND spec §5's sparse-boolean rule
+  (`v6-spec.md:213`, read IN FULL): boolean surfaces are stored TRUE-ONLY with a
+  per-surface APPLICABILITY DOMAIN declared by the enumerator (Appendix B's
+  `domain` column — e.g. `auto.call:<c>` applies to methods with ≥1 body statement,
+  `auto.imp:<s>` to files with ≥1 import), so `extractUnits` records the
+  observables those domains need (body-statement count, import presence, …),
+  `enumerate` derives per-surface domain membership into `DomainMap`, and the
+  counting layer computes `n_false(q,r) = |domain(q) ∩ members(r)| − n_true(q,r)` —
+  a scope OUTSIDE the domain contributes NOTHING (undecidable ≠ false;
+  `|cell| − n_true` is the forbidden shortcut), with the spec's own property test
+  (sparse ≡ dense on small fixtures) written here.
+  Prototype `extractScopes` (`:70-120`) is the per-scope semantics reference.
   Tasks 5-7 consume all these shapes; Task 6's pipeline composes them in exactly this
   phase order.
 
@@ -826,11 +843,10 @@ dictated block goes back to the maintainer.
   seam decision (stores.ts stays generic and untouched). ITS SHAPE IS NOT INVENTED:
   spec Appendix D (`v6-spec.md:861-896`) is the NORMATIVE `model.json` body — read it
   IN FULL and follow it key-for-key (string keys only; header excluded from the
-  content hash; `:896`'s no-wall-clock constraint binds). The key accounting is
-  EXHAUSTIVE — every Appendix-D key, per-record fields included, is in exactly one
-  bucket, and anything found in the appendix but not here follows the same rule
-  (populate if its inputs exist this increment, else structurally absent, each
-  absence stated in a comment):
+  content hash; `:896`'s no-wall-clock constraint binds). The key accounting below covers every Appendix-D key and per-record field the
+  authorities make decidable, and the OPERATIVE RULE for anything found in the
+  appendix and not named here: populate if its inputs exist this increment, else
+  structurally absent, each absence stated in a comment:
   POPULATED — per-partition `vocab`, `alphabets` (load-bearing for §9.3's
   categorical K), `roles[]` with roleKey/label/size/medoidFeatures/
   definingFeatureGroups/roleLift/ambiguityRate, the §8.6 `assignments` map, `facts[]`'s
@@ -858,8 +874,9 @@ dictated block goes back to the maintainer.
   (§9.5, R6), `exemplars` (§9.11), and `stabilityDays` per the §9.4g rule above. And `mine(input): { body: MinedModel; candidateCountLog2: number }` — the header
   value CANNOT ride the body (Appendix D puts it in the header), so mine returns it
   beside the body and the pipeline lifts it into `RootsIndexResult`; `input` is the
-  fully-assembled stage record { units, bags, vocab, partitions, roles, seeds,
-  config, weightFn, ageFn? } — the FULL chain,
+  fully-assembled stage record { units, bags, domains, vocab, partitions, roles,
+  seeds, config, weightFn, ageFn? } (domains feed §5's `n_false` counting — never
+  `|cell| − n_true`) — the FULL chain,
   decomposed from the prototype's single `mine()` (`:176-251`) into named stages
   (named, NOT an execution order: seeds join cell counts BEFORE scoring and before
   `C` — prototype `:196-202` — and directory cells are built during counting even
@@ -873,7 +890,8 @@ dictated block goes back to the maintainer.
   does NOT port (Appendix D records survived populations ON accepted facts, which is
   only possible if eligibility is a flag, not a filter). Then: KT/MDL vs parent
   posterior, index cost, vacuous
-  filter, two-tier absence τ (3.5 vocabulary / 4.5 structural), placement group-only,
+  filter, two-tier absence τ (3.5 vocabulary / 4.5 structural — verbatim keys
+  `thresholds.absenceGapBits`/`absenceGapBitsStructural`), placement group-only,
   fallback buckets (eligibility gates 1-3 — fallback, placement group-only,
   fire-ability — are FLAG-setters exactly like gate 4: the prototype
   `continue`-drops on all of them and none of that ports; spec `:652`'s
@@ -883,7 +901,7 @@ dictated block goes back to the maintainer.
   exempt; `C` counted after it), DECORATIVE-ROLE DEMOTION (invoke Task 5's pure `role_lift` from
   this pass's own counts — §8.10 `:361` "one pass"; a role with role_lift ≤ 0
   contributes no role cells and no shadows, its members fall back to `_all`, and the
-  computed value is recorded on `roles[]`), locality lattice (dirMin 25, redundant +
+  computed value is recorded on `roles[]`), locality lattice (dirMin 25 — verbatim key `mdl.dirContextMinScopes` — redundant +
   nested-refinement pruning),
   correlation dedup, seeds cap `seedCapFraction` (0.5) × `n_eff_real`
   (`v6-spec.md:382`; `n_eff_real` is the EFFECTIVE — weighted — sum over REAL,
@@ -892,9 +910,11 @@ dictated block goes back to the maintainer.
   weights, before seeds are added with zero raw weight), §9.4g stability days, §9.4h
   factCap 400 — and §9.4g's R3 SHAPE stated plainly: stability days compute from
   trend windows, trends are a later package, so in this increment the field is
-  STRUCTURALLY ABSENT (the spec's own "absent trends ⇒ omitted" rule) — implement the
-  stage so absence is the modeled outcome, with a unit case asserting it, never a
-  fabricated value. Spec §9 read
+  STRUCTURALLY ABSENT (the spec's own "absent trends ⇒ omitted" rule; §9.4g's
+  "Stored in the snapshot" sentence refers to the value when it exists — with no
+  trends there is no value to store, a decided reading, not an oversight) —
+  implement the stage so absence is the modeled outcome, with a unit case asserting
+  it, never a fabricated value. Spec §9 read
   IN FULL through §9.4 (`v6-spec.md:366-430`); §9.5-§9.11 (trends, severity, DENY
   eligibility, the verdict function, exemplar ranking) belong to LATER packages — out
   of R1-R3, consciously. The R3/R4 seam:
@@ -942,12 +962,23 @@ dictated block goes back to the maintainer.
   via existing io helpers (persistence-adapter — the scanner for listing, the io
   file-read helper for content; engine carries `no-direct-fs`, so `node:fs` is not an
   option here, and engine may call persistence-adapter same as the core `engine` type),
-  parse via `withParsedFile`, then Task 4's three phases in order — extractUnits per
-  file → derivePartitions → finalizeUnits — then vocabularies → enumerate → roles →
-  mine, all pure stages. ONE filter, TWO compositions: the walk's listing passes `isMinedFile` first (that
-  filtered set feeds `derivePartitions` — package markers like `go.mod` have no
-  grammar, so no grammar filter touches the marker scan), and PARSING additionally
-  requires a registered grammar (registry lookup BEFORE parsing; `getParser` throws
+  parse via `withParsedFile` UNDER SPEC §6.1's ROBUSTNESS RULES (`v6-spec.md:222`,
+  read IN FULL — the one §6 subsection everything else here already cites around):
+  oversize files (> `history.blobMaxBytes` bytes or > 40k lines — the config key is
+  parsed in Task 1) are EXCLUDED before parsing; a file whose parse yields errors
+  contributes error-free subtrees only, and a root-level error degrades to FILE
+  granularity (the file scope alone); the pipeline NEVER aborts on a file (I1). The
+  prototype does both on the two lines directly above the block this plan quotes —
+  the size guard at `prototype-roots2.mjs:418` and the per-file try/catch at `:419`
+  — and Task 4's `extractUnits` must tolerate error nodes (skip subtrees containing
+  them). A unit case pins it: one malformed file in a corpus → `index` succeeds and
+  that file yields its file scope only. Then Task 4's three phases in order —
+  extractUnits per file → derivePartitions → finalizeUnits — then vocabularies →
+  enumerate → roles → mine, all pure stages. ONE factory, TWO compositions: the walk's listing passes the merged EXCLUSIONS
+  first (that filtered set feeds `derivePartitions` — package markers like `go.mod`
+  have no grammar, so no grammar filter touches the marker scan, and `include` does
+  not apply to it either), and PARSING additionally requires the `include` match AND
+  a registered grammar (registry lookup BEFORE parsing; `getParser` throws
   on unknown extensions — the registry, not the exception, is the filter) — so a
   §6.8-excluded file (`*.test.*`, `**/fixtures/**`, …) never produces scopes and
   never enters vocabularies, roles, or cells (spec `:271` scopes the exclusion to
@@ -1000,7 +1031,10 @@ dictated block goes back to the maintainer.
   stated here because `runRootsIndex` deliberately exposes none:
   **null control** (spec Appendix H.6's shuffled-label null; design §13.2's "0
   accepted role/locality conventions") — composes the EXPORTED stages directly
-  instead of the pipeline wrapper: run extract→partitions→finalize→vocabularies→
+  instead of the pipeline wrapper, starting from `pipeline.ts`'s exported
+  `parseAndExtractAll` (Task 6 exports the walk+filter+parse+extract prefix as its
+  own stage precisely so this control cannot re-implement the filters divergently):
+  parseAndExtractAll→partitions→finalize→vocabularies→
   enumerate→**induceRoles** on a golden, PERMUTE each surface's values across scopes with a DETERMINISTIC seed (spec H.6 pins seeded permutation; the test-suite determinism discipline demands it too)
   after enumeration, then assert mine accepts 0 role/locality conventions;
   **fail-closed control** — two halves, both executable NOW: (a) pipeline-level,
@@ -1065,7 +1099,9 @@ dictated block goes back to the maintainer.
   table assigns to this command; the `utility` type is not log-gated). `src/utils/**`
   is coverage-MEASURED and the spawned E2E contributes no coverage, so these helpers
   get their own in-process unit tests (`tests/unit/utils/` per that area's
-  convention, real tmp git repos via the Task-2 fixture)
+  convention — owned by `model/cli/tests/unit/support/utils/yg-node.yaml`, which
+  maps per-file; add the new test file to its `mapping:` — real tmp git repos via
+  the Task-2 fixture)
 - Modify: `.yggdrasil/model/cli/tests/unit/cli/yg-node.yaml` description — it
   enumerates its children by name and is ALREADY stale (lists four, seven exist);
   true it up while adding the eighth (`roots`)
@@ -1106,8 +1142,13 @@ dictated block goes back to the maintainer.
   appears nowhere in the design's surface; spec §19's
   command list has `index [--full]`, and in R1-R3 every run is full, so the flag is
   accepted-and-ignored-free territory: implement plain `index`, note `--full` becomes
-  meaningful with R4's incrementality) — loads seeds via `stores.ts` (empty on a
-  fresh repo), runs `runRootsIndex(repoRoot, config, seeds)`, assembles the header
+  meaningful with R4's incrementality) — on a repo WITHOUT a `roots:` block it SCAFFOLDS the block with defaults,
+  printed first, then proceeds (`integration-design.md:399-400` is explicit:
+  "`yg roots index` on a repo without the block scaffolds it with defaults, printed
+  first" — the earlier draft's refusal contradicted the integration authority;
+  refusal remains only for real I/O/config errors, design `:79`) — loads seeds via
+  `stores.ts` (empty on a fresh repo), runs `runRootsIndex(repoRoot, config, seeds)`,
+  assembles the header
   from the ownership table (the result's `bindingSetHash` — written into the
   header's `bindingHash` field — and `candidateCountLog2`, plus the
   command-computed git trio and the store hashes), and persists header+`result.body`
@@ -1200,4 +1241,7 @@ dictated block goes back to the maintainer.
   done — the seven unmeasured code-grammar goldens and the mutation harness stay
   R10's. And one more recorded DEFERRAL: sticky-role RESOLUTION is the R5 verdict
   path's (build-time induction is one-pass-final per spec §8.4); R1-R3 ships only
-  its enabler, the persisted `assignments` map (Task 5).
+  its enabler, the persisted `assignments` map (Task 5). Also deferred, recorded:
+  the §4.4 BUILD LOCK (design §12's infrastructure bullet) — R1-R3's single writer
+  is `yg roots index` and every store write is atomic, so lock-less is safe until
+  R4's daemon/incremental writers arrive; the lock lands with them.
