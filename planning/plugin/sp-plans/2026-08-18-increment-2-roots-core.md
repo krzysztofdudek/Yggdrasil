@@ -55,8 +55,9 @@ dictated block goes back to the maintainer.
   guard suites (`tests/unit/cli/`: `build-context-brief.test.ts`,
   `build-context-progressive.test.ts`, `context-file-type-coverage.test.ts`,
   `build-context.test.ts`; `tests/unit/formatters/`: `context-file-brief.test.ts`,
-  `context-file.test.ts`) pass unchanged in every task, plus `cli-ast-languages.test.ts`
-  (the parser-pool surface roots now shares). Build first (`cd source/cli && npm run build`)
+  `context-file.test.ts`) pass unchanged in every task, plus `tests/e2e/cli-ast-languages.test.ts`
+  (the parser-pool surface roots now shares — a dist-spawning suite, so build-first
+  applies to it too). Build first (`cd source/cli && npm run build`)
   before any dist-spawning suite — a `describe.skipIf(!distExists)` skip is NOT a pass.
 - **Dormant without config.** A project whose `yg-config.yaml` has no `roots:` block gets
   ZERO runtime change from this increment — `yg check`/`yg context` output, exit codes,
@@ -676,7 +677,11 @@ dictated block goes back to the maintainer.
   Config `include`/`exclude` (§4.5 `v6-spec.md:143`) are applied HERE too: spec
   §21.3 (`:721`) merges the §6.8 built-in exclusion list with config `exclude`, and
   `partitions.ts` owns that merge (globs via `mapping-path`'s `globMatch`, per the
-  lint story); the pipeline's walk feeds the unfiltered listing in.
+  lint story), EXPORTING the result as a predicate — `isMinedFile(relPath)`: matches
+  `include` (default `**/*`) AND fails the merged exclusion set. That predicate is
+  what keeps excluded scopes OUT of mining end-to-end (see Task 6's parse filter);
+  the pipeline's walk feeds the unfiltered listing in for package-root detection
+  only.
   (3) `finalizeUnits(rawScopes, partitions): ScopeUnit[]` — assigns final
   partitionIds, resolves MODULE scopes (spec §6.3 `:241-243` — "nearest of partition
   root or first directory with ≥ 3 code files" is partition-dependent, which is why
@@ -704,9 +709,15 @@ dictated block goes back to the maintainer.
 - [ ] **Step 2: Implement the three phases (extract.ts's `extractUnits` +
   `finalizeUnits`, partitions.ts between them), then enumerate.ts** to the tables;
   ordinals/skeyR/stable_id everywhere a key leaves the module.
-- [ ] **Step 3: §7.3 tautology filter** (productionized here per R3's ownership note —
-  implement it in enumerate.ts where candidate features are born, since its absence
-  mis-sizes the repo-wide `C` count; spec §7.3 `v6-spec.md:306-308`).
+- [ ] **Step 3: §7.3 tautology filter — the SPLIT.** Read spec §7.3
+  (`v6-spec.md:306-308`): the skip is per (ROLE, surface) candidate — a candidate
+  whose overlap group is among the role's §8.8 defining feature groups, `_all`
+  exempt — so it CANNOT run in `enumerate.ts` (roles do not exist yet in the
+  pipeline order). What lives HERE is the static surface→overlap-group MAP
+  (name-tokens↔E1, supertype↔E9, decorator↔E6-deco, import-segments↔E8/E7, per
+  `:307`), exported for Task 6; the SKIP itself is a named mine stage, and §9.4a's
+  `C` is counted AFTER it (`:397`: candidates surviving appliesKind ∧
+  overlap-tautology ∧ minInstancesRaw) — its absence mis-sizes the repo-wide `C`.
 - [ ] **Step 4: Graph, guard suites, ritual, report.**
 
 ### Task 5: Role induction (R3a)
@@ -718,7 +729,9 @@ dictated block goes back to the maintainer.
   as every other engine-file task)
 
 **Interfaces:**
-- Consumes: `FeatureBag`/`ScopeUnit` (Task 4).
+- Consumes: `ScopeUnit` (Task 4 — §8.1's role bag is built from ScopeUnit's
+  role-feature ingredients; `FeatureBag` reaches roles only indirectly through Task
+  6's counts) and the parsed `RootsConfig`.
 - Produces: `induceRoles(units, weights, config): RoleAssignment` — clustering runs PER
   PARTITION (§8.3 `v6-spec.md:331` — group by the `partitionId` each `ScopeUnit`
   carries; never cluster the repo flat), pre-bucketed weighted
@@ -759,10 +772,14 @@ dictated block goes back to the maintainer.
 - [ ] **Step 2: Implement.** Weighted math exactly per spec; weight inputs arrive as a
   parameter (the R4 seam — a `WeightFn` interface whose R1-visible default is the
   CONSTANT `weights.noLifecycleWeight` — 0.3, config-supplied, per spec §9.1
-  (`v6-spec.md:375-378`, value at `:167`); NOT 1.0 — the weight scales every
-  weighted term in §8.3's cut criterion, so the hand-computed clustering fixtures
-  must be derived at 0.3; document the seam so R4 slots in without signature
-  change).
+  (`v6-spec.md:375-378`, value at `:167`). TWO WEIGHT SYSTEMS — do not conflate
+  them: §8.3's CLUSTERING weights are BUCKET CARDINALITY (`w = |bucket|`,
+  `v6-spec.md:331`; prototype `:142` — `minClusterSize` is a total member weight in
+  those units), so the hand-computed clustering fixtures are derived with bucket
+  weights, NEVER scaled by 0.3; the §9.1 instance weight `w(s,q) = 0.3` feeds the
+  MINING layer — role-CELL counts and §8.9(b)'s file-role plurality (`:342`) — which
+  is what the `WeightFn` parameter carries. Document the seam so R4 slots in without
+  signature change.
 - [ ] **Step 3: Graph, guard suites, ritual, report.**
 
 ### Task 6: Acceptance chain (R3b)
@@ -787,11 +804,17 @@ dictated block goes back to the maintainer.
   categorical K), `roles[]` with roleKey/label/size/medoidFeatures/
   definingFeatureGroups/roleLift/ambiguityRate, the §8.6 `assignments` map, `facts[]`'s
   §9.4-computable fields including `hookEligible` and the survived populations
-  `nConformRaw`/`nTotalRaw` (`:881`, `:886`), `moduleOfFile`, `seeds`.
+  `nConformRaw`/`nTotalRaw` (`:881`, `:886`) — with `counts` encoded as CANONICAL
+  DECIMAL STRINGS exactly as Appendix D shows (`"true":"24.2"` — a
+  determinism-relevant encoding the byte-identity control depends on) —
+  `moduleOfFile`, `seeds`, and `partitions[].id`/the header per the escape clause.
   WRITTEN AS THEIR HONEST DEGENERATE VALUES — `denyEligible: false` on every fact
-  (nothing can be deny-eligible before R6 calibration exists), and
+  (nothing can be deny-eligible before R6 calibration exists), `hookShapedConform: 0`
+  (the ledger exists from Task 1 but nothing writes marks before R5 — zero is as
+  knowable as the coverage zeros below), `suppressedValue: null` and `seeds[].tension:
+  null` (Appendix D shows both as explicit nulls — keep the keys, null the values), and
   `coverageRole`/`coverageAll`/`debtBits`/`debtPerInstance` as ZEROS: their only
-  definition is §16.2 (`v6-spec.md:654`), computed over HOOK-ELIGIBLE facts with
+  definition is §16.2 (`v6-spec.md:655`), computed over HOOK-ELIGIBLE facts with
   §9.10 governance and §9.7's Δ — later-package machinery — and under this
   increment's fail-closed rule every fact is `hookEligible: false`, so zero is the
   true value, written with a comment citing §16.2, NEVER computed over accepted
@@ -801,9 +824,15 @@ dictated block goes back to the maintainer.
   R4/R5); `couplingByFile`/`couplingByModule` (Appendix G.3 `:1018` defines coupling
   as a CO-CHANGE percentile — history-fed, R4 — NOT static import coupling: do not
   fabricate it from imports); within `facts[]`: `calib` (§14, R6), `trend`/`cohorts`
-  (§9.5, R6), `hookShapedConform` (ledger, R4), `exemplars` (§9.11), and
-  `stabilityDays` per the §9.4g rule above. And `mine(input): MinedModel` — the FULL chain,
-  decomposed from the prototype's single `mine()` (`:175-251`) into named stages,
+  (§9.5, R6), `exemplars` (§9.11), and `stabilityDays` per the §9.4g rule above. And `mine(input): { body: MinedModel; candidateCountLog2: number }` — the header
+  value CANNOT ride the body (Appendix D puts it in the header), so mine returns it
+  beside the body and the pipeline lifts it into `RootsIndexResult`; `input` is the
+  fully-assembled stage record { units, bags, vocab, partitions, roles, seeds,
+  config, weightFn, ageFn? } — the FULL chain,
+  decomposed from the prototype's single `mine()` (`:175-251`) into named stages
+  (named, NOT an execution order: seeds join cell counts BEFORE scoring and before
+  `C` — prototype `:196-202` — and directory cells are built during counting even
+  though their pruning is post-acceptance),
   with §9.4a ACCEPTANCE and §9.4c HOOK ELIGIBILITY as SEPARATE stages: acceptance
   (`:395`) is bits_saved ≥ acceptMarginBits ∧ n_raw ≥ minInstancesRaw ∧ n_eff ≥
   minInstancesEff — survived-raw is NOT part of it; eligibility (`:405-409`,
@@ -814,7 +843,13 @@ dictated block goes back to the maintainer.
   only possible if eligibility is a flag, not a filter). Then: KT/MDL vs parent
   posterior, index cost, vacuous
   filter, two-tier absence τ (3.5 vocabulary / 4.5 structural), placement group-only,
-  fallback buckets, DECORATIVE-ROLE DEMOTION (invoke Task 5's pure `role_lift` from
+  fallback buckets (eligibility gates 1-3 — fallback, placement group-only,
+  fire-ability — are FLAG-setters exactly like gate 4: the prototype
+  `continue`-drops on all of them and none of that ports; spec `:652`'s
+  distributional facts exist only because ineligible facts stay accepted),
+  the §7.3 TAUTOLOGY SKIP (per (role, surface) candidate against the role's §8.8
+  defining feature groups, using Task 4's exported overlap-group map; `_all`
+  exempt; `C` counted after it), DECORATIVE-ROLE DEMOTION (invoke Task 5's pure `role_lift` from
   this pass's own counts — §8.10 `:361` "one pass"; a role with role_lift ≤ 0
   contributes no role cells and no shadows, its members fall back to `_all`, and the
   computed value is recorded on `roles[]`), locality lattice (dirMin 25, redundant +
@@ -837,9 +872,11 @@ dictated block goes back to the maintainer.
   every mined-value map. CONFIG THREADING, decided here: the constants this plan
   names (τ 3.5/4.5, dirMin 25, seedCapFraction 0.5, factCap 400, the §7.2 support
   floors, minInstancesRaw/Eff, acceptMarginBits, eligibilityMinRawShare 2/3, and the
-  `roles.*` family Task 5 consumes — clusterSampleCap, minClusterSize,
-  minOwnFeatures, cloneMedoidJaccard 0.6, roleAmbiguityGap, roleMinMembership,
-  spec `:178`/`:198-199` — which is why `induceRoles` takes `config`) are §4.5
+  keys Task 5 consumes — `roles.*`: clusterSampleCap, minClusterSize,
+  minOwnFeatures, cloneMedoidJaccard 0.6 (`:198-199`); `thresholds.*`:
+  roleAmbiguityGap 0.15, roleMinMembership 0.35 (`:178` — NOTE the namespace: these
+  two live under `thresholds`, NOT `roles`, and the parsed shape is verbatim-§4.5) —
+  which is why `induceRoles` takes `config`) are §4.5
   DEFAULTS, not fixed
   constants — §4.5's own `:205` list names what IS deliberately non-config (the 300
   floor, KT α=½, dedup lead selection, …) and none of these is on it. Every stage
@@ -849,9 +886,11 @@ dictated block goes back to the maintainer.
   `mdl.acceptMarginBits` in config changes the accepted set. ALSO: `pipeline.ts`
   exporting the async composition
   `runRootsIndex(repoRoot, config, seeds: SeedEntry[]): Promise<RootsIndexResult>`
-  where `RootsIndexResult` = `{ body: MinedModel, bindingHash: string,
+  where `RootsIndexResult` = `{ body: MinedModel, bindingSetHash: string,
   candidateCountLog2: number }` — the two header fields produced inside the engine
-  MUST surface to the Task-8 command, and `bindingHash` is the ALL-GRAMMAR fold
+  MUST surface to the Task-8 command, and `bindingSetHash` (named distinctly so the
+  per-grammar `bindingHash` can never be confused with it; it is what the header's
+  `bindingHash` field stores) is the ALL-GRAMMAR fold
   (sha256 of the canonical JSON of the sorted assetName→per-binding-hash map — spec
   `:237`: "covers all derived sets"; the data golden alone uses ≥2 grammars, so a
   single-binding hash is wrong on day one). Seeds
@@ -875,10 +914,15 @@ dictated block goes back to the maintainer.
   parse via `withParsedFile`, then Task 4's three phases in order — extractUnits per
   file → derivePartitions → finalizeUnits — then vocabularies → enumerate → roles →
   mine, all pure stages. TWO listings, deliberately: `derivePartitions` gets the FULL
-  repo listing (package markers like `go.mod` have no grammar), while parsing covers
-  only files whose extension has a registered grammar — skipped via a registry lookup
-  BEFORE parsing (`getParser` throws on unknown extensions — the registry, not the
-  exception, is the filter). Bindings are derived ONCE per grammar per process and
+  repo listing (package markers like `go.mod` have no grammar), while PARSING covers
+  only files that pass BOTH filters — a registered grammar (registry lookup BEFORE
+  parsing; `getParser` throws on unknown extensions — the registry, not the
+  exception, is the filter) AND `partitions.ts`'s `isMinedFile` predicate — so a
+  §6.8-excluded file (`*.test.*`, `**/fixtures/**`, …) never produces scopes and
+  never enters vocabularies, roles, or cells (spec `:271` scopes the exclusion to
+  convention mining; the excluded files' co-change counting is R4's concern, not
+  ours). Task 7's "a golden whose files are named like tests mines nothing" rests
+  exactly here. Bindings are derived ONCE per grammar per process and
   cached (spec §6.2 `v6-spec.md:237` makes the cache normative; the prototype's
   `bindings` map at `:35` is the shape). This is what Task 7's goldens drive
   in-process and
@@ -957,7 +1001,12 @@ dictated block goes back to the maintainer.
   in its merged bucket (counted in the Task-4 denominator: named-body + file scopes),
   or it mines nothing and every MUST-mine assertion fails vacuously. On top of that
   sit §7.2's per-surface vocabulary support floors (`v6-spec.md:158`) and §9.4's
-  min-instance floors — derive each assertion's minimum counts from THOSE. Reaching
+  min-instance floors — derive each assertion's minimum counts from THOSE, AND at
+  the R1 weight: with no lifecycle rows every instance weighs 0.3 (Task 6's
+  default), so `n_eff = 0.3 × n_raw` — `minInstancesEff: 3` needs ≥10 raw
+  instances, the data term scales by 0.3 against an UNSCALED index cost, and
+  Appendix E's worked instance counts multiply by ≈3.3 (E.3's accept-at-n_eff-21
+  means ~70 raw conforming instances here). Derive at w=0.3, not at 1. Reaching
   300+ scopes is a scripted-builder job, not hand-typing: the builder spec generates
   files programmatically (loops emitting many small, honest source files — e.g. 60
   files × 5-6 scopes). AND the generated files must dodge §6.8's built-in exclusion
@@ -1002,7 +1051,9 @@ dictated block goes back to the maintainer.
 - Test: `source/cli/tests/e2e/cli-roots-basic.test.ts` (spawned) + the sibling unit test
   the `command` type's `sibling-test-file` aspect demands — its checker derives the
   expected filename from the command file's stem, so `src/cli/roots.ts` requires
-  EXACTLY `roots.test.ts` under `cli/tests/unit/cli/` (or a descendant), AND requires
+  EXACTLY `roots.test.ts` — on disk at `tests/unit/cli/roots.test.ts` (files stay
+  flat in that directory; the per-command CHILD NODE maps them, as `advise.test.ts`
+  lives flat but is mapped by `…/advise/`) — AND requires
   the command node to DECLARE `{type: uses, target: cli/tests/unit/cli}` (see
   `model/cli/commands/advise/yg-node.yaml` for the convention), else it reports
   `missing-relation`
@@ -1025,7 +1076,8 @@ dictated block goes back to the maintainer.
   accepted-and-ignored-free territory: implement plain `index`, note `--full` becomes
   meaningful with R4's incrementality) — loads seeds via `stores.ts` (empty on a
   fresh repo), runs `runRootsIndex(repoRoot, config, seeds)`, assembles the header
-  from the ownership table (the result's `bindingHash`/`candidateCountLog2` plus the
+  from the ownership table (the result's `bindingSetHash` — written into the
+  header's `bindingHash` field — and `candidateCountLog2`, plus the
   command-computed git trio and the store hashes), and persists header+`result.body`
   via `stores.ts` (the command is the ONLY composer of store and engine, per Task 1's
   seams); refuses with what/why/next when no `roots:` block — and
