@@ -121,8 +121,10 @@ dictated block goes back to the maintainer.
   fails) — keep `mine.ts`/`enumerate.ts` comfortably under it by splitting stages into
   the module layout the tasks already dictate; and note `config-parser.ts` (already
   ~30k chars, per-file LLM-reviewed) grows by the whole §4.5 surface in Task 1 —
-  headroom is adequate today (the largest reviewed file is ~66k under the 72k
-  ceiling) but watch the gate's headroom report after that edit.
+  headroom is REAL but TIGHT: the measured largest ASSEMBLED PROMPT (file content +
+  aspect prompt) is 71,343 chars against the 72,000 ceiling — margin 657 — on a file
+  this increment does not touch; a breach is a BLOCKING check error, so run the
+  gate's headroom step after every fat-file edit and split before you crowd it.
   The LLM-reviewed aspects on the new types (e.g. `deterministic`) are filled by that same
   `check --approve` through the keyless `claude-code` provider — expect the fill to take
   real minutes on roots-heavy tasks; that is the ritual working, not a hang.
@@ -193,7 +195,9 @@ dictated block goes back to the maintainer.
   parsed subtree — pure, engine-side); `stores.ts` exporting typed read/write for
   `model.json` (the I2a header field list is stated INLINE at
   `integration-design.md:140-142` — rootsVersion, headSha, lastIndexedSha, clock,
-  bindingHash, configHash, seedsHash, decisionsHash, ledgerHash, dirtyHash,
+  bindingHash, configHash, seedsHash, decisionsHash (an integration-design ADDITION —
+  spec `:137` and Appendix D's header omit it; the design is the integration
+  authority, followed deliberately), ledgerHash, dirtyHash,
   candidateCountLog2, rolesStale; EVERY field has an assigned producer — this is the
   full ownership table, and Task 8's command assembles the header from it at persist
   time: `rootsVersion` = Task 1's constant; `configHash` = Task 1's `rootsConfigHash`;
@@ -448,7 +452,6 @@ dictated block goes back to the maintainer.
   Step 3 for why a separate `eslint-rules/` directory is a trap)
 - Test: `source/cli/tests/unit/roots/genericity-lint.test.ts` (spawns the eslint CLI —
   imports nothing from `src/**` or the config, so it creates no graph edge)
-- Test: extend `source/cli/tests/support/` coverage per the tests tree's convention
 
 **Interfaces:**
 - Consumes: `git-fixture.ts`'s ACTUAL exports — `gitFixtureEnv`, `runGitFixture`, and
@@ -669,7 +672,11 @@ dictated block goes back to the maintainer.
   named-body scopes AND the one FILE scope per file (the prototype pushes it inside
   `extractScopes` at `:113`), under spec §6.7's extraction contract
   (`v6-spec.md:264-265`: never descend into a nested scope's body — prototype `:98` —
-  and the FIXED 4000-node visit cap — prototype `:95`). `RawScope` carries every
+  and the FIXED 4000-node visit cap — prototype `:95`) AND §6.1's error tolerance
+  (`:222`): ERROR nodes never abort — subtrees containing them are skipped
+  (error-free subtrees only), and a root-level error degrades to the file scope
+  alone; this is extractUnits' OWN contract, tested here, so Task 6's pipeline only
+  composes it. `RawScope` carries every
   field the downstream signatures force: `qualifiedName` and `arity` (stable_id
   inputs, §6.4), anonymous scopes as `<anon>` + ordinal and overloads as `#k` by
   source order (stated at `:245`, marked binding at `:247`), ordinals computed DURING extraction (not
@@ -677,9 +684,9 @@ dictated block goes back to the maintainer.
   tokens' source, supertypes via the heritage matcher, file imports) — NO
   partitionId, NO stable_id yet.
   (2) `derivePartitions(files, rawScopes, config): PartitionMap` in `partitions.ts`
-  (config carries the include/exclude and partition keys; `isMinedFile` is likewise
-  built FROM config — both parameters stated here, not left to Task 6's blanket
-  clause) — spec
+  (config carries the include/exclude and partition keys; the
+  `makeRootsFileFilters` factory is likewise built FROM config — both parameters
+  stated here, not left to Task 6's blanket clause) — spec
   §6.8 IN FULL (`v6-spec.md:267-271`): package-root detection from the file walk, the
   300-scope floor over the raw scopes, `_repo` merge, the built-in exclusion list.
   `files` is the EXCLUSION-FILTERED listing, NOT the parsed subset and NOT the
@@ -695,15 +702,16 @@ dictated block goes back to the maintainer.
   Config `include`/`exclude` (§4.5 `v6-spec.md:146`) are applied HERE too: spec
   §21.3 (`:721`) merges the §6.8 built-in exclusion list with config `exclude`, and
   `partitions.ts` owns that merge (globs via `mapping-path`'s `globMatch`, per the
-  lint story), EXPORTING a FACTORY — `makeIsMinedFile(config)` returning the predicate (the
-  predicate needs config; the factory form makes the call site unambiguous). TWO
-  predicate flavors, deliberately: the MARKER SCAN filters by the merged EXCLUSIONS
+  lint story), EXPORTING a FACTORY — `makeRootsFileFilters(config)` returning BOTH predicates:
+  `{ forMarkers, forParsing }` (they need config; the factory form makes the call
+  sites unambiguous). The two flavors, deliberately: the MARKER SCAN filters by the merged EXCLUSIONS
   ONLY (the prototype's walk applies `EXCL` alone at `:428` — a narrowed `include`
   like `["src/**"]` must not hide a root `go.mod` and vanish the partition root),
-  while the PARSE set additionally requires an `include` match (default `**/*`). That predicate is
-  what keeps excluded scopes OUT of mining end-to-end — it filters BOTH consumers:
-  the package-root marker scan (spec §6.6's enumeration is "filtered", `:255`) and,
-  composed with the grammar filter, the parse set (Task 6).
+  while the PARSE set additionally requires an `include` match (default `**/*`). Those predicates are
+  what keep excluded scopes OUT of mining end-to-end: `forMarkers` (merged
+  exclusions only) filters the package-root marker scan (spec §6.6's enumeration is
+  "filtered", `:255`), and `forParsing` (`include` ∧ merged exclusions), composed
+  with the grammar filter, gates the parse set (Task 6).
   (3) `finalizeUnits(rawScopes, partitions): ScopeUnit[]` — assigns final
   partitionIds, resolves MODULE scopes (spec §6.3 `:241-243` — "nearest of partition
   root or first directory with ≥ 3 code files" is partition-dependent, which is why
@@ -821,9 +829,11 @@ dictated block goes back to the maintainer.
   quantities — `:342`'s weight-index table is binding: role-CELL counts use
   `w(s,q)·(ambiguous ? 0.5 : 1)` and `_all` counts use `w(s,q)` (the per-(scope,
   surface) §9.1 weight WITH the hook-shaped cap — Task 6's concern), while
-  §8.9(b)'s file-role plurality uses `w_base` (the per-SCOPE §9.1 base, `:375-377`,
-  BEFORE any cap) — so THIS task's `weights` parameter is typed as the per-scope
-  BASE weight, w_base, and nothing else. At R1 both quantities evaluate to
+  §8.9(b)'s file-role plurality uses `w_base` per `:342`'s weight-index table (the
+  §8.9b PROSE at `:357` states an unweighted plurality — the table is the more
+  specific rule and we follow it, a DECIDED reading; at R1 the two coincide anyway)
+  — the per-SCOPE §9.1 base, `:375-377`, BEFORE any cap — so THIS task's `weights`
+  parameter is typed as the per-scope BASE weight, w_base, and nothing else. At R1 both quantities evaluate to
   `noLifecycleWeight` = 0.3, which is exactly why the types must be right NOW:
   when R4 lands ledger caps, w_base ≠ w(s,q), and a plurality computed with the
   capped weight would silently drift. Document the seam so R4 slots in without
@@ -910,7 +920,8 @@ dictated block goes back to the maintainer.
   weights, before seeds are added with zero raw weight), §9.4g stability days, §9.4h
   factCap 400 — and §9.4g's R3 SHAPE stated plainly: stability days compute from
   trend windows, trends are a later package, so in this increment the field is
-  STRUCTURALLY ABSENT (the spec's own "absent trends ⇒ omitted" rule; §9.4g's
+  STRUCTURALLY ABSENT (the spec's own "absent trends ⇒ omitted from messages" rule
+  extended to the snapshot; §9.4g's
   "Stored in the snapshot" sentence refers to the value when it exists — with no
   trends there is no value to store, a decided reading, not an oversight) —
   implement the stage so absence is the modeled outcome, with a unit case asserting
@@ -935,8 +946,14 @@ dictated block goes back to the maintainer.
   `RootsConfig` by the pipeline (add a config/options parameter to any dictated
   signature that needs one), and ONE behavioral test pins the wiring: changing
   `mdl.acceptMarginBits` in config changes the accepted set. ALSO: `pipeline.ts`
-  exporting the async composition
+  exporting TWO stages: `parseAndExtractAll(repoRoot, config):
+  Promise<{ files: string[], rawScopes: RawScope[] }>` — the walk + filter + parse +
+  extract PREFIX under the §6.1 rules above, returning both the exclusion-filtered
+  listing (what `derivePartitions` consumes) and the raw scopes; it exists as its
+  own export so Task 7's null control composes the real filters instead of
+  re-implementing them — and the full async composition
   `runRootsIndex(repoRoot, config, seeds: SeedEntry[]): Promise<RootsIndexResult>`
+  (which itself starts from `parseAndExtractAll`)
   where `RootsIndexResult` = `{ body: MinedModel, bindingSetHash: string,
   candidateCountLog2: number }` — the two header fields produced inside the engine
   MUST surface to the Task-8 command, and `bindingSetHash` (named distinctly so the
@@ -970,9 +987,9 @@ dictated block goes back to the maintainer.
   granularity (the file scope alone); the pipeline NEVER aborts on a file (I1). The
   prototype does both on the two lines directly above the block this plan quotes —
   the size guard at `prototype-roots2.mjs:418` and the per-file try/catch at `:419`
-  — and Task 4's `extractUnits` must tolerate error nodes (skip subtrees containing
-  them). A unit case pins it: one malformed file in a corpus → `index` succeeds and
-  that file yields its file scope only. Then Task 4's three phases in order —
+  — and Task 4's `extractUnits` already tolerates error nodes by its own contract;
+  the pipeline just composes it. A unit case pins it: one malformed file in a corpus → `runRootsIndex` succeeds
+  and that file yields its file scope only. Then Task 4's three phases in order —
   extractUnits per file → derivePartitions → finalizeUnits — then vocabularies →
   enumerate → roles → mine, all pure stages. ONE factory, TWO compositions: the walk's listing passes the merged EXCLUSIONS
   first (that filtered set feeds `derivePartitions` — package markers like `go.mod`
@@ -1035,7 +1052,11 @@ dictated block goes back to the maintainer.
   `parseAndExtractAll` (Task 6 exports the walk+filter+parse+extract prefix as its
   own stage precisely so this control cannot re-implement the filters divergently):
   parseAndExtractAll→partitions→finalize→vocabularies→
-  enumerate→**induceRoles** on a golden, PERMUTE each surface's values across scopes with a DETERMINISTIC seed (spec H.6 pins seeded permutation; the test-suite determinism discipline demands it too)
+  enumerate→**induceRoles** on a golden, PERMUTE each surface's values across scopes
+  WITHIN THAT SURFACE'S DOMAIN ONLY (the `domains` map rides along unpermuted — a
+  value permuted onto an out-of-domain scope would drive `n_false` negative and fake
+  the zero result) with a DETERMINISTIC seed (spec H.6 pins seeded permutation; the
+  test-suite determinism discipline demands it too)
   after enumeration, then assert mine accepts 0 role/locality conventions;
   **fail-closed control** — two halves, both executable NOW: (a) pipeline-level,
   every golden's MinedModel shows ZERO history-gated hook ELIGIBILITY (spec §9.4c
@@ -1065,7 +1086,8 @@ dictated block goes back to the maintainer.
   outright (`prototype-roots2.mjs:435`). So EVERY golden — the data golden's code half included — MUST clear ≥300 scopes with real margin (not land exactly on the boundary)
   in its merged bucket (counted in the Task-4 denominator: named-body + file scopes),
   or it mines nothing and every MUST-mine assertion fails vacuously. On top of that
-  sit §7.2's per-surface vocabulary support floors (`v6-spec.md:158`) and §9.4's
+  sit §7.2's per-surface vocabulary support floors (`v6-spec.md:300-304`; the
+  default values also appear in §4.5 at `:158`) and §9.4's
   min-instance floors — derive each assertion's minimum counts from THOSE, AND at
   the R1 weight: with no lifecycle rows every instance weighs 0.3 (Task 6's
   default), so `n_eff = 0.3 × n_raw` — `minInstancesEff: 3` needs ≥10 raw
@@ -1099,9 +1121,11 @@ dictated block goes back to the maintainer.
   table assigns to this command; the `utility` type is not log-gated). `src/utils/**`
   is coverage-MEASURED and the spawned E2E contributes no coverage, so these helpers
   get their own in-process unit tests (`tests/unit/utils/` per that area's
-  convention — owned by `model/cli/tests/unit/support/utils/yg-node.yaml`, which
-  maps per-file; add the new test file to its `mapping:` — real tmp git repos via
-  the Task-2 fixture)
+  convention — owned by the DEDICATED child
+  `model/cli/tests/unit/support/utils/git-helpers/yg-node.yaml`, which already maps
+  every git test AND carries the `{ target: cli/tests/support, type: uses }`
+  relation a fixture-using test needs; add the new test file to ITS `mapping:` —
+  real tmp git repos via the Task-2 fixture)
 - Modify: `.yggdrasil/model/cli/tests/unit/cli/yg-node.yaml` description — it
   enumerates its children by name and is ALREADY stale (lists four, seven exist);
   true it up while adding the eighth (`roots`)
@@ -1153,7 +1177,8 @@ dictated block goes back to the maintainer.
   header's `bindingHash` field — and `candidateCountLog2`, plus the
   command-computed git trio and the store hashes), and persists header+`result.body`
   via `stores.ts` (the command is the ONLY composer of store and engine, per Task 1's
-  seams); refuses with what/why/next when no `roots:` block — and
+  seams); real I/O/config errors still refuse with what/why/next (the blockless case
+  SCAFFOLDS instead, per the decision above) — and
   **`yg roots status`** (reads the model, reports field/fact counts and dormancy
   honestly; NO `--exit-code` and NO `--diagnose` — `status` itself is a RECORDED
   partial pull-forward from R7, whose scope of record (`plugin-marketplace-plan.md:107-108`) owns the full
@@ -1168,19 +1193,26 @@ dictated block goes back to the maintainer.
   satisfy them by construction, not retrofit. The node is log-gated — its `yg log add`
   entry is authored here (alongside any other log-gated node this task's diff touches).
 
-- [ ] **Step 1: TDD spawned E2E** — on a Task-7 golden (cloned from its bundle):
+- [ ] **Step 1: TDD spawned E2E** — PROJECT SETUP first, because a golden is a plain
+  source repo, not a Yggdrasil project: the test clones the bundle and writes a
+  MINIMAL `.yggdrasil/yg-config.yaml` into the clone (the schema `version:` key; the
+  `roots:` block present or absent per case — nothing else; `runRootsIndex` needs
+  config, not the graph, and `cli/roots.ts` accordingly loads CONFIG ONLY, never
+  `loadGraphOrAbort` — mining touches no graph, I10). Cases: with a `roots:` block,
   `yg roots index` exits 0 and writes a model whose header carries
   rootsVersion+configHash; running `index` a SECOND time yields a byte-identical
-  `model.json` — header included (this is the header-level determinism proof, and the
-  assertion that catches a `dirtyHash` folding in roots' own outputs); `yg roots
-  status` reports what `index` mined. EXIT CODES split by the authorities — do NOT
-  make both refuse: without a `roots:` block, `index` refuses (exit ≠ 0,
-  what/why/next; design: "1 only on I/O/config errors"), but `status` ALWAYS exits 0
-  and REPORTS dormancy as information — spec `v6-spec.md:706` ("All read surfaces
-  exit 0 by default") and design `:84` (R7's `--exit-code` is the ONLY gate-capable
-  surface, opt-in); a read command exiting non-zero on a dormant repo is exactly the
-  CI-gating surface this increment must not ship. The dormancy pin from Task 1
-  re-run.
+  `model.json` — header included (the header-level determinism proof, and the
+  assertion that catches a `dirtyHash` folding in roots' own outputs); WITHOUT the
+  block, `index` SCAFFOLDS it with defaults — printed first — into the existing
+  `yg-config.yaml` (the merge-a-block writer follows the
+  `init-reviewer-setup.ts:251-256` `writeReviewerConfig` precedent; name the new
+  writer in cli/roots.ts) and then proceeds to mine, exiting 0; `yg roots status`
+  reports what `index` mined, and `status` ALWAYS exits 0, reporting dormancy as
+  INFORMATION — spec `v6-spec.md:706` ("All read surfaces exit 0 by default") and
+  design `:84` (R7's `--exit-code` is the ONLY gate-capable surface, opt-in); a read
+  command exiting non-zero on a dormant repo is exactly the CI-gating surface this
+  increment must not ship. Real I/O/config errors are the only non-zero `index`
+  exits (design `:79`). The dormancy pin from Task 1 re-run.
 - [ ] **Step 2: Implement `cli/roots.ts` + registration + the sibling unit test.**
 - [ ] **Step 3: Docs** — one adopter-facing page: what roots is (advisory convention
   mining), dormant-by-default, the two commands, the storage layout, what R1-R3 does NOT
