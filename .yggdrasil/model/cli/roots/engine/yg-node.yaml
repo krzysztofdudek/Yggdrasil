@@ -1,9 +1,15 @@
 name: Roots Engine
 type: roots-engine
 description: "Roots mining engine — pure, deterministic convention-mining
-  computation. Currently maps only the config seam (config.ts: rootsConfigHash,
-  a pure sha256-of-canonical-JSON fold over the parsed roots config subtree);
-  binding derivation, extraction, enumeration, role induction, and the MDL
+  computation. Maps the config seam (config.ts: rootsConfigHash, a pure
+  sha256-of-canonical-JSON fold over the parsed roots config subtree) and
+  binding derivation (binding.ts: deriveBinding — spec §6.2's scope/import/
+  decorator node-type sets and heritage pattern, derived purely from a
+  grammar's already-parsed node-types.json; the lexical decoration-marker
+  predicate and decoration attribution-window test Task 4's extraction module
+  consumes; bindingHash, the per-grammar canonical-JSON content hash a later
+  pipeline folds across every grammar used into the model header's own
+  bindingHash field). Extraction, enumeration, role induction, and the MDL
   acceptance chain join this node's mapping as those modules land under
   source/cli/src/roots/."
 relations:
@@ -11,5 +17,8 @@ relations:
     type: calls
   - target: cli/model/graph
     type: uses
+  - target: cli/ast/runtime
+    type: calls
 mapping:
   - source/cli/src/roots/config.ts
+  - source/cli/src/roots/binding.ts

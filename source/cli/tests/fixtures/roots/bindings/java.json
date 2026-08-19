@@ -1,0 +1,31 @@
+{
+  "decorators": [
+    "annotation",
+    "annotation_argument_list",
+    "annotation_type_body",
+    "annotation_type_declaration",
+    "annotation_type_element_declaration",
+    "marker_annotation"
+  ],
+  "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
+  "imports": [
+    "import",
+    "import_declaration",
+    "requires",
+    "requires_modifier",
+    "requires_module_directive"
+  ],
+  "scope": [
+    "annotation_type_declaration",
+    "class_declaration",
+    "compact_constructor_declaration",
+    "constructor_declaration",
+    "enhanced_for_statement",
+    "enum_constant",
+    "enum_declaration",
+    "interface_declaration",
+    "method_declaration",
+    "module_declaration",
+    "record_declaration"
+  ]
+}

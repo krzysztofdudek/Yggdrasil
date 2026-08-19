@@ -1,0 +1,17 @@
+{
+  "decorators": [],
+  "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
+  "imports": [
+    "use_declaration"
+  ],
+  "scope": [
+    "enum_item",
+    "enum_variant",
+    "function_item",
+    "mod_item",
+    "struct_expression",
+    "struct_item",
+    "trait_item",
+    "union_item"
+  ]
+}

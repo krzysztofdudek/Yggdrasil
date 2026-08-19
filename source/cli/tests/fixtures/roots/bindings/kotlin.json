@@ -1,0 +1,11 @@
+{
+  "decorators": [
+    "annotation",
+    "file_annotation"
+  ],
+  "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
+  "imports": [
+    "import"
+  ],
+  "scope": []
+}

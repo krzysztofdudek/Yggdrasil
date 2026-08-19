@@ -10,11 +10,16 @@ description: "Unit tests for the roots convention-mining module: the roots
   same-run self-comparison), a round-trip proof for the golden-bundle builder
   and equivalence checker themselves (a fresh spec/bundle pair passes; a
   spec mutated after the bundle was cut throws the specific HEAD-sha drift
-  diagnostic), and a spawned-eslint proof that the roots genericity
+  diagnostic), a spawned-eslint proof that the roots genericity
   import/extension-literal/type-only-import fence actually fires (rather than
   silently scoping to nothing, the failure mode this repo has hit once before
-  with a different lint rule). Later roots tasks add sibling test files to
-  this same node's mapping as their modules land."
+  with a different lint rule), and binding derivation (deriveBinding pinned
+  against 16 committed per-grammar snapshots, the node-types.json disk
+  loader's happy and loud-failure paths, a build assertion that every
+  registry-shipped grammar resolves a readable node-types.json, and the
+  lexical decoration-marker/attribution-window helpers table-driven across
+  the six measured grammars' decorator kinds). Later roots tasks add sibling
+  test files to this same node's mapping as their modules land."
 aspects: []
 relations:
   [
@@ -23,7 +28,9 @@ relations:
     { target: cli/io/parsers/config, type: uses },
     { target: cli/io/stores, type: uses },
     { target: cli/model/graph, type: uses },
-    { target: cli/tests/support, type: uses }
+    { target: cli/tests/support, type: uses },
+    { target: cli/ast/runtime, type: uses },
+    { target: cli/language-registry, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/roots/config.test.ts
@@ -32,3 +39,4 @@ mapping:
   - source/cli/tests/unit/roots/git-fixture-determinism.test.ts
   - source/cli/tests/unit/roots/roots-golden.test.ts
   - source/cli/tests/unit/roots/genericity-lint.test.ts
+  - source/cli/tests/unit/roots/binding.test.ts

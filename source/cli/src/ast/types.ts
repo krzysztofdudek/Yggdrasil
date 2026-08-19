@@ -1,5 +1,13 @@
 import type { Tree } from 'web-tree-sitter';
 
+// Re-exported so `src/roots/**` (and any other caller) can name these types
+// without importing the `web-tree-sitter` package directly — the roots
+// genericity fence (`eslint.config.js`'s `local/roots-genericity-fence`) bans
+// exactly that import, on the theory that AST node/tree types come only from
+// this adapter layer's own barrel, never the underlying parser package.
+// Mirrors `ast/index.ts`'s existing `Node as SyntaxNode` re-export naming.
+export type { Tree, Node as SyntaxNode } from 'web-tree-sitter';
+
 export interface SourceFile {
   /** Project-relative POSIX path */
   path: string;

@@ -1,0 +1,13 @@
+{
+  "decorators": [],
+  "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
+  "imports": [
+    "#include",
+    "preproc_include"
+  ],
+  "scope": [
+    "enum_specifier",
+    "struct_specifier",
+    "union_specifier"
+  ]
+}

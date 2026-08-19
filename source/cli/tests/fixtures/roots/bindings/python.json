@@ -1,0 +1,20 @@
+{
+  "decorators": [
+    "decorator"
+  ],
+  "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
+  "imports": [
+    "aliased_import",
+    "future_import_statement",
+    "import",
+    "import_from_statement",
+    "import_prefix",
+    "import_statement",
+    "relative_import",
+    "wildcard_import"
+  ],
+  "scope": [
+    "class_definition",
+    "function_definition"
+  ]
+}

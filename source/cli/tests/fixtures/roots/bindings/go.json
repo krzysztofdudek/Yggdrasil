@@ -1,0 +1,14 @@
+{
+  "decorators": [],
+  "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
+  "imports": [
+    "import",
+    "import_declaration",
+    "import_spec",
+    "import_spec_list"
+  ],
+  "scope": [
+    "function_declaration",
+    "method_declaration"
+  ]
+}

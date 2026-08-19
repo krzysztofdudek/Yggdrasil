@@ -1,0 +1,22 @@
+{
+  "decorators": [],
+  "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
+  "imports": [
+    "#include",
+    "compound_requirement",
+    "preproc_include",
+    "requirement_seq",
+    "requires",
+    "requires_clause",
+    "requires_expression",
+    "simple_requirement",
+    "type_requirement"
+  ],
+  "scope": [
+    "class_specifier",
+    "enum_specifier",
+    "namespace_definition",
+    "struct_specifier",
+    "union_specifier"
+  ]
+}

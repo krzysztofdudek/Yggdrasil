@@ -1,0 +1,11 @@
+{
+  "decorators": [],
+  "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
+  "imports": [],
+  "scope": [
+    "class",
+    "method",
+    "module",
+    "singleton_method"
+  ]
+}

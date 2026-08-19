@@ -1,10 +1,12 @@
 name: AST Runtime
 type: ast-adapter
 description: AST runtime — loader hook for .cjs interop, parser setup, check
-  runner, and yg-suppress marker extraction.
+  runner, yg-suppress marker extraction, and the node-types.json disk loader
+  roots' binding derivation reads through.
 mapping:
   - source/cli/src/ast/loader-hook-impl.ts
   - source/cli/src/ast/loader-hook.ts
+  - source/cli/src/ast/node-types.ts
   - source/cli/src/ast/parse-cache.ts
   - source/cli/src/ast/parser.ts
   - source/cli/src/ast/runner.ts

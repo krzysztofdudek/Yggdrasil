@@ -1,0 +1,28 @@
+{
+  "decorators": [
+    "attribute_list"
+  ],
+  "heritagePattern": "heritage|extends|implements|superclass|super_interfaces|base_|superclasses|argument_list",
+  "imports": [
+    "include",
+    "include_expression",
+    "include_once",
+    "include_once_expression",
+    "namespace_use_declaration",
+    "require",
+    "require_expression",
+    "require_once",
+    "require_once_expression",
+    "use_declaration"
+  ],
+  "scope": [
+    "catch_clause",
+    "class_declaration",
+    "enum_declaration",
+    "function_definition",
+    "interface_declaration",
+    "method_declaration",
+    "namespace_definition",
+    "trait_declaration"
+  ]
+}
