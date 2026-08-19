@@ -81,16 +81,21 @@ dictated block goes back to the maintainer.
 - **Determinism.** Every store write is canonical-JSON (sorted keys) + atomic; every
   iteration over mined maps is sorted; content hashes fold inputs. Object reads from mined
   values use null-prototype or own-property guards (`constructor` is a real method name).
-  Pinned by Task 7's double-build byte-identity control.
+  Pinned by Task 7's double-build byte-identity control. (Spec §20.2 also names a
+  sorted-iteration LINT; this increment consciously substitutes the prose discipline
+  above plus that byte-identity control — a mechanical sorted-iteration rule is not
+  reliably writable without resolver machinery, the documented eslint failure mode.)
 - **Coverage.** `src/roots/**` is NOT in vitest's coverage exclude list — every branch
   counts toward the ≥90% gate. Write measured in-process tests as you build, not after.
 - **Graph ritual per task** (same as prior increments): new test files join their owning
   node's `mapping:`; new import edges between mapped nodes get declared relations — WATCH
   `max_direct_relations` ceilings and the fan-out leaderboard pin in
   `tests/integration/portal-derive-rest.test.ts` (currently `cli/tests/unit/cli/general`
-  at 32/32 — and the pin is FIVE rows, not one: the test pins five paths and five counts
-  (32/25/24/23/23) plus the title and a narrative comment, so any movement means updating
-  the whole set coherently; Task 1 creates NEW nodes whose relations may enter the
+  at 32/32 — and the pin is more than one row: the test pins five leaderboard paths and
+  counts (32/25/24/23/23), a sixth value (`cli/commands/aspect-test` at exactly 20 with
+  a `<23` bound), a descending-order invariant, the title, and a narrative comment, so
+  any movement means updating the whole set coherently; Task 1 creates NEW nodes whose
+  relations may enter the
   ranking — if any pinned count or ordering moves, update title+assertion+narrative in
   the same commit); log-gating
   is widespread, NOT command-only — `log_required: true` sits on `command`, `engine`,
@@ -99,6 +104,14 @@ dictated block goes back to the maintainer.
   mappings, add `yg log add --node <id>` with self-contained WHY prose (the check output
   names the nodes demanding one); `node source/cli/dist/bin.js check --approve` from repo
   root ends `PASS (1 warning)` (the user-gated aspect-review-overdue warning — NOT yours).
+  COMMENT DISCIPLINE, every task: the `self-contained-references` aspect binds to every
+  new test node and to roots-engine via `source-hygiene` — code/test comments state
+  rules and derivations self-contained; a bare "spec §X" or "Appendix E.3" citation is
+  exactly the banned shape. FILE-SIZE DISCIPLINE: roots-engine carries the per-file LLM
+  `deterministic` review, and the reviewer prompt ceiling is `max_prompt_chars: 72000`
+  (raised four times already for large engine files; repo-check's headroom step reports
+  the margin but never fails) — keep `mine.ts`/`enumerate.ts` comfortably under it by
+  splitting stages into the module layout the tasks already dictate.
   The LLM-reviewed aspects on the new types (e.g. `deterministic`) are filled by that same
   `check --approve` through the keyless `claude-code` provider — expect the fill to take
   real minutes on roots-heavy tasks; that is the ritual working, not a hang.
@@ -161,7 +174,7 @@ dictated block goes back to the maintainer.
   nothing about how any existing config parses", which is exactly this block's
   situation too — no graph schema version bump; `init-scaffold.ts:29-33`
   (`GITATTRIBUTES_LINES`) and `:89-124` (`YGGDRASIL_GITIGNORE_LINES`);
-  canonical-JSON/atomic-write precedents (`io/type-class-cache.ts:9-37` versioning,
+  canonical-JSON/atomic-write precedents (`io/type-class-cache.ts:8-32` versioning,
   `io/atomic-write.ts`).
 - Produces: `RootsConfig` (typed, spec §4.5 keys verbatim minus `version`/`daemon`,
   defaults applied at parse) as `YggConfig['roots']` (absent block ⇒ `undefined` ⇒
@@ -173,7 +186,14 @@ dictated block goes back to the maintainer.
   candidateCountLog2, rolesStale; R1-R3 fills what it computes and stores explicit
   nulls for the rest, honestly), `seeds.jsonl`, `decisions.jsonl`, `ledger.jsonl`, and
   the gitignored `.cache/`/`.state/` roots — every write canonical + atomic +
-  schema-versioned (`rootsVersion`). Tasks 3-8 import these names.
+  schema-versioned (`rootsVersion`). THE MODEL-BODY SEAM, fixed here so no later task
+  reopens this file: `stores.ts` owns `RootsModelHeader` (the I2a list above) and is
+  GENERIC over the body — `writeModel(dir, header, body)` serializes any body
+  canonically beside the header, `readModel(dir)` returns the header typed and the
+  body as `unknown` for the caller to narrow. The body's concrete type (`MinedModel`)
+  is declared in Task 6's `mine.ts` (engine-side, where it is produced), and Task 8
+  composes the two — `stores.ts` is NOT touched after this task, so the log-gated
+  `roots-store` node drifts only once. Tasks 3-8 import these names.
 
 - [ ] **Step 1: The approved architecture block.** The file's real per-type schema
   (verified at ff71299): single-line quoted `description:`; `enforce: strict`; `when:` as
@@ -184,7 +204,7 @@ dictated block goes back to the maintainer.
   resolved by DISJOINTNESS BY CONSTRUCTION, not precedence — peers carve each other out
   (see the `engine` type, `:86-115`, carving out the two `reviewer-dispatch` files with
   `not:` at `:98-99`, `reviewer-dispatch` itself at `:116-135`; and `command` vs
-  `command-support`: the `content:` regex at `:46` vs its negation at `:76`). Append to
+  `command-support`: the `content:` regex at `:48` vs its negation at `:74`). Append to
   `node_types:` exactly these two types:
 
 ```yaml
@@ -234,14 +254,19 @@ dictated block goes back to the maintainer.
   (`src/model/when.ts:3-6` states the contract; no check code reports a
   never-applying attachment). That is why two seemingly-natural aspects are DELIBERATELY
   ABSENT above: `no-nondeterminism-direct` is type-scoped to
-  engine/reviewer-dispatch/rule-script and its checker scans only `src/core/**`, and
+  engine/reviewer-dispatch/rule-script and its checker scans only `src/core/**` plus
+  aspect `check.mjs` files, and
   `atomic-write-contract` is type-scoped to persistence-adapter with a checker gated to
   `src/io/*.ts` — on the new types both would advertise enforcement that never runs.
   Roots determinism is enforced by the LLM-reviewed `deterministic` aspect plus Task 7's
   determinism control; store discipline is pinned by Task 1 Step 5's tests. Before
-  committing, read each REMAINING aspect's `.yggdrasil/aspects/<id>/yg-aspect.yaml` and
-  verify its `when:` (if any) admits the new types — if one is type-scoped, STOP and
-  report rather than shipping an inert attachment. Note `deriveBinding`'s disk read does
+  committing, read each DIRECTLY-LISTED remaining aspect's
+  `.yggdrasil/aspects/<id>/yg-aspect.yaml` and verify its `when:` (if any) admits the
+  new types — if one is type-scoped, STOP and report rather than shipping an inert
+  attachment. (Direct attachments only: `deterministic` IMPLIES
+  `no-nondeterminism-direct`, whose inertness here is already stated above and is
+  accepted — an implied child failing its own `when:` is not a STOP.) Note
+  `deriveBinding`'s disk read does
   NOT live in engine (Task 3 puts the loader in the ast layer), so `no-direct-fs` holds;
   engine may still CALL persistence-adapter helpers for repo scanning — the core
   `engine` type has that allowance, and `relations-adapter` is the even closer
@@ -273,7 +298,7 @@ dictated block goes back to the maintainer.
   `buildIssueMessage`; delegation would force an illegal edge in one direction or the
   other. The `RootsConfig` TYPE declares in `model/graph.ts` (types layer, importable
   from both sides); the DEFAULTS const lives in `config-parser.ts` beside
-  `DEFAULT_QUALITY`/`DEFAULT_COVERAGE` (`:23`/`:26` — that is where this repo keeps
+  `DEFAULT_QUALITY`/`DEFAULT_COVERAGE` (`:23`/`:27` — that is where this repo keeps
   config defaults); `parseConfig` fills `config.roots` with the §4.5
   keys verbatim minus `version`/`daemon`, per-key defaults from the spec, unknown keys
   at ANY depth of the subtree → `ConfigParseError` in the established what/why/next
@@ -285,7 +310,7 @@ dictated block goes back to the maintainer.
   `decisions.jsonl` + `ledger.jsonl`; gitignored `.cache/`, `.state/`), the I2a model
   header (field list inline at `:139-142`), `rootsVersion` constant, reads tolerant of
   absent files (dormant/fresh repos), writes canonical+atomic. Extend `init-scaffold.ts`
-  with EXACTLY the three `.gitattributes` lines design §4 states at `:145-149` — two
+  with EXACTLY the three `.gitattributes` lines design §4 states at `:146-150` — two
   `merge=union` entries plus the `linguist-generated` entry for `model.json` (they are
   not all `merge=union`; copy the design's lines, don't paraphrase) — and the
   `roots/.cache/`+`roots/.state/` gitignore lines (paths relative to `.yggdrasil/`, per
@@ -295,10 +320,20 @@ dictated block goes back to the maintainer.
   (`:315-333` prose list), `templates/knowledge/onboarding.ts` (`:328-336` lists the same
   entries), and `docs/configuration.md` (`:355-365` table of managed gitignore entries —
   and since that page also documents the config blocks, add the `roots:` block section
-  there in the same pass, matching the `signals:`/`events:` sections' shape). Finally,
+  there in the same pass, matching the `signals:`/`events:` sections' shape).
+  Checked-and-clear, so do NOT touch it: `tests/support/progressive-fixture.ts`'s
+  `YGG_GITIGNORE` (`:264-272`) is a deliberately trimmed subset ("trimmed to the
+  entries this fixture can actually produce") and no progressive test runs
+  `init --upgrade`. Two `.gitattributes`-describing surfaces are ALREADY stale (they
+  mention only the lock's `linguist-generated` line) and get staler with the roots
+  lines — true them up in the same pass: `docs/cli-reference.md:1237-1238` and
+  `templates/knowledge/cli-reference.ts:1001-1002`. Finally,
   keep this repo's own dogfood artifacts in sync: run the built binary's `init --upgrade`
-  from repo root AND from each `examples/*/` that carries its own `.yggdrasil/`, so the
-  committed `.gitattributes`/`.yggdrasil/.gitignore` copies match the new managed lists.
+  from repo root AND from each `examples/*/` that carries its own `.yggdrasil/` (all
+  seven do), so the committed `.gitattributes`/`.yggdrasil/.gitignore` copies match the
+  new managed lists. (This does not violate the "NEVER `init` from a subdirectory"
+  rule — each example IS its own project root, the same allowance the digest gate's
+  per-example sweep already uses.)
 - [ ] **Step 5: Tests (TDD — write first, red, then implement).** `config.test.ts`
   drives everything through the PUBLIC `parseConfig` (real yg-config.yaml files in tmp
   dirs, matching how the signals/events behavior is tested): absent block →
@@ -313,7 +348,9 @@ dictated block goes back to the maintainer.
   existing no-`roots:` fixture, capturing exit code + stdout; HARDCODE that capture into
   the test as the golden (a test cannot re-derive pre-increment output at run time —
   the golden is captured once, now, from the pre-change tree). The test then spawns the
-  freshly built binary on the same fixture and asserts byte-identity with the golden.
+  freshly built binary on the same fixture and asserts byte-identity with the golden —
+  `tests/e2e/cli-aspects-health.test.ts:134-138` (`DEFAULT_ASPECTS_GOLDEN`) is the
+  existing precedent proving this pattern works and the output is byte-stable.
   Lives in its own spawned test file (`tests/unit/roots/dormancy.test.ts` or per the
   tests tree's spawn convention — report the choice). Graph: map the new test dir (a
   new `model/cli/tests/unit/roots/` node — `model/cli/tests/unit/` holds per-area
@@ -376,13 +413,19 @@ dictated block goes back to the maintainer.
   string normalization instead: `path.posix.join(dirname(importing file), specifier)`
   for relative specifiers (no resolver, no filesystem), then checks the normalized
   repo-relative path against the allowlist: `src/roots/`, `src/ast/` (parser pool +
-  the Task-3 node-types loader + `ast/types` re-exports), `src/utils/language-registry`,
-  `src/io/`, `src/model/` (the `RootsConfig` type), plus `node:` builtins — NO
-  `src/formatters/` entry: the graph gives roots-engine no formatter edge, and the lint
-  must not be permissive where the graph is restrictive (within `src/io/` the graph
-  still constrains finer — engine may call persistence-adapter helpers but not the
-  `*-parser.ts` files typed parser-adapter; the lint's io allowance is the coarse
-  fence, the graph the fine one). Everything else errors, as does any specifier matching
+  the Task-3 node-types loader + `ast/types` re-exports), `src/utils/` (COARSE, on
+  purpose: the graph's `utility` edge is the fine fence, and roots code NEEDS more
+  than the registry — `source-hygiene`'s implied `no-direct-minimatch` child MANDATES
+  `utils/mapping-path.js`'s `globMatch` for §6.8's exclusion globs, `no-direct-console`
+  pushes output through `utils/debug-log.js`, and the POSIX path helpers live there
+  too), `src/io/` (same coarse/fine split — engine may call persistence-adapter
+  helpers but not the `*-parser.ts` files typed parser-adapter), `src/model/` (the
+  `RootsConfig` type), plus `node:` builtins — NO `src/formatters/` entry: the graph
+  gives roots-engine no formatter edge, and the lint must not be permissive where the
+  graph is restrictive (a DELIBERATE departure from
+  `integration-design.md:253-254`, which allowed `message-builder` as a roots import —
+  that allowance predates the inline-config-parsing decision that removed roots' only
+  message-building need). Everything else errors, as does any specifier matching
   `/tree-sitter|\.wasm/` — including `'web-tree-sitter'`: roots gets AST TYPES
   (`Tree`, nodes) via re-exports from `src/ast/types.ts`, never from the package
   (Task 3 adds the re-export if absent). Also error on per-language switch heuristics:
@@ -390,9 +433,14 @@ dictated block goes back to the maintainer.
   outside the registry import. (This is deliberately NARROWER than design §6's "any
   identifier or string literal naming a programming language" — that heuristic
   false-positives on ordinary words; the narrowing is a conscious decision, stated in
-  the rule's header comment. Design §6's second dogfood — a deterministic aspect on
-  the roots node — is satisfied by the `roots-engine` TYPE carrying `deterministic`,
-  which binds every node of that type.) The rule lives INLINE in `eslint.config.js`
+  the rule's header comment. Design §6's second dogfood — "a deterministic aspect on
+  this repo's own `src/roots/**` node" — means a deterministic-CHECKER aspect (a
+  `check.mjs` under `.yggdrasil/aspects/`) encoding the genericity fence in the graph
+  itself; it is NOT satisfied by the type carrying the unrelated LLM `deterministic`
+  aspect. Authoring a NEW aspect is outside Task 1's authorized architecture block, so
+  this row is CONSCIOUSLY DEFERRED pending maintainer approval — it is listed in the
+  execution notes' user-gated items, not silently dropped.) The rule lives INLINE in
+  `eslint.config.js`
   scoped to `src/roots/**` — a separate `eslint-rules/` directory would be unmapped
   by every architecture `when:` (a blocking coverage error needing an UNAUTHORIZED
   third architecture edit), unlinted by `"lint": "eslint src/ tests/"`, and imported
@@ -423,9 +471,12 @@ dictated block goes back to the maintainer.
   (the build copies it there via `tsup.config.ts`'s per-grammar candidate table; the
   node_modules dev-fallback locations `resolveWasm` probes have wasm but NO
   node-types.json at the probed paths). Dictated resolution: two candidates, first hit
-  wins — `<moduleDir>/../grammars/` (correct when running from `dist/`) and
-  `<packageRoot>/dist/grammars/` (correct when running from `src/` under vitest;
-  packageRoot found by package.json walk-up); if neither directory exists, THROW loudly
+  wins — `<moduleDir>/grammars/` (correct when running from `dist/`: the published
+  bundle is FLAT, so `dist/grammars` is `__dirname/grammars` — `parser.ts:13-19`'s own
+  first candidate and its comment say exactly this) and `<packageRoot>/dist/grammars/`
+  (correct when running from `src/` under vitest; packageRoot found by package.json
+  walk-up — `dist/` has no package.json, so the walk-up is safe in both modes); if
+  neither directory exists, THROW loudly
   naming the build command — never skip, never return empty (the built-binary guard's
   philosophy; the gate builds before tests, so in CI the directory is always there).
   Read via `node:fs` directly, exactly as `parser.ts` itself does (`:4`) —
@@ -452,7 +503,10 @@ dictated block goes back to the maintainer.
   DECISION, fixed here: binding derivation keys on the grammar ASSET name, not the
   registry id (design `integration-design.md:174-177`: registry ids `csharp`/`php` ship
   as `tree-sitter-c_sharp.wasm`/`tree-sitter-php_only.wasm`, and "binding derivation
-  keys on the asset name"); the asset name derives from the registry entry's wasm
+  keys on the asset name" — concretely: strip the `tree-sitter-` prefix and `.wasm`
+  suffix, so `tree-sitter-c_sharp.wasm` → asset `c_sharp` → fixture `c_sharp.json`,
+  and the loader reads `tree-sitter-<asset>.node-types.json`); the asset name derives
+  from the registry entry's wasm
   filename, and the 16 committed snapshot fixtures are named `<asset>.json` (committed
   filenames cannot be cheaply renamed later — get this right now); `binding.ts`
   exporting PURE `deriveBinding(nodeTypes): RootsBinding` — the scope/import/decorator
@@ -534,6 +588,8 @@ dictated block goes back to the maintainer.
 **Files:**
 - Create: `source/cli/src/roots/roles.ts`
 - Test: `source/cli/tests/unit/roots/roles.test.ts`
+- Modify: `.yggdrasil/model/cli/roots/engine/yg-node.yaml` (mapping + relations — same
+  as every other engine-file task)
 
 **Interfaces:**
 - Consumes: `FeatureBag`/`ScopeUnit` (Task 4).
@@ -567,21 +623,27 @@ dictated block goes back to the maintainer.
 
 **Interfaces:**
 - Consumes: everything above.
-- Produces: `mine(input): MinedModel` — the FULL acceptance chain, decomposed from the
+- Produces: `MinedModel` — the model-BODY type, declared HERE in `mine.ts` per Task 1's
+  seam decision (stores.ts stays generic and untouched) — and `mine(input): MinedModel`,
+  the FULL acceptance chain, decomposed from the
   prototype's single `mine()` (`:175-251`) into named stages: KT/MDL vs parent posterior,
   index cost, fire-ability, **survived-raw ≥ 2/3 FAIL-CLOSED without history** (the
   inversion fix — an absent history/age source marks instances NOT survived), vacuous
   filter, two-tier absence τ (3.5 vocabulary / 4.5 structural), placement group-only,
   fallback buckets, locality lattice (dirMin 25, redundant + nested-refinement pruning),
-  correlation dedup, seeds cap `seedCapFraction` (0.5) × n_eff_REAL (`:382` — the real
-  count, not the effective sum), §9.4g stability days, §9.4h factCap 400. Spec §9 read
+  correlation dedup, seeds cap `seedCapFraction` (0.5) × `n_eff_real`
+  (`v6-spec.md:382`; `n_eff_real` is the EFFECTIVE — weighted — sum over REAL,
+  pre-seed instances: not the raw instance count, and not the post-seed effective sum;
+  the prototype computes it at `:201-202` by summing `counts`, which accumulate
+  weights, before seeds are added with zero raw weight), §9.4g stability days, §9.4h
+  factCap 400. Spec §9 read
   IN FULL through §9.4 (`v6-spec.md:366-430`); §9.5-§9.11 (trends, severity, DENY
   eligibility, the verdict function, exemplar ranking) belong to LATER packages — out
   of R1-R3, consciously. The R3/R4 seam:
   `mine` takes the same `WeightFn` plus an optional `AgeFn` — absent AgeFn = the
   fail-closed branch, NOT a permissive default. Null-prototype/own-property reads on
   every mined-value map. ALSO: `pipeline.ts` exporting the async composition
-  `runRootsIndex(repoRoot, config): MinedModel` — list files AND read their contents
+  `runRootsIndex(repoRoot, config): Promise<MinedModel>` — list files AND read their contents
   via existing io helpers (persistence-adapter — the scanner for listing, the io
   file-read helper for content; engine carries `no-direct-fs`, so `node:fs` is not an
   option here, and engine may call persistence-adapter same as the core `engine` type),
@@ -627,8 +689,9 @@ dictated block goes back to the maintainer.
   accepts nothing history-gated), **determinism control** (double mine → byte-identical
   MinedModel; cache-state independence). Scope: the SIX prototype-measured code grammars
   plus the data golden ONLY (`plugin-marketplace-plan.md:260`) — the other seven code
-  grammars' goldens and the mutation harness belong to **R10** (Verification hardening,
-  `plugin-marketplace-plan.md:134-138`; NOT R9, which is protocol/product integrations),
+  grammars' goldens and the mutation harness belong to **R10** ("roots test suites
+  (design §13)", `plugin-marketplace-plan.md:134-138`; NOT R9, which is
+  protocol/product integrations),
   and this boundary is stated in the test file's header comment.
 
 - [ ] **Step 1:** Author each golden's builder spec (small, honest repos: enough scopes
@@ -647,12 +710,16 @@ dictated block goes back to the maintainer.
   orphan outside every type's `when:`)
 - Modify: `source/cli/src/bin.ts` (registration)
 - Create: the command's model node under `model/cli/commands/` (read the siblings'
-  file/naming convention there first)
+  file/naming convention there first) AND the e2e test's model node under
+  `model/cli/tests/e2e/` (the tree keeps per-file/family e2e nodes there — a new
+  spawned suite without one is an unmapped file)
 - Test: `source/cli/tests/e2e/cli-roots-basic.test.ts` (spawned) + the sibling unit test
-  the `command` type's `sibling-test-file` aspect demands — its checker also requires
+  the `command` type's `sibling-test-file` aspect demands — its checker derives the
+  expected filename from the command file's stem, so `src/cli/roots.ts` requires
+  EXACTLY `roots.test.ts` under `cli/tests/unit/cli/` (or a descendant), AND requires
   the command node to DECLARE `{type: uses, target: cli/tests/unit/cli}` (see
   `model/cli/commands/advise/yg-node.yaml` for the convention), else it reports
-  `missing-relation`; match where existing commands keep their tests
+  `missing-relation`
 - Modify: `docs/` — one new adopter-facing page, which needs THREE mechanical joins,
   not just the file: the page joins `.yggdrasil/model/docs/guides/yg-node.yaml`'s
   `mapping:` (else unmapped-files), the VitePress sidebar
@@ -707,11 +774,14 @@ dictated block goes back to the maintainer.
 - **Digest gate note:** R1-R3 does NOT edit `templates/rules.ts`/`digest.ts` (the roots
   section of the agent manual is a later package), so no digest regeneration sweep.
 - **User-gated, standing:** `read-or-default-via-helper`'s overdue `review_by`; the 12:28
-  log entry; the chmod skipIf question. Untouched by this increment.
+  log entry; the chmod skipIf question. Untouched by this increment. NEW from this plan:
+  design §6's second genericity dogfood — a deterministic-checker ASPECT on the roots
+  node (`.yggdrasil/aspects/` addition, outside Task 1's authorized block) — is deferred
+  pending maintainer approval; propose it at increment close.
 - Spec-fidelity risk is the increment's biggest: every task's reviewer must verify the
   implementer actually read the cited spec sections (formulas match the spec, not the
   prototype's simplifications, wherever §12 lists a productionized row).
-- **Two conscious narrowings of R1's own text** (`plugin-marketplace-plan.md:45-52`),
+- **Two conscious narrowings of R1's own text** (`plugin-marketplace-plan.md:45-53`),
   recorded so no reviewer reads them as omissions: (a) R1 sketches a 16-file
   `src/roots/` skeleton; this plan creates only the files R1-R3 actually populates —
   an empty mapped stub is dead weight in the graph, and later packages add their own
