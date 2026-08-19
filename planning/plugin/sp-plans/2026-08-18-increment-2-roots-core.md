@@ -110,14 +110,19 @@ dictated block goes back to the maintainer.
   names the nodes demanding one); `node source/cli/dist/bin.js check --approve` from repo
   root ends `PASS (1 warning)` (the user-gated aspect-review-overdue warning — NOT yours).
   COMMENT DISCIPLINE, every task: the `self-contained-references` aspect binds to every
-  new test node and to roots-engine via `source-hygiene` — code/test comments state
-  rules and derivations self-contained; a bare "spec §X" or "Appendix E.3" citation is
-  exactly the banned shape. FILE-SIZE DISCIPLINE: roots-engine carries the per-file LLM
+  new test node and to roots-engine via `source-hygiene` — its checker bans specific
+  vague-reference shapes ("this task", "a later task", "the brief", step/task codes
+  in test names); a spec-SECTION citation like "§16.2" is NOT banned and this plan's
+  dictated comments use them — but the comment must still STATE the rule
+  self-contained, with the citation as a pointer, never as the content. FILE-SIZE DISCIPLINE: roots-engine carries the per-file LLM
   `deterministic` review, and the reviewer prompt ceiling is `max_prompt_chars: 72000`
   (raised four times already for recurring large-file hot spots — the rules template
   and the check command; repo-check's headroom step reports the margin but never
   fails) — keep `mine.ts`/`enumerate.ts` comfortably under it by splitting stages into
-  the module layout the tasks already dictate.
+  the module layout the tasks already dictate; and note `config-parser.ts` (already
+  ~30k chars, per-file LLM-reviewed) grows by the whole §4.5 surface in Task 1 —
+  headroom is adequate today (the largest reviewed file is ~66k under the 72k
+  ceiling) but watch the gate's headroom report after that edit.
   The LLM-reviewed aspects on the new types (e.g. `deterministic`) are filled by that same
   `check --approve` through the keyless `claude-code` provider — expect the fill to take
   real minutes on roots-heavy tasks; that is the ritual working, not a hang.
@@ -196,8 +201,10 @@ dictated block goes back to the maintainer.
   each store file's canonical content, absent file = hash of empty — this is what Task
   1 Step 5's decisionsHash test exercises); `bindingHash` — Task 3's `binding.ts`
   produces the PER-GRAMMAR hash (design §6 assigns it there) and the HEADER value is
-  the Task-6 pipeline's ALL-GRAMMAR fold of those (spec `:237`: "covers all derived
-  sets" — the per-grammar hash is never written to the header directly);
+  the Task-6 pipeline's ALL-GRAMMAR fold of those (spec `:137` is the direct
+  definition: "sha256 over the sorted derived binding sets of every grammar used";
+  `:237` repeats it — the per-grammar hash is never written to the header
+  directly);
   `candidateCountLog2` = Task 6's `mine` (spec §9.4a says it is recorded in the
   header) — both of these engine-produced values SURFACE to the command through the
   pipeline's `RootsIndexResult` return (Task 6 dictates it; the body alone cannot
@@ -602,7 +609,7 @@ dictated block goes back to the maintainer.
   PER-GRAMMAR hash; the Task-6 pipeline folds all used grammars' hashes into the
   single header value, and that fold — not this per-grammar hash — is what the
   Task-8 command writes; say so in binding.ts's own comment); the
-  prototype's `bindingFor()` (`prototype-roots2.mjs:34-45`) and `extractScopes`' window
+  prototype's `bindingFor()` (`prototype-roots2.mjs:36-45`) and `extractScopes`' window
   logic (`:85-91`) are the semantics reference. Tasks 4-7 consume `RootsBinding`.
 
 - [ ] **Step 1: TDD snapshots.** For each of the 16 grammars: derive the binding, write it
@@ -622,9 +629,10 @@ dictated block goes back to the maintainer.
   decorator above a PRECEDING member must not attach to the following scope
   (`prototype-roots2.mjs:85-87`'s stated purpose). Each case's comment states the RULE
   itself, self-contained — e.g. "TypeScript's type_annotation matches the decorator
-  name regex; the lexical @/[ marker filters it" — never a bare reference to a planning
-  doc or spec section number (the `self-contained-references` aspect bans exactly that
-  shape).
+  name regex; the lexical @/[ marker filters it" — with any spec-section citation as
+  a pointer beside the stated rule, never as a substitute for it (the
+  `self-contained-references` checker bans vague planning-artifact references like
+  "this task"; a section number is fine, an unexplained one is not).
 - [ ] **Step 4: Graph (binding.ts joins the engine node's mapping; ast/registry
   relations declared; the TWO ast-adapter log entries — `cli/ast/runtime` and
   `cli/ast/report`), guard suites, ritual, report.**
@@ -664,24 +672,33 @@ dictated block goes back to the maintainer.
   and the FIXED 4000-node visit cap — prototype `:95`). `RawScope` carries every
   field the downstream signatures force: `qualifiedName` and `arity` (stable_id
   inputs, §6.4), anonymous scopes as `<anon>` + ordinal and overloads as `#k` by
-  source order (both binding per `:245`), ordinals computed DURING extraction (not
+  source order (stated at `:245`, marked binding at `:247`), ordinals computed DURING extraction (not
   post-hoc), kinds, decorations, and §8.1's role-feature ingredients (own-name
   tokens' source, supertypes via the heritage matcher, file imports) — NO
   partitionId, NO stable_id yet.
-  (2) `derivePartitions(files, rawScopes): PartitionMap` in `partitions.ts` — spec
+  (2) `derivePartitions(files, rawScopes, config): PartitionMap` in `partitions.ts`
+  (config carries the include/exclude and partition keys; `isMinedFile` is likewise
+  built FROM config — both parameters stated here, not left to Task 6's blanket
+  clause) — spec
   §6.8 IN FULL (`v6-spec.md:267-271`): package-root detection from the file walk, the
   300-scope floor over the raw scopes, `_repo` merge, the built-in exclusion list.
-  `files` is the FULL repo listing, NOT the parsed subset — §6.8's package markers
-  (`go.mod`, `pom.xml`, `*.csproj`, `*.sln`, `setup.cfg`) have no registered grammar
-  and vanish from any post-grammar-filter list, silently losing Java/Go/C# roots.
-  Config `include`/`exclude` (§4.5 `v6-spec.md:143`) are applied HERE too: spec
+  `files` is the `isMinedFile`-FILTERED listing, NOT the parsed subset and NOT the
+  raw walk: spec §6.6 step 1 (`v6-spec.md:255`) enumerates "filtered", so the marker
+  scan runs AFTER the §6.8+config exclusion merge (else `dist/package.json`,
+  `vendor/*/go.mod`, `build/pom.xml` become partition roots in repos that commit
+  those trees) but BEFORE any grammar filter — §6.8's package markers (`go.mod`,
+  `pom.xml`, `*.csproj`, `*.sln`, `setup.cfg`) have no registered grammar and would
+  vanish from a post-grammar-filter list, silently losing Java/Go/C# roots. The
+  composition, exactly: listing → `isMinedFile` → marker scan; listing →
+  `isMinedFile` ∧ registered-grammar → parse.
+  Config `include`/`exclude` (§4.5 `v6-spec.md:146`) are applied HERE too: spec
   §21.3 (`:721`) merges the §6.8 built-in exclusion list with config `exclude`, and
   `partitions.ts` owns that merge (globs via `mapping-path`'s `globMatch`, per the
   lint story), EXPORTING the result as a predicate — `isMinedFile(relPath)`: matches
   `include` (default `**/*`) AND fails the merged exclusion set. That predicate is
-  what keeps excluded scopes OUT of mining end-to-end (see Task 6's parse filter);
-  the pipeline's walk feeds the unfiltered listing in for package-root detection
-  only.
+  what keeps excluded scopes OUT of mining end-to-end — it filters BOTH consumers:
+  the package-root marker scan (spec §6.6's enumeration is "filtered", `:255`) and,
+  composed with the grammar filter, the parse set (Task 6).
   (3) `finalizeUnits(rawScopes, partitions): ScopeUnit[]` — assigns final
   partitionIds, resolves MODULE scopes (spec §6.3 `:241-243` — "nearest of partition
   root or first directory with ≥ 3 code files" is partition-dependent, which is why
@@ -715,7 +732,8 @@ dictated block goes back to the maintainer.
   exempt — so it CANNOT run in `enumerate.ts` (roles do not exist yet in the
   pipeline order). What lives HERE is the static surface→overlap-group MAP
   (name-tokens↔E1, supertype↔E9, decorator↔E6-deco, import-segments↔E8/E7, per
-  `:307`), exported for Task 6; the SKIP itself is a named mine stage, and §9.4a's
+  `:307`), exported FROM `enumerate.ts` (named: it is a property of the enumerator
+  catalog) for Task 6; the SKIP itself is a named mine stage, and §9.4a's
   `C` is counted AFTER it (`:397`: candidates surviving appliesKind ∧
   overlap-tautology ∧ minInstancesRaw) — its absence mis-sizes the repo-wide `C`.
 - [ ] **Step 4: Graph, guard suites, ritual, report.**
@@ -746,7 +764,13 @@ dictated block goes back to the maintainer.
   supplied counts (the formula, the overlap-group exclusion, the ≤0 ⇒ decorative
   rule — with unit fixtures over hand-supplied counts), and documents on
   `RoleAssignment` what decorative demotion means for consumers (a decorative role
-  contributes no conventions and no shadows; members fall back to `_all`); Task 6
+  contributes no conventions and no shadows; members fall back to `_all`).
+  `RoleAssignment`'s SHAPE is dictated here, matching Appendix D's `roles[]` +
+  `assignments`: per-role `roleKey`, `label`, `size`, `medoidFeatures`,
+  `definingFeatureGroups` (§8.8 `v6-spec.md:353` — role-induction OUTPUT, and
+  load-bearing for both the §7.3 tautology skip and §8.10's held-out exclusion),
+  `ambiguityRate`, plus the `assignments` map (`"-1"` for ambiguous); `roleLift`
+  values are attached by Task 6's counting pass. Task 6
   INVOKES it from the real §9.4 counts in its one counting pass and honors the
   demotion when building role cells — never a second implementation of the posterior
   math. Implement fresh from the formula and derive unit
@@ -776,9 +800,16 @@ dictated block goes back to the maintainer.
   them: §8.3's CLUSTERING weights are BUCKET CARDINALITY (`w = |bucket|`,
   `v6-spec.md:331`; prototype `:142` — `minClusterSize` is a total member weight in
   those units), so the hand-computed clustering fixtures are derived with bucket
-  weights, NEVER scaled by 0.3; the §9.1 instance weight `w(s,q) = 0.3` feeds the
-  MINING layer — role-CELL counts and §8.9(b)'s file-role plurality (`:342`) — which
-  is what the `WeightFn` parameter carries. Document the seam so R4 slots in without
+  weights, NEVER scaled by 0.3. And the mining-layer weights are THEMSELVES two
+  quantities — `:342`'s weight-index table is binding: role-CELL counts use
+  `w(s,q)·(ambiguous ? 0.5 : 1)` and `_all` counts use `w(s,q)` (the per-(scope,
+  surface) §9.1 weight WITH the hook-shaped cap — Task 6's concern), while
+  §8.9(b)'s file-role plurality uses `w_base` (the per-SCOPE §9.1 base, `:375-377`,
+  BEFORE any cap) — so THIS task's `weights` parameter is typed as the per-scope
+  BASE weight, w_base, and nothing else. At R1 both quantities evaluate to
+  `noLifecycleWeight` = 0.3, which is exactly why the types must be right NOW:
+  when R4 lands ledger caps, w_base ≠ w(s,q), and a plurality computed with the
+  capped weight would silently drift. Document the seam so R4 slots in without
   signature change.
 - [ ] **Step 3: Graph, guard suites, ritual, report.**
 
@@ -829,7 +860,7 @@ dictated block goes back to the maintainer.
   beside the body and the pipeline lifts it into `RootsIndexResult`; `input` is the
   fully-assembled stage record { units, bags, vocab, partitions, roles, seeds,
   config, weightFn, ageFn? } — the FULL chain,
-  decomposed from the prototype's single `mine()` (`:175-251`) into named stages
+  decomposed from the prototype's single `mine()` (`:176-251`) into named stages
   (named, NOT an execution order: seeds join cell counts BEFORE scoring and before
   `C` — prototype `:196-202` — and directory cells are built during counting even
   though their pruning is post-acceptance),
@@ -891,9 +922,9 @@ dictated block goes back to the maintainer.
   MUST surface to the Task-8 command, and `bindingSetHash` (named distinctly so the
   per-grammar `bindingHash` can never be confused with it; it is what the header's
   `bindingHash` field stores) is the ALL-GRAMMAR fold
-  (sha256 of the canonical JSON of the sorted assetName→per-binding-hash map — spec
-  `:237`: "covers all derived sets"; the data golden alone uses ≥2 grammars, so a
-  single-binding hash is wrong on day one). Seeds
+  (sha256 over the sorted derived binding sets of every grammar used — spec `:137`
+  is the definition, `:237` repeats it; the data golden alone uses ≥2 grammars, so
+  a single-binding hash is wrong on day one). Seeds
   arrive as a PARAMETER per Task 1's seeds seam (engine never reads the store; the
   prototype's in-`learn` seed read at `:439` does not port; an empty array is the
   no-seeds case, and Task 7's goldens pass whatever their fixtures carry). The
@@ -913,11 +944,11 @@ dictated block goes back to the maintainer.
   option here, and engine may call persistence-adapter same as the core `engine` type),
   parse via `withParsedFile`, then Task 4's three phases in order — extractUnits per
   file → derivePartitions → finalizeUnits — then vocabularies → enumerate → roles →
-  mine, all pure stages. TWO listings, deliberately: `derivePartitions` gets the FULL
-  repo listing (package markers like `go.mod` have no grammar), while PARSING covers
-  only files that pass BOTH filters — a registered grammar (registry lookup BEFORE
-  parsing; `getParser` throws on unknown extensions — the registry, not the
-  exception, is the filter) AND `partitions.ts`'s `isMinedFile` predicate — so a
+  mine, all pure stages. ONE filter, TWO compositions: the walk's listing passes `isMinedFile` first (that
+  filtered set feeds `derivePartitions` — package markers like `go.mod` have no
+  grammar, so no grammar filter touches the marker scan), and PARSING additionally
+  requires a registered grammar (registry lookup BEFORE parsing; `getParser` throws
+  on unknown extensions — the registry, not the exception, is the filter) — so a
   §6.8-excluded file (`*.test.*`, `**/fixtures/**`, …) never produces scopes and
   never enters vocabularies, roles, or cells (spec `:271` scopes the exclusion to
   convention mining; the excluded files' co-change counting is R4's concern, not
@@ -988,9 +1019,9 @@ dictated block goes back to the maintainer.
   independence is NOT claimable yet and is not asserted). Scope: the SIX
   prototype-measured code grammars
   plus the data golden ONLY (`plugin-marketplace-plan.md:260`) — the other seven code
-  grammars' goldens and the mutation harness belong to **R10** ("roots test suites
-  (design §13)", `plugin-marketplace-plan.md:134-138`; NOT R9, which is
-  protocol/product integrations),
+  grammars' goldens belong to **R10** ("roots test suites (design §13)",
+  `plugin-marketplace-plan.md:134-138`; the mutation harness rows sit at `:139-141`;
+  NOT R9, which is protocol/product integrations),
   and this boundary is stated in the test file's header comment.
 
 - [ ] **Step 1: Size the goldens against the REAL floors — the dominant one is not an
@@ -1071,7 +1102,8 @@ dictated block goes back to the maintainer.
 - Produces: the MINIMAL command surface R1-R3 needs and no more — exactly two
   commands, named by the DESIGN's vocabulary, not the prototype's: **`yg roots index`**
   (design §3, `integration-design.md:74-75`: "Naming uses Yggdrasil's vocabulary: index
-  (like a build)" — the prototype's `learn` verb was explicitly rejected; spec §19's
+  (like a build)" — the design's vocabulary decision; the prototype's `learn` verb
+  appears nowhere in the design's surface; spec §19's
   command list has `index [--full]`, and in R1-R3 every run is full, so the flag is
   accepted-and-ignored-free territory: implement plain `index`, note `--full` becomes
   meaningful with R4's incrementality) — loads seeds via `stores.ts` (empty on a
@@ -1083,7 +1115,7 @@ dictated block goes back to the maintainer.
   seams); refuses with what/why/next when no `roots:` block — and
   **`yg roots status`** (reads the model, reports field/fact counts and dormancy
   honestly; NO `--exit-code` and NO `--diagnose` — `status` itself is a RECORDED
-  partial pull-forward from R7, whose scope of record owns the full
+  partial pull-forward from R7, whose scope of record (`plugin-marketplace-plan.md:107-108`) owns the full
   `status [--exit-code] [--diagnose]` gate surface: R1-R3 ships only the read-only
   view, because a mined model nobody can inspect is unverifiable by the E2E and
   useless to adopters; R7 later adds the gating flags to this same command — see the
@@ -1156,7 +1188,10 @@ dictated block goes back to the maintainer.
   rule ("changes are not complete until every document describing that behavior is
   consistent") makes deferring them dishonest once the block and commands exist — so
   Task 1 documents the config block and Task 8 ships the adopter page now, and R9
-  keeps only what R4+ behavior adds later. And a SECOND recorded pull-forward:
+  RETAINS the rest of its docs surface: the `roots-model` schema doc (the model
+  header/body schema — Task 1 creates and Task 8 writes that artifact but its
+  schema-doc entry is consciously R9's, recorded here), the roots knowledge topics,
+  and the per-command CLI-reference entries. And a SECOND recorded pull-forward:
   `yg roots status` (read-only form only) comes forward from R7's
   `status [--exit-code] [--diagnose]` — the gating flags stay R7's; what R1-R3 ships
   is the inspection half a verifiable increment cannot do without. And a THIRD: the
