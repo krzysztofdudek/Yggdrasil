@@ -121,10 +121,12 @@ dictated block goes back to the maintainer.
   fails) — keep `mine.ts`/`enumerate.ts` comfortably under it by splitting stages into
   the module layout the tasks already dictate; and note `config-parser.ts` (already
   ~30k chars, per-file LLM-reviewed) grows by the whole §4.5 surface in Task 1 —
-  headroom is REAL but TIGHT: the measured largest ASSEMBLED PROMPT (file content +
-  aspect prompt) is 71,343 chars against the 72,000 ceiling — margin 657 — on a file
-  this increment does not touch; a breach is a BLOCKING check error, so run the
-  gate's headroom step after every fat-file edit and split before you crowd it.
+  headroom around config-parser itself is comfortable (~30k file + ~5k aspect
+  prompt against the 72,000 ceiling), but the REPO-WIDE margin is tight: the
+  measured largest assembled prompt is 71,343 chars — margin 657 — on
+  `tests/unit/core/fill-det.test.ts`, which this increment does not touch; a breach
+  anywhere is a BLOCKING check error, so run the gate's headroom step after every
+  fat-file edit and split before you crowd it.
   The LLM-reviewed aspects on the new types (e.g. `deterministic`) are filled by that same
   `check --approve` through the keyless `claude-code` provider — expect the fill to take
   real minutes on roots-heavy tasks; that is the ritual working, not a hang.
@@ -386,9 +388,9 @@ dictated block goes back to the maintainer.
   and drops the managed trailing `*` on two entries) — true up the whole table, and
   say so in the report so the fix does not read as new drift. The same completeness
   sweep applies to `templates/knowledge/configuration.ts`: its annotated example
-  runs `:14-81` and the `signals:`/`events:`/`progressive:` precedent blocks a
+  runs `:14-80` and the `signals:`/`events:`/`progressive:` precedent blocks a
   `roots:` block should copy sit at `:60-80` — plus the gitignore fenced list at
-  `:321-331` inside the "Local state" section.
+  `:322-331` inside the "Local state" section.
   NOTE: the knowledge gitignore list AND `onboarding.ts`'s copy are ALREADY stale in
   exactly the same two ways as the docs table (missing `*.tmp`, dropped trailing
   `*`) — true up all three copies to the source constant, not just the one being
@@ -454,7 +456,8 @@ dictated block goes back to the maintainer.
 - Modify: `source/cli/eslint.config.js` (the genericity rule lives INLINE here — see
   Step 3 for why a separate `eslint-rules/` directory is a trap)
 - Test: `source/cli/tests/unit/roots/genericity-lint.test.ts` (spawns the eslint CLI —
-  imports nothing from `src/**` or the config, so it creates no graph edge)
+  imports nothing from `src/**` or the config, so it creates no graph edge; joins
+  the Task-1 `model/cli/tests/unit/roots/` node's `mapping:` like every test here)
 - Test: `source/cli/tests/unit/roots/git-fixture-determinism.test.ts` (Step 1 states
   its content; it joins the Task-1 `model/cli/tests/unit/roots/` node's `mapping:` —
   per-file, like every unit-test node)
@@ -490,8 +493,9 @@ dictated block goes back to the maintainer.
   `assertGoldenBundleEquivalence` rebuilds from the spec, clones the committed bundle,
   and asserts head-SHA equality plus file-content equality. Committed artifacts live
   under `tests/fixtures/roots/golden/<name>/` as `<name>.bundle` (binary — add a
-  `*.bundle -diff` line to the repo `.gitattributes` in the same commit so diffs
-  stay quiet) + the builder spec beside it — the equivalence test is what keeps bundle and builder from drifting.
+  `*.bundle binary` line to the repo `.gitattributes` in the same commit: `binary`
+  = `-diff -merge -text`, and `-text` is the half that matters under the repo's
+  `* text=auto eol=lf` first line; the existing binary precedent is `repos/** -text`) + the builder spec beside it — the equivalence test is what keeps bundle and builder from drifting.
 - [ ] **Step 3: Genericity lint — with proof it fires.** The repo's eslint config carries a
   documented failure precedent (`eslint.config.js:4-10`: a resolver-based architecture rule
   silently no-opped and was removed). The rule therefore must NOT depend on module
@@ -727,7 +731,9 @@ dictated block goes back to the maintainer.
   the prototype builds module scopes cross-file in `learn` at `:420-426`; for scopes
   whose partition merged into `_repo` the "partition root" arm is the REPO root —
   state that convention in a comment, since a merged partition has no directory of
-  its own), and mints
+  its own; and "code files" in the ≥3 rule COUNTS registered data-grammar files —
+  design §5.4 gives data grammars module-level surfaces (E12 module facts), which
+  requires data files to be able to form modules — another stated decision), and mints
   the keys: `skeyR` (the prototype's `rel#kind#name[#ord]` key at `:121`) and
   `stable_id` = sha256hex(partitionId∥relPath∥kind∥qualifiedName∥arity)[:16] — the
   PRODUCTION scheme, spec §6.4 `v6-spec.md:245`, NOT the prototype's simple key.
@@ -794,8 +800,8 @@ dictated block goes back to the maintainer.
   §8.10 `v6-spec.md:359-362`; NO reference implementation exists, the prototype's proxy
   at `:252-255` is explicitly not it). OWNERSHIP SPLIT, because §8.10's formula is
   "computed from the same counts as §9.4 in one pass" (`:361`) and the §9.4 counting
-  layer is Task 6's: THIS task implements `role_lift` as a PURE function over
-  supplied counts (the formula, the overlap-group exclusion, the ≤0 ⇒ decorative
+  layer is Task 6's: THIS task implements — and `roles.ts` EXPORTS — `role_lift` as a PURE function
+  over supplied counts (the formula, the overlap-group exclusion, the ≤0 ⇒ decorative
   rule — with unit fixtures over hand-supplied counts), and documents on
   `RoleAssignment` what decorative demotion means for consumers (a decorative role
   contributes no conventions and no shadows; members fall back to `_all`).
