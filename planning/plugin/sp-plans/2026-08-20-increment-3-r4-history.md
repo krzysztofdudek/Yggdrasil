@@ -876,8 +876,9 @@ Precedents in code: `src/io/type-class-cache.ts`, `src/io/file-content-cache.ts`
   serializer copied into each new module**: the repo's existing canonical serializers are every
   one of them unexported (`roots/stores.ts`'s `sortKeysDeep`/`canonicalModelJson` at
   `:118`/`:132`, `io/type-class-cache.ts`'s `canonicalJson` at `:61`, `roots/binding.ts`'s at
-  `:221`, `roots/config.ts`'s at `:29` — the last two are the very copies `stores.ts:105-116`'s
-  precedent comment names), and `roots-store` is
+  `:221`, `roots/config.ts`'s at `:29`, and the `engine`-type copy at
+  `core/advise-nominations.ts:337` — `stores.ts:103-117`'s precedent comment names the
+  config.ts copy and that engine-type one as its "two copies kept in sync"), and `roots-store` is
   not on `persistence-adapter`'s `calls` list (`yg-architecture.yaml:206-209`), so none is legally
   reachable — the same deliberate-duplication precedent `stores.ts:109-112` documents for itself.
   A parse failure is a MISS (`undefined`) plus one
@@ -1076,7 +1077,7 @@ export function walkHistory(repoRoot: string, opts: WalkOptions,
 // committer timestamp, full stop (`v6-spec.md:618`). Setting `lastIndexedSha` to the last
 // non-merge commit would also break resume: the next run would walk `lastNonMerge..HEAD` and
 // re-apply commits it already replayed. Implemented **through the landed helpers, not beside
-// them**: `getHeadSha` (`src/utils/git.ts:81-91`) and `getHeadCommitterTimestamp` (`:100-110`,
+// them**: `getHeadSha` (`src/utils/git.ts:81-92`) and `getHeadCommitterTimestamp` (`:100-110`,
 // `git log -1 --format=%cI`, which already carries the "never `max(last_modified)`, never
 // wall-clock" contract in its own doc comment and already omits `--no-merges`). If epoch seconds
 // are wanted rather than a re-parse of the ISO-8601 string, add a `%ct` sibling in `git.ts`; a
@@ -1088,7 +1089,7 @@ export function walkHistory(repoRoot: string, opts: WalkOptions,
 // `clockIso` (the strict ISO-8601 string the model header's `clock` takes), and `git-history.ts`
 // is not on T8's Files list, so a `clockIso` with no supplier here would have no legal source
 // there. Nor may it be derived from `committerTs`: the header's format is `%cI`
-// (`utils/git.ts:100-110`) — `'2026-08-19T00:00:00+00:00'`, the form the landed pin at
+// (`utils/git.ts:100-111`) — `'2026-08-19T00:00:00+00:00'`, the form the landed pin at
 // `tests/unit/cli/roots.test.ts:178` carries — which `new Date(ts * 1000).toISOString()` does not
 // reproduce. So `committerIso` comes straight off `getHeadCommitterTimestamp` and `committerTs`
 // off the `%ct` sibling (or off a parse of that same ISO string — say which in the report).
@@ -2491,7 +2492,7 @@ field, and the model gains its history-fed fields. Golden expectations move here
     // The clock, named ONCE and in both representations, because two criteria below read it
     // under two different names. `clockTs` is HEAD's committer timestamp in epoch seconds — the
     // value `WeightInputs.clockTs` takes (T7) — and `clockIso` is the strict ISO-8601 string the
-    // model header's `clock` carries (`utils/git.ts:100-110`; `stores.ts:82` types it
+    // model header's `clock` carries (`utils/git.ts:100-111`; `stores.ts:82` types it
     // `string | null`). Both come from the single `readHead` call of Step 1 — which returns both
     // (T2's interface), reading them from the ONE HELPER PAIR in `utils/git.ts` the header itself
     // already uses. Neither is re-derived from the other: the header's `%cI` form is not what
@@ -2528,8 +2529,8 @@ field, and the model gains its history-fed fields. Golden expectations move here
   shape mid-increment, and the field is named as declared-and-inert here so a T8 reviewer reads
   its absence of use as intended rather than as an omission. Absent options ⇒ exactly today's behavior: constant `noLifecycleWeight` 0.3, no
   AgeFn, no history-fed field. **That default is the degraded path, not the golden path**, and the
-  distinction is what makes this task's fixture work bite: every one of the seven landed golden
-  suites calls the three-argument form today — `golden.test.ts:46`, `:127`;
+  distinction is what makes this task's fixture work bite: every one of the five landed golden test files (covering the seven
+  landed golden fixtures) calls the three-argument form today — `golden.test.ts:46`, `:127`;
   `golden-data.test.ts:55`, `:66`, `:77`; `golden-more.test.ts:37`; `golden-python.test.ts:41`,
   `:63`; `golden-controls.test.ts:136`, `:206`, `:311`, `:312` — so leaving them there would keep
   them mining at 0.3 forever, D8's trailing day-400 commit would move nothing, and Step 5 would
@@ -2637,7 +2638,7 @@ field, and the model gains its history-fed fields. Golden expectations move here
   the **conversion** between the join's two fields and not on a reconciliation of the header
   against the join — nothing in R4 asserts the two are equal.) **Both representations are carried
   on the join itself** —
-  `clockIso` (the strict ISO-8601 string the header takes, `utils/git.ts:100-110`; `stores.ts:82`
+  `clockIso` (the strict ISO-8601 string the header takes, `utils/git.ts:100-111`; `stores.ts:82`
   types it `string | null`) and `clockTs` (the epoch seconds `WeightInputs.clockTs` takes, T7) —
   which is what makes the property assertable in this task at all: `runRootsIndex` returns
   `{body, bindingSetHash, candidateCountLog2}` and **no header**, so a criterion phrased against
@@ -2815,7 +2816,7 @@ field, and the model gains its history-fed fields. Golden expectations move here
   assembly still hardcodes `lastIndexedSha: null` (`src/cli/roots.ts:212`, inside
   `assembleRootsModelHeader` at `:208-223`; `RootsHeaderInputs`
   has no such field, `:184-194`) and two landed tests pin that null
-  (`tests/unit/cli/roots.test.ts:177`, `:190-203`; `tests/e2e/cli-roots-basic.test.ts:64`). The
+  (`tests/unit/cli/roots.test.ts:177`, `:191-205`; `tests/e2e/cli-roots-basic.test.ts:64`). The
   header write and those pins are **T9's**, and T9's determinism case (g) already asserts the
   merge's sha through `meta.json`. Asserting it here would also have nothing to read: this task's
   controls call `runRootsIndex`, which returns `{body, bindingSetHash, candidateCountLog2}` and no
@@ -3510,7 +3511,7 @@ cost on this repository.
   walk, a re-index parses only new code); `:48`'s "Exits with an error only for a genuine problem"
   (now: another index still holding the build lock when the wait window elapses is also a non-zero
   exit — describe it in the same plain terms, as refusing to write over a run already in progress,
-  which is the reading R4-I9 gives it too); `:68-69`'s ledger row (now: marks, when they exist,
+  which is the reading R4-I9 gives it too); `:69`'s ledger row (`:68` is the seeds row, still true through R4) (now: marks, when they exist,
   reduce a pattern's evidence rather than merely being hashed); `:70`'s `.cache/`/`.state/` row
   (now: `.cache/` holds the rebuildable history and blob caches and is safe to delete; `.state/`
   is still unwritten); and a new section on what history changes for the reader — that a pattern's
