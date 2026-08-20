@@ -439,8 +439,8 @@ task may not re-litigate one; a task that finds a decision *wrong* stops and rep
   counts every distinct SHA the walk **resolves**, while `parsed` and `mb` count only the keys R4
   actually extracted under — and a path R4 does not extract (D17's middle tier: no registered
   grammar, or excluded from the parse set) never produces a key at all. Such a blob is
-  recognised from its path *before* any fetch (R4-I6): it is counted in `blobs`, its `bytes` is
-  recorded as **0** (a recorded zero, never an unknown), it contributes 0 to `mb`, and it is
+  recognised from its path *before* any fetch (R4-I6): it is counted in `blobs`, its in-memory skip record carries `bytes` **0** (a recorded zero,
+  never an unknown — the sha roster itself holds only shas), it contributes 0 to `mb`, and it is
   never fetched — so §20.1's blob-rate budget is never spent pulling images, binaries and prose
   down for a byte count. **"No registered grammar" is a narrower set than intuition suggests, and
   the test must be written against the registry rather than against the word "data file":**
@@ -775,7 +775,8 @@ task may not re-litigate one; a task that finds a decision *wrong* stops and rep
      pre-image from the old path (excluded ⇒ the in-memory skip record, no scopes), so every
      post-image scope is an **introduction** at that commit.
   2. **Gate 2 — `forParsing` ∧ a registered grammar.** A path that passes gate 1 and fails gate 2
-     is rostered in `blobs` off the walk record with `bytes` **0**, counted for co-change, and
+     is rostered in `blobs` off the walk record — its in-memory skip record carrying `bytes` **0**
+     (the sha roster holds only shas) — counted for co-change, and
      carries **no lifecycle row of either level** — and is never keyed, probed or fetched, so it
      enters neither the key roster nor `parsed`/`mb` (D4). This is the existing `no-grammar` rule
      (D4, D11, T5 Step 2) generalized: `forParsing`-exclusion joins "no registered grammar" as a
@@ -1474,7 +1475,7 @@ hand-derivable, which is the property this page claims.
    files item 2 decorates, one of item 4's three
    agent-authored files (item 4 states "**Nothing ever re-touches these three**" — a constraint this
    commit must honour and cannot see from its own item), one of item 5's three, one of item 6's six
-   renamed files, one of item 7's three deletes, item 10's fix file, either placeholder or either
+   renamed files, one of item 7's three deletes, item 10's fix file, `NOTES.md`, either placeholder or either
    stub. Nothing stated
    anywhere on this page moves under that choice; unstated, the page's hand-derivability claim would
    rest on the implementer picking forty files that happen to avoid every named cohort.
@@ -1985,7 +1986,9 @@ export function finishReplay(state: ReplayState): ReplayResult;
   `historyStats.events` on any repository with a file touched in more than
   `lifecycleMaxAppearances` commits, and that is the defined behavior, not a discrepancy (D4).
   **(b) a `D` record prunes no lifecycle rows.** A deleted file's scopes keep their rows with their
-  existing `firstSeenTs`/`lastModifiedTs`; the delete contributes its touch and nothing else. The
+  existing `firstSeenTs`/`lastModifiedTs`; the delete contributes its touch **to the file-level row
+  only** and nothing else — the same D16 grounds as the `T` rule: crediting scope rows the path is
+  "known to carry" would be carried state. The
   live join is by `skeyR` against the *current* tree, so a deleted path simply never joins and costs
   nothing; pruning would additionally destroy the rename case, where the alias closure will move the
   row to the new key at finish while the old path may still appear as a delete. Pruning would also
@@ -2725,11 +2728,19 @@ field, and the model gains its history-fed fields. Golden expectations move here
    model only through `deviantsN`, the raw **non**-conformer count). A criterion written against a
    field the type does not have is unwritable, which is the same defect this plan already excised
    one level up (Self-review's last entry, on T5's old acceptance 10). So: assert `nTotalRaw`
-   **by value**, equal to the hand-derived count of **survived** members of that cell — every member
+   **by value**, equal to the hand-derived count of **survived** members of that cell **that are in
+   the surface's domain** (`countRealInstancesIntoCell` skips a member outside the surface's
+   `domainSet` or with no value for it — `mine-stages.ts:207-213`) — every such member
    except the day-395 cohort's 3–4 scopes — both numbers derived from T3's script.
    **And pin the antecedent so the criterion cannot pass vacuously:** assert in the same block that
-   the day-395 scopes are in the model at all, through the partition's own `assignments` map, which
-   is keyed per scope. Without that half, a golden that simply failed to mine `src/svc/refund.ts`
+   the day-395 scopes reached the fact at all, through the fact's own weighted `counts[expected]` —
+   `MinedFact.counts` is computed over **all** in-domain instances, survived or not
+   (`mine-stages.ts:213`), so unlike the partition's `assignments` map — which is keyed per scope
+   but NOT total over scopes: it omits any unit under `roles.minOwnFeatures`, any unit
+   `classifyAgainstMedoids` leaves roleless (`roles.ts:815-826`, `:914`), and file-kind units whose
+   named scopes got no roles — `counts` is a surface the cohort always moves, by exactly
+   `3–4 × 0.05`, hand-derivable from T3's script with no role assumption. Without that half, a
+   golden that simply failed to mine `src/svc/refund.ts`
    would satisfy the `nTotalRaw` assertion for the wrong reason. The survived population is then
    visibly not the raw one — and the criterion has a population that makes its antecedent true,
    which a golden whose youngest scope is older than 14 days would not.
@@ -2774,8 +2785,8 @@ field, and the model gains its history-fed fields. Golden expectations move here
    (Files list) — and not against the five integers**, which cannot answer one: assert that
    `blobShas` contains that sha and that `blobShas` has exactly one entry for it (it is a `Set`, so
    the membership *is* the once), that `parsedKeys` **does** carry the key derived from the `.ts`
-   path's grammar, that it carries **no** key for the `.md` path, and that both entries'
-   `bytes` are 0 so neither moves `mb`. A `parsed` accumulated on a blob's *first appearance in a
+   path's grammar, that it carries **no** key for the `.md` path, and that that one entry's
+   `bytes` is 0, so it moves neither `parsed`'s byte sum nor `mb`. A `parsed` accumulated on a blob's *first appearance in a
    sha-keyed roster* sees the no-grammar verdict first and undercounts by one, which is exactly the
    arrival-order residue D4 removes by counting keys instead of shas.
    **(c) One sha, two *keyed* paths under different grammars** — the second same-blob pair the
@@ -3098,8 +3109,8 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
   past 60 s at the
   spec's ≈ 12 ms/blob (`v6-spec.md:602`, `:712`), print one line to stderr with the blob count and
   the ETA, then an update every 500 blobs. Nothing reaches the model.
-  **Beside the conditional progress line, `index` always writes one unconditional stderr summary
-  line for the run, and it is specified here because two cases below read numbers from it that
+  **Beside the conditional progress line, every `index` run that walks writes one stderr summary
+  line — a short-circuited run prints "already current" instead — and it is specified here because two cases below read numbers from it that
   nothing else prints.** D12 mandates only the >60 s progress line, and D4 says run diagnostics "go
   to stderr and nowhere else" without requiring any to be printed — so as written, case (c)'s
   "parses zero blobs" and case (g)'s "walked 0 commits" would have no surface to read. The summary
@@ -3224,10 +3235,12 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
 - [ ] **Step 6: Graph ritual + report.**
 
 **Acceptance criteria.**
-1. All **eight** determinism cases (a)–(h) green. Each of the seven that compares models asserts
-   *byte* identity of the file, not a deep-equal of a parsed object; case (h) compares no models
-   across runs (a degraded index is not byte-comparable to a full one) and asserts the header field
-   and the absent state directory instead.
+1. All **eight** determinism cases (a)–(h) green. Each of the **six** that compares models asserts
+   *byte* identity of the file, not a deep-equal of a parsed object; cases **(g) and (h)** compare
+   no models across runs — (g) because a dirtied working file legitimately moves the body
+   (`dirtyWeight`), (h) because a degraded index is not byte-comparable to a full one — and each
+   asserts its own named surface instead: `meta.json`'s `lastIndexedSha` plus the run summary's
+   zero-commits figure for (g); the header field and the absent state directory for (h).
 2. A second `yg roots index` on an unchanged tree parses zero blobs, walks zero commits and —
    per D13 and §6.6's clause 6 (`v6-spec.md:260`) — **writes nothing at all**: `model.json`'s
    bytes *and* its mtime are unchanged, and no state or cache file is rewritten. The run says
