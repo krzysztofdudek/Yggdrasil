@@ -5,11 +5,15 @@ description: "Unit tests for git and repository utility modules: git command
   is checked against the engine's own object-id computation over a real
   repository — every blob in a real tree, a binary file among them — because
   that equality is the whole basis of the byte guard and is the one claim a
-  test built on fabricated values cannot make."
+  test built on fabricated values cannot make. git-history.test.ts pins the
+  raw-plumbing walk/blob-reader module's byte framing against literal samples
+  captured from a real git, built on deterministic fixture histories
+  (tests/support/git-fixture.ts) rather than fabricated data."
 aspects: []
 relations: [ { target: cli/io/stores, type: uses }, { target: cli/utils, type: uses }, { target: cli/tests/support, type: uses }, { target: cli/core/progressive-scope, type: uses } ]
 mapping:
   - source/cli/tests/unit/utils/git.test.ts
+  - source/cli/tests/unit/utils/git-history.test.ts
   - source/cli/tests/unit/utils/git-roots.test.ts
   - source/cli/tests/unit/utils/git-introspect.test.ts
   - source/cli/tests/unit/utils/git-introspect-locale.test.ts
