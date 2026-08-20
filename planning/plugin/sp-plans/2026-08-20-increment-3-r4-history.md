@@ -1072,7 +1072,18 @@ export function walkHistory(repoRoot: string, opts: WalkOptions,
 // are wanted rather than a re-parse of the ISO-8601 string, add a `%ct` sibling in `git.ts`; a
 // second `rev-parse`/`log -1` pair inside `git-history.ts` would be a second definition of HEAD,
 // free to drift from the one the model header already uses. Both fail soft to null.
-export function readHead(repoRoot: string): { sha: string | null; committerTs: number | null };
+//
+// It returns the committer timestamp in BOTH representations, and that is a requirement rather
+// than a convenience: T8's `HistoryJoin` carries `clockTs` (epoch seconds, for `WeightInputs`) and
+// `clockIso` (the strict ISO-8601 string the model header's `clock` takes), and `git-history.ts`
+// is not on T8's Files list, so a `clockIso` with no supplier here would have no legal source
+// there. Nor may it be derived from `committerTs`: the header's format is `%cI`
+// (`utils/git.ts:100-110`) — `'2026-08-19T00:00:00+00:00'`, the form the landed pin at
+// `tests/unit/cli/roots.test.ts:177` carries — which `new Date(ts * 1000).toISOString()` does not
+// reproduce. So `committerIso` comes straight off `getHeadCommitterTimestamp` and `committerTs`
+// off the `%ct` sibling (or off a parse of that same ISO string — say which in the report).
+export function readHead(repoRoot: string):
+  { sha: string | null; committerTs: number | null; committerIso: string | null };
 // §13.2 is categorical that blobs are read through **a single** `git cat-file --batch` child
 // (`v6-spec.md:605`), and §20.1's ≤ 15 ms/blob budget assumes it. A walk fetches in many rounds
 // (T8 Step 1's windowed probe-then-fetch), so a one-shot `readBlobs(repoRoot, shas, …)` would
@@ -1298,6 +1309,19 @@ rename replay (`:610`), §13.5 mega-commit cap (`:622`); `tests/support/git-fixt
     assert against, and neither can build it from `buildGoldenRepo` (a linear chain). Both variants
     return `main2` only when it exists. The caller owns cleanup, the same
     division of labor `buildGoldenRepo` and `git-fixture.ts` already use.
+    **What the commits *write* is part of the contract, not the caller's to improvise, because T5
+    acceptance 8 asserts against it and a topology-only fixture would make that criterion
+    unwritable.** The minimum this helper guarantees: `base` creates at least one extracted file
+    (registered grammar, passing both of D17's gates) carrying at least one **named-body** scope;
+    the **side-branch** commit creates a *second* such file, so at least one scope is **born on the
+    side branch** — the population T5 acceptance 8 names — and the later main-line commit (`main1`)
+    edits `base`'s file, so the two branches touch **different** files and the merge is
+    conflict-free; the **merge** itself writes nothing of its own; and `main2`, when present, edits
+    the side branch's file, so that scope's `lastModifiedTs` is strictly later than its
+    `firstSeenTs` and both fields are hand-derivable from the day offsets. Every edit is a small
+    in-place body change on a file of at least ~20 lines, never a rewrite, so no commit here can
+    trip `-M`'s similarity threshold or produce an unintended rename. T8's control (iv) and T9's
+    case (g) read only the topology and the clock, so the content contract costs them nothing.
   - `appendMergeOfOlderSideBranch(dir, {branchFrom, sideDayOffset, mergeDayOffset, …}): {sideSha,
     mergeSha}` — the same shape **appended** to an already-built repository, which is what T9 case
     (b)'s commit N+3 needs on top of the `history/` golden.
@@ -1510,9 +1534,23 @@ hand-derivable, which is the property this page claims.
     this pair deliberately never clears the floor: it is the negative control proving the filter
     actually runs, and without it a broken filter would look identical to a working one.
 12. **day 395** — the *fresh-code* cohort, deliberately **inside** the clock's 14-day fresh
-    window: **one** new file (`src/svc/refund.ts`) carrying 2–3 named-body scopes — so **3–4**
-    scopes counting its mandatory `file` scope — that conform to a
-    convention the day-0 seed already established, **authored by the human `alice`** for the same
+    window: **one** new file (`src/svc/refund.ts`) carrying **exactly three top-level functions,
+    none of them containing a further scope**, so all three are `method`-kind by §6.2's
+    container/leaf rule (`src/roots/extract.ts:370-372`: `type` when the body subtree holds another
+    scope node, `method` otherwise) — **three `method` scopes plus the one mandatory `file` scope,
+    four in all**. All three
+    conform to a
+    convention the day-0 seed already established — the same surface T8 acceptance 2 reads, so all
+    three are inside that surface's domain and carry its expected value. **The kind and the count
+    are both pinned, and neither is a stylistic choice.** Cells — and therefore facts — are
+    partitioned by scope kind (`CELL_KINDS = ['method', 'type', 'file', 'module']`,
+    `src/roots/mine-stages.ts:371`; the three cell constructions at `src/roots/mine.ts:290`,
+    `:329`, `:356` each build per kind out of `unitsByKind`), so no single fact's counts can ever
+    see this file's `file` scope **and** its named-body scopes together: a `method`-kind fact sees
+    the three methods and a `file`-kind fact sees the one file scope. A cohort spread over two
+    kinds, or one whose named-body count is a range, makes T8 acceptance 2's delta
+    unstateable — which is exactly the arithmetic that criterion hand-derives.
+    **Authored by the human `alice`** for the same
     reason item 11 is — this cohort is the other half of the population T8's `agentShare === 0`
     rests on, and one agent author here would make it `> 0`. One changed file is fewer than 2, so the commit
     contributes no co-change pair and moves no `commits(a)` denominator — every number in items 9
@@ -1595,6 +1633,12 @@ day offsets: 0, 20, 30, 60, 65, 90, 120, 150, 160, 170, 180, 190, 200, 210, 220,
    independent construction.
    `appendMergeOfOlderSideBranch` applied to a freshly built `history/` golden leaves HEAD a merge
    whose second parent is dated before the golden's own tip.
+   **Assert the content contract here too, since this task owns it and T5 acceptance 8 spends it:**
+   in the default variant, the side-branch commit adds an extracted file carrying at least one
+   named-body scope that exists in no earlier commit, `main1` touches only `base`'s file, and
+   `main2` touches only the side branch's — so a scope born on the side branch has a first commit
+   and a strictly later last touch, both derivable from the day offsets. A fixture whose commits
+   write nothing satisfies every topology clause above and makes T5's acceptance unwritable.
 8. In the built `history/` golden, `src/svc/placeholder.ts` and `docs/PLACEHOLDER.md` are both
    empty and `git log --raw` reports the **same** blob sha for both —
    `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` — with `docs/PLACEHOLDER.md` listed first in the
@@ -2324,12 +2368,23 @@ release):
 | Case | Derivation | `base` |
 | --- | --- | --- |
 | human, first_seen −400 d, last_modified −400 d, no early churn | `w_surv = min(1, 400/120) = 1`, ×1 (age ≥ 14); `w_prov = 1`; `w_churn = 1` | **1.0** |
-| human, first_seen −5 d, last_modified −5 d | `w_surv = 5/120 = 0.041667 × 0.5` (age < 14) `= 0.020833`; floor | **0.05** |
+| human, first_seen −10 d, last_modified −10 d | `w_surv = 10/120 = 0.083333 × 0.5` (age < 14) `= 0.041667`; floor | **0.05** |
 | human, stable 60 d, churned early | `w_surv = 0.5`; `w_churn = 0.25` ⇒ 0.125 | **0.125** |
 | agent, stable 60 d | `w_prov = 0.15 + 0.85 × min(1, 60/180) = 0.433333`; `w_surv = 0.5` ⇒ 0.216667 | **0.216667** |
 | agent, stable 200 d | `w_prov = 0.15 + 0.85 × 1 = 1`; `w_surv = 1` | **1.0** |
 | no lifecycle row | first branch | **0.3** |
 | dirty in the working tree (row present) | second branch | **0.3** |
+
+**Row 2's dates are load-bearing and must not be "tidied" to a fresher number.** The row pins the
+`baseFloor` *and* is MR-20's named killer, and only a narrow window of `stable_days` does both. The
+fresh-penalty factor is observable only when the un-penalised product clears the floor and the
+penalised one does not — i.e. `stable_days ∈ (6, 12]` with `age_days < 14`, since
+`d/120 > 0.05 ⇔ d > 6` and `d/240 < 0.05 ⇔ d < 12` (at `d = 12` the penalised product is exactly
+the floor, which still differs from the un-penalised 0.1). At **−10 d** the two readings are
+`10/120 × 0.5 = 0.041667` → floor **0.05** with the factor, and `10/120` = **0.083333** without it.
+At the −5 d this row previously carried, **both** readings floor to 0.05 and MR-20's mutant would
+have passed the row untouched — the same defect class as the MR-19 entry in Self-review, one row
+over.
 
 …and on top of `base`: an **unreleased ledger mark** on `(s, q)` makes `w(s,q) = min(base, 0.15)`
 — so the first row's 1.0 becomes 0.15 and the second row's 0.05 stays 0.05 (`min`, not
@@ -2356,7 +2411,11 @@ assignment). Additional criteria:
   **degraded branch**: with no lifecycle row and a mark present, cap-last gives `min(0.3, 0.15) =
   0.15` while cap-inside-the-product gives 0.3. Pin that case.
 - **MR-20 (fresh penalty):** delete the `age_days < freshPenaltyDays ? 0.5 : 1` factor ⇒ row 2's
-  derivation test fails.
+  derivation test fails — **0.083333 against the row's 0.05**, which is why that row is dated
+  −10 d / −10 d and not fresher (the note under the table derives the window). Nothing else in this
+  plan catches the deletion: criteria 1–3 do not read `w_surv`, and T8's day-395 cohort is 5 days
+  old and floors to 0.05 with the factor and without it, so a −5 d row here would have left this
+  factor shipping with no killer at all (R4-I15).
 - **MR-21 (churn):** delete `w_churn` ⇒ row 3 fails.
 - **MR-22 (release gap):** delete the `releaseMinDaysAfterMark` conjunct ⇒ criterion 1's third
   case fails.
@@ -2405,8 +2464,11 @@ field, and the model gains its history-fed fields. Golden expectations move here
     // under two different names. `clockTs` is HEAD's committer timestamp in epoch seconds — the
     // value `WeightInputs.clockTs` takes (T7) — and `clockIso` is the strict ISO-8601 string the
     // model header's `clock` carries (`utils/git.ts:100-110`; `stores.ts:82` types it
-    // `string | null`). Both come from the single `readHead` call of Step 1; neither is
-    // re-derived. `null` only in the degraded modes, which return `undefined` for the whole join.
+    // `string | null`). Both come from the single `readHead` call of Step 1 — which returns both
+    // (T2's interface), reading them from the ONE HELPER PAIR in `utils/git.ts` the header itself
+    // already uses. Neither is re-derived from the other: the header's `%cI` form is not what
+    // `toISOString()` on `clockTs` would produce. `null` only in the degraded modes, which return
+    // `undefined` for the whole join.
     clockTs: number; clockIso: string | null;
   }
   ```
@@ -2420,7 +2482,14 @@ field, and the model gains its history-fed fields. Golden expectations move here
   population.
 - Modify `source/cli/src/roots/pipeline.ts` — `runRootsIndex(repoRoot, config, seeds, options?)`
   where `options` carries `{ historyDeps?: { cacheDir, stateDir, ledger, dirtyPaths },
-  onProgress? }`. **`stateDir` is declared here and read by nothing in this task** — this task
+  onProgress? }`. **`onProgress` is *forwarded* into `buildHistoryJoin` here, even though nothing
+  emits on it until T9** — the same declared-now-so-a-later-task-adds-behavior doctrine `stateDir`
+  gets in the next sentence, and for a sharper reason: every quantity that will ride on the
+  callback (D12's blob count and ETA, T9 Step 4's commits-walked and blobs-parsed summary) is known
+  only inside `buildHistoryJoin`, so if the forwarding waited for T9 it would be a *second*
+  `pipeline.ts` edit in a task whose own Files list authorizes exactly one and says nothing else in
+  that file moves. Wiring it here costs T8 one parameter and keeps that clause true.
+  **`stateDir` is declared here and read by nothing in this task** — this task
   never loads or saves replay state; T9's Files list is what adds "state load/save" and is the
   first thing to open it. It is declared now so T9 adds behavior rather than widening a public
   shape mid-increment, and the field is named as declared-and-inert here so a T8 reviewer reads
@@ -2512,6 +2581,11 @@ field, and the model gains its history-fed fields. Golden expectations move here
   review read, and what a later reader would trust over the code.
 - Create `source/cli/tests/unit/roots/history-join.test.ts` and
   `tests/unit/roots/golden-history.test.ts`.
+- Modify `CHANGELOG.md` — **draft** the single `## [Unreleased]` entry, in release-notes voice,
+  covering what this task first makes adopter-visible: mined conventions are now weighted by how
+  long code has stood and who wrote it. One entry, amended in place at T9 and again at T10, never
+  joined by a second (CHANGELOG policy, which already dictates its content and voice and already
+  says the entry is drafted here — this line is what gives it a file to be drafted in).
 
 **Steps.**
 - [ ] **Step 1: The join.** `buildHistoryJoin` runs the walk, feeds every commit to the replay and
@@ -2520,10 +2594,16 @@ field, and the model gains its history-fed fields. Golden expectations move here
   is `--no-merges`, so when HEAD is a merge commit — the common case on any repository that
   merges PRs, this one included at dogfood time — the walk's last record is neither HEAD's sha
   nor HEAD's timestamp, while §13.4 is categorical that the clock is HEAD's committer timestamp,
-  full stop (`v6-spec.md:618`). There is exactly **one** reader of HEAD in the process: `readHead`
-  delegates to the same `utils/git.ts` helpers the model header already uses (T2), so the header's
-  `clock` and the weights' `clockTs` are two representations of one call rather than two
-  invocations that might drift. **Both representations are carried on the join itself** —
+  full stop (`v6-spec.md:618`). There is exactly **one** reader of HEAD in the roots engine:
+  `readHead`
+  delegates to the same `utils/git.ts` helper pair the model header already uses (T2) and returns
+  both representations, so the header's
+  `clock` and the weights' `clockTs` come from one helper pair rather than from two
+  independently-written readers that might drift. (`cli/roots.ts:376` still calls
+  `getHeadCommitterTimestamp` itself when it assembles the header, which is why the pin below is on
+  the **conversion** between the join's two fields and not on a reconciliation of the header
+  against the join — nothing in R4 asserts the two are equal.) **Both representations are carried
+  on the join itself** —
   `clockIso` (the strict ISO-8601 string the header takes, `utils/git.ts:100-110`; `stores.ts:82`
   types it `string | null`) and `clockTs` (the epoch seconds `WeightInputs.clockTs` takes, T7) —
   which is what makes the property assertable in this task at all: `runRootsIndex` returns
@@ -2718,8 +2798,16 @@ field, and the model gains its history-fed fields. Golden expectations move here
 2. On the `history/` golden, a fact whose accepted instances include the **day-395 cohort** has an
    `nTotalRaw` that **excludes** that cohort: those scopes are 5 days old at the day-400 clock,
    5 < `freshPenaltyDays` 14, so they are counted and **not** survived.
-   **Phrase this against `nTotalRaw` alone and hand-derive its value; do not phrase it as a
-   comparison against `n_raw`.** `n_raw` is §9.4a's **formula vocabulary** (acceptance 4 below and
+   **Choose the fact deliberately, because both halves below are arithmetic and the cell decides
+   the arithmetic.** Cells are partitioned by scope kind (`CELL_KINDS`, `mine-stages.ts:371`), so
+   pick a fact on a **`method`-kind** cell — the kind T3 item 12 pins all three of
+   `src/svc/refund.ts`'s named-body scopes to — and specifically on an **`_all` or `dir`** cell of
+   that kind, never a role cell. The exclusion of role cells is not tidiness: a role cell counts
+   through `roleWeightOf` (`mine.ts:326`), which halves an ambiguous member's weight, so a cohort
+   scope would move `counts` by 0.025 rather than 0.05 and the stated delta would be wrong by a
+   factor the criterion cannot see. Name the chosen cell in the suite.
+   **Phrase the first half against `nTotalRaw` alone and hand-derive its value; do not phrase it as
+   a comparison against `n_raw`.** `n_raw` is §9.4a's **formula vocabulary** (acceptance 4 below and
    T8 Step 5 both use it that way, correctly), not a model field: there is none on `MinedFact` — the
    type carries
    `counts`, `nConformRaw`, `nTotalRaw`, `share`, `bitsPerInstance`, `bitsSaved`, `deviantsN` and
@@ -2727,19 +2815,24 @@ field, and the model gains its history-fed fields. Golden expectations move here
    — `nTotalRaw` is `sumMapValues(cell.counts.survivedRaw)`, and the raw population reaches the
    model only through `deviantsN`, the raw **non**-conformer count). A criterion written against a
    field the type does not have is unwritable, which is the same defect this plan already excised
-   one level up (Self-review's last entry, on T5's old acceptance 10). So: assert `nTotalRaw`
+   one level up (Self-review's entry on T5's old acceptance 10). So: assert `nTotalRaw`
    **by value**, equal to the hand-derived count of **survived** members of that cell **that are in
    the surface's domain** (`countRealInstancesIntoCell` skips a member outside the surface's
-   `domainSet` or with no value for it — `mine-stages.ts:207-213`) — every such member
-   except the day-395 cohort's 3–4 scopes — both numbers derived from T3's script.
+   `domainSet` or with no value for it — `mine-stages.ts:207-213`) — every such member except
+   **those of the day-395 cohort's scopes that are members of this cell**, which on the chosen
+   `method`-kind cell is all **three** of them; both numbers derived from T3's script.
    **And pin the antecedent so the criterion cannot pass vacuously:** assert in the same block that
    the day-395 scopes reached the fact at all, through the fact's own weighted `counts[expected]` —
    `MinedFact.counts` is computed over **all** in-domain instances, survived or not
    (`mine-stages.ts:213`), so unlike the partition's `assignments` map — which is keyed per scope
    but NOT total over scopes: it omits any unit under `roles.minOwnFeatures`, any unit
    `classifyAgainstMedoids` leaves roleless (`roles.ts:815-826`, `:914`), and file-kind units whose
-   named scopes got no roles — `counts` is a surface the cohort always moves, by exactly
-   `3–4 × 0.05`, hand-derivable from T3's script with no role assumption. Without that half, a
+   named scopes got no roles — `counts` is a surface **the same three scopes** move, and on an
+   `_all`/`dir` `method` cell they move it by exactly `3 × 0.05 = 0.15`, hand-derivable from T3's
+   script with no role assumption. **Both halves therefore read one population — the cohort's
+   members of *this* cell — and that identity is what makes the pair hand-checkable**; a cohort
+   spread across two kinds, or counted on a role cell, would make the two halves speak about
+   different sets. Without the antecedent half, a
    golden that simply failed to mine `src/svc/refund.ts`
    would satisfy the `nTotalRaw` assertion for the wrong reason. The survived population is then
    visibly not the raw one — and the criterion has a population that makes its antecedent true,
@@ -2786,7 +2879,8 @@ field, and the model gains its history-fed fields. Golden expectations move here
    `blobShas` contains that sha and that `blobShas` has exactly one entry for it (it is a `Set`, so
    the membership *is* the once), that `parsedKeys` **does** carry the key derived from the `.ts`
    path's grammar, that it carries **no** key for the `.md` path, and that that one entry's
-   `bytes` is 0, so it moves neither `parsed`'s byte sum nor `mb`. A `parsed` accumulated on a blob's *first appearance in a
+   `bytes` is 0, so it adds nothing to the byte sum `mb` reads. (`parsed` is a **cardinality**, and
+   the entry does move it, by one; the byte sum belongs to `mb` alone — D4.) A `parsed` accumulated on a blob's *first appearance in a
    sha-keyed roster* sees the no-grammar verdict first and undercounts by one, which is exactly the
    arrival-order residue D4 removes by counting keys instead of shas.
    **(c) One sha, two *keyed* paths under different grammars** — the second same-blob pair the
@@ -3077,6 +3171,17 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
   discard rule: seed the state directory with a state whose counters are non-zero, force `full`,
   and assert the resulting state's `modifications`, co-change supports and `historyStats` equal a
   from-scratch walk's rather than their sum.
+  **`inputsHash` needs a test of its own *composition*, and it is the only thing in this plan that
+  can have one — state this as a separate obligation from the trigger tests, because the two are
+  blind to different halves.** A trigger test feeds `decideWalkMode` a hash that mismatches, and
+  case (e) hand-edits the hash **stored** in `meta.json`; neither observes which ingredients the
+  hash folds, so both pass unchanged against a `computeInputsHash` that silently dropped one. So
+  assert directly, on the function, that the hash **differs** when exactly one ingredient differs
+  and nothing else does — one assertion per ingredient D2 enumerates: the **state schema version**,
+  the **extractor version**, **any one grammar's binding hash**, and the canonical
+  `history:` + `include`/`exclude` **config subtree** — plus one that two identical input tuples
+  hash equal, so the assertions cannot be satisfied by a hash that simply changes every call. This
+  is MR-32's killer and MR-32 names it; the four full-walk triggers keep their own tests.
   Before any of that — and **before `acquireBuildLock`** — D13's short-circuit. The command
   computes the eight **input** fields D13 enumerates (`bindingHash` among them, through the
   standalone binding-set fold this task lifts out of `pipeline.ts`), compares them field by field
@@ -3110,17 +3215,32 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
   spec's ≈ 12 ms/blob (`v6-spec.md:602`, `:712`), print one line to stderr with the blob count and
   the ETA, then an update every 500 blobs. Nothing reaches the model.
   **Beside the conditional progress line, every `index` run that walks writes one stderr summary
-  line — a short-circuited run prints "already current" instead — and it is specified here because two cases below read numbers from it that
+  line — a short-circuited run prints "already current" instead — and it is specified here because three cases below read numbers from it that
   nothing else prints.** D12 mandates only the >60 s progress line, and D4 says run diagnostics "go
   to stderr and nowhere else" without requiring any to be printed — so as written, case (c)'s
-  "parses zero blobs" and case (g)'s "walked 0 commits" would have no surface to read. The summary
+  "parses zero blobs", case (e)'s 25-commit full-walk figure and case (g)'s "walked 0 commits" would
+  have no surface to read. The summary
   carries, in plain user terms (no internal vocabulary — the maintainer's own rule), at least
   **commits walked this run** and **blobs parsed this run**; both are run diagnostics, so neither
   reaches the model (R4-I1). The no-op short-circuit's "already current" line is that run's summary
   and replaces it — a run that decided it had nothing to do has no walk to describe, and §6.6
   clause 6 constrains **writes to the cache directory**, not stderr.
+  **Both figures travel on the `onProgress` callback, and naming the transport is what makes them
+  reachable at all.** Each is known only inside `buildHistoryJoin`; `runRootsIndex` returns
+  `{body, bindingSetHash, candidateCountLog2}` and gains no field here, and this task's
+  `pipeline.ts` clause authorizes exactly one edit to that file and says nothing else in it moves.
+  So `history.ts` — which this task already modifies — **emits** them through the optional
+  `onProgress` callback T8 declares on `runRootsIndex`'s `options` and T8 already forwards into
+  `buildHistoryJoin` (D12: the engine carries
+  `no-direct-console`), and `src/cli/roots.ts` renders the summary line to **stderr**, the same
+  path the >60 s progress line already takes. **`pipeline.ts` therefore needs no edit for this** —
+  the transport is already wired — so this task's one authorized `pipeline.ts` edit stays the
+  binding-set lift and nothing else in that file moves.
 - [ ] **Step 5: The determinism suite** — the increment's centerpiece:
-  (a) **double `--full`** on one tree ⇒ byte-identical `model.json`, header included. This is a
+  (a) **double `--full`** on one tree ⇒ byte-identical `model.json`, header included. **That tree
+  is the pristine `history/` golden**, named here because cases (d), (e) and (f) all compare their
+  model against this one's and (e) hand-derives a commit count from it: its **25** commits (T3) are
+  every one a non-merge, so a full walk of it reports 25 commits walked. This is a
   **new** case, added beside the landed cross-process one. The landed case
   (`tests/e2e/cli-roots-basic.test.ts:104-116`) runs plain `index` twice on an unchanged tree,
   which after this task does **not** resume: all four of D13's conditions hold, so the second run
@@ -3195,9 +3315,21 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
   than on a list of state defects;
   (e) **inputs mismatch**: bump `EXTRACTOR_VERSION` in a copy of the state's `inputsHash` inputs ⇒
   full walk, same model — **and `historyStats` equal to (a)'s field for field**. That second
-  assertion is the point of the case: editing the stored hash leaves the real `EXTRACTOR_VERSION`
+  assertion is one of the case's two points: editing the stored hash leaves the real
+  `EXTRACTOR_VERSION`
   alone, so every blob-cache key still hits and the forced full walk fetches nothing at all, which
-  is precisely where a cache-dependent `parsed`/`mb` would collapse to zero (D4);
+  is precisely where a cache-dependent `parsed`/`mb` would collapse to zero (D4).
+  **The full walk itself has to be *observed*, and that is the case's other point — without it the
+  case cannot tell a full walk from a resume and asserts only that the model is stable.** The
+  state's `lastIndexedSha` is HEAD, so a run that wrongly **resumed** would walk an empty range,
+  re-emit `historyStats` unchanged from state and write a byte-identical `model.json` — passing
+  every clause above while doing the opposite of what the case is named for. So assert the
+  **commits-walked figure in Step 4's stderr run summary equals the full walk's count: 25** on
+  case (a)'s `history/` golden, whose 25
+  commits (T3) are every one a non-merge. A run that resumed reports **0**, and a
+  `decideWalkMode` that ignored the inputs mismatch outright is killed by the same number. **This is
+  the case's only observable of the walk mode; it is not what kills MR-32**, which is a claim about
+  how `inputsHash` is *composed* and is answered by Step 1's composition test instead;
   (f) **hostile state**: truncate `events.jsonl` mid-line ⇒ full walk, same model, one debug line,
   no crash — the store rejects the whole state rather than skipping the torn line (T1), which is
   what makes this a real case instead of a silent partial load. Same case, second shape: rewrite
@@ -3241,13 +3373,17 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
    (`dirtyWeight`), (h) because a degraded index is not byte-comparable to a full one — and each
    asserts its own named surface instead: `meta.json`'s `lastIndexedSha` plus the run summary's
    zero-commits figure for (g); the header field and the absent state directory for (h).
+   **A model comparison is never a case's *only* assertion where the walk mode is the thing under
+   test:** case (e) is byte-identical to (a) whether it walked or wrongly resumed, so it carries the
+   run summary's 25-commit figure on top of its model comparison. Two cases therefore read the
+   summary's commits-walked number for opposite values — 25 in (e), 0 in (g).
 2. A second `yg roots index` on an unchanged tree parses zero blobs, walks zero commits and —
    per D13 and §6.6's clause 6 (`v6-spec.md:260`) — **writes nothing at all**: `model.json`'s
    bytes *and* its mtime are unchanged, and no state or cache file is rewritten. The run says
    "already current" in plain terms and exits 0. **The zero-parse and zero-walk halves are asserted
    from the untouched bytes and mtime plus that line, not from Step 4's run summary** — this run
    never walks, so it has no walk to summarise and the "already current" line is what it prints
-   instead. Cases (c) and (g), which do walk, are where the summary's own numbers are read.
+   instead. Cases (c), (e) and (g), which do walk, are where the summary's own numbers are read.
 3. `yg roots index --full` on the same tree produces the same bytes as the incremental run.
 4. Two concurrent `index` runs where the holder **never** releases: the second waits up to the
    bounded window and only then exits non-zero with a message naming the holder's pid, and the
@@ -3269,7 +3405,17 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
 **Test obligations / mutation round-trips.**
 - **MR-31 (reachability check):** delete the unreachable-SHA branch ⇒ case (d) fails (the resumed
   walk errors or silently walks nothing).
-- **MR-32 (inputsHash):** drop `EXTRACTOR_VERSION` from `inputsHash` ⇒ case (e) fails.
+- **MR-32 (inputsHash composition):** drop `EXTRACTOR_VERSION` from the `inputsHash` fold ⇒ **Step
+  1's composition test fails** — the assertion that two input tuples differing only in the extractor
+  version hash differently. Run the same round-trip for the other three ingredients (a grammar's
+  binding hash, the `history:` + `include`/`exclude` subtree, the state schema version); each drops
+  its own assertion and nothing else.
+  **Case (e) is deliberately *not* named here, and the reason is worth keeping.** It edits the hash
+  **stored** in `meta.json` and then compares whatever the run computes against that stored value,
+  so the mismatch fires whatever the fold contains — the case passes under every one of these
+  mutations. A composition claim can only be killed by a composition assertion, and case (e)'s job
+  is the neighbouring one: to observe that the mismatch produced a **full walk** (its 25-commit
+  figure), which no unit test on `decideWalkMode` can see either.
 - **MR-33 (build lock, both halves):** stop acquiring the lock ⇒ this task's acceptance 4 fails,
   because the second run no longer refuses. Make `acquireBuildLock` refuse immediately instead of
   retrying until `waitMs` elapses ⇒ **T1's** wait-branch unit test fails (T1 acceptance 2: a holder
@@ -3309,7 +3455,12 @@ cost on this repository.
 **Steps.**
 - [ ] **Step 1: `status`'s history block** — still always exit 0, still no `--exit-code` and no
   `--diagnose` (R7's). It reports, in plain user terms (no internal vocabulary — design §11):
-  how much history the last index read (commits, distinct files parsed from history), how far
+  how much history the last index read — the commit count, and **`historyStats.parsed` described as
+  "revisions of your code read from history"**, never as a file count. **That wording is a
+  correctness point, not a style point:** `parsed` is distinct non-skipped **cache keys** (D4) —
+  blobs under a grammar — so on a repository where one file has 300 revisions it exceeds the file
+  count by two orders of magnitude, and "distinct files parsed" would be a plainly wrong number
+  wearing plain language. R4 tracks no per-file quantity `status` could print instead. Then: how far
   behind HEAD the index is (`git rev-list --count <lastIndexedSha>..HEAD`, failing soft to
   silence). **That `<lastIndexedSha>` is `meta.json`'s, read best-effort — never the model header's,
   even though the header now carries one too (T9).** Two copies exist from T9 on, and naming which
@@ -3624,7 +3775,8 @@ Reviewed end to end once before finishing. What that pass changed:
   acceptance 9 was asserting exactly that literal, which would have failed against a correct
   extractor and made "special-case empty files in `extractUnits`" the tempting fix — a real
   regression. Four stated counts on the `history/` golden's page were short by their files' file
-  scopes (the day-20 cohort 10 → 20, item 4's 12 → 15, item 12's 2–3 → 3–4, and the
+  scopes (the day-20 cohort 10 → 20, item 4's 12 → 15, item 12's 2–3 → 3–4 — since pinned to
+  exactly three `method` scopes plus the file scope, i.e. **4**, by the entry below — and the
   placeholder pair's "no scopes" → one), and D4's rationale was arguing from a case that cannot
   happen. No weight moves — every extra file scope lands in the same population as its named
   siblings — but hand-derivability, which this page claims for every number on it, did. The rule is
@@ -3655,6 +3807,38 @@ Reviewed end to end once before finishing. What that pass changed:
   placeholder pair kills: a sha-keyed roster restricted to *keyed* records never sees the `.md`
   verdict. The day-0 seed now carries a second same-blob pair, `src/stub/same.ts` /
   `src/stub/same.py` under two grammars, so acceptance 8 kills both.
+- **Pinned the day-395 cohort's *kind* as well as its count, because a fact's `counts` can never
+  span two scope kinds.** T8 acceptance 2's antecedent pin stated the cohort moves `counts` by
+  "3–4 × 0.05" — the file's named-body scopes *plus* its mandatory `file` scope. But cells, and
+  therefore facts, are partitioned by kind (`CELL_KINDS`, `mine-stages.ts:371`; the three cell
+  constructions at `mine.ts:290`, `:329`, `:356` each build per kind), so the `file` scope sits in
+  the `file`-kind cell and can never share a fact with the named-body scopes: a `method`-kind fact
+  moves by *its* kind's members alone. An implementer hand-deriving `counts[expected]` with four
+  nickels folded in would have written a red test against correct code — the failure mode round 7
+  was removing one level up. T3 item 12 now pins **three `method` scopes plus one `file` scope**,
+  the delta is `3 × 0.05`, the criterion picks an `_all`/`dir` `method` cell (a role cell would
+  halve an ambiguous member through `roleWeightOf`, `mine.ts:326`, giving 0.025), and both halves
+  of the criterion now read one population — the cohort's members of *this* cell.
+- **Re-dated T7's floor row so MR-20 kills something.** At the row's old −5 d, `5/120 × 0.5` and
+  `5/120` both floor to `baseFloor` 0.05, so deleting the fresh-penalty factor left the row's
+  derivation test green and the factor shipped with no killer anywhere (R4-I15). The factor is
+  observable only for `stable_days ∈ (6, 12]` with `age_days < 14`; at **−10 d** the two readings
+  are 0.05 and 0.083333. Same defect class as the MR-19 entry above, found on the row beside it.
+- **Gave MR-32 a killer and case (e) an observable, which turned out to be two different problems.**
+  MR-32 named case (e) as its killer, but that case hand-edits the `inputsHash` **stored** in
+  `meta.json` and compares whatever the run computes against it — the mismatch fires whatever the
+  fold contains, so dropping `EXTRACTOR_VERSION` from the fold left every clause green. A
+  composition claim needs a composition assertion, so T9 Step 1 now dictates one per ingredient and
+  MR-32 names *that*. Separately, case (e) could not see its own subject: the state's
+  `lastIndexedSha` is HEAD, so a wrongly-resumed run walks an empty range, re-emits `historyStats`
+  from state and writes byte-identical bytes. It now asserts the run summary's commits-walked
+  figure equals the golden's 25, which is what makes "full walk" an assertion rather than a title.
+- **Widened `readHead` to return the committer timestamp in both representations.** T8's
+  `HistoryJoin` declares `clockIso`, T2 declared `readHead` returning epoch seconds only, and
+  `git-history.ts` is not on T8's Files list — so the ISO string had no legal source, and deriving
+  it from `clockTs` would not reproduce the header's `%cI` form (`'…+00:00'`, pinned at
+  `tests/unit/cli/roots.test.ts:177`). The "single call" claim is softened to the true one: one
+  helper pair, with `cli/roots.ts:376` still reading HEAD itself for the header.
 - Verified every code anchor cited here against the tree (`pipeline.ts:161`, `mine.ts:75/171/854`,
   `mine-stages.ts:189`, `stores.ts:143/211/239`, `cli/roots.ts:170/208/332`, `utils/git.ts:81-142`,
   `extract.ts:185/399`, `enumerate.ts:58`, `roles.ts:497`) and every pin R4 moves
