@@ -178,7 +178,9 @@ parentheses).
   derives from**. The three sites that exist today all already qualify:
   `countRealInstancesIntoCell`'s `memberIds` (`src/roots/mine-stages.ts:189-216`), whose `Set` is
   built from an ordered member array at each of the **three** cell constructions that call it — the
-  `unitsByKind` arrays at `mine.ts:290` and `:329`, and the `dirMembersByKindDir` array at `:356`
+  `unitsByKind` array at `mine.ts:290`, the `roleMembers` array at `:329` (built at `:323` as
+  `[...confidentMembers, ...ambiguousMembers]`, both filtered from the ordered `members`), and the
+  `dirMembersByKindDir` array at `:356`
   (the directory cell, which T8's Files list also names, so the two lists match);
   `computeRoleLiftForPartition`'s loop over the `partitionUnits` array (`mine.ts:492-498`); and
   `addCount`'s per-value `Map`s, keyed in first-observation order under those same loops. None of
@@ -871,9 +873,11 @@ Precedents in code: `src/io/type-class-cache.ts`, `src/io/file-content-cache.ts`
   `readBlobRecord(cacheDir, key): Promise<unknown | undefined>` — path
   `<cacheDir>/<key.slice(0,2)>/<key>.json` per D14 (a directory per 2-hex prefix, one file per
   key), canonical JSON, atomic write — and canonical means a **self-contained sorted-keys
-  serializer copied into each new module**: the repo's three existing canonical serializers
-  (`roots/stores.ts`'s `sortKeysDeep`/`canonicalModelJson` at `:118`/`:132`,
-  `io/type-class-cache.ts`'s `canonicalJson` at `:61`) are all unexported, and `roots-store` is
+  serializer copied into each new module**: the repo's existing canonical serializers are every
+  one of them unexported (`roots/stores.ts`'s `sortKeysDeep`/`canonicalModelJson` at
+  `:118`/`:132`, `io/type-class-cache.ts`'s `canonicalJson` at `:61`, `roots/binding.ts`'s at
+  `:221`, `roots/config.ts`'s at `:29` — the last two are the very copies `stores.ts:105-116`'s
+  precedent comment names), and `roots-store` is
   not on `persistence-adapter`'s `calls` list (`yg-architecture.yaml:206-209`), so none is legally
   reachable — the same deliberate-duplication precedent `stores.ts:109-112` documents for itself.
   A parse failure is a MISS (`undefined`) plus one
@@ -1400,7 +1404,7 @@ hand-derivable, which is the property this page claims.
    and is **outside the ≈ 88** — so this commit LISTS ≈ 93 files while the scope-bearing partition
    stays ≈ 92 files / ≈ 443 scopes. Reading the placeholders and
    the stubs as *inside* the ≈ 88 rather than beside it would double-count roughly eight scopes,
-   which is why the breakdown is written as a partition here. 92 files is far above
+   which is why the breakdown is written as a partition here. 93 listed files (the gate-1-surviving record count, which is what the cap measures) is far above
    `megaCommitFileCap` 30, so the commit is excluded from co-change entirely
    (`v6-spec.md:622`) — which is exactly why the `commits(a)` denominators in the two pair
    populations below count the pair commits and nothing else.
@@ -1982,8 +1986,9 @@ export function finishReplay(state: ReplayState): ReplayResult;
   neither scope-level nor file-level. That covers both of gate 2's causes —
   a path whose extension has **no registered grammar** (`NOTES.md`, `yarn.lock`, a `.png`; note
   that `.json`, `.yaml`, `.yml` and `.toml` **are** registered and so do get rows) and a path
-  `forParsing` excludes (`dist/**`, `vendor/**`, `*.d.ts`, and the `*.test.*`/`*.spec.*`
-  carve-out) — and gate 1's exclusions never reach the replay at all.
+  only `forParsing` excludes (the `*.test.*`/`*.spec.*` mining carve-out — `dist/**`,
+  `vendor/**` and `*.d.ts` are BUILT_IN_EXCLUSIONS and already fall at gate 1)
+  — and gate 1's exclusions never reach the replay at all.
   Such a path is never fetched (D4), can never carry a scope,
   and a row for it would feed nothing while quietly making `max(lastModified)` over the lifecycle
   table equal HEAD's timestamp on every golden — hiding exactly the clock defect MR-26 exists to
@@ -3467,7 +3472,7 @@ cost on this repository.
 **Authorities.** Design §3's `status` row (`integration-design.md:84`) and §14 documentation
 (`:519-530`); spec §19's `status` line (`v6-spec.md:697`), §13.1's windowing-visibility rule
 (`:599`); AGENTS.md's doc-consistency rule and changelog policy; current doc text:
-`docs/roots.md:42-46`, `:47`, `:68-70`, `docs/configuration.md:372-373`, `:553-616`,
+`docs/roots.md:42-46`, `:48-51`, `:68-70`, `docs/configuration.md:372-373`, `:553-616`,
 `src/templates/knowledge/configuration.ts:347-348`,
 `src/templates/knowledge/onboarding.ts:333`.
 
@@ -3502,7 +3507,7 @@ cost on this repository.
   history windowing is active (`v6-spec.md:599` requires this to be visible).
 - [ ] **Step 2: `docs/roots.md`.** **Five** true-ups, each currently false or about to be:
   `:42-46`'s "nothing is inherited across runs" (now: incremental by default, `--full` forces the
-  walk, a re-index parses only new code); `:47`'s "Exits with an error only for a genuine problem"
+  walk, a re-index parses only new code); `:48`'s "Exits with an error only for a genuine problem"
   (now: another index still holding the build lock when the wait window elapses is also a non-zero
   exit — describe it in the same plain terms, as refusing to write over a run already in progress,
   which is the reading R4-I9 gives it too); `:68-69`'s ledger row (now: marks, when they exist,
