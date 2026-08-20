@@ -25,11 +25,22 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   into a real scripted repository, and an equivalence check proves a committed
   `git bundle` snapshot still matches what its spec produces — the mechanism a
   golden fixture needs because a working repository cannot itself be committed as
-  a plain directory tree. All three files import only Node builtins; nothing from
-  src/**."
+  a plain directory tree. A golden commit may also carry a day offset (scripting
+  real time depth into a history via the same fixed-epoch commit-index grid,
+  strictly ascending and guarded against dipping before any repository is
+  created), a set of path renames (executed as `git mv` before that commit's own
+  content changes), and a set of deletes.
+
+  A fourth file builds the shared branch-and-merge fixture on the same
+  primitives: a side branch cut before a mainline commit it is later merged
+  past, so a full walk in build order delivers the side-branch commit ahead of
+  that mainline commit despite its earlier date — reproducibly from scratch, or
+  appended onto an already-built repository. All four files import only Node
+  builtins; nothing from src/**."
 aspects: []
 relations: []
 mapping:
   - source/cli/tests/support/git-fixture.ts
   - source/cli/tests/support/progressive-fixture.ts
   - source/cli/tests/support/roots-golden.ts
+  - source/cli/tests/support/branch-merge-fixture.ts

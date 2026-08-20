@@ -27,7 +27,7 @@
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { initDeterministicGitFixture, runDeterministicGitFixture, runGitFixture } from './git-fixture.js';
+import { deterministicCommitIndexAt, initDeterministicGitFixture, runDeterministicGitFixture, runGitFixture } from './git-fixture.js';
 
 /** One commit in a golden repository's scripted history. */
 export interface GoldenCommit {
@@ -40,13 +40,41 @@ export interface GoldenCommit {
   /**
    * Repo-relative path → full file content, for every file this commit
    * writes or overwrites. A path not listed here keeps whatever content the
-   * previous commit left it with — a golden spec only ever adds or rewrites
-   * files, which is all the mining engine's goldens need; there is no
-   * per-commit delete.
+   * previous commit left it with — a golden spec only ever adds, rewrites,
+   * renames or deletes files (the last two via {@link GoldenCommit.renames}
+   * and {@link GoldenCommit.deletes} below), which is all the mining
+   * engine's goldens need.
    */
   files: Record<string, string>;
   /** The commit message. */
   message: string;
+  /**
+   * Day offset (from git-fixture.ts's fixed epoch) this commit is dated at.
+   * Absent = this commit's own position in the `commits` array IS its
+   * commit index — the existing fixed-epoch, 60-second-per-index spacing
+   * every landed golden spec already depends on — so a spec that never sets
+   * this field keeps its exact current commit SHAs. Set it to script real
+   * time depth into a golden's history: `buildGoldenRepo` converts it to a
+   * commit index via `deterministicCommitIndexAt` (git-fixture.ts), never
+   * through `extraEnv` (see that function's own warning on why that path
+   * silently discards a date).
+   */
+  dayOffset?: number;
+  /**
+   * Repo-relative paths this commit removes — via `rmSync` followed by
+   * `git add -A`, so the removal reaches the walk as a real deletion record,
+   * not merely an emptied file. Applied after `files` are written, before
+   * the commit.
+   */
+  deletes?: string[];
+  /**
+   * Path renames this commit performs, each executed as `git mv <from>
+   * <to>` BEFORE this commit's `files` are written — so a rename and a
+   * content change landing on the (post-rename) path can share one commit.
+   * `from`/`to` may each name a single file or a whole directory (`git mv`
+   * handles both the same way the real command line does).
+   */
+  renames?: { from: string; to: string }[];
 }
 
 /** A golden repository's whole scripted history, in commit order. */
@@ -79,14 +107,62 @@ function runOrThrow(fixtureDir: string, args: string[], commitIndex: number, ext
 }
 
 /**
+ * The commit index a spec's commit N resolves to: its own `dayOffset`
+ * (converted via `deterministicCommitIndexAt`) when set, otherwise N itself
+ * — the existing fixed-epoch, 60-second-per-index spacing. This is the
+ * single conversion {@link buildGoldenRepo} and
+ * {@link assertAscendingDayOffsets} both read from, so the guard checks
+ * exactly the ordering the build will actually produce.
+ */
+function resolvedCommitIndex(commit: GoldenCommit, arrayIndex: number): number {
+  return commit.dayOffset !== undefined ? deterministicCommitIndexAt(commit.dayOffset) : arrayIndex;
+}
+
+/**
+ * Commit-index units per day, derived from {@link deterministicCommitIndexAt}
+ * itself (never a re-typed literal) — used only to render a resolved commit
+ * index back into a "day" figure for this guard's own error message.
+ */
+const COMMITS_PER_DAY = deterministicCommitIndexAt(1) - deterministicCommitIndexAt(0);
+
+/**
+ * `buildGoldenRepo` commits a spec's `commits` array in order, each dated
+ * from {@link resolvedCommitIndex}. That only produces a history whose
+ * every derived quantity (`stable_days`, `churnEarlyDays` windows, …) is
+ * hand-derivable from the day offsets written on the spec's own page when
+ * the resolved sequence never dips — a dip does not break the WALK (a
+ * linear chain's parent-before-child order is unaffected by its dates, and
+ * the replay is a function of the commit set regardless), it breaks the
+ * READER's ability to check the spec's own arithmetic by hand. This throws
+ * BEFORE any repository is created, naming the golden, the offending commit
+ * index, and the two day figures that dipped.
+ */
+function assertAscendingDayOffsets(spec: GoldenRepoSpec): void {
+  let prevResolved = -Infinity;
+  let prevDay: number | undefined;
+  spec.commits.forEach((commit, index) => {
+    const resolved = resolvedCommitIndex(commit, index);
+    const day = resolved / COMMITS_PER_DAY;
+    if (resolved < prevResolved) {
+      throw new Error(
+        `golden "${spec.name}": dayOffset sequence dips at commit index ${index} — resolved day ${day} is earlier than the previous commit's resolved day ${prevDay}. Every commit's dayOffset (or its index-derived day, when absent) must be >= the previous commit's.`,
+      );
+    }
+    prevResolved = resolved;
+    prevDay = day;
+  });
+}
+
+/**
  * Replay a golden spec through the deterministic git-fixture into a fresh
  * temp directory: `git init` with the pinned default branch, then one commit
- * per {@link GoldenCommit}, each dated from its own position in the list
- * (commit N's date comes from index N) — so the same spec always produces
- * the same history, the same commit SHAs, on every machine (proven directly
- * by tests/unit/roots/git-fixture-determinism.test.ts for the underlying
+ * per {@link GoldenCommit}, each dated from {@link resolvedCommitIndex} — so
+ * the same spec always produces the same history, the same commit SHAs, on
+ * every machine (proven directly by
+ * tests/unit/roots/git-fixture-determinism.test.ts for the underlying
  * primitives, and by {@link assertGoldenBundleEquivalence} below for any one
- * committed golden).
+ * committed golden). Throws {@link assertAscendingDayOffsets}'s error, before
+ * creating anything, when a spec's resolved day sequence dips.
  *
  * Returns the absolute path to the built repository. The caller owns
  * cleanup (`rmSync(dir, { recursive: true, force: true })`) — this function
@@ -95,19 +171,32 @@ function runOrThrow(fixtureDir: string, args: string[], commitIndex: number, ext
  * and caller.
  */
 export function buildGoldenRepo(spec: GoldenRepoSpec): string {
+  assertAscendingDayOffsets(spec);
   const dir = mkdtempSync(path.join(tmpdir(), `yg-golden-${spec.name}-`));
   const init = initDeterministicGitFixture(dir);
   if (init.status !== 0) {
     throw new Error(`git init failed in ${dir}: ${init.stderr}${init.stdout}`);
   }
   spec.commits.forEach((commit, index) => {
+    const commitIndex = resolvedCommitIndex(commit, index);
+    for (const rename of commit.renames ?? []) {
+      const target = path.join(dir, rename.to);
+      mkdirSync(path.dirname(target), { recursive: true });
+      const mv = runDeterministicGitFixture(dir, ['mv', rename.from, rename.to], commitIndex);
+      if (mv.status !== 0) {
+        throw new Error(`git mv ${rename.from} ${rename.to} failed in ${dir}: ${mv.stderr}${mv.stdout}`);
+      }
+    }
     for (const [relPath, content] of Object.entries(commit.files)) {
       const target = path.join(dir, relPath);
       mkdirSync(path.dirname(target), { recursive: true });
       writeFileSync(target, content, 'utf-8');
     }
-    runOrThrow(dir, ['add', '-A'], index);
-    runOrThrow(dir, ['commit', '-q', '-m', commit.message], index, authorEnv(commit.author));
+    for (const relPath of commit.deletes ?? []) {
+      rmSync(path.join(dir, relPath), { force: true });
+    }
+    runOrThrow(dir, ['add', '-A'], commitIndex);
+    runOrThrow(dir, ['commit', '-q', '-m', commit.message], commitIndex, authorEnv(commit.author));
   });
   return dir;
 }

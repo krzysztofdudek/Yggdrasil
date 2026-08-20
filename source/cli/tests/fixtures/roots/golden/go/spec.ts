@@ -56,6 +56,10 @@ export function buildGoGoldenSpec(): GoldenRepoSpec {
 
   return {
     name: 'go',
-    commits: [{ author: 'roots-golden', files, message: 'seed: 150 uniform handler modules' }],
+    commits: [
+      { author: 'roots-golden', files, message: 'seed: 150 uniform handler modules' },
+      // D8's time-depth anchor — see tests/fixtures/roots/golden/data/spec.ts's own comment for why.
+      { author: 'roots-golden', dayOffset: 400, files: { 'NOTES.md': 'Time-depth anchor commit — no registered grammar, no scopes, no partition marker.\n' }, message: 'chore: trailing note (time-depth anchor)' },
+    ],
   };
 }

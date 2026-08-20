@@ -40,6 +40,10 @@ export function buildJavaGoldenSpec(): GoldenRepoSpec {
 
   return {
     name: 'java',
-    commits: [{ author: 'roots-golden', files, message: 'seed: 100 uniform handler classes' }],
+    commits: [
+      { author: 'roots-golden', files, message: 'seed: 100 uniform handler classes' },
+      // D8's time-depth anchor — see tests/fixtures/roots/golden/data/spec.ts's own comment for why.
+      { author: 'roots-golden', dayOffset: 400, files: { 'NOTES.md': 'Time-depth anchor commit — no registered grammar, no scopes, no partition marker.\n' }, message: 'chore: trailing note (time-depth anchor)' },
+    ],
   };
 }

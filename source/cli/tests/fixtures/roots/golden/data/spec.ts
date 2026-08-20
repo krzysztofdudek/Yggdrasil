@@ -74,6 +74,14 @@ export function buildDataGoldenSpec(): GoldenRepoSpec {
 
   return {
     name: 'data',
-    commits: [{ author: 'roots-golden', files, message: 'seed: 40 uniform packages mixing code and data files' }],
+    commits: [
+      { author: 'roots-golden', files, message: 'seed: 40 uniform packages mixing code and data files' },
+      // D8's time-depth anchor: a trailing commit 400 days after the seed,
+      // touching only a file with no registered grammar — no scopes, no
+      // partition marker, zero effect on this golden's mined shape. It
+      // exists so HEAD's committer timestamp sits far enough past the seed
+      // for a real (non-zero) `stable_days` once weights are wired.
+      { author: 'roots-golden', dayOffset: 400, files: { 'NOTES.md': 'Time-depth anchor commit — no registered grammar, no scopes, no partition marker.\n' }, message: 'chore: trailing note (time-depth anchor)' },
+    ],
   };
 }

@@ -48,6 +48,10 @@ export function buildTsxGoldenSpec(): GoldenRepoSpec {
 
   return {
     name: 'tsx',
-    commits: [{ author: 'roots-golden', files, message: 'seed: 100 uniform widget modules' }],
+    commits: [
+      { author: 'roots-golden', files, message: 'seed: 100 uniform widget modules' },
+      // D8's time-depth anchor — see tests/fixtures/roots/golden/data/spec.ts's own comment for why.
+      { author: 'roots-golden', dayOffset: 400, files: { 'NOTES.md': 'Time-depth anchor commit — no registered grammar, no scopes, no partition marker.\n' }, message: 'chore: trailing note (time-depth anchor)' },
+    ],
   };
 }

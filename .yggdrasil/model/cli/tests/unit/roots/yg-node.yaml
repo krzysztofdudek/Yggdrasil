@@ -134,7 +134,19 @@ description: "Unit tests for the roots convention-mining module: the roots
   stale-break already handed to someone else, all against an injected clock
   and sleep so nothing in the suite actually waits); and
   stores-ledger.test.ts (the new readLedger reader, mirroring readSeeds's
-  tolerance exactly, plus the three new derived-cache path helpers)."
+  tolerance exactly, plus the three new derived-cache path helpers); and
+  roots-golden-history.test.ts (the golden harness's time-depth extension —
+  a day-offset commit-index grid pinned against real git output, the
+  monotonicity guard that refuses a spec whose resolved day sequence dips
+  before any repository is created, and the shared branch-and-merge
+  fixture's own topology/date-dip/content-contract proofs, cross-checked
+  against the git-plumbing unit suite's independent local capture of the
+  same shape — plus the R4 history golden itself: builder<->bundle
+  equivalence and drift detection, the scripted 25-commit shape read back
+  from a real built repository, the 300-scope partition floor, the two
+  co-change populations counted by hand from the real repository, and the
+  placeholder/stub same-blob-two-verdicts pairs the golden carries by
+  construction)."
 aspects: []
 relations:
   [
@@ -178,3 +190,4 @@ mapping:
   - source/cli/tests/unit/roots/golden-python.test.ts
   - source/cli/tests/unit/roots/golden-data.test.ts
   - source/cli/tests/unit/roots/golden-controls.test.ts
+  - source/cli/tests/unit/roots/roots-golden-history.test.ts

@@ -259,3 +259,55 @@ export function runDeterministicGitFixture(
 export function initDeterministicGitFixture(fixtureDir: string): SpawnSyncReturns<string> {
   return runDeterministicGitFixture(fixtureDir, ['-c', 'init.defaultBranch=main', 'init', '-q'], 0);
 }
+
+// =============================================================================
+// Time-depth extension: a `dayOffset`-addressed grid layered on the same
+// commit-index space every export above already uses. ADDITIVE ONLY — every
+// export above keeps its exact current behavior; nothing here changes what
+// `deterministicCommitDate`/`deterministicGitFixtureEnv`/
+// `runDeterministicGitFixture` do for an existing caller passing a raw
+// `commitIndex`.
+//
+// WHY A GRID, NOT A DATE PASSED THROUGH `extraEnv`: `deterministicGitFixtureEnv`
+// merges `extraEnv` BEFORE applying its own `TZ`/`GIT_AUTHOR_DATE`/
+// `GIT_COMMITTER_DATE` pins (see that function's own doc comment — "they
+// always win"), so a caller that tries to put a scripted date into `extraEnv`
+// gets it silently discarded: the commit still lands at its `commitIndex`'s
+// own instant, with no error anywhere. The only way to script a specific day
+// is to convert that day into the `commitIndex` this module already controls,
+// which is exactly what `deterministicCommitIndexAt` does.
+// =============================================================================
+
+/**
+ * Commit-index slots reserved per day offset: one day is
+ * `86_400_000 / DETERMINISTIC_COMMIT_INTERVAL_MS` = 1440 indices at the
+ * 60-second spacing every deterministic commit uses, so `seq` (default 0)
+ * can select any of 1440 same-day commits before spilling into the next
+ * day's own indices.
+ */
+const DETERMINISTIC_COMMITS_PER_DAY = 86_400_000 / DETERMINISTIC_COMMIT_INTERVAL_MS;
+
+/**
+ * The commit-index grid a scripted history's day offset compiles to:
+ * `dayOffset * DETERMINISTIC_COMMITS_PER_DAY + seq` — the same integer
+ * {@link runDeterministicGitFixture}'s own `commitIndex` parameter already
+ * takes, so a caller scripting "day N" simply passes
+ * `deterministicCommitIndexAt(N)` wherever it would otherwise pass a raw
+ * index. `seq` (default 0) disambiguates more than one commit scripted on
+ * the same day.
+ */
+export function deterministicCommitIndexAt(dayOffset: number, seq = 0): number {
+  return dayOffset * DETERMINISTIC_COMMITS_PER_DAY + seq;
+}
+
+/**
+ * The ISO-8601 "…Z" instant for the commit at day offset `dayOffset`
+ * (0-based from the fixed epoch), slot `seq` (default 0) — the fixed epoch
+ * plus `dayOffset` whole days plus `seq` commit-interval steps. Reading a
+ * built commit's `%ct` back and comparing it against
+ * `DETERMINISTIC_EPOCH_MS + dayOffset * 86_400_000` is this function's own
+ * pin (`tests/unit/roots/roots-golden-history.test.ts`).
+ */
+export function deterministicCommitDateAt(dayOffset: number, seq = 0): string {
+  return deterministicCommitDate(deterministicCommitIndexAt(dayOffset, seq));
+}

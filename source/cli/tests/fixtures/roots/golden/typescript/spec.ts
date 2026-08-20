@@ -111,6 +111,10 @@ export function buildTypeScriptGoldenSpec(): GoldenRepoSpec {
 
   return {
     name: 'typescript',
-    commits: [{ author: 'roots-golden', files, message: 'seed: 100 uniform handler modules + one test-pattern decoy' }],
+    commits: [
+      { author: 'roots-golden', files, message: 'seed: 100 uniform handler modules + one test-pattern decoy' },
+      // D8's time-depth anchor — see tests/fixtures/roots/golden/data/spec.ts's own comment for why.
+      { author: 'roots-golden', dayOffset: 400, files: { 'NOTES.md': 'Time-depth anchor commit — no registered grammar, no scopes, no partition marker.\n' }, message: 'chore: trailing note (time-depth anchor)' },
+    ],
   };
 }

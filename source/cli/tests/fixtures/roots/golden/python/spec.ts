@@ -83,6 +83,10 @@ export function buildPythonGoldenSpec(): GoldenRepoSpec {
 
   return {
     name: 'python',
-    commits: [{ author: 'roots-golden', files, message: 'seed: 60 uniform repository+service packages' }],
+    commits: [
+      { author: 'roots-golden', files, message: 'seed: 60 uniform repository+service packages' },
+      // D8's time-depth anchor — see tests/fixtures/roots/golden/data/spec.ts's own comment for why.
+      { author: 'roots-golden', dayOffset: 400, files: { 'NOTES.md': 'Time-depth anchor commit — no registered grammar, no scopes, no partition marker.\n' }, message: 'chore: trailing note (time-depth anchor)' },
+    ],
   };
 }
