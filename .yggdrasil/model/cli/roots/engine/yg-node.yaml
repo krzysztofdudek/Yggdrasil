@@ -68,9 +68,25 @@ description: "Roots mining engine — pure, deterministic convention-mining
   runRootsIndex (partitions → finalizeUnits → vocabularies → enumerate →
   roles → mine, constructing R1's WeightFn=weights.noLifecycleWeight default
   and no AgeFn) — without persisting; stores.ts stays untouched, per Task 1's
-  seam."
+  seam. R4 Task 4 adds history.ts: the blob-record extraction seam —
+  extractBlobRecord (per-file pure extraction against a historical blob's
+  content, mirroring pipeline.ts's own live-path gates: history.blobMaxBytes,
+  the 40 000-line cap now exported as pipeline.ts's MAX_PARSE_LINES, D17 gate
+  2 via partitions.ts's makeRootsFileFilters, and the SAME extractUnits the
+  live path calls, so both key spaces share ordinals per R4-I7) and
+  makeBlobRecordReader (the read-through cache over io/roots-blob-cache.ts:
+  probe the shard, extract on a miss, write-through with the two grammar
+  constants stripped per D11, one onParsed() per genuine miss). blobCacheKey
+  folds a blob sha, extract.ts's own EXTRACTOR_VERSION and the PER-GRAMMAR
+  bindingHash binding.ts's bindingForAsset resolves from the historical
+  path's extension — never the all-grammar header fold. binding.ts's
+  assetNameOfWasmFile/bindingForAsset (lifted from pipeline.ts, Task 4) are
+  now the ONE per-grammar-per-process binding cache both the live and
+  historical extraction paths share."
 relations:
   - target: cli/io/stores
+    type: calls
+  - target: cli/io/roots-cache
     type: calls
   - target: cli/model/graph
     type: uses
@@ -92,3 +108,4 @@ mapping:
   - source/cli/src/roots/mine.ts
   - source/cli/src/roots/mine-stages.ts
   - source/cli/src/roots/pipeline.ts
+  - source/cli/src/roots/history.ts

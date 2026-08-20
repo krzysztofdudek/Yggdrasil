@@ -134,7 +134,21 @@ description: "Unit tests for the roots convention-mining module: the roots
   stale-break already handed to someone else, all against an injected clock
   and sleep so nothing in the suite actually waits); and
   stores-ledger.test.ts (the new readLedger reader, mirroring readSeeds's
-  tolerance exactly, plus the three new derived-cache path helpers); and
+  tolerance exactly, plus the three new derived-cache path helpers);
+  history-blobs.test.ts (Task 4's blob-record extraction seam:
+  extractBlobRecord and the makeBlobRecordReader read-through cache, against
+  one real deterministic git repository whose blobs are fetched through the
+  real readBlobs plumbing — same-blob-two-calls-one-parse and deep-equal
+  hit/miss records, the extractorVersion/bindingHash key-sensitivity pins,
+  the same-sha-two-grammars path-derived-not-content-sniffed proof, both
+  oversize gates persisted and never re-parsed with a 39,999-line control,
+  the D14 shard-layout path, D17 gate 2's no-grammar and excluded halves each
+  leaving the cache byte-for-byte untouched, the mandatory-file-scope empty
+  blob against its no-grammar same-sha sibling, and — beyond the plan's own
+  named criteria — distinct-blob key collision, the on-disk D11 cache-economy
+  pin that grammar constants are never persisted, two shapes of
+  shard-corruption-reads-as-a-miss, and the no-content-on-a-genuine-miss
+  caller-contract throw); and
   roots-golden-history.test.ts (the golden harness's time-depth extension —
   a day-offset commit-index grid pinned against real git output, the
   monotonicity guard that refuses a spec whose resolved day sequence dips
@@ -170,6 +184,7 @@ mapping:
   - source/cli/tests/unit/roots/history-store.test.ts
   - source/cli/tests/unit/roots/build-lock-store.test.ts
   - source/cli/tests/unit/roots/stores-ledger.test.ts
+  - source/cli/tests/unit/roots/history-blobs.test.ts
   - source/cli/tests/unit/roots/stores.test.ts
   - source/cli/tests/unit/roots/dormancy.test.ts
   - source/cli/tests/unit/roots/git-fixture-determinism.test.ts

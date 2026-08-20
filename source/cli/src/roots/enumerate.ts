@@ -55,7 +55,11 @@ import type { PartitionMap } from './partitions.js';
 // prototype implementation this file's own header comment names as the
 // enumerator semantics reference).
 // ---------------------------------------------------------------------------
-function nameShape(name: string): string {
+// Exported (R4 Task 4): T5's replay change-signature needs the SAME E1
+// char-class fold this file already applies to `unit.name` — a second copy
+// would be a second definition of E1's own semantics, free to drift from
+// this one (this file's own header cites the prototype line this mirrors).
+export function nameShape(name: string): string {
   if (!name) return '?';
   let r = name.replace(/[A-Z]+/g, 'U').replace(/[a-z0-9]+/g, 'a').replace(/[^Ua_\-$.]/g, '?');
   for (let unitLen = 1; unitLen <= 3; unitLen++) {

@@ -13,12 +13,11 @@
 import path from 'node:path';
 import type { Tree } from '../ast/types.js';
 import { withParsedFile } from '../ast/parser.js';
-import { readNodeTypes } from '../ast/node-types.js';
 import { getGrammarForExtension } from '../utils/language-registry.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { readTextFile } from '../io/graph-fs.js';
 import type { RootsConfig, SeedEntry } from '../model/graph.js';
-import { deriveBinding, bindingHash, type RootsBinding } from './binding.js';
+import { assetNameOfWasmFile, bindingForAsset, cachedBindingHashFor, type RootsBinding } from './binding.js';
 import { extractUnits, finalizeUnits, type RawScope, type ScopeUnit, type ExtractOptions } from './extract.js';
 import { derivePartitions, makeRootsFileFilters, type PartitionMap } from './partitions.js';
 import { buildVocabularies, enumerate, type FeatureBag, type DomainMap, type RootsVocabularies } from './enumerate.js';
@@ -27,34 +26,16 @@ import { mine, type MinedModel, type AgeFn } from './mine.js';
 import { hashString } from '../io/hash.js';
 
 /**
- * Grammar ASSET name from a registry `wasmFile` (design
- * `integration-design.md:174-177`: binding derivation keys on the asset, not
- * the registry id — e.g. registry id `csharp` ships `tree-sitter-c_sharp.wasm`,
- * asset `c_sharp`). Strips the fixed `tree-sitter-` prefix and `.wasm` suffix
- * — mirrors `binding.test.ts`'s own local `assetNameOf` (no shared export
- * exists for this one-line rule; both copies read the same registry field).
+ * §6.1's SECOND size gate (the first is `history.blobMaxBytes`, configurable):
+ * a file over this many lines is excluded before parsing regardless of its
+ * byte count, matching the prototype's own size guard
+ * (`prototype-roots2.mjs:418`). Fixed, never config — exported so `history.ts`
+ * (Task 4) applies the IDENTICAL threshold to a historical blob, which R4-I7
+ * requires: the live and historical passes must admit the same file set, or a
+ * blob the live pass would never parse could still acquire historical scopes
+ * that join nothing (R4-I7 header note, `history.ts`).
  */
-function assetNameOfWasmFile(wasmFile: string): string {
-  return wasmFile.replace(/^tree-sitter-/, '').replace(/\.wasm$/, '');
-}
-
-/**
- * Bindings are derived ONCE per grammar per process and cached (spec §6.2
- * `v6-spec.md:237` — normative; the prototype's `bindings` map, `:35`, is the
- * shape). Module-level: `deriveBinding` is pure and cheap, but the cache is
- * what makes "one per grammar per process" a checkable property (Task 6's
- * own pipeline test: one derivation per grammar per process).
- */
-const bindingCache = new Map<string, { binding: RootsBinding; hash: string }>();
-function bindingForAsset(assetName: string): { binding: RootsBinding; hash: string } {
-  let cached = bindingCache.get(assetName);
-  if (!cached) {
-    const binding = deriveBinding(readNodeTypes(assetName));
-    cached = { binding, hash: bindingHash(binding) };
-    bindingCache.set(assetName, cached);
-  }
-  return cached;
-}
+export const MAX_PARSE_LINES = 40000;
 
 /** Minimal degenerate `RawScope` for the one file-level defense this pipeline takes beyond `extractUnits`' own §6.1 error tolerance — see `parseAndExtractAll`'s own comment for when this is reached (it very rarely is: tree-sitter's error recovery means `extractUnits` almost always still runs, and DOES already degrade a root-parse-error file to file granularity on its own). */
 function minimalFileScope(relPath: string, binding: RootsBinding): RawScope {
@@ -114,8 +95,6 @@ export async function parseAndExtractAll(repoRoot: string, config: RootsConfig):
     shapeMaxStatements: config.enumerate.shapeMaxStatements,
     localVarSampleMax: config.enumerate.localVarSampleMax,
   };
-  const maxLines = 40000;
-
   const rawScopes: RawScope[] = [];
   for (const relPath of files) {
     if (!filters.forParsing(relPath)) continue;
@@ -124,7 +103,7 @@ export async function parseAndExtractAll(repoRoot: string, config: RootsConfig):
 
     const content = await readTextFile(path.join(repoRoot, relPath));
     if (Buffer.byteLength(content, 'utf8') > config.history.blobMaxBytes) continue; // §6.1 oversize — excluded before parsing
-    if (content.split('\n').length > maxLines) continue;
+    if (content.split('\n').length > MAX_PARSE_LINES) continue;
 
     const { binding } = bindingForAsset(assetNameOfWasmFile(grammarInfo.wasmFile));
     try {
@@ -201,9 +180,10 @@ export async function runRootsIndex(repoRoot: string, config: RootsConfig, seeds
 
   // The all-grammar fold (spec `:137`/`:237`): sha256 over the sorted
   // `assetName -> per-grammar bindingHash` map of every grammar actually used
-  // BY THIS BUILD — NOT `bindingCache`'s full contents, which is a
-  // process-lifetime cache and can carry entries from an earlier call for a
-  // different repo (a different grammar mix) within the same process. Reruns
+  // BY THIS BUILD — NOT `binding.ts`'s cache's full contents, which is a
+  // process-lifetime cache (as of R4, shared with `history.ts`) and can carry
+  // entries from an earlier call for a different repo (a different grammar
+  // mix) within the same process. Reruns
   // the same PARSE-set filter `parseAndExtractAll` used (files ∧ forParsing ∧
   // registered grammar) to recover exactly this run's own used-asset set,
   // deliberately duplicating that small O(files) filter pass rather than
@@ -216,8 +196,8 @@ export async function runRootsIndex(repoRoot: string, config: RootsConfig, seeds
     const grammarInfo = getGrammarForExtension(path.extname(relPath));
     if (!grammarInfo) continue;
     const assetName = assetNameOfWasmFile(grammarInfo.wasmFile);
-    const cached = bindingCache.get(assetName);
-    if (cached) usedAssetHashes[assetName] = cached.hash;
+    const cachedHash = cachedBindingHashFor(assetName);
+    if (cachedHash) usedAssetHashes[assetName] = cachedHash;
   }
   const bindingSetHash = hashString(JSON.stringify(usedAssetHashes, Object.keys(usedAssetHashes).sort()));
 

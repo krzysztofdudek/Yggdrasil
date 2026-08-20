@@ -53,6 +53,24 @@ import type { PartitionMap } from './partitions.js';
 /** Spec §6.7's fixed per-scope body-walk visit cap — an I1 guard against pathological generated files. */
 export const BODY_VISIT_CAP = 4000;
 
+/**
+ * The blob-cache key's version component (R4 Task 4, D14/spec §13.2
+ * `v6-spec.md:604-607`): `history.ts`'s `blobCacheKey` folds this alongside a
+ * blob's own sha and its grammar's `bindingHash`, so bumping it invalidates
+ * every historical blob record cached under the OLD value BY KEY — the stale
+ * shard is simply left inert under its old key, never deleted (D14's
+ * content-addressed layout has no reason to ever visit it again).
+ *
+ * BUMP DISCIPLINE: bump this string any time a change to what `extractUnits`
+ * (this file) records for a `RawScope`, or to HOW it records it, would change
+ * a `RawScope`'s value for otherwise-identical input — a new field, a changed
+ * computation for an existing field, a changed ordinal/attribution rule, and
+ * so on. A change that touches `RootsBinding` instead (a new grammar, an
+ * updated `node-types.json`) is already covered by `bindingHash` — the OTHER
+ * half of the key — and does not need a bump here.
+ */
+export const EXTRACTOR_VERSION = '1';
+
 /** Spec §4.5's own defaults for the three raw-collection-time `enumerate.*` knobs — the fallback `ExtractOptions` values below apply when a caller passes none, or omits one. */
 const DEFAULT_SHAPE_DEPTH = 2;
 const DEFAULT_SHAPE_MAX_STATEMENTS = 20;

@@ -13,9 +13,22 @@
  * and the decoration attribution-window test. Both operate on primitives
  * (source text, row numbers) supplied by a caller that already holds a
  * parsed tree — `deriveBinding` itself never touches a live AST node.
+ *
+ * R4 (Task 4) adds a THIRD export group: `assetNameOfWasmFile` (the registry
+ * `wasmFile` -> asset-name rule) and `bindingForAsset` (the per-grammar,
+ * per-process binding+hash cache, spec §6.2 `v6-spec.md:237` — "derived once
+ * per grammar per process"). Both were originally `pipeline.ts`-local
+ * (Task 6/R1); lifted HERE, the one binding-derivation module both the live
+ * pipeline (`pipeline.ts`) and the historical one (`history.ts`, Task 4)
+ * import from, so "one derivation per grammar per process" is a property of
+ * ONE cache rather than two that could silently diverge. `cachedBindingHashFor`
+ * exposes only a read of a single entry — never the map itself — which is
+ * exactly what `pipeline.ts`'s `bindingSetHash` fold needs (recovering which
+ * assets THIS run actually used) without leaking cache internals to a
+ * consumer that has no business iterating it.
  */
 
-import type { NodeTypeEntry } from '../ast/node-types.js';
+import { readNodeTypes, type NodeTypeEntry } from '../ast/node-types.js';
 import { hashString } from '../io/hash.js';
 
 /**
@@ -242,4 +255,51 @@ function canonicalJson(value: unknown): string {
  */
 export function bindingHash(binding: RootsBinding): string {
   return hashString(canonicalJson(binding));
+}
+
+/**
+ * Grammar ASSET name from a registry `wasmFile` (design
+ * `integration-design.md:174-177`: binding derivation keys on the asset, not
+ * the registry id — e.g. registry id `csharp` ships `tree-sitter-c_sharp.wasm`,
+ * asset `c_sharp`). Strips the fixed `tree-sitter-` prefix and `.wasm` suffix
+ * — mirrors `binding.test.ts`'s own local `assetNameOf` (no shared export
+ * exists for this one-line rule; both copies read the same registry field).
+ */
+export function assetNameOfWasmFile(wasmFile: string): string {
+  return wasmFile.replace(/^tree-sitter-/, '').replace(/\.wasm$/, '');
+}
+
+/**
+ * Bindings are derived ONCE per grammar per process and cached (spec §6.2
+ * `v6-spec.md:237` — normative; the prototype's `bindings` map, `:35`, is the
+ * shape). Module-level: `deriveBinding` is pure and cheap, but the cache is
+ * what makes "one per grammar per process" a checkable property — and, as of
+ * R4 (Task 4), a property shared by BOTH the live pipeline
+ * (`pipeline.ts:parseAndExtractAll`) and the historical one
+ * (`history.ts:extractBlobRecord`), which resolve the same asset's binding
+ * independently but must never derive it twice.
+ */
+const bindingCache = new Map<string, { binding: RootsBinding; hash: string }>();
+
+export function bindingForAsset(assetName: string): { binding: RootsBinding; hash: string } {
+  let cached = bindingCache.get(assetName);
+  if (!cached) {
+    const binding = deriveBinding(readNodeTypes(assetName));
+    cached = { binding, hash: bindingHash(binding) };
+    bindingCache.set(assetName, cached);
+  }
+  return cached;
+}
+
+/**
+ * Read-only peek at a single cache entry's hash, never the map itself.
+ * `pipeline.ts`'s `bindingSetHash` fold uses this to recover exactly the
+ * CURRENT run's used-grammar set from the process-lifetime cache (an asset
+ * this run never touched returns `undefined` here even if an EARLIER call in
+ * the same process warmed it for a different repository) — see that
+ * function's own comment for why the fold must not simply read the cache's
+ * full contents.
+ */
+export function cachedBindingHashFor(assetName: string): string | undefined {
+  return bindingCache.get(assetName)?.hash;
 }
