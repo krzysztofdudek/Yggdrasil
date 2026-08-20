@@ -10,6 +10,7 @@ aspects: []
 relations: [ { target: cli/io/stores, type: uses }, { target: cli/utils, type: uses }, { target: cli/tests/support, type: uses }, { target: cli/core/progressive-scope, type: uses } ]
 mapping:
   - source/cli/tests/unit/utils/git.test.ts
+  - source/cli/tests/unit/utils/git-roots.test.ts
   - source/cli/tests/unit/utils/git-introspect.test.ts
   - source/cli/tests/unit/utils/git-introspect-locale.test.ts
   - source/cli/tests/unit/utils/repo-scan.test.ts

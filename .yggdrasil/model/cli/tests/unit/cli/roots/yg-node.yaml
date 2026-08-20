@@ -1,0 +1,24 @@
+name: Roots Command Tests
+type: test-suite
+description: "Unit tests for `yg roots index`/`yg roots status`: the command's
+  registration shape, the comment-preserving blockless-config scaffold, the
+  dirty-hash fold over the working tree (`.yggdrasil/roots/**` excluded), the
+  model-header assembly mapping, and every branch of `status`'s always-exit-0
+  report — no project, unreadable config, dormant, never indexed, a corrupted
+  or malformed-shape committed model, and a genuinely indexed one."
+aspects: []
+relations:
+  - target: cli/commands/roots
+    type: uses
+  - target: cli/roots/engine
+    type: uses
+  - target: cli/roots/stores
+    type: uses
+  - target: cli/io/parsers/config
+    type: uses
+  - target: cli/io/stores
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/roots.test.ts

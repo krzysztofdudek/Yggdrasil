@@ -1,0 +1,31 @@
+name: Roots Commands
+type: command
+description: "The two roots convention-mining commands R1-R3 ships: `yg roots
+  index` (config-only load — findYggRoot + parseConfig, never the graph;
+  scaffolds a `roots:` block with defaults on a repo that has none, per the
+  design authority, then composes the roots engine + roots store to mine and
+  persist the committed model) and `yg roots status` (reads the committed
+  model and reports field/fact counts and dormancy honestly; always exits 0 —
+  a read surface, never a CI gate, in this increment)."
+aspects: []
+relations:
+  - target: cli/roots/engine
+    type: calls
+  - target: cli/roots/stores
+    type: calls
+  - target: cli/io/parsers/config
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/roots.ts

@@ -14,3 +14,5 @@ Specific to this node: the CLI entrypoint registers the one unified aspect-testi
 Registered the new read-only suppressions inventory subcommand on the top-level CLI dispatcher so operators can list active waiver markers and get warned about unknown aspect ids, wildcards, and unbounded disable ranges.
 ## [2026-07-12T11:42:31.387Z]
 Wires the new advise command family into the CLI so an operator can dismiss or defer an attention item from the command line. Registration only — the entry point continues to just assemble subcommands and owns none of the advise behavior itself.
+## [2026-08-19T23:15:49.448Z]
+Registers the new roots convention-mining command family on the top-level CLI dispatcher, alongside every other subcommand. Registration only — the entry point continues to just assemble subcommands and owns none of the mining or reporting behavior itself.

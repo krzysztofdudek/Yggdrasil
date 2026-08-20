@@ -119,22 +119,33 @@ export async function loadGraphOrAbort(
 }
 
 /**
- * Guard for `yg init --upgrade`: exit with bootstrap guidance when no
- * `.yggdrasil/` exists. `init` is the one command that legitimately runs
- * before a graph exists, so its --upgrade path cannot use `loadGraphOrAbort`
- * (which loads the graph — the graph may need the very migration --upgrade is
- * about to run — and emits a generic message). Centralizing the missing-graph
- * guard here keeps the command handler from inlining an ENOENT branch or the
- * missing-graph string itself.
+ * Guard for a command that needs `.yggdrasil/` to exist but must not call
+ * `loadGraphOrAbort` (which LOADS the graph): exits with bootstrap guidance
+ * when no `.yggdrasil/` exists, so the caller never inlines an ENOENT branch
+ * or the missing-graph string itself. The `what` line is fixed — it is the
+ * one canonical missing-graph string every caller shares, matching
+ * `loadGraphOrAbort`'s own — while `why`/`next` default to `init --upgrade`'s
+ * original wording (its own call site passes nothing and is unaffected) but
+ * may be overridden by a caller whose situation genuinely differs (e.g.
+ * `yg roots index`, which is not an `--upgrade` operation and has no
+ * `--upgrade` flag to suggest re-running).
+ *
+ * `init --upgrade` was the original motivating case: it is the one command
+ * that legitimately runs before a graph exists, so it cannot use
+ * `loadGraphOrAbort` (the graph may need the very migration --upgrade is
+ * about to run, and that helper's own message assumes a normal command).
  */
-export async function abortUnlessYggdrasilExists(yggRoot: string): Promise<void> {
+export async function abortUnlessYggdrasilExists(
+  yggRoot: string,
+  overrides: { why?: string; next?: string } = {},
+): Promise<void> {
   try {
     await stat(yggRoot);
   } catch {
     const formatted = buildIssueMessage({
       what: 'No .yggdrasil/ directory found in the current project.',
-      why: '`yg init --upgrade` operates on an existing graph; the bootstrap form (without --upgrade) creates one.',
-      next: "Run 'yg init' to bootstrap a fresh graph, then re-run --upgrade.",
+      why: overrides.why ?? '`yg init --upgrade` operates on an existing graph; the bootstrap form (without --upgrade) creates one.',
+      next: overrides.next ?? "Run 'yg init' to bootstrap a fresh graph, then re-run --upgrade.",
     });
     process.stderr.write(chalk.red(`Error: ${formatted}\n`));
     process.exit(1);

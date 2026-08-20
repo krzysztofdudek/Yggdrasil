@@ -1,3 +1,3 @@
 name: CLI Command Unit Tests
 type: test-suite
-description: "Parent node for CLI command unit tests — children split by command group: general, approve, log, graph-query"
+description: "Parent node for CLI command unit tests — children split by command group: general, advise, graph, incident, inspect, log, simulate, roots"

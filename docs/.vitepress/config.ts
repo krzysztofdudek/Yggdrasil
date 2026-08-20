@@ -48,6 +48,7 @@ export default defineConfig({
           { text: "Conditional Aspects", link: "/conditional-aspects" },
           { text: "Configuration", link: "/configuration" },
           { text: "Progressive Mode", link: "/progressive-mode" },
+          { text: "Convention Mining (Roots)", link: "/roots" },
           { text: "CLI Reference", link: "/cli-reference" },
           { text: "Running in Parallel", link: "/concurrency" },
           { text: "Structural Attention", link: "/feature-field" },

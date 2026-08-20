@@ -4,8 +4,14 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { getLastCommitTimestamp, getFirstCommitTimestamp } from '../../../src/utils/git.js';
 
+// `execFile` is stubbed alongside `execFileSync` even though no test here
+// calls it directly: git.ts now imports `parsePorcelainZ` from the sibling
+// git-introspect.ts module (both live in the same utility node), which
+// module-level `promisify(execFile)`s at import time — leaving `execFile`
+// unmocked would throw before any test in this file ran.
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn(),
+  execFile: vi.fn(),
 }));
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

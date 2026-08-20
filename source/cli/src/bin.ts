@@ -22,6 +22,7 @@ import { registerSimulateCommand } from './cli/simulate.js';
 import { registerPortalCommand } from './cli/portal.js';
 import { registerStructureCommand } from './cli/structure.js';
 import { registerPrimeCommand } from './cli/prime.js';
+import { registerRootsCommand } from './cli/roots.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -59,6 +60,7 @@ registerSimulateCommand(program);
 registerPortalCommand(program);
 registerStructureCommand(program);
 registerPrimeCommand(program);
+registerRootsCommand(program);
 
 process.on('unhandledRejection', (reason) => {
   const msg = reason instanceof Error ? reason.message : String(reason);

@@ -553,7 +553,10 @@ much rather than treating the committed record as complete.
 `roots` is an optional section configuring the roots convention-mining engine.
 It is absent by default, and absent means **fully dormant**: no store is read,
 no directory under `.yggdrasil/roots/` is created, and nothing about `yg check`,
-`yg context`, or any other command changes.
+`yg context`, or any other command's behavior or exit codes changes. The one
+deliberate exception is `yg init --upgrade`, which manages the roots
+gitignore/gitattributes lines unconditionally, whether or not a project has
+opted in.
 
 ```yaml
 # .yggdrasil/yg-config.yaml
@@ -607,6 +610,9 @@ part of this block: `version` (an internal schema version for the mined store,
 unrelated to this file's own `version:`) and `daemon` (a background-process
 feature that is not yet available). Setting either under `roots:` is
 rejected the same as any other unknown key.
+
+For the commands that read and write this block — `yg roots index` and
+`yg roots status` — see [Convention Mining (Roots)](/roots).
 
 ---
 

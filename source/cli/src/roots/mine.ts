@@ -187,12 +187,20 @@ export interface MinedModel {
   partitions: MinedPartition[];
 }
 
-/** Narrowing guard for `stores.ts`'s `readModel`, whose body comes back `unknown`. Structural, not exhaustive — enough for a caller (Task 8's `status`) to trust `.partitions` is walkable. */
+/** Narrowing guard for `stores.ts`'s `readModel`, whose body comes back `unknown`. Structural, not exhaustive — enough for a caller (Task 8's `status`) to trust `.partitions`, `.roles`, and `.seeds` are all walkable (every one of those three arrays is read by `status`'s field/fact/role/seed counts — a guard that checked only `facts` let a partition missing `roles`/`seeds` degrade `status`'s specific "malformed model" message into its generic catch-all instead). */
 export function isMinedModel(value: unknown): value is MinedModel {
   if (typeof value !== 'object' || value === null) return false;
   const partitions = (value as { partitions?: unknown }).partitions;
   if (!Array.isArray(partitions)) return false;
-  return partitions.every((p) => typeof p === 'object' && p !== null && typeof (p as { id?: unknown }).id === 'string' && Array.isArray((p as { facts?: unknown }).facts));
+  return partitions.every(
+    (p) =>
+      typeof p === 'object' &&
+      p !== null &&
+      typeof (p as { id?: unknown }).id === 'string' &&
+      Array.isArray((p as { facts?: unknown }).facts) &&
+      Array.isArray((p as { roles?: unknown }).roles) &&
+      Array.isArray((p as { seeds?: unknown }).seeds),
+  );
 }
 
 // ---------------------------------------------------------------------------

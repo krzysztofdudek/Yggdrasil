@@ -62,5 +62,7 @@ relations:
     type: calls
   - target: cli/commands/prime
     type: calls
+  - target: cli/commands/roots
+    type: calls
 mapping:
   - source/cli/src/bin.ts

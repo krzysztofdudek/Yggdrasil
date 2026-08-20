@@ -55,13 +55,16 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // for — and, at closure, which unbought rule counts as settled — both keyed
     // by the pair identity that engine defines. That took it from 24 to 25, out
     // ahead of cli/core/check (24, which declared the same edge when it began
-    // accepting a change scope). A NEW tie now sits at 23: cli/commands/
+    // accepting a change scope). A tie sits at 23, now THREE-WAY: cli/commands/
     // build-context declared the same two edges (to cli/progressive-scope-resolve
     // and cli/core/progressive-scope) when the context view began marking each
     // rule '(yours)'/'(inherited)' against the same measurement yg check gates
     // on, taking it from 21 to 23 — exactly cli/portal/engine-api's own count,
-    // which is otherwise unaffected. The tie breaks alphabetically ('commands'
-    // sorts before 'portal'), so build-context now leads engine-api by one place.
+    // which is otherwise unaffected. cli/entry joined that same 23 when it
+    // registered the roots convention-mining command (`calls: cli/commands/
+    // roots`), its 22nd relation becoming its 23rd. The tie breaks
+    // alphabetically ('commands' < 'entry' < 'portal'), so build-context leads,
+    // then entry, then engine-api.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(32);
@@ -71,8 +74,10 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(data.hubs.fanOut[2].count).toBe(24);
     expect(data.hubs.fanOut[3].path).toBe('cli/commands/build-context');
     expect(data.hubs.fanOut[3].count).toBe(23);
-    expect(data.hubs.fanOut[4].path).toBe('cli/portal/engine-api');
+    expect(data.hubs.fanOut[4].path).toBe('cli/entry');
     expect(data.hubs.fanOut[4].count).toBe(23);
+    expect(data.hubs.fanOut[5].path).toBe('cli/portal/engine-api');
+    expect(data.hubs.fanOut[5].count).toBe(23);
     // Also pins that aspect-test's own extraction (a prior architectural
     // change) still landed it BELOW the leaders, never re-joining the tie by
     // accident. Found by path, not by a fixed index — the nodes between the

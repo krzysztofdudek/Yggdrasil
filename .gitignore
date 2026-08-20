@@ -72,3 +72,6 @@ Thumbs.db
 # Per-machine agent settings. These accumulate whatever a local session happened to
 # approve, so a shared copy would hand every future clone permissions nobody reviewed.
 .claude/settings.local.json
+# Claude Code harness scheduling artifacts (local session infrastructure)
+.claude/scheduled_tasks.lock
+.claude/scheduled_tasks.json
