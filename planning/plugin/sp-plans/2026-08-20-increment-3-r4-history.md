@@ -870,7 +870,13 @@ Precedents in code: `src/io/type-class-cache.ts`, `src/io/file-content-cache.ts`
 - `writeBlobRecord(cacheDir, key, record: unknown): Promise<void>` and
   `readBlobRecord(cacheDir, key): Promise<unknown | undefined>` — path
   `<cacheDir>/<key.slice(0,2)>/<key>.json` per D14 (a directory per 2-hex prefix, one file per
-  key), canonical JSON, atomic write. A parse failure is a MISS (`undefined`) plus one
+  key), canonical JSON, atomic write — and canonical means a **self-contained sorted-keys
+  serializer copied into each new module**: the repo's three existing canonical serializers
+  (`roots/stores.ts`'s `sortKeysDeep`/`canonicalModelJson` at `:118`/`:132`,
+  `io/type-class-cache.ts`'s `canonicalJson` at `:61`) are all unexported, and `roots-store` is
+  not on `persistence-adapter`'s `calls` list (`yg-architecture.yaml:206-209`), so none is legally
+  reachable — the same deliberate-duplication precedent `stores.ts:109-112` documents for itself.
+  A parse failure is a MISS (`undefined`) plus one
   `debugWrite`, never a throw (R4-I10).
 - `readHistoryState(dir): Promise<HistoryState | undefined>` and `writeHistoryState(dir, state)` —
   the five JSONL files plus `meta.json` (D1); every array written in a fixed sorted order so two
@@ -1338,7 +1344,10 @@ rename replay (`:610`), §13.5 mega-commit cap (`:622`); `tests/support/git-fixt
   **`dayOffset` monotonicity guard**: `buildGoldenRepo` commits in array order
   (`roots-golden.ts:103-111`) with each commit's date pinned, and the guard throws before creating
   the repository if the offsets dip anywhere, naming the golden, the offending index and the two
-  offsets.
+  offsets. **On a mixed spec — commits without a `dayOffset` followed by commits carrying one, the
+  shape every landed golden takes after its trailing commit — the guard compares the RESOLVED day
+  sequence: an absent offset is its index-derived day (the fixed epoch's 60 s-per-index spacing),
+  so the landed goldens pass unchanged and only a genuine dip throws.**
   **State the guard's reason honestly, because the obvious one is wrong.** It is *not* that a
   dipping sequence would make the walk diverge from the build order: `buildGoldenRepo` produces a
   **linear** chain (one commit per array entry, each on the previous), and on a linear chain the
@@ -1384,9 +1393,12 @@ hand-derivable, which is the property this page claims.
    **named-body** scopes (so ≈ 5 scopes each once the mandatory `file` scope is counted) ⇒ ≈ 440
    scopes, **plus the two placeholders** described next (two files, **one** scope between them),
    **plus the two stubs** described after that (two files, **two** scopes) — ≈ **92 files and ≈ 443
-   scopes** in this one commit. Uniform conventions, author `alice`. Test-pattern seed files
-   (`test/order.spec.ts`, `test/ship.spec.ts` — item 9/11 need them in the seed) fail D17 gate 2
-   via `**/*.spec.*`, contribute **zero** scopes, and are **outside the ≈ 88**. Reading the placeholders and
+   scopes** in this one commit. Uniform conventions, author `alice`. One test-pattern seed file
+   (`test/order.spec.ts`, item 9's pair partner — `test/ship.spec.ts` is deliberately NOT here:
+   item 11 creates the whole ship pair at day 300, which is what makes those scopes' `first_seen`
+   day 300) fails D17 gate 2 via `**/*.spec.*`, contributes **zero** scopes and no lifecycle row,
+   and is **outside the ≈ 88** — so this commit LISTS ≈ 93 files while the scope-bearing partition
+   stays ≈ 92 files / ≈ 443 scopes. Reading the placeholders and
    the stubs as *inside* the ≈ 88 rather than beside it would double-count roughly eight scopes,
    which is why the breakdown is written as a partition here. 92 files is far above
    `megaCommitFileCap` 30, so the commit is excluded from co-change entirely
@@ -2105,7 +2117,9 @@ export function finishReplay(state: ReplayState): ReplayResult;
 4. Adding `@Injectable` to a class with no other change emits exactly one **change** event, whose
    tuple differs from the previous one only in the decorator list.
 5. A file with two same-named overloads produces two lifecycle rows whose keys differ by the
-   `#k` ordinal, and neither row's `modifications` counts the other's edits.
+   `#k` ordinal — **two rows, not one**: a record touches every scope key its post-image carries
+   (Step 2), so both rows carry the *same* `modifications` count, and it is the row **count** that
+   MR-13's ordinal-stripping mutant destroys.
 6. A file exceeding `lifecycleMaxAppearances` yields a file-level row and zero scope rows for
    that path.
 7. `finishReplay` on the same walk, twice, returns byte-identical JSON.
@@ -3256,7 +3270,7 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
   model against this one's and (e) hand-derives a commit count from it: its **25** commits (T3) are
   every one a non-merge, so a full walk of it reports 25 commits walked. This is a
   **new** case, added beside the landed cross-process one. The landed case
-  (`tests/e2e/cli-roots-basic.test.ts:104-116`) runs plain `index` twice on an unchanged tree,
+  (`tests/e2e/cli-roots-basic.test.ts:104-121`) runs plain `index` twice on an unchanged tree,
   which after this task does **not** resume: all four of D13's conditions hold, so the second run
   short-circuits, walks zero commits and writes nothing (acceptance 2, §6.6 clause 6). It is
   relabelled the **no-op short-circuit** case and its assertion is strengthened to match — bytes
@@ -3453,7 +3467,7 @@ cost on this repository.
 **Authorities.** Design §3's `status` row (`integration-design.md:84`) and §14 documentation
 (`:519-530`); spec §19's `status` line (`v6-spec.md:697`), §13.1's windowing-visibility rule
 (`:599`); AGENTS.md's doc-consistency rule and changelog policy; current doc text:
-`docs/roots.md:42-46`, `:48`, `:68-70`, `docs/configuration.md:372-373`, `:553-616`,
+`docs/roots.md:42-46`, `:47`, `:68-70`, `docs/configuration.md:372-373`, `:553-616`,
 `src/templates/knowledge/configuration.ts:347-348`,
 `src/templates/knowledge/onboarding.ts:333`.
 
@@ -3488,7 +3502,7 @@ cost on this repository.
   history windowing is active (`v6-spec.md:599` requires this to be visible).
 - [ ] **Step 2: `docs/roots.md`.** **Five** true-ups, each currently false or about to be:
   `:42-46`'s "nothing is inherited across runs" (now: incremental by default, `--full` forces the
-  walk, a re-index parses only new code); `:48`'s "Exits with an error only for a genuine problem"
+  walk, a re-index parses only new code); `:47`'s "Exits with an error only for a genuine problem"
   (now: another index still holding the build lock when the wait window elapses is also a non-zero
   exit — describe it in the same plain terms, as refusing to write over a run already in progress,
   which is the reading R4-I9 gives it too); `:68-69`'s ledger row (now: marks, when they exist,
@@ -3851,7 +3865,7 @@ Reviewed end to end once before finishing. What that pass changed:
   `HistoryJoin` declares `clockIso`, T2 declared `readHead` returning epoch seconds only, and
   `git-history.ts` is not on T8's Files list — so the ISO string had no legal source, and deriving
   it from `clockTs` would not reproduce the header's `%cI` form (`'…+00:00'`, pinned at
-  `tests/unit/cli/roots.test.ts:177`). The "single call" claim is softened to the true one: one
+  `tests/unit/cli/roots.test.ts:178`). The "single call" claim is softened to the true one: one
   helper pair, with `cli/roots.ts:376` still reading HEAD itself for the header.
 - Verified every code anchor cited here against the tree (`pipeline.ts:161`, `mine.ts:75/171/854`,
   `mine-stages.ts:189`, `stores.ts:143/211/239`, `cli/roots.ts:170/208/332`, `utils/git.ts:81-142`,
