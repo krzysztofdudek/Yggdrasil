@@ -1079,7 +1079,7 @@ export function walkHistory(repoRoot: string, opts: WalkOptions,
 // is not on T8's Files list, so a `clockIso` with no supplier here would have no legal source
 // there. Nor may it be derived from `committerTs`: the header's format is `%cI`
 // (`utils/git.ts:100-110`) — `'2026-08-19T00:00:00+00:00'`, the form the landed pin at
-// `tests/unit/cli/roots.test.ts:177` carries — which `new Date(ts * 1000).toISOString()` does not
+// `tests/unit/cli/roots.test.ts:178` carries — which `new Date(ts * 1000).toISOString()` does not
 // reproduce. So `committerIso` comes straight off `getHeadCommitterTimestamp` and `committerTs`
 // off the `%ct` sibling (or off a parse of that same ISO string — say which in the report).
 export function readHead(repoRoot: string):
@@ -1384,7 +1384,9 @@ hand-derivable, which is the property this page claims.
    **named-body** scopes (so ≈ 5 scopes each once the mandatory `file` scope is counted) ⇒ ≈ 440
    scopes, **plus the two placeholders** described next (two files, **one** scope between them),
    **plus the two stubs** described after that (two files, **two** scopes) — ≈ **92 files and ≈ 443
-   scopes** in this one commit. Uniform conventions, author `alice`. Reading the placeholders and
+   scopes** in this one commit. Uniform conventions, author `alice`. Test-pattern seed files
+   (`test/order.spec.ts`, `test/ship.spec.ts` — item 9/11 need them in the seed) fail D17 gate 2
+   via `**/*.spec.*`, contribute **zero** scopes, and are **outside the ≈ 88**. Reading the placeholders and
    the stubs as *inside* the ≈ 88 rather than beside it would double-count roughly eight scopes,
    which is why the breakdown is written as a partition here. 92 files is far above
    `megaCommitFileCap` 30, so the commit is excluded from co-change entirely
@@ -1444,7 +1446,8 @@ hand-derivable, which is the property this page claims.
    them recurring anywhere else in the script except among the ten new files, which item 3 touches
    again for support 2. State that in the spec's own comment so no co-change number on this page
    is left implicit.
-3. **day 30** — the *early-churn* case: rewrite all 10 files born at day 20, author `alice`.
+3. **day 30** — the *early-churn* case: rewrite all 10 files born at day 20 (an in-place body
+   change — same scope names, same kinds, no renames — so every scope key survives), author `alice`.
    30 − 20 = 10 ≤ `churnEarlyDays` 14 (`v6-spec.md:612`; `config-parser.ts:50`), so those scopes
    are `churned_early`. The two populations are then explicit and hand-checkable: **the 20 scopes
    born day 20 and churned at day 30 — the 10 named-body scopes and the 10 `file` scopes of the
@@ -1575,7 +1578,8 @@ day offsets: 0, 20, 30, 60, 65, 90, 120, 150, 160, 170, 180, 190, 200, 210, 220,
   capture pinned and asserting the two agree on branch topology and on the date dip.
   **A `dayOffset` cannot be delivered through `extraEnv`, and that is the natural implementer move
   — a silent-failure trap, not a detail.** `deterministicGitFixtureEnv`
-  (`tests/support/git-fixture.ts:201-224`) merges `extraEnv` into the underlying `gitFixtureEnv`
+  (`tests/support/git-fixture.ts:201-215`; the load-bearing "they always win" sentence is its doc
+  comment at `:196-199`) merges `extraEnv` into the underlying `gitFixtureEnv`
   call and *then* applies `TZ`/`GIT_AUTHOR_DATE`/`GIT_COMMITTER_DATE` on top, and its own doc
   comment says so in as many words ("they always win"). `roots-golden.ts`'s `runOrThrow` already
   passes `authorEnv(commit.author)` through `extraEnv`, so putting a date beside it looks right,
@@ -1719,6 +1723,7 @@ export interface BlobScopeRecord {
 // alone and are never written (above) — they are D17 gate 2's two causes, kept distinct because a
 // reader of a `debugWrite` line needs to know which one fired.
 export interface SkippedBlobRecord { bytes: number; skipped: true; reason: 'oversize' | 'no-grammar' | 'excluded' | 'unparseable' }
+export type BlobRecord = BlobScopeRecord | SkippedBlobRecord;
 // The blob arrives as bytes and is decoded as UTF-8 for parsing, because `withParsedFile` takes
 // a `string` (`src/ast/parser.ts:134-137`); but `bytes` and the `blobMaxBytes` comparison are
 // the **raw byte length before decoding**, matching the live path's
@@ -1977,7 +1982,11 @@ export function finishReplay(state: ReplayState): ReplayResult;
   weigh scopes, and a file whose scopes are never mined has nothing to weigh — a test file's live
   scopes are excluded by the same `forParsing` predicate, so a historical row for one would join
   nothing.
-  **Every field is a set function of the row's touches, with a stated tie-break** (D16). Arrival
+  **Every field is a set function of the row's touches, with a stated tie-break** (D16). A record
+  **touches a scope row** exactly when the row's scope key is among the record's resolved
+  post-image's scope keys — so a `T` or `D` record, which resolves no post-image scopes, touches
+  file-level rows only (their own bullets below), and a record whose post-image still carries the
+  scope touches it whether or not the value signature changed. Arrival
   order is not ascending by timestamp, not parent order, and not the same between a full walk and a
   resume, so no field may be last-write-wins:
   - `firstSeenTs = min(ts)` and `lastModifiedTs = max(ts)` over the row's touches.
@@ -2467,8 +2476,10 @@ field, and the model gains its history-fed fields. Golden expectations move here
     // `string | null`). Both come from the single `readHead` call of Step 1 — which returns both
     // (T2's interface), reading them from the ONE HELPER PAIR in `utils/git.ts` the header itself
     // already uses. Neither is re-derived from the other: the header's `%cI` form is not what
-    // `toISOString()` on `clockTs` would produce. `null` only in the degraded modes, which return
-    // `undefined` for the whole join.
+    // `toISOString()` on `clockTs` would produce. The type is nullable because `readHead`'s is —
+    // and a null HEAD (empty repository) is itself a degraded cause returning `undefined` for the
+    // whole join, so a RETURNED join always carries a real string; the type records the source's
+    // honesty, not a reachable state of this field.
     clockTs: number; clockIso: string | null;
   }
   ```
@@ -2486,7 +2497,10 @@ field, and the model gains its history-fed fields. Golden expectations move here
   emits on it until T9** — the same declared-now-so-a-later-task-adds-behavior doctrine `stateDir`
   gets in the next sentence, and for a sharper reason: every quantity that will ride on the
   callback (D12's blob count and ETA, T9 Step 4's commits-walked and blobs-parsed summary) is known
-  only inside `buildHistoryJoin`, so if the forwarding waited for T9 it would be a *second*
+  only inside `buildHistoryJoin` — and the callback carries **structured data only** (counts and a
+  phase tag), never preformatted text: D12 keeps the engine `no-direct-console` and the COMMAND owns
+  every rendered word (the maintainer's no-internals rule constrains that wording, and T9's cases
+  (c)/(e)/(g) read the rendered numbers) — so if the forwarding waited for T9 it would be a *second*
   `pipeline.ts` edit in a task whose own Files list authorizes exactly one and says nothing else in
   that file moves. Wiring it here costs T8 one parameter and keeps that clause true.
   **`stateDir` is declared here and read by nothing in this task** — this task
