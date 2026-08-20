@@ -149,7 +149,13 @@ parentheses).
 - **R4-I12 — Single writer.** Every writer (`index` today; `calibrate`/`promote` later) takes the
   exclusive `.cache/.build.lock`; readers (`status`, and every later read surface) never take it
   and read through `model.json`'s atomic rename (`v6-spec.md:139`;
-  `integration-design.md:160-163`). *(T9)*
+  `integration-design.md:160-163`). **A reader may also read the replay state directory, and the
+  rule for that is stated here because "never take the lock" alone does not cover it:** the read is
+  **best-effort**. A state that is absent, unreadable, mid-rewrite or epoch-inconsistent is reported
+  as **"unknown"** in whatever the reader was going to say, never as an error and never as a
+  fabricated number — so T10's `status` block, which reports how far behind HEAD the index is from
+  `meta.json`'s `lastIndexedSha`, simply omits that line when the state does not read cleanly.
+  `status` still exits 0 (R4-I9). *(T9, T10)*
 - **R4-I13 — Config verbatim.** R4 invents no config key. `history.*`, `weights.*`, `cochange.*`
   and `ledger.*` are **declared** as types in `src/model/graph.ts:131-203` and **parsed with the
   spec's defaults** in `src/io/config-parser.ts:44-113` — the parser is where a default is
@@ -299,8 +305,15 @@ task may not re-litigate one; a task that finds a decision *wrong* stops and rep
     applied at `finishCochange`, never at persist time: a pair sitting at support 7 must still be
     able to reach 8 on a later run, and a pair below the 5000-pair cut today may belong in the
     set tomorrow. The cut set is a **derived output, never state**.
-  - `cochange.jsonl` — the cut set as last emitted, kept only so `status` can describe the last
-    index cheaply; it is never read back into a replay.
+  - `cochange.jsonl` — the cut set as last emitted, epoch-carried like the other four JSONL files
+    (it is the one of the five that is not an accumulator) and never read back into a replay. **Its reason is not "so `status` can describe the last index
+    cheaply"** — T8 puts the same `{a,b,sup,conf}` rows at the **top level of `model.json`**, which
+    `status` already reads, so that justification is falsified by this plan's own wiring. The
+    honest reason it is written: it is the last-emitted **cut** kept beside the **raw** supports, so
+    the state directory is self-describing — a reader can see what this state produced without
+    holding the model — and so a torn state is detectable across all six files rather than five
+    (D15). It is state in the epoch sense and an output in the data sense, and D1's
+    raw-versus-derived rule is unaffected: nothing ever reads it back.
   - `meta.json` — the state schema version, the write run's `stateEpoch` (D15), `lastIndexedSha`,
     `inputsHash`, the **per-file walk-appearance counters** that `lifecycleMaxAppearances` 200
     (`v6-spec.md:615`) is tested
@@ -309,6 +322,15 @@ task may not re-litigate one; a task that finds a decision *wrong* stops and rep
     accumulators** and the **two rosters** they need — distinct blob SHAs for `blobs`, and distinct
     non-skipped **cache keys** with their `bytes` for `parsed`/`mb` (D4). Both rosters are fields of
     `meta.json`, not files of their own: the state is still six files.
+    **`meta.json` therefore grows without bound with the history, and that is deliberate — no
+    pruning rule exists, by design.** It carries one entry per distinct blob sha, one per distinct
+    non-skipped cache key (64 hex characters plus a `bytes` integer) and one per distinct walked
+    path, i.e. O(10⁴–10⁵) entries on a real repository, sorted and rewritten **whole** on every
+    index. Pruning any of the three would make `blobs`, `parsed`, `mb` or the appearance counters a
+    function of what a run happened to keep — precisely what R4-I2 and R4-I3 forbid on
+    model-visible fields — so the size is the price of the invariant and is paid knowingly. T10
+    Step 5 reports `meta.json`'s on-disk size and its write time beside the model size, so the
+    price is measured on a real repository rather than assumed tolerable.
   R4-I2's byte-identity claim is a claim about all six files, not only about `model.json`, and
   D15 fixes how the six are committed as a **set** — six individually atomic writes are not a
   transaction. The design's parenthetical is under-enumerating, not contradicting; T10's doc pass
@@ -377,9 +399,15 @@ task may not re-litigate one; a task that finds a decision *wrong* stops and rep
   of tie-breaking it: a key is `(sha, extractorVersion, bindingHash)`, exactly one blob record
   answers to it, and `skipped`/`bytes` are therefore *functions of the key* with nothing to
   arbitrate. A consequence to expect rather than report as a bug: `parsed` may exceed `blobs` when
-  one sha is extracted under two grammars (T4 acceptance 4's `.ts`/`.py` case), and `parsed`
-  counts a key whose record carries **zero scopes** — the criterion is `skipped: false`, never
-  "produced at least one scope", so an empty but parseable file is `parsed`.
+  one sha is extracted under two grammars (T4 acceptance 4's `.ts`/`.py` case at the record level,
+  and T8 acceptance 8(c)'s `src/stub/same.ts`/`same.py` pair at the `historyStats` level), and
+  `parsed`
+  counts a key whose record carries **no named-body scope — only the mandatory `file` scope §6.3
+  requires** (`extractUnits` appends exactly one per parsed file, unconditionally and after the
+  walk: `src/roots/extract.ts:530-556`, and its own header note at `:396-397`) — the criterion is
+  `skipped: false`, never "produced at least one **named-body** scope", so an empty but parseable
+  file is `parsed`. A `BlobScopeRecord` with `scopes: []` is unreachable, and no test may assert
+  one.
   All five are **accumulated into `meta.json` and re-emitted from state** (D1), so a resumed run
   reports the history's totals rather than its window's: `commits` and `events` are running sums;
   `blobs` is the size of a persisted `blobs-seen` roster of distinct **SHAs**, since a per-run count
@@ -521,7 +549,7 @@ task may not re-litigate one; a task that finds a decision *wrong* stops and rep
      are **outputs** and are excluded from the comparison. "Matches the on-disk header
      byte-for-byte" would be unimplementable: `candidateCountLog2` and `rolesStale`
      (`stores.ts:78-91`) are knowable only after mining, and `bindingHash` is `runRootsIndex`'s own
-     `bindingSetHash` (`pipeline.ts:205-222`, assembled at `cli/roots.ts:376-386`), so T9 lifts
+     `bindingSetHash` (`pipeline.ts:205-222`, assembled at `cli/roots.ts:370-380`), so T9 lifts
      that one fold out into a standalone function the command can call before mining. That lift is
      **not** a copy of the landed lines: as landed the fold *reads* a module-level binding cache
      that `parseAndExtractAll` filled earlier in the same call, so called cold — which is exactly
@@ -726,6 +754,22 @@ task may not re-litigate one; a task that finds a decision *wrong* stops and rep
      **surviving this gate**, so a commit touching forty `dist/` files and two source files is an
      ordinary two-file commit, not a mega-commit. The commit itself is still walked and still
      counted in `historyStats.commits`.
+     **A record's gate-1 path is its *post-image* path — `newPath ?? path` for `A`/`M`/`R`/`C`,
+     `path` for `D`.** The rule has to be stated because `forMarkers` takes a single `relPath`
+     (`src/roots/partitions.ts:135`) while an `R`/`C` record carries **two** paths whose verdicts
+     genuinely differ — `git mv src/a.ts vendor/a.ts` gives `forMarkers('src/a.ts')` true and
+     `forMarkers('vendor/a.ts')` false, and `git mv dist/a.js src/a.js` gives exactly the reverse
+     (both verified on `git version 2.43.0`; `**/vendor/**` and `**/dist/**` are
+     `BUILT_IN_EXCLUSIONS` entries at `partitions.ts:82` and `:87`). Gate 1 is applied **once**, in
+     T8 Step 1, and four consumers read the result, so an unstated choice would move four
+     model-visible things at once: the changed-file band, the pair and `commits(a)` increments, the
+     `blobs` roster, and whether the **alias edge** is recorded — which decides whether a renamed
+     file's whole lifecycle history follows it or is stranded at the old key. Concretely:
+     a rename whose post-image is excluded is dropped **whole** — no alias edge, and the old path's
+     rows simply stop receiving touches, which is the honest outcome for code that left the mined
+     world. A rename **out of** an excluded prefix survives gate 1; gate 2 then answers its
+     pre-image from the old path (excluded ⇒ the in-memory skip record, no scopes), so every
+     post-image scope is an **introduction** at that commit.
   2. **Gate 2 — `forParsing` ∧ a registered grammar.** A path that passes gate 1 and fails gate 2
      is rostered in `blobs` off the walk record with `bytes` **0**, counted for co-change, and
      carries **no lifecycle row of either level** — and is never keyed, probed or fetched, so it
@@ -829,8 +873,11 @@ Precedents in code: `src/io/type-class-cache.ts`, `src/io/file-content-cache.ts`
   byte-identity of all six files and nothing else in the plan fixes them** — T5 Step 5 specifies
   sort orders for `finishReplay`'s *derived* output, which D1 says is never persisted, so the
   **raw** orders are these and only these: `lifecycle.jsonl` by `key`, then `level`
-  (`'file'` before `'scope'`) — a path carries a file-level and a scope-level row whose `key` can
-  coincide, so `key` alone is not total; `events.jsonl` by `(ts, key, kind, sha)`, which **is**
+  (`'file'` before `'scope'`) — **not** because `key` alone would be ambiguous, which it is not: a
+  scope-level key is `relPath#kind#qualifiedName` and a file-level key is the bare `relPath` with no
+  `#` component at all, so the two key spaces are **disjoint** and `key` alone is already total.
+  `level` is in the sort key so the two levels group readably and the order stays **stated** rather
+  than incidental; `events.jsonl` by `(ts, key, kind, sha)`, which **is**
   total on the raw events because their `key` still carries the pre-rewrite path;
   `aliases.jsonl` by `(ts, sha, from)`; `cochange-raw.jsonl` carries two record shapes and writes
   them in two blocks — every pair row first, sorted by `(a, b)`, then every per-file commit-count
@@ -951,6 +998,19 @@ export interface HistoryFileRecord {
   // and so on, never a bare `R`/`C` (verified against a whole-directory `git mv`, which yields six
   // `R100` records). Parse the leading letter, discard the digits — a parser that compares the
   // whole token against `'R'` silently classifies every rename as unknown.
+  //
+  // `'T'` (typechange — a regular file becoming a symlink or a submodule, or the reverse) is in the
+  // union because git emits it, and its handling is stated HERE, once, because it is the only place
+  // every consumer reads: **a `T` record is a TOUCH and nothing more.** It counts as a changed file
+  // for the co-change band and for the pair increments (T6), and it contributes its touch to the
+  // lifecycle row's `lastModifiedTs`/`modifications`/`fixTouches`/`authorKind` counters exactly as
+  // an `M` does (T5 Step 2) — but it is **never blob-resolved and never event-producing**: no key
+  // is derived, neither of its shas is probed, fetched, extracted or rostered, and it emits no
+  // introduction and no change. That is why D4's `blobs` roster and T8's probe-then-fetch protocol
+  // enumerate `A`/`M`/`R`/`C` only, and why T5 Step 1's fold does the same; neither list is an
+  // omission. A path clearing both of D17's gates whose only record in the whole history is a `T`
+  // therefore carries its FILE-level row and no scope-level row — nothing ever resolved a scope set
+  // for it — which is the same shape a `D`-only path has and is harmless.
   status: 'A' | 'M' | 'D' | 'R' | 'C' | 'T';
   path: string;            // POSIX, repo-relative; for R/C this is the OLD path
   newPath?: string;        // present for R/C
@@ -975,7 +1035,8 @@ export interface WalkOptions {
   agentIdentities: string[];    // config, compiled case-insensitively
 }
 // `onCommit` is a streaming callback and is deliberately NOT where a consumer folds: T8 buffers
-// commits into a window and probes/fetches once per window (T8 Step 1), which is what keeps the
+// commits into a window — probing each commit's keys as it appends it, and FETCHING once per
+// window (T8 Step 1) — which is what keeps the
 // walk to one `cat-file --batch` child rather than one per commit. This function therefore makes
 // no promise beyond "called once per walked commit, before the returned promise resolves" — no
 // ordering promise in particular (D16) — and must not grow one.
@@ -1063,6 +1124,12 @@ export function isCommitReachable(repoRoot: string, sha: string): boolean;
   position relative to the already-indexed commit is different. That is the property the whole
   incremental-equals-full claim is built on, and it is a property of `--raw`'s per-record pre-image,
   not of the walk order.
+  **Capture one more local fixture in the same step, because acceptance 8 needs a shape the
+  five-commit capture does not contain: a repository whose HEAD *is* the merge.** The five-commit
+  shape deliberately ends with a trailing main-line commit, so its HEAD is not a merge, and T3's
+  `buildBranchMergeFixture({trailingMainCommit: false})` — the shared helper that expresses this
+  variant — does not exist yet at this task. So build it here, locally, the same way: stop after
+  the merge instead of adding the trailing commit. Acceptance 8 reads it.
 - [ ] **Step 2: Stream, never buffer.** `spawn` + incremental line/record parsing with a bounded
   accumulator; a 100k-commit `--raw` log is hundreds of MB and `execFileSync`'s `maxBuffer` is
   not an option (this is the one place `utils/git.ts`'s `execFileSync` shape does not port).
@@ -1144,7 +1211,9 @@ export function isCommitReachable(repoRoot: string, sha: string): boolean;
    Assert the child count by counting spawns, not by asserting the results are correct: a
    per-`read()` child returns identical bytes and would pass anything weaker.
 7. A repo cloned with `--depth 1` reports `isShallowRepository() === true`.
-8. In a repository whose HEAD **is** a merge commit, the walk yields no record for HEAD (it is
+8. In a repository whose HEAD **is** a merge commit — **Step 1's second local capture**, the
+   variant that stops at the merge rather than adding a trailing main-line commit — the walk yields
+   no record for HEAD (it is
    `--no-merges`), while `readHead()` returns that merge's sha and its committer timestamp. The
    two readers are independent by construction, which is the whole reason `readHead` exists.
 
@@ -1245,18 +1314,32 @@ monotonicity guard above, so every quantity this script states — `first_seen`,
 `churned_early`, `stable_days`, `last_human_commit_ts` — is derivable by hand from the day offsets
 on this page. No mechanism depends on that ascent (D16); the *reader* does.
 
-1. **day 0** — the bulk seed: ~90 files × ~4 scopes, uniform conventions, author `alice`. It
+**Every scope count below counts the mandatory `file` scope, and that is stated once here rather
+than repeated per item.** `extractUnits` appends **exactly one** `file`-kind scope to every parsed
+file, unconditionally, after the named-body walk (`src/roots/extract.ts:530-556`; §6.3, "exactly one
+per file" — its own header note at `:396-397` says the append happens "regardless of how many (if
+any) named-body scopes the walk found"). So a file R4 extracts contributes `named-body scopes + 1`,
+an empty-but-parseable file contributes exactly 1, and a path R4 does **not** extract — no
+registered grammar, or excluded by either of D17's gates — contributes none at all. Read every
+count on this page that way; a per-item count that omitted the file scope would not be
+hand-derivable, which is the property this page claims.
+
+1. **day 0** — the bulk seed: ~90 files × ~4 **named-body** scopes (so ≈ 5 scopes each once the
+   mandatory `file` scope is counted), uniform conventions, author `alice`. It
    touches ~90 files, so `megaCommitFileCap` 30 excludes it from co-change entirely
    (`v6-spec.md:622`) — which is exactly why the `commits(a)` denominators in the two pair
    populations below count the pair commits and nothing else.
    **Two of those ~90 files are deliberately empty, and they are the same blob:**
-   `src/svc/placeholder.ts` (registered grammar ⇒ extracted, `skipped: false`, **zero scopes**) and
-   `docs/PLACEHOLDER.md` (no registered grammar ⇒ never keyed). Every empty file in every git
+   `src/svc/placeholder.ts` (registered grammar ⇒ extracted, `skipped: false`, and — like every
+   parsed file — carrying the one mandatory `file` scope and **no named-body scope**) and
+   `docs/PLACEHOLDER.md` (no registered grammar ⇒ never keyed, never extracted, no scope of any
+   kind). Every empty file in every git
    repository is the blob `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391`, so this pair is one sha
-   reaching two paths with **opposite** extraction verdicts — D4's order-sensitivity case, which
-   nothing else in this plan's fixtures exercises and which T8 acceptance 8 asserts by value.
-   Neither file carries a scope, so they add two files and no scopes — Step 3's floor check counts
-   scopes and still clears §6.8's 300 with margin; both are inside
+   reaching two paths with **opposite** extraction verdicts — D4's arrival-order case, which
+   nothing else in this plan's fixtures exercises and which T8 acceptance 8(b) asserts by value.
+   So the pair adds **two files and one scope** — the `.ts` file's file scope; the `.md` file's
+   nothing — and Step 3's floor check counts
+   scopes and still clears §6.8's 300 with margin. Both are inside
    the day-0 seed, which the mega-commit cap already excludes, so **no co-change number on this
    page moves either**; and neither is an `order`/`ship` pair file, a day-20 cohort file, one of
    item 6's six renamed files or one of item 7's three deletes.
@@ -1264,10 +1347,27 @@ on this page. No mechanism depends on that ascent (D16); the *reader* does.
    `src/svc/placeholder.ts` — which is what makes the fixture a killer rather than a decoration: a
    `historyStats` implementation that decides a sha's `parsed` contribution on its **first**
    appearance sees the no-grammar verdict first and undercounts.
+   **A second same-blob pair sits beside it, and it is the one that separates the two mutants D4's
+   two-roster rule is aimed at:** `src/stub/same.ts` and `src/stub/same.py`, both carrying the
+   identical one-line body `x = 1`. That line is a bare assignment statement in **both** grammars,
+   so neither file yields a named-body scope and each contributes exactly its one mandatory `file`
+   scope — **two files, two scopes**, one blob sha. Unlike the placeholder pair, **both** paths
+   clear both of D17's gates, so both are keyed — and their keys differ, because `blobCacheKey`
+   folds the **per-grammar** `bindingHash` of the path's own grammar (T4's interfaces). One sha,
+   two keys, both `skipped: false`. That is D4's "`parsed` may exceed `blobs`" case made visible on
+   a golden: the sha enters `blobs` once while the key roster gains two entries. The placeholder
+   pair kills the *arrival-order* mutant (a sha-keyed roster fed by keyed and unkeyed records where
+   first appearance decides); this pair kills the *two-grammar* mutant (a sha-keyed roster
+   restricted to keyed records, which the placeholder pair leaves alive because it never sees the
+   `.md` verdict at all). Neither stub is an `order`/`ship` pair file, a day-20 cohort file, one of
+   item 6's six renamed files or one of item 7's three deletes, and nothing ever re-touches either,
+   so their two scopes sit in the day-0 `w = 1.0` population and no number elsewhere on this page
+   moves.
 2. **day 20** — a *change* event **and** a new cohort, in one commit: add a decorator to 10
    existing day-0 scopes without touching their bodies (the exact event class a body-only
    signature misses — `v6-spec.md:252`), **and** add 10 **new** decorated files carrying one
-   scope each, so 10 scopes have `first_seen` = day 20. The new files matter: item 3 needs a
+   named-body scope each, so — counting each new file's mandatory `file` scope — **20** scopes
+   (10 named-body + 10 file) have `first_seen` = day 20. The new files matter: item 3 needs a
    population whose `first_seen` is not day 0 and whose first modification is early enough to
    churn, which neither of the script's other file-creating commits (day 300's `ship` pair, day
    395's fresh cohort) supplies.
@@ -1276,25 +1376,30 @@ on this page. No mechanism depends on that ascent (D16); the *reader* does.
    six files item 6 renames, or in the three item 7 deletes. Without that exclusion this commit
    would touch an `order` pair file, `commits(order.ts)` would be **10** rather than 9, and
    confidence would fall to 0.9 — falsifying item 9's and T8's stated `9/9 = 1.0`. This commit
-   changes **20 files** (10 modified + 10 added), inside the counted 2…30 band, so it contributes
+   changes **20 files** (10 modified + 10 added) — the file count and the scope count both land on
+   20 here by coincidence, not by construction, so read each against its own noun — inside the
+   counted 2…30 band, so it contributes
    `20×19/2 = 190` pairs at support 1 — every one of them far below `minSupport` 8, and none of
    them recurring anywhere else in the script except among the ten new files, which item 3 touches
    again for support 2. State that in the spec's own comment so no co-change number on this page
    is left implicit.
 3. **day 30** — the *early-churn* case: rewrite all 10 files born at day 20, author `alice`.
    30 − 20 = 10 ≤ `churnEarlyDays` 14 (`v6-spec.md:612`; `config-parser.ts:50`), so those scopes
-   are `churned_early`. The two populations are then explicit and hand-checkable: **the 10 scopes
-   born day 20 and churned at day 30 ⇒ `w_churn` 0.25**, and **every day-0 scope, whose first
+   are `churned_early`. The two populations are then explicit and hand-checkable: **the 20 scopes
+   born day 20 and churned at day 30 — the 10 named-body scopes and the 10 `file` scopes of the
+   same 10 files, which share their files' touches exactly ⇒ `w_churn` 0.25 for all 20**, and
+   **every day-0 scope, whose first
    modification — where one happens at all — is at day 20 or later, and 20 > 14 ⇒ `churned_early`
    false ⇒ `w_churn` 1**.
 4. **day 60** — an *agent* commit: author `claude <claude@golden.test>` adding **three new files**
-   carrying 12 scopes between them. Three changed files sits inside the counted 2…30 band, so the
+   carrying 12 named-body scopes between them, so **15** scopes counting each file's mandatory
+   `file` scope. Three changed files sits inside the counted 2…30 band, so the
    commit contributes its three pairs at support 1 — far below `minSupport` 8, and no pair among
    the three recurs anywhere else in the script. The three are named in the spec and, like items 6
    and 7, **none of them is an `order` or `ship` pair file, a day-20 cohort file, one of item 6's
    six renamed files or one of item 7's three deletes**, so no `w_churn`, `first_seen`,
    `commits(a)` or confidence stated elsewhere on this page moves. Nothing ever re-touches these
-   three (item 5 deliberately picks day-0 files instead), so their twelve scopes have no first
+   three (item 5 deliberately picks day-0 files instead), so their fifteen scopes have no first
    modification, `churned_early` false, `stable_days` 400 − 60 = 340 ⇒ `w_surv` 1, and
    `w_prov` 1 at 340 ≥ `agentPromoteDays` 180 — weight **1.0**, in the same bucket as the day-0
    seed rather than a population of their own.
@@ -1302,8 +1407,9 @@ on this page. No mechanism depends on that ascent (D16); the *reader* does.
    classifies `authorKind: 'agent'` on the trailer alone (G.2, `v6-spec.md:1016`). It **modifies
    three day-0 seed files** (named in the spec) and nothing else: three changed files, inside the
    counted band, contributing three pairs at support 1 that recur nowhere else. The three are
-   **none of item 4's new files** — a modification 5 days after their birth would make those twelve
-   scopes `churned_early` and add a second 0.25 population T8 Step 5 does not enumerate — and none
+   **none of item 4's new files** — a modification 5 days after their birth would make those
+   fifteen scopes `churned_early` and add a second 0.25 population T8 Step 5 does not enumerate —
+   and none
    of them is an `order`/`ship` pair file, a day-20 cohort file, one of the ten day-0 files item 2
    decorates, one of item 6's six renamed files, one of item 7's three deletes, or either of item
    1's two empty placeholders. Their first modification is therefore day 65, and 65 > 14, so
@@ -1352,7 +1458,8 @@ on this page. No mechanism depends on that ascent (D16); the *reader* does.
     this pair deliberately never clears the floor: it is the negative control proving the filter
     actually runs, and without it a broken filter would look identical to a working one.
 12. **day 395** — the *fresh-code* cohort, deliberately **inside** the clock's 14-day fresh
-    window: **one** new file (`src/svc/refund.ts`) carrying 2–3 scopes that conform to a
+    window: **one** new file (`src/svc/refund.ts`) carrying 2–3 named-body scopes — so **3–4**
+    scopes counting its mandatory `file` scope — that conform to a
     convention the day-0 seed already established, **authored by the human `alice`** for the same
     reason item 11 is — this cohort is the other half of the population T8's `agentShare === 0`
     rests on, and one agent author here would make it `> 0`. One changed file is fewer than 2, so the commit
@@ -1420,18 +1527,33 @@ day offsets: 0, 20, 30, 60, 65, 90, 120, 150, 160, 170, 180, 190, 200, 210, 220,
    `order` file, neither `ship` file and none of `NOTES.md` appears in any *other* counted commit:
    assert that too, since it is the day-20 / day-60 / day-65 / day-90 / day-120 exclusions that
    make `commits(order.ts)` equal 9 rather than 10 and confidence exactly 1.0.
-7. `buildBranchMergeFixture()` produces, twice on the same machine and reproducibly across
-   machines, one history in which the side-branch commit's committer date is **earlier** than the
-   main-line commit it is merged past, HEAD is the merge, and `git log --reverse --date-order
-   --no-merges` delivers the side-branch commit *before* that main-line commit — the same topology
-   and the same dip T2's local capture pinned, from an independent construction.
+7. **Both shapes of the helper, since its `trailingMainCommit` default decides which one you
+   get.** `buildBranchMergeFixture()` — no options, so `trailingMainCommit` is its default
+   **`true`** — produces, twice on the same machine and reproducibly across
+   machines, the **five-commit** history: the side-branch commit's committer date is **earlier**
+   than the main-line commit it is merged past, `git log --reverse --date-order --no-merges`
+   delivers the side-branch commit *before* that main-line commit, and **HEAD is `main2`, whose
+   parent is the merge** — the merge sits *inside* the history, which is the shape T5's
+   order-independence and split-walk acceptances need. `buildBranchMergeFixture({trailingMainCommit:
+   false})` produces the **same topology and the same dip stopping at the merge, so HEAD *is* the
+   merge commit** — the variant T8's control (iv) and T9's case (g) consume. Assert each against
+   its own shape; asserting "HEAD is the merge" of the default call is the contradiction this
+   criterion exists to avoid, and "fixing" it by flipping the default breaks T5's acceptances 8–9.
+   Both halves are the same topology and the same dip T2's local capture pinned, from an
+   independent construction.
    `appendMergeOfOlderSideBranch` applied to a freshly built `history/` golden leaves HEAD a merge
    whose second parent is dated before the golden's own tip.
 8. In the built `history/` golden, `src/svc/placeholder.ts` and `docs/PLACEHOLDER.md` are both
    empty and `git log --raw` reports the **same** blob sha for both —
    `e69de29bb2d1d6434b8b29ae775ad8c2e48c5391` — with `docs/PLACEHOLDER.md` listed first in the
    day-0 commit's records. Assert the shared sha and the record order here, at the fixture level,
-   so T8 acceptance 8 can assert the `historyStats` consequence without re-deriving the premise.
+   so T8 acceptance 8(b) can assert the `historyStats` consequence without re-deriving the premise.
+   **The second same-blob pair in the same commit, which is the premise T8 acceptance 8(c) reads:**
+   `src/stub/same.ts` and `src/stub/same.py` carry byte-identical one-line content and therefore
+   one shared blob sha too — assert that the two paths report the same sha, that the content is
+   identical, and that the two extensions resolve to **different** registered grammars
+   (`src/utils/language-registry.ts`: `.ts` → typescript, `.py` → python), which is what makes
+   their two cache keys differ from one shared sha.
 
 **Test obligations / mutation round-trips.**
 - **MR-7 (bundle drift):** change one byte of a golden spec without rebuilding its bundle ⇒
@@ -1567,10 +1689,17 @@ export function makeBlobRecordReader(cacheDir: string, config: RootsConfig, onPa
    about the fixture. A path in the project's own configured `exclude` behaves identically, since
    `makeRootsFileFilters` merges the two lists (`v6-spec.md:271`).
 9. **An empty blob is `parsed`, not skipped.** An empty `src/empty.ts` extracts to
-   `{bytes: 0, skipped: false, scopes: []}` — a record with no scopes is still a record, and D4's
-   `parsed` counts `skipped: false`, never "produced at least one scope". The same empty blob at
+   `{bytes: 0, skipped: false, scopes: [<the single mandatory `file` scope>]}` — **one `file` scope
+   and no named-body scope**. `extractUnits` appends that scope unconditionally, after the walk,
+   for every parsed file (`src/roots/extract.ts:530-556`; §6.3, "exactly one per file"; the
+   function's own header note at `:396-397`), and `parseAndExtractAll` has no empty-file
+   short-circuit (`src/roots/pipeline.ts:107-137`), so `scopes: []` is **unreachable** and asserting
+   it would fail against a correct extractor — and the tempting "fix", special-casing empty files
+   inside `extractUnits`, is a real regression against §6.3. Assert `scopes.length === 1` and
+   `scopes[0].kind === 'file'`. The criterion D4's `parsed` reads is `skipped: false`, never
+   "produced at least one **named-body** scope". The same empty blob at
    `docs/EMPTY.md` yields the in-memory `no-grammar` record instead — **one sha, two opposite
-   verdicts, one of them keyed and one of them not** — which is the collision T8 acceptance 8
+   verdicts, one of them keyed and one of them not** — which is the collision T8 acceptance 8(b)
    measures at the `historyStats` level.
 
 **Test obligations / mutation round-trips.**
@@ -1616,9 +1745,10 @@ export interface LifecycleRow {
   // A SCOPE-level row's key is `skeyR` — `relPath#kind#qualifiedName` (D6). A FILE-level row's key
   // is the bare `relPath`, with no `#` component at all, which is what makes T7's
   // `LifecycleIndex.rowFor(skeyR, relPath)` a two-step lookup in one table (scope key first, path
-  // second) rather than two tables. Step 2 maintains both rows in parallel for every extracted
-  // path, so `key` alone is not a unique sort key across the two levels — `lifecycle.jsonl` sorts
-  // by `(key, level)` (T1).
+  // second) rather than two tables. The two key spaces are therefore DISJOINT and `key` alone is
+  // already a total sort key; `lifecycle.jsonl` still sorts by `(key, level)` (T1) so the two
+  // levels group readably and the order is stated rather than incidental, never because `key`
+  // needed a tie-break.
   key: string;
   level: 'scope' | 'file';
   firstSeenTs: number;              // min touch ts
@@ -1662,6 +1792,15 @@ export interface ReplayResult { lifecycle: LifecycleRow[]; events: ValueEvent[];
 // `records` resolves BOTH shas of every file record — the pre-image blob as well as the post-image
 // one — because a change is `signature(postSha) != signature(preSha)` (D16). Order-free: calling
 // this over the same commits in any order leaves `state` equivalent.
+//
+// `BlobRecordLookup` is keyed on **`(sha, relPath)`, never on `sha` alone**, and the shape is
+// declared here because nothing else in the plan fixes it. Two reasons, either sufficient: a blob
+// record depends on the path's grammar, not only on the content (T4's `makeBlobRecordReader`
+// returns `(sha, relPath, content) => …`, and one sha routinely reaches two paths under two
+// grammars — the `.ts`/`.py` stub pair in T3's day-0 seed is exactly that); and an `R`/`C` record's
+// two shas sit at two different paths, the pre-image at `path` and the post-image at `newPath`
+// (T8 Step 1), so a sha-keyed lookup could not even express the rename case:
+//   interface BlobRecordLookup { get(sha: string, relPath: string): BlobRecord | undefined }
 export function replayCommit(state: ReplayState, commit: HistoryCommitRecord, records: BlobRecordLookup): void;
 export function finishReplay(state: ReplayState): ReplayResult;
 ```
@@ -1683,7 +1822,17 @@ export function finishReplay(state: ReplayState): ReplayResult;
     edges in `(ts, sha)` order — the exact one-pass algorithm, and why it is a pass rather than a
     fixpoint loop, is dictated in Step 5. Compressing during the fold would make the stored map
     depend on which run saw which edge.
-  - `D` records nothing beyond the fact of the touch (Step 4(b)).
+    **The `C` half of that bullet is defensive and is unreachable under R4's binding flag set — say
+    so in the code rather than letting a reader infer that copies are supported.** The walk is
+    `-M` only, never `-C` (`plugin-marketplace-plan.md:75`), so git emits no copy records at all.
+    The handling is written as `R`/`C` because the status union carries `'C'`, not because a copy
+    behaves like a rename: a copy leaves the **source in place**, so recording `{from: source, to:
+    dest}` as an alias edge would move the *source's* whole lifecycle history onto the copy and
+    strand the original. Adding `-C` to the walk is therefore not a flag change but a design change
+    that must revisit this edge rule first; note that in the file where the branch lives.
+  - `D` records nothing beyond the fact of the touch (Step 4(b)). A `T` behaves identically — a
+    touch and nothing else, never blob-resolved and never event-producing — per the rule stated
+    once on `HistoryFileRecord.status` (T2's interfaces).
   Why this shape and not a carried map: a running previous-value map is not merely order-sensitive,
   it is **wrong on any branched history**. Two commits on divergent branches both edit the same
   file; whichever the walk hands over second is compared against the other branch's blob rather
@@ -1776,7 +1925,9 @@ export function finishReplay(state: ReplayState): ReplayResult;
   `skeyR` by the same `min`/`max`/counter rules Step 2 uses (this is what gives a renamed scope one
   row carrying its original `firstSeenTs` — the rename is resolved at the end, not tracked as the
   walk goes); (3) apply Step 4(a)'s appearance-cap demotion; (4) sort. Rows sort by `(key, level)`
-  — a path's file-level and scope-level rows can share a `key`, so `key` alone is not total —
+  — `key` alone is already total, since a scope-level key always carries a `#` component and a
+  file-level key never does, so `level` is in the key to group the two levels readably and to keep
+  the order stated rather than incidental, never as a tie-break `key` needed —
   events by `(ts, key, kind, sha)`, aliases by `from` then `to`. Rows and aliases are **totally**
   ordered. **Events are total on the raw list `events.jsonl` persists and only *nearly* total on
   the rewritten list this function returns**, since two live paths whose alias closures land on the
@@ -1797,11 +1948,18 @@ export function finishReplay(state: ReplayState): ReplayResult;
   no fixpoint, no cycle to spin on. On the rename-back pair it produces `map = {a.ts: a.ts, c.ts:
   a.ts}` — `a.ts` resolving to itself, which is the correct final name — and on the ordinary chain
   `a→b, b→c` it produces `{a: c, b: c}`, which is what clause (1) asks for.
-  Two shapes the plan names so an implementer does not have to guess: a `from` path carrying
+  Three shapes the plan names so an implementer does not have to guess. **The outgoing case:** a
+  `from` path carrying
   **two** outgoing edges at different times (reachable whenever a path is renamed away, re-created
   and renamed again) resolves to the **later** edge's target, because the later edge overwrites
   `map[from]` — the accepted approximation, since the closure is keyed on path alone and cannot
-  tell the two incarnations apart; and a *swap* of two paths is not a rename cycle at all, since
+  tell the two incarnations apart. **Its incoming mirror, which the same approximation produces in
+  the other direction:** `A→B`, then `B→C`, then `D→B` leaves `map = {A: C, B: C, D: B}` — so a row
+  written at `B` **after** `B` was re-created by the `D→B` rename still resolves to `C`, the target
+  `B`'s own earlier incarnation was renamed to. Same cause, same accepted cost: the map is keyed on
+  path alone and cannot tell two incarnations of `B` apart. Name both in the module comment so a
+  later reader recognises the behaviour as decided rather than as a bug. **And a *swap*** of two
+  paths is not a rename cycle at all, since
   `-M` emits two `M` records for it rather than two renames (verified). Assert the rename-back case
   in this task's tests: it is the one input that separates the dictated pass from a fixpoint loop.
 - [ ] **Step 6: Tests + graph ritual + report.**
@@ -1823,7 +1981,9 @@ export function finishReplay(state: ReplayState): ReplayResult;
    that path.
 7. `finishReplay` on the same walk, twice, returns byte-identical JSON.
 8. **Order independence — the property the whole replay design rests on.** On the merged-side-branch
-   fixture `tests/support/branch-merge-fixture.ts`'s `buildBranchMergeFixture` builds (T3): a scope
+   fixture `buildBranchMergeFixture()` builds — the **default** `trailingMainCommit: true`
+   five-commit shape, whose HEAD is `main2` and whose merge therefore sits *inside* the history
+   (`tests/support/branch-merge-fixture.ts`, T3): a scope
    born on the side branch keeps `firstSeenTs` = its own
    first commit and `lastModifiedTs` = its latest touch. Then feed the **identical** commit records
    to a fresh replay in a *different* arrival order — reversed, and one shuffled permutation with a
@@ -1842,11 +2002,15 @@ export function finishReplay(state: ReplayState): ReplayResult;
    `lastTouchSha`, the raw alias edges and the appearance counters included. This is
    R4-I2's replay half, provable here at unit level without an index, and it fails outright on the
    ordering design D16 replaces: the side-branch commit lands on the far side of the split.
-10. A commit touching only `NOTES.md` produces no lifecycle row of either level for that path,
-    while the same commit is still counted in `commits` and its blob still appears in `blobs`
-    (D4). The same holds for a commit touching only `dist/bundle.js` or only `src/foo.test.ts` —
-    D17 gate 2's other cause, a registered-grammar path the parse filter excludes: no row of
-    either level, still counted in `commits`, still rostered in `blobs`.
+10. A commit touching only `NOTES.md` — or only `src/foo.test.ts`, D17 gate 2's other cause, a
+    registered-grammar path the parse filter excludes — produces **no lifecycle row of either
+    level** for that path, while the commit's other records fold normally. Scoped to exactly that,
+    on purpose: `commits` and `blobs` are `historyStats` fields, which T8 assembles in `history.ts`
+    (T6's opening note), and this task's `ReplayResult` is `{lifecycle, events, aliases, events_n}`
+    with no `commits` and no `blobs` anywhere in its surface — so the "still counted, still
+    rostered" half is **T8 acceptance 10's**, not assertable here. A `dist/bundle.js` clause would
+    be wrong here in a second way as well: gate 1 removes it inside `buildHistoryJoin` (T8), so the
+    replay never sees such a record at all and cannot be fed one.
 11. **The rename-back cycle.** `git mv a.ts c.ts` at day 90 and `git mv c.ts a.ts` at day 120 —
     which git emits as two `R100` records, not as a delete plus an add — resolve through Step 5's
     one-pass closure to `{a.ts: a.ts, c.ts: a.ts}`, leaving the scope **one** row keyed `a.ts#…`
@@ -2239,6 +2403,15 @@ field, and the model gains its history-fed fields. Golden expectations move here
   changed file" means. The commit itself is still walked and still counted in
   `historyStats.commits` even when every one of its records is filtered away. Gate 2 stays T4's,
   inside `makeBlobRecordReader`.
+  **`forMarkers` takes one path and a record can carry two, so the path fed to it is fixed by D17
+  and is not the implementer's to choose: a record's gate-1 path is its *post-image* path —
+  `newPath ?? path` for `A`/`M`/`R`/`C`, `path` for `D`.** A record failing on that path is dropped
+  whole — for an `R`/`C` that means no alias edge either, and the old path's rows simply stop
+  receiving touches. A rename **out of** an excluded prefix (`dist/a.js` → `src/a.js`) passes gate
+  1 on its new name and is kept; its pre-image is then answered by gate 2 from the **old** path, so
+  it yields the in-memory skip record with no scopes and every post-image scope is an
+  **introduction** at that commit. Filtering on `path` instead would invert both directions at
+  once, which is what MR-30's second-half mutation kills.
   **The probe-then-fetch protocol**, stated here because no other step owns it and "a warm run
   parses zero blobs" is satisfiable while still paying full `cat-file` I/O. For every surviving
   `A`/`M`/`R`/`C` record, and for **both** of that record's blob shas — the post-image *and* the
@@ -2260,8 +2433,9 @@ field, and the model gains its history-fed fields. Golden expectations move here
   fetched bytes on a miss. `parsed` and `mb` are read off the returned record either way (D4), so a
   warm run parses zero blobs **and** fetches zero blobs and §20.1's blob-rate budget is never spent
   on a re-index.
-  **The unit of steps (3) and (4) is a commit *window*, never a single commit — state it, because
-  the difference is one child process per commit.** Run per-commit and paired with a one-shot
+  **The unit of step (4) — the fetch — is a commit *window*, never a single commit, and steps (1)
+  to (3) run as each commit is appended to that window. State both halves, because the difference
+  is one child process per commit.** Run per-commit and paired with a one-shot
   `readBlobs`, this protocol would spawn one `git cat-file --batch` child per non-merge commit:
   100 000 process spawns and 100 000 object-store initialisations on a 100 000-commit repository,
   on top of the walk, against §13.2's categorical "**a single** `git cat-file --batch` child"
@@ -2271,13 +2445,22 @@ field, and the model gains its history-fed fields. Golden expectations move here
     before the walk, and `close()`s it in a `finally`. Every window's fetch is a `read()` on that
     one handle (T2 Step 4, T2 acceptance 6). A one-shot `readBlobs` per window is a defect, not a
     simplification.
-  - **A buffered window.** `walkHistory`'s `onCommit(c)` callback does not fold; it **appends** the
-    (gate-1-filtered) commit to a pending window and returns. The window is flushed when either
-    the pending **miss** set reaches the reader's 400-sha chunk or the window reaches K commits
+  - **A buffered window, and the probe happens on append, not on flush** — stated that way round
+    because one of the two flush triggers names a quantity only the probe can know, so a design
+    that probed at flush time could not evaluate its own trigger. `walkHistory`'s `onCommit(c)`
+    callback does not fold; it **appends** the (gate-1-filtered) commit to a pending window and,
+    as it appends, **derives and probes each of that commit's keys** (steps (2) and (3) above —
+    derivation is a pure function of the path and the sha, and the probe is a local shard read; a
+    `cat-file` fetch is the one thing neither of them does). The pending set is therefore
+    already partitioned into hits and misses at every moment, and both flush triggers are
+    computable: the window is flushed when either the pending **miss** set reaches the reader's
+    400-sha chunk or the window reaches K commits
     (K a named constant in `history.ts`, not a magic literal) — and unconditionally once, after the
-    walk ends, so a partial final window is never dropped. Flushing means: probe every pending key,
-    fetch the misses in one `read()`, then fold the buffered commits through `replayCommit` and
-    `accumulateCochange`. **Order within a window is irrelevant by D16**, which is exactly what
+    walk ends, so a partial final window is never dropped. Flushing then means:
+    fetch the accumulated misses in one `read()`, then fold the buffered commits through
+    `replayCommit` and `accumulateCochange`. A key probed in one window and probed again in a later
+    one is a **re-read, never a re-parse**, so R4-I8 is untouched by the repetition.
+    **Order within a window is irrelevant by D16**, which is exactly what
     makes the buffer safe — a design that depended on arrival order could not buffer at all, and
     this is the first place D16 pays for itself in throughput rather than in correctness.
     The window is bounded in commits *and* in pending shas, so memory is bounded whatever the
@@ -2341,8 +2524,10 @@ field, and the model gains its history-fed fields. Golden expectations move here
   The three sites that exist today already qualify and need no re-sorting.
 - [ ] **Step 5: Re-derive the golden expectations.** With `w = 1.0` uniformly (D8), each of the
   **seven landed** goldens has `n_eff` equal to its `n_raw`. That uniformity is exactly what the
-  eighth does not have: by T3's script the `history/` golden carries 1.0, 0.25 (the ten day-20
-  scopes churned at day 30), 0.166667 (the day-380 `ship` scopes) and 0.05 (the day-395 cohort), so
+  eighth does not have: by T3's script the `history/` golden carries 1.0, 0.25 (the **twenty**
+  day-20
+  scopes churned at day 30 — ten named-body scopes and the ten `file` scopes of the same files),
+  0.166667 (the day-380 `ship` scopes) and 0.05 (the day-395 cohort), so
   its expectations live in their own suite (`golden-history.test.ts`) and are derived case by case
   rather than by a single scaling argument.
   Work each moved expectation out **by hand from the spec's formulas first**, then compare with
@@ -2366,13 +2551,15 @@ field, and the model gains its history-fed fields. Golden expectations move here
   counts.
   **(iv) Merge-HEAD control — the clock half only.** A scripted fixture repository —
   `buildBranchMergeFixture({trailingMainCommit: false})` from
-  `tests/support/branch-merge-fixture.ts` (T3), the shared helper T5's acceptances 8–9 and T9's
-  case (g) also use — whose HEAD **is** a merge commit indexes with the *merge's* committer
+  `tests/support/branch-merge-fixture.ts` (T3) — the same helper T5's acceptances 8–9 drive in its
+  **default** five-commit variant and T9's case (g) drives in **this** one, the variant that stops
+  at the merge — whose HEAD **is** a merge commit indexes with the *merge's* committer
   timestamp as the clock: assert `Date.parse(join.clockIso) / 1000` equals the merge's `%ct`, and
   assert the merge itself is absent from the walk's records. Both facts are invisible to a
   `--no-merges` walk, which is why the clock comes from `readHead`.
   **The `lastIndexedSha` half is deliberately not here.** This task does not write it: header
-  assembly still hardcodes `lastIndexedSha: null` (`src/cli/roots.ts:378`; `RootsHeaderInputs`
+  assembly still hardcodes `lastIndexedSha: null` (`src/cli/roots.ts:212`, inside
+  `assembleRootsModelHeader` at `:208-223`; `RootsHeaderInputs`
   has no such field, `:184-194`) and two landed tests pin that null
   (`tests/unit/cli/roots.test.ts:177`, `:190-203`; `tests/e2e/cli-roots-basic.test.ts:64`). The
   header write and those pins are **T9's**, and T9's determinism case (g) already asserts the
@@ -2433,6 +2620,16 @@ field, and the model gains its history-fed fields. Golden expectations move here
    0 bytes). A `parsed` accumulated on a blob's *first appearance in a sha-keyed roster* sees the
    no-grammar verdict first and undercounts by one, which is exactly the arrival-order residue D4
    removes by counting keys instead of shas.
+   **(c) One sha, two *keyed* paths under different grammars** — the second same-blob pair the
+   day-0 seed carries for exactly this, `src/stub/same.ts` and `src/stub/same.py` with
+   byte-identical content (T3 item 1, T3 acceptance 8). Assert by value that their shared sha
+   appears exactly **once** in `blobs` while the key roster gains **two** entries, so `parsed`
+   counts 2 against `blobs`' 1 for this blob and `mb`'s byte sum takes the stub's length **twice**.
+   This is D4's "`parsed` may exceed `blobs`" consequence asserted on a fixture instead of only
+   argued, and it is a strictly different mutant from (b): a sha-keyed roster **restricted to keyed
+   records** never sees the `.md` verdict at all and survives (b) untouched, while it fails here by
+   one. (b) and (c) together are what make "two rosters, keyed on the cache key" a tested rule
+   rather than a stated one.
 9. **`agentShare` distinguishes an empty population from a zero share, and MR-29 is the
    round-trip.** It is `null` on each of the **seven** landed goldens — nothing is first seen in the
    clock's trailing 120 days, so the population is empty — and `null` on a repo with no history. On
@@ -2440,16 +2637,47 @@ field, and the model gains its history-fed fields. Golden expectations move here
    day-395 cohort put a non-empty population inside the window, and none of them is agent-authored.
    A separate assertion proves no `NaN` ever reaches the serializer on any input, since a
    serialized `NaN` would arrive as an indistinguishable `null` (§18.4, `v6-spec.md:687`).
-10. **D17's gate 1, asserted at the only place it is applied.** Build the `history/` golden, add a
+10. **D17's two gates, asserted at the only place gate 1 is applied.** Build the `history/` golden,
+    add a
     commit touching `dist/bundle.js`, `node_modules/pkg/index.js`, `src/generated/api.d.ts` and
-    two ordinary source files, then index. Assert: neither excluded path appears in `cochange`,
-    neither carries a lifecycle row, neither blob sha enters `blobs`, and the commit contributes
+    two ordinary source files, then index. Assert: **none of the three** excluded paths appears in
+    `cochange`, none carries a lifecycle row, none of their blob shas enters `blobs`, and the
+    commit contributes
     the **one** pair its two source files make rather than the ten an ungated five-file commit
     would. Add the mega-commit half in the same test — a commit touching forty `dist/` files and
     two source files still contributes exactly one pair, because the band is measured over
     survivors — since that is the case a gate applied *after* the band would get wrong in the other
     direction. Every one of the three excluded paths carries a registered grammar, so nothing but
     the exclusion list distinguishes them.
+    **The rename half, both directions, since D17 fixes gate 1's path to the post-image and the two
+    directions disagree.** The two moved files are **created by this test's own setup commit**
+    (`src/mover.ts` and `dist/legacy.js`) rather than taken from the golden's script, so no quantity
+    T3's page states and no other criterion here can move: a later commit then does
+    `git mv src/mover.ts vendor/mover.ts` and `git mv dist/legacy.js src/legacy.js`. **Each of the
+    two must edit the moved file's body in the same commit, and that is a requirement rather than a
+    flourish:** a *pure* `git mv` emits `R100` with the pre-image and post-image sha **identical**
+    (verified on `git version 2.43.0`), so its post-image sha is already in `blobs` from the
+    commit that created the file and "the sha does not enter `blobs`" would assert nothing. With a
+    body edit git emits a single scored record — status token `R066`, old path `dist/legacy.js`, new
+    path `src/legacy.js`, one record,
+    two **distinct** shas (verified) — and the post-image sha is genuinely new, which makes the
+    assertion real. Then assert the
+    first is dropped whole — no alias edge from `src/mover.ts`, no lifecycle row and no
+    `cochange` entry under `vendor/mover.ts`, and **its new post-image sha absent from `blobs`**,
+    while
+    `src/mover.ts`'s existing rows keep the values they had and simply stop moving — and
+    assert the second **survives**: a lifecycle row and a `blobs` entry for its new post-image sha
+    under `src/legacy.js`, its
+    post-image scopes recorded as **introductions** because its pre-image path `dist/legacy.js`
+    fails gate 2 and so resolves to the in-memory skip record with no scopes, and no lifecycle row
+    anywhere under `dist/legacy.js`.
+    **And gate 2's mirror image, which is the only place either number exists.** A commit touching
+    only `NOTES.md`, and a commit touching only `src/foo.test.ts` — a registered-grammar path the
+    parse filter excludes — each carry **no lifecycle row of either level** for that path, while the
+    commit is still counted in `historyStats.commits` and the blob is still rostered in `blobs`
+    with a recorded `bytes` of **0**, contributing nothing to `parsed` and nothing to `mb` (D4,
+    D17 gate 2). That is the exact opposite of the gate-1 clauses above, and the pair of them is
+    what makes the two tiers distinguishable by test rather than only on this page.
 
 **Test obligations / mutation round-trips.**
 - **MR-23 (per-surface weight):** revert `surfaceWeightFn` to a per-scope weight — and spell the
@@ -2482,12 +2710,18 @@ field, and the model gains its history-fed fields. Golden expectations move here
   when the scope carries any unreleased mark ⇒ a test pinning `role_lift` on a partition holding
   exactly one unreleased ledger mark fails, because the capped 0.15 shrinks the divisor and
   inflates the lift — the §8.10 corruption a wholesale widening would introduce silently.
-- **MR-28 (`historyStats` is run-independent, both halves):** define `parsed`/`mb` over the blobs
+- **MR-28 (`historyStats` is run-independent — three mutants, one per clause of acceptance 8):**
+  define `parsed`/`mb` over the
+  blobs
   this run **fetched** ⇒ acceptance 8(a) fails on the warm pass, where they collapse to zero.
-  Roster `parsed` on the blob **sha** instead of the cache key, accumulating on first appearance ⇒
+  Roster `parsed` on the blob **sha** instead of the cache key, over **all** records keyed and
+  unkeyed, accumulating on first appearance ⇒
   acceptance 8(b) fails by one, because the shared empty blob's no-grammar path arrives first.
-  Both are needed: each half survives the other's mutation, which is why D4 states two rosters and
-  not one.
+  Roster `parsed` on the blob **sha** but **only over records R4 keys** — the narrower sha-keyed
+  mutant, which 8(b) does **not** kill, since it never sees the `.md` verdict — ⇒ acceptance 8(c)
+  fails by one, because the `.ts`/`.py` stub pair's two keys collapse to one sha. All three are
+  needed: each survives the others' mutations, which is why D4 states two rosters keyed on the
+  cache key and not one roster keyed on the sha.
 - **MR-29 (empty population is `null`, not `0`):** return `0` from `computeAgentShare` when the
   denominator is 0 — the shape an unguarded `sum / total` ships, since `JSON.stringify(NaN)`
   emits `null` and hides it — ⇒ acceptance 9 fails on all seven landed goldens, whose
@@ -2500,7 +2734,13 @@ field, and the model gains its history-fed fields. Golden expectations move here
   pairs instead of one. Second mutation, on the *placement* rather than the presence: apply the
   filter **after** measuring the changed-file band ⇒ acceptance 10's mega-commit half fails, since
   the forty-`dist/`-file commit reads as a 42-file mega-commit and contributes nothing where it
-  should contribute one pair.
+  should contribute one pair. Third mutation, on the *path* rather than the presence or the
+  placement: feed `forMarkers` a record's `path` instead of its post-image `newPath ?? path` (D17
+  clause 1) ⇒ acceptance 10's rename half fails in **both** directions at once — the
+  rename-into-`vendor/` case leaks a lifecycle row and an alias edge under `vendor/mover.ts`,
+  and the rename-out-of-`dist/` case is dropped, losing `src/legacy.js`'s row and its `blobs`
+  entry. This is the mutation the round-4 text could not kill, because it never said which of a
+  rename record's two paths the gate reads.
 
 **NON-goals.** No `lastIndexedSha` header field and no change to the tests that pin it `null`
 (T9's). No verdict, message, session, telemetry or demotion surface. No trends, cohorts,
@@ -2532,7 +2772,8 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
   used-asset set and its `bindingSetHash` fold (`pipeline.ts:205-222`) out of `runRootsIndex` into
   an exported standalone function, so the command can compute the header's `bindingHash` **before**
   mining. Without this the short-circuit's input comparison is unimplementable: `bindingHash` is
-  `runRootsIndex`'s *output* today (`cli/roots.ts:376-386` reads it off `result.bindingSetHash`),
+  `runRootsIndex`'s *output* today (`cli/roots.ts:370-380` reads it off `result.bindingSetHash`,
+  at `:378`),
   so there is no cheap pre-pass that yields it.
   **This is a re-specification, not a copy of the landed lines, and the difference is the whole
   point.** As landed, the fold walks the parse set and then *looks each asset up in the
@@ -2641,11 +2882,18 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
   reject the dip — T3, deliberately, since the golden's own hand-derived arithmetic depends on
   ascending offsets). The commits are prescribed because commits that merely add a new file exercise
   none of the quantities a resume accumulates.
-  **Commit N+1** adds a decorator to an existing scope with **no body change** — a change event the
+  **Every one of the three carries a prescribed day offset, because the appended history has to
+  stay hand-derivable exactly as the golden's own does:** N+1 at **day 402** and N+2 at **day 405**
+  — both strictly between the golden's day-400 tip and N+3's day-410 merge, so the main line stays
+  ascending — and N+3's side commit at day 390 with its merge at day 410. All four go through
+  `deterministicCommitDateAt`'s commit-index grid (T3 Step 1), never through `extraEnv`, which
+  silently discards a date.
+  **Commit N+1 (day 402)** adds a decorator to an existing scope with **no body change** — a change
+  event the
   resumed walk can only produce by resolving that record's *pre-image* blob, which no commit in its
   own range wrote; it comes from the blob cache the previous run filled, and an implementation that
   assumed an absent pre-image would report an introduction instead (D16).
-  **Commit N+2** re-touches an already-supported co-change pair — proving the raw supports and the
+  **Commit N+2 (day 405)** re-touches an already-supported co-change pair — proving the raw supports and the
   per-file commit counts survived the run boundary, so `support` and `confidence` match the full
   walk — **and** renames a tracked file in the same commit, proving the alias edges accumulated
   across runs and the closure is taken over the union, not per run.
@@ -2667,9 +2915,16 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
   edges, or `meta.json`'s appearance counters, and this case fails; reintroduce a carried
   previous-value map and it fails on N+3;
   (c) **cache-state independence**: delete `.cache/` entirely, re-index ⇒ byte-identical
-  `model.json` (and zero blobs parsed on a warm run, asserted through the parse counter). The
+  `model.json`. The
   deleted cache is a pending rebuild, so D13's short-circuit does not fire here — the run really
-  does re-walk and re-parse, and the model still comes out byte-identical;
+  does re-walk and re-parse, and the model still comes out byte-identical.
+  **The zero-parse assertion does not belong to that run and must not be attached to it:** deleting
+  `.cache/` makes it a **cold** run by construction, so it fetches and parses every blob in the
+  history. It belongs to the run that **follows** — an `index --full` against the now-warm cache,
+  which re-walks every commit and parses **zero** blobs (asserted through the parse counter), which
+  is R4-I8's property and the one the cold run cannot exhibit. `--full` rather than a plain `index`
+  because a plain one would be answered by D13's short-circuit and would prove nothing: it would
+  parse zero blobs without walking anything;
   (d) **unreachable SHA**: hand-edit the state's `lastIndexedSha` to a well-formed but absent sha
   ⇒ the run falls back to a full walk and the model is byte-identical to (a)'s. The state is still
   present, parseable and inputs-matching, so nothing but `decideWalkMode`'s own reachability probe
@@ -2689,8 +2944,9 @@ concurrency (`:160-163`); Increment 2's recorded lock deferral
   shape, D15) ⇒ the same full walk and the same model;
   (g) **merge HEAD**: a fixture repository whose HEAD is a merge commit —
   `buildBranchMergeFixture({trailingMainCommit: false})` from
-  `tests/support/branch-merge-fixture.ts` (T3), the same helper
-  T5's acceptances 8–9 and T8's control (iv) use — indexes and records the
+  `tests/support/branch-merge-fixture.ts` (T3), in the same `trailingMainCommit: false` variant
+  T8's control (iv) uses and **not** the default five-commit one T5's acceptances 8–9 drive —
+  indexes and records the
   merge's sha as `lastIndexedSha`. A second `index` on an *unchanged* tree would be answered by
   D13's short-circuit and observe nothing, so the case **dirties one tracked file first**: the
   input comparison then differs on `dirtyHash`, the short-circuit does not fire, and the run
@@ -2822,7 +3078,10 @@ cost on this repository.
 - [ ] **Step 5: Dogfood measurement (report only).** Run the built binary against a *copy* of this
   repository with a temporary `roots:` block — cold and warm — and record: walk seconds, distinct
   blobs, ms/blob against §20.1's ≤ 15 ms budget, warm-run parse count, model size, and whether
-  the mined field looks sane. **Add one number D16 makes worth knowing:** the count of distinct
+  the mined field looks sane. **Report `meta.json`'s own size and its write time beside the model
+  size**, since D1 states plainly that it grows with the history and is rewritten whole on every
+  index with no pruning rule, and this is the first repository real enough to say what that costs.
+  **Add one number D16 makes worth knowing:** the count of distinct
   blob shas that appear only as a record's *pre-image* and never as any record's post-image, as a
   fraction of all distinct blobs. The design argues that fraction is near zero on a full walk from
   the root (a pre-image is normally an earlier commit's post-image; only a merge's own conflict
@@ -3051,6 +3310,45 @@ Reviewed end to end once before finishing. What that pass changed:
   capture lives inside a unit test file no e2e suite may reach, and T3 had explicitly declined the
   shape. T3 now owns `tests/support/branch-merge-fixture.ts`, T2's capture is stated as
   deliberately local, and every citing site names the helper.
+- **Caught a premise error that had propagated into stated values: `extractUnits` appends one
+  `file` scope to *every* parsed file, unconditionally, so "zero scopes" is unreachable.** The
+  extractor's own header note says so in as many words (`extract.ts:396-397`, §6.3's "exactly one
+  per file"), and `parseAndExtractAll` has no empty-file short-circuit — so a `BlobScopeRecord`
+  can never carry `scopes: []`, not for an empty file and not for a totally garbled one. T4's
+  acceptance 9 was asserting exactly that literal, which would have failed against a correct
+  extractor and made "special-case empty files in `extractUnits`" the tempting fix — a real
+  regression. Four stated counts on the `history/` golden's page were short by their files' file
+  scopes (the day-20 cohort 10 → 20, item 4's 12 → 15, item 12's 2–3 → 3–4, and the
+  placeholder pair's "no scopes" → one), and D4's rationale was arguing from a case that cannot
+  happen. No weight moves — every extra file scope lands in the same population as its named
+  siblings — but hand-derivability, which this page claims for every number on it, did. The rule is
+  now stated once where the golden's arithmetic is introduced.
+- **Said which of a rename record's two paths gate 1 reads, which D17 had left to be guessed one
+  level below the guessing it was written to end.** `forMarkers` takes one `relPath`; an `R`/`C`
+  record carries two, and their verdicts genuinely differ in both directions (`git mv src/a.ts
+  vendor/a.ts` and `git mv dist/a.js src/a.js` — verified on git 2.43.0). Because the gate is
+  applied once and four consumers read the result, the unstated choice moved the changed-file band,
+  the pair counts, the `blobs` roster and the **alias edge** at once. The gate-1 path is now the
+  **post-image** (`newPath ?? path`, `path` for `D`), a rename into an excluded prefix is dropped
+  whole, one out of one survives with its pre-image answered by gate 2, and MR-30 grew the mutation
+  that kills the other reading. T8 acceptance 10's rename half also had to edit the moved file's
+  body, since a *pure* `git mv` emits `R100` with **identical** pre- and post-image shas (verified)
+  and "the sha does not enter `blobs`" would have asserted nothing.
+- **Removed two criteria that could not pass in the task that owned them.** T3's acceptance 7
+  called `buildBranchMergeFixture()` with no options — i.e. the default `trailingMainCommit: true`,
+  i.e. HEAD is `main2` — and asserted "HEAD is the merge" in the same sentence; it is now split
+  along the helper's two variants, and every citing site names which one it drives. T5's
+  acceptance 10 asserted `historyStats.commits` and `blobs`, neither of which exists anywhere in
+  T5's `ReplayResult`; that half moved to T8 acceptance 10, which is where the numbers live, and
+  its `dist/bundle.js` clause was deleted outright because gate 1 means the replay is never handed
+  such a record.
+- **Made the buffered window's flush trigger computable, and gave `historyStats`' second mutant a
+  fixture.** The window was to flush when "the pending **miss** set reaches 400", but misses are
+  knowable only after the probe — so the probe moved to append time, where the pending set is
+  partitioned as it grows. And MR-28's sha-keyed mutant came in two shapes, only one of which the
+  placeholder pair kills: a sha-keyed roster restricted to *keyed* records never sees the `.md`
+  verdict. The day-0 seed now carries a second same-blob pair, `src/stub/same.ts` /
+  `src/stub/same.py` under two grammars, so acceptance 8 kills both.
 - Verified every code anchor cited here against the tree (`pipeline.ts:161`, `mine.ts:75/171/854`,
   `mine-stages.ts:189`, `stores.ts:143/211/239`, `cli/roots.ts:170/208/332`, `utils/git.ts:81-142`,
   `extract.ts:185/399`, `enumerate.ts:58`, `roles.ts:497`) and every pin R4 moves
