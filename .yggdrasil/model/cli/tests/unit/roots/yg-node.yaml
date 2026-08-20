@@ -112,12 +112,37 @@ description: "Unit tests for the roots convention-mining module: the roots
   byte-identical `MinedModel`). Scope boundary stated in golden.test.ts's
   own header: the six prototype-measured grammars plus data are R1-R3's;
   the remaining seven code-grammar goldens and the mutation harness are
-  R10's."
+  R10's. Four further siblings cover the three new derived-cache
+  persistence modules and the store's new ledger reader: blob-cache.test.ts
+  (the sharded, content-addressed historical-blob cache: round-trip, the
+  directory-per-prefix shard layout, per-record tolerance where a corrupt
+  shard is a miss, never a throw, and the canonical serializer's
+  dropped-undefined-fields pin); history-store.test.ts (the six-file
+  replay-state store: round-trip byte-identity, the pinned file write
+  order, the write-failure degrade path - a failed write reads as no
+  usable state, never a partial one - rejection pins for a schema-version
+  or state-epoch mismatch, and the all-or-nothing-on-damage contract - an
+  absent directory, a directory missing one of the six files, a malformed
+  line anywhere among them, and a hand-assembled torn write pairing one
+  state's accumulators with another state's meta.json, each reading as no
+  usable state at all); build-lock-store.test.ts (the exclusive build lock:
+  acquisition, release, the bounded wait-then-fail refusal carrying the
+  holder's pid, the release-inside-the-window acquisition case, 15-minute
+  staleness, the bounded refusal when a stale lock cannot be removed - the
+  wait window still expires, never a spin - the creation-timestamp
+  ownership pin, and the release-ownership guard against removing a lock a
+  stale-break already handed to someone else, all against an injected clock
+  and sleep so nothing in the suite actually waits); and
+  stores-ledger.test.ts (the new readLedger reader, mirroring readSeeds's
+  tolerance exactly, plus the three new derived-cache path helpers)."
 aspects: []
 relations:
   [
     { target: cli/roots/engine, type: uses },
     { target: cli/roots/stores, type: uses },
+    { target: cli/io/roots-cache, type: uses },
+    { target: cli/io/atomic-write, type: uses, consumes: [write-atomic] },
+    { target: cli/utils, type: uses },
     { target: cli/tests/fixtures, type: uses },
     { target: cli/io/parsers/config, type: uses },
     { target: cli/io/stores, type: uses },
@@ -129,6 +154,10 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/roots/config.test.ts
+  - source/cli/tests/unit/roots/blob-cache.test.ts
+  - source/cli/tests/unit/roots/history-store.test.ts
+  - source/cli/tests/unit/roots/build-lock-store.test.ts
+  - source/cli/tests/unit/roots/stores-ledger.test.ts
   - source/cli/tests/unit/roots/stores.test.ts
   - source/cli/tests/unit/roots/dormancy.test.ts
   - source/cli/tests/unit/roots/git-fixture-determinism.test.ts

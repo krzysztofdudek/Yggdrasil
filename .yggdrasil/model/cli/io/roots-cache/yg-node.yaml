@@ -1,0 +1,29 @@
+name: Roots Cache Store
+type: persistence-adapter
+description: "Persistence for roots' derived, gitignored `.cache/` state under
+  `.yggdrasil/roots/.cache/` (R4, spec §4.4/§13.2): the sharded,
+  content-addressed historical-blob cache (roots-blob-cache.ts, D14 —
+  per-record tolerant, one corrupt shard is one miss), the D1 replay-state
+  store (roots-history-store.ts — the six-file lifecycle/events/aliases/
+  co-change/meta set, read and written as one epoch-checked set, all-or-
+  nothing on damage), and the exclusive `.build.lock` every roots cache
+  writer takes (roots-build-lock-store.ts, spec §4.4 — wait briefly, then
+  fail, naming the holder). Three files of one subsystem in one node (rather
+  than the usual one-node-per-file convention) to keep the fan-out
+  leaderboard still. Generic over every record shape the engine layer
+  accumulates — this node never imports a roots-engine type; the concrete
+  shapes narrow on the read side, in the roots-engine modules that call
+  these stores."
+relations:
+  - target: cli/io/atomic-write
+    type: calls
+    consumes:
+      - write-atomic
+  - target: cli/utils
+    type: calls
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/io/roots-blob-cache.ts
+  - source/cli/src/io/roots-history-store.ts
+  - source/cli/src/io/roots-build-lock-store.ts

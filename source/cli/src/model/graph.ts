@@ -259,6 +259,26 @@ export interface SeedEntry {
   createdAt: string;
 }
 
+/**
+ * One line of the committed, append-only `ledger.jsonl` store (spec §18.3,
+ * `v6-spec.md:685`) — a hook-shaped mark: "roots records that it shaped this
+ * code". The record type CROSSES the roots-engine/roots-store boundary the
+ * same way `SeedEntry` does: `stores.ts` (roots-store) reads `ledger.jsonl`
+ * typed as `LedgerEntry[]`, and the mining engine (roots-engine) consumes
+ * those values as an explicit parameter — never by importing the store
+ * itself, since the roots-engine relation allowlist has no roots-store edge.
+ * Declared in the types layer (this file) so both sides import the same
+ * shape without either depending on the other.
+ */
+export interface LedgerEntry {
+  /** The marked scope's CURRENT `stable_id` at lookup time (D6) — aliases are followed for renames by the reader, never stored pre-resolved here. */
+  stableId: string;
+  /** The mined surface the mark caps (§9.1's `w(s,q)` is per (scope, surface)). */
+  surface: string;
+  /** ISO-8601 mark date — the release clause's `markDate` input (§18.3). */
+  date: string;
+}
+
 // ============================================================
 // Architecture
 // ============================================================

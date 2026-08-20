@@ -16,7 +16,7 @@
  */
 
 import path from 'node:path';
-import type { SeedEntry } from '../model/graph.js';
+import type { SeedEntry, LedgerEntry } from '../model/graph.js';
 import { readFileOrDefault } from '../io/read-or-default.js';
 import { hashString } from '../io/hash.js';
 import { atomicWriteFile } from '../io/atomic-write.js';
@@ -47,6 +47,21 @@ export function rootsCacheDir(yggRoot: string): string {
 /** Absolute path to the gitignored `.yggdrasil/roots/.state/` runtime-state root. */
 export function rootsStateDir(yggRoot: string): string {
   return path.join(rootsStoreDir(yggRoot), STATE_DIRNAME);
+}
+
+/** Absolute path to the sharded, content-addressed historical-blob cache (D14), under `.cache/`. */
+export function rootsBlobCacheDir(yggRoot: string): string {
+  return path.join(rootsCacheDir(yggRoot), 'blobs');
+}
+
+/** Absolute path to the D1 replay-state directory (the six-file lifecycle/events/aliases/co-change/meta set), under `.cache/`. */
+export function rootsHistoryStateDir(yggRoot: string): string {
+  return path.join(rootsCacheDir(yggRoot), 'history');
+}
+
+/** Absolute path to the exclusive build lock every roots cache writer takes (spec §4.4), under `.cache/`. */
+export function rootsBuildLockPath(yggRoot: string): string {
+  return path.join(rootsCacheDir(yggRoot), '.build.lock');
 }
 
 /**
@@ -224,6 +239,37 @@ export async function readSeeds(yggRoot: string): Promise<SeedEntry[]> {
     if (isSeedEntry(parsed)) seeds.push(parsed);
   }
   return seeds;
+}
+
+/** Type guard for one committed `ledger.jsonl` line, per spec §18.3's record shape. */
+function isLedgerEntry(value: unknown): value is LedgerEntry {
+  if (!isPlainRecord(value)) return false;
+  return typeof value.stableId === 'string' && typeof value.surface === 'string' && typeof value.date === 'string';
+}
+
+/**
+ * Read the committed `ledger.jsonl` store, typed. Mirrors `readSeeds`'s
+ * tolerance exactly (missing file ⇒ empty array; a non-JSON or mis-shaped
+ * line is silently skipped rather than aborting the whole read) — this is a
+ * hand-editable, committed, merge=union store, the opposite tolerance from
+ * `io/roots-history-store.ts`'s machine-written, all-or-nothing replay state.
+ */
+export async function readLedger(yggRoot: string): Promise<LedgerEntry[]> {
+  const filePath = path.join(rootsStoreDir(yggRoot), LEDGER_FILENAME);
+  const raw = await readFileOrDefault(filePath, '');
+  const entries: LedgerEntry[] = [];
+  for (const rawLine of raw.split('\n')) {
+    const line = rawLine.trim();
+    if (line === '') continue;
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    if (isLedgerEntry(parsed)) entries.push(parsed);
+  }
+  return entries;
 }
 
 /**
