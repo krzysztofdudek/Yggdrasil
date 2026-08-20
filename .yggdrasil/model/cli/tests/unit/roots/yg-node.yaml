@@ -82,7 +82,11 @@ description: "Unit tests for the roots convention-mining module: the roots
   per-grammar-per-process binding cache, a full `runRootsIndex` double-run
   proving header-excluded byte-shape stability, the forParsing mining-only
   test-pattern exclusion surviving the marker-scan listing, and
-  bindingSetHash's insertion-order independence); and Task 7's proof
+  bindingSetHash's insertion-order independence;
+  pipeline-binding-set.test.ts: the sibling pin that bindingSetHash folds
+  only the current run's used grammars — indexing the same repository again
+  after another grammar warmed the process-lifetime binding cache hashes
+  identically, and different grammar sets never share a hash); and Task 7's proof
   harness — the seven committed golden repositories (spec §20.2/design
   §13.2: builder spec + `git bundle` pairs under tests/fixtures/roots/golden/,
   each with its own builder<->bundle equivalence check) plus the
@@ -139,6 +143,7 @@ mapping:
   - source/cli/tests/unit/roots/mine.test.ts
   - source/cli/tests/unit/roots/mine-invariants.test.ts
   - source/cli/tests/unit/roots/pipeline.test.ts
+  - source/cli/tests/unit/roots/pipeline-binding-set.test.ts
   - source/cli/tests/unit/roots/golden.test.ts
   - source/cli/tests/unit/roots/golden-more.test.ts
   - source/cli/tests/unit/roots/golden-python.test.ts

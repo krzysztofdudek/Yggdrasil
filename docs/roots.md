@@ -66,7 +66,7 @@ Everything roots reads or writes lives under `.yggdrasil/roots/`:
 | --- | --- |
 | `model.json` | The committed snapshot `index` writes — what was mined, and when. |
 | `seeds.jsonl` | Maintainer-authored hints that nudge mining toward a preferred convention. `index` reads and folds these in; nothing writes this file for you yet. |
-| `decisions.jsonl`, `ledger.jsonl` | Committed, append-only logs reserved for a later increment (accepting or rejecting a mined pattern, and hook-release timing). `index` already reads and accounts for them today, so their format is stable — nothing writes to either yet. |
+| `decisions.jsonl`, `ledger.jsonl` | Committed, append-only logs reserved for a later increment (accepting or rejecting a mined pattern, and hook-release timing). `index` already reads and accounts for them today, so a file you commit there is already reflected in the snapshot's hash — nothing writes to either yet. |
 | `.cache/`, `.state/` | Reserved for rebuildable working state, gitignored. Nothing writes to either in this release. |
 
 `model.json` is committed on purpose: it gives every clone and every

@@ -369,8 +369,8 @@ separately.
 | `.yg-fill-divergence.log*` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run, including its `.1` rotation (see [Running in parallel](/concurrency)). |
 | `.feature-field.json` | The silent structural-deviation index behind the [structural-attention](/feature-field) hint. |
 | `*.tmp` | An atomic write's half-finished temp file, orphaned only by a hard kill (`yg check` sweeps stale ones on startup). |
-| `roots/.cache/` | The roots engine's blob cache and build lock — content-addressed, sharded, rebuilt free on the next `index` run. |
-| `roots/.state/` | The roots engine's telemetry, session, and incident state — local and durable, but never part of the mined model. |
+| `roots/.cache/` | Reserved for the roots engine's rebuildable blob cache — nothing writes it yet; the entry keeps a future cache ignored from day one. |
+| `roots/.state/` | Reserved for the roots engine's local working state — nothing writes it yet, and it will never be part of the mined model. |
 
 Every one of them is rebuildable, so a fresh clone missing all of them is a normal
 state, not a broken one. The only thing a fresh clone *notices* is the absent

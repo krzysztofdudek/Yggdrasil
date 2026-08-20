@@ -48,7 +48,7 @@ describe('yg roots — command registration shape', () => {
 // ---------------------------------------------------------------------------
 
 describe('scaffoldRootsBlock', () => {
-  it('adds an empty `roots:` mapping while preserving every existing key and comment byte-for-byte', async () => {
+  it('adds an empty `roots:` mapping while preserving every existing key and comment (only flow-collection spacing may move)', async () => {
     const dir = tmpDir('yg-roots-scaffold-');
     const configPath = path.join(dir, 'yg-config.yaml');
     const original =

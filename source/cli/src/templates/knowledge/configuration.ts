@@ -344,8 +344,8 @@ yg-secrets.yaml               # provider API keys
 .yg-fill-divergence.log*      # forensic dump written only on a fill convergence divergence, plus its .1 rotation
 .feature-field.json           # the local structural-deviation attention index
 *.tmp                         # an atomic write's half-finished temp file, orphaned by a hard kill
-roots/.cache/                 # the roots engine's blob cache and build lock (rebuildable)
-roots/.state/                 # the roots engine's telemetry/session/incident state (local, durable)
+roots/.cache/                 # reserved for the roots engine's rebuildable cache (nothing writes it yet)
+roots/.state/                 # reserved for the roots engine's local working state (nothing writes it yet)
 \`\`\`
 
 It is written idempotently on fresh \`yg init\` AND on every \`yg init --upgrade\`

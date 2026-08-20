@@ -120,6 +120,40 @@ describe.skipIf(!distExists)('CLI E2E — yg roots index / yg roots status', () 
     }
   });
 
+  it('a committed seeds.jsonl reaches the mined model and the status report — the command-layer join, pinned end-to-end (the whole-increment review proved a command that silently passed [] to the engine kept every other case green, because the header\'s seedsHash is hashed from the file independently of the mining input)', () => {
+    const dir = buildProject();
+    try {
+      writeMinimalConfig(dir, true);
+      const rootsDir = path.join(dir, '.yggdrasil', 'roots');
+      mkdirSync(rootsDir, { recursive: true });
+      const seed = {
+        seedId: 's1',
+        scopeRef: { path: 'src/mod0/file0.ts', qualifiedName: 'Handler0' },
+        surfaces: ['auto.nameshape'],
+        weight: 8,
+        arch: true,
+        author: 'maintainer',
+        createdAt: '2026-01-01T00:00:00Z',
+      };
+      writeFileSync(path.join(rootsDir, 'seeds.jsonl'), `${JSON.stringify(seed)}\n`, 'utf-8');
+
+      const { status } = run(['roots', 'index'], dir);
+      expect(status).toBe(0);
+
+      const model = JSON.parse(readFileSync(path.join(rootsDir, 'model.json'), 'utf-8'));
+      const minedSeedIds = model.body.partitions.flatMap((p: { seeds: { seedId: string }[] }) =>
+        p.seeds.map((s) => s.seedId),
+      );
+      expect(minedSeedIds).toContain('s1');
+
+      const statusRun = run(['roots', 'status'], dir);
+      expect(statusRun.status).toBe(0);
+      expect(statusRun.stdout).toContain('Seeds: 1');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('index WITHOUT a roots: block scaffolds it with defaults — printed FIRST — then mines (exit 0)', () => {
     const dir = buildProject();
     try {

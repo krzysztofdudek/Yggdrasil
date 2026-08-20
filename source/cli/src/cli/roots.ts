@@ -134,8 +134,9 @@ const ROOTS_SCAFFOLD_MESSAGE =
  * working example) — silently deleting every comment in it on the FIRST run
  * of an unrelated command would be a surprising, unrecoverable side effect.
  * `yaml`'s `parseDocument`/`Document#set` CST-preserving API edits the
- * document in place instead: every existing key, value, and comment survives
- * byte-for-byte, and only the new `roots: {}` mapping is appended.
+ * document in place instead: every existing key, value, and comment is
+ * preserved (the YAML writer may re-space a flow collection's brackets, but
+ * loses nothing), and only the new `roots: {}` mapping is appended.
  *
  * Idempotent by construction, not by an extra check here: the ONE call site
  * (`index`'s action, below) only ever invokes this when `config.roots` is
