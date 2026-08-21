@@ -7,7 +7,7 @@
  * ordinals across key spaces (`:247`), §6.8's exclusion list (`:271`, D17),
  * §20.1 blob-rate budget (`:712`); program plan's key clause (`:75-76`).
  *
- * TWO PUBLIC OPERATIONS. `extractBlobRecord` is the PURE, per-file extraction
+ * THREE PUBLIC OPERATIONS. `extractBlobRecord` is the PURE, per-file extraction
  * (no cache, no I/O beyond parsing): the historical mirror of
  * `pipeline.ts`'s `parseAndExtractAll` inner loop, applying the SAME two size
  * gates and the SAME registered-grammar/`forParsing` gate (D17 gate 2) so
@@ -23,7 +23,10 @@
  * extraction alike — precisely so the two numbers are properties of the
  * history, never of what this run did (R4-I3); wiring them to `onParsed`
  * instead would make a warm run report `parsed: 0`, the exact failure D4
- * warns against.
+ * warns against. `carriesLifecycleRows` is gate 2's own path-only half,
+ * exported so a caller whose record never resolves a blob at all (`history-
+ * replay.ts`'s `D`/`T` touch) can still answer gate 2 without a second
+ * implementation of it.
  *
  * GRAMMAR SELECTION IS PATH-DERIVED, NEVER CONTENT-SNIFFED (R4-I6). The
  * historical path passed in IS the grammar signal — `getGrammarForExtension`
@@ -180,6 +183,21 @@ function resolveGate2(historicalPath: string, config: RootsConfig): Gate2Admitte
   if (!grammarInfo) return { admitted: false, reason: 'no-grammar' };
   const { binding, hash } = bindingForAsset(assetNameOfWasmFile(grammarInfo.wasmFile));
   return { admitted: true, binding, bindingHashValue: hash };
+}
+
+/**
+ * The path-only half of D17 gate 2, exported for `history-replay.ts`'s `D`/`T`
+ * touch — those records never resolve a `BlobRecord` (a delete's `postSha` is
+ * null; a typechange is deliberately never blob-resolved at all), so they
+ * cannot read gate 2's outcome off a resolved record's own skip reason the
+ * way `A`/`M`/`R`/`C` do. Gate 2 itself needs nothing but the path, so this
+ * wraps `resolveGate2` rather than making `history-replay.ts` re-derive
+ * `forParsing`/`getGrammarForExtension` a second time (this module's own
+ * no-duplication discipline, R4-I14) — one predicate, reused by both the
+ * blob-resolvable and the never-blob-resolvable record shapes.
+ */
+export function carriesLifecycleRows(historicalPath: string, config: RootsConfig): boolean {
+  return resolveGate2(historicalPath, config).admitted;
 }
 
 function errMsg(e: unknown): string {

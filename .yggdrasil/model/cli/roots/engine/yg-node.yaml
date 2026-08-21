@@ -82,7 +82,25 @@ description: "Roots mining engine — pure, deterministic convention-mining
   path's extension — never the all-grammar header fold. binding.ts's
   assetNameOfWasmFile/bindingForAsset (lifted from pipeline.ts, Task 4) are
   now the ONE per-grammar-per-process binding cache both the live and
-  historical extraction paths share."
+  historical extraction paths share. R4 Task 5 adds history-replay.ts: the
+  lifecycle/value-event/alias REPLAY — replayCommit folds one commit's file
+  records into per-scope and per-file lifecycle rows, D5's raw value-tuple
+  change events, and raw rename edges, with NO state carried between calls
+  (each record is compared against its own pre/post blob images via
+  BlobRecordLookup, never a running previous-value map); finishReplay derives
+  the alias closure (one linear pass, never a fixpoint), decides the
+  lifecycleMaxAppearances demotion per raw, pre-alias path against each raw
+  file-level row's own touch count, then rewrites and merges rows/events
+  through the closure and drops a merged scope row (or event) in full once
+  its final key was reached by any demoted raw path — never against, and
+  never applied to, the merged file-level touch totals themselves, which
+  always survive carrying the full pooled history — and returns a totally
+  sorted ReplayResult. Every field is a set function of a row's touches with
+  a stated (ts, sha) tie-break, so replayCommit may be handed the same
+  commits in any order and finishReplay returns byte-identical output — the
+  property a resumed index equal to a full one depends on, which the
+  alias-merge counter math (a sum of each source row's own persisted
+  modifications, not a per-run sha-set union) is itself chosen to preserve."
 relations:
   - target: cli/io/stores
     type: calls
@@ -109,3 +127,4 @@ mapping:
   - source/cli/src/roots/mine-stages.ts
   - source/cli/src/roots/pipeline.ts
   - source/cli/src/roots/history.ts
+  - source/cli/src/roots/history-replay.ts

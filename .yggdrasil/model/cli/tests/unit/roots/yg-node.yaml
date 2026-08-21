@@ -160,7 +160,27 @@ description: "Unit tests for the roots convention-mining module: the roots
   from a real built repository, the 300-scope partition floor, the two
   co-change populations counted by hand from the real repository, and the
   placeholder/stub same-blob-two-verdicts pairs the golden carries by
-  construction)."
+  construction); and history-replay.test.ts (Task 5's lifecycle/value-event/
+  alias replay, against real deterministic git repositories with blobs
+  fetched and extracted through the real readBlobs/makeBlobRecordReader
+  plumbing — never a fabricated BlobRecord: firstSeenTs/lastModifiedTs/
+  modifications/churnedEarly's touch-based derivation and the day-vs-seconds
+  boundary, rename replay merging to one row with the alias edge recorded, a
+  decorator-only change emitting exactly one change event, two same-named
+  scopes producing two ordinal-disambiguated rows, the lifecycleMaxAppearances
+  demotion, finishReplay's own purity, order independence over the shared
+  branch-merge fixture across three arrival orders, a split-walk resume
+  round-tripped through the real six-file roots-history-store, D17 gate 2's
+  no-lifecycle-row-at-all cases (no registered grammar, test-pattern
+  exclusion), the rename-back cycle resolving under a real timeout rather
+  than hanging, the T-record file-level-only rule both directions, a D
+  record's own touch, and three further live-mutation-backed cases beyond the
+  plan's own named ones: the greatest-(ts, sha) tie-break deciding
+  authorKind/lastTouchSha on a timestamp collision, the lifecycleFileMaxKb
+  size guard, and fixTouches counting — plus dedicated coverage for the
+  degraded/defensive branches (an oversize blob, an unresolved blob a caller
+  failed to pre-fetch, a malformed record with no postSha) and the raw
+  accumulators' own sort orders)."
 aspects: []
 relations:
   [
@@ -206,3 +226,5 @@ mapping:
   - source/cli/tests/unit/roots/golden-data.test.ts
   - source/cli/tests/unit/roots/golden-controls.test.ts
   - source/cli/tests/unit/roots/roots-golden-history.test.ts
+  - source/cli/tests/unit/roots/history-replay.test.ts
+  - source/cli/tests/unit/roots/history-replay-fixes.test.ts
