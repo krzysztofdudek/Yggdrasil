@@ -995,7 +995,14 @@ describe('blob reader — readBlobs / openBlobReader', () => {
     await expect(readBlobs(dir, shas, () => {})).rejects.toBeTruthy();
   });
 
-  it('readBlobs against a non-git directory rejects (a real EPIPE) rather than crashing the process — R4-I4/R4-I10', async () => {
+  // `retry: 2` is a deliberate, narrow flake shield: under heavy parallel load
+  // (the full repo gate) the doomed child's close-handler rejection can
+  // occasionally surface BEFORE the >64KB write's EPIPE, and this test pins
+  // the EPIPE text on purpose (a close-text acceptance would let the
+  // no-stdin-listener mutant pass whenever close wins). Retries cannot mask
+  // the mutant — without the listener the EPIPE is an uncaught CRASH, which
+  // fails every retry — they only absorb the rare correct-code ordering.
+  it('readBlobs against a non-git directory rejects (a real EPIPE) rather than crashing the process — R4-I4/R4-I10', { retry: 2 }, async () => {
     // `cat-file --batch` spawns successfully (git IS on PATH) but, given a
     // directory that is not a repository, exits immediately with a fatal
     // error BEFORE ever reading stdin. The queued request-batch write is

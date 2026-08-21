@@ -193,7 +193,17 @@ description: "Unit tests for the roots convention-mining module: the roots
   rank formula worked by hand with tied percentiles and a rounded per-module
   median, the resolvePath self-pair collision guard, and the raw-accumulator
   serialize/deserialize round trip in the store's own documented sort
-  order)."
+  order); and weights.test.ts (Task 7's §9.1 instance weights: the full
+  weight table hand-derived row by row at the spec defaults, including the
+  dated fresh-penalty row whose narrow stable_days window is the only one
+  that distinguishes the penalised product from the un-penalised one; the
+  ledger cap applied last via min rather than assignment, on both a healthy
+  and a fully degraded (rowless) scope; the §18.3 release rule's three
+  worked cases pinning that release reads the SCOPE's own stable_days, never
+  the mark's age, plus the walk-cannot-see-the-scope conservative default;
+  the fail-closed ageDays/isHookShaped composition an empty lifecycle source
+  forces to zero; and the scope-level-wins-over-file-level-wins-over-neither
+  lookup precedence)."
 aspects: []
 relations:
   [
@@ -242,3 +252,4 @@ mapping:
   - source/cli/tests/unit/roots/history-replay.test.ts
   - source/cli/tests/unit/roots/history-replay-fixes.test.ts
   - source/cli/tests/unit/roots/history-cochange.test.ts
+  - source/cli/tests/unit/roots/weights.test.ts

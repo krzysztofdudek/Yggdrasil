@@ -124,7 +124,24 @@ description: "Roots mining engine — pure, deterministic convention-mining
   the accumulator, and therefore the finished output, unchanged; the rename
   fold happens exactly once, at finish, never as a running remap during
   accumulation, so which order a rename and its co-changes arrive in during
-  one run can never change the merged result."
+  one run can never change the merged result. R4 Task 7 adds weights.ts: §9.1's
+  instance weights, a pure module transcribing the spec's five arithmetic
+  lines (survival, provenance, churn, base, the ledger cap) as five named
+  helpers, composed by makeWeightFns into the per-scope w_base function
+  roles/§8.9b consume and the per-(scope,surface) w(s,q) function mining
+  consumes — the ledger cap applied LAST, after every degraded-mode branch
+  base(s) may have taken (no lifecycle row, or a dirty working tree), never
+  folded into the survival x provenance x churn product itself, so a marked
+  scope in a degraded branch is still capped rather than silently escaping
+  it. releasedMarks evaluates §18.3's release rule per mark from the marked
+  scope's own lifecycle row (stable_days against releaseStableDays, a human
+  non-merge touch at least releaseMinDaysAfterMark after the mark date),
+  returning the released subset so the caller filters the ledger down to
+  unreleased marks before this module ever sees them. A module-kind unit's
+  relPath is a directory (finalizeUnits' own synthesis), so it can never
+  resolve a lifecycle row through either of rowFor's two keyed lookups — a
+  real, spec-consistent consequence rather than a bug: no module-level fact
+  can be hook-eligible in R4."
 relations:
   - target: cli/io/stores
     type: calls
@@ -153,3 +170,4 @@ mapping:
   - source/cli/src/roots/history.ts
   - source/cli/src/roots/history-replay.ts
   - source/cli/src/roots/history-cochange.ts
+  - source/cli/src/roots/weights.ts
