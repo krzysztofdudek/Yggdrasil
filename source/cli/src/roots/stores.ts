@@ -21,7 +21,20 @@ import { readFileOrDefault } from '../io/read-or-default.js';
 import { hashString } from '../io/hash.js';
 import { atomicWriteFile } from '../io/atomic-write.js';
 
-/** The roots store's on-disk schema version, folded into every committed `model.json`. */
+/**
+ * The roots store's on-disk schema version, folded into every committed
+ * `model.json`. Stays 1 across the body's history-fed additions
+ * (`historyStats`/`cochange`/`agentShare`/`aliases`, per-partition
+ * `couplingByFile`/`couplingByModule`) and its coverage/debt-key removal
+ * (`coverageRole`/`coverageAll`/`debtBits`/`debtPerInstance`): the body has
+ * never shipped in a release, so no adopter holds a v1 `model.json` written
+ * under the OLD shape, and every reader treats each of the added fields as
+ * independently optional (present or structurally absent) rather than
+ * assuming a fixed field set — nothing that already exists on disk becomes
+ * unreadable because these fields moved. A version bump belongs to whichever
+ * package first changes the body's shape AFTER a release, when an adopter's
+ * already-committed `model.json` could actually disagree with a fresh read.
+ */
 export const ROOTS_VERSION = 1;
 
 export const MODEL_FILENAME = 'model.json';
@@ -185,7 +198,11 @@ export async function readModel(yggRoot: string): Promise<RootsModel | undefined
   // Schema version FIRST — a header from another rootsVersion cannot be
   // trusted field-by-field, and this store is committed data, not a
   // rebuildable cache, so a mismatch is loud (an error naming both versions),
-  // never a silent misread.
+  // never a silent misread. This gate is what would catch a genuinely
+  // unreadable body shape; it has never fired for the body's own
+  // history-fed additions or its coverage/debt-key removal (see
+  // `ROOTS_VERSION`'s own comment above) because absent-vs-present is
+  // handled by each reader field-by-field, not by this version check.
   if (parsed.header.rootsVersion !== ROOTS_VERSION) {
     throw new Error(
       `${MODEL_FILENAME} was written by roots schema version ${String(parsed.header.rootsVersion)}, ` +

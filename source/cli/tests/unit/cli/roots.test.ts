@@ -220,12 +220,9 @@ const MINIMAL_MINED_MODEL: MinedModel = {
       facts: [],
       moduleOfFile: {},
       seeds: [],
-      coverageRole: 0,
-      coverageAll: 0,
-      debtBits: 0,
-      debtPerInstance: 0,
     },
   ],
+  agentShare: null,
 };
 
 describe('renderRootsStatus', () => {

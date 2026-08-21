@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { runRootsIndex, parseAndExtractAll } from '../../../src/roots/pipeline.js';
 import { assertGoldenBundleEquivalence } from '../../support/roots-golden.js';
 import { withBuiltGolden } from '../helpers/roots-golden-fixture.js';
+import { withHistoryDeps } from '../helpers/roots-history-deps.js';
 import { defaultRootsConfig } from '../helpers/roots-config.js';
 import { buildPythonGoldenSpec } from '../../fixtures/roots/golden/python/spec.js';
 
@@ -38,7 +39,7 @@ describe('golden: python — MUST-mine / MUST-NOT-mine (design §13.2)', () => {
   it('mines ROLE-CONDITIONED conventions the partition average does not state: auto.call:db.execute is `true` for the find_by_id/save_record roles and `false` for the validate_input/process_request roles, while `_all:method`\'s own auto.call:db.execute never appears at all (the exact 50/50 partition-wide split spec §9.4a\'s baseline is built to stay silent on)', async () => {
     const config = await defaultRootsConfig();
     const facts = await withBuiltGolden(buildPythonGoldenSpec(), async (repoRoot) => {
-      const result = await runRootsIndex(repoRoot, config, []);
+      const result = await withHistoryDeps((options) => runRootsIndex(repoRoot, config, [], options));
       return result.body.partitions.flatMap((p) => p.facts);
     });
 
@@ -60,7 +61,7 @@ describe('golden: python — MUST-mine / MUST-NOT-mine (design §13.2)', () => {
   it('MUST-NOT-mine: the deliberate 50/50 arity split (find_by_id/validate_input take 2 params, save_record/process_request take 1 — 120/120 at `_all:method`) never mines an auto.arity fact', async () => {
     const config = await defaultRootsConfig();
     const facts = await withBuiltGolden(buildPythonGoldenSpec(), async (repoRoot) => {
-      const result = await runRootsIndex(repoRoot, config, []);
+      const result = await withHistoryDeps((options) => runRootsIndex(repoRoot, config, [], options));
       return result.body.partitions.flatMap((p) => p.facts);
     });
     expect(facts.some((f) => f.surface === 'auto.arity')).toBe(false);

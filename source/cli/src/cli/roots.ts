@@ -35,9 +35,12 @@ import { hashString } from '../io/hash.js';
 import {
   hashStoreFile,
   readSeeds,
+  readLedger,
   writeModel,
   readModel,
   rootsStoreDir,
+  rootsBlobCacheDir,
+  rootsHistoryStateDir,
   ROOTS_VERSION,
   SEEDS_FILENAME,
   DECISIONS_FILENAME,
@@ -358,7 +361,16 @@ export function registerRootsCommand(program: Command): void {
 
         const repoRoot = projectRootFromGraph(yggRoot);
         const seeds = await readSeeds(yggRoot);
-        const result = await runRootsIndex(repoRoot, rootsConfig, seeds);
+        const ledger = await readLedger(yggRoot);
+        const dirtyPaths = new Set((getDirtyFiles(repoRoot) ?? []).map(toPosixPath));
+        const result = await runRootsIndex(repoRoot, rootsConfig, seeds, {
+          historyDeps: {
+            cacheDir: rootsBlobCacheDir(yggRoot),
+            stateDir: rootsHistoryStateDir(yggRoot),
+            ledger,
+            dirtyPaths,
+          },
+        });
 
         const [seedsHash, decisionsHash, ledgerHash, dirtyHash] = await Promise.all([
           hashStoreFile(yggRoot, SEEDS_FILENAME),

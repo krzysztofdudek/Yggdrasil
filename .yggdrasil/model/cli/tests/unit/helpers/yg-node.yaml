@@ -10,7 +10,10 @@ description: "Shared test-fixture builders used across unit test suites (e.g.
   parseAndExtractAll -> derivePartitions -> finalizeUnits -> buildVocabularies
   -> enumerate -> induceRoles stage sequence over it, stopping one stage
   short of mine() so a caller can inject its own AgeFn or permuted bags —
-  the exact seam runRootsIndex itself does not expose)"
+  the exact seam runRootsIndex itself does not expose; and
+  roots-history-deps.ts, which builds the historyDeps option a real
+  runRootsIndex call needs to take its history-fed form, over a fresh
+  per-call temporary cache directory)"
 aspects: []
 relations:
   [
@@ -37,3 +40,4 @@ mapping:
   - source/cli/tests/unit/helpers/with-parsed-files.ts
   - source/cli/tests/unit/helpers/roots-config.ts
   - source/cli/tests/unit/helpers/roots-golden-fixture.ts
+  - source/cli/tests/unit/helpers/roots-history-deps.ts

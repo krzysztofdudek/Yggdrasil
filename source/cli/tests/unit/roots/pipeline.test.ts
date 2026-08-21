@@ -180,6 +180,34 @@ describe('runRootsIndex — full pipeline over a real tmp-dir mini-repo (no git 
     });
   });
 
+  it('the 3-arg form (no options at all) mines at the constant noLifecycleWeight 0.3, with no history-fed field on the body — the degraded default when no history is wired in', async () => {
+    const config = await defaultRootsConfig();
+    await withTmpRepo(scriptedCorpus(65), async (dir) => {
+      const result = await runRootsIndex(dir, config, []); // no third argument at all — never even an empty options object
+      // `historyStats`/`cochange`/`aliases` are STRUCTURALLY ABSENT (the key
+      // itself is missing, not defaulted) — `MinedModel`'s own degraded-mode
+      // contract (D4, D9's sibling doctrine) — while `agentShare` is ALWAYS
+      // present, `null` for "no history" (§18.4's own "n/a" encoding).
+      expect('historyStats' in result.body).toBe(false);
+      expect('cochange' in result.body).toBe(false);
+      expect('aliases' in result.body).toBe(false);
+      expect(result.body.agentShare).toBeNull();
+
+      // The constant weight itself, made observable: every one of
+      // `scriptedCorpus`'s 325 handler functions calls `logger.info`, so the
+      // accepted `auto.call:logger.info` fact's weighted count is exactly
+      // 325 x 0.3 = 97.5 (canonical decimal) — a wrong constant, or a
+      // silently-wired `surfaceWeightFn`, would move this number.
+      const fact = result.body.partitions.flatMap((p) => p.facts).find((f) => f.surface === 'auto.call:logger.info');
+      expect(fact).toBeDefined();
+      expect(fact?.counts.true).toBe('97.5');
+      // No AgeFn ⇒ fail-closed: nothing ever survives, so every fact's
+      // survived-raw population is empty and nothing is hook-eligible.
+      expect(fact?.nTotalRaw).toBe(0);
+      expect(fact?.hookEligible).toBe(false);
+    });
+  });
+
   it('bindingSetHash is insertion-order independent (REWORK mutation-kill M16): two repos using the SAME grammar set, discovered in OPPOSITE order, hash identically', async () => {
     const config = await defaultRootsConfig();
     // Repo A: alphabetically, the Python file is walked before the TS file.

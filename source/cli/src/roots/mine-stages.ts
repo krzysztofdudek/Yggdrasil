@@ -185,6 +185,16 @@ export function sumMapValues(byValue: ReadonlyMap<string, number> | undefined): 
  * same domain-restricted iteration reads the member's own recorded value
  * directly (dense within its domain — `enumerate.ts`'s `emitCat` always sets
  * a value for every domain member).
+ *
+ * `weightOf`/`survivedOf` are PER-(stableId, surface) — R4's own widening
+ * (D7): §9.1's `w(s,q)` and §9.4c's survived-raw population are both defined
+ * per (scope, surface), because the ledger cap keys on exactly that pair — a
+ * scope conforming on two surfaces at once can carry an unreleased mark on
+ * only one of them, capping that surface's weight while leaving the other's
+ * untouched. The caller decides what "surface-aware" means for a given cell
+ * (a role cell's own half-weight-for-ambiguous-members factor is folded in
+ * there, not here); this function only ever forwards the surface it is
+ * already iterating over.
  */
 export function countRealInstancesIntoCell(
   cell: CellCounts,
@@ -192,8 +202,8 @@ export function countRealInstancesIntoCell(
   candidateSurfaces: readonly string[],
   domains: DomainMap,
   bagOf: (stableId: string) => FeatureBag,
-  weightOf: (stableId: string) => number,
-  survivedOf: (stableId: string) => boolean,
+  weightOf: (stableId: string, surface: string) => number,
+  survivedOf: (stableId: string, surface: string) => boolean,
 ): void {
   for (const surface of candidateSurfaces) {
     const domainSet = domains.get(surface);
@@ -210,7 +220,7 @@ export function countRealInstancesIntoCell(
       const bag = bagOf(stableId);
       const value = bool ? (bag.surfaces[surface] === 'true' ? 'true' : 'false') : bag.surfaces[surface];
       if (value === undefined) continue; // defensive: a categorical surface's domain member always carries a value in practice (enumerate.ts's own contract)
-      addCount(cell, surface, value, weightOf(stableId), 1, survivedOf(stableId), stableId);
+      addCount(cell, surface, value, weightOf(stableId, surface), 1, survivedOf(stableId, surface), stableId);
     }
   }
 }

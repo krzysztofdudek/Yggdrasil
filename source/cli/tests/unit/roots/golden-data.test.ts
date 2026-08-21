@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { runRootsIndex, parseAndExtractAll } from '../../../src/roots/pipeline.js';
 import { assertGoldenBundleEquivalence } from '../../support/roots-golden.js';
 import { withBuiltGolden } from '../helpers/roots-golden-fixture.js';
+import { withHistoryDeps } from '../helpers/roots-history-deps.js';
 import { defaultRootsConfig } from '../helpers/roots-config.js';
 import { buildDataGoldenSpec } from '../../fixtures/roots/golden/data/spec.js';
 
@@ -52,7 +53,7 @@ describe('golden: data — MUST-mine: file/module surfaces, shared across code A
   it('mines auto.filenameshape at 100% share — every file in the repo (both the two .ts files and the three data files per package) shares the identical single-letter basename shape', async () => {
     const config = await defaultRootsConfig();
     const facts = await withBuiltGolden(buildDataGoldenSpec(), async (repoRoot) => {
-      const result = await runRootsIndex(repoRoot, config, []);
+      const result = await withHistoryDeps((options) => runRootsIndex(repoRoot, config, [], options));
       return result.body.partitions.flatMap((p) => p.facts);
     });
     const filenameshape = facts.find((f) => f.surface === 'auto.filenameshape' && f.appliesKind === 'file');
@@ -63,7 +64,7 @@ describe('golden: data — MUST-mine: file/module surfaces, shared across code A
   it('mines an E12 module-level fact (auto.moddirshape) at 100% share — every one of the 40 package directories resolves its own module scope (5 direct files each clears MIN_MODULE_CODE_FILES) and shares the identical directory-name shape', async () => {
     const config = await defaultRootsConfig();
     const facts = await withBuiltGolden(buildDataGoldenSpec(), async (repoRoot) => {
-      const result = await runRootsIndex(repoRoot, config, []);
+      const result = await withHistoryDeps((options) => runRootsIndex(repoRoot, config, [], options));
       return result.body.partitions.flatMap((p) => p.facts);
     });
     const moddirshape = facts.find((f) => f.surface === 'auto.moddirshape' && f.appliesKind === 'module');
@@ -74,7 +75,7 @@ describe('golden: data — MUST-mine: file/module surfaces, shared across code A
   it('mines the code half\'s own conventions too (the golden genuinely MIXES data with code, not merely coexists): the uniform console.log call convention and the Handler type\'s nameshape', async () => {
     const config = await defaultRootsConfig();
     const facts = await withBuiltGolden(buildDataGoldenSpec(), async (repoRoot) => {
-      const result = await runRootsIndex(repoRoot, config, []);
+      const result = await withHistoryDeps((options) => runRootsIndex(repoRoot, config, [], options));
       return result.body.partitions.flatMap((p) => p.facts);
     });
     expect(facts.some((f) => f.surface === 'auto.call:console.log' && f.appliesKind === 'method' && f.expected === 'true')).toBe(true);

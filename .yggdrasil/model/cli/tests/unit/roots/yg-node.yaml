@@ -81,7 +81,10 @@ description: "Unit tests for the roots convention-mining module: the roots
   exclusion and malformed-file tolerance over a real tmp-dir mini-repo, the
   per-grammar-per-process binding cache, a full `runRootsIndex` double-run
   proving header-excluded byte-shape stability, the forParsing mining-only
-  test-pattern exclusion surviving the marker-scan listing, and
+  test-pattern exclusion surviving the marker-scan listing, the bare
+  3-argument form's own degraded default — no history-fed field on the
+  body, agentShare null, and the constant noLifecycleWeight 0.3 made
+  observable against a hand-counted real corpus — and
   bindingSetHash's insertion-order independence;
   pipeline-binding-set.test.ts: the sibling pin that bindingSetHash folds
   only the current run's used grammars — indexing the same repository again
@@ -108,8 +111,13 @@ description: "Unit tests for the roots convention-mining module: the roots
   fact; the fail-closed control's two halves — every golden's real
   `runRootsIndex` output shows zero `hookEligible` facts, and a hand-built
   unit-level fixture proves a synthetic AgeFn flips it true without moving
-  acceptance; and the determinism control — double `runRootsIndex` yields a
-  byte-identical `MinedModel`). Scope boundary stated in golden.test.ts's
+  acceptance, and its own ledger-mark case now also carries a marked but
+  NON-conforming member alongside the conforming one, so hookShapedConform
+  counting every marked domain member regardless of value (rather than only
+  the fact's own conform set) is a real, distinguishable mutant and not a
+  fixture accident; and the determinism control — double `runRootsIndex`
+  yields a byte-identical `MinedModel`). Scope boundary stated in
+  golden.test.ts's
   own header: the six prototype-measured grammars plus data are R1-R3's;
   the remaining seven code-grammar goldens and the mutation harness are
   R10's. Four further siblings cover the three new derived-cache
@@ -203,7 +211,54 @@ description: "Unit tests for the roots convention-mining module: the roots
   the mark's age, plus the walk-cannot-see-the-scope conservative default;
   the fail-closed ageDays/isHookShaped composition an empty lifecycle source
   forces to zero; and the scope-level-wins-over-file-level-wins-over-neither
-  lookup precedence)."
+  lookup precedence); history-join.test.ts (buildHistoryJoin's own
+  orchestration: degraded modes on a git-less directory, the two rosters
+  (blobShas/parsedKeys) proving a shared blob sha reaching two extraction
+  verdicts is keyed on the cache key rather than undercounted (both pinned
+  now by the EXACT real per-grammar cache key, and by exhaustive membership
+  — the only zero-byte / only two six-byte entries — never merely a count
+  somewhere in the roster), D17 gate 1's whole-record exclusion of a
+  built-in-excluded path, cold-versus-warm repeatability, and — the seam a
+  lifecycle-row/ledger-mark join is most likely to get wrong — a ledger
+  mark placed through the real stable-id-to-lifecycle-row resolution both
+  caps a surface's weight while unreleased and stops capping once its
+  release clause is met, proven on a real walked history rather than a
+  hand-built stub, and that SAME wiring exercised through the real
+  runRootsIndex entry point with a hand-planted ledger (a mark on
+  order.ts's own first() method caps its fact, nConformRaw and
+  hookShapedConform move by exactly the hand-derived amounts, and a
+  released mark on a different scope's own fact is untouched — proving
+  both the released-mark ledger filter and the stable-id resolution it
+  depends on are actually wired into the pipeline, not merely correct as
+  standalone helpers), plus agentShare's numerator excluding an
+  agent-authored row that has already passed its own (deliberately
+  lowered, to make the case constructible at all) promote window; and
+  golden-history.test.ts (the time-depth golden's own weight values derived
+  by hand from its scripted day offsets and asserted against the real
+  pipeline, agentShare's null-versus-zero distinction across every golden,
+  and acceptance 2's own named method-kind cell — nTotalRaw pinned by value
+  against the day-395 refund cohort's hand-derived exclusion, with the
+  cohort's own antecedent pinned through the counts map total rather than
+  counts[expected]); golden-history-gates.test.ts, a sibling kept separate
+  purely for reviewer-prompt headroom: D17's two gates asserted at the only
+  place gate 1 applies, on the history golden extended with five commits of
+  its own (a five-file and a forty-two-file commit each contributing one
+  co-change pair once their excluded files are dropped before the changed-
+  file band is measured, raising the order pair's support from 9 to 11; the
+  excluded trio's absence from every roster and lifecycle row; both rename
+  directions D17 clause 1 disagrees on, each read back by its own real HEAD
+  blob sha rather than a hand-reconstructed content hash); and
+  mine-roles-fence.test.ts, a further sibling kept out of roles.test.ts (a
+  frozen prompt-margin file): D7's role_lift fence — a ledger mark on one
+  member's identity-class surface leaves the role's role_lift byte-
+  identical to an unmarked run, over a synthetic partition built so the
+  role's own cell genuinely differs from its kind's _all cell (the one
+  shape that makes the divisor's own correctness observable at all).
+  history-coupling-projection.test.ts is a direct unit test for
+  projectCouplingForPartition (Appendix D's per-partition coupling
+  percentiles): two disjoint-file partitions each receive only their own
+  couplingByFile/couplingByModule entries, and an empty partition projects
+  to two empty objects rather than the unprojected repo-global maps."
 aspects: []
 relations:
   [
@@ -253,3 +308,8 @@ mapping:
   - source/cli/tests/unit/roots/history-replay-fixes.test.ts
   - source/cli/tests/unit/roots/history-cochange.test.ts
   - source/cli/tests/unit/roots/weights.test.ts
+  - source/cli/tests/unit/roots/history-join.test.ts
+  - source/cli/tests/unit/roots/golden-history.test.ts
+  - source/cli/tests/unit/roots/golden-history-gates.test.ts
+  - source/cli/tests/unit/roots/mine-roles-fence.test.ts
+  - source/cli/tests/unit/roots/history-coupling-projection.test.ts

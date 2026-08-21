@@ -75,11 +75,32 @@ import { getGrammarForExtension } from '../utils/language-registry.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { hashString } from '../io/hash.js';
 import { readBlobRecord, writeBlobRecord } from '../io/roots-blob-cache.js';
-import type { RootsConfig } from '../model/graph.js';
+import type { RootsConfig, LedgerEntry } from '../model/graph.js';
 import { assetNameOfWasmFile, bindingForAsset, type RootsBinding } from './binding.js';
-import { extractUnits, EXTRACTOR_VERSION, type RawScope, type ExtractOptions } from './extract.js';
+import { extractUnits, EXTRACTOR_VERSION, dirnameOf, type RawScope, type ExtractOptions } from './extract.js';
 import { makeRootsFileFilters } from './partitions.js';
 import { MAX_PARSE_LINES } from './pipeline.js';
+import {
+  walkHistory,
+  readHead,
+  openBlobReader,
+  isShallowRepository,
+  GitLogError,
+  type HistoryCommitRecord,
+  type WalkOptions,
+  type BlobReader,
+} from '../utils/git-history.js';
+import {
+  createReplayState,
+  replayCommit,
+  finishReplay,
+  type LifecycleRow,
+  type ValueEvent,
+  type BlobRecordLookup,
+  type ReplayThresholds,
+} from './history-replay.js';
+import { createCochangeState, accumulateCochange, finishCochange, type CochangePair, type CochangeThresholds } from './history-cochange.js';
+import { baseWeightOfRow, stableDaysOf } from './weights.js';
 
 // -----------------------------------------------------------------------------
 // Types (Interfaces produced)
@@ -483,4 +504,416 @@ export function makeBlobRecordReader(
     await writeBlobRecord(cacheDir, key, writeThroughRecord(fresh));
     return fresh;
   };
+}
+
+// -----------------------------------------------------------------------------
+// buildHistoryJoin (R4 Task 8): the orchestration entry point composing T2's
+// walk, this module's own cache reader, T5's replay and T6's co-change into
+// the finished join `runRootsIndex` wires into `mine()`'s weight functions
+// and the model body — spec §9.4c degenerate case (`v6-spec.md:405-409`),
+// §16.2 (`:655`), §18.4 (`:687`), §21.1 (`:719`), Appendix D (`:861-897`).
+//
+// DEGRADED MODE (R4-I4, Step 2): no git repository (no resolvable HEAD), a
+// SHALLOW clone, or a walk that throws ⇒ `undefined` — never a partial join.
+// The pipeline's own default (constant weights, no AgeFn) is what a caller
+// falls back to; this function's only degraded-mode job is to say so.
+//
+// D17 GATE 1 IS APPLIED HERE, ONCE — before the replay, the co-change
+// accumulator, or the blob roster see a commit's files — on a record's
+// POST-image path (`newPath ?? path`, D17 clause 1: `A`/`M`/`R`/`C` alike,
+// and it is what `D`/`T` already carry as their only path). One filtered
+// array feeds all three consumers, so none of them can drift from the
+// others on what "a changed file" means. The commit itself is still walked
+// and still counted in `historyStats.commits` even when every one of its
+// records is filtered away.
+//
+// THE PROBE-THEN-FETCH PROTOCOL (T8 Step 1) is implemented here as a
+// GLOBAL, deduped pass over the whole walked range rather than literally
+// interleaved with `walkHistory`'s own streaming — `walkHistory`'s `onCommit`
+// callback is synchronous (`(c: HistoryCommitRecord) => void`, T2's own
+// landed interface), so genuine async probing cannot be awaited from inside
+// it. This module instead: (1) walks the full range, collecting every
+// gate-1-surviving commit plus the deduped set of every admitted
+// `(sha, path) -> key` reference the walk names; (2) probes every distinct
+// key's on-disk cache entry once `walkHistory`'s own promise settles; (3)
+// fetches only the MISSES, chunked into `BLOB_FETCH_CHUNK_SHAS` (400, T2's
+// own per-request bound) through the ONE `BlobReader` this function opens
+// for the whole call and closes in a `finally`; (4) folds every collected
+// commit through `replayCommit`/`accumulateCochange` — an order-free
+// operation by construction (D16), so the fact that this pass runs after
+// (rather than during) the walk changes no model-visible quantity. What it
+// trades away is peak memory: this holds the WHOLE gate-1-filtered commit
+// list (lightweight — paths and shas, never blob content) for the range in
+// memory at once, rather than a bounded few-hundred-commit slice. A key
+// probed here once is a single read, never a re-parse (R4-I8 is untouched);
+// a key resolved once (hit or fresh miss) is never re-probed within the same
+// call, deduped by `refsByKey`.
+//
+// THE PENDING-KEY SET'S OWN SIZE IS NOT A NEW COST THIS DESIGN INTRODUCES.
+// `refsByKey` holds at most one entry per DISTINCT admitted (sha, path)-
+// derived key across the whole range — O(unique keys), never O(commits) —
+// and any windowed design would need to retain that same roster too: a
+// window only bounds how many commits are BUFFERED before a flush, not how
+// many distinct keys the walk names overall, and a key probed in one window
+// is still counted once in the roster a windowed design would carry forward
+// to avoid re-probing it in a later window. Fetched CONTENT is the one
+// quantity actually bounded here — `BLOB_FETCH_CHUNK_SHAS` below caps how
+// many misses' bytes are held at once, through the single `BlobReader`
+// opened for the whole call — while the commit list and the key roster
+// themselves are read only, never blob content, and scale with the walked
+// range regardless of whether the fetch itself is windowed.
+//
+// THE CLOCK COMES FROM `readHead`, NEVER FROM THE WALK (Step 1): the walk is
+// `--no-merges`, so on a repository whose HEAD is a merge commit the walk's
+// last record is neither HEAD's sha nor HEAD's timestamp, while §13.4 is
+// categorical that the clock is HEAD's committer timestamp. `clockTs`/
+// `clockIso` are the SAME `readHead` call's two representations — never
+// independently re-derived from one another.
+// -----------------------------------------------------------------------------
+
+/** One admitted (sha, historicalPath) reference this walk named, deduped by its cache key — the unit the probe-then-fetch protocol resolves. */
+interface AdmittedRef {
+  sha: string;
+  path: string;
+  key: string;
+  binding: RootsBinding;
+}
+
+/**
+ * Chunk size for fetching cache MISSES through the walk's single open
+ * `BlobReader` — matches `git-history.ts`'s own `<= 400`-sha per-request
+ * bound (§13.2), so peak "fetched blob content held in memory at once" stays
+ * bounded regardless of how many distinct misses a cold run accumulates. A
+ * named constant, never a magic literal (T8 Step 1's own requirement).
+ */
+const BLOB_FETCH_CHUNK_SHAS = 400;
+
+/**
+ * §18.4's fixed trailing window (`v6-spec.md:687`) — "fixed" is the spec's
+ * own word, so this is a literal constant, never a config key (R4-I13: R4
+ * invents no config key).
+ */
+const AGENT_SHARE_WINDOW_DAYS = 120;
+
+/**
+ * Resolve every distinct admitted reference to its `BlobRecord`: probe the
+ * on-disk shard for each key first (a genuine cache hit costs one read and
+ * nothing else); fetch only the misses, chunked, through `reader`; extract
+ * and write-through each fetched miss exactly like `makeBlobRecordReader`'s
+ * own miss path (the SAME private helpers — `extractAdmitted`,
+ * `writeThroughRecord` — so a hit and a fresh extraction remain byte-
+ * identical for the same (sha, path), R4-I3). `onParsed` is the same run
+ * diagnostic `makeBlobRecordReader` exposes — fired once per genuine miss
+ * that reaches extraction, never the source of D4's `parsed`/`mb` rosters
+ * (those are read off `resolved` itself by the caller, per key).
+ */
+async function resolveAdmittedRefs(
+  cacheDir: string,
+  config: RootsConfig,
+  refs: ReadonlyMap<string, AdmittedRef>,
+  reader: BlobReader,
+  onParsed?: () => void,
+): Promise<Map<string, BlobRecord>> {
+  const resolved = new Map<string, BlobRecord>();
+  const misses: AdmittedRef[] = [];
+  for (const ref of refs.values()) {
+    const cached = parseStoredRecord(await readBlobRecord(cacheDir, ref.key), ref.key);
+    if (cached) {
+      resolved.set(
+        ref.key,
+        cached.skipped
+          ? cached
+          : { bytes: cached.bytes, skipped: false, scopes: cached.scopes.map((s) => sortOwnKeys(reattachGrammarConstants(s, ref.binding))) },
+      );
+    } else {
+      misses.push(ref);
+    }
+  }
+
+  for (let i = 0; i < misses.length; i += BLOB_FETCH_CHUNK_SHAS) {
+    const chunk = misses.slice(i, i + BLOB_FETCH_CHUNK_SHAS);
+    const bySha = new Map<string, Buffer>();
+    await reader.read([...new Set(chunk.map((r) => r.sha))], (sha, content) => {
+      bySha.set(sha, content);
+    });
+    for (const ref of chunk) {
+      const content = bySha.get(ref.sha) ?? Buffer.alloc(0);
+      const fresh = await extractAdmitted(ref.path, content, config, ref.binding);
+      onParsed?.();
+      if (fresh.skipped) {
+        await writeBlobRecord(cacheDir, ref.key, fresh);
+        resolved.set(ref.key, fresh);
+      } else {
+        await writeBlobRecord(cacheDir, ref.key, writeThroughRecord(fresh));
+        resolved.set(ref.key, fresh);
+      }
+    }
+  }
+
+  return resolved;
+}
+
+/**
+ * §18.4: `Σ base(agent-authored, stable_days < agentPromoteDays) / Σ base`
+ * over the replay's own lifecycle population first seen inside the trailing
+ * 120 days of `clockTs`. `base` is `weights.ts`'s own `baseWeightOfRow` —
+ * never a second transcription of §9.1's formula. The population is every
+ * FINISHED lifecycle row (scope- and file-level alike — `historyStats`'
+ * own precedent for "a property of the whole history," never restricted to
+ * one row level) whose `firstSeenTs` falls inside the window; `dirty` is
+ * always `false` here — dirty-working-tree status is a LIVE-tree property
+ * `w(s,q)`'s own degraded branch exists to protect an in-progress build
+ * against, and has no bearing on this REPLAY-only diagnostic, which never
+ * touches the working tree at all.
+ *
+ * An EMPTY population (nothing first seen in the window) is `null` — §18.4's
+ * own "n/a" — never `0`: a division by a zero-sized population is a
+ * different fact from "a non-empty population with no agent-authored
+ * member," and `JSON.stringify(NaN)` silently emits `null` too, so an
+ * unguarded `sum / total` would make the two indistinguishable (MR-29).
+ */
+function computeAgentShare(lifecycle: readonly LifecycleRow[], clockTs: number, config: RootsConfig): number | null {
+  const windowStartTs = clockTs - AGENT_SHARE_WINDOW_DAYS * 86400;
+  let numerator = 0;
+  let denominator = 0;
+  let populationCount = 0;
+  for (const row of lifecycle) {
+    if (row.firstSeenTs < windowStartTs) continue;
+    populationCount++;
+    const w = baseWeightOfRow(row, false, clockTs, config);
+    denominator += w;
+    if (row.authorKind === 'agent' && stableDaysOf(row, clockTs) < config.weights.agentPromoteDays) {
+      numerator += w;
+    }
+  }
+  if (populationCount === 0) return null;
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
+/** Every input `buildHistoryJoin` needs beyond `repoRoot`/`config`, injected by the command layer (`cli/roots.ts`) so the roots engine never reads a store directly (Task 1's seam). `stateDir` is declared and unused by Task 8's own wiring — T9's own resume/incremental wiring is the first to read or write it; it rides here now so T9 widens behavior, not a public shape, mid-increment. */
+export interface HistoryDeps {
+  cacheDir: string;
+  stateDir: string;
+  ledger: readonly LedgerEntry[];
+  dirtyPaths: ReadonlySet<string>;
+}
+
+/**
+ * Structured progress data only (D12) — counts and a phase tag, never
+ * preformatted text: the engine stays `no-direct-console`, and the COMMAND
+ * owns every rendered word. Nothing meaningful fires on this yet (T9's own
+ * ETA/ "commits walked so far" reporting is what gives these numbers a
+ * reason to reach a user) — `buildHistoryJoin` calls it at coarse phase
+ * boundaries only, forwarded now so `runRootsIndex`'s own forwarding has
+ * something real to plumb through.
+ */
+export interface HistoryProgressInfo {
+  phase: 'walking' | 'fetching' | 'replaying';
+  commitsWalked?: number;
+  blobsParsed?: number;
+}
+
+/**
+ * The finished history join — every field's own source stated here, since
+ * that is the contract a caller reads: `lifecycle`/`events`/
+ * `aliases` are `finishReplay`'s finished products; `cochange` is the CUT
+ * set (`finishCochange`'s `pairs`); `couplingByFile`/`couplingByModule` are
+ * the REPO-GLOBAL projections (`finishCochange`'s own G.3 percentiles —
+ * projecting them down to one partition's own file set is `runRootsIndex`'s
+ * job, via `projectCouplingForPartition` below); `agentShare` is §18.4's
+ * diagnostic; `historyStats` is D4's five history-derived integers;
+ * `blobShas`/`parsedKeys` are the two rosters `historyStats.blobs`/`.parsed`
+ * are computed FROM (returned rather than collapsed to their cardinalities,
+ * so a consumer can ask per-sha/per-key membership questions no integer can
+ * answer); `clockTs`/`clockIso` are `readHead`'s own two representations of
+ * the SAME instant.
+ */
+export interface HistoryJoin {
+  lifecycle: LifecycleRow[];
+  events: ValueEvent[];
+  aliases: Array<[string, string]>;
+  cochange: CochangePair[];
+  couplingByFile: Record<string, number>;
+  couplingByModule: Record<string, number>;
+  agentShare: number | null;
+  historyStats: { commits: number; events: number; blobs: number; parsed: number; mb: number };
+  blobShas: ReadonlySet<string>;
+  parsedKeys: ReadonlyMap<string, number>;
+  clockTs: number;
+  clockIso: string | null;
+}
+
+/** `history.*`'s walk-shaping fields, mapped to T2's `WalkOptions` — D3: windowing (`history.full: false`, or `maxCommits > 0` even under a full walk) makes the walked set a function of when the run happens; `sinceMonths` is meaningful only under `history.full === false` (T2's own field doc). `buildHistoryJoin` never resumes (`sinceSha` is T9's), so every call here is a fresh full (or windowed) walk from the root. */
+function buildWalkOptions(config: RootsConfig): WalkOptions {
+  return {
+    agentIdentities: config.history.agentIdentities,
+    ...(config.history.maxCommits > 0 ? { maxCommits: config.history.maxCommits } : {}),
+    ...(config.history.full ? {} : { sinceMonths: config.history.windowMonths }),
+  };
+}
+
+export async function buildHistoryJoin(
+  repoRoot: string,
+  config: RootsConfig,
+  deps: HistoryDeps,
+  onProgress?: (info: HistoryProgressInfo) => void,
+): Promise<HistoryJoin | undefined> {
+  const head = readHead(repoRoot);
+  if (head.sha === null || head.committerTs === null) {
+    debugWrite(`[roots-history] buildHistoryJoin: no usable HEAD for ${repoRoot} — degraded mode (no git repository, or no commits yet)`);
+    return undefined;
+  }
+  if (isShallowRepository(repoRoot)) {
+    debugWrite(`[roots-history] buildHistoryJoin: ${repoRoot} is a shallow clone — degraded mode (R4-I4)`);
+    return undefined;
+  }
+
+  const filters = makeRootsFileFilters(config);
+  const replayThresholds: ReplayThresholds = {
+    churnEarlyDays: config.history.churnEarlyDays,
+    lifecycleFileMaxKb: config.history.lifecycleFileMaxKb,
+    lifecycleMaxAppearances: config.history.lifecycleMaxAppearances,
+  };
+  const replayState = createReplayState(replayThresholds, (p) => carriesLifecycleRows(p, config));
+  const cochangeThresholds: CochangeThresholds = { megaCommitFileCap: config.history.megaCommitFileCap };
+  const cochangeState = createCochangeState(cochangeThresholds);
+
+  const blobShas = new Set<string>();
+  const refsByKey = new Map<string, AdmittedRef>();
+  const walkedCommits: HistoryCommitRecord[] = [];
+  let commitsWalked = 0;
+
+  const reader = openBlobReader(repoRoot);
+  try {
+    try {
+      await walkHistory(repoRoot, buildWalkOptions(config), (commit) => {
+        commitsWalked++;
+        // D17 gate 1, applied HERE, ONCE — on the record's post-image path
+        // (`newPath ?? path`), before the replay, the co-change accumulator
+        // or the blob roster below ever see this commit's files.
+        const filteredFiles = commit.files.filter((f) => filters.forMarkers(f.newPath ?? f.path));
+        walkedCommits.push({ ...commit, files: filteredFiles });
+
+        for (const record of filteredFiles) {
+          if (record.status === 'D' || record.status === 'T') continue; // never blob-resolved (D4, D17)
+          const candidates: Array<[string | null, string]> = [
+            [record.preSha, record.path],
+            [record.postSha, record.newPath ?? record.path],
+          ];
+          for (const [sha, historicalPath] of candidates) {
+            if (sha === null) continue;
+            // D4: every RESOLVED sha of a gate-1-surviving A/M/R/C record,
+            // whether or not that record's path is one R4 extracts.
+            blobShas.add(sha);
+            const gate2 = resolveGate2(historicalPath, config);
+            if (!gate2.admitted) continue; // never keyed, never probed, never fetched, never cached (D11, D17, D4)
+            const key = blobCacheKey(sha, EXTRACTOR_VERSION, gate2.bindingHashValue);
+            if (!refsByKey.has(key)) refsByKey.set(key, { sha, path: historicalPath, key, binding: gate2.binding });
+          }
+        }
+      });
+    } catch (e) {
+      if (e instanceof GitLogError) {
+        debugWrite(`[roots-history] buildHistoryJoin: git log failed for ${repoRoot}: ${e.message} — degraded mode (R4-I4)`);
+        return undefined;
+      }
+      throw e;
+    }
+
+    onProgress?.({ phase: 'walking', commitsWalked });
+
+    let blobsParsedThisRun = 0;
+    const resolvedThisRun = await resolveAdmittedRefs(deps.cacheDir, config, refsByKey, reader, () => {
+      blobsParsedThisRun++;
+    });
+    onProgress?.({ phase: 'fetching', blobsParsed: blobsParsedThisRun });
+
+    const lookup: BlobRecordLookup = {
+      get(sha: string, historicalPath: string): BlobRecord | undefined {
+        const gate2 = resolveGate2(historicalPath, config);
+        if (!gate2.admitted) return { bytes: 0, skipped: true, reason: gate2.reason };
+        const key = blobCacheKey(sha, EXTRACTOR_VERSION, gate2.bindingHashValue);
+        return resolvedThisRun.get(key);
+      },
+    };
+
+    // Order within the collected commit set is irrelevant by construction
+    // (D16): both `replayCommit` and `accumulateCochange` are set functions
+    // over per-record/per-commit values, with nothing carried between calls
+    // that depends on the order those calls arrive in.
+    for (const commit of walkedCommits) {
+      replayCommit(replayState, commit, lookup);
+      accumulateCochange(cochangeState, commit);
+    }
+    onProgress?.({ phase: 'replaying', commitsWalked });
+
+    const { lifecycle, events, aliases, events_n } = finishReplay(replayState);
+    const aliasLookup = new Map(aliases);
+    const resolvePath = (p: string): string => aliasLookup.get(p) ?? p;
+    const { pairs: cochange, couplingByFile, couplingByModule } = finishCochange(cochangeState, config, resolvePath);
+
+    const parsedKeys = new Map<string, number>();
+    for (const [key, record] of resolvedThisRun) {
+      if (!record.skipped) parsedKeys.set(key, record.bytes); // D4: "parsed" is a cache-KEY roster, and only over NON-skipped records
+    }
+    let totalBytes = 0;
+    for (const bytes of parsedKeys.values()) totalBytes += bytes;
+
+    const historyStats = {
+      commits: commitsWalked,
+      events: events_n,
+      blobs: blobShas.size,
+      parsed: parsedKeys.size,
+      mb: Math.floor(totalBytes / (1024 * 1024)),
+    };
+
+    const agentShare = computeAgentShare(lifecycle, head.committerTs, config);
+
+    return {
+      lifecycle,
+      events,
+      aliases,
+      cochange,
+      couplingByFile,
+      couplingByModule,
+      agentShare,
+      historyStats,
+      blobShas,
+      parsedKeys,
+      clockTs: head.committerTs,
+      clockIso: head.committerIso,
+    };
+  } finally {
+    reader.close();
+  }
+}
+
+/**
+ * Project the repo-global `couplingByFile`/`couplingByModule` (co-change
+ * itself stays repo-global, spec `:622` — only the percentiles are projected
+ * per partition, Appendix D `:892`) down to one partition's own file set:
+ * `couplingByFile` keeps only entries whose file belongs to `partitionFiles`;
+ * `couplingByModule` keeps only entries whose module directory is the
+ * `dirnameOf` of at least one of this partition's own files — the same
+ * repo-global, partition-free grouping `history-cochange.ts`'s own
+ * `computeModuleCoupling` used to BUILD `couplingByModule` in the first
+ * place, so the membership test here matches how each entry's key was
+ * formed. Lives here (not `mine.ts`) — `mine()` never sees a `HistoryJoin`
+ * at all.
+ */
+export function projectCouplingForPartition(
+  join: Pick<HistoryJoin, 'couplingByFile' | 'couplingByModule'>,
+  partitionFiles: ReadonlySet<string>,
+): { couplingByFile: Record<string, number>; couplingByModule: Record<string, number> } {
+  const couplingByFile: Record<string, number> = {};
+  for (const [file, pct] of Object.entries(join.couplingByFile)) {
+    if (partitionFiles.has(file)) couplingByFile[file] = pct;
+  }
+  const moduleDirs = new Set<string>();
+  for (const file of partitionFiles) moduleDirs.add(dirnameOf(file));
+  const couplingByModule: Record<string, number> = {};
+  for (const [mod, pct] of Object.entries(join.couplingByModule)) {
+    if (moduleDirs.has(mod)) couplingByModule[mod] = pct;
+  }
+  return { couplingByFile, couplingByModule };
 }

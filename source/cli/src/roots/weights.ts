@@ -95,8 +95,17 @@ export interface WeightInputs {
 // exactly where the acceptance-table tests already look.
 // -----------------------------------------------------------------------------
 
-/** `stable_days = max(0, (now − L.last_modified_ts)/86400)` — §9.1. */
-function stableDaysOf(row: LifecycleRow, clockTs: number): number {
+/**
+ * `stable_days = max(0, (now − L.last_modified_ts)/86400)` — §9.1. Exported
+ * (Task 8's own wiring need, not a Task 7 formula change): `computeAgentShare`
+ * (`history.ts`) needs the SAME stable-days figure `base(s)`/`w_prov` compute
+ * internally, over rows with no corresponding LIVE `ScopeUnit` to route
+ * through `makeWeightFns`'s own `ScopeUnit`-keyed lookup — re-deriving this
+ * single-line formula a second time in `history.ts` is exactly the
+ * "transcription that can drift" this module's own header warns against, so
+ * it is exported instead of copied.
+ */
+export function stableDaysOf(row: LifecycleRow, clockTs: number): number {
   return Math.max(0, (clockTs - row.lastModifiedTs) / SECONDS_PER_DAY);
 }
 
@@ -144,6 +153,19 @@ function base(row: LifecycleRow | undefined, dirty: boolean, clockTs: number, co
   if (!row) return config.weights.noLifecycleWeight;
   if (dirty) return config.weights.dirtyWeight;
   return Math.max(config.weights.baseFloor, wSurv(row, clockTs, config) * wProv(row, clockTs, config) * wChurn(row));
+}
+
+/**
+ * `base(s)` exported directly over a row (Task 8's own wiring need): §18.4's
+ * `agentShare` sums `base` over the REPLAY's own lifecycle population —
+ * rows with no corresponding LIVE `ScopeUnit` (a scope introduced in history
+ * and since deleted is still part of that population) — so it cannot route
+ * through `makeWeightFns`'s `ScopeUnit`-keyed `baseWeight`. This is the exact
+ * same `base(s)` §9.1 defines, never a second transcription of it — the ONE
+ * function every other weight in this module already routes through.
+ */
+export function baseWeightOfRow(row: LifecycleRow | undefined, dirty: boolean, clockTs: number, config: RootsConfig): number {
+  return base(row, dirty, clockTs, config);
 }
 
 /**
@@ -241,7 +263,7 @@ export function releasedMarks(marks: readonly LedgerEntry[], lifecycle: Lifecycl
   return released;
 }
 
-/** §18.3's own dedupe triple: `(stable_id, surface, date)`, NUL-joined via the \u0000 escape (never a raw NUL byte — the repo's `source-no-raw-control-chars` aspect forbids that encoding) - a surface id legitimately carries a colon (auto.call:foo), so a plain separator character risked collision. */
-function markKey(entry: LedgerEntry): string {
+/** §18.3's own dedupe triple: `(stable_id, surface, date)`, NUL-joined via the \u0000 escape (never a raw NUL byte — the repo's `source-no-raw-control-chars` aspect forbids that encoding) - a surface id legitimately carries a colon (auto.call:foo), so a plain separator character risked collision. Exported so the caller wiring `releasedMarks`' result into `w(s,q)` (Task 8) can filter the FULL `marks` list down to the unreleased remainder using the IDENTICAL key `releasedMarks` itself compares by — computing that filter with a second, independently-written key format would risk silently disagreeing with this one. */
+export function markKey(entry: LedgerEntry): string {
   return `${entry.stableId}\u0000${entry.surface}\u0000${entry.date}`;
 }

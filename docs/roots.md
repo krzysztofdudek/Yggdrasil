@@ -45,6 +45,20 @@ run of `index` against the same code and configuration produces the exact
 same file, byte for byte, so the snapshot is reviewable in a diff the same
 way any other generated, committed file is.
 
+When the project is a git repository, `index` also reads its full commit
+history and uses it to decide how much each piece of mined evidence counts:
+code that has stood unchanged for a while counts fully, code introduced very
+recently counts less, and code rewritten again shortly after landing counts
+less still. Code committed by an AI agent counts less until it has stood on
+its own for a while — a human-authored change of the same age counts more
+from the start. Code the tool previously shaped itself is excluded from
+counting as evidence at all until a maintainer has touched it since. None of
+this changes what gets reported today — a pattern that shows up in the
+snapshot is still only reported, never enforced — but it changes how much
+each instance of it counted toward being reported. A repository with no git
+history (or only a shallow clone) still mines the same fields, honestly, with
+nothing claimed as backed by history it does not have.
+
 Exits with an error only for a genuine problem — the project has no
 `.yggdrasil/` directory at all, or the `roots:` block itself is misconfigured
 (an unknown key, a value of the wrong type). Mining a repository that turns
@@ -66,8 +80,10 @@ Everything roots reads or writes lives under `.yggdrasil/roots/`:
 | --- | --- |
 | `model.json` | The committed snapshot `index` writes — what was mined, and when. |
 | `seeds.jsonl` | Maintainer-authored hints that nudge mining toward a preferred convention. `index` reads and folds these in; nothing writes this file for you yet. |
-| `decisions.jsonl`, `ledger.jsonl` | Committed, append-only logs reserved for a later increment (accepting or rejecting a mined pattern, and hook-release timing). `index` already reads and accounts for them today, so a file you commit there is already reflected in the snapshot's hash — nothing writes to either yet. |
-| `.cache/`, `.state/` | Reserved for rebuildable working state, gitignored. Nothing writes to either in this release. |
+| `decisions.jsonl` | A committed, append-only log reserved for a later increment (accepting or rejecting a mined pattern). `index` already reads and accounts for it today, so a file you commit there is already reflected in the snapshot's hash — nothing writes to it yet. |
+| `ledger.jsonl` | A committed, append-only log of code the tool previously shaped and is still waiting on a maintainer's follow-up touch before it counts as evidence again. `index` reads and honors it today; nothing writes to it yet — that arrives with the capability that first shapes code. |
+| `.cache/` | Rebuildable working state `index` writes and reads on every run once the project has git history: a cache of parsed historical file content, so re-indexing never re-parses a blob it has already seen. Gitignored, safe to delete at any time — the next run rebuilds whatever it needs. The git-derived numbers that back each weight (how long code has stood, who wrote it) are recomputed from that history on every run; nothing persists them yet. |
+| `.state/` | Reserved for rebuildable working state, gitignored. Nothing writes to it in this release. |
 
 `model.json` is committed on purpose: it gives every clone and every
 teammate the same view of what was mined without anyone having to re-run

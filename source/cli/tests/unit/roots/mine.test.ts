@@ -471,10 +471,13 @@ describe('mine() — Appendix-D shape conformance', () => {
     expect(fact?.hookShapedConform).toBe(0);
     expect(fact?.denyEligible).toBe(false);
     expect(fact?.suppressedValue).toBeNull();
-    expect(partition.coverageRole).toBe(0);
-    expect(partition.coverageAll).toBe(0);
-    expect(partition.debtBits).toBe(0);
-    expect(partition.debtPerInstance).toBe(0);
+    // D9: the four coverage/debt keys are STRUCTURALLY ABSENT (not zeroed) —
+    // §16.2's own definition needs R5's specificity governance, so a written
+    // `0` would assert a false "no coverage debt" reading.
+    expect('coverageRole' in partition).toBe(false);
+    expect('coverageAll' in partition).toBe(false);
+    expect('debtBits' in partition).toBe(false);
+    expect('debtPerInstance' in partition).toBe(false);
     expect('partitionId' in partition.roles[0]).toBe(false);
   });
 });

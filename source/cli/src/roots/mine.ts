@@ -83,8 +83,27 @@ export interface MineInput {
   roles: RoleAssignment;
   seeds: readonly SeedEntry[];
   config: RootsConfig;
+  /** `w_base` — per-SCOPE base weight (D7). Still what `induceRoles`/§8.9b and `role_lift`'s divisor read; never the ledger-capped per-surface value. */
   weightFn: WeightFn;
   ageFn?: AgeFn;
+  /**
+   * `w(s,q)` — per-(scope, surface) weight (R4 Task 8, D7): the ledger cap
+   * applied LAST, keyed on (stable_id, surface) — `weights.ts`'s own
+   * `makeWeightFns(...).surfaceWeight`. Absent ⇒ every real-instance cell
+   * count falls back to `weightFn` (the R1-R3 degraded default, where every
+   * instance weighed the same constant regardless of surface, so falling
+   * back to the per-scope function changes nothing observable).
+   */
+  surfaceWeightFn?: (unit: ScopeUnit, surface: string) => number;
+  /**
+   * Whether `unit`'s (stable_id, surface) carries an unreleased ledger mark —
+   * `weights.ts`'s own `makeWeightFns(...).isHookShaped`. Folds into
+   * `survivedOf` (§9.4c: an unreleased mark excludes the instance from the
+   * survived-raw population) and into `MinedFact.hookShapedConform` (a real
+   * count once this is supplied). Absent ⇒ no scope is ever hook-shaped
+   * (matching the R1-R3 default, where no ledger existed at all).
+   */
+  hookShapedFn?: (unit: ScopeUnit, surface: string) => boolean;
 }
 
 export interface MineResult {
@@ -127,8 +146,8 @@ export interface MinedFact {
   // knowable answer given what has not been built yet (never computed over
   // accepted facts — that would be exactly the acceptance/eligibility
   // conflation this increment exists to fix).
-  /** No ledger mark can exist before R5 writes one — 0 is the true count, not a placeholder. */
-  hookShapedConform: 0;
+  /** Count of this fact's raw CONFORMING instances (value === expected) that carry an unreleased ledger mark on this fact's own surface — 0 when `hookShapedFn` is absent (no ledger join, matching R1-R4's own history-free default) or when none of the conforming members is marked. */
+  hookShapedConform: number;
   /** No R6 calibration exists yet to make anything DENY-eligible. */
   denyEligible: false;
   suppressedValue: null;
@@ -168,23 +187,47 @@ export interface MinedPartition {
   facts: MinedFact[];
   moduleOfFile: Record<string, string>;
   seeds: MinedSeed[];
-  /** §16.2's own definition: computed over HOOK-ELIGIBLE facts. Every fact is `hookEligible: false` under this increment's fail-closed rule (no history join yet) — 0 is the TRUE value of that definition today, not a stand-in. */
-  coverageRole: 0;
-  coverageAll: 0;
-  debtBits: 0;
-  debtPerInstance: 0;
+  /**
+   * Appendix G.3's per-file/per-module coupling percentile (`v6-spec.md:892`),
+   * projected from the repo-global co-change cut down to THIS partition's own
+   * file/module set — co-change itself is computed once, repo-wide (`:622`);
+   * only the percentiles riding beside `moduleOfFile` here are per-partition.
+   * ABSENT (both keys) in every degraded-mode build (R4-I4: no history join),
+   * never an empty object — an empty `{}` would read as "computed, nothing
+   * coupled" rather than "not computed at all".
+   */
+  couplingByFile?: Record<string, number>;
+  couplingByModule?: Record<string, number>;
+  // §16.2's coverage/debt keys (`coverageRole`, `coverageAll`, `debtBits`,
+  // `debtPerInstance`) are STRUCTURALLY ABSENT here, not defaulted to 0 (D9):
+  // §16.2 defines them over HOOK-ELIGIBLE facts, which R4 can produce, but
+  // their own definition additionally needs §9.10's specificity governance —
+  // R5's. A written `0` would assert a false "no coverage debt" reading the
+  // moment eligibility can be true; `report` (R7) computes and reintroduces
+  // these four keys once that governance exists.
 }
 
 /**
  * The model.json BODY (header excluded — `stores.ts` owns that seam).
- * `historyStats`/`cochange`/`agentShare` (repo-wide, history-fed, R4/R5) are
- * STRUCTURALLY ABSENT — omitted from the type entirely, not defaulted —
- * matching `couplingByFile`/`couplingByModule`'s per-partition omission
- * below (Appendix G.3: co-change percentile, history-fed, never fabricated
- * from static imports).
+ * `historyStats` (D4's five history-derived integers), `cochange` (Appendix
+ * D's `{a,b,sup,conf}` cut-set rows, sorted), and `aliases` (the sorted,
+ * compressed rename closure — `integration-design.md:130`, `:456`) are all
+ * OPTIONAL — present and history-fed once a history join exists, ABSENT
+ * (never defaulted/zeroed) in every degraded-mode build (R4-I4: no git, a
+ * shallow clone, or a walk failure). `agentShare` is the one exception:
+ * §18.4's own "n/a" reads as `null` here and is ALWAYS present, degraded or
+ * not — a genuinely history-fed `0` (a non-empty, agent-free population) must
+ * stay distinguishable from "no history at all" (also `null`), so the field
+ * itself can never be structurally absent the way the other three are.
+ * `couplingByFile`/`couplingByModule` live per-`partitions[]` entry instead
+ * (Appendix D `:892`), beside `moduleOfFile` — see that field's own doc.
  */
 export interface MinedModel {
   partitions: MinedPartition[];
+  historyStats?: { commits: number; events: number; blobs: number; parsed: number; mb: number };
+  cochange?: Array<{ a: string; b: string; sup: number; conf: number }>;
+  agentShare: number | null;
+  aliases?: Array<[string, string]>;
 }
 
 /** Narrowing guard for `stores.ts`'s `readModel`, whose body comes back `unknown`. Structural, not exhaustive — enough for a caller (Task 8's `status`) to trust `.partitions`, `.roles`, and `.seeds` are all walkable (every one of those three arrays is read by `status`'s field/fact/role/seed counts — a guard that checked only `facts` let a partition missing `roles`/`seeds` degrade `status`'s specific "malformed model" message into its generic catch-all instead). */
@@ -227,8 +270,8 @@ function buildPartitionCells(
   domains: DomainMap,
   rolesForPartition: readonly { roleKey: string }[],
   config: RootsConfig,
-  weightOf: (stableId: string) => number,
-  survivedOf: (stableId: string) => boolean,
+  surfaceWeightOf: (stableId: string, surface: string) => number,
+  survivedOf: (stableId: string, surface: string) => boolean,
   assignments: Readonly<Record<string, string>>,
   ambiguousRank1: Readonly<Record<string, string>>,
 ): PartitionCellSet {
@@ -287,7 +330,7 @@ function buildPartitionCells(
     if (members.length === 0) continue;
     const counts = emptyCellCounts();
     const memberIds = new Set(members.map((u) => u.stableId));
-    countRealInstancesIntoCell(counts, memberIds, candidateSurfacesByKind.get(kind) ?? [], domains, bagOf, weightOf, survivedOf);
+    countRealInstancesIntoCell(counts, memberIds, candidateSurfacesByKind.get(kind) ?? [], domains, bagOf, surfaceWeightOf, survivedOf);
     const record: CellRecord = { cellId: allCellId(kind), cellClass: 'all', kind, counts };
     cells.push(record);
     allCellByKind.set(kind, record);
@@ -323,7 +366,7 @@ function buildPartitionCells(
       const roleMembers = [...confidentMembers, ...ambiguousMembers];
       if (roleMembers.length === 0) continue;
       const ambiguousIds = new Set(ambiguousMembers.map((u) => u.stableId));
-      const roleWeightOf = (stableId: string): number => weightOf(stableId) * (ambiguousIds.has(stableId) ? 0.5 : 1);
+      const roleWeightOf = (stableId: string, surface: string): number => surfaceWeightOf(stableId, surface) * (ambiguousIds.has(stableId) ? 0.5 : 1);
       const counts = emptyCellCounts();
       const memberIds = new Set(roleMembers.map((u) => u.stableId));
       countRealInstancesIntoCell(counts, memberIds, candidateSurfacesByKind.get(kind) ?? [], domains, bagOf, roleWeightOf, survivedOf);
@@ -353,7 +396,7 @@ function buildPartitionCells(
       const dir = key.slice(kind.length + 1);
       const counts = emptyCellCounts();
       const memberIds = new Set(members.map((u) => u.stableId));
-      countRealInstancesIntoCell(counts, memberIds, candidateSurfacesByKind.get(kind) ?? [], domains, bagOf, weightOf, survivedOf);
+      countRealInstancesIntoCell(counts, memberIds, candidateSurfacesByKind.get(kind) ?? [], domains, bagOf, surfaceWeightOf, survivedOf);
       cells.push({ cellId: dirCellId(dir, kind), cellClass: 'dir', kind, dir, counts });
     }
   }
@@ -558,6 +601,7 @@ function scorePartitionFacts(
   trueRawBySurface: ReadonlyMap<string, number>,
   idxCost: number,
   config: RootsConfig,
+  isHookShapedOf: (stableId: string, surface: string) => boolean,
 ): { facts: ScoredFact[]; parentExpByKindSurface: Map<string, string | null> } {
   const cellsByCellId = new Map(partitionCells.map((c) => [c.cellId, c]));
   const parentExpByKindSurface = new Map<string, string | null>();
@@ -653,6 +697,19 @@ function scorePartitionFacts(
       const nTotalRawAll = sumMapValues(rawByValue);
       const nConformRawAll = rawByValue.get(scored.expected) ?? 0;
 
+      // Real count (R4 Task 8): among this fact's own raw CONFORMING members
+      // (value === expected — the same population `nConformRawAll` sums),
+      // how many carry an unreleased ledger mark on THIS fact's own surface.
+      // `cell.counts.members` records every REAL (non-seed) instance
+      // regardless of survival (`addCount`'s own contract), so this reads
+      // the identical membership `nConformRawAll`/`deviantsN` already read —
+      // never a second, differently-scoped population.
+      const conformMembers = cell.counts.members.get(surface)?.get(scored.expected) ?? [];
+      let hookShapedConform = 0;
+      for (const stableId of conformMembers) {
+        if (isHookShapedOf(stableId, surface)) hookShapedConform++;
+      }
+
       facts.push({
         _cellId: cell.cellId,
         factKey: `${roleKeyField}|${surface}`,
@@ -674,7 +731,7 @@ function scorePartitionFacts(
         seeded: seededKeys.has(`${cell.cellId}\u0001${surface}`),
         parentExp,
         deviantsN: nTotalRawAll - nConformRawAll,
-        hookShapedConform: 0,
+        hookShapedConform,
         denyEligible: false,
         suppressedValue: null,
       });
@@ -852,17 +909,37 @@ function computeModuleOfFile(partitionUnits: readonly ScopeUnit[]): Record<strin
 // ---------------------------------------------------------------------------
 
 export function mine(input: MineInput): MineResult {
-  const { units, bags, domains, vocab, partitions, roles, seeds, config, weightFn, ageFn } = input;
+  const { units, bags, domains, vocab, partitions, roles, seeds, config, weightFn, ageFn, surfaceWeightFn, hookShapedFn } = input;
 
   const bagByStableId = new Map(bags.map((b) => [b.stableId, b]));
   const bagOf = (stableId: string): FeatureBag => bagByStableId.get(stableId) as FeatureBag;
   const unitByStableId = new Map(units.map((u) => [u.stableId, u]));
+  // `w_base` — per-SCOPE (D7). Still what `role_lift`'s own divisor
+  // (`computeRoleLiftForPartition`) and `induceRoles`/§8.9b read.
   const weightOf = (stableId: string): number => weightFn(unitByStableId.get(stableId) as ScopeUnit);
+  // `w(s,q)` — per-(scope, surface) SIBLING of `weightOf` (D7, R4 Task 8):
+  // every REAL-instance cell count (`countRealInstancesIntoCell`'s own
+  // caller) routes through this one, never through `weightOf` directly.
+  // Absent `surfaceWeightFn` falls back to `weightFn` — the R1-R3 degraded
+  // default, where every instance weighed the identical constant regardless
+  // of surface, so falling back changes nothing observable.
+  const surfaceWeightOf = (stableId: string, surface: string): number => {
+    const unit = unitByStableId.get(stableId) as ScopeUnit;
+    return surfaceWeightFn ? surfaceWeightFn(unit, surface) : weightFn(unit);
+  };
+  const isHookShapedOf = (stableId: string, surface: string): boolean => {
+    if (!hookShapedFn) return false;
+    return hookShapedFn(unitByStableId.get(stableId) as ScopeUnit, surface);
+  };
   // Fail-closed survived-raw (§9.4c, AGENTS.md's own global constraint): an
   // ABSENT AgeFn means every instance is unsurvived — never the prototype's
-  // fail-open `true` default.
-  const survivedOf = (stableId: string): boolean => {
+  // fail-open `true` default. An unreleased ledger mark on THIS surface
+  // additionally excludes the instance from the survived population (R4-I5's
+  // own second half, MR-24): roots-shaped code neither appears as evidence
+  // nor props up eligibility until the mark releases.
+  const survivedOf = (stableId: string, surface: string): boolean => {
     if (!ageFn) return false;
+    if (isHookShapedOf(stableId, surface)) return false;
     return ageFn(unitByStableId.get(stableId) as ScopeUnit) >= config.weights.freshPenaltyDays;
   };
 
@@ -880,7 +957,7 @@ export function mine(input: MineInput): MineResult {
   for (const partitionId of partitions.survivingPartitionIds) {
     const partitionUnits = units.filter((u) => u.partitionId === partitionId);
     const rolesForPartition = roles.roles.filter((r) => r.partitionId === partitionId);
-    const cellSet = buildPartitionCells(partitionId, partitionUnits, bagOf, domains, rolesForPartition, config, weightOf, survivedOf, roles.assignments, roles.ambiguousRank1);
+    const cellSet = buildPartitionCells(partitionId, partitionUnits, bagOf, domains, rolesForPartition, config, surfaceWeightOf, survivedOf, roles.assignments, roles.ambiguousRank1);
     const cellsByCellId = new Map(cellSet.cells.map((c) => [c.cellId, c]));
     const seededKeys = new Set<string>();
     injectSeeds(cellsByCellId, partitionUnits, seeds, bagOf, roles.assignments, roles.ambiguousRank1, config.weights.seedCapFraction, seededKeys);
@@ -932,6 +1009,7 @@ export function mine(input: MineInput): MineResult {
       cellSet.trueRawBySurface,
       idxCost,
       config,
+      isHookShapedOf,
     );
     const pruned = pruneRedundantDirectoryFacts(scored);
     const cellsByCellId = new Map(cellSet.cells.map((c) => [c.cellId, c]));
@@ -977,12 +1055,17 @@ export function mine(input: MineInput): MineResult {
       facts: culled,
       moduleOfFile: computeModuleOfFile(partitionUnits),
       seeds: seedsOut,
-      coverageRole: 0,
-      coverageAll: 0,
-      debtBits: 0,
-      debtPerInstance: 0,
+      // couplingByFile/couplingByModule (D9-adjacent absence): projected from
+      // the repo-global co-change cut, which `mine()` never sees — wired in
+      // by `runRootsIndex`/`buildHistoryJoin` after this returns (Files list:
+      // "put any helper that computes any of them in history.ts, not in
+      // mine.ts"). Left unset here, never defaulted to `{}`.
     });
   }
 
-  return { body: { partitions: outPartitions }, candidateCountLog2 };
+  // `agentShare: null` — the honest "no history" default (§18.4's own "n/a",
+  // R4-I4). `mine()` itself never joins history (it has no `HistoryJoin` to
+  // read); the caller (`runRootsIndex`) overwrites this with the join's real
+  // computed value — 0 or a genuine share — only when a join exists.
+  return { body: { partitions: outPartitions, agentShare: null }, candidateCountLog2 };
 }

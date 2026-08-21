@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { runRootsIndex, parseAndExtractAll } from '../../../src/roots/pipeline.js';
 import { assertGoldenBundleEquivalence } from '../../support/roots-golden.js';
 import { withBuiltGolden } from '../helpers/roots-golden-fixture.js';
+import { withHistoryDeps } from '../helpers/roots-history-deps.js';
 import { defaultRootsConfig } from '../helpers/roots-config.js';
 import { buildTsxGoldenSpec } from '../../fixtures/roots/golden/tsx/spec.js';
 import { buildJavaScriptGoldenSpec } from '../../fixtures/roots/golden/javascript/spec.js';
@@ -34,7 +35,7 @@ function bundlePathFor(name: string): string {
 
 async function factsOf(spec: GoldenRepoSpec, config: RootsConfig) {
   return withBuiltGolden(spec, async (repoRoot) => {
-    const result = await runRootsIndex(repoRoot, config, []);
+    const result = await withHistoryDeps((options) => runRootsIndex(repoRoot, config, [], options));
     return result.body.partitions.flatMap((p) => p.facts);
   });
 }

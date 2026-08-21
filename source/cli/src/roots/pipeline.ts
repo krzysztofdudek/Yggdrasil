@@ -24,6 +24,9 @@ import { buildVocabularies, enumerate, type FeatureBag, type DomainMap, type Roo
 import { induceRoles, type WeightFn } from './roles.js';
 import { mine, type MinedModel, type AgeFn } from './mine.js';
 import { hashString } from '../io/hash.js';
+import { buildHistoryJoin, projectCouplingForPartition, type HistoryDeps, type HistoryJoin, type HistoryProgressInfo } from './history.js';
+import { makeWeightFns, releasedMarks, markKey, type LifecycleIndex } from './weights.js';
+import type { LifecycleRow } from './history-replay.js';
 
 /**
  * §6.1's SECOND size gate (the first is `history.blobMaxBytes`, configurable):
@@ -126,18 +129,88 @@ export interface RootsIndexResult {
 }
 
 /**
- * Composes `parseAndExtractAll` → `derivePartitions` → `finalizeUnits` →
- * `buildVocabularies` → `enumerate` (per partition) → `induceRoles` →
- * `mine`, constructing R1's defaults: `WeightFn` = the CONSTANT
- * `weights.noLifecycleWeight` (config-supplied, spec §9.1/§4.5 — NOT 1.0,
- * "uniform" is not unity), and NO `AgeFn` (R4 widens this via a trailing
- * options parameter later — the same no-signature-break seam `roles.ts`
- * documents for `induceRoles`'s own `weights` parameter). `seeds` arrives as
- * an explicit PARAMETER (Task 1's seeds seam: engine never reads the store —
- * the Task-8 command loads `seeds.jsonl` via `stores.ts` and passes the
- * result here). Does NOT persist.
+ * The four-argument form's own options (R4 Task 8). `historyDeps` absent ⇒
+ * exactly today's degraded behavior: constant `noLifecycleWeight` weights, no
+ * `AgeFn`, no history-fed model field — the degraded path, not the golden
+ * one (`history.ts`'s own header explains why). `onProgress` is FORWARDED
+ * into `buildHistoryJoin` even though nothing emits on it until T9's own
+ * walk-progress reporting — every quantity that will ride on it is knowable
+ * only inside `buildHistoryJoin`, so wiring the forward here (rather than
+ * widening this file a second time in T9) costs one parameter now, for a
+ * capability T9 fills in later.
  */
-export async function runRootsIndex(repoRoot: string, config: RootsConfig, seeds: SeedEntry[]): Promise<RootsIndexResult> {
+export interface RunRootsIndexOptions {
+  historyDeps?: HistoryDeps;
+  onProgress?: (info: HistoryProgressInfo) => void;
+}
+
+/**
+ * The REAL, skeyR/relPath-keyed lifecycle index `makeWeightFns` reads —
+ * `LifecycleRow.key` IS `skeyR` for a scope-level row (`history-replay.ts`'s
+ * own `${postPath}#${kind}#${qualifiedName}` construction) and the bare
+ * `relPath` for a file-level one, so a two-step `Map` lookup on `key` alone
+ * answers `rowFor(skeyR, relPath)` without needing two tables — the two key
+ * spaces are disjoint by construction (`LifecycleRow.key`'s own doc).
+ */
+export function makeLifecycleIndex(rows: readonly LifecycleRow[]): LifecycleIndex {
+  const byKey = new Map<string, LifecycleRow>();
+  for (const row of rows) byKey.set(row.key, row);
+  return {
+    rowFor(skeyR: string, relPath: string): LifecycleRow | undefined {
+      return byKey.get(skeyR) ?? byKey.get(relPath);
+    },
+  };
+}
+
+/**
+ * Exported (alongside `makeLifecycleIndex`) so the killer test for this exact
+ * seam (`tests/unit/roots/history-join.test.ts`) can drive it directly
+ * against a REAL `HistoryJoin`, rather than only through `runRootsIndex`'s
+ * own opaque `MinedModel` output.
+ *
+ * THE HAZARD SEAM (weights.ts's own doc on `releasedMarks`): a `LedgerEntry`
+ * carries only the marked scope's CURRENT `stable_id` (D6) — never a
+ * `skeyR`/`relPath` pair — so resolving a mark to a lifecycle row means
+ * mapping `stable_id -> ScopeUnit` over the CURRENT tree's own `units`
+ * first, THEN resolving that unit's `(skeyR, relPath)` through the REAL
+ * index above. A `LifecycleIndex` keyed DIRECTLY on `stable_id` (skipping
+ * this resolution) would never match any lifecycle row at all — `stable_id`
+ * folds `partitionId`, which no `LifecycleRow` carries — so no mark would
+ * ever release, indistinguishable from the documented conservative "marks
+ * the walk cannot see stay capped" path. This function is the one place that
+ * resolution happens, aliases followed for free (the REAL index's own
+ * lookup already resolves through the current tree's own units).
+ */
+export function makeStableIdLifecycleIndex(units: readonly ScopeUnit[], realIndex: LifecycleIndex): LifecycleIndex {
+  const byStableId = new Map<string, LifecycleRow>();
+  for (const unit of units) {
+    const row = realIndex.rowFor(unit.skeyR, unit.relPath);
+    if (row) byStableId.set(unit.stableId, row);
+  }
+  return {
+    rowFor(stableId: string): LifecycleRow | undefined {
+      return byStableId.get(stableId);
+    },
+  };
+}
+
+/**
+ * Composes `parseAndExtractAll` → `derivePartitions` → `finalizeUnits` →
+ * `buildVocabularies` → `enumerate` (per partition) → [R4: `buildHistoryJoin`
+ * → the weight functions] → `induceRoles` → `mine`, constructing R1's
+ * defaults: `WeightFn` = the CONSTANT `weights.noLifecycleWeight`
+ * (config-supplied, spec §9.1/§4.5 — NOT 1.0, "uniform" is not unity), and NO
+ * `AgeFn`, whenever `options.historyDeps` is absent or the join degrades
+ * (R4-I4). `seeds` arrives as an explicit PARAMETER (Task 1's seeds seam:
+ * engine never reads the store — the command loads `seeds.jsonl` via
+ * `stores.ts` and passes the result here). Does NOT persist.
+ */
+export async function runRootsIndex(
+  repoRoot: string,
+  config: RootsConfig,
+  seeds: SeedEntry[],
+  options?: RunRootsIndexOptions,
+): Promise<RootsIndexResult> {
   const { files, rawScopes } = await parseAndExtractAll(repoRoot, config);
   const partitions: PartitionMap = derivePartitions(files, rawScopes, config);
   const units: ScopeUnit[] = finalizeUnits(rawScopes, partitions);
@@ -170,13 +243,61 @@ export async function runRootsIndex(repoRoot: string, config: RootsConfig, seeds
     }
   }
 
-  // R1's default WeightFn: the constant `weights.noLifecycleWeight` — every
-  // instance weighs this, regardless of scope (no lifecycle rows exist yet).
-  const weightFn: WeightFn = () => config.weights.noLifecycleWeight;
-  const ageFn: AgeFn | undefined = undefined; // R4 seam — absent here is the fail-closed default, not a permissive one
+  // R1's default: the constant `weights.noLifecycleWeight` — every instance
+  // weighs this, regardless of scope, and no instance ever survives. R4's
+  // history join (Step 1-3), when present, replaces every one of these four.
+  let weightFn: WeightFn = () => config.weights.noLifecycleWeight;
+  let ageFn: AgeFn | undefined;
+  let surfaceWeightFn: ((unit: ScopeUnit, surface: string) => number) | undefined;
+  let hookShapedFn: ((unit: ScopeUnit, surface: string) => boolean) | undefined;
+  let join: HistoryJoin | undefined;
+
+  if (options?.historyDeps) {
+    join = await buildHistoryJoin(repoRoot, config, options.historyDeps, options.onProgress);
+    if (join) {
+      // The join finishes first; its alias closure resolves co-change
+      // (`history.ts`'s own wiring); THEN the weights are built from the
+      // finished lifecycle index (T8 Step 1's own stated order).
+      const realIndex = makeLifecycleIndex(join.lifecycle);
+      const stableIdIndex = makeStableIdLifecycleIndex(units, realIndex);
+      const releasedKeys = releasedMarks(options.historyDeps.ledger, stableIdIndex, join.clockTs, config);
+      const unreleasedLedger = options.historyDeps.ledger.filter((entry) => !releasedKeys.has(markKey(entry)));
+
+      const weightFns = makeWeightFns({
+        lifecycle: realIndex,
+        ledger: unreleasedLedger,
+        dirtyPaths: options.historyDeps.dirtyPaths,
+        clockTs: join.clockTs,
+        config,
+      });
+      weightFn = weightFns.baseWeight;
+      ageFn = weightFns.ageDays;
+      surfaceWeightFn = weightFns.surfaceWeight;
+      hookShapedFn = weightFns.isHookShaped;
+    }
+  }
 
   const roles = induceRoles(units, weightFn, config);
-  const { body, candidateCountLog2 } = mine({ units, bags, domains, vocab, partitions, roles, seeds, config, weightFn, ageFn });
+  const { body, candidateCountLog2 } = mine({ units, bags, domains, vocab, partitions, roles, seeds, config, weightFn, ageFn, surfaceWeightFn, hookShapedFn });
+
+  if (join) {
+    body.historyStats = join.historyStats;
+    body.cochange = join.cochange;
+    body.agentShare = join.agentShare;
+    body.aliases = join.aliases;
+
+    const filesByPartition = new Map<string, Set<string>>();
+    for (const [file, partitionId] of partitions.partitionOfFile) {
+      const bucket = filesByPartition.get(partitionId);
+      if (bucket) bucket.add(file);
+      else filesByPartition.set(partitionId, new Set([file]));
+    }
+    for (const partition of body.partitions) {
+      const { couplingByFile, couplingByModule } = projectCouplingForPartition(join, filesByPartition.get(partition.id) ?? new Set());
+      partition.couplingByFile = couplingByFile;
+      partition.couplingByModule = couplingByModule;
+    }
+  }
 
   // The all-grammar fold (spec `:137`/`:237`): sha256 over the sorted
   // `assetName -> per-grammar bindingHash` map of every grammar actually used

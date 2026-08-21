@@ -8,6 +8,7 @@ import { extractUnits } from '../../../src/roots/extract.js';
 import { parseAndExtractAll, runRootsIndex } from '../../../src/roots/pipeline.js';
 import { assertGoldenBundleEquivalence } from '../../support/roots-golden.js';
 import { withBuiltGolden } from '../helpers/roots-golden-fixture.js';
+import { withHistoryDeps } from '../helpers/roots-history-deps.js';
 import { defaultRootsConfig } from '../helpers/roots-config.js';
 import { buildTypeScriptGoldenSpec } from '../../fixtures/roots/golden/typescript/spec.js';
 
@@ -43,7 +44,7 @@ describe('golden: typescript — MUST-mine / MUST-NOT-mine (design §13.2)', () 
     const spec = buildTypeScriptGoldenSpec();
     const config = await defaultRootsConfig();
     await withBuiltGolden(spec, async (repoRoot) => {
-      const result = await runRootsIndex(repoRoot, config, []);
+      const result = await withHistoryDeps((options) => runRootsIndex(repoRoot, config, [], options));
       expect(result.body.partitions.length).toBeGreaterThan(0);
       const facts = result.body.partitions.flatMap((p) => p.facts);
 
@@ -124,7 +125,7 @@ describe('golden: typescript — candidateCountLog2 pin, hand-counted (review-in
       'enumerate:\n    support: { nodeType: 999999999, call: 999999999, import: 999999999, supertype: 999999999, shape: 999999999, decorator: 999999999 }\n',
     );
     await withBuiltGolden(spec, async (repoRoot) => {
-      const result = await runRootsIndex(repoRoot, config, []);
+      const result = await withHistoryDeps((options) => runRootsIndex(repoRoot, config, [], options));
       expect(result.candidateCountLog2).toBe(3);
     });
   });
