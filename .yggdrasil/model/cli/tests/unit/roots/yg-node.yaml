@@ -180,7 +180,20 @@ description: "Unit tests for the roots convention-mining module: the roots
   size guard, and fixTouches counting — plus dedicated coverage for the
   degraded/defensive branches (an oversize blob, an unresolved blob a caller
   failed to pre-fetch, a malformed record with no postSha) and the raw
-  accumulators' own sort orders)."
+  accumulators' own sort orders); and history-cochange.test.ts (Task 6's
+  co-change accumulator and coupling projections: the support/confidence
+  gate including the reverse-direction-rescue case, the mega-commit band's
+  inclusive 30-file boundary against a disjoint 40-file exclusion, sorting
+  by descending support strictly before the maxPairs cut with a
+  deliberately out-of-support-order insertion, the shared history golden's
+  own real order-pair/ship-pair numbers walked through the real git-history
+  plumbing, rename resolution merging two raw cohorts into one pair at
+  finish (never as a running remap), order-free accumulation across forward,
+  reversed, and split-with-persist/reload orderings, the coupling-percentile
+  rank formula worked by hand with tied percentiles and a rounded per-module
+  median, the resolvePath self-pair collision guard, and the raw-accumulator
+  serialize/deserialize round trip in the store's own documented sort
+  order)."
 aspects: []
 relations:
   [
@@ -228,3 +241,4 @@ mapping:
   - source/cli/tests/unit/roots/roots-golden-history.test.ts
   - source/cli/tests/unit/roots/history-replay.test.ts
   - source/cli/tests/unit/roots/history-replay-fixes.test.ts
+  - source/cli/tests/unit/roots/history-cochange.test.ts

@@ -100,7 +100,31 @@ description: "Roots mining engine — pure, deterministic convention-mining
   commits in any order and finishReplay returns byte-identical output — the
   property a resumed index equal to a full one depends on, which the
   alias-merge counter math (a sum of each source row's own persisted
-  modifications, not a per-run sha-set union) is itself chosen to preserve."
+  modifications, not a per-run sha-set union) is itself chosen to preserve.
+  R4 Task 6 adds history-cochange.ts: the co-change accumulator and its
+  coupling projections — accumulateCochange folds one already-gate-1-
+  filtered commit's changed-file set into per-pair support and per-file
+  commit counts, applying no exclusion of its own beyond §13.5's own
+  2..megaCommitFileCap changed-file band, and skipping nothing else (a path
+  with no registered grammar or excluded from parsing still counts in full,
+  §6.8's 'fully counted for co-change and history' carve-out); finishCochange
+  derives the finished products without mutating the accumulator — resolving
+  every raw pair and per-file commit count through an injected rename-alias
+  closure and merging what lands on the same final path, computing
+  max-direction confidence, filtering by minSupport/minConfidence, then
+  sorting by descending support (ties broken by the pair's own two paths)
+  BEFORE cutting to maxPairs so the cut can never drop the strongest pair by
+  insertion accident, and finally ranking each file's percentile among the
+  cut set's distinct coupling partners with the per-module figure as the
+  rounded median of its own files' percentiles, grouped by parent directory
+  rather than by the mining engine's own partition-aware module boundaries
+  (this pass runs once, repo-wide, before partitioning is even consulted).
+  Every accumulated quantity is a plain integer sum, so folding the same
+  commits in any order — or split across a persist/reload boundary — leaves
+  the accumulator, and therefore the finished output, unchanged; the rename
+  fold happens exactly once, at finish, never as a running remap during
+  accumulation, so which order a rename and its co-changes arrive in during
+  one run can never change the merged result."
 relations:
   - target: cli/io/stores
     type: calls
@@ -128,3 +152,4 @@ mapping:
   - source/cli/src/roots/pipeline.ts
   - source/cli/src/roots/history.ts
   - source/cli/src/roots/history-replay.ts
+  - source/cli/src/roots/history-cochange.ts
