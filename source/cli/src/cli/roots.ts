@@ -58,12 +58,13 @@ import {
 } from '../roots/stores.js';
 import { rootsConfigHash } from '../roots/config.js';
 import { runRootsIndex, computeUsedGrammarSetHash } from '../roots/pipeline.js';
-import { isMinedModel } from '../roots/mine.js';
-import { resolveWalkMode, type WalkMode, type HistoryProgressInfo } from '../roots/history.js';
+import { isMinedModel, type MinedModel } from '../roots/mine.js';
+import { resolveWalkMode, isWindowingActive, type WalkMode, type HistoryProgressInfo } from '../roots/history.js';
+import { readHistoryState } from '../io/roots-history-store.js';
 import { acquireBuildLock, releaseBuildLock, BuildLockHeldError } from '../io/roots-build-lock-store.js';
 import type { YggConfig, RootsConfig } from '../model/graph.js';
 import { getHeadSha, getHeadCommitterTimestamp, getDirtyFiles } from '../utils/git.js';
-import { countCommitsInRange } from '../utils/git-history.js';
+import { countCommitsInRange, isShallowRepository } from '../utils/git-history.js';
 import { toPosixPath } from '../utils/posix.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { buildIssueMessage, type IssueMessage } from '../formatters/message-builder.js';
@@ -249,6 +250,100 @@ export function assembleRootsModelHeader(inputs: RootsHeaderInputs): RootsModelH
 }
 
 /**
+ * Best-effort "how far behind HEAD" line for `status`'s history block (Step
+ * 1, T10). Anchored on the REPLAY STATE's own `meta.json` `lastIndexedSha` —
+ * read here directly via `readHistoryState`, taking NO lock (R4-I12) — never
+ * the committed model header's `lastIndexedSha`, even though the header
+ * carries one too from T9 on: the header is `null` in every degraded mode
+ * (T9's own rule), so a `status` that read it instead would print a
+ * behind-count for a repository whose history was never walked, and even
+ * when both are non-null they can name different commits (an index whose
+ * history join succeeded but whose model write then failed leaves the state
+ * ahead of the committed header). Returns the empty string — never a
+ * fabricated number, never a thrown error — on any of: no readable replay
+ * state (never indexed, or a torn/absent `.cache/history/`), a
+ * `lastIndexedSha` that is not a string, or `countCommitsInRange` reporting a
+ * negative count (unreachable sha, no repository, git unavailable).
+ */
+async function buildBehindHeadLine(yggRoot: string, repoRoot: string): Promise<string> {
+  let state;
+  try {
+    state = await readHistoryState(rootsHistoryStateDir(yggRoot));
+  } catch (err) {
+    debugWrite(`[roots] status: history state unreadable for the behind-HEAD line: ${(err as Error).message}`);
+    return '';
+  }
+  const metaLastIndexedSha = state ? state.meta.lastIndexedSha : undefined;
+  if (typeof metaLastIndexedSha !== 'string') return '';
+
+  const behind = countCommitsInRange(repoRoot, metaLastIndexedSha);
+  if (behind < 0) return ''; // "cannot tell" — never read as "current"
+  return behind === 0 ? '  The index is current through HEAD.\n' : `  ${behind} commit(s) have landed since the last index.\n`;
+}
+
+/**
+ * `status`'s history block (Step 1, T10) — plain user terms throughout, no
+ * internal vocabulary (design §11: never "historyStats", "meta.json",
+ * "walk", "resume"). Four honest, mutually distinguishable shapes fall out
+ * of three independent, best-effort facts:
+ *
+ *  - **What the last index actually read.** When `historyStats` is present
+ *    (the last index's history join succeeded — `pipeline.ts`'s own
+ *    `if (join) { body.historyStats = ... }`), reports the commit count and
+ *    `historyStats.parsed` as "historical file version(s) read from history"
+ *    — the same plain-terms phrase `index`'s own progress/summary lines use
+ *    for the identical quantity, so one number carries one name across both
+ *    commands rather than two.
+ *    DELIBERATELY never "distinct files parsed": `parsed` is D4's distinct
+ *    non-skipped cache-KEY count (blobs under a grammar), so on a repository
+ *    where one file has 300 revisions it exceeds the file count by two
+ *    orders of magnitude, and R4 tracks no per-file quantity to print
+ *    instead. Absent `historyStats` means the last index's walk degraded —
+ *    checked live (best-effort, may differ from index time, which is fine:
+ *    this is a report on the CURRENT repository, not an audit of the past
+ *    run) for the two nameable causes: no usable HEAD at all (`header.headSha
+ *    === null`, T9's own null-in-every-degraded-mode rule) or a shallow
+ *    clone; anything else degrades to one honest, cause-less line rather
+ *    than guessing — the one degraded cause a re-run can plausibly fix, so
+ *    only that line names a next step.
+ *  - **Whether history windowing is active**, a LIVE config fact
+ *    (`v6-spec.md:599`'s visibility requirement) independent of whether the
+ *    last walk succeeded — a windowed config still deserves to be seen even
+ *    on a repository that currently has no history to walk at all.
+ *  - **How far behind HEAD the index is** — {@link buildBehindHeadLine}.
+ */
+async function buildRootsHistoryLines(
+  yggRoot: string,
+  repoRoot: string,
+  header: RootsModelHeader,
+  historyStats: MinedModel['historyStats'],
+  rootsConfig: RootsConfig,
+): Promise<string> {
+  let lines = '';
+
+  if (historyStats) {
+    lines += `  History: read ${historyStats.commits} commit(s) of history; ${historyStats.parsed} historical file version(s) read from history.\n`;
+  } else if (header.headSha === null) {
+    lines += '  History: no git history to read — nothing can be scored by how long it has stood, so what is reported below is what the code looks like now, not what has proven itself.\n';
+  } else if (isShallowRepository(repoRoot)) {
+    lines += '  History: this is a shallow clone, so commit history could not be read — nothing can be scored by how long it has stood, so what is reported below is what the code looks like now, not what has proven itself.\n';
+  } else {
+    lines += "  History: the last index could not read commit history — nothing can be scored by how long it has stood, so what is reported below is what the code looks like now, not what has proven itself. Re-run 'yg roots index' to try reading history again.\n";
+  }
+
+  if (isWindowingActive(rootsConfig)) {
+    const parts: string[] = [];
+    if (!rootsConfig.history.full) parts.push(`the last ${rootsConfig.history.windowMonths} month(s)`);
+    if (rootsConfig.history.maxCommits > 0) parts.push(`the most recent ${rootsConfig.history.maxCommits} commit(s)`);
+    lines += `  History window: limited to ${parts.join(' and ')} — only part of the history is mined.\n`;
+  }
+
+  lines += await buildBehindHeadLine(yggRoot, repoRoot);
+
+  return lines;
+}
+
+/**
  * `yg roots status`'s full report, as text — never throws, never signals
  * failure through its return value alone. Every state this repository can
  * genuinely be in (no project, unreadable config, dormant, configured but
@@ -338,9 +433,13 @@ async function renderRootsStatusInner(cwd: string): Promise<string> {
       ? `  Last indexed at commit ${header.headSha.slice(0, 7)}, committed ${header.clock}.\n`
       : '  Last indexed outside version control (no git history).\n';
 
+  const repoRoot = projectRootFromGraph(yggRoot);
+  const historyLines = await buildRootsHistoryLines(yggRoot, repoRoot, header, body.historyStats, config.roots);
+
   return (
     `${chalk.green('Roots: indexed.')}\n` +
     lastIndexedLine +
+    historyLines +
     `  Partitions: ${body.partitions.length}\n` +
     `  Facts: ${totalFacts}\n` +
     `  Roles: ${totalRoles}\n` +

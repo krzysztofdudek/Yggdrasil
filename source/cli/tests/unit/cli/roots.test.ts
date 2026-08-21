@@ -28,9 +28,11 @@ import {
   hashStoreFile,
   rootsBlobCacheDir,
   rootsHistoryStateDir,
+  rootsStoreDir,
   SEEDS_FILENAME,
   DECISIONS_FILENAME,
   LEDGER_FILENAME,
+  MODEL_FILENAME,
   type RootsModelHeader,
 } from '../../../src/roots/stores.js';
 import { runRootsIndex } from '../../../src/roots/pipeline.js';
@@ -444,6 +446,219 @@ describe('renderRootsStatus', () => {
     const text = await renderRootsStatus(dir);
     expect(text).toContain('does not have the expected shape');
     expect(text).not.toContain('status could not be determined');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderRootsStatus — the history block (T10 Step 1): four distinct,
+// honest paragraphs over a REAL index run through the production engine
+// (`realIndexOnce`, defined below — hoisted, so these tests may call it
+// even though its declaration appears later in the file), never a
+// hand-typed placeholder header (M2's own reasoning).
+// ---------------------------------------------------------------------------
+
+describe('renderRootsStatus — the history block (T10)', () => {
+  function freshRepoWithConfig(configYaml: string): { repoRoot: string; yggRoot: string } {
+    const repoRoot = tmpDir('yg-status-history-');
+    const init = initDeterministicGitFixture(repoRoot);
+    if (init.status !== 0) throw new Error(`git init failed: ${init.stderr}${init.stdout}`);
+    mkdirSync(path.join(repoRoot, 'src'), { recursive: true });
+    writeFileSync(path.join(repoRoot, 'src', 'a.ts'), 'export const a = 1;\n', 'utf-8');
+    const add = runDeterministicGitFixture(repoRoot, ['add', '-A'], 0);
+    if (add.status !== 0) throw new Error(`git add failed: ${add.stderr}${add.stdout}`);
+    const commit = runDeterministicGitFixture(repoRoot, ['commit', '-q', '-m', 'init'], 0);
+    if (commit.status !== 0) throw new Error(`git commit failed: ${commit.stderr}${commit.stdout}`);
+    const yggRoot = path.join(repoRoot, '.yggdrasil');
+    mkdirSync(yggRoot, { recursive: true });
+    writeFileSync(path.join(yggRoot, 'yg-config.yaml'), configYaml, 'utf-8');
+    return { repoRoot, yggRoot };
+  }
+
+  it('a repository with no git history at all: "no git history to read", never a fabricated commit or behind-HEAD count', async () => {
+    const repoRoot = tmpDir('yg-status-history-nogit-');
+    const yggRoot = path.join(repoRoot, '.yggdrasil');
+    mkdirSync(yggRoot, { recursive: true });
+    writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\nroots: {}\n', 'utf-8');
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    await realIndexOnce(repoRoot, yggRoot, config.roots!);
+
+    const text = await renderRootsStatus(repoRoot);
+    expect(text).toContain(
+      'History: no git history to read — nothing can be scored by how long it has stood, so what is reported below is what the code looks like now, not what has proven itself.',
+    );
+    expect(text).not.toMatch(/commit\(s\) have landed|current through HEAD/);
+    // The string promises the counts appear BELOW it — pin the ordering so
+    // the deictic can never silently point the wrong way.
+    expect(text.indexOf('History:')).toBeLessThan(text.indexOf('Partitions:'));
+  });
+
+  it('a shallow clone: "this is a shallow clone", never a fabricated count either', async () => {
+    const sourceRoot = tmpDir('yg-status-history-shallowsrc-');
+    const init = initDeterministicGitFixture(sourceRoot);
+    if (init.status !== 0) throw new Error(`git init failed: ${init.stderr}${init.stdout}`);
+    for (let i = 0; i < 3; i++) {
+      writeFileSync(path.join(sourceRoot, `f${i}.txt`), `content ${i}\n`, 'utf-8');
+      const add = runDeterministicGitFixture(sourceRoot, ['add', '-A'], i);
+      if (add.status !== 0) throw new Error(`git add failed: ${add.stderr}${add.stdout}`);
+      const commit = runDeterministicGitFixture(sourceRoot, ['commit', '-q', '-m', `c${i}`], i);
+      if (commit.status !== 0) throw new Error(`git commit failed: ${commit.stderr}${commit.stdout}`);
+    }
+
+    const repoRoot = tmpDir('yg-status-history-shallow-');
+    rmSync(repoRoot, { recursive: true, force: true }); // git clone requires a non-existent (or empty) target
+    const { spawnSync } = await import('node:child_process');
+    const clone = spawnSync('git', ['clone', '-q', '--depth', '1', `file://${sourceRoot}`, repoRoot], { encoding: 'utf-8' });
+    if (clone.status !== 0) throw new Error(`git clone --depth 1 failed: ${clone.stderr}${clone.stdout}`);
+    dirs.push(repoRoot);
+
+    const yggRoot = path.join(repoRoot, '.yggdrasil');
+    mkdirSync(yggRoot, { recursive: true });
+    writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\nroots: {}\n', 'utf-8');
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    await realIndexOnce(repoRoot, yggRoot, config.roots!);
+
+    const text = await renderRootsStatus(repoRoot);
+    expect(text).toContain(
+      'History: this is a shallow clone, so commit history could not be read — nothing can be scored by how long it has stood, so what is reported below is what the code looks like now, not what has proven itself.',
+    );
+    expect(text).not.toMatch(/commit\(s\) have landed|current through HEAD/);
+  });
+
+  it('a windowed config: the window is visible even though the walk itself succeeded', async () => {
+    const { repoRoot, yggRoot } = freshRepoWithConfig(
+      'version: "5.2.0"\nroots:\n  history:\n    full: false\n    windowMonths: 6\n    maxCommits: 500\n',
+    );
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    await realIndexOnce(repoRoot, yggRoot, config.roots!);
+
+    const text = await renderRootsStatus(repoRoot);
+    expect(text).toMatch(/History: read \d+ commit\(s\) of history; \d+ historical file version\(s\) read from history\./);
+    expect(text).toContain('History window: limited to the last 6 month(s) and the most recent 500 commit(s) — only part of the history is mined.');
+  });
+
+  it('windowed by months alone (maxCommits left at its default 0): only the month clause prints, never a commit-count clause', async () => {
+    const { repoRoot, yggRoot } = freshRepoWithConfig(
+      'version: "5.2.0"\nroots:\n  history:\n    full: false\n    windowMonths: 6\n',
+    );
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    await realIndexOnce(repoRoot, yggRoot, config.roots!);
+
+    const text = await renderRootsStatus(repoRoot);
+    expect(text).toContain('History window: limited to the last 6 month(s) — only part of the history is mined.');
+    expect(text).not.toMatch(/most recent \d+ commit/);
+  });
+
+  it('a normal repo: commit and revision counts, current-through-HEAD, then a real commit puts it behind', async () => {
+    const { repoRoot, yggRoot } = freshRepoWithConfig('version: "5.2.0"\nroots: {}\n');
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    await realIndexOnce(repoRoot, yggRoot, config.roots!);
+
+    const current = await renderRootsStatus(repoRoot);
+    expect(current).toMatch(/History: read \d+ commit\(s\) of history; \d+ historical file version\(s\) read from history\./);
+    expect(current).not.toContain('History window:');
+    expect(current).toContain('The index is current through HEAD.');
+
+    writeFileSync(path.join(repoRoot, 'src', 'b.ts'), 'export const b = 2;\n', 'utf-8');
+    const add = runDeterministicGitFixture(repoRoot, ['add', '-A'], 1);
+    if (add.status !== 0) throw new Error(`git add failed: ${add.stderr}${add.stdout}`);
+    const commit = runDeterministicGitFixture(repoRoot, ['commit', '-q', '-m', 'second'], 1);
+    if (commit.status !== 0) throw new Error(`git commit failed: ${commit.stderr}${commit.stdout}`);
+
+    const behind = await renderRootsStatus(repoRoot);
+    expect(behind).toContain('1 commit(s) have landed since the last index.');
+  });
+
+  it('the replay state removed after a real index: the History block still renders, but the behind-HEAD line is omitted, not fabricated', async () => {
+    const { repoRoot, yggRoot } = freshRepoWithConfig('version: "5.2.0"\nroots: {}\n');
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    await realIndexOnce(repoRoot, yggRoot, config.roots!);
+
+    rmSync(rootsHistoryStateDir(yggRoot), { recursive: true, force: true });
+
+    const text = await renderRootsStatus(repoRoot);
+    expect(text).toMatch(/History: read \d+ commit\(s\) of history; \d+ historical file version\(s\) read from history\./);
+    expect(text).not.toMatch(/current through HEAD|commit\(s\) have landed/);
+  });
+
+  it('a committed header naming an older commit does not move the behind-HEAD line: it follows the replay state, never the committed header', async () => {
+    const repoRoot = tmpDir('yg-status-history-headerlag-');
+    const init = initDeterministicGitFixture(repoRoot);
+    if (init.status !== 0) throw new Error(`git init failed: ${init.stderr}${init.stdout}`);
+    mkdirSync(path.join(repoRoot, 'src'), { recursive: true });
+    writeFileSync(path.join(repoRoot, 'src', 'a.ts'), 'export const a = 1;\n', 'utf-8');
+    let add = runDeterministicGitFixture(repoRoot, ['add', '-A'], 0);
+    if (add.status !== 0) throw new Error(`git add failed: ${add.stderr}${add.stdout}`);
+    let commit = runDeterministicGitFixture(repoRoot, ['commit', '-q', '-m', 'first'], 0);
+    if (commit.status !== 0) throw new Error(`git commit failed: ${commit.stderr}${commit.stdout}`);
+    const firstSha = getHeadSha(repoRoot);
+
+    writeFileSync(path.join(repoRoot, 'src', 'b.ts'), 'export const b = 2;\n', 'utf-8');
+    add = runDeterministicGitFixture(repoRoot, ['add', '-A'], 1);
+    if (add.status !== 0) throw new Error(`git add failed: ${add.stderr}${add.stdout}`);
+    commit = runDeterministicGitFixture(repoRoot, ['commit', '-q', '-m', 'second'], 1);
+    if (commit.status !== 0) throw new Error(`git commit failed: ${commit.stderr}${commit.stdout}`);
+
+    const yggRoot = path.join(repoRoot, '.yggdrasil');
+    mkdirSync(yggRoot, { recursive: true });
+    writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\nroots: {}\n', 'utf-8');
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    await realIndexOnce(repoRoot, yggRoot, config.roots!);
+
+    // Rewrite the COMMITTED model header to name the first (older) commit —
+    // a stand-in for a hand-resolved merge conflict on model.json, or any
+    // other way the header could lag the replay state. Only this test
+    // touches the header this way; the production code path never does.
+    const modelPath = path.join(rootsStoreDir(yggRoot), MODEL_FILENAME);
+    const stored = JSON.parse(readFileSync(modelPath, 'utf-8'));
+    stored.header.lastIndexedSha = firstSha;
+    writeFileSync(modelPath, JSON.stringify(stored), 'utf-8');
+
+    const text = await renderRootsStatus(repoRoot);
+    expect(text).toContain('The index is current through HEAD.');
+  });
+
+  it('the .git directory removed after a real index (state left intact): the History block still renders, with no behind-HEAD or landed-commits line', async () => {
+    const { repoRoot, yggRoot } = freshRepoWithConfig('version: "5.2.0"\nroots: {}\n');
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    await realIndexOnce(repoRoot, yggRoot, config.roots!);
+
+    rmSync(path.join(repoRoot, '.git'), { recursive: true, force: true });
+
+    const text = await renderRootsStatus(repoRoot);
+    expect(text).toMatch(/History: read \d+ commit\(s\) of history; \d+ historical file version\(s\) read from history\./);
+    expect(text).not.toMatch(/-\d+ commit|commit\(s\) have landed|current through HEAD/);
+  });
+
+  it('a pre-R4 model shape (headSha set, no historyStats at all, not a shallow clone): the generic degraded line, with a re-run NEXT', async () => {
+    const dir = tmpDir('yg-status-history-genericfallback-');
+    const yggRoot = path.join(dir, '.yggdrasil');
+    mkdirSync(yggRoot, { recursive: true });
+    writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\nroots: {}\n', 'utf-8');
+
+    const header: RootsModelHeader = {
+      rootsVersion: 1,
+      headSha: 'deadbeef',
+      lastIndexedSha: null,
+      clock: '2026-08-19T00:00:00+00:00',
+      bindingHash: 'bh',
+      configHash: 'ch',
+      seedsHash: 'sh',
+      decisionsHash: 'dh',
+      ledgerHash: 'lh',
+      dirtyHash: 'dth',
+      candidateCountLog2: 0,
+      rolesStale: false,
+    };
+    await writeModel(yggRoot, header, MINIMAL_MINED_MODEL); // no historyStats field — a pre-R4 model shape
+
+    const text = await renderRootsStatus(dir);
+    expect(text).toContain(
+      "History: the last index could not read commit history — nothing can be scored by how long it has stood, so what is reported below is what the code looks like now, not what has proven itself. Re-run 'yg roots index' to try reading history again.",
+    );
+    // No real index ever ran here, so there is no replay state to read the
+    // behind-HEAD line from either — the two degraded facts agree rather
+    // than the line above clashing with a stray "current through HEAD".
+    expect(text).not.toMatch(/current through HEAD|commit\(s\) have landed/);
   });
 });
 

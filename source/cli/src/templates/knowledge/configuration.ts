@@ -90,7 +90,13 @@ roots:                            # Optional — roots convention-mining engine 
                                   #   Every field's exact default lives in \`yg schemas read config\`,
                                   #   not duplicated here.
   history:
-    windowMonths: 24              #   Example: override one leaf, everything else stays default.
+    full: false                   #   Example: two LIVE leaves — windowMonths only takes effect
+    windowMonths: 6               #   once full is false (its default is true, so windowMonths
+                                  #   alone at any value is a no-op); together they narrow a run
+                                  #   to the last 6 months, at the cost of no signal for older code.
+  weights:
+    seedCapFraction: 0.25         #   A third leaf: caps how much of a role's weight one seed can
+                                  #   claim, down from the 0.5 default. Everything else stays default.
 \`\`\`
 
 ## Reviewer tiers

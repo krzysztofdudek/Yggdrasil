@@ -50,13 +50,15 @@ that has stood unchanged for a while counts fully, code introduced very
 recently counts less, and code rewritten again shortly after landing counts
 less still. Code committed by an AI agent counts less until it has stood on
 its own for a while — a human-authored change of the same age counts more
-from the start. Code the tool previously shaped itself is excluded from
-counting as evidence at all until a maintainer has touched it since. None of
-this changes what gets reported today — a pattern that shows up in the
-snapshot is still only reported, never enforced — but it changes how much
-each instance of it counted toward being reported. A repository with no git
-history, or only a shallow clone, still mines the same fields, honestly, with
-nothing claimed as backed by history it does not have.
+from the start. Code the tool previously shaped itself counts for much less
+as evidence — capped low, regardless of how long it has otherwise stood —
+until a maintainer's follow-up touch releases it; only then is it scored on
+the same terms as everything else. None of this changes what gets reported
+today — a pattern that shows up in the snapshot is still only reported,
+never enforced — but it changes how much each instance of it counted toward
+being reported. A repository with no git history, or only a shallow clone,
+still mines the same fields, honestly, with nothing claimed as backed by
+history it does not have.
 
 Reading that history is incremental, not a full re-walk every time: a first
 `index` reads the whole history and remembers where it left off; a later
@@ -85,7 +87,25 @@ Reports what the last `index` run found — or, honestly, that nothing has run
 yet. This command never fails your build: whether roots is off, configured
 but not yet indexed, or fully indexed, `status` prints what is true and exits
 cleanly either way. Use it to check whether an `index` run is due, or to see
-the shape of what got mined without opening the snapshot file yourself.
+the shape of what got mined without opening the snapshot file yourself. When
+the project has git history, `status` also reports how much history the
+index has read in total, how far behind the current code that reading now
+is, and whether a history window is currently narrowing what gets mined —
+and it says so honestly, never guessing a number it cannot back up.
+
+## What history changes
+
+Before history was part of mining, every instance of a pattern counted the
+same, however old or new the code behind it was. Now a pattern's evidence is
+what has *stood*: code that has sat in place and unchanged for a while backs
+a pattern fully, code that only just landed backs it much less, and it earns
+more weight the longer it survives untouched. A repository with no git
+history at all, or only a shallow CI clone, has nothing to measure standing
+against — nothing can be scored by how long it has stood, so everything the
+mine currently sees is weighted the same, flat, degraded amount, and what
+gets reported reflects only what the code looks like now, not what has
+proven itself over time. `yg roots status` (above) is how you find out which
+situation a given run is in.
 
 ## What gets stored
 
@@ -96,7 +116,7 @@ Everything roots reads or writes lives under `.yggdrasil/roots/`:
 | `model.json` | The committed snapshot `index` writes — what was mined, and when. |
 | `seeds.jsonl` | Maintainer-authored hints that nudge mining toward a preferred convention. `index` reads and folds these in; nothing writes this file for you yet. |
 | `decisions.jsonl` | A committed, append-only log reserved for a later increment (accepting or rejecting a mined pattern). `index` already reads and accounts for it today, so a file you commit there is already reflected in the snapshot's hash — nothing writes to it yet. |
-| `ledger.jsonl` | A committed, append-only log of code the tool previously shaped and is still waiting on a maintainer's follow-up touch before it counts as evidence again. `index` reads and honors it today; nothing writes to it yet — that arrives with the capability that first shapes code. |
+| `ledger.jsonl` | A committed, append-only log of code the tool previously shaped. While a mark stands, `index` caps that code's evidence low regardless of how long it has otherwise stood — never fully excluded, just discounted — until a maintainer's follow-up touch releases it. `index` reads and applies these caps today; nothing writes a new mark yet — that arrives with the capability that first shapes code. |
 | `.cache/` | Rebuildable working state `index` writes and reads on every run once the project has git history: a cache of parsed historical file content, so re-indexing never re-parses a file version it has already seen, plus the incremental record of how far the history has been read — which is what lets a later `index` pick up only the newer commits instead of re-reading from the start. Also holds the lock file `index` takes while it is writing, so two runs can never write the same cache at once. Gitignored, safe to delete at any time — the next run rebuilds whatever it needs from scratch and mines exactly the same snapshot either way. |
 | `.state/` | Reserved for rebuildable working state, gitignored. Nothing writes to it in this release. |
 

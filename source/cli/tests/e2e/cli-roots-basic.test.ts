@@ -295,6 +295,23 @@ describe.skipIf(!distExists)('CLI E2E — yg roots index / yg roots status', () 
       } else {
         expect(statusResult.stdout).toContain('Last indexed outside version control (no git history).');
       }
+
+      // T10 Step 1: the history block, read back from the committed model —
+      // the golden repo is a real git repository, so the history join
+      // succeeds and `historyStats` is present.
+      if (model.body.historyStats) {
+        expect(statusResult.stdout).toContain(
+          `History: read ${model.body.historyStats.commits} commit(s) of history; ${model.body.historyStats.parsed} historical file version(s) read from history.`,
+        );
+        // A repeat `status` immediately after `index` names no unwalked
+        // commits — the index is current through its own HEAD.
+        expect(statusResult.stdout).toContain('The index is current through HEAD.');
+      } else {
+        expect(statusResult.stdout).toContain('nothing can be scored by how long it has stood, so what is reported below is what the code looks like now');
+      }
+      // "parsed" is a distinct-cache-key count (D4), never described as a
+      // file count — the correctness point T10 Step 1 exists to protect.
+      expect(statusResult.stdout).not.toMatch(/files? parsed/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

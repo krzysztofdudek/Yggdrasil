@@ -369,7 +369,7 @@ separately.
 | `.yg-fill-divergence.log*` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run, including its `.1` rotation (see [Running in parallel](/concurrency)). |
 | `.feature-field.json` | The silent structural-deviation index behind the [structural-attention](/feature-field) hint. |
 | `*.tmp` | An atomic write's half-finished temp file, orphaned only by a hard kill (`yg check` sweeps stale ones on startup). |
-| `roots/.cache/` | Reserved for the roots engine's rebuildable blob cache — nothing writes it yet; the entry keeps a future cache ignored from day one. |
+| `roots/.cache/` | The roots engine's rebuildable working state: a content-addressed cache of parsed historical file content, the incremental record of how much history has been read, and the exclusive lock a mining run holds while writing. Written and read on every `yg roots index` run that actually mines — an already-current run writes nothing, not even to this cache. Safe to delete at any time. |
 | `roots/.state/` | Reserved for the roots engine's local working state — nothing writes it yet, and it will never be part of the mined model. |
 
 Every one of them is rebuildable, so a fresh clone missing all of them is a normal
@@ -562,14 +562,19 @@ opted in.
 # .yggdrasil/yg-config.yaml
 roots:
   history:
-    windowMonths: 24
+    full: false
+    windowMonths: 6
   weights:
-    seedDefaultWeight: 8
+    seedCapFraction: 0.25
 ```
 
 When the block is present, every key is filled with its documented default for
-whatever it omits — the example above sets two values and leaves the other
-eighteen sections (and every other key within `history` and `weights`) at their
+whatever it omits — the example above sets three values: `history.full: false`
+together with `windowMonths: 6` narrows a mining run to only the last six
+months of history, at the cost of no survival signal for code older than
+that; `weights.seedCapFraction` lowers, from 50% to 25%, how much of a role's
+total weight a single maintainer-authored seed can claim. It leaves the other eighteen
+sections (and every other key within `history` and `weights`) at their
 defaults. An unknown key is rejected **at any depth** of this block, the same
 strictness as `signals:`/`events:`/`progressive:`, because a typo here would
 otherwise leave the roots engine silently mining with a different setting than
@@ -582,7 +587,7 @@ other eighteen are mappings:
 | --- | --- |
 | `include` / `exclude` | Which files the engine walks. |
 | `partition` | Module/partition-root detection. |
-| `history` | How much git history is walked, and its safety caps. |
+| `history` | How much git history is walked, and its safety caps. By default `index` walks the whole history once and caches what it read, so a later run only reads the commits made since then. A window or a commit cap is an emergency setting — it changes what actually gets mined, and `yg roots status` reports when one is active. |
 | `enumerate` | Per-surface vocabulary support floors and top-K caps. |
 | `weights` | Survival/decay weighting of mined instances. |
 | `mdl` | Minimum-description-length acceptance thresholds. |

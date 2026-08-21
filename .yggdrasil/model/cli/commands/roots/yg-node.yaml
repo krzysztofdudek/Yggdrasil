@@ -9,7 +9,14 @@ description: "The two roots convention-mining commands R1-R4 ships: `yg roots
   store to mine and persist the committed model — incrementally by default,
   or a full re-walk under `--full` — and releases the lock) and `yg roots
   status` (reads the committed model and reports field/fact counts and
-  dormancy honestly; always exits 0 — a read surface, never a CI gate)."
+  dormancy honestly, plus a history report whose three parts are read
+  independently of one another: how much history the index has read in
+  total when the last join succeeded, or an honest cause statement when it
+  did not — no git history, a shallow clone, or another degraded cause;
+  how far behind HEAD that reading now is, read live from on-disk state
+  and shown or omitted on its own; and whether a history window is
+  currently active, read live from configuration regardless of the join
+  outcome. Always exits 0 — a read surface, never a CI gate)."
 aspects: []
 relations:
   - target: cli/roots/engine
