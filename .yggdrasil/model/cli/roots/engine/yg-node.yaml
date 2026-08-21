@@ -141,7 +141,34 @@ description: "Roots mining engine — pure, deterministic convention-mining
   relPath is a directory (finalizeUnits' own synthesis), so it can never
   resolve a lifecycle row through either of rowFor's two keyed lookups — a
   real, spec-consistent consequence rather than a bug: no module-level fact
-  can be hook-eligible in R4."
+  can be hook-eligible in R4. R4 Task 9 adds history-resume.ts — split out of
+  history.ts purely to stay under the per-file LLM-review prompt ceiling, not
+  a change of ownership: computeInputsHash folds a pure ingredient tuple
+  (the replay state's own schema version, extract.ts's EXTRACTOR_VERSION,
+  every REGISTERED grammar's own per-grammar binding hash, and the canonical
+  history:+include/exclude config subtree) into the hash that decides whether
+  a stored state still applies; decideWalkMode is the mechanical statement of
+  when a walk may resume (no usable state, an inputsHash mismatch, an
+  unreachable lastIndexedSha, active windowing, or an explicit full request
+  all force a full walk; nothing else does); and the state round-trip
+  (parseResumeState and its per-row helpers) deep-parses a loaded, generically
+  typed replay state back into the shapes history-replay.ts's
+  deserializeReplayState/history-cochange.ts's deserializeCochangeState need
+  to resume onto, falling the WHOLE state back to unusable on the first
+  malformed row anywhere rather than guessing at a partial resume.
+  buildHistoryJoin (history.ts) is the only production caller: it resolves
+  the walk mode once per run, seeds the replay/co-change accumulators and the
+  two blob/key rosters from a resumed state when the verdict allows it, walks
+  only the delta range, and always persists the new six-file state (as a set,
+  D15's write order) at the end of a successful walk, whether resumed or
+  full — the resume anchor written is always the current run's own HEAD, on
+  either path. pipeline.ts's own one authorized Task 9 edit lifts the
+  used-grammar-set + bindingSetHash fold out of runRootsIndex into a
+  standalone computeUsedGrammarSetHash(repoRoot, config): a DERIVED, cold-safe
+  re-pass over the parse-candidate set (never a read of the process-lifetime
+  binding cache runRootsIndex itself warms), which is what lets the command
+  layer compute the model header's bindingHash before mining ever runs, for
+  the no-op short-circuit's own input comparison."
 relations:
   - target: cli/io/stores
     type: calls
@@ -168,6 +195,7 @@ mapping:
   - source/cli/src/roots/mine-stages.ts
   - source/cli/src/roots/pipeline.ts
   - source/cli/src/roots/history.ts
+  - source/cli/src/roots/history-resume.ts
   - source/cli/src/roots/history-replay.ts
   - source/cli/src/roots/history-cochange.ts
   - source/cli/src/roots/weights.ts

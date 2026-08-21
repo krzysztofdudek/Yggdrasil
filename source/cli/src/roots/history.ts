@@ -75,6 +75,7 @@ import { getGrammarForExtension } from '../utils/language-registry.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { hashString } from '../io/hash.js';
 import { readBlobRecord, writeBlobRecord } from '../io/roots-blob-cache.js';
+import { writeHistoryState, type HistoryStateMeta } from '../io/roots-history-store.js';
 import type { RootsConfig, LedgerEntry } from '../model/graph.js';
 import { assetNameOfWasmFile, bindingForAsset, type RootsBinding } from './binding.js';
 import { extractUnits, EXTRACTOR_VERSION, dirnameOf, type RawScope, type ExtractOptions } from './extract.js';
@@ -94,13 +95,52 @@ import {
   createReplayState,
   replayCommit,
   finishReplay,
+  serializeReplayState,
+  deserializeReplayState,
   type LifecycleRow,
   type ValueEvent,
   type BlobRecordLookup,
   type ReplayThresholds,
 } from './history-replay.js';
-import { createCochangeState, accumulateCochange, finishCochange, type CochangePair, type CochangeThresholds } from './history-cochange.js';
+import {
+  createCochangeState,
+  accumulateCochange,
+  finishCochange,
+  serializeCochangeState,
+  deserializeCochangeState,
+  type CochangePair,
+  type CochangeThresholds,
+} from './history-cochange.js';
 import { baseWeightOfRow, stableDaysOf } from './weights.js';
+import {
+  HISTORY_STATE_SCHEMA_VERSION,
+  resolveWalkMode,
+  parseResumeState,
+  deriveStateEpoch,
+} from './history-resume.js';
+
+// Re-exported so `roots/history.js` stays the ONE public entry point for
+// resume-adjacent behavior — `cli/roots.ts`'s D13 short-circuit and this
+// module's own tests import these from here, never from `history-resume.js`
+// directly, even though the implementation lives there (split purely for the
+// prompt-size ceiling, see that file's own header).
+export {
+  HISTORY_STATE_SCHEMA_VERSION,
+  computeInputsHash,
+  computeCurrentInputsHash,
+  allRegisteredGrammarBindingHashes,
+  historyConfigSubtree,
+  decideWalkMode,
+  isWindowingActive,
+  resolveWalkMode,
+  parseResumeState,
+  deriveStateEpoch,
+  type WalkMode,
+  type InputsHashIngredients,
+  type DecideWalkModeInputs,
+  type ResolvedWalkMode,
+  type ParsedResumeState,
+} from './history-resume.js';
 
 // -----------------------------------------------------------------------------
 // Types (Interfaces produced)
@@ -595,6 +635,9 @@ const BLOB_FETCH_CHUNK_SHAS = 400;
  */
 const AGENT_SHARE_WINDOW_DAYS = 120;
 
+/** D12's periodic-update cadence for the >60s fetch progress line: an `onProgress` call every N misses processed, never on every single one (§20.1's per-blob budget — a callback per blob is the wrong order of overhead for a walk sized in the thousands). */
+const PROGRESS_UPDATE_EVERY_BLOBS = 500;
+
 /**
  * Resolve every distinct admitted reference to its `BlobRecord`: probe the
  * on-disk shard for each key first (a genuine cache hit costs one read and
@@ -605,7 +648,12 @@ const AGENT_SHARE_WINDOW_DAYS = 120;
  * identical for the same (sha, path), R4-I3). `onParsed` is the same run
  * diagnostic `makeBlobRecordReader` exposes — fired once per genuine miss
  * that reaches extraction, never the source of D4's `parsed`/`mb` rosters
- * (those are read off `resolved` itself by the caller, per key).
+ * (those are read off `resolved` itself by the caller, per key). `onProgress`
+ * is D12's own >60s/every-500 transport: one call up front carrying
+ * `totalUncachedBlobs` (the count the command projects an ETA from, BEFORE
+ * any fetching starts), then one call every `PROGRESS_UPDATE_EVERY_BLOBS`
+ * misses processed, plus a final call so the command always learns the true
+ * end count even when it does not land on a multiple of 500.
  */
 async function resolveAdmittedRefs(
   cacheDir: string,
@@ -613,6 +661,7 @@ async function resolveAdmittedRefs(
   refs: ReadonlyMap<string, AdmittedRef>,
   reader: BlobReader,
   onParsed?: () => void,
+  onProgress?: (info: HistoryProgressInfo) => void,
 ): Promise<Map<string, BlobRecord>> {
   const resolved = new Map<string, BlobRecord>();
   const misses: AdmittedRef[] = [];
@@ -630,6 +679,9 @@ async function resolveAdmittedRefs(
     }
   }
 
+  onProgress?.({ phase: 'fetching', blobsParsed: 0, totalUncachedBlobs: misses.length });
+
+  let processed = 0;
   for (let i = 0; i < misses.length; i += BLOB_FETCH_CHUNK_SHAS) {
     const chunk = misses.slice(i, i + BLOB_FETCH_CHUNK_SHAS);
     const bySha = new Map<string, Buffer>();
@@ -640,6 +692,10 @@ async function resolveAdmittedRefs(
       const content = bySha.get(ref.sha) ?? Buffer.alloc(0);
       const fresh = await extractAdmitted(ref.path, content, config, ref.binding);
       onParsed?.();
+      processed++;
+      if (processed % PROGRESS_UPDATE_EVERY_BLOBS === 0) {
+        onProgress?.({ phase: 'fetching', blobsParsed: processed, totalUncachedBlobs: misses.length });
+      }
       if (fresh.skipped) {
         await writeBlobRecord(cacheDir, ref.key, fresh);
         resolved.set(ref.key, fresh);
@@ -648,6 +704,9 @@ async function resolveAdmittedRefs(
         resolved.set(ref.key, fresh);
       }
     }
+  }
+  if (misses.length > 0 && processed % PROGRESS_UPDATE_EVERY_BLOBS !== 0) {
+    onProgress?.({ phase: 'fetching', blobsParsed: processed, totalUncachedBlobs: misses.length });
   }
 
   return resolved;
@@ -690,27 +749,30 @@ function computeAgentShare(lifecycle: readonly LifecycleRow[], clockTs: number, 
   return denominator > 0 ? numerator / denominator : 0;
 }
 
-/** Every input `buildHistoryJoin` needs beyond `repoRoot`/`config`, injected by the command layer (`cli/roots.ts`) so the roots engine never reads a store directly (Task 1's seam). `stateDir` is declared and unused by Task 8's own wiring — T9's own resume/incremental wiring is the first to read or write it; it rides here now so T9 widens behavior, not a public shape, mid-increment. */
+
+/** Every input `buildHistoryJoin` needs beyond `repoRoot`/`config`, injected by the command layer (`cli/roots.ts`) so the roots engine never reads a store directly (Task 1's seam). `full` mirrors `--full` (D2): forces a full walk and discards any state on disk, the determinism reference. */
 export interface HistoryDeps {
   cacheDir: string;
   stateDir: string;
   ledger: readonly LedgerEntry[];
   dirtyPaths: ReadonlySet<string>;
+  full?: boolean;
 }
 
 /**
  * Structured progress data only (D12) — counts and a phase tag, never
  * preformatted text: the engine stays `no-direct-console`, and the COMMAND
- * owns every rendered word. Nothing meaningful fires on this yet (T9's own
- * ETA/ "commits walked so far" reporting is what gives these numbers a
- * reason to reach a user) — `buildHistoryJoin` calls it at coarse phase
- * boundaries only, forwarded now so `runRootsIndex`'s own forwarding has
- * something real to plumb through.
+ * owns every rendered word. `totalUncachedBlobs` rides on the FIRST
+ * `'fetching'`-phase call of a run (and on every subsequent one, for a
+ * stateless reader) — the command needs it once, to decide whether the
+ * projected fetch time clears D12's 60s threshold, before the periodic
+ * `blobsParsed` updates that follow mean anything.
  */
 export interface HistoryProgressInfo {
   phase: 'walking' | 'fetching' | 'replaying';
   commitsWalked?: number;
   blobsParsed?: number;
+  totalUncachedBlobs?: number;
 }
 
 /**
@@ -743,10 +805,21 @@ export interface HistoryJoin {
   clockIso: string | null;
 }
 
-/** `history.*`'s walk-shaping fields, mapped to T2's `WalkOptions` — D3: windowing (`history.full: false`, or `maxCommits > 0` even under a full walk) makes the walked set a function of when the run happens; `sinceMonths` is meaningful only under `history.full === false` (T2's own field doc). `buildHistoryJoin` never resumes (`sinceSha` is T9's), so every call here is a fresh full (or windowed) walk from the root. */
-function buildWalkOptions(config: RootsConfig): WalkOptions {
+/**
+ * `history.*`'s walk-shaping fields, mapped to T2's `WalkOptions` — D3:
+ * windowing (`history.full: false`, or `maxCommits > 0` even under a full
+ * walk) makes the walked set a function of when the run happens;
+ * `sinceMonths` is meaningful only under `history.full === false` (T2's own
+ * field doc). `sinceSha`, when supplied, is D2's own resume anchor — the
+ * caller (`buildHistoryJoin`) only ever passes one when `decideWalkMode` has
+ * already returned `'resume'`, which `isWindowingActive` (above) has already
+ * ruled out, so a `sinceSha` and a windowing field are never both set on the
+ * same call (D3: windowing always forces `'full'`).
+ */
+function buildWalkOptions(config: RootsConfig, sinceSha?: string): WalkOptions {
   return {
     agentIdentities: config.history.agentIdentities,
+    ...(sinceSha ? { sinceSha } : {}),
     ...(config.history.maxCommits > 0 ? { maxCommits: config.history.maxCommits } : {}),
     ...(config.history.full ? {} : { sinceMonths: config.history.windowMonths }),
   };
@@ -768,25 +841,50 @@ export async function buildHistoryJoin(
     return undefined;
   }
 
+  // D2's own walk decision, resolved against whatever replay state already
+  // sits on disk. `resumeState` is `undefined` on a full walk (mode ===
+  // 'full') AND on a resume verdict whose loaded rows failed the deep parse
+  // (`parseResumeState`'s own belt-and-suspenders — R4-I10: degrade to a
+  // full walk, never guess at a partial one) — `isResuming` is the single
+  // flag every branch below reads instead of re-deriving that distinction.
+  const { mode, state: rawState, inputsHash } = await resolveWalkMode(repoRoot, config, deps.stateDir, deps.full ?? false);
+  const resumeState = mode === 'resume' && rawState ? parseResumeState(rawState) : undefined;
+  const isResuming = resumeState !== undefined;
+
   const filters = makeRootsFileFilters(config);
   const replayThresholds: ReplayThresholds = {
     churnEarlyDays: config.history.churnEarlyDays,
     lifecycleFileMaxKb: config.history.lifecycleFileMaxKb,
     lifecycleMaxAppearances: config.history.lifecycleMaxAppearances,
   };
-  const replayState = createReplayState(replayThresholds, (p) => carriesLifecycleRows(p, config));
+  const carriesRows = (p: string): boolean => carriesLifecycleRows(p, config);
+  const replayState = isResuming
+    ? deserializeReplayState(resumeState.replaySnapshot, replayThresholds, carriesRows)
+    : createReplayState(replayThresholds, carriesRows);
   const cochangeThresholds: CochangeThresholds = { megaCommitFileCap: config.history.megaCommitFileCap };
-  const cochangeState = createCochangeState(cochangeThresholds);
+  const cochangeState = isResuming ? deserializeCochangeState(resumeState.cochangeSnapshot, cochangeThresholds) : createCochangeState(cochangeThresholds);
 
-  const blobShas = new Set<string>();
+  // The two rosters D4 needs are UNIONS across runs (D4's own definition —
+  // "properties of the history", never of what this run did): seeded from
+  // the loaded state's own rosters on a resume, empty on a full walk (D2's
+  // discard rule — a full verdict starts every accumulator, roster included,
+  // from empty). `baseCommitsAccumulated` is the ONE quantity neither roster
+  // derives (no file records which commit shas were ever walked), so it is
+  // its own persisted running total (`meta.json`'s `commitsAccumulated`).
+  const blobShas = new Set<string>(isResuming ? resumeState.rosters.blobShas : []);
+  const priorParsedKeys = isResuming ? resumeState.rosters.parsedKeys : new Map<string, number>();
+  const baseCommitsAccumulated = isResuming ? resumeState.rosters.commitsAccumulated : 0;
+
   const refsByKey = new Map<string, AdmittedRef>();
   const walkedCommits: HistoryCommitRecord[] = [];
   let commitsWalked = 0;
 
+  const walkOptions = buildWalkOptions(config, isResuming ? resumeState.lastIndexedSha : undefined);
+
   const reader = openBlobReader(repoRoot);
   try {
     try {
-      await walkHistory(repoRoot, buildWalkOptions(config), (commit) => {
+      await walkHistory(repoRoot, walkOptions, (commit) => {
         commitsWalked++;
         // D17 gate 1, applied HERE, ONCE — on the record's post-image path
         // (`newPath ?? path`), before the replay, the co-change accumulator
@@ -803,7 +901,9 @@ export async function buildHistoryJoin(
           for (const [sha, historicalPath] of candidates) {
             if (sha === null) continue;
             // D4: every RESOLVED sha of a gate-1-surviving A/M/R/C record,
-            // whether or not that record's path is one R4 extracts.
+            // whether or not that record's path is one R4 extracts. Adding to
+            // the (possibly-seeded) `blobShas` set is what makes this a UNION
+            // across a resume rather than a fresh roster.
             blobShas.add(sha);
             const gate2 = resolveGate2(historicalPath, config);
             if (!gate2.admitted) continue; // never keyed, never probed, never fetched, never cached (D11, D17, D4)
@@ -823,9 +923,16 @@ export async function buildHistoryJoin(
     onProgress?.({ phase: 'walking', commitsWalked });
 
     let blobsParsedThisRun = 0;
-    const resolvedThisRun = await resolveAdmittedRefs(deps.cacheDir, config, refsByKey, reader, () => {
-      blobsParsedThisRun++;
-    });
+    const resolvedThisRun = await resolveAdmittedRefs(
+      deps.cacheDir,
+      config,
+      refsByKey,
+      reader,
+      () => {
+        blobsParsedThisRun++;
+      },
+      onProgress,
+    );
     onProgress?.({ phase: 'fetching', blobsParsed: blobsParsedThisRun });
 
     const lookup: BlobRecordLookup = {
@@ -840,7 +947,11 @@ export async function buildHistoryJoin(
     // Order within the collected commit set is irrelevant by construction
     // (D16): both `replayCommit` and `accumulateCochange` are set functions
     // over per-record/per-commit values, with nothing carried between calls
-    // that depends on the order those calls arrive in.
+    // that depends on the order those calls arrive in. On a resume,
+    // `replayState`/`cochangeState` are already seeded with the loaded
+    // state's own rows, so folding only THIS run's newly-walked commits into
+    // them is exactly the union D16/R4-I2 require — never a second pass over
+    // commits the previous run already applied.
     for (const commit of walkedCommits) {
       replayCommit(replayState, commit, lookup);
       accumulateCochange(cochangeState, commit);
@@ -852,15 +963,24 @@ export async function buildHistoryJoin(
     const resolvePath = (p: string): string => aliasLookup.get(p) ?? p;
     const { pairs: cochange, couplingByFile, couplingByModule } = finishCochange(cochangeState, config, resolvePath);
 
-    const parsedKeys = new Map<string, number>();
+    // The "parsed" roster is likewise a UNION: every key this run resolved
+    // (hit or fresh miss) folded onto whatever the loaded state already
+    // counted. D4: "parsed" = distinct non-skipped cache keys, over the
+    // union — never reset to what this one run happened to touch.
+    const parsedKeys = new Map<string, number>(priorParsedKeys);
     for (const [key, record] of resolvedThisRun) {
       if (!record.skipped) parsedKeys.set(key, record.bytes); // D4: "parsed" is a cache-KEY roster, and only over NON-skipped records
     }
     let totalBytes = 0;
     for (const bytes of parsedKeys.values()) totalBytes += bytes;
 
+    // D4: `commits` is a property of the WHOLE history, cache/resume
+    // independent — the running total, never this run's own delta (which is
+    // what `commitsWalked`, above, stays for the stderr run summary,
+    // Step 4).
+    const commitsAccumulated = baseCommitsAccumulated + commitsWalked;
     const historyStats = {
-      commits: commitsWalked,
+      commits: commitsAccumulated,
       events: events_n,
       blobs: blobShas.size,
       parsed: parsedKeys.size,
@@ -868,6 +988,38 @@ export async function buildHistoryJoin(
     };
 
     const agentShare = computeAgentShare(lifecycle, head.committerTs, config);
+
+    // Persist the new state as one set (D15): the five accumulators first,
+    // `meta.json` last — `writeHistoryState`'s own documented write order —
+    // carrying HEAD's own sha as `lastIndexedSha`. A resumed walk that
+    // produced a state whose `lastIndexedSha` were anything but HEAD would be
+    // a bug, not a fallback: both a full walk and a resume walk the range
+    // through to HEAD by construction (a resume walks `sinceSha..HEAD`), so
+    // `head.sha` is the only value ever written here, on either path.
+    const stateEpoch = deriveStateEpoch(HISTORY_STATE_SCHEMA_VERSION, inputsHash, head.sha);
+    const { lifecycle: rawLifecycle, events: rawEvents, aliases: rawAliases } = serializeReplayState(replayState);
+    const { pairs: rawPairs, fileCommits: rawFileCommits } = serializeCochangeState(cochangeState);
+    const meta: HistoryStateMeta = {
+      stateSchemaVersion: HISTORY_STATE_SCHEMA_VERSION,
+      stateEpoch,
+      inputsHash,
+      lastIndexedSha: head.sha,
+      blobShas: [...blobShas].sort(),
+      parsedKeys: [...parsedKeys.entries()].sort(([a], [b]) => (a < b ? -1 : 1)),
+      commitsAccumulated,
+    };
+    await writeHistoryState(deps.stateDir, {
+      meta,
+      lifecycle: rawLifecycle,
+      events: rawEvents,
+      aliases: rawAliases,
+      cochangeRaw: [...rawPairs, ...rawFileCommits],
+      // The finished CUT, not a raw accumulator (D1's own sort-order comment
+      // on `cochange.jsonl`) — informational only; a resume reconstructs the
+      // finished cut fresh from `cochange-raw.jsonl` via `finishCochange`
+      // every time, never reads this field back.
+      cochange,
+    });
 
     return {
       lifecycle,

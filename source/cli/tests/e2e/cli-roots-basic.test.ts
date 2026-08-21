@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync, readFileSync, rmSync, statSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildGoldenRepo } from '../support/roots-golden.js';
@@ -35,6 +35,22 @@ function buildProject(): string {
   return buildGoldenRepo(buildTypeScriptGoldenSpec());
 }
 
+/**
+ * Every path under `root`, each paired with its own mtime and size — a
+ * recursive directory snapshot that catches a write a plain model-bytes
+ * comparison cannot: a file created and then deleted again (e.g. a lock file
+ * acquired and released) leaves the model itself untouched but still bumps
+ * its containing directory's own mtime, which shows up here as a changed
+ * entry for that directory path even though no FILE's bytes moved.
+ */
+function snapshotTree(root: string): string[] {
+  return readdirSync(root, { recursive: true, withFileTypes: true }).map((entry) => {
+    const p = path.join(entry.parentPath, entry.name);
+    const s = statSync(p);
+    return `${path.relative(root, p)} ${s.mtimeMs} ${s.size}`;
+  }).sort();
+}
+
 /** Writes a minimal `.yggdrasil/yg-config.yaml` — the schema `version:` key only, plus an empty `roots: {}` block when `withRootsBlock` is true. Nothing else: no model/, no aspects, no architecture. */
 function writeMinimalConfig(dir: string, withRootsBlock: boolean): void {
   mkdirSync(path.join(dir, '.yggdrasil'), { recursive: true });
@@ -61,7 +77,11 @@ describe.skipIf(!distExists)('CLI E2E — yg roots index / yg roots status', () 
       expect(model.header.bindingHash.length).toBeGreaterThan(0);
       expect(typeof model.header.candidateCountLog2).toBe('number');
       expect(model.header.rolesStale).toBe(false);
-      expect(model.header.lastIndexedSha).toBeNull();
+      // The TypeScript golden is a real git repository, so the history walk
+      // engages and `lastIndexedSha` names the commit the history is indexed
+      // THROUGH — HEAD's own sha (R4 Task 9, acceptance 5), never null the
+      // way an R1-R3 build (no resume state at all) always reported it.
+      expect(model.header.lastIndexedSha).toBe(model.header.headSha);
       expect(Array.isArray(model.body.partitions)).toBe(true);
 
       // Independently-anchored proof the header's two engine-produced fields
@@ -101,7 +121,13 @@ describe.skipIf(!distExists)('CLI E2E — yg roots index / yg roots status', () 
     }
   });
 
-  it('running index a SECOND time yields a byte-identical model.json — header included (cross-process determinism)', () => {
+  it('running index a SECOND time on an unchanged tree is the D13 no-op short-circuit — bytes AND mtime unchanged, "already current" on stderr, zero writes (acceptance 2)', () => {
+    // NOT a resume: all four of D13's conditions hold on an unchanged tree,
+    // so the second run never reaches `decideWalkMode`'s resume path at all —
+    // it short-circuits before any write, cache or state included. Nothing
+    // about a genuine resume can be observed from this case (see
+    // `cli-roots-incremental.test.ts` case (b) for the only real
+    // resume-vs-full byte comparison in the suite).
     const dir = buildProject();
     try {
       writeMinimalConfig(dir, true);
@@ -109,12 +135,29 @@ describe.skipIf(!distExists)('CLI E2E — yg roots index / yg roots status', () 
       expect(first.status).toBe(0);
       const modelPath = path.join(dir, '.yggdrasil', 'roots', 'model.json');
       const firstBytes = readFileSync(modelPath);
+      const firstMtimeMs = statSync(modelPath).mtimeMs;
+      const rootsDir = path.join(dir, '.yggdrasil', 'roots');
+      const beforeTree = snapshotTree(rootsDir);
 
       const second = run(['roots', 'index'], dir);
       expect(second.status).toBe(0);
+      expect(second.stderr.toLowerCase()).toContain('already current');
       const secondBytes = readFileSync(modelPath);
+      const secondMtimeMs = statSync(modelPath).mtimeMs;
 
       expect(secondBytes.equals(firstBytes)).toBe(true);
+      expect(secondMtimeMs).toBe(firstMtimeMs);
+      // Acceptance 2's own third clause — "no state or cache file is
+      // rewritten" — is a claim about the WHOLE `.yggdrasil/roots/` tree, not
+      // just model.json: a run that created and then deleted
+      // `.cache/.build.lock` (D13's own before-the-lock ordering requirement)
+      // would leave model.json byte-identical while still writing to the
+      // cache directory. The recursive path+mtime+size snapshot below is the
+      // one comparison that would catch that — a directory whose CONTENTS
+      // churned still shows a changed mtime for its own entry, even when
+      // every file's bytes end up unchanged again.
+      expect(snapshotTree(rootsDir)).toEqual(beforeTree);
+      expect(existsSync(path.join(rootsDir, '.cache', '.build.lock'))).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

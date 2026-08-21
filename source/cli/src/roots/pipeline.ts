@@ -17,7 +17,7 @@ import { getGrammarForExtension } from '../utils/language-registry.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { readTextFile } from '../io/graph-fs.js';
 import type { RootsConfig, SeedEntry } from '../model/graph.js';
-import { assetNameOfWasmFile, bindingForAsset, cachedBindingHashFor, type RootsBinding } from './binding.js';
+import { assetNameOfWasmFile, bindingForAsset, type RootsBinding } from './binding.js';
 import { extractUnits, finalizeUnits, type RawScope, type ScopeUnit, type ExtractOptions } from './extract.js';
 import { derivePartitions, makeRootsFileFilters, type PartitionMap } from './partitions.js';
 import { buildVocabularies, enumerate, type FeatureBag, type DomainMap, type RootsVocabularies } from './enumerate.js';
@@ -119,6 +119,68 @@ export async function parseAndExtractAll(repoRoot: string, config: RootsConfig):
   }
 
   return { files, rawScopes };
+}
+
+/**
+ * The all-grammar fold (spec `:137`/`:237`): sha256 over the sorted
+ * `assetName -> per-grammar bindingHash` map of every grammar this build's
+ * PARSE-CANDIDATE set actually names — the model header's `bindingHash`
+ * field (R4 Task 9). Lifted out of `runRootsIndex` (below) into its own
+ * standalone function, over `(repoRoot, config)` alone, so `cli/roots.ts`'s
+ * D13 no-op short-circuit can compute this SAME value BEFORE mining ever
+ * runs — `bindingHash` used to be `runRootsIndex`'s own *output*
+ * (`result.bindingSetHash`), with no cheap pre-pass that produced it, which
+ * made a pre-mining input comparison unimplementable.
+ *
+ * THIS IS A RE-SPECIFICATION, NOT A COPY OF THE LANDED FOLD, and the
+ * difference is the whole point. As landed inline, the fold walked the parse
+ * set and then *looked each asset up in `binding.ts`'s module-level cache*
+ * (`cachedBindingHashFor`), which only `bindingForAsset` fills and which
+ * `parseAndExtractAll` fills earlier in the SAME call, only for assets that
+ * got past its `blobMaxBytes` and `MAX_PARSE_LINES` gates. Lifted verbatim
+ * and called COLD — which is exactly how the short-circuit calls it — every
+ * lookup would miss, the map would be empty, the fold would hash `"{}"`, and
+ * D13's condition 1 could never hold. So this function owns its OWN pass —
+ * `walkRepoFiles` → `forMarkers` → `forParsing` → `getGrammarForExtension` →
+ * `assetNameOfWasmFile` — and DERIVES each used asset's binding through the
+ * shared `bindingForAsset` (which itself warms `binding.ts`'s cache, so a
+ * later reader of that cache in the SAME process still sees these entries —
+ * this function is cache-*warming*, never cache-*reading*), so it returns
+ * the SAME hash on a cold process and a warm one.
+ *
+ * NAME THE ONE BEHAVIORAL DIFFERENCE RATHER THAN CLAIMING THERE IS NONE. The
+ * used-asset set here is the *parse-candidate* set (every asset with >= 1
+ * file passing `forParsing`) instead of the *actually-parsed* set (every
+ * asset with >= 1 file that survived `parseAndExtractAll`'s oversize/
+ * max-lines gates, which need a file's own bytes in hand and are
+ * deliberately NOT re-applied here — this function never reads a file's
+ * content, only its path). The two differ only for a repository in which
+ * EVERY candidate file of some grammar is over `blobMaxBytes` or over
+ * `MAX_PARSE_LINES` — in which case that grammar's hash now enters the fold
+ * where it previously did not, and the header's `bindingHash` changes. That
+ * is a deliberate, stated change, and it is the RIGHT direction: the header
+ * describes which grammars this repository's source WOULD BE READ WITH, not
+ * which ones happened to survive a size gate. Report it; "unchanged
+ * byte-for-byte" would be false.
+ *
+ * `runRootsIndex` (below) calls this SAME function instead of running the
+ * loop inline, so there is exactly one definition — the lift replaced that
+ * inline loop and touched nothing else in this file.
+ */
+export async function computeUsedGrammarSetHash(repoRoot: string, config: RootsConfig): Promise<string> {
+  const allFiles = await walkRepoFiles(repoRoot);
+  const filters = makeRootsFileFilters(config);
+  const usedAssetHashes: Record<string, string> = {};
+  for (const relPath of allFiles) {
+    if (!filters.forMarkers(relPath)) continue;
+    if (!filters.forParsing(relPath)) continue;
+    const grammarInfo = getGrammarForExtension(path.extname(relPath));
+    if (!grammarInfo) continue;
+    const assetName = assetNameOfWasmFile(grammarInfo.wasmFile);
+    if (assetName in usedAssetHashes) continue;
+    usedAssetHashes[assetName] = bindingForAsset(assetName).hash;
+  }
+  return hashString(JSON.stringify(usedAssetHashes, Object.keys(usedAssetHashes).sort()));
 }
 
 export interface RootsIndexResult {
@@ -299,28 +361,10 @@ export async function runRootsIndex(
     }
   }
 
-  // The all-grammar fold (spec `:137`/`:237`): sha256 over the sorted
-  // `assetName -> per-grammar bindingHash` map of every grammar actually used
-  // BY THIS BUILD — NOT `binding.ts`'s cache's full contents, which is a
-  // process-lifetime cache (as of R4, shared with `history.ts`) and can carry
-  // entries from an earlier call for a different repo (a different grammar
-  // mix) within the same process. Reruns
-  // the same PARSE-set filter `parseAndExtractAll` used (files ∧ forParsing ∧
-  // registered grammar) to recover exactly this run's own used-asset set,
-  // deliberately duplicating that small O(files) filter pass rather than
-  // widening `parseAndExtractAll`'s own dictated `{files, rawScopes}` return
-  // shape to smuggle it out.
-  const usedAssetHashes: Record<string, string> = {};
-  const reFilters = makeRootsFileFilters(config);
-  for (const relPath of files) {
-    if (!reFilters.forParsing(relPath)) continue;
-    const grammarInfo = getGrammarForExtension(path.extname(relPath));
-    if (!grammarInfo) continue;
-    const assetName = assetNameOfWasmFile(grammarInfo.wasmFile);
-    const cachedHash = cachedBindingHashFor(assetName);
-    if (cachedHash) usedAssetHashes[assetName] = cachedHash;
-  }
-  const bindingSetHash = hashString(JSON.stringify(usedAssetHashes, Object.keys(usedAssetHashes).sort()));
+  // The all-grammar fold, lifted to `computeUsedGrammarSetHash` (above) so
+  // `cli/roots.ts`'s D13 short-circuit can compute the identical value cold,
+  // before mining. One definition, called from both places.
+  const bindingSetHash = await computeUsedGrammarSetHash(repoRoot, config);
 
   return { body, bindingSetHash, candidateCountLog2 };
 }

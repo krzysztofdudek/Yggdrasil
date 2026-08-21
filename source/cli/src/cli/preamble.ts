@@ -151,3 +151,18 @@ export async function abortUnlessYggdrasilExists(
     process.exit(1);
   }
 }
+
+/**
+ * The read-only sibling of `abortUnlessYggdrasilExists`: the ONE shared
+ * "not part of a Yggdrasil project" REPORT string, for a command whose
+ * missing-project case is an honest exit-0 answer rather than a refusal
+ * (`yg roots status` reports state and never gates anything, so finding no
+ * project is a reportable state, not an error). Owned here, beside the
+ * canonical abort helper, for the same `cli-command-contract` reason: no
+ * command body inlines its own missing-project wording or ENOENT-shaped
+ * branch text — this module is the single home for both flavors, refusal
+ * and report.
+ */
+export function missingProjectReport(subject: string, next: string): string {
+  return `${subject}: this directory is not part of a Yggdrasil project, so there is nothing to report.\n${next}\n`;
+}

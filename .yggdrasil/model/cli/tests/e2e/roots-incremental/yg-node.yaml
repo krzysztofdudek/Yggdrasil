@@ -1,0 +1,35 @@
+name: E2E Tests — Roots Incremental Index Determinism
+type: test-suite
+description: "Subprocess E2E for `yg roots index`'s resume/incremental
+  behavior (R4 Task 9): the eight-case determinism suite over a genuine
+  25-commit history golden — double --full byte identity; a real
+  incremental-vs-full resume across three prescribed commits (a
+  decorator-only change resolving a pre-image blob from cache, a co-change
+  re-touch plus a same-commit rename, and a merge of a side branch dated
+  before the last index), model AND replay state bytes compared; cache-state
+  independence after deleting .cache/; an unreachable stored lastIndexedSha;
+  a corrupted inputsHash; three shapes of hostile replay state (a torn JSONL
+  line, an earlier epoch beside current accumulators, one of the six files
+  missing outright — the epoch case advances history with a real mined-scope
+  commit, not a no-op one, so a wrongly-accepted torn epoch would move the
+  model); a merge-HEAD repository resuming an empty range after a dirtied
+  file; and the two degraded-walk controls (no .git, a shallow clone) that
+  leave lastIndexedSha null with no state directory at all — plus the
+  --full-vs-plain-index acceptance, the build lock's held-by-a-pid-that-
+  never-releases refusal naming the holder, and a case proving the D13
+  no-op short-circuit's resume-range anchor is meta.json's OWN
+  lastIndexedSha (never the stored model header's, which is an output that
+  cannot itself prove the replay state is safely resumable). Every
+  full-walk-fallback case asserts the stderr commits-walked figure, not
+  model bytes alone — a short-circuited run that wrote nothing would
+  otherwise satisfy a bytes-only comparison trivially; the resume
+  comparison instead proves its walk mode through byte-identical model and
+  state against a fresh full walk."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-roots-incremental.test.ts

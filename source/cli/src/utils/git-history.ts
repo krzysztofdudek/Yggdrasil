@@ -197,6 +197,36 @@ export function isCommitReachable(repoRoot: string, sha: string): boolean {
   }
 }
 
+/**
+ * `git rev-list --count <sinceSha>..HEAD` — how many commits (of ANY kind,
+ * merges included, unlike `walkHistory`'s own `--no-merges` walk) lie in the
+ * range. This is D13's own literal reading of "the resume range names no
+ * commit": a range that contains only a merge commit still answers non-zero
+ * here even though the replay's own `--no-merges` walk would see none of it,
+ * which is exactly why the no-op short-circuit checks this AND a separate
+ * `lastIndexedSha === readHead().sha` equality (`cli/roots.ts`) rather than
+ * either alone — the two are usually redundant but are deliberately two
+ * independent literal checks (`v6-spec.md:260`'s "zero writes" clause, D13).
+ * `-1` on any failure (an unreachable `sinceSha`, no repository, git
+ * unavailable) — never a thrown error and never zero, which would read as
+ * "nothing changed" for a genuinely unanswerable question; a caller treats
+ * any negative count as "cannot tell", never as "empty".
+ */
+export function countCommitsInRange(repoRoot: string, sinceSha: string): number {
+  try {
+    const out = execFileSync('git', ['rev-list', '--count', `${sinceSha}..HEAD`], {
+      cwd: repoRoot,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const n = Number.parseInt(out.trim(), 10);
+    return Number.isNaN(n) ? -1 : n;
+  } catch (e) {
+    debugWrite(`[git-history] countCommitsInRange(${sinceSha}) failed for ${repoRoot}: ${errMsg(e)}`);
+    return -1;
+  }
+}
+
 // -----------------------------------------------------------------------------
 // Errors
 // -----------------------------------------------------------------------------

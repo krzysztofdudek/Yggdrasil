@@ -3,9 +3,15 @@ type: test-suite
 description: "Unit tests for `yg roots index`/`yg roots status`: the command's
   registration shape, the comment-preserving blockless-config scaffold, the
   dirty-hash fold over the working tree (`.yggdrasil/roots/**` excluded), the
-  model-header assembly mapping, and every branch of `status`'s always-exit-0
-  report — no project, unreadable config, dormant, never indexed, a corrupted
-  or malformed-shape committed model, and a genuinely indexed one."
+  model-header assembly mapping, every branch of `status`'s always-exit-0
+  report (no project, unreadable config, dormant, never indexed, a corrupted
+  or malformed-shape committed model, and a genuinely indexed one), and the
+  D13 no-op short-circuit predicate (`isNoOpShortCircuit`'s four conditions,
+  each flipped in isolation) plus its live wrapper `evaluateNoOpShortCircuit`
+  — including a case that runs the production engine for real (`runRootsIndex`
+  + header assembly, the same sequence the command's own action performs) so
+  --full is proven to bypass a GENUINELY matching header, not merely an
+  unrelated fixture already failing an earlier condition."
 aspects: []
 relations:
   - target: cli/commands/roots
@@ -17,6 +23,8 @@ relations:
   - target: cli/io/parsers/config
     type: uses
   - target: cli/io/stores
+    type: uses
+  - target: cli/utils
     type: uses
   - target: cli/tests/support
     type: uses

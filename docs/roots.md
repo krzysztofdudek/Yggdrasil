@@ -39,15 +39,14 @@ set a non-default option before the first mine), see
 ### `yg roots index`
 
 Reads the repository and writes a committed snapshot of what it found to
-`.yggdrasil/roots/model.json`. Re-run it after the code has moved on — a
-fresh run supersedes the last one; nothing is inherited across runs. Every
+`.yggdrasil/roots/model.json`. Re-run it after the code has moved on — every
 run of `index` against the same code and configuration produces the exact
 same file, byte for byte, so the snapshot is reviewable in a diff the same
 way any other generated, committed file is.
 
-When the project is a git repository, `index` also reads its full commit
-history and uses it to decide how much each piece of mined evidence counts:
-code that has stood unchanged for a while counts fully, code introduced very
+When the project is a git repository, `index` also reads its commit history
+and uses it to decide how much each piece of mined evidence counts: code
+that has stood unchanged for a while counts fully, code introduced very
 recently counts less, and code rewritten again shortly after landing counts
 less still. Code committed by an AI agent counts less until it has stood on
 its own for a while — a human-authored change of the same age counts more
@@ -56,13 +55,29 @@ counting as evidence at all until a maintainer has touched it since. None of
 this changes what gets reported today — a pattern that shows up in the
 snapshot is still only reported, never enforced — but it changes how much
 each instance of it counted toward being reported. A repository with no git
-history (or only a shallow clone) still mines the same fields, honestly, with
+history, or only a shallow clone, still mines the same fields, honestly, with
 nothing claimed as backed by history it does not have.
 
-Exits with an error only for a genuine problem — the project has no
-`.yggdrasil/` directory at all, or the `roots:` block itself is misconfigured
-(an unknown key, a value of the wrong type). Mining a repository that turns
-up nothing worth reporting is not an error.
+Reading that history is incremental, not a full re-walk every time: a first
+`index` reads the whole history and remembers where it left off; a later
+`index` picks up only the commits made since then and never re-reads a
+historical file version it has already seen, so a repeat run over a large
+history is fast rather than starting over. When nothing in the repository or
+its configuration has changed since the last run, `index` says so — "already
+current" — and writes nothing at all, not even to its own working cache.
+Pass `--full` to force a complete re-walk of the whole history regardless of
+what is cached; it produces byte-for-byte the same snapshot an incremental
+run would, so it is safe to reach for whenever you want that from-scratch
+guarantee — including after resolving a merge conflict on the committed
+`model.json`.
+
+Exits with an error for a genuine problem — the project has no
+`.yggdrasil/` directory at all, the `roots:` block itself is misconfigured
+(an unknown key, a value of the wrong type), or another `index` run is
+already writing this project's mined state: `index` waits briefly for that
+other run to finish and only then refuses, naming the process still holding
+it, rather than risking two writers corrupting the same cache together.
+Mining a repository that turns up nothing worth reporting is not an error.
 
 ### `yg roots status`
 
@@ -82,7 +97,7 @@ Everything roots reads or writes lives under `.yggdrasil/roots/`:
 | `seeds.jsonl` | Maintainer-authored hints that nudge mining toward a preferred convention. `index` reads and folds these in; nothing writes this file for you yet. |
 | `decisions.jsonl` | A committed, append-only log reserved for a later increment (accepting or rejecting a mined pattern). `index` already reads and accounts for it today, so a file you commit there is already reflected in the snapshot's hash — nothing writes to it yet. |
 | `ledger.jsonl` | A committed, append-only log of code the tool previously shaped and is still waiting on a maintainer's follow-up touch before it counts as evidence again. `index` reads and honors it today; nothing writes to it yet — that arrives with the capability that first shapes code. |
-| `.cache/` | Rebuildable working state `index` writes and reads on every run once the project has git history: a cache of parsed historical file content, so re-indexing never re-parses a blob it has already seen. Gitignored, safe to delete at any time — the next run rebuilds whatever it needs. The git-derived numbers that back each weight (how long code has stood, who wrote it) are recomputed from that history on every run; nothing persists them yet. |
+| `.cache/` | Rebuildable working state `index` writes and reads on every run once the project has git history: a cache of parsed historical file content, so re-indexing never re-parses a file version it has already seen, plus the incremental record of how far the history has been read — which is what lets a later `index` pick up only the newer commits instead of re-reading from the start. Also holds the lock file `index` takes while it is writing, so two runs can never write the same cache at once. Gitignored, safe to delete at any time — the next run rebuilds whatever it needs from scratch and mines exactly the same snapshot either way. |
 | `.state/` | Reserved for rebuildable working state, gitignored. Nothing writes to it in this release. |
 
 `model.json` is committed on purpose: it gives every clone and every

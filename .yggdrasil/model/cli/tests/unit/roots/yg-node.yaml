@@ -258,7 +258,29 @@ description: "Unit tests for the roots convention-mining module: the roots
   projectCouplingForPartition (Appendix D's per-partition coupling
   percentiles): two disjoint-file partitions each receive only their own
   couplingByFile/couplingByModule entries, and an empty partition projects
-  to two empty objects rather than the unprojected repo-global maps."
+  to two empty objects rather than the unprojected repo-global maps.
+  history-resume.test.ts (Task 9's own suite): decideWalkMode's full trigger
+  set, one case per D2 trigger (--full, active windowing, no usable state, an
+  inputsHash mismatch, an unreachable lastIndexedSha) plus the MR-31 killer
+  case and the all-triggers-absent resume case; computeInputsHash's own
+  COMPOSITION — one assertion per ingredient (state schema version, extractor
+  version, a single grammar's own binding hash, the history:+include/exclude
+  config subtree) proving the hash actually folds that ingredient rather than
+  merely changing on every call, MR-32's own killer; computeCurrentInputsHash
+  and allRegisteredGrammarBindingHashes/historyConfigSubtree's live-wrapper
+  behavior; D2's discard rule (a --full run against a stateDir a prior run
+  already populated with non-zero counters reproduces exactly a from-scratch
+  walk's numbers, never their sum); D3's windowing-disables-resume interlock
+  (indexing under a maxCommits cap, appending a commit, and re-indexing
+  matches an independently-computed fresh capped --full run rather than
+  resuming onto the capped state) — MR-34's own killer; a resumed walk's
+  persisted lastIndexedSha always equalling the new HEAD; and
+  parseResumeState's own degrade-never-abort rule, table-driven across a
+  single malformed field in every one of the six persisted shapes (a
+  lifecycle row, a value event and its nested value tuple, an alias edge,
+  both cochange-raw row shapes, and meta.json's own rosters/commit total),
+  each independently falling the WHOLE state back to unusable rather than a
+  partial resume (R4-I10)."
 aspects: []
 relations:
   [
@@ -313,3 +335,4 @@ mapping:
   - source/cli/tests/unit/roots/golden-history-gates.test.ts
   - source/cli/tests/unit/roots/mine-roles-fence.test.ts
   - source/cli/tests/unit/roots/history-coupling-projection.test.ts
+  - source/cli/tests/unit/roots/history-resume.test.ts

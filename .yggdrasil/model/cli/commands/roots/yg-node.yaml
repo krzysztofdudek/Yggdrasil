@@ -1,17 +1,22 @@
 name: Roots Commands
 type: command
-description: "The two roots convention-mining commands R1-R3 ships: `yg roots
+description: "The two roots convention-mining commands R1-R4 ships: `yg roots
   index` (config-only load — findYggRoot + parseConfig, never the graph;
   scaffolds a `roots:` block with defaults on a repo that has none, per the
-  design authority, then composes the roots engine + roots store to mine and
-  persist the committed model) and `yg roots status` (reads the committed
-  model and reports field/fact counts and dormancy honestly; always exits 0 —
-  a read surface, never a CI gate, in this increment)."
+  design authority; computes the D13 no-op short-circuit's input fields and
+  short-circuits before taking any lock when nothing has changed; otherwise
+  takes the exclusive roots build lock, composes the roots engine + roots
+  store to mine and persist the committed model — incrementally by default,
+  or a full re-walk under `--full` — and releases the lock) and `yg roots
+  status` (reads the committed model and reports field/fact counts and
+  dormancy honestly; always exits 0 — a read surface, never a CI gate)."
 aspects: []
 relations:
   - target: cli/roots/engine
     type: calls
   - target: cli/roots/stores
+    type: calls
+  - target: cli/io/roots-cache
     type: calls
   - target: cli/io/parsers/config
     type: calls

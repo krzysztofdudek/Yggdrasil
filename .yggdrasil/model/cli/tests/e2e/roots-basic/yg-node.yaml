@@ -2,11 +2,14 @@ name: E2E Tests — Roots Index & Status
 type: test-suite
 description: "Subprocess E2E for `yg roots index`/`yg roots status`, spawning
   the real dist/bin.js against a genuine TypeScript golden repository: mining
-  with a `roots:` block already present, cross-process double-index byte
-  identity (header included), the blockless-config scaffold printed before
-  mining proceeds, a real config error as the only non-zero `index` exit, the
-  no-.yggdrasil/ refusal, and `status`'s always-exit-0 report across no
-  project, dormant, never-indexed, and genuinely-indexed states."
+  with a `roots:` block already present, the D13 no-op short-circuit on an
+  unchanged tree (model bytes AND mtime unchanged, a recursive snapshot of
+  the whole `.yggdrasil/roots/` tree proving zero writes, no build-lock file
+  left behind, \"already current\" on stderr), the blockless-config scaffold
+  printed before mining proceeds, a real config error as the only non-zero
+  `index` exit, the no-.yggdrasil/ refusal, and `status`'s always-exit-0
+  report across no project, dormant, never-indexed, and genuinely-indexed
+  states."
 aspects: []
 relations:
   - target: cli/tests/support

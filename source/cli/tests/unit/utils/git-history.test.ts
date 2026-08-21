@@ -25,6 +25,7 @@ import {
   readBlobs,
   isShallowRepository,
   isCommitReachable,
+  countCommitsInRange,
   GitLogError,
 } from '../../../src/utils/git-history.js';
 import type { WalkOptions, HistoryCommitRecord } from '../../../src/utils/git-history.js';
@@ -823,6 +824,44 @@ describe('isShallowRepository / isCommitReachable', () => {
     dirsToCleanup.push(dir);
     expect(isShallowRepository(dir)).toBe(false);
     expect(isCommitReachable(dir, 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef')).toBe(false);
+  });
+});
+
+describe('countCommitsInRange — D13\'s own literal "the resume range names no commit" check', () => {
+  it('an empty range (sinceSha === HEAD) counts 0', () => {
+    const dir = mkFixtureDir('range-empty');
+    writeFile(dir, 'f.ts', 'v1\n');
+    gitAtOk(dir, ['add', '-A'], dayIso(0));
+    gitAtOk(dir, ['commit', '-q', '-m', 'c0'], dayIso(0));
+    const sha = headSha(dir);
+    expect(countCommitsInRange(dir, sha)).toBe(0);
+  });
+
+  it('a range with N commits ahead of sinceSha counts N, merges included (unlike the --no-merges walk)', () => {
+    const dir = mkFixtureDir('range-nonempty');
+    writeFile(dir, 'f.ts', 'v1\n');
+    gitAtOk(dir, ['add', '-A'], dayIso(0));
+    gitAtOk(dir, ['commit', '-q', '-m', 'c0'], dayIso(0));
+    const base = headSha(dir);
+    writeFile(dir, 'f.ts', 'v2\n');
+    gitAtOk(dir, ['commit', '-qam', 'c1'], dayIso(1));
+    writeFile(dir, 'f.ts', 'v3\n');
+    gitAtOk(dir, ['commit', '-qam', 'c2'], dayIso(2));
+    expect(countCommitsInRange(dir, base)).toBe(2);
+  });
+
+  it('an unreachable sinceSha returns -1 (never 0 — "cannot tell" is not "empty")', () => {
+    const dir = mkFixtureDir('range-unreachable');
+    writeFile(dir, 'f.ts', 'v1\n');
+    gitAtOk(dir, ['add', '-A'], dayIso(0));
+    gitAtOk(dir, ['commit', '-q', '-m', 'c0'], dayIso(0));
+    expect(countCommitsInRange(dir, 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef')).toBe(-1);
+  });
+
+  it('fails soft to -1 on a non-git directory', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-git-history-norepo-range-'));
+    dirsToCleanup.push(dir);
+    expect(countCommitsInRange(dir, 'deadbeefdeadbeefdeadbeefdeadbeefdeadbeef')).toBe(-1);
   });
 });
 

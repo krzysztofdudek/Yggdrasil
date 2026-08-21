@@ -10,9 +10,33 @@ import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'nod
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { registerRootsCommand, scaffoldRootsBlock, computeDirtyHash, assembleRootsModelHeader, renderRootsStatus } from '../../../src/cli/roots.js';
+import {
+  registerRootsCommand,
+  scaffoldRootsBlock,
+  computeDirtyHash,
+  assembleRootsModelHeader,
+  renderRootsStatus,
+  isNoOpShortCircuit,
+  evaluateNoOpShortCircuit,
+  type NoOpShortCircuitInputs,
+} from '../../../src/cli/roots.js';
 import { parseConfig } from '../../../src/io/config-parser.js';
-import { writeModel, type RootsModelHeader } from '../../../src/roots/stores.js';
+import {
+  writeModel,
+  readSeeds,
+  readLedger,
+  hashStoreFile,
+  rootsBlobCacheDir,
+  rootsHistoryStateDir,
+  SEEDS_FILENAME,
+  DECISIONS_FILENAME,
+  LEDGER_FILENAME,
+  type RootsModelHeader,
+} from '../../../src/roots/stores.js';
+import { runRootsIndex } from '../../../src/roots/pipeline.js';
+import { rootsConfigHash } from '../../../src/roots/config.js';
+import { getHeadSha, getHeadCommitterTimestamp } from '../../../src/utils/git.js';
+import type { RootsConfig } from '../../../src/model/graph.js';
 import { hashString } from '../../../src/io/hash.js';
 import type { MinedModel } from '../../../src/roots/mine.js';
 import { initDeterministicGitFixture, runDeterministicGitFixture } from '../../support/git-fixture.js';
@@ -159,13 +183,14 @@ describe('computeDirtyHash', () => {
 // ---------------------------------------------------------------------------
 
 describe('assembleRootsModelHeader', () => {
-  it('copies every computed input into its documented header field, verbatim', () => {
+  it('copies every computed input into its documented header field, verbatim — lastIndexedSha included', () => {
     const header = assembleRootsModelHeader({
       configHash: 'CONFIG_HASH',
       seedsHash: 'SEEDS_HASH',
       decisionsHash: 'DECISIONS_HASH',
       ledgerHash: 'LEDGER_HASH',
       headSha: 'abc123',
+      lastIndexedSha: 'abc123',
       clock: '2026-08-19T00:00:00+00:00',
       dirtyHash: 'DIRTY_HASH',
       bindingHash: 'BINDING_HASH',
@@ -174,7 +199,7 @@ describe('assembleRootsModelHeader', () => {
     const expected: RootsModelHeader = {
       rootsVersion: 1,
       headSha: 'abc123',
-      lastIndexedSha: null,
+      lastIndexedSha: 'abc123',
       clock: '2026-08-19T00:00:00+00:00',
       bindingHash: 'BINDING_HASH',
       configHash: 'CONFIG_HASH',
@@ -188,13 +213,14 @@ describe('assembleRootsModelHeader', () => {
     expect(header).toEqual(expected);
   });
 
-  it('always reports lastIndexedSha null and rolesStale false — R1-R3 has no resume state and always fully re-induces', () => {
+  it('passes lastIndexedSha through null when the caller supplies null — no history walk to anchor on', () => {
     const header = assembleRootsModelHeader({
       configHash: 'a',
       seedsHash: 'b',
       decisionsHash: 'c',
       ledgerHash: 'd',
       headSha: null,
+      lastIndexedSha: null,
       clock: null,
       dirtyHash: 'e',
       bindingHash: 'f',
@@ -202,6 +228,23 @@ describe('assembleRootsModelHeader', () => {
     });
     expect(header.lastIndexedSha).toBeNull();
     expect(header.rolesStale).toBe(false);
+  });
+
+  it('never invents lastIndexedSha from headSha on its own — a caller that supplies null gets null even when headSha is set (the walk-engaged decision belongs to the caller, never re-decided here)', () => {
+    const header = assembleRootsModelHeader({
+      configHash: 'a',
+      seedsHash: 'b',
+      decisionsHash: 'c',
+      ledgerHash: 'd',
+      headSha: 'deadbeef',
+      lastIndexedSha: null,
+      clock: '2026-08-19T00:00:00+00:00',
+      dirtyHash: 'e',
+      bindingHash: 'f',
+      candidateCountLog2: 0,
+    });
+    expect(header.headSha).toBe('deadbeef');
+    expect(header.lastIndexedSha).toBeNull();
   });
 });
 
@@ -401,6 +444,216 @@ describe('renderRootsStatus', () => {
     const text = await renderRootsStatus(dir);
     expect(text).toContain('does not have the expected shape');
     expect(text).not.toContain('status could not be determined');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// isNoOpShortCircuit / evaluateNoOpShortCircuit — D13's four conditions, one
+// unit test per condition flipped (each asserting the run PROCEEDS, i.e. the
+// short-circuit does NOT fire), plus a fifth covering the read itself: an
+// unreadable on-disk model is "no comparable header", not a crash.
+// ---------------------------------------------------------------------------
+
+describe('isNoOpShortCircuit — D13\'s four conditions', () => {
+  const header: RootsModelHeader = {
+    rootsVersion: 1,
+    headSha: 'HEAD_SHA',
+    lastIndexedSha: 'LAST_SHA',
+    clock: 'CLOCK',
+    bindingHash: 'BINDING',
+    configHash: 'CONFIG',
+    seedsHash: 'SEEDS',
+    decisionsHash: 'DECISIONS',
+    ledgerHash: 'LEDGER',
+    dirtyHash: 'DIRTY',
+    candidateCountLog2: 3,
+    rolesStale: false,
+  };
+  const currentHeaderInputs = {
+    headSha: 'HEAD_SHA',
+    clock: 'CLOCK',
+    dirtyHash: 'DIRTY',
+    configHash: 'CONFIG',
+    seedsHash: 'SEEDS',
+    decisionsHash: 'DECISIONS',
+    ledgerHash: 'LEDGER',
+    bindingHash: 'BINDING',
+  };
+  const baseline: NoOpShortCircuitInputs = {
+    storedHeader: header,
+    currentHeaderInputs,
+    walkMode: 'resume',
+    resumeRangeEmpty: true,
+    lastIndexedShaEqualsHead: true,
+    blobCacheDirExists: true,
+  };
+
+  it('all four conditions holding short-circuits (baseline sanity — every "flipped" test below negates exactly one clause of this)', () => {
+    expect(isNoOpShortCircuit(baseline)).toBe(true);
+  });
+
+  it('condition 1 (input fields equal, field by field): a single differing field means the run proceeds', () => {
+    expect(isNoOpShortCircuit({ ...baseline, currentHeaderInputs: { ...currentHeaderInputs, dirtyHash: 'DIFFERENT' } })).toBe(false);
+  });
+
+  it('condition 1\'s own precondition: no comparable header at all means the run proceeds', () => {
+    expect(isNoOpShortCircuit({ ...baseline, storedHeader: undefined })).toBe(false);
+  });
+
+  it('condition 2 (decideWalkMode returns resume): a forced full walk means the run proceeds', () => {
+    expect(isNoOpShortCircuit({ ...baseline, walkMode: 'full' })).toBe(false);
+  });
+
+  it('condition 3, first half (the resume range is empty): a non-empty range means the run proceeds', () => {
+    expect(isNoOpShortCircuit({ ...baseline, resumeRangeEmpty: false })).toBe(false);
+  });
+
+  it('condition 3, second half (meta.json\'s lastIndexedSha equals readHead().sha): a mismatch means the run proceeds', () => {
+    expect(isNoOpShortCircuit({ ...baseline, lastIndexedShaEqualsHead: false })).toBe(false);
+  });
+
+  it('condition 4 (the blob cache directory exists): a missing cache directory means the run proceeds', () => {
+    expect(isNoOpShortCircuit({ ...baseline, blobCacheDirExists: false })).toBe(false);
+  });
+});
+
+/**
+ * One genuine index run through the production engine (`runRootsIndex` +
+ * `assembleRootsModelHeader` + `writeModel`) — the exact sequence `cli/
+ * roots.ts`'s own `index` action performs, duplicated here (the action
+ * itself is not exported as a standalone, callable step) so a test can
+ * produce a REAL committed model + replay state and then feed
+ * `evaluateNoOpShortCircuit` the SAME header-input hashes a genuine second
+ * run would compute (M2: a hand-typed placeholder header proves nothing
+ * about whether a field actually matches).
+ */
+async function realIndexOnce(
+  repoRoot: string,
+  yggRoot: string,
+  rootsConfig: RootsConfig,
+): Promise<{ seedsHash: string; decisionsHash: string; ledgerHash: string; dirtyHash: string; configHash: string }> {
+  const configHash = rootsConfigHash(rootsConfig);
+  const [seedsHash, decisionsHash, ledgerHash, dirtyHash] = await Promise.all([
+    hashStoreFile(yggRoot, SEEDS_FILENAME),
+    hashStoreFile(yggRoot, DECISIONS_FILENAME),
+    hashStoreFile(yggRoot, LEDGER_FILENAME),
+    computeDirtyHash(yggRoot, repoRoot),
+  ]);
+  const seeds = await readSeeds(yggRoot);
+  const ledger = await readLedger(yggRoot);
+  const result = await runRootsIndex(repoRoot, rootsConfig, seeds, {
+    historyDeps: {
+      cacheDir: rootsBlobCacheDir(yggRoot),
+      stateDir: rootsHistoryStateDir(yggRoot),
+      ledger,
+      dirtyPaths: new Set(),
+    },
+  });
+  const headSha = getHeadSha(repoRoot);
+  const header = assembleRootsModelHeader({
+    configHash,
+    seedsHash,
+    decisionsHash,
+    ledgerHash,
+    headSha,
+    lastIndexedSha: result.body.historyStats !== undefined ? headSha : null,
+    clock: getHeadCommitterTimestamp(repoRoot),
+    dirtyHash,
+    bindingHash: result.bindingSetHash,
+    candidateCountLog2: result.candidateCountLog2,
+  });
+  await writeModel(yggRoot, header, result.body);
+  return { seedsHash, decisionsHash, ledgerHash, dirtyHash, configHash };
+}
+
+describe('evaluateNoOpShortCircuit — the read itself', () => {
+  function freshRepoWithConfig(): { repoRoot: string; yggRoot: string } {
+    const repoRoot = tmpDir('yg-noop-shortcircuit-');
+    const init = initDeterministicGitFixture(repoRoot);
+    if (init.status !== 0) throw new Error(`git init failed: ${init.stderr}${init.stdout}`);
+    mkdirSync(path.join(repoRoot, 'src'), { recursive: true });
+    writeFileSync(path.join(repoRoot, 'src', 'a.ts'), 'export const a = 1;\n', 'utf-8');
+    const add = runDeterministicGitFixture(repoRoot, ['add', '-A'], 0);
+    if (add.status !== 0) throw new Error(`git add failed: ${add.stderr}${add.stdout}`);
+    const commit = runDeterministicGitFixture(repoRoot, ['commit', '-q', '-m', 'init'], 0);
+    if (commit.status !== 0) throw new Error(`git commit failed: ${commit.stderr}${commit.stdout}`);
+    const yggRoot = path.join(repoRoot, '.yggdrasil');
+    mkdirSync(yggRoot, { recursive: true });
+    writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\nroots: {}\n', 'utf-8');
+    return { repoRoot, yggRoot };
+  }
+
+  it('an unparseable model.json is "no comparable header" — condition 1 fails, the run proceeds, and no error escapes', async () => {
+    const { repoRoot, yggRoot } = freshRepoWithConfig();
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    mkdirSync(path.join(yggRoot, 'roots'), { recursive: true });
+    writeFileSync(path.join(yggRoot, 'roots', 'model.json'), '{ not valid json', 'utf-8');
+
+    const result = await evaluateNoOpShortCircuit({
+      yggRoot,
+      repoRoot,
+      rootsConfig: config.roots!,
+      full: false,
+      seedsHash: 'x',
+      decisionsHash: 'x',
+      ledgerHash: 'x',
+      dirtyHash: 'x',
+      configHash: 'x',
+    });
+    expect(result).toBe(false);
+  });
+
+  it('no model.json at all (never indexed) is also "no comparable header" — the run proceeds', async () => {
+    const { repoRoot, yggRoot } = freshRepoWithConfig();
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+
+    const result = await evaluateNoOpShortCircuit({
+      yggRoot,
+      repoRoot,
+      rootsConfig: config.roots!,
+      full: false,
+      seedsHash: 'x',
+      decisionsHash: 'x',
+      ledgerHash: 'x',
+      dirtyHash: 'x',
+      configHash: 'x',
+    });
+    expect(result).toBe(false);
+  });
+
+  it('--full always proceeds even against a GENUINELY matching header (bypasses the short-circuit outright, not merely against an unrelated failing condition)', async () => {
+    // The previous version of this test wrote invalid JSON as
+    // model.json, so `evaluateNoOpShortCircuit` returned at condition 1 ("no
+    // comparable header") before `params.full` was ever consulted — it
+    // proved nothing about --full itself. This version runs the production
+    // engine for real, so the header, the replay state, and every hash this
+    // test feeds back in are the SAME values a genuine second run would
+    // compute — condition 1 through 4 all genuinely hold without --full.
+    const { repoRoot, yggRoot } = freshRepoWithConfig();
+    const config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'));
+    const hashes = await realIndexOnce(repoRoot, yggRoot, config.roots!);
+
+    // Baseline sanity: without --full, this run's own inputs genuinely match
+    // the header it just wrote, so the short-circuit DOES fire.
+    const withoutFull = await evaluateNoOpShortCircuit({
+      yggRoot,
+      repoRoot,
+      rootsConfig: config.roots!,
+      full: false,
+      ...hashes,
+    });
+    expect(withoutFull).toBe(true);
+
+    // --full must bypass it outright even though every other condition
+    // still holds.
+    const withFull = await evaluateNoOpShortCircuit({
+      yggRoot,
+      repoRoot,
+      rootsConfig: config.roots!,
+      full: true,
+      ...hashes,
+    });
+    expect(withFull).toBe(false);
   });
 });
 
