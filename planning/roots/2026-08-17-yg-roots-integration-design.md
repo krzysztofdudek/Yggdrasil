@@ -131,8 +131,9 @@ dot-prefixed gitignored subdirectories.
   seeds.jsonl             # COMMITTED — maintainer seeds/tensions (append-only)
   decisions.jsonl         # COMMITTED, merge=union — promotions, mutes, dismissals (case law)
   ledger.jsonl            # COMMITTED, merge=union — hook-shaped marks (the echo-defense input)
-  .cache/                 # gitignored — blob cache only (content-addressed, sharded 2-hex),
-                          #   plus .build.lock
+  .cache/                 # gitignored — blob cache (content-addressed, sharded 2-hex),
+                          #   plus .build.lock and history/ (the six-file incremental
+                          #   replay state, per the spec's own §4.4 store layout)
   .state/                 # gitignored — telemetry.jsonl, sessions/, demotions.json,
                           #   incidents.jsonl (FIFO 500)
 ```

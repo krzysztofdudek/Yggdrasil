@@ -694,6 +694,15 @@ const BLOB_FETCH_CHUNK_SHAS = 400;
  * §18.4's fixed trailing window (`v6-spec.md:687`) — "fixed" is the spec's
  * own word, so this is a literal constant, never a config key (R4-I13: R4
  * invents no config key).
+ *
+ * KNOWN NO-OP AT STOCK DEFAULTS, recorded honestly: this window (120) is
+ * SHORTER than `weights.agentPromoteDays`' default (180), and every row's
+ * stable days are at most its in-window age — so the promote-window
+ * conjunct in `computeAgentShare` below is unconditionally true for every
+ * populated row unless an adopter lowers `agentPromoteDays` below 120. The
+ * conjunct stays because the contract is per-config, not per-default; making
+ * the window config-derived is a semantics change reserved for the package
+ * that makes the promote gate act on this number.
  */
 const AGENT_SHARE_WINDOW_DAYS = 120;
 

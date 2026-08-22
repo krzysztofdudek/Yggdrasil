@@ -227,7 +227,7 @@
       "file:source/cli/src/roots/history-cochange.ts": {"hash":"d2aee080fa36a6cd32399f184f36fc00c14ac30e64baf6de59703478da21185c","promptChars":25293,"verdict":"approved"},
       "file:source/cli/src/roots/history-replay.ts": {"hash":"e78b59a20543f562a1d035f1bdb989dfb4e332549f9932736e27c051ed9b850e","promptChars":50300,"verdict":"approved"},
       "file:source/cli/src/roots/history-resume.ts": {"hash":"f5d8c1c25c546398436ca5cd7b08cb901078d0ccb43b695b1e4d09aa5e22af66","promptChars":24529,"verdict":"approved"},
-      "file:source/cli/src/roots/history.ts": {"hash":"ff55d0f328f30f5b985b8abab89a59799cef9a435e4f40f3a135c1827664d32e","promptChars":61796,"verdict":"approved"},
+      "file:source/cli/src/roots/history.ts": {"hash":"b77bf884d62199c536ac26996fd3ee2f2f61aea1ad58bb76229041dca624871c","promptChars":62373,"verdict":"approved"},
       "file:source/cli/src/roots/mine-stages.ts": {"hash":"e7c75ae2783f673e4463f34f506f32973b5f134ca0a2505d084d017b90f4c2fb","promptChars":21137,"verdict":"approved"},
       "file:source/cli/src/roots/mine.ts": {"hash":"aed30c0c10061535848d79add50bdc96e8c7488e5e5af49ffd582627fd4d6041","promptChars":58836,"verdict":"approved"},
       "file:source/cli/src/roots/partitions.ts": {"hash":"5d895f8a2e1cb98ab1eacb822f698c79a13abd1bd8d865e982e8f6e956c52965","promptChars":18226,"verdict":"approved"},
