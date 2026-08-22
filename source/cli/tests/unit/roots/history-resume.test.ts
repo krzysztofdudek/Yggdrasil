@@ -256,6 +256,61 @@ describe('computeCurrentInputsHash — the live wrapper agrees with itself and r
 });
 
 // ---------------------------------------------------------------------------
+// computeCurrentInputsHash — EXTRACTOR_VERSION wiring. `extract.ts`'s
+// own BUMP DISCIPLINE comment requires EXTRACTOR_VERSION to move whenever a
+// RawScope's shape or computation changes; `computeCurrentInputsHash` is
+// supposed to fold the LIVE constant, never a copy frozen at some earlier
+// value, so a resume verdict computed under an old extractor build never
+// silently matches a state written under a newer one. There is no seam to
+// inject a fake EXTRACTOR_VERSION into the live wrapper, and this repo
+// forbids artificial module mocking (AGENTS.md), so the strongest killer
+// available is to recompute the IDENTICAL fold, in the test, from the real
+// imported ingredients (EXTRACTOR_VERSION, HISTORY_STATE_SCHEMA_VERSION,
+// allRegisteredGrammarBindingHashes(), historyConfigSubtree(config)) and
+// compare byte for byte against the live wrapper's own output.
+//
+// What this does and does not catch, honestly: a wrapper hard-coded to a
+// STALE extractorVersion literal (the extractor's very first value, since
+// bumped) fails EQUALITY below immediately — the two folds disagree on that
+// one ingredient. A wrapper hard-coded to TODAY's current value instead is a
+// delayed-fuse defect: it passes EQUALITY right now and only breaks the day
+// EXTRACTOR_VERSION is next bumped — at which point EQUALITY catches it on
+// that very commit, before a resume verdict can silently read a stale state
+// as "already current" against the new extractor. This test cannot
+// distinguish "genuinely wired to the live constant" from "hard-coded to its
+// present value" on the day it is written; it can only guarantee the two
+// never already disagree, and that the next bump is caught the moment it
+// lands rather than drifting unnoticed. SENSITIVITY (below) is the
+// complementary half: proof that the fold actually depends on
+// extractorVersion at all, so EQUALITY is not vacuously satisfied by a
+// recomputation that ignores the ingredient altogether.
+// ---------------------------------------------------------------------------
+
+describe('computeCurrentInputsHash — EXTRACTOR_VERSION wiring', () => {
+  it('EQUALITY: the live wrapper\'s output equals the identical fold recomputed here from the real imported ingredients', async () => {
+    const config = await defaultRootsConfig();
+    const recomputed = computeInputsHash({
+      stateSchemaVersion: HISTORY_STATE_SCHEMA_VERSION,
+      extractorVersion: EXTRACTOR_VERSION,
+      grammarBindingHashes: allRegisteredGrammarBindingHashes(),
+      historyConfigSubtree: historyConfigSubtree(config),
+    });
+    expect(computeCurrentInputsHash(config)).toBe(recomputed);
+  });
+
+  it('SENSITIVITY: the identical recomputation with a TAMPERED extractorVersion differs from the live wrapper\'s output', async () => {
+    const config = await defaultRootsConfig();
+    const tampered = computeInputsHash({
+      stateSchemaVersion: HISTORY_STATE_SCHEMA_VERSION,
+      extractorVersion: 'TAMPERED',
+      grammarBindingHashes: allRegisteredGrammarBindingHashes(),
+      historyConfigSubtree: historyConfigSubtree(config),
+    });
+    expect(computeCurrentInputsHash(config)).not.toBe(tampered);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // D2's discard rule: a `--full` run over an ALREADY-POPULATED state
 // directory (non-zero counters, real accumulated rows) must produce exactly
 // a from-scratch walk's numbers — never their sum onto what was already

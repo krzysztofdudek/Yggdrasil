@@ -53,7 +53,7 @@ import type { RootsConfig } from '../../../src/model/graph.js';
 // Shared fixture plumbing: a real deterministic repo, a real blob-record
 // cache, a real `BlobRecordLookup` that pre-resolves every (sha, relPath) a
 // set of walked commits could need — the synchronous contract `replayCommit`
-// takes, matching T8's own windowed probe-then-fetch protocol's shape
+// takes, matching T8's own global, deduped probe-then-fetch pass's shape
 // (resolve first, replay synchronously after).
 // -----------------------------------------------------------------------------
 

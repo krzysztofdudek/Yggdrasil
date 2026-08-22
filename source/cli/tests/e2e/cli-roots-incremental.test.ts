@@ -149,11 +149,38 @@ describe.skipIf(!distExists)('CLI E2E — yg roots index incremental/resume dete
       const first = run(['roots', 'index', '--full'], dir);
       expect(first.status).toBe(0);
       expect(first.stderr).toContain('Reviewed 25 commit');
+
+      // On a COLD first index (no prior state at all), every
+      // resolved key is a genuine miss — `historyStats.parsed`'s own
+      // definition (a UNION of every run's non-skipped cache keys, seeded
+      // from nothing here) and the stderr summary's own "read N historical
+      // file version(s) not seen before" figure (this run's `onParsed`
+      // count) name the identical set on a cold run, so they must agree
+      // exactly, and neither may be the vacuous zero a broken onParsed
+      // wiring would report. One caveat keeps this honest: onParsed also
+      // fires for an EXPENSIVE skip (oversize/unparseable), which never
+      // enters `parsed` — the two figures coincide here because this
+      // golden deliberately carries no such blob; a fixture that adds one
+      // must expect the stderr figure to exceed `parsed` by that count.
+      const parsedMatch = /read (\d+) historical file version/.exec(first.stderr);
+      expect(parsedMatch).not.toBeNull();
+      const coldBlobCount = Number(parsedMatch![1]);
+      expect(coldBlobCount).toBeGreaterThan(0);
+      const coldModel = readModelJson(dir);
+      const coldHistoryStats = coldModel.body.historyStats as { parsed: number };
+      expect(coldBlobCount).toBe(coldHistoryStats.parsed);
+
       const firstBytes = readFileSync(modelPath(dir));
 
       const second = run(['roots', 'index', '--full'], dir);
       expect(second.status).toBe(0);
       expect(second.stderr).toContain('Reviewed 25 commit');
+      // The warm counterpart of the cold-run figure above: a full re-walk
+      // against the warm cache resolves every key as a hit and extracts
+      // nothing, so the summary's not-seen-before figure must be exactly
+      // zero — a reader that silently re-extracted hits (reporting them as
+      // fresh reads) would move this number, not just waste work.
+      expect(second.stderr).toContain('read 0 historical file version');
       const secondBytes = readFileSync(modelPath(dir));
 
       expect(secondBytes.equals(firstBytes)).toBe(true);

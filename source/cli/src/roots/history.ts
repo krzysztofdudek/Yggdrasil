@@ -26,7 +26,13 @@
  * warns against. `carriesLifecycleRows` is gate 2's own path-only half,
  * exported so a caller whose record never resolves a blob at all (`history-
  * replay.ts`'s `D`/`T` touch) can still answer gate 2 without a second
- * implementation of it.
+ * implementation of it. The reader `makeBlobRecordReader` returns also
+ * carries a `probe` sibling on the same closure — a single-read, never-
+ * throwing classification query sharing every internal with the callable, so
+ * `buildHistoryJoin`'s own global probe-then-fetch pass (`resolveAdmittedRefs`,
+ * below) can tell a hit from a miss without ever risking the callable's own
+ * caller-contract throw, and so this reader has a real production caller
+ * rather than existing only for its own acceptance tests.
  *
  * GRAMMAR SELECTION IS PATH-DERIVED, NEVER CONTENT-SNIFFED (R4-I6). The
  * historical path passed in IS the grammar signal — `getGrammarForExtension`
@@ -479,6 +485,53 @@ function writeThroughRecord(record: FreshBlobScopeRecord): { bytes: number; skip
 }
 
 /**
+ * The single cache read shared by the callable's own hit branch and `probe`
+ * (below) — `readBlobRecord` once, classified AND resolved in the same pass:
+ * `undefined` on any miss or corruption (`parseStoredRecord`'s own
+ * `debugWrite` already covers the corrupt-shard case, so this never needs a
+ * second one), the stored skip record as-is on a skip hit, or the scope
+ * record with its two grammar constants reattached and every scope's own
+ * keys re-sorted (`sortOwnKeys` — see its own doc above) on a scope hit. One
+ * read, one classification, one resolution: nothing that calls this needs a
+ * second read of the same shard to tell a hit from a miss.
+ */
+async function resolveHit(cacheDir: string, key: string, binding: RootsBinding): Promise<BlobRecord | undefined> {
+  const cached = parseStoredRecord(await readBlobRecord(cacheDir, key), key);
+  if (!cached) return undefined;
+  if (cached.skipped) return cached;
+  // `sortOwnKeys` closes the hit-vs-miss key-order gap (see its own doc
+  // above): without it, a hit's re-attached scope is deep-equal to a fresh
+  // miss's but not byte-identical under `JSON.stringify`.
+  return { bytes: cached.bytes, skipped: false, scopes: cached.scopes.map((s) => sortOwnKeys(reattachGrammarConstants(s, binding))) };
+}
+
+/**
+ * `makeBlobRecordReader`'s return shape: the read-through callable PLUS a
+ * `probe` sibling on the same closure (defined beside it below) — a call signature
+ * with one extra property, not two unrelated exports, so a caller that holds
+ * one reader instance always has both operations available off it.
+ */
+export interface BlobRecordReader {
+  (sha: string, relPath: string, content: Buffer | undefined): Promise<BlobRecord>;
+  /**
+   * The single-read, NEVER-THROWING half of this reader's contract: gate 2
+   * plus `resolveHit`'s one cache read, classifying and resolving in the
+   * same pass — the gate-2 skip record in memory for a rejected path (no
+   * cache touched, same as the callable), the resolved record on a genuine
+   * cache hit, or `undefined` on any miss or corruption. `undefined` IS the
+   * miss signal, never a throw: a caller that wants to know "is this already
+   * resolved" before deciding whether to fetch content (`resolveAdmittedRefs`,
+   * below) must be able to ask that question with no risk of the caller-
+   * contract error the callable throws on a genuine miss with no content —
+   * that error is correct for the callable (a miss with no fetch behind it
+   * is this reader's own contract being violated), but it is the WRONG
+   * answer for a plain classification query, where a miss is an ordinary,
+   * expected outcome to route to the fetch path, not a bug to throw over.
+   */
+  probe(sha: string, relPath: string): Promise<BlobRecord | undefined>;
+}
+
+/**
  * The read-through cache over `io/roots-blob-cache.ts` (Task 1): probe the
  * shard, extract on a miss, write-through, one `onParsed()` per genuine miss
  * — never fired on a hit, never fired for a gate-2 rejection, which never
@@ -493,19 +546,28 @@ function writeThroughRecord(record: FreshBlobScopeRecord): { bytes: number; skip
  *
  * `content` is `Buffer | undefined` because a caller that already knows (or
  * expects) a key to be a cache HIT need not have fetched the blob at all —
- * T8's windowed probe-then-fetch protocol (D16) fetches only the keys that
- * turn out to be MISSES, and calls this reader for every touched key either
- * way. On a genuine MISS with no `content` supplied, this is a caller
- * contract violation (the probe should have triggered a fetch first) rather
- * than a degraded external condition, so it THROWS rather than silently
- * fabricating a skip record that would then be (wrongly) cached.
+ * the global probe-then-fetch pass over the whole walked range
+ * (`resolveAdmittedRefs`, below) fetches only the keys that turn out to be
+ * MISSES, and calls this reader for every touched key either way. On a
+ * genuine MISS with no `content` supplied, this is a caller contract
+ * violation (the probe should have triggered a fetch first) rather than a
+ * degraded external condition, so it THROWS rather than silently fabricating
+ * a skip record that would then be (wrongly) cached — `probe` (this
+ * function's own sibling, below) exists precisely so a caller can ask the
+ * SAME classification question without ever risking that throw.
+ *
+ * Gate 2 is resolved exactly ONCE per call, here and in `probe` alike —
+ * its single result (`gate2.admitted`, and on admission `gate2.binding`/
+ * `gate2.bindingHashValue`) is reused for the admission check, the cache
+ * key, and (on a miss) the extraction call; nothing in either function
+ * re-derives it a second time for the same invocation.
  */
 export function makeBlobRecordReader(
   cacheDir: string,
   config: RootsConfig,
   onParsed?: () => void,
-): (sha: string, relPath: string, content: Buffer | undefined) => Promise<BlobRecord> {
-  return async (sha: string, relPath: string, content: Buffer | undefined): Promise<BlobRecord> => {
+): BlobRecordReader {
+  const callable = async (sha: string, relPath: string, content: Buffer | undefined): Promise<BlobRecord> => {
     const gate2 = resolveGate2(relPath, config);
     if (!gate2.admitted) {
       // Never keyed, never probed, never fetched, never cached (D11, D17, D4).
@@ -514,16 +576,8 @@ export function makeBlobRecordReader(
     const { binding, bindingHashValue } = gate2;
     const key = blobCacheKey(sha, EXTRACTOR_VERSION, bindingHashValue);
 
-    const cached = parseStoredRecord(await readBlobRecord(cacheDir, key), key);
-    if (cached) {
-      if (!cached.skipped) {
-        // `sortOwnKeys` closes the hit-vs-miss key-order gap (see its own doc
-        // above): without it, a hit's re-attached scope is deep-equal to a
-        // fresh miss's but not byte-identical under `JSON.stringify`.
-        return { bytes: cached.bytes, skipped: false, scopes: cached.scopes.map((s) => sortOwnKeys(reattachGrammarConstants(s, binding))) };
-      }
-      return cached;
-    }
+    const hit = await resolveHit(cacheDir, key, binding);
+    if (hit) return hit;
 
     if (content === undefined) {
       throw new Error(
@@ -544,6 +598,15 @@ export function makeBlobRecordReader(
     await writeBlobRecord(cacheDir, key, writeThroughRecord(fresh));
     return fresh;
   };
+
+  const reader = callable as BlobRecordReader;
+  reader.probe = async (sha: string, relPath: string): Promise<BlobRecord | undefined> => {
+    const gate2 = resolveGate2(relPath, config);
+    if (!gate2.admitted) return { bytes: 0, skipped: true, reason: gate2.reason };
+    const key = blobCacheKey(sha, EXTRACTOR_VERSION, gate2.bindingHashValue);
+    return resolveHit(cacheDir, key, gate2.binding);
+  };
+  return reader;
 }
 
 // -----------------------------------------------------------------------------
@@ -611,12 +674,11 @@ export function makeBlobRecordReader(
 // independently re-derived from one another.
 // -----------------------------------------------------------------------------
 
-/** One admitted (sha, historicalPath) reference this walk named, deduped by its cache key — the unit the probe-then-fetch protocol resolves. */
+/** One admitted (sha, historicalPath) reference this walk named, deduped by its cache key — the unit the probe-then-fetch pass resolves. */
 interface AdmittedRef {
   sha: string;
   path: string;
   key: string;
-  binding: RootsBinding;
 }
 
 /**
@@ -639,41 +701,54 @@ const AGENT_SHARE_WINDOW_DAYS = 120;
 const PROGRESS_UPDATE_EVERY_BLOBS = 500;
 
 /**
- * Resolve every distinct admitted reference to its `BlobRecord`: probe the
- * on-disk shard for each key first (a genuine cache hit costs one read and
- * nothing else); fetch only the misses, chunked, through `reader`; extract
- * and write-through each fetched miss exactly like `makeBlobRecordReader`'s
- * own miss path (the SAME private helpers — `extractAdmitted`,
- * `writeThroughRecord` — so a hit and a fresh extraction remain byte-
- * identical for the same (sha, path), R4-I3). `onParsed` is the same run
- * diagnostic `makeBlobRecordReader` exposes — fired once per genuine miss
- * that reaches extraction, never the source of D4's `parsed`/`mb` rosters
- * (those are read off `resolved` itself by the caller, per key). `onProgress`
- * is D12's own >60s/every-500 transport: one call up front carrying
- * `totalUncachedBlobs` (the count the command projects an ETA from, BEFORE
- * any fetching starts), then one call every `PROGRESS_UPDATE_EVERY_BLOBS`
- * misses processed, plus a final call so the command always learns the true
- * end count even when it does not land on a multiple of 500.
+ * Resolve every distinct admitted reference to its `BlobRecord` through the
+ * SAME `record` reader `makeBlobRecordReader` returns — the ONE orchestration
+ * over the cache, never a second, parallel implementation of it. The classify
+ * loop calls `record.probe(ref.sha, ref.path)` — ONE cache read per key
+ * (`probe`'s own single-read contract) that never throws, so a shard that
+ * turns out to be a corrupt or missing MISS routes cleanly to the fetch list
+ * below instead of the caller-contract error the base callable raises for a
+ * miss with no content (classifying with a SEPARATE read and then
+ * calling the reader for the resolve would read the same shard twice, and a
+ * shard vanishing in the window between those two reads would drive the
+ * reader's own miss branch with no content supplied — the exact throw this
+ * design never risks). Only the misses are fetched, chunked through `blobs`
+ * (the walk's single long-lived `BlobReader`); each fetched miss is then
+ * resolved by calling `record` itself — the callable, exactly as any other
+ * caller would — so extraction and write-through are never re-implemented
+ * here: a hit (via `probe`) and a fresh miss (via the callable) share the
+ * identical resolution path `makeBlobRecordReader`'s own acceptance tests
+ * pin, closing the gap that used to leave this reader with no production
+ * caller at all. `onParsed` is baked into `record` at construction (the
+ * caller's own choice, `buildHistoryJoin` below) — this function never sees
+ * it directly. `onProgress` is D12's own >60s/every-500 transport: one call
+ * up front carrying `totalUncachedBlobs` (the count the command projects an
+ * ETA from, BEFORE any fetching starts), then one call every
+ * `PROGRESS_UPDATE_EVERY_BLOBS` misses processed, plus a final call so the
+ * command always learns the true end count even when it does not land on a
+ * multiple of 500.
+ *
+ * COST, stated honestly: `probe` resolves gate 2 per call, and gate 2
+ * rebuilds the file filters and glob-matches the path — measured at roughly
+ * ten times the price of the warm shard read it accompanies (order of 100us
+ * vs 10us per key; ~0.5s per 4000 keys on a warm full re-walk). That is
+ * small beside the walk itself and buys the never-throwing single-read
+ * contract above; if it ever matters, the remedy is hoisting the filter
+ * construction out of `resolveGate2` (a pre-existing per-record hot spot),
+ * not reintroducing a second cache read here.
  */
 async function resolveAdmittedRefs(
-  cacheDir: string,
-  config: RootsConfig,
   refs: ReadonlyMap<string, AdmittedRef>,
-  reader: BlobReader,
-  onParsed?: () => void,
+  record: BlobRecordReader,
+  blobs: BlobReader,
   onProgress?: (info: HistoryProgressInfo) => void,
 ): Promise<Map<string, BlobRecord>> {
   const resolved = new Map<string, BlobRecord>();
   const misses: AdmittedRef[] = [];
   for (const ref of refs.values()) {
-    const cached = parseStoredRecord(await readBlobRecord(cacheDir, ref.key), ref.key);
-    if (cached) {
-      resolved.set(
-        ref.key,
-        cached.skipped
-          ? cached
-          : { bytes: cached.bytes, skipped: false, scopes: cached.scopes.map((s) => sortOwnKeys(reattachGrammarConstants(s, ref.binding))) },
-      );
+    const hit = await record.probe(ref.sha, ref.path);
+    if (hit) {
+      resolved.set(ref.key, hit);
     } else {
       misses.push(ref);
     }
@@ -685,23 +760,19 @@ async function resolveAdmittedRefs(
   for (let i = 0; i < misses.length; i += BLOB_FETCH_CHUNK_SHAS) {
     const chunk = misses.slice(i, i + BLOB_FETCH_CHUNK_SHAS);
     const bySha = new Map<string, Buffer>();
-    await reader.read([...new Set(chunk.map((r) => r.sha))], (sha, content) => {
+    await blobs.read([...new Set(chunk.map((r) => r.sha))], (sha, content) => {
       bySha.set(sha, content);
     });
     for (const ref of chunk) {
       const content = bySha.get(ref.sha) ?? Buffer.alloc(0);
-      const fresh = await extractAdmitted(ref.path, content, config, ref.binding);
-      onParsed?.();
+      // The callable's own gate-2 resolution, cache re-check, extraction and
+      // write-through — the identical path `makeBlobRecordReader`'s own
+      // acceptance tests exercise directly, never a second copy of it here.
+      const fresh = await record(ref.sha, ref.path, content);
+      resolved.set(ref.key, fresh);
       processed++;
       if (processed % PROGRESS_UPDATE_EVERY_BLOBS === 0) {
         onProgress?.({ phase: 'fetching', blobsParsed: processed, totalUncachedBlobs: misses.length });
-      }
-      if (fresh.skipped) {
-        await writeBlobRecord(cacheDir, ref.key, fresh);
-        resolved.set(ref.key, fresh);
-      } else {
-        await writeBlobRecord(cacheDir, ref.key, writeThroughRecord(fresh));
-        resolved.set(ref.key, fresh);
       }
     }
   }
@@ -908,7 +979,7 @@ export async function buildHistoryJoin(
             const gate2 = resolveGate2(historicalPath, config);
             if (!gate2.admitted) continue; // never keyed, never probed, never fetched, never cached (D11, D17, D4)
             const key = blobCacheKey(sha, EXTRACTOR_VERSION, gate2.bindingHashValue);
-            if (!refsByKey.has(key)) refsByKey.set(key, { sha, path: historicalPath, key, binding: gate2.binding });
+            if (!refsByKey.has(key)) refsByKey.set(key, { sha, path: historicalPath, key });
           }
         }
       });
@@ -923,16 +994,10 @@ export async function buildHistoryJoin(
     onProgress?.({ phase: 'walking', commitsWalked });
 
     let blobsParsedThisRun = 0;
-    const resolvedThisRun = await resolveAdmittedRefs(
-      deps.cacheDir,
-      config,
-      refsByKey,
-      reader,
-      () => {
-        blobsParsedThisRun++;
-      },
-      onProgress,
-    );
+    const record = makeBlobRecordReader(deps.cacheDir, config, () => {
+      blobsParsedThisRun++;
+    });
+    const resolvedThisRun = await resolveAdmittedRefs(refsByKey, record, reader, onProgress);
     onProgress?.({ phase: 'fetching', blobsParsed: blobsParsedThisRun });
 
     const lookup: BlobRecordLookup = {

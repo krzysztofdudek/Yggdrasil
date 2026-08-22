@@ -110,7 +110,7 @@ export class BuildLockHeldError extends Error {
         ? `the roots build lock at ${lockPath} is held by process ${holderPid}`
         : `the roots build lock at ${lockPath} is held, but its holder's pid could not be read`;
     const why =
-      'another roots build (index, calibrate, or promote) is currently writing the cache; writing over it at the same time would corrupt the mined state';
+      'another roots build (index, or a future maintenance command) is currently writing the mined state — model.json included, not only the cache; writing over it at the same time would corrupt what gets committed';
     const next =
       'wait for the other build to finish and retry, or if no such process is actually still running, remove the stale lock file and retry';
     super(what);

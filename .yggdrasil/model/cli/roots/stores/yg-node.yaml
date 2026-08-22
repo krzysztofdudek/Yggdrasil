@@ -1,13 +1,18 @@
 name: Roots Store
 type: roots-store
-description: "Roots store — persistence for the mined convention model. Owns the
-  generic model.json header/body I/O (writeModel/readModel), the I2a header type
-  (RootsModelHeader), the rootsVersion schema constant, the seeds.jsonl reader
-  (typed via SeedEntry), and the per-store-file content hash used to compose the
-  header's seedsHash/decisionsHash/ledgerHash fields. The seams here (the header
-  shape, the generic body I/O, the store-file hash contract) are deliberately
-  frozen: later roots modules extend the engine node's own mapping instead of
-  reopening this file."
+description: "Roots store — persistence for the mined convention model, under
+  .yggdrasil/roots/. Owns the generic model.json header/body I/O (writeModel/
+  readModel), the I2a header type (RootsModelHeader), the ROOTS_VERSION schema
+  constant, the seeds.jsonl and ledger.jsonl readers (typed via SeedEntry/
+  LedgerEntry), the per-store-file content hash (hashStoreFile) used to compose
+  the header's seedsHash/decisionsHash/ledgerHash fields, and every path helper
+  for the store's own layout — the committed store dir, the gitignored .cache/
+  and .state/ derived directories, the historical-blob cache dir, the history
+  replay-state dir, and the build-lock path. Later roots modules extend the
+  engine node's own mapping for new behavior rather than reopening this file,
+  but nothing here is frozen against a genuine change to the store's own
+  contract (a new store file, a header field, a path layout change) — that is
+  exactly the kind of change this node's own log records."
 relations:
   - target: cli/io/atomic-write
     type: calls

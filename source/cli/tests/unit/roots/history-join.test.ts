@@ -14,7 +14,7 @@ import { defaultRootsConfig } from '../helpers/roots-config.js';
 import { buildHistoryGoldenSpec } from '../../fixtures/roots/golden/history/spec.js';
 import { deterministicCommitDate, deterministicCommitIndexAt } from '../../support/git-fixture.js';
 import { buildGoldenRepo } from '../../support/roots-golden.js';
-import { rmSync } from 'node:fs';
+import { rmSync, readdirSync } from 'node:fs';
 
 // ---------------------------------------------------------------------------
 // tests/unit/roots/history-join.test.ts — R4 Task 8's own suite for
@@ -378,6 +378,63 @@ describe('buildHistoryJoin — historyStats is a property of the history (D4), a
         expect(second?.parsedKeys.size).toBe(first?.parsedKeys.size);
       } finally {
         await cleanup();
+      }
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The full production path (buildHistoryJoin -> resolveAdmittedRefs -> the
+// reader's `probe`) degrades a damaged cache shard to a rebuilt miss, never
+// an abort: a deleted or corrupted shard makes `probe` answer `undefined`,
+// which routes that key to the ordinary fetch-and-re-extract path. The
+// disturbed run below forces a FULL re-walk deliberately — a resumed run
+// over an unchanged tree walks zero commits and performs no blob-cache I/O
+// at all, so only a full walk actually re-classifies every key against the
+// damaged cache. What this pins is corruption tolerance (a damaged derived
+// cache is silently rebuilt, never surfaced as a failed run); the
+// between-reads race itself is closed STRUCTURALLY — classification and
+// resolution are one read inside `probe`, so no test can construct a
+// second read for a shard to vanish between.
+// ---------------------------------------------------------------------------
+
+describe('buildHistoryJoin — a damaged cache shard degrades to a rebuilt miss, never an abort', () => {
+  it('deleting one arbitrary shard the cold run wrote: a FULL re-walk over the damaged cache completes and reports historyStats identical to an undisturbed clean warm run', async () => {
+    const config = await defaultRootsConfig();
+    await withBuiltGolden(buildHistoryGoldenSpec(), async (repoRoot) => {
+      const { deps, cleanup } = await makeTempHistoryDeps();
+      const { deps: cleanDeps, cleanup: cleanupClean } = await makeTempHistoryDeps();
+      try {
+        const cold = await buildHistoryJoin(repoRoot, config, deps);
+        expect(cold).toBeDefined();
+
+        // Delete one arbitrary shard the cold run just wrote to `deps.cacheDir`.
+        const prefixDirs = readdirSync(deps.cacheDir);
+        expect(prefixDirs.length).toBeGreaterThan(0);
+        const firstPrefix = path.join(deps.cacheDir, prefixDirs[0]);
+        const shardFiles = readdirSync(firstPrefix);
+        expect(shardFiles.length).toBeGreaterThan(0);
+        rmSync(path.join(firstPrefix, shardFiles[0]));
+
+        // The reference: a fully clean, undisturbed cold+warm pair over an
+        // independent cache directory.
+        const cleanCold = await buildHistoryJoin(repoRoot, config, cleanDeps);
+        expect(cleanCold).toBeDefined();
+        const cleanWarm = await buildHistoryJoin(repoRoot, config, cleanDeps);
+        expect(cleanWarm).toBeDefined();
+
+        // The disturbed run: `full: true` so the walk re-classifies every
+        // key against the damaged cache (a resume over an unchanged tree
+        // would never touch it). It must complete without throwing and
+        // match the clean warm run's historyStats exactly — the vanished
+        // shard is silently rebuilt as a miss, never surfacing as a failed
+        // `index` run.
+        const warm = await buildHistoryJoin(repoRoot, config, { ...deps, full: true });
+        expect(warm).toBeDefined();
+        expect(warm?.historyStats).toEqual(cleanWarm?.historyStats);
+      } finally {
+        await cleanup();
+        await cleanupClean();
       }
     });
   });

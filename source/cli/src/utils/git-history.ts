@@ -153,8 +153,9 @@ export function openBlobReader(repoRoot: string): BlobReader {
 
 // The one-shot convenience wrapper (open → read → close in a `finally`) for
 // callers with a single batch — every test in this file, and nothing on a
-// production walk's hot path (that path is T8's windowed probe-then-fetch,
-// which holds one handle for the whole walk instead).
+// production walk's hot path (that path is T8's global, deduped probe-then-
+// fetch pass over the whole walked range, which holds one handle for the
+// whole walk instead).
 export async function readBlobs(
   repoRoot: string,
   shas: readonly string[],

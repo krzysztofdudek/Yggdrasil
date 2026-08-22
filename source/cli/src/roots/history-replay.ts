@@ -33,9 +33,10 @@
  * TWO PUBLIC OPERATIONS PLUS THE STATE THEY SHARE. `replayCommit(state,
  * commit, records)` folds one commit's file records into `state`, mutating
  * it in place — synchronous, no I/O, because every blob this commit touches
- * must already be resolved in `records` (T8's windowed probe-then-fetch
- * protocol; `BlobRecordLookup` is a plain synchronous lookup, never a
- * fetcher). `finishReplay(state)` derives the four finished products —
+ * must already be resolved in `records` (T8's global, deduped probe-then-
+ * fetch pass over the whole walked range — `history.ts`'s own
+ * `resolveAdmittedRefs`; `BlobRecordLookup` is a plain synchronous lookup,
+ * never a fetcher). `finishReplay(state)` derives the four finished products —
  * alias-resolved, cap-demoted, totally sorted — WITHOUT mutating `state`,
  * so it may be called more than once on the same state (acceptance: byte-
  * identical on repeat). `createReplayState`/`serializeReplayState`/
@@ -284,7 +285,8 @@ export interface ReplayResult {
 // two shas sit at two different paths, the pre-image at `path` and the post-image at `newPath`
 // (T8 Step 1), so a sha-keyed lookup could not even express the rename case. Synchronous — every
 // blob a commit's records could need must already be resolved before `replayCommit` is called
-// (T8's windowed probe-then-fetch protocol); this module fetches nothing itself.
+// (T8's global, deduped probe-then-fetch pass over the whole walked range); this module fetches
+// nothing itself.
 export interface BlobRecordLookup {
   get(sha: string, relPath: string): BlobRecord | undefined;
 }

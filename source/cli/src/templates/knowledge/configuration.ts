@@ -92,8 +92,12 @@ roots:                            # Optional — roots convention-mining engine 
   history:
     full: false                   #   Example: two LIVE leaves — windowMonths only takes effect
     windowMonths: 6               #   once full is false (its default is true, so windowMonths
-                                  #   alone at any value is a no-op); together they narrow a run
-                                  #   to the last 6 months, at the cost of no signal for older code.
+                                  #   alone at any value changes nothing about what gets MINED —
+                                  #   but it is not a free edit even then: it still changes the
+                                  #   inputs fingerprint the next run checks, so that run performs
+                                  #   one full walk instead of resuming, a mining no-op that still
+                                  #   costs a walk); together the two narrow a run to the last 6
+                                  #   months, at the cost of no signal for older code.
   weights:
     seedCapFraction: 0.25         #   A third leaf: caps how much of a role's weight one seed can
                                   #   claim, down from the 0.5 default. Everything else stays default.

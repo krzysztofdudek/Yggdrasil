@@ -14,7 +14,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { mkdtemp, rm } from 'node:fs/promises';
-import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { initDeterministicGitFixture, runDeterministicGitFixture, runGitFixture } from '../../support/git-fixture.js';
@@ -642,6 +642,91 @@ describe('own: makeBlobRecordReader on a genuine miss with no content supplied i
       const reader = makeBlobRecordReader(cacheDir, config);
       await expect(reader(shaFor('src/svc/order.ts'), 'src/svc/order.ts', undefined)).rejects.toThrow();
       expect(everyShardFile(cacheDir)).toEqual([]); // nothing fabricated, nothing written
+    } finally {
+      await rm(cacheDir, { recursive: true, force: true });
+    }
+  });
+});
+
+// -----------------------------------------------------------------------------
+// The single-read `probe` sibling. `resolveAdmittedRefs` (history.ts)
+// classifies every admitted reference through `probe`, never through a
+// second, separately-read copy of the cache lookup: this pair of tests is the
+// contrast that motivates it, on the IDENTICAL vanished-shard scenario — a
+// shard this reader itself wrote, then removed out from under it, is exactly
+// the window a naive two-read reroute (classify with its own read, then call
+// the reader for the resolve) would open: the shard is gone by the second
+// read, and the base callable's own miss branch — reached with no content
+// supplied — throws its caller-contract error. `probe` answers the identical
+// question with a single read and never throws.
+// -----------------------------------------------------------------------------
+
+describe('probe: the single-read, never-throwing classification half of the reader', () => {
+  it('probe returns undefined on a shard that vanished after being written — never a throw; the base callable, asked the identical question with no content, throws', async () => {
+    const cacheDir = await tmpCacheDir();
+    try {
+      const config = await defaultRootsConfig();
+      const reader = makeBlobRecordReader(cacheDir, config);
+      const sha = shaFor('src/svc/order.ts');
+      const relPath = 'src/svc/order.ts';
+
+      const first = await reader(sha, relPath, contentFor(relPath));
+      expect(first.skipped).toBe(false);
+      const key = expectedKeyFor(relPath, sha);
+      expect(existsSync(shardPathFor(cacheDir, key))).toBe(true);
+
+      // The shard vanishes out from under the cache — the exact TOCTOU
+      // window a naive classify-then-call-the-reader reroute would open
+      // between its own two reads of the same shard.
+      rmSync(shardPathFor(cacheDir, key));
+      expect(existsSync(shardPathFor(cacheDir, key))).toBe(false);
+
+      const probed = await reader.probe(sha, relPath);
+      expect(probed).toBeUndefined(); // undefined IS the miss signal — never a throw
+
+      await expect(reader(sha, relPath, undefined)).rejects.toThrow(/cache miss/);
+    } finally {
+      await rm(cacheDir, { recursive: true, force: true });
+    }
+  });
+
+  it('probe on an ordinary, never-cached miss also returns undefined, never throws, and writes nothing', async () => {
+    const cacheDir = await tmpCacheDir();
+    try {
+      const config = await defaultRootsConfig();
+      const reader = makeBlobRecordReader(cacheDir, config);
+      const probed = await reader.probe(shaFor('src/svc/order.ts'), 'src/svc/order.ts');
+      expect(probed).toBeUndefined();
+      expect(everyShardFile(cacheDir)).toEqual([]);
+    } finally {
+      await rm(cacheDir, { recursive: true, force: true });
+    }
+  });
+
+  it('probe resolves a real cache hit identically to the callable\'s own hit branch — byte-identical under JSON.stringify', async () => {
+    const cacheDir = await tmpCacheDir();
+    try {
+      const config = await defaultRootsConfig();
+      const reader = makeBlobRecordReader(cacheDir, config);
+      const sha = shaFor('src/svc/order.ts');
+      const relPath = 'src/svc/order.ts';
+      const first = await reader(sha, relPath, contentFor(relPath));
+      const probed = await reader.probe(sha, relPath);
+      expect(probed).toBeDefined();
+      expect(JSON.stringify(probed)).toBe(JSON.stringify(first));
+    } finally {
+      await rm(cacheDir, { recursive: true, force: true });
+    }
+  });
+
+  it('probe on a gate-2-rejected path answers the skip record in memory, never touching the cache — the same verdict the callable gives', async () => {
+    const cacheDir = await tmpCacheDir();
+    try {
+      const config = await defaultRootsConfig();
+      const reader = makeBlobRecordReader(cacheDir, config);
+      const probed = await reader.probe(shaFor('NOTES.md'), 'NOTES.md');
+      expect(probed).toEqual({ bytes: 0, skipped: true, reason: 'no-grammar' });
+      expect(everyShardFile(cacheDir)).toEqual([]);
     } finally {
       await rm(cacheDir, { recursive: true, force: true });
     }

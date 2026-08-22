@@ -57,8 +57,13 @@ the same terms as everything else. None of this changes what gets reported
 today — a pattern that shows up in the snapshot is still only reported,
 never enforced — but it changes how much each instance of it counted toward
 being reported. A repository with no git history, or only a shallow clone,
-still mines the same fields, honestly, with nothing claimed as backed by
-history it does not have.
+still mines — it does not stop or fall back to an error — but every
+history-fed field the snapshot could otherwise carry is simply absent, and
+every instance is weighted the same, flat amount instead of by how long it
+has stood. The mined set itself can therefore differ from what the same
+tree would mine with its history intact: nothing is claimed as backed by
+history the run does not have. See [What history changes](#what-history-changes)
+below for exactly what that absence means for what gets reported.
 
 Reading that history is incremental, not a full re-walk every time: a first
 `index` reads the whole history and remembers where it left off; a later
@@ -116,7 +121,7 @@ Everything roots reads or writes lives under `.yggdrasil/roots/`:
 | `model.json` | The committed snapshot `index` writes — what was mined, and when. |
 | `seeds.jsonl` | Maintainer-authored hints that nudge mining toward a preferred convention. `index` reads and folds these in; nothing writes this file for you yet. |
 | `decisions.jsonl` | A committed, append-only log reserved for a later increment (accepting or rejecting a mined pattern). `index` already reads and accounts for it today, so a file you commit there is already reflected in the snapshot's hash — nothing writes to it yet. |
-| `ledger.jsonl` | A committed, append-only log of code the tool previously shaped. While a mark stands, `index` caps that code's evidence low regardless of how long it has otherwise stood — never fully excluded, just discounted — until a maintainer's follow-up touch releases it. `index` reads and applies these caps today; nothing writes a new mark yet — that arrives with the capability that first shapes code. |
+| `ledger.jsonl` | A committed, append-only log of code the tool previously shaped. While a mark stands, `index` caps that code's evidence low regardless of how long it has otherwise stood — never fully excluded, just discounted — until a maintainer's follow-up touch releases it. `index` reads and applies these caps today, but only when history was actually read: on a repository whose history cannot be read, evidence is already flat and a cap has nothing to discount. Nothing writes a new mark yet — that arrives with the capability that first shapes code. |
 | `.cache/` | Rebuildable working state `index` writes and reads on every run once the project has git history: a cache of parsed historical file content, so re-indexing never re-parses a file version it has already seen, plus the incremental record of how far the history has been read — which is what lets a later `index` pick up only the newer commits instead of re-reading from the start. Also holds the lock file `index` takes while it is writing, so two runs can never write the same cache at once. Gitignored, safe to delete at any time — the next run rebuilds whatever it needs from scratch and mines exactly the same snapshot either way. |
 | `.state/` | Reserved for rebuildable working state, gitignored. Nothing writes to it in this release. |
 
