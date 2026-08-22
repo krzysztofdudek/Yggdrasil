@@ -62,7 +62,7 @@ arrives in R6.
 
 One clause is **added** to R5 by the previous increment's own written assignment: the Stop-channel
 completeness sweep (`v6-spec.md:625`), which R4's plan states plainly is "R5's — R4 produces the
-pairs it will read" (`2026-08-20-increment-3-r4-history.md:2320-2321`). D20 records why it belongs
+pairs it will read" (`2026-08-20-increment-3-r4-history.md:2321-2322`). D20 records why it belongs
 here and nowhere else.
 
 ---
@@ -97,7 +97,7 @@ this increment is not authorized to make. `src/cli/roots-check.ts` MUST export e
   (`.yggdrasil/aspects/sibling-test-file/check.mjs:6-31`). So
   `source/cli/tests/unit/cli/roots-check.test.ts` is **required**, not optional, and the new
   command node must carry `uses: cli/tests/unit/cli`.
-- `command` carries **seven** aspects (`yg-architecture.yaml:49-56`): `source-no-raw-control-chars`
+- `command` carries **seven** aspects (`yg-architecture.yaml:49-57`): `source-no-raw-control-chars`
   (`status: enforced`, and it does bind), `cli-command-contract`, `diagnostic-logging`,
   `command-contract-shape`, `source-hygiene`, `command-error-via-buildissuemessage` and
   `sibling-test-file`. Read all seven before writing the file.
@@ -367,10 +367,18 @@ Each resolves something the authorities leave under-determined, or reconciles tw
 may not re-litigate one; a task that finds a decision *wrong* stops and reports.
 
 - **D1 — The intents seam: a pure engine that returns its side effects as data.** `verdict.ts`,
-  `speech.ts`, `session-state.ts`, `health.ts` and `exemplars.ts` perform no I/O. `evaluate()`
-  returns `{ messages, intents }` where `intents` is a plain, sorted record of *what should be
-  appended where* — session events, telemetry lines, ledger marks — and `src/cli/roots-check.ts`
-  is the single place that applies them, in the single order D14 fixes. Three reasons, each
+  `speech.ts`, `session-state.ts`, `health.ts` and `exemplars.ts` perform no I/O. **The pipeline,
+  named once here so no task has to infer it:**
+  ```
+  evaluate(VerdictInput) -> { findings, closureIntents }        // verdict.ts   (T3; closure filled at T7)
+  applyBudgetsAndDedup(findings, fold, config)
+                          -> { emitted, emissionIntents }        // session-state.ts (T6) — §11.3's ONE authority
+  render(emitted)         -> string[] | VerdictJson              // speech.ts   (T3 minimal, T4 complete)
+  ```
+  `Intents` is a plain, sorted record of *what should be appended where* —
+  `{ sessionEvents, telemetry, ledgerMarks }` — the two produced sets are merged by the caller, and
+  `src/cli/roots-check.ts` is the single place that applies them, in the single order D14 fixes.
+  "Messages" in this plan always means `render`'s output, never `evaluate`'s return. Three reasons, each
   independently sufficient: `roots-engine` carries `no-direct-fs` and `deterministic`
   (`yg-architecture.yaml:749-755`), so the alternative is not available; a returned intent is
   assertable by value in a unit test, where a performed write is only assertable through the
@@ -378,6 +386,20 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   place that touches the world. The seam also makes the harness mode trivial — a harness runs
   `evaluate()` and discards `intents` (`v6-spec.md:730`: the harness runs hermetically, with no
   telemetry or session reads/writes).
+
+  **Where the intent record shapes live, so neither layer has to import the other.** The engine must
+  *name* what it returns and the stores must *name* what they append, and neither may import the
+  other: `persistence-adapter`'s `calls:` is `[persistence-adapter, utility]`
+  (`yg-architecture.yaml:206`) with `roots-engine` absent, while an engine that imported the stores
+  would falsify the authorization table's own sentence and add an undeclared edge. So
+  `SessionEvent`, `TelemetryRecord` and `DemotionsFile` are declared in **`src/model/graph.ts`** —
+  the `types` node — exactly where `LedgerEntry` and `SeedEntry` already live and exactly how
+  `stores.ts` already consumes them (`stores.ts` imports both from `../model/graph.js`). Both sides
+  reach it legally (`roots-engine` `uses: [types]`, `:760`; `persistence-adapter` `uses: [types]`,
+  `:208`), all three are pure interfaces so the `types` node's own "no runtime behavior" contract
+  (`:341`) holds, and the authorization table's "they import no persistence adapter at all"
+  stays true. **A function may not follow them there** — which is precisely why D15's `markKey`
+  takes the caller-passes route instead.
 - **D2 — File placement and the names that carry meaning.** As tabulated in the authorization
   section. Restated as a rule an implementer can check: a new `src/io/` file MUST end in
   `-store.ts` or `-cache.ts`; a new `src/cli/` file MUST export exactly one
@@ -406,9 +428,19 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   (`src/roots/stores.ts:206-211`), `evaluateNoOpShortCircuit` catches that throw and treats it as
   "no comparable header", returning `false` so the run proceeds (`roots.ts:551-556`), and `status`
   already renders the "could not be read — run `yg roots index`" paragraph
-  (`roots.ts:403-409`). **No migration file is written, and that is not an omission:** `model.json`
-  is derived, rebuildable state whose only correct migration is regeneration, and the version gate's
-  throw *is* the trigger for it. T2 adds the criterion that pins it (an R4-shaped body on disk ⇒ the
+  (`roots.ts:403-409`). **No migration file is written, and that is not an omission — but it does
+  need a rebuttal, because the design says otherwise and this plan cites the page it says it on.**
+  Design §10 states "`rootsVersion` governs store migrations through the CLI's existing
+  `migrations/` infrastructure" (`integration-design.md:406`). That infrastructure is
+  **graph-schema-only**: `src/migrations/index.ts` is a `MIGRATIONS: Migration[]` list typed by
+  `core/migrator.ts` and populated with `to-5.1.0`, and every entry rewrites the *committed graph*
+  against `CLI_SUPPORTED_SCHEMA`. `model.json` is not graph state — it is derived, rebuildable
+  state whose only correct migration is regeneration, and `readModel`'s throw *is* the trigger for
+  it. Writing a `Migration` that "migrates" a file the next `index` regenerates from scratch would
+  add a graph-schema entry that runs on graph loads and touches nothing roots owns. **This is the
+  increment's second design-vs-landed reconciliation** (the first being D10's channel names and
+  T1's two file names), recorded here so the execution protocol's "a spec section contradicts a
+  decision" STOP does not fire on a contradiction this plan already resolved. T2 adds the criterion that pins it (an R4-shaped body on disk ⇒ the
   next `index` rewrites it), and T3 adds the criterion that pins the other side (a version-mismatched
   model ⇒ `check` is silent, exits 0, records one incident — never a crash). The graph schema
   version (`CLI_SUPPORTED_SCHEMA`, `templates/default-config.ts`) is untouched: no graph format
@@ -469,7 +501,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
 
   **The id domain first, because it rules out the obvious sentinel.** A partition id is one of:
   a package-root directory string, the literal `'_root'`, or the literal `'_repo'`
-  (`partitions.ts:283`). And a package-root directory string **can be the empty string**:
+  (`partitions.ts:284`). And a package-root directory string **can be the empty string**:
   `dirnameOf` returns `''` for a path with no slash (`extract.ts:795-798`), so a repository with a
   root-level `package.json` / `pyproject.toml` / `go.mod` — the mainstream adopter shape — produces
   `packageRootDirs = {''}`, and if that bucket clears the 300-scope floor its final id is
@@ -493,7 +525,28 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   own final id or `null`; it is a separate field rather than a magic array entry because `'_root'`
   is not a directory prefix and must never be matched as one.
 
-  **Lookup replicates `keyFor` exactly** (`partitions.ts:210-215`), all three arms, in order:
+  **A detected package root with no mined scopes still gets an entry, carrying the `_repo` bucket's
+  own outcome.** `packageRootDirs` is built from the *file* list while `scopesByKey` is built from
+  the *scope* list (`partitions.ts:232-250`), so a `packages/foo/package.json` whose directory holds
+  no parseable scope appears in `sortedRoots` and in **no** `statusOfKey` entry — it has no final id
+  at all, and "the final id `derivePartitions` gave that key" is undefined for it. Emitting `null`
+  (silent) and omitting the entry (fall through to `fallback`) are both wrong for the same reason:
+  the moment a scope *is* created there, that key enters `scopesByKey` below the 300-scope floor and
+  merges into `_repo`. So the entry carries exactly that — `'_repo'` when the merged bucket survived,
+  `null` when it did not — which is what the next index would assign to the first scope written
+  there. Criterion 4b(v) pins it.
+
+  **The matcher has one home, and it is not a second `keyFor`.** The lookup above is genuinely a
+  second *implementation* of the arm test (the projection is of the decision, not of the code), so
+  it is exported **once**, from `exemplars.ts` (engine-pure, no I/O), as
+  `routePartition(routing, relPath): string | null`. Its **production caller is
+  `src/cli/roots-check.ts`**, which routes each edited file before building the fact projection
+  (D6); `mine.ts` never calls it, because the index already knows every mined file's partition. T2
+  criterion 4 drives **that exported function** over every mined file rather than re-deriving the
+  walk in the test, so there is exactly one copy of the matcher and the criterion checks it rather
+  than a paraphrase of it.
+
+  **Lookup replicates `keyFor` exactly** (`partitions.ts:239-244`), all three arms, in order:
   ```
   for (const r of roots) if (r.dir === '' || rel === r.dir || rel.startsWith(r.dir + '/')) return r.partitionId;
   return fallback;
@@ -503,7 +556,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   equals the root string.
 
   **Order.** `derivePartitions` sorts `sortedRoots` by **descending string length**
-  (`partitions.ts:236`), not by nesting depth, so the plan does not claim "most-nested first" as the
+  (`partitions.ts:237`), not by nesting depth, so the plan does not claim "most-nested first" as the
   rule. The persisted array is sorted `(dir.length desc, dir asc)`, which is *behaviorally
   identical* to `sortedRoots` and additionally total: two distinct equal-length directories can
   never both be ancestors of the same path (equal-length prefixes of one string are equal), and the
@@ -512,7 +565,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   dependence on `Set` insertion order.
 
   **A routing entry also reconstructs the module-root arm** `finalizeUnits` needs (D6), by
-  `derivePartitions`' own rule (`partitions.ts:280-282`): `''` when the resolved id is `'_repo'` or
+  `derivePartitions`' own rule (`partitions.ts:291`): `''` when the resolved id is `'_repo'` or
   the `fallback` arm matched, otherwise the matched entry's `dir`. Nothing extra is persisted for it.
 
   A file that resolves to `null` is **silent** — the same answer the index gave it. The whole
@@ -531,7 +584,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   (the resolved module directory, a different quantity) — so the synthesized map fills that slot by
   D5's own reconstruction rule: `''` when the resolved id is `'_repo'` or the fallback arm matched,
   otherwise the matched routing entry's `dir`, which is exactly `derivePartitions`' own line
-  (`partitions.ts:280-282`). Module-kind units are discarded before evaluation (§9.10's runner
+  (`partitions.ts:291`). Module-kind units are discarded before evaluation (§9.10's runner
   evaluates method, type and file scopes only, `:481`), and module-kind **facts** are dropped by
   the `VerdictFact` projection (T3), so the slot cannot reach a verdict either way — but it is
   filled from the right field, because an implementer told to use the wrong one will reach for
@@ -548,7 +601,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   tiers; the verdict **never re-derives the tier**, so the fire-ability gate and the verdict can
   never disagree about τ by construction. R6's calibrated `τ_c` will move that same field, and the
   verdict will need no change. Unseen value (⊥) ⇒ novelty note and severity **capped at WARN**
-  (`v6-spec.md:439`) — in R5 that cap is invisible because nothing reaches DENY, and it is still
+  (`v6-spec.md:440`) — in R5 that cap is invisible because nothing reaches DENY, and it is still
   implemented and tested, because R6 turns the cap on the same day it turns DENY on.
 - **D8 — Specificity governance: the evidence class is the survived-raw total.** §9.10 says at most
   one fact governs a scope per surface: "the applicable fact with the smallest evidence class
@@ -563,10 +616,17 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
 - **D9 — Severity in R5, and the inert DENY row.** The composed rule, stated once so no task
   restates half of it: **`severity = (denyEligible && !novel) ? DENY : WARN`**, where `novel` is
   D7's ⊥ case (the observed value is outside the fact's alphabet). The `!novel` conjunct is
-  §9.7's binding clause — "a never-seen value is never denied" (`v6-spec.md:439`) — and it is a
+  §9.7's binding clause — "a never-seen value is never denied" (`v6-spec.md:440`) — and it is a
   load-bearing rule with its own killer (MR-12b), not a note attached to D7. `denyEligible` reaches
   the engine as a plain `boolean` on `verdict.ts`'s **own** input projection — not as `MinedFact`'s
-  literal `false` type. That single indirection is what lets the
+  literal `false` type. **The projection is built by `src/cli/roots-check.ts` from one
+  `MinedPartition`, and three of its fields are not copies of a `MinedFact` field**, so they are
+  named here rather than left to be discovered: `partitionId` comes from the enclosing
+  `MinedPartition.id`; `roleLabel` is the `label` of the `MinedRole` whose `roleKey` matches the
+  fact's, and `null` for an `_all` or `d[<dir>]` cell (§11.1's first line needs the label, and
+  §9.4i's `local (<dir>/)` / `package-wide (<id>)` / `repo-wide` labels need the partition id —
+  without both, three of the four locality labels are unrenderable); and `denyEligible` is the
+  boolean widening above. Every module-kind fact is dropped by the projection (T3). That single indirection is what lets the
   channel table's DENY row be exercised by unit tests today while remaining unreachable from any
   real snapshot until R6 sets the flag (`integration-design.md:365-383`: DENY arms at R6, never in
   CI, only in a hook's JSON payload). **R5 emits no `permissionDecision` under any input**, because
@@ -586,10 +646,12 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   (`hooks install` is R8, program plan `:121`), so every channel is reachable only by explicit
   invocation and by tests — which is also why the protocol path (`yg roots check <file>`, the form
   R9 will teach in `rules.ts`) must work perfectly without any hook runtime at all.
-- **D11 — Non-hook scope selection: a declared, bounded superset of §19's rule.** Design §3's
-  `check` row and spec §19's (`:698`) agree: with no path arguments the scope set is "scopes whose
-  `body_hash` differs from HEAD, plus enclosing types and file scopes"; with `[paths…]` it is
-  **every** scope in those files. The second half R5 implements exactly. The first half it
+- **D11 — Non-hook scope selection: a declared, bounded superset of §19's rule.** **Spec §19
+  (`v6-spec.md:698`) is the only authority for the no-argument form** — design §3's row documents
+  `check <file...>` with the files required and says nothing about running with none
+  (`integration-design.md:80`), so it is cited for the `[paths…]` half only. §19: with no path
+  arguments the scope set is "scopes whose `body_hash` differs from HEAD, plus enclosing types and
+  file scopes"; with `[paths…]` it is **every** scope in those files. The second half R5 implements exactly. The first half it
   implements as a **superset**, and the reason is a cost, not a preference: **`body_hash` does not
   exist.** §6.5 defines it (`v6-spec.md:250`), but the landed extractor never computed it — there is
   no `bodyHash` field anywhere on `RawScope`/`ScopeUnit`, and R4's history layer compares scopes by
@@ -604,8 +666,14 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   files, without the per-scope filter. What the superset costs is bounded by the layer that already
   exists for exactly this: §11.3's 3-per-response budget and WARN dedup mean the extra scopes can
   add noise but cannot flood, and a deviation already reported in this session is not repeated.
-  **Degraded fallback:** with git unavailable or a shallow clone, `getDirtyFiles` returns nothing
-  and the run is silent with one `debugWrite` line — never an error (R5-I15).
+  **Degraded fallback, with the two cases kept apart.** `getDirtyFiles` returns **`null`**, never
+  `[]`, when it cannot tell — its own contract says so in those words (`utils/git.ts:113-124`) — and
+  the two answers mean different things: `null` is "not a git repository, or git is missing", and
+  `[]` is "a git repository with a clean tree". `null` ⇒ silence plus one `debugWrite` line; `[]` ⇒
+  silence and **no** log line, because a clean tree is the normal, correct, uninteresting case. A
+  **shallow clone is not a degraded case here at all**: `git status` reports dirty files normally in
+  one, so the shallow-clone caveat that belongs to the history walk does not belong to this path.
+  Neither case is ever an error (R5-I15).
 
   **This is a declared scope reduction against `integration-design.md:80` and `v6-spec.md:698`, and
   it is recorded as one** in the NON-goals section rather than left as a quiet divergence. Its owner
@@ -650,7 +718,22 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   arithmetic assumes. Appends go
   through `appendLedgerMarks` in `src/roots/stores.ts` — the file that already owns `readLedger`,
   so the store's read and write halves stay in one place — routed through `appendToDebugLog`'s
-  chokepoint per `atomic-write-contract`. Two consequences are intended and must be stated in the
+  chokepoint per `atomic-write-contract`.
+
+  **The dedupe key is supplied by the caller, not imported by the store, and that is an
+  architecture constraint rather than a taste.** `markKey` lives in `src/roots/weights.ts:267-269`,
+  which is type `roots-engine`; `stores.ts` is type `roots-store`, whose allow-list is
+  `calls: [persistence-adapter, utility]`, `uses: [types]`, `default: deny`
+  (`yg-architecture.yaml:775-778`) — **`roots-engine` is absent**, and `stores.ts`'s own header
+  already states the rule in the other direction. So the signature is
+  `appendLedgerMarks(yggRoot, marks, keyOf)`: `src/cli/roots-check.ts` — the one type that legally
+  reaches both (`command` `calls:` includes `roots-engine` and `roots-store`, `:61`) — imports
+  `markKey` and passes it in. This is the same shape T1 already uses for `stateDir`: the composition
+  seam supplies what the two layers may not hand each other directly. **There is therefore exactly
+  one key format in the tree and nothing to keep in sync** — no duplicated derivation, and so no
+  divergence killer is needed. What *is* pinned instead is the wiring: T7 criterion 7 asserts that a
+  mark this path writes is the same mark R4's `releasedMarks` later recognizes and releases, which
+  is the only property the key format actually exists to guarantee. Two consequences are intended and must be stated in the
   docs, not hidden: `git status` shows a dirty `ledger.jsonl` after a productive session ("roots
   records that it shaped this code — commit it with your change", `:685`), and because
   `ledgerHash` is one of the model header's inputs, the **next** `yg roots index` will not take
@@ -667,20 +750,35 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
 
   1. **The short-circuit governs the MINING, not the run.** `yg roots index` evaluates D13's
      short-circuit exactly as it does today, and when it fires it still writes nothing to `.cache/`
-     and leaves `model.json` byte-identical — R4's guarantee is preserved word for word, because
-     §6.6 clause 6's own wording is about writes to the cache (`v6-spec.md:260`).
+     and leaves `model.json` byte-identical — §6.6 clause 6's own wording is about writes to the
+     cache (`v6-spec.md:260`).
   2. **The aggregation then runs unconditionally, after that decision**, reading whatever
      `model.json` is on disk and writing only `.yggdrasil/roots/.state/demotions.json` — a superset
      of §18.2's "every snapshot write", never a subset.
   3. **It takes no build lock, and needs none.** The lock serializes `.cache/` and `model.json`
-     writers (R4-I12). `demotions.json` is a single file written through `atomicWriteFile`, and its
-     content is a pure function of (model, telemetry, session logs) — so two concurrent runs each
-     write a complete, valid, *identical* answer. Taking the lock here would be strictly worse: it
-     would put a `.cache/` write back into the no-op path that R4's D13 exists to keep write-free.
-  4. **It writes only on change.** The computed content is compared against what is on disk and the
-     write is skipped when they match. A repository with no telemetry therefore has nothing to
-     aggregate and writes nothing at all — R4's "a genuine no-op run writes nothing" test keeps
-     passing byte for byte.
+     writers (R4-I12). `demotions.json` is a single file written through `atomicWriteFile`, so a
+     reader never sees a torn one; two concurrent runs each write a complete, valid answer, and
+     **last writer wins**. The justification is *not* that the two answers are necessarily identical
+     — a hook can append to a session log between two runs' reads, so they may legitimately differ —
+     it is the fail-open direction §18.2 itself fixes (`v6-spec.md:683`): a stale or missing
+     `demotions.json` resurrects a fact, never silences one, so losing a race costs at most one
+     round of speech and can never mute a healthy convention. Taking the lock, by contrast, would
+     put a `.cache/` write back into the no-op path that R4's D13 exists to keep write-free — and
+     that path is asserted by a landed test (D16.4).
+  4. **It writes only on change — and on a repository with no telemetry it creates nothing at
+     all, not even a directory.** The stricter half matters because R4's no-op assertion is
+     stronger than a byte comparison: `cli-roots-basic.test.ts:46-52` snapshots **every path under
+     `.yggdrasil/roots/` with its mtime and size** via
+     `readdirSync(root, { recursive: true, withFileTypes: true })`, which includes dot-directories,
+     and asserts `toEqual` on the second run (`:159`). `.state/` does not exist after any R4 run
+     (`rootsStateDir`, `stores.ts:61-63`), so a single `mkdir(stateDir, { recursive: true })` at the
+     top of a store writer — the most natural first line there is, and the obvious opener for a
+     compaction pass that wants to `readdir` the session directory — adds a `.state` entry to that
+     snapshot and **fails the landed test**. So: every read on this path goes through
+     `readFileOrDefault` or an `existsSync` guard, and `mkdir` happens **only inside the writer,
+     after the content-differs check has already decided to write**. T8 criterion 7's converse
+     asserts the whole-tree snapshot, not merely `demotions.json`'s absence, so the rule has a
+     killer rather than a promise.
   5. **`status` computes and displays, and writes nothing** — the reader/writer split
      (`integration-design.md:160-163`). Concretely, and this is the part §18.2 hides: its
      cross-session closure pass would otherwise **append committed ledger marks** from a read
@@ -728,7 +826,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
 - **D20 — Completeness (T5, the Stop message) is R5's.** The program plan's R-package paragraphs
   assign the completeness sweep to no package by name; R4's plan assigns it explicitly — "The
   Stop-channel completeness sweep (`v6-spec.md:625`) is R5's — R4 produces the pairs it will read"
-  (`2026-08-20-increment-3-r4-history.md:2320-2321`) — and R5 is in any case the only package that
+  (`2026-08-20-increment-3-r4-history.md:2321-2322`) — and R5 is in any case the only package that
   *can* host it, because its two inputs are the co-change cut (landed in R4) and the session's
   written-file set (which does not exist until this increment's session log). It is gated by
   `hooks.claudeCode.stopCompleteness` and `completeness.mode`, both already parsed with their
@@ -736,14 +834,14 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   own scope law ("nothing here is deferred out of it") violated by omission.
 
   **The committed row cannot support it as landed, so T2 extends the row.** §13.5's rule is
-  *directional* — `confidence(a→b) = support(a,b)/commits(a)` — and T5's evidence phrase is
+  *directional* — `confidence(a→b) = support(a,b)/commits(a)` — and Appendix A's T5 evidence phrase is
   `{support}/{commits}`. What the snapshot carries today is `{a, b, sup, conf}` with `a < b`
   canonical (`history-cochange.ts:94`) and, decisively, `conf = Math.max(confAB, confBA)`
   (`history-cochange.ts:396-398`). From the max alone `confidence(a→b)` is **not recoverable**:
   using it as a proxy names `b` in the wrong direction whenever `b` is the churnier file — the
   commonest asymmetric pair there is (a test that changes often beside a source file that does not)
   — producing a false "you forgot to touch X" on exactly the pairs completeness exists to catch.
-  And `commits(a)`, T5's own denominator, lives **only** in the gitignored
+  And `commits(a)`, that template's own denominator, lives **only** in the gitignored
   `.cache/history/cochange-raw.jsonl` (`history-cochange.ts:109-112`), absent on a fresh clone and
   outside the check path's committed-data contract. **T2 therefore persists two more integers per
   row — `{a, b, sup, conf, commitsA, commitsB}`** — the same `commitsOf(a)`/`commitsOf(b)` values
@@ -771,7 +869,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   demanded by an invariant R5 creates: the list of **active modulators** (I2b's own requirement,
   `v6-spec.md:81`), the **withheld-conventions** line ("K conventions withheld: no established
   instances yet" — §9.4c.4's J4 explanation, `:409`, `:697`), and the **agentShare alarm** rendered
-  as Appendix A's T7 when `agentShare ≥ health.agentShareAlarm`. It does **not** gain `--exit-code`
+  as **Appendix A's T7** when `agentShare ≥ health.agentShareAlarm`. It does **not** gain `--exit-code`
   or `--diagnose` (R7, `integration-design.md:84`), and it still always exits 0. The three
   additions are text in the existing renderer, not a new command surface; R7 restructures the same
   content into its fuller form.
@@ -829,7 +927,7 @@ architecture admits all of it. No verdict logic, no message text, no command.
 **Authorities.** Spec §11.4 (`v6-spec.md:554`), §18.1 (`:681`), §18.2's `demotions.json` stamp
 (`:683`), §18.3 (`:685`), §21.1's incident FIFO (`:719`); design §4's storage layout
 (`integration-design.md:122-165`), §12's "sessions as append-only event logs" and "incidents FIFO
-500" rows (`:456`, `:465`); AGENTS.md's local-state rule.
+500" rows (`:456`, `:466`); AGENTS.md's local-state rule.
 
 **Files.**
 - Create `source/cli/src/io/roots-session-store.ts`, `roots-telemetry-store.ts`,
@@ -907,7 +1005,8 @@ export function readIncidents(stateDir: string): Promise<RootsIncident[]>;
 
 // stores.ts additions (this file keeps its yggRoot-shaped signatures — it is the roots store,
 // and it already owns `rootsStoreDir`; only the four `src/io/` modules take an absolute dir)
-export function appendLedgerMarks(yggRoot: string, marks: readonly LedgerEntry[]): Promise<void>; // dedupes on (stableId, surface, date)
+export function appendLedgerMarks(yggRoot: string, marks: readonly LedgerEntry[],
+                                  keyOf: (m: LedgerEntry) => string): Promise<void>;  // dedupes by keyOf — D15
 export function snapshotContentHash(body: unknown): string;                                       // see Step 5 for the exact envelope
 ```
 
@@ -958,11 +1057,12 @@ export function snapshotContentHash(body: unknown): string;                     
 2. `pruneSessions` removes exactly the session files whose mtime is older than
    `sessions.pruneDays` (7) against an injected `nowMs`, and returns the count. It never removes a
    file it cannot stat.
-3. `appendLedgerMarks` writes one line per mark with `date` in exactly `YYYY-MM-DD` (UTC),
-   **dedupes on `(stableId, surface, date)`** — reusing `weights.ts`'s exported `markKey`
-   (`:267-269`), never a second key format — against both the marks in the same call and the marks
-   already in the file, and leaves an existing file byte-identical when every mark in the call is
-   already present. **Two marks for the same `(stableId, surface)` produced by two runs on the same
+3. `appendLedgerMarks(yggRoot, marks, keyOf)` writes one line per mark with `date` in exactly
+   `YYYY-MM-DD` (UTC) and **dedupes by `keyOf`** — the caller-supplied key function (D15: the store
+   may not import `markKey` from the engine), against both the marks in the same call and the marks
+   already in the file — and leaves an existing file byte-identical when every mark in the call is
+   already present. The unit test supplies `weights.ts`'s real `markKey`, which is legal from a test
+   and is what production passes. **Two marks for the same `(stableId, surface)` produced by two runs on the same
    UTC day collapse to one line**; a mark whose `date` carries a time component is rejected by the
    store rather than written (it would silently defeat this dedupe and shift `releasedMarks`'
    `Date.parse` arithmetic, `weights.ts:256`).
@@ -1021,8 +1121,8 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
 - Edit `source/cli/src/roots/history-cochange.ts` — `CochangePair` gains `commitsA`/`commitsB`,
   filled from the `commitsOf(a)`/`commitsOf(b)` values `finishCochange` already computes at the cut
   (`:394-398`); nothing else in that file changes, and the cut predicate is untouched.
-- Edit `source/cli/src/roots/mine.ts`'s `MinedModel.cochange` row type and
-  `source/cli/src/roots/stores.ts` — `ROOTS_VERSION` 1 → 2 (D3).
+- Edit `source/cli/src/roots/stores.ts` — `ROOTS_VERSION` 1 → 2 (D3), plus the eight landed test
+  sites Step 1 names.
 - Edit `source/cli/src/roots/pipeline.ts` — thread whatever the exemplar stage needs (weights,
   coupling) that `mine()` does not already hold.
 - Create `source/cli/tests/unit/roots/exemplars.test.ts`,
@@ -1042,6 +1142,15 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
   file:** `model.json` is derived state whose only correct migration is regeneration. Also
   **measure both `roles.ts` and `mine.ts` prompt margins now, before editing either** (Global
   constraints), and apply the stated fallback to whichever is under 2000 chars.
+  **The bump breaks eight landed assertions, and they are named here so none is discovered as a
+  mystery failure:** seven hard-coded `rootsVersion: 1` header fixtures in
+  `tests/unit/cli/roots.test.ts` (`:202`, `:342`, `:375`, `:404`, `:432`, `:639`, `:674`) and
+  `expect(model.header.rootsVersion).toBe(1)` in `tests/e2e/cli-roots-basic.test.ts:73`. The seven
+  unit fixtures fail **misleadingly** — after the bump `readModel` throws on them, so `status`
+  renders its "could not be read" paragraph instead of the content each test asserts, and the
+  failure reads as a `status` regression rather than a version mismatch. Update all eight to the new
+  constant (the fixtures should reference `ROOTS_VERSION` rather than a literal, as
+  `tests/unit/roots/stores.test.ts:43` already does, so the next bump costs one line).
 - [ ] **Step 2: `exemplars.ts`, pure.** Candidate set, `m1`, centrality and the refined tie-break
   exactly as D4 fixes them; top 3; output `{ rel, line, name }`, `rel` POSIX-normalized. No I/O, no
   clock. The module header states the D4 tie-break refinement **and its reason** (the all-zero
@@ -1054,8 +1163,10 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
   a sentinel), each carrying its final id or `null` when the merged bucket was dropped; `fallback`
   carrying the `'_root'` arm's own final id or `null`. Sorted `(dir.length desc, dir asc)`,
   matching `sortedRoots`' descending-length order and adding the total tie-break D5 justifies. It
-  is a **projection of an existing decision**, never a second implementation of `keyFor`: one test
-  asserts that routing every file the index actually mined reproduces `partitionOfFile` exactly, and
+  is a **projection of an existing decision**, and the matcher over it is exported **once** as
+  `routePartition(routing, relPath)` from `exemplars.ts` (D5), never re-written in a test or a
+  caller: one test asserts that routing every file the index actually mined through that function
+  reproduces `partitionOfFile` exactly, and
   a second asserts the module-root reconstruction (`''` for `_repo` and for the fallback arm,
   otherwise the matched `dir`) reproduces `moduleRootDirOfFile` exactly.
 - [ ] **Step 4: Directional co-change (D20).** `finishCochange` emits `commitsA`/`commitsB` beside
@@ -1087,14 +1198,33 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
    **not** outrank a group member merely by carrying no membership; for a role fact over the same
    scopes the ranking uses `(w·m1·centrality, w·m1, stable_id)`. Both orders are stated by value in
    the test.
-4. Routing every mined file through `partitionRouting` reproduces `partitionOfFile` for **every**
-   file on every golden, and the module-root reconstruction reproduces `moduleRootDirOfFile` for
-   every one of them.
-4b. **The root-level-package case, on a purpose-built fixture** (B1's blind spot): a repository
-   whose `package.json` sits at the repo root and which clears the 300-scope floor mines under
-   partition id `''`, and routing any file in it returns `''` — **not** silence. A second fixture
-   whose only package root is dropped by the floor routes its files to `null`, and a third with no
-   package marker at all routes through `fallback`.
+3c. **The degenerate case D4 actually argues from (`centrality = 0` for every candidate).** A
+   fixture whose partition **has** a `couplingByFile` map but in which none of the fact's candidates
+   appears in it — the small-repository case D4 names, where no file clears the co-change cut. Every
+   candidate's first tuple element is then exactly 0, so the *second* element is what orders them;
+   the test states the `w·m1` values and the resulting order by value. This, not criterion 3, is
+   what makes D4's refinement observable: with `couplingByFile` **absent** the centrality factor is
+   1, which makes the first and second tuple elements numerically equal and the refinement invisible.
+4. Routing every mined file through **`exemplars.ts`'s exported `routePartition`** — the single
+   matcher, not a paraphrase written in the test — reproduces `partitionOfFile` for **every** file on
+   every golden, and the module-root reconstruction reproduces `moduleRootDirOfFile` for every one
+   of them.
+4b. **The routing fixtures, purpose-built** — no landed golden carries a package marker at all
+   (`packageRootDirs` is empty on every one of them, so criterion 4 alone exercises only the
+   `fallback` arm and the `roots` array's order is unobservable). Five cases, and the first, second
+   and fourth need **~300 real scopes** to clear `PARTITION_SCOPE_FLOOR` (`partitions.ts:69`), so
+   their sources are **generated programmatically by the fixture builder**, never hand-written:
+   (i) a `package.json` at the repo **root**, above the floor ⇒ partition id `''`, and routing any
+   file returns `''` — **not** silence (this is the case a wrong sentinel makes fatal);
+   (ii) **nested** package roots `a/` and `a/b/`, both above the floor ⇒ a file under `a/b/` routes
+   to `a/b` and a file under `a/` but outside `a/b/` routes to `a` — the closest-ancestor rule, and
+   the only case in which the array's order is observable;
+   (iii) a single package root whose scopes fall below the floor **and** whose `_repo` bucket also
+   falls below it ⇒ routing returns `null`;
+   (iv) no package marker anywhere ⇒ every file routes through `fallback`;
+   (v) a detected package root directory holding **no mined scopes at all** ⇒ the entry carries the
+   `_repo` bucket's own outcome (D5), and a synthetic path under it routes there rather than to
+   `null`.
 5. Two `index --full` runs on the same tree produce byte-identical `model.json`, header included;
    an incremental index equals a forced full one.
 6. **The upgrade actually re-indexes (D3/B2).** With an R4-shaped `model.json` on disk
@@ -1121,12 +1251,17 @@ repository, and the committed snapshot now contains what a later check can speak
 **Test obligations / mutation round-trips.**
 - **MR-5 (ambiguity filter):** delete the non-ambiguous filter ⇒ criterion 1 fails (an ambiguous
   scope enters the top 3 on the fixture chosen for it).
-- **MR-6 (tie-break refinement):** drop the middle element of D4's tuple ⇒ criterion 3 fails (the
-  degraded ordering collapses to `stable_id`).
+- **MR-6 (tie-break refinement):** drop the middle element of D4's tuple ⇒ **criterion 3c** fails —
+  every candidate scores 0 on the first element and the order collapses to `stable_id`. It is
+  pointed at 3c and not at criterion 3 on purpose: in criterion 3's `couplingByFile`-absent case
+  centrality is 1 for everyone, so `w·m1·centrality` **equals** `w·m1` and deleting the middle
+  element changes nothing — a killer that cannot fail is worse than no killer (R5-I11).
 - **MR-6b (cell-class split):** apply `m1` to `_all` facts too, with `m1 = 1` for a role-less scope
   ⇒ criterion 3b fails, with the role-less scopes wrongly leading the exemplar list.
-- **MR-7 (routing order):** sort `partitionRouting.roots` ascending by length ⇒ criterion 4 fails on
-  a nested package root (the outer root shadows the inner one).
+- **MR-7 (routing order):** sort `partitionRouting.roots` ascending by length ⇒ **criterion 4b(ii)**
+  fails: `a` matches before `a/b` and the inner package's files route to the outer partition. Pointed
+  at 4b(ii) because no landed golden has a package root at all, so criterion 4 on the goldens cannot
+  observe the order.
 - **MR-8 (sentinel collision):** use the empty string instead of `null` as the dropped marker ⇒
   criterion 4b's **first** case fails — the root-level-package repository routes every file to the
   dropped arm and the whole product goes silent. This is the mutation that a plain `_repo`-vs-`''`
@@ -1140,7 +1275,7 @@ repository, and the committed snapshot now contains what a later check can speak
   differing-direction case fails.
 
 **NON-goals.** No verdict, no message, no `check` command. No `stabilityDays`, no `trend`, no
-`calib` — those stay structurally absent until R6, and T1's message template omits their notes
+`calib` — those stay structurally absent until R6, and Appendix A's T1 template omits their notes
 accordingly (`v6-spec.md:513`: `{stability_note}` is omitted when absent). No change to the
 co-change **cut** (predicate, sort or `maxPairs`) — two added integers per surviving row, nothing
 else. No `body_hash` (D11 states why that stays unbuilt and what it costs).
@@ -1151,7 +1286,7 @@ else. No `body_hash` (D11 states why that stays unbuilt and what it costs).
 
 **Scope.** The first flow an adopter can run end to end. `verdict.ts` (pure): scope resolution,
 candidate facts, specificity governance, surface values, Δ, τ, severity, the channel table. A
-minimal `speech.ts` rendering only T1's three-beat body with exemplars. `src/cli/roots-check.ts`
+minimal `speech.ts` rendering only Appendix A's T1 three-beat body with exemplars. `src/cli/roots-check.ts`
 registering `yg roots check <file...>` on the `generic` channel with human-readable stdout. **No**
 budgets, dedup, session state, telemetry, ledger, hook protocols or fail-open boundary yet — each of
 those is a named later task that widens this same flow and re-runs this same e2e.
@@ -1172,7 +1307,7 @@ sticky rule (`:345`), §8.9 (`:356-358`), §8.10 (`:360-364`), §11.1 (`:505-527
 ```ts
 // verdict.ts — pure. Its INPUT is a projection of the snapshot, not the snapshot itself (D9).
 export interface VerdictFact {
-  // `appliesKind` is NARROWER than `MinedFact`'s `ScopeKind | 'module'` (`mine.ts:123`):
+  // `appliesKind` is NARROWER than `MinedFact`'s `ScopeKind | 'module'` (`mine.ts:125`):
   // the projection DROPS every module-kind fact, matching D6's dropping of module-kind units.
   // Not a typing convenience — a module scope can never be survived (`weights.ts` header), so a
   // module fact can never be hook-eligible, and carrying one into the verdict would be dead
@@ -1183,17 +1318,54 @@ export interface VerdictFact {
   hookEligible: boolean; denyEligible: boolean; suppressedValue: string | null;
   seeded: boolean; parentExp: string | null; hookShapedConform: number;
   exemplars: ReadonlyArray<{ rel: string; line: number; name: string }>;
+  partitionId: string;      // §9.4i's label: `repo-wide` in `_repo`, `package-wide (<id>)` otherwise
+  roleLabel: string | null; // the `MinedRole.label` (`mine.ts:165`) of `roleKey`; null for `_all` and `d[<dir>]`
 }
 export type Channel = 'pre' | 'post' | 'bash' | 'stop' | 'generic';
 export type Severity = 'WARN' | 'DENY';
+
+/** One post-edit scope the command layer resolved (D6) — the engine never parses anything itself. */
+export interface EvaluatedScope {
+  stableId: string; skeyR: string; kind: 'method' | 'type' | 'file';
+  relPath: string; name: string; line: number; partitionId: string;
+}
+
+/** Everything `evaluate` reads. Every field is supplied by `src/cli/roots-check.ts`; the engine
+ *  reads no file, no clock and no environment (R5-I4), which is what makes this list the whole
+ *  contract. */
+export interface VerdictInput {
+  channel: Channel;
+  scopes: readonly EvaluatedScope[];                               // deterministic order, from the parse
+  surfaceValue: (stableId: string, surface: string) => string | null;  // D6's bag/domain read; null = out of domain
+  facts: readonly VerdictFact[];                                   // ONE partition's projection, module facts dropped
+  roleOf: (skeyR: string) => string | null;                        // snapshot `assignments`; '-1' => ambiguous (§8.6)
+  decorativeRoles: ReadonlySet<string>;                            // role_lift <= 0 (§8.10) — contribute nothing
+  demoted: ReadonlySet<string>;                                    // factKeys from demotions.json (T8; empty until then)
+  openInterventions: readonly OpenIntervention[];                  // from the session fold (T7; empty until then)
+  sessionId: string;                                               // opaque, D12
+  nowIso: string;                                                  // injected clock — telemetry ts / ledger date
+}
+
 export interface Finding {
   stableId: string; scopeKind: string; scopeName: string; relPath: string; line: number;
+  partitionId: string;                 // M4: `repo-wide` vs `package-wide (<partition>)` needs it
+  roleLabel: string | null;            // M4: MinedRole.label of the governing role; null for `_all`/directory
   fact: VerdictFact; observed: string; deltaBits: number; severity: Severity;
   novel: boolean; downgraded: boolean; localityContrast: boolean;
 }
-export function evaluate(input: VerdictInput): { findings: Finding[] };   // INPUT ORDER only (R5-I9)
+
+export interface Intents {
+  sessionEvents: SessionEvent[]; telemetry: TelemetryRecord[]; ledgerMarks: LedgerEntry[];
+}
+
+export function evaluate(input: VerdictInput): { findings: Finding[]; closureIntents: Intents };
+                                          // findings in INPUT ORDER, untruncated (R5-I9)
 export function channelFilter(channel: Channel, severity: Severity): { severity: Severity; downgraded: boolean } | null;
 ```
+`closureIntents` is empty until T7 fills it; `openInterventions`, `demoted` and `decorativeRoles`
+arrive empty in T3 and are populated by T7, T8 and T3's own projection respectively. Declaring them
+in T3 rather than widening the signature three times is deliberate: every later task adds *data*,
+never a new parameter, so no task re-opens this file's contract.
 
 **Steps.**
 - [ ] **Step 1: Prove R5-I6 before building on it.** Write the equivalence harness first: take an
@@ -1220,11 +1392,11 @@ export function channelFilter(channel: Channel, severity: Severity): { severity:
   intervention.
 - [ ] **Step 5: Δ, severity, channel.** D7's posteriors; severity as D9's **composed** rule
   `(denyEligible && !novel) ? DENY : WARN` — one expression, both conjuncts, because §9.7's "a
-  never-seen value is never denied" (`v6-spec.md:439`) is binding and is invisible if the novelty
+  never-seen value is never denied" (`v6-spec.md:440`) is binding and is invisible if the novelty
   cap lives in a comment; `channelFilter` as a pure total function of `(channel, severity)`
   implementing the complete table, including the DENY→WARN downgrade with its note on every
   non-`pre` channel.
-- [ ] **Step 6: Minimal render.** T1's first three lines plus the `See:` line, with the labels
+- [ ] **Step 6: Minimal render.** Appendix A's T1, first three lines plus the `See:` line, with the labels
   §9.4i and design §11 fix: `local (<dir>/)` for a directory fact, `repo-wide` in the `_repo`
   partition, `package-wide (<partition>)` otherwise, and the group's medoid label for a role fact.
   The locality contrast sentence renders verbatim when `parentExp ≠ expected`. Everything else of
@@ -1252,8 +1424,8 @@ Every row below is a unit test whose numbers appear in a comment. `p̂(v) = (n_v
 | --- | --- | --- | --- | --- |
 | boolean, `counts {true:3, false:0}`, observed `false` | 2 | `log2((3.5/4)/(0.5/4)) = log2 7 = 2.807` | 2.5 | **yes** |
 | boolean, `counts {true:6, false:0}`, observed `false` | 2 | `log2 13 = 3.700` | 2.5 | **yes** |
-| absence (`expected false`), `counts {false:20, true:1}`, observed `true`, **vocabulary** tier | 2 | `log2((20.5/22)/(1.5/22)) = log2(41/3) = 3.7724` | 3.5 | **yes** |
-| the same fact at the **structural** tier | 2 | 3.7724 | 4.5 | **no** |
+| absence (`expected false`), `counts {false:20, true:1}`, observed `true`, **vocabulary** tier | 2 | `log2((20.5/22)/(1.5/22)) = log2(41/3) = 3.7726` | 3.5 | **yes** |
+| the same fact at the **structural** tier | 2 | 3.7726 | 4.5 | **no** |
 | categorical, alphabet size 4, `counts` all 20 at `expected`, observed **outside** the alphabet | 5 | `log2((20.5/22.5)/(0.5/22.5)) = log2 41 = 5.358` | 2.5 | **yes**, WARN-capped, novelty note |
 | boolean at share 2/3, `counts {true:2, false:1}`, observed `false` | 2 | `log2((2.5/4)/(1.5/4)) = 0.737` | 2.5 | **no** |
 
@@ -1328,6 +1500,11 @@ changes (T10).
 enumerator, every note the template can carry, every deviation phrase, and the naming table applied
 to every rendered string.
 
+**A notation rule this task makes load-bearing.** Appendix A's templates are also named T1, T2, T3,
+T5 and T7, and this plan's tasks are named T1–T11. Every reference to a template is written
+**"Appendix A's T<n>"**, never bare — a bare `T2` in a plan whose Task 2 is the snapshot-fields task
+is a guess-point, not a shorthand. Task references stay bare.
+
 **Authorities.** Spec §11.1 (`v6-spec.md:505-527`), §11.2's binding table (`:529-549`), §9.4i's
 locality labels and contrast sentence (`:427-429`), §10.1's witness argument (`:490-496`), Appendix
 A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design §11's naming table
@@ -1355,12 +1532,20 @@ A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design 
   R5-I14 makes the naming table binding on every rendered string), `{seed_note}` (" (+seeded)"),
   `{novelty_note}`, `{stability_note}` (**omitted** in R5 — `stabilityDays` is structurally absent
   until R6, and the spec's own rule at `:513` is "omitted when absent"), and the locality
-  contrast sentence. No transition text ever renders in a message (T3 is report-only, `:511`).
+  contrast sentence. No transition text ever renders in a message (Appendix A's T3 is report-only, `:513`).
 - [ ] **Step 4: `{unit_plural}` from `appliesKind`** — methods / types / files / directories — and
   the per-row deviation phrase ("does not…", "is `<observed>`" for categoricals), which design §12
-  names as a productionized gap the prototype left generic (`:464`).
-- [ ] **Step 5: T2's DENY reason text** lands complete and unreachable (D9), so R6 turns DENY on
-  without touching this file.
+  names as a productionized gap the prototype left generic (`:463`).
+- [ ] **Step 5: Appendix A's **T2** (the DENY reason), landing only the lines R5 can source.**
+  Its six lines do not all belong to this increment (`v6-spec.md:774-782`): line 3 needs
+  `{reach_reason}` and `{calibPrecision}`, both produced only by §14 calibration — **R6** — and
+  lines 5-6 advertise `yg roots seed add`, a command this plan's own NON-goals assign to **R8**. So
+  R5 renders **lines 1, 2 and 4** (the header, the evidence sentence, the exemplars), the renderer
+  takes the reach/precision pair as an optional argument that nothing supplies yet, and the message
+  simply ends after `See:` rather than advertising a command that ships two packages later.
+  R6 adds line 3 by supplying that argument and flips the eligibility flag; R8 adds the remedy line.
+  The narrowed claim — and the only one this plan makes — is that **R6 does not have to restructure
+  this renderer**, not that the template is complete.
 - [ ] **Step 6: The naming-table test.** A single test asserts that no rendered message in the whole
   corpus of fixtures contains any of the forbidden internal tokens (`FACT`, `pid`, `surface=`,
   `factKey`, `roleKey`, `Δ`, `tau`, `_all`, `hook_shaped`, `d[`). This is R5-I14's killer, and it is
@@ -1377,7 +1562,7 @@ A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design 
    note at all.
 5. The naming-table test passes over every fixture message, and fails if any forbidden token is
    reintroduced (demonstrate by reintroducing one).
-6. The T1 body is exactly the spec's four lines in order, with the optional `{named_fix_line}`
+6. Appendix A's T1 body is exactly the spec's four lines in order, with the optional `{named_fix_line}`
    absent (no recognizer pack ships — `integration-design.md:474-478`).
 
 **E2E coverage.** The extension to `cli-roots-check.test.ts`: after planting a deviation of a
@@ -1405,7 +1590,7 @@ and the exact JSON each channel emits; the single fail-open boundary with its ha
 safety; the hard deadline.
 
 **Authorities.** Spec §12.1–§12.3 (`v6-spec.md:562-580`), §12.5's deadline (`:586`), §12.7's
-staleness (`:592-593`), §21.1–§21.2 (`:719-720`); design §3's command row
+staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
 (`integration-design.md:80`), §8.1's protocol path (`:316-338`), §9's DENY boundary (`:365-383`),
 §13's hook-integration suite (`:510-511`).
 
@@ -1417,9 +1602,19 @@ staleness (`:592-593`), §21.1–§21.2 (`:719-720`); design §3's command row
 **Steps.**
 - [ ] **Step 1: Input resolution, per D10.** Payload-then-flags-then-positional precedence, stated
   once in the file header as a table. Stdin is read **only** when `--hook` was passed and stdin is
-  not a TTY; the read is bounded and the whole run is wrapped in the `budgets.hookHardTimeoutMs`
-  (900) watchdog, whose expiry is a silent exit 0 plus one incident — never a hang, because a hook
-  that hangs is worse for an agent than a hook that says nothing.
+  not a TTY, and that read carries its own timeout — an unclosed pipe is the one genuinely
+  asynchronous wait on this path, and a timer is the right tool only there.
+- [ ] **Step 1b: The hard deadline is cooperative, not a watchdog** (`v6-spec.md:586`). §12.5 is
+  explicit about the mechanism and about why: `hookHardTimeoutMs` (900) is enforced "via
+  cooperative checks **between stages** (parse → enumerate → role → verdict → format); **sync work
+  is uninterruptible**, so the largest stage bounds overshoot." A `setTimeout` wrapped around the
+  run cannot fire while `extractUnits`/`enumerate` execute synchronously — which is exactly where
+  the cold budget goes — so a timer would provably never fire on the case it exists for. The
+  implementation is therefore one `deadlineExceeded()` check at each of the five named stage
+  boundaries; on the first one that trips, the run abandons the remaining stages, emits the
+  channel's "nothing to say" output, records one incident naming the stage, and exits 0. **The
+  honest promise is the one §12.5 makes**: overshoot is bounded by the largest single stage, not by
+  900 ms absolutely — say that in the code and in `docs/roots.md`, never "never a hang".
 - [ ] **Step 2: Per-channel output, exact.**
   - `generic` — request `{files:[{path,newContent}], sessionId?, channel?}` → response
     `{verdicts:[{path, scopeKind, scopeName, line, surface, expected, observed, severity,
@@ -1459,9 +1654,16 @@ staleness (`:592-593`), §21.1–§21.2 (`:719-720`); design §3's command row
    any evaluation begins, wrapped in `buildIssueMessage` exactly as `cli-command-contract` requires
    of an option-mutex violation. It is refusing to run, not reporting a finding.
 4. Fault injection at each of the five named stages yields zero findings, exit 0, and **exactly
-   one** incident; with the harness option the same injection throws.
+   one** incident — driven over a **three-file** run, so "exactly one" is a statement about the run
+   and not about a single file (MR-19 depends on it); with the harness option the same injection
+   throws.
 5. A path outside the repository yields silence and one incident for the session, however many such
    paths were passed.
+5b. **The deadline fires at a stage boundary.** With an injected slow stage (the same injection
+   seam criterion 4 uses), the run abandons the remaining stages at the next boundary, prints the
+   channel's nothing-to-say output, exits 0, and records exactly one incident naming the stage that
+   overran. Asserted with an injected deadline far below 900 ms so the test costs milliseconds and
+   pins the mechanism rather than the number (R5-I16: no timing assertion enters the gate).
 6. **On a `--hook` channel**, a run whose stdin is a TTY and which was given no file arguments
    exits 0 having read nothing — a hook with nothing to look at has nothing to say. **Without
    `--hook`** the same invocation is D11's no-argument form and resolves the dirty set instead (T3
@@ -1494,7 +1696,7 @@ ever emitted from a real snapshot (D9).
 
 **Authorities.** Spec §11.3 (`v6-spec.md:551`), §11.4 (`:554-556`), §12.5 (`:586`); design §8.1's
 session-identity ladder (`integration-design.md:329-334`), §12's "sessions as append-only event
-logs" row (`:465`).
+logs" row (`:466`).
 
 **Files.** Create `source/cli/src/roots/session-state.ts`; edit `verdict.ts`/`roots-check.ts` to
 route findings through it; create `source/cli/tests/unit/roots/session-state.test.ts`; create
@@ -1543,9 +1745,13 @@ real session: many edits, bounded interruption.
 - **MR-25 (post-filter severity):** read severity **before** `channelFilter` ⇒ a downgraded DENY
   escapes both the WARN budget and the dedup, which criterion 4 catches with a downgraded finding
   after the 12th warn.
-- **MR-26 (single truncation authority):** add a second `.slice(0, 3)` in the command layer ⇒ a test
-  asserting the exact ordering of a 5-finding response before and after the budget stage fails
-  (R5-I9's killer).
+- **MR-26 (single truncation authority):** truncate `evaluate`'s output to 3 **before** the budget
+  stage — i.e. in input order, `(roleKey asc, surface asc)`, rather than in §11.3's
+  `(severity desc, Δ desc, surface asc)` — ⇒ criterion 1's by-value ordering assertion fails,
+  because the three findings that survive are the first three by surface rather than the three
+  highest by Δ. Stated that way on purpose: a second `.slice(0, 3)` applied *after* §11.3 has
+  already truncated to 3 changes nothing observable and would have been a killer that cannot fail
+  (R5-I11).
 
 **NON-goals.** Telemetry and closure (T7). Sweep state is folded here but not *populated* until T9.
 
@@ -1568,7 +1774,7 @@ intents); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
 **Steps.**
 - [ ] **Step 1: Closure runs before every skip** (T3 Step 4's ordering), for every candidate fact of
   every evaluated scope, whether or not that fact will speak. It emits **no message** and is exempt
-  from budgets (`:462`).
+  from budgets (`:479`).
 - [ ] **Step 2: The two branches.** Open intervention on `(stable_id, surface)` and `v == expected`
   ⇒ telemetry `observedAfter: complied` **and** a ledger mark. Open and still deviating ⇒
   `observedAfter: ignored`, **at most once per session per intervention** — the open record carries
@@ -1592,8 +1798,15 @@ intents); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
    ordering).
 5. A ledger mark already present is not appended twice (T1's dedupe, exercised through the real
    flow).
-6. Telemetry records carry `expected`, `observed`, `deltaBits` and `factKey` and **no role key**
-   (§18.1's "role-free keys") — the field is absent, not empty.
+6. Telemetry records carry `expected`, `observed`, `deltaBits` and `factKey`, and **no separate
+   `roleKey` field and no role label**. The draft's justification was wrong and is corrected here:
+   §18.1 lists `factKey` *inside* the record (`v6-spec.md:681`) and `factKey` is literally
+   `` `${roleKey}|${surface}` `` (`mine.ts:121`), so a record that carries `factKey` does carry the
+   role key — "role-free keys" in §18.1 constrains the *identity* the pooling keys on
+   (`(stable_id, surface)`), not the record's contents. Asserting "no role information" would
+   therefore be asserting something false, and M3's whole forward-resolution step exists *because*
+   the recorded role key goes stale. What this criterion checks is the shape §18.1 actually
+   specifies: those nine fields and no tenth.
 
 **E2E coverage.** `cli-roots-compliance-loop.test.ts` — the design's own named suite
 (`integration-design.md:501-504`), miniaturized: spawn the built binary, `index`, plant a deviation,
@@ -1624,11 +1837,13 @@ Wilson lower bound, `demotions.json` and its stamp, and the telemetry compaction
 transaction.
 
 **Authorities.** Spec §18.2 (`v6-spec.md:683`), §14's Wilson conventions (`:637` — z = 1.96
-two-sided, **fixed**), Appendix E.7 (`:915`); design §12's "per-fact expected-flip filter plus the
+two-sided, **fixed**), Appendix E.7 (`:922`); design §12's "per-fact expected-flip filter plus the
 cross-session closure pass in demotion pooling" row (`integration-design.md:447-448`).
 
 **Files.** Create `source/cli/src/roots/health.ts`; edit `src/cli/roots.ts` (the `index` action, to
-run the aggregation inside the build lock, and the `status` renderer to compute-without-writing);
+run the aggregation **after the D13 short-circuit's decision and outside the build lock, on every
+`index` regardless of that decision** — D16.1-D16.3 — and the `status` renderer to
+compute-without-writing);
 create `source/cli/tests/unit/roots/health.test.ts`; create
 `source/cli/tests/e2e/cli-roots-demotion.test.ts`.
 
@@ -1661,8 +1876,10 @@ create `source/cli/tests/unit/roots/health.test.ts`; create
   short-circuit has made its decision and regardless of what it decided — because telemetry moves
   none of the eight inputs that short-circuit compares, and an aggregation that only ran on a
   mining run would never fire on the quiet repositories demotion exists for. It takes **no build
-  lock** (D16.3) and it **writes only when the computed content differs from what is on disk**
-  (D16.4), so a repository with no telemetry still performs the zero writes R4's no-op test asserts.
+  lock** (D16.3) and it **writes only when the computed content differs from what is on disk, and
+  creates neither a file nor the `.state/` directory when there is nothing to aggregate** (D16.4) —
+  so a repository with no telemetry leaves the whole `.yggdrasil/roots/` tree, dot-directories
+  included, exactly as R4's no-op assertion snapshots it.
   At `status`: computed for display, **nothing written** — and specifically, `health.ts` *returns*
   the cross-session ledger marks as intents (D1's seam) and only `index` applies them, because
   §18.2's cross-session `complied` branch appends a **committed** ledger mark and a read surface may
@@ -1698,8 +1915,11 @@ create `source/cli/tests/unit/roots/health.test.ts`; create
    bindings and the dirty set all unchanged — so `yg roots index` takes the no-op short-circuit and
    writes neither `model.json` nor anything under `.cache/` — a repository carrying ≥ 8 resolved
    ignored samples still ends that run with the fact demoted in `demotions.json`. Asserted through
-   the built binary, and paired with its converse: the same run on a repository with **no**
-   telemetry writes nothing at all, `demotions.json` included.
+   the built binary, and paired with its converse, asserted the way R4 asserts it: the same run on a
+   repository with **no** telemetry leaves the **whole `.yggdrasil/roots/` tree snapshot** unchanged
+   — every path with its mtime and size, `readdirSync(recursive)` so dot-directories count, the
+   shape `cli-roots-basic.test.ts:46-52` already uses. Asserting only "`demotions.json` is absent"
+   would pass while a stray `mkdir` of `.state/` broke the landed no-op test (D16.4).
 
 **E2E coverage.** `cli-roots-demotion.test.ts`: drive a whole ignore cycle through the built
 binary — plant a deviation, check (WARN), leave it unfixed across ≥ 8 distinct `--session` ids,
@@ -1737,7 +1957,7 @@ behavior is stateful rather than per-file.
 **Authorities.** Spec §12.4 (`v6-spec.md:583`), §12.2's `claude-stop` clause (`:576`), §13.5's
 completeness paragraph (`:625`) and its directional confidence (`:621`), Appendix A's T5
 (`:791-796`), Appendix G.4 (`:1020`); the R4 plan's own assignment of the sweep to R5
-(`2026-08-20-increment-3-r4-history.md:2320-2321`); the landed row shape
+(`2026-08-20-increment-3-r4-history.md:2321-2322`); the landed row shape
 (`src/roots/history-cochange.ts:94`, `:109-112`, `:394-398`).
 
 **Files.** Edit `session-state.ts` (sweep state), `roots-check.ts` (the two channels), `speech.ts`
@@ -1772,7 +1992,7 @@ completeness paragraph (`:625`) and its directional confidence (`:621`), Appendi
   ```
   The **directional** confidence is what gates, never the persisted `conf` (which is the max of the
   two directions and would name the partner backwards on every asymmetric pair — D20). If E ≠ ∅
-  emit **T5** listing at most `completeness.maxItems` (5) partners, ordered by descending
+  emit **Appendix A's T5** listing at most `completeness.maxItems` (5) partners, ordered by descending
   confidence then ascending path, each with its `{sup}/{commits}` evidence — the same two numbers
   the gate used, so the message can never show evidence that does not justify it. Once per session.
 - [ ] **Step 5: WARN-only, structurally.** Bash-path violations are WARN-only, so file *moves* are
@@ -1841,11 +2061,20 @@ tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.te
 - [ ] **Step 1: Active modulators**, one line each, in plain terms: how many conventions are locally
   quieted, whether the index is behind the current commit, whether a session's sweep was truncated
   or flooded. Names, not mechanisms (R5-I14).
-- [ ] **Step 2: The withheld line.** "K conventions withheld: no established instances yet" — the J4
-  explanation, computed as the count of accepted facts that failed **only** the survived-display
-  gate. On a repository with no history that number is every accepted fact, and saying so is the
-  whole point: the product must explain its own silence.
-- [ ] **Step 3: The alarm.** When `agentShare ≥ health.agentShareAlarm` (0.85), render T7's text.
+- [ ] **Step 2: The withheld line, over a predicate the snapshot can actually answer.**
+  "K conventions withheld: no established instances yet" — §9.4c.4's J4 explanation. The draft's
+  phrasing ("failed **only** the survived-display gate") is not computable from what is persisted:
+  the snapshot carries a single `hookEligible` boolean, so re-deriving §9.4c's other three gates
+  (fallback bucket, placement, fire-ability) would mean re-implementing them from `expected`,
+  `surface`, `roleKey`, `counts` and `tau` inside a status renderer — a mining-stage
+  re-implementation living in the wrong layer and free to drift. **So "withheld" is defined as what
+  the persisted fields do answer: `hookEligible === false` and `nTotalRaw < mdl.minInstancesRaw`**
+  — the display gate's own degenerate case, stated in §9.4c.4 in exactly those terms ("a fact whose
+  survived population holds fewer than `minInstancesRaw` instances is not hook-eligible"). A fact
+  held back by a different gate is not counted and not claimed. On a repository with no history that
+  number is every accepted fact, because nothing survives — and saying so is the whole point: the
+  product must explain its own silence. The wording R5 prints stays exactly the spec's.
+- [ ] **Step 3: The alarm.** When `agentShare ≥ health.agentShareAlarm` (0.85), render Appendix A's T7.
   **No exit code** — `--exit-code` is R7's, and until it exists the alarm is information.
 - [ ] **Step 4: Everything status already prints stays byte-identical** where none of the three
   conditions holds. Pin that with a test, because a status regression is how a read surface starts
@@ -1853,8 +2082,14 @@ tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.te
 - [ ] **Step 5: Graph ritual + report.**
 
 **Acceptance criteria.**
-1. A repository with no demotions, a fresh index and no alarm prints exactly what it printed at
-   a761dda, byte for byte.
+1. A repository with no demotions, a fresh index, **no withheld conventions (K = 0)** and no alarm
+   prints exactly what it printed at a761dda, byte for byte. The K = 0 clause is load-bearing and is
+   not a way of dodging the case: Step 2's own text says a historyless repository withholds *every*
+   accepted fact, so a fixture chosen without regard to K would print the withheld line and this
+   criterion would contradict Step 2. The fixture is named in the test — a repository with history
+   deep enough that its accepted facts have survived instances.
+1b. The converse: a repository whose facts are all unsurvived prints the withheld line with K equal
+   to the count of accepted facts, and still exits 0.
 2. A repository with 3 demoted facts prints the quieted-conventions line with 3.
 3. A snapshot whose `headSha` differs from the current HEAD prints the behind-the-commit modulator.
 4. `agentShare = 0.9` prints T7; `0.84` does not; `null` prints neither the alarm nor a fabricated
@@ -1910,11 +2145,12 @@ regeneration at the root or in any `examples/*/`.
   design's own risk 1 says the dogfood is the canary, and a measurement that reports only the mean
   is not a canary. **Do not commit a `roots:` block, a `model.json`, a ledger or any cache into this
   repository** — enabling the dogfood is the maintainer's call (OQ1).
-- [ ] **Step 6: Carry-in measurements (R4 debt).** Two numbers R4's own T10 named and this plan
-  carries forward (see the Carry-ins section): the D16 pre-image-only blob fraction, and the
-  measured global miss-set figure that stands in place of a window constant. Both are **report-only
-  and conditional on Step 5 running at all**; if the dogfood measurement is not run, both are
-  reported as not-measured with that reason, never as absent.
+- [ ] **Step 6: Carry-in measurement (R4 debt).** **One** number, from R4's own T10 Step 5
+  (`2026-08-20-increment-3-r4-history.md:3565-3574`): the fraction of distinct blob shas that appear
+  only as a record's pre-image and never as any post-image. It is **report-only and conditional on
+  Step 5 running at all**; if the dogfood measurement is not run it is reported as not-measured with
+  that reason, never as absent. (Carry-in 5 carries no figure — see the Carry-ins section for why
+  the obligation to restate one was deleted rather than deferred.)
 - [ ] **Step 7: Docs build + markdownlint + graph ritual + report.** State explicitly in the report
   that **no digest regeneration was needed** (D24), so the omission reads as scoped rather than
   forgotten.
@@ -1961,8 +2197,9 @@ Naming them so a reviewer can reject them on sight:
   of roots' own.
 
 **One declared scope reduction, recorded here rather than left as a quiet divergence.** §19's
-non-hook scope set — "scopes whose `body_hash` differs from HEAD" (`v6-spec.md:698`, echoed at
-`integration-design.md:80`) — is implemented as the **file-level superset**: every scope in every
+non-hook scope set — "scopes whose `body_hash` differs from HEAD" (`v6-spec.md:698`; the design does
+not state a no-argument form at all, so this diverges from the spec alone) — is implemented as the
+**file-level superset**: every scope in every
 dirty file (D11). The reason is a measured cost, not a preference: `body_hash` (§6.5, `:250`) was
 never extracted by R1–R4, and adding it bumps `EXTRACTOR_VERSION`, which is folded into
 `blobCacheKey` and therefore invalidates every cached historical blob — a full re-parse of the whole
@@ -1985,8 +2222,12 @@ convention agents keep ignoring stops interrupting them. Tasks are internal stag
 change and get no entries of their own — per-task entries would be a work log, which AGENTS.md's
 changelog rules forbid.
 
-Timing: the entry is **drafted at T3**, the first task whose commit changes what an adopter sees,
-and **amended in place** at T5 (channels and the JSON contract), T7 (the compliance loop and the
+Timing: the entry is **drafted at T2**, not T3. T2 is the first task whose commit changes what an
+adopter sees — the `ROOTS_VERSION` bump makes every adopter's next `yg roots index` re-walk and
+rewrite `model.json` instead of reporting "already current", which is exactly the behavior T11 Step 3
+requires the docs to describe ("upgrading the CLI re-indexes once"). A one-sentence T2 draft covering
+that, then **amended in place** at T3 (the first spoken message), at T5 (channels and the JSON
+contract), T7 (the compliance loop and the
 committed ledger mark, which is the one entry an adopter must read before their next `git status`),
 T8 (demotion), T9 (the sweep and the completeness note) and T11 (docs). Amending in place is exactly
 what the one-entry rule permits; every commit that changes adopter-visible behavior leaves the
@@ -2050,7 +2291,8 @@ Five items were deferred to this increment. **Their sources differ, and the prea
 item rather than attributing all five to one document:** items 2 and 3 come from R4's execution
 ledger (`.superpowers/sdd/2026-08-20-increment-3-r4-history/progress.md`, whose closing section
 records seven controller decisions); item 1 comes from the dogfood report entry that ledger points
-at; items 4 and 5 come from the R4 **plan** itself (`:3565-3574` and `:2320-2321`). Each is decided
+at; item 4 comes from the R4 **plan** itself (`:3565-3574`); **item 5 could not be located in
+either source** and is carried as a constraint rather than as work — see its own entry. Each is decided
 here or deliberately deferred with a reason. Where this section's paraphrase and a source document
 disagree, **the source document wins** and the controller amends this section — T1's report
 re-reads all three before T11 relies on any of them.
@@ -2083,17 +2325,20 @@ re-reads all three before T11 relies on any of them.
    it measures the *history walk*, which R5 does not change: it is R4's outstanding curiosity, not
    R5's evidence, and spending a full cold walk on it inside this increment's gate would be
    R5-I16's forbidden new step in all but name.
-5. **T10's measured global miss-set figure standing in place of a window constant.** **Decided —
-   carried as a constraint, not as work.** The rule R5 inherits is: where a measured figure exists,
-   R5 does not reintroduce a constant that would replace it, and R5 introduces no new window
-   constant of its own (R5-I7 makes that mechanical — every number R5 reads is a landed config key
-   or a spec-fixed constant). T11 Step 6 restates the measured figure in its report so the next
-   increment inherits it rather than re-deriving it. **Honest caveat for the reviewer:** this
-   carry-in's exact original wording was reconstructed from the R4 ledger's decision list rather
-   than from a surviving numbered item, so T1's report re-reads
-   `.superpowers/sdd/2026-08-20-increment-3-r4-history/progress.md` and confirms the figure and its
-   context before T11 relies on it; if the ledger says something different from this paragraph, the
-   ledger wins and the controller amends this section.
+5. **"A measured figure stands in place of a window constant."** **Decided — carried as a
+   constraint only, with its false attribution removed.** The figure does not exist in either
+   source: searching the R4 plan (3880 lines) and the R4 ledger (181 lines) for "miss-set", "window
+   constant" and "measured figure" returns no match, and the R4-plan line the draft attributed it to
+   is the completeness-sweep sentence D20 already carries. **So there is nothing to restate, and
+   T11 Step 6's obligation to restate it is deleted rather than deferred** — an unexecutable
+   obligation is worse than an absent one. What R5 genuinely inherits is the *rule* the phrase
+   encodes, and R5 satisfies it structurally rather than by measurement: **introduce no new window
+   or threshold constant** — R5-I7 makes that mechanical, since every number R5 reads is a landed
+   config key or a spec-declared fixed constant, and D23 enumerates them — and **never replace a
+   measured quantity with a constant**, which is why D11 declares a superset rather than inventing a
+   staleness window and why §11.3's caps are read from `budgets.*` rather than hard-coded. If the
+   maintainer can point at the original item, the controller adds the figure and its citation;
+   nothing in this increment waits on that.
 
 ---
 
@@ -2139,7 +2384,7 @@ called out.
 
 - **B1 — the `''` sentinel collides with a live partition id.** Verified in the source:
   `dirnameOf('package.json') === ''` (`extract.ts:795-798`), `keyFor` returns `''` for every file
-  when a root-level marker exists (`partitions.ts:210-215`), and `finalId = key` for an own-floor
+  when a root-level marker exists (`partitions.ts:239-244`), and `finalId = key` for an own-floor
   bucket (`:283`) — so `''` is a *real* id on the mainstream adopter shape and the draft's sentinel
   would have made the product permanently silent there. **D5 rewritten:** the sentinel is `null`;
   the `'_root'` arm is its own `fallback` field rather than a magic array entry; the lookup
@@ -2238,6 +2483,99 @@ deliberate; R5-I8 is reworded to "one new committed **file**"; `command`'s seven
 
 **Not applied:** none. Every finding was either fixed as proposed or fixed with a different remedy
 that is called out above (B3, B5).
+
+### Round 2 — what the second adversarial review changed (2 blocking, 10 major, 16 minor)
+
+Both blockers were **regressions introduced by round-1 fixes**, which is the failure mode the round
+was asked to hunt; both are fixed structurally, and each fix was re-checked against the architecture
+before being written.
+
+**Blocking**
+
+- **B1 — the round-1 M10 fix made `stores.ts` import `markKey` from `weights.ts`.** Verified:
+  `markKey` is `roots-engine` (`weights.ts:267-269`), `stores.ts` is `roots-store`, and
+  `roots-store`'s `calls:` is `[persistence-adapter, utility]` (`yg-architecture.yaml:775-778`) —
+  `roots-engine` absent. That is B6's own failure mode re-created by B6's sibling fix. **Fixed by
+  the caller-passes route:** `appendLedgerMarks(yggRoot, marks, keyOf)`, with `roots-check.ts` (the
+  one type that legally reaches both) importing `markKey` and passing it. Rejected the
+  move-to-`src/model/graph.ts` option on evidence: the `types` node's contract is "pure
+  type/interface/enum declarations, no runtime behavior" (`:341`), so a *function* may not live
+  there. There is now exactly one key format and nothing to keep in sync, so no divergence killer is
+  needed; what is pinned instead is the wiring (T7 criterion 7: a mark this path writes is the mark
+  R4's `releasedMarks` later releases).
+- **B2 — T8's Files line still said "inside the build lock"** after round 1 rewrote D16 around it.
+  Confirmed it is not a wording nit: `cli-roots-basic.test.ts:124-163` asserts both a whole-tree
+  path+mtime+size snapshot and `.build.lock` absence on a no-op second index, so acquiring the lock
+  fails a landed test by construction. Files line replaced with D16's own words, and grepped the
+  whole document — three "build lock" mentions remain and all three now say the same thing.
+
+**Major**
+
+- **M1 — D16.4 did not cover creating `.state/`,** and the plan twice claimed R4's assertion is a
+  byte comparison. It is a `readdirSync(recursive)` tree snapshot including dot-directories
+  (`cli-roots-basic.test.ts:46-52`), and `.state/` exists after no R4 run — so one
+  `mkdir(stateDir, {recursive:true})` fails it. D16.4 now forbids creating a directory or a file
+  when there is nothing to aggregate (`mkdir` only inside the writer, after the content-differs
+  check), the "byte for byte" claims are gone, and T8 criterion 7's converse asserts the whole-tree
+  snapshot. D16.3's "identical answer" justification was also overstated (a concurrent hook can
+  append between two reads) and is restated as §18.2's fail-open direction, which is what actually
+  licenses taking no lock.
+- **M2 — the intent record shapes had no legal home.** `SessionEvent`/`TelemetryRecord`/
+  `DemotionsFile` now live in `src/model/graph.ts` beside `LedgerEntry` and `SeedEntry` — the exact
+  pattern `stores.ts` already uses — reachable by `uses: [types]` from both layers, all three pure
+  interfaces, and the authorization table's "they import no persistence adapter at all" stays true.
+- **M3 — the increment's central seam was undefined.** `VerdictInput` is now declared field by
+  field (with `EvaluatedScope`, `Intents` and the `openInterventions`/`demoted`/`decorativeRoles`
+  slots that later tasks fill with data rather than with new parameters), and D1 states the
+  three-stage pipeline once: `evaluate → applyBudgetsAndDedup → render`, with "messages" defined as
+  `render`'s output so `{messages, intents}` and `{findings}` stop being two answers.
+- **M4 — three of the four locality labels were unrenderable** from the declared interfaces.
+  `VerdictFact` and `Finding` gain `partitionId` and `roleLabel`, and D9 names where the projection
+  fills each from.
+- **M5 — three named killers could not kill.** MR-6 was inert (with `couplingByFile` absent,
+  centrality is 1, so the first and second tuple elements are equal) — new criterion 3c builds the
+  `centrality = 0` case D4 actually argues from, and MR-6 points there. MR-26 was a no-op (a second
+  slice after truncation) — restated as truncating *before* the budget stage's ordering, which the
+  by-value assertion catches. MR-7 had no fixture (no golden carries a package marker) — criterion
+  4b grows a nested-package case and MR-7 points at it. MR-19's criterion now runs over three files
+  so "exactly one incident" is a claim about the run.
+- **M6 — "T2's DENY text lands complete" was false three ways.** Verified against
+  `v6-spec.md:774-782`: line 3 needs two calibration values (R6) and lines 5-6 advertise
+  `seed add` (R8). R5 now renders lines 1, 2 and 4 only, the reach/precision pair is an unsupplied
+  optional argument, and the claim is narrowed to "R6 need not restructure the renderer".
+- **M7 — Appendix A's template names collide with this plan's task labels.** Every template
+  reference is now written "Appendix A's T<n>", and T4 states the notation rule.
+- **M8 — D3's "no migration file" contradicted design §10 without rebutting it.** Verified
+  `integration-design.md:406` and `src/migrations/index.ts` (a `MIGRATIONS: Migration[]` list of
+  graph-schema migrations). D3 now carries the rebuttal and is recorded as the increment's second
+  design-vs-landed reconciliation, so the STOP condition does not fire on it.
+- **M9 — carry-in 5 cited a figure that exists in neither source.** Confirmed by grepping both
+  documents. The attribution is removed, T11 Step 6's obligation to restate the figure is **deleted**
+  rather than deferred, and the carry-in is restated as the constraint it encodes (introduce no new
+  window constant; never replace a measured quantity with one) — which R5 satisfies structurally
+  through R5-I7 and D23.
+- **M10 — the 900 ms deadline was specified as a watchdog,** which cannot preempt the synchronous
+  work it exists to bound. Restated in §12.5's own terms: cooperative checks at the five named stage
+  boundaries, the largest stage as the stated overshoot bound, the "never a hang" promise withdrawn,
+  and a new T5 criterion 5b driving an injected slow stage.
+
+**Minor** — all 16 applied. Thirteen anchors re-verified individually against the source, including
+the four `partitions.ts` anchors of the round-1 B1 fix (`keyFor` `:239-244`, the sort `:237`,
+`finalId` `:284`, the module-root rule `:291`) and three round-1 corrections that were themselves
+wrong (design `:463` not `:464`, design `:466` not `:465`, R4 plan `:2321-2322` not `:2320-2321`).
+**Arithmetic:** Δ rows 3 and 4 corrected from 3.7724 to **3.7726** — `log2(41/3) = 3.7725895`, and a
+`toBeCloseTo(…, 4)` written against the old figure would have failed by 1.9e-4 against a 5e-5
+threshold. Plus: the eight landed `rootsVersion: 1` assertion sites the bump breaks are named in T2
+Step 1 (with the note that seven of them fail *misleadingly*, as a `status` regression); D5 decides
+what a package root with zero mined scopes routes to and exports the matcher **once** so criterion 4
+drives the real function; T10 criterion 1 gains its K = 0 clause and Step 2's withheld predicate is
+rewritten over fields the snapshot actually carries; `getDirtyFiles`' `null`-vs-`[]` distinction is
+restored and the false shallow-clone caveat removed; the CHANGELOG is drafted at T2, not T3; T7
+criterion 6's "role-free" reasoning is replaced (§18.1 puts `factKey` *inside* the record, and
+`factKey` contains the role key); T2's duplicate `mine.ts` bullet is merged.
+
+**Not applied:** none. One remedy was chosen against the reviewer's first suggestion, with the
+evidence stated inline (B1's `types`-node option).
 
 ### Drafting self-review (pre-review)
 
