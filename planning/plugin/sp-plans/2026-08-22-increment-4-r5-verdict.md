@@ -14,7 +14,9 @@ convention agents keep ignoring. Nothing gates CI, nothing blocks an edit, nothi
 no rule is armed to deny — those are R6–R8.
 
 **Architecture:** Five new pure engine modules under `source/cli/src/roots/`
-(`verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts`, `exemplars.ts`), four new persistence
+(`verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts` — mapped by a new `cli/roots/speech`
+node — plus `exemplars.ts`, which maps into the **existing** `cli/roots/engine` node because it is
+index-time code and mapping it elsewhere would close a graph cycle), four new persistence
 modules under `source/cli/src/io/` for the gitignored `.state/` triad plus incidents
 (`roots-session-store.ts`, `roots-telemetry-store.ts`, `roots-demotions-store.ts`,
 `roots-incidents-store.ts`), one new command file `source/cli/src/cli/roots-check.ts`, a ledger
@@ -103,13 +105,45 @@ this increment is not authorized to make. `src/cli/roots-check.ts` MUST export e
   `sibling-test-file`. Read all seven before writing the file.
 
 **Graph nodes this increment creates (design-locked in T1, before any code):**
-- `model/cli/roots/speech/yg-node.yaml` — type `roots-engine`, mapping the five new engine files.
-  A sibling of the existing `roots/engine` node rather than an extension of it: `roots/engine`'s
-  `description:` is already the longest in the graph, and one more subsystem inside it would make
-  that node's own review prompt the repo's tightest. (Graph-node `description:` text is excluded
-  from the assembled reviewer prompt — `src/llm/prompt.ts:179-181` — so this is a
-  *reviewability* argument about the node's own aspect surface and mapping size, not a prompt-size
-  one; state it that way in the node.)
+- `model/cli/roots/speech/yg-node.yaml` — type `roots-engine`, mapping **four** of the five new
+  engine files: `verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts`. A sibling of the existing
+  `roots/engine` node rather than an extension of it: `roots/engine`'s `description:` is already the
+  longest in the graph, and one more subsystem inside it would make that node's own review prompt
+  the repo's tightest. (Graph-node `description:` text is excluded from the assembled reviewer
+  prompt — `src/llm/prompt.ts:179-181` — so this is a *reviewability* argument about the node's own
+  aspect surface and mapping size, not a prompt-size one; state it that way in the node.)
+- **`exemplars.ts` joins `cli/roots/engine`, NOT `roots/speech` — and that placement is a
+  correctness constraint, not a filing preference.** It is index-time production code: it runs
+  inside `mine()`, and `mine.ts` *calls* it (T2). Mapping it to `roots/speech` would create a
+  runtime edge `cli/roots/engine → cli/roots/speech`, while `verdict.ts` (a `roots/speech` file)
+  already needs the exported `isBooleanSurface` from `mine-stages.ts` (`cli/roots/engine`) per D7 —
+  a runtime edge in the opposite direction. Two declared `calls` edges in opposite directions is a
+  **`structural-cycle`**: `checkNoCycles` (`src/core/checks/relations.ts:72-113`) walks
+  `uses`/`calls`/`extends`/`implements` depth-first and emits it at `severity: 'error'`; it is in
+  `STRUCTURAL_CODES` (`src/core/check-codes.ts:28-36`), the set whose own doc says these "fail
+  `yg check` regardless of verification state"; and the validator calls it unconditionally
+  (`src/core/validator.ts:192`). Plain `yg check` would go red the moment T2 landed, and the remedy
+  would be a node-mapping change no task is authorized to make. With `exemplars.ts` in
+  `roots/engine`, `roots/speech` has **one** outbound edge (`→ cli/roots/engine`) and no back edge,
+  and `routePartition` is still reachable from `src/cli/roots-check.ts` as `command → roots-engine`
+  (`:61`). `cli/roots/engine`'s own relation count is unchanged; `roots/speech` carries one `calls`
+  and one `uses: types`.
+
+**The full new-edge audit, done once here so no task re-derives it** (type-only imports create no
+edge — `src/relations/extractors/typescript.ts:180-181` excludes whole-statement `import type` — so
+every module naming `MinedFact`/`MinedPartition`/`LedgerEntry` as a type is free):
+
+| New/edited node | Outbound runtime edges this increment adds | Back edge? |
+| --- | --- | --- |
+| `cli/roots/speech` (verdict, speech, session-state, health) | `→ cli/roots/engine` (`isBooleanSurface`, `isDecorativeRole`, `roleJaccard`) | none — nothing in `roots/engine` imports these four |
+| `cli/roots/engine` (+ `exemplars.ts`) | none new (`mine.ts → exemplars.ts` is intra-node) | — |
+| `cli/io/roots-state` (four stores) | `→ cli/io/atomic-write`, `→ cli/utils`, `uses cli/model/graph` | none — no `io` node imports a roots node |
+| `cli/commands/roots-check` | `→ cli/roots/engine`, `→ cli/roots/speech`, `→ cli/roots/stores`, `→ cli/io/roots-state`, plus the config/utils/formatter/preamble edges `cli/commands/roots` already declares | none — no engine, store or io node imports a command |
+| `cli/commands/roots` (edited) | `→ cli/commands/roots-check` (the registrar call), `→ cli/roots/speech` (T8's aggregation call) | none |
+| `cli/tests/e2e/roots-verdict` | none (e2e imports nothing from `src/**`) | — |
+
+Every edge points from command → engine/store → io/types, one direction only. **T1 Step 1 verifies
+this by running the check rather than by re-reading the table.**
 - `model/cli/io/roots-state/yg-node.yaml` — type `persistence-adapter`, mapping the four new
   `src/io/roots-*-store.ts` files, mirroring `io/roots-cache`'s own stated "three files of one
   subsystem in one node … to keep the fan-out leaderboard still"
@@ -120,7 +154,7 @@ this increment is not authorized to make. `src/cli/roots-check.ts` MUST export e
   command files in one node would silently leave the second unpinned. **The registrar is called
   from `cli/roots.ts`, not from `cli/entry`** — so the new command edge lands on
   `cli/commands/roots` (ten relations today) and `cli/entry` stays at the **23** the fan-out
-  leaderboard pins it at (`tests/integration/portal-derive-rest.test.ts:74-75`). Registering it
+  leaderboard pins it at (`tests/integration/portal-derive-rest.test.ts:77-78`). Registering it
   from `entry` instead would take `entry` to 24 and rewrite the leaderboard's top three; that is
   the concrete reason for the call site, not a preference.
 - `model/cli/tests/e2e/roots-verdict/yg-node.yaml` — **one new e2e node mapping all eight new
@@ -130,10 +164,12 @@ this increment is not authorized to make. `src/cli/roots-check.ts` MUST export e
   would add eight new fan-out sources for no reviewability gain.
 - **Every new unit-test file joins an existing node, and none creates one.** The ~14 new
   `tests/unit/roots/*.test.ts` files (engine and store alike) join `cli/tests/unit/roots`, which
-  already maps R4's store tests by the same convention. `tests/unit/cli/roots-check.test.ts` joins
-  the existing `cli/tests/unit/cli/roots` node — `sibling-test-file`'s `collectTestFiles` recurses
-  the children of `cli/tests/unit/cli` (`check.mjs:35-41`), so a file mapped there satisfies the
-  check without a node of its own, and the leaderboard does not move. **`unmapped-files` is a
+  already maps R4's store tests by the same convention. **All three** new `tests/unit/cli/*` files —
+  `roots-check.test.ts` (T3), `roots-check-channels.test.ts` (T5) and
+  `roots-status-modulators.test.ts` (T10) — join the existing `cli/tests/unit/cli/roots` node;
+  `sibling-test-file`'s `collectTestFiles` recurses the children of `cli/tests/unit/cli`
+  (`check.mjs:35-41`), so a file mapped there satisfies the check without a node of its own, and the
+  leaderboard does not move. **`unmapped-files` is a
   blocking finding under `coverage.required: ["/"]` (`.yggdrasil/yg-config.yaml:8`)**, so a new file
   landing in no node fails the gate in whichever task first adds it — which is why the ownership is
   fixed here, once, rather than per task.
@@ -176,7 +212,9 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
 - **R5-I3 — Downgrade or silence, never upgrade (I2b).** Every machine-local modulator may lower
   severity or suppress; none may raise it (`v6-spec.md:81`). The complete modulator table for R5:
   (1) session dedup + budgets; (2) telemetry demotion via `demotions.json`; (3) staleness; (4)
-  bash-sweep `seedTruncated` / `floodSkipped`. Modulator (4) of the spec's list — daemon-absent —
+  bash-sweep `seedTruncated` / `floodSkipped`. **Modulators (1) and (4) are session-scoped and
+  surface in the session, not in `status`** — `status` has no session to speak of (T10 Step 1);
+  (2) and (3) are repository-scoped and `status` lists them. Modulator (4) of the spec's list — daemon-absent —
   is permanently active in this product (there is no daemon, `integration-design.md:373-379`) and
   is therefore folded into the channel table itself rather than being a live switch. `status` lists
   every active modulator (T10). *(T6, T9, T10)*
@@ -203,7 +241,20 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   `ROOTS_VERSION`, which **does** move (1 → 2, D3) precisely because the roots store's own format
   changed — while the graph's did not. That is the two-version rule working, not an exception to
   it, and no migration under `migrations/` is written because a derived snapshot's only correct
-  migration is regeneration. *(T1, T2, T3, T6, T8, T9)*
+  migration is regeneration. **A THIRD version notion exists and does not move:**
+  `HISTORY_STATE_SCHEMA_VERSION` (`src/roots/history-resume.ts:61`), the replay state's own schema
+  version, is folded into `inputsHash` — bumping it makes `decideWalkMode` return `full`, i.e. a
+  **whole-history re-walk for every adopter**, exactly the cost D11 refuses to impose for
+  `body_hash`. Its own doc invites a bump when "a co-change row … changes shape", and T2 changes a
+  co-change row, so the trap is live and the answer is derived rather than assumed: the resume path
+  reads back **only** `cochange-raw.jsonl` (`parseCochangeRawRows(state.cochangeRaw)`,
+  `history-resume.ts:394`), whose two row shapes (`{a,b,support}`, `{path,commits}`) T2 does **not**
+  touch; the row T2 widens is the finished cut `CochangePair`, persisted to `cochange.jsonl`, which
+  is "informational only — a resume reconstructs the finished cut fresh from `cochange-raw.jsonl`
+  via `finishCochange`" (`history.ts:1091-1094`) and is never read back. **So: it does not move in
+  R5.** Only a package that changes a *raw* accumulator row or a `meta.json` field may bump it, and
+  that package owes every adopter a full re-walk in the same breath — a bounded, stated cost, not a
+  free edit. *(T1, T2, T3, T6, T8, T9)*
 - **R5-I8 — One new committed file written, and only one.** R5 writes exactly one committed file
   that R4 did not: appended marks in `.yggdrasil/roots/ledger.jsonl` (`v6-spec.md:685` — committed
   on purpose, so regulation binds every machine and CI). *(The committed `model.json` also changes
@@ -223,7 +274,9 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
 - **R5-I11 — Every load-bearing rule has a killer test.** For each rule this plan names as
   load-bearing there is a test that FAILS when the rule alone is deleted, and the implementer
   demonstrates that by actually deleting it, running the test, and restoring (the live mutation
-  round-trips MR-1…MR-34, named per task). A rule with no killer test is not done. *(every task)*
+  round-trips **every MR named in the tasks below**, MR-1 through MR-37c — written as a range rather
+  than a fixed number so a task that adds a killer cannot fall outside the invariant every reviewer
+  checks). A rule with no killer test is not done. *(every task)*
 - **R5-I12 — Every functional change lands with an end-to-end test.** AGENTS.md's standing rule
   (`AGENTS.md:101`): the test drives the complete user flow through the public surface — spawn the
   built `bin.js`, act as an adopter would, assert the flow's observable outcome (stdout, exit code,
@@ -299,7 +352,22 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   `roles.ts`; T2 Step 2 names the equivalent for `mine.ts`: the exemplar and routing stages are
   already separate functions in `exemplars.ts` and can be *called* from `mine.ts` in two lines
   rather than inlined). Everything else goes in new files; every new test goes in a new sibling
-  file; split before crowding the ceiling, never after. (Graph-node `description:` growth is not a prompt risk — `src/llm/prompt.ts:179-181`
+  file; split before crowding the ceiling, never after.
+
+  **One file in this increment has no legal split target, and the constraint is stated up front
+  rather than discovered at T9:** `src/cli/roots-check.ts` receives orchestration from five tasks
+  (stdin resolution, path safety, channel protocols, the session-identity ladder, intent
+  application, staleness, the fail-open boundary), and both obvious escapes are closed by the
+  architecture — a helper under `src/cli/` classifies as `command-support`, whose `calls:` reaches
+  neither `roots-engine` nor `roots-store` (`yg-architecture.yaml:82`), and a second
+  `register*Command` export is refused outright by `command-contract-shape` (`check.mjs:50-62`).
+  Its practical ceiling is ≈ **66 KB of source** (the measured relationship is
+  file bytes + aspect bytes + ~1.8 K of scaffolding, and `command`'s largest LLM aspect,
+  `cli-command-contract`, is 3 124 B; for scale, `src/cli/roots.ts` is 40 830 B today and
+  `src/cli/aspect-test.ts` is 64 438 B). **T5, T6, T7 and T9 each re-measure it with
+  `node scripts/prompt-headroom.mjs` and report the figure.** If it crosses, that is an
+  architecture question — a new type or a widened `command-support` allow-list — and therefore a
+  **STOP and report**, never a refactor a task performs on its own. (Graph-node `description:` growth is not a prompt risk — `src/llm/prompt.ts:179-181`
   excludes it from the assembled prompt.)
 - **Aspect reviewers refuse, up front.** Before writing code, read the aspects binding your file's
   type. Beyond the seven `command` aspects named in the authorization section, three bind every new
@@ -378,7 +446,16 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   `Intents` is a plain, sorted record of *what should be appended where* —
   `{ sessionEvents, telemetry, ledgerMarks }` — the two produced sets are merged by the caller, and
   `src/cli/roots-check.ts` is the single place that applies them, in the single order D14 fixes.
-  "Messages" in this plan always means `render`'s output, never `evaluate`'s return. Three reasons, each
+  "Messages" in this plan always means `render`'s output, never `evaluate`'s return.
+
+  **`evaluate` is called once per partition, and the concatenation order is fixed here** because
+  §11.3's sort key `(severity desc, Δ desc, surface asc)` is **not total** — two findings on the
+  same surface from different partitions tie on all three components, and the concatenation order
+  would silently decide which of them survives the 3-per-response cut. A bare `yg roots check` over
+  the dirty set routinely spans partitions in a monorepo. So: the command layer groups the resolved
+  scopes by `partitionId`, calls `evaluate` once per group **in ascending `partitionId` order**, and
+  concatenates the findings in that order, each group in its own input order. §11.3 then orders and
+  truncates the concatenation, exactly once (R5-I9). Three reasons, each
   independently sufficient: `roots-engine` carries `no-direct-fs` and `deterministic`
   (`yg-architecture.yaml:749-755`), so the alternative is not available; a returned intent is
   assertable by value in a unit test, where a performed write is only assertable through the
@@ -387,10 +464,25 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   `evaluate()` and discards `intents` (`v6-spec.md:730`: the harness runs hermetically, with no
   telemetry or session reads/writes).
 
+  **The composition seam has three instances, and they are one rule.** Wherever the engine and the
+  store would have to hand each other a symbol, `src/cli/roots-check.ts` (or `src/cli/roots.ts`)
+  supplies it as a parameter instead, because `roots-engine` and `roots-store` are mutually
+  unreachable (`roots-engine.calls` `:759` has no `roots-store`; `roots-store.calls` `:774-777` has
+  no `roots-engine`) while `command` reaches both (`:61`): **(i)** the four `.state/` stores take an
+  absolute `stateDir` rather than importing `rootsStateDir` (T1); **(ii)** `appendLedgerMarks` takes
+  `keyOf` rather than importing `markKey` (D15); **(iii)** `health.ts` takes the snapshot stamp as a
+  `snapshotContentHash: string` **parameter** rather than importing `snapshotContentHash` from
+  `stores.ts` — the command layer computes it once from the body it just loaded and passes it in
+  (D16, T8). Instance (iii) is stated here because it is the one an implementer would otherwise
+  write without noticing: `health.ts` and `stores.ts` sit in the same directory, the ESLint
+  genericity fence permits `src/roots/` → `src/roots/` (`eslint.config.js:133-134`), and plain
+  `yg check` never runs the deterministic checkers — so the refusal would arrive only at
+  `check --approve --only-deterministic`, at the end of the task, with the signature already cut.
+
   **Where the intent record shapes live, so neither layer has to import the other.** The engine must
   *name* what it returns and the stores must *name* what they append, and neither may import the
   other: `persistence-adapter`'s `calls:` is `[persistence-adapter, utility]`
-  (`yg-architecture.yaml:206`) with `roots-engine` absent, while an engine that imported the stores
+  (`yg-architecture.yaml:207`) with `roots-engine` absent, while an engine that imported the stores
   would falsify the authorization table's own sentence and add an undeclared edge. So
   `SessionEvent`, `TelemetryRecord` and `DemotionsFile` are declared in **`src/model/graph.ts`** —
   the `types` node — exactly where `LedgerEntry` and `SeedEntry` already live and exactly how
@@ -480,10 +572,12 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   - **The tie-break, refined.** The spec ranks by `w(s,q)·m1·centrality` with ties by `stable_id`.
     Taken literally, a small repository with no co-change pairs at all gives every candidate a
     score of exactly 0 and picks exemplars by hash — the worst possible ordering for the one thing
-    the agent is shown as *the pattern to copy*. The rank key is therefore the **tuple**
-    `(w·m1·centrality desc, w·m1 desc, stable_id asc)`: the spec's score first, its own final
-    tie-break last, one strictly-refining step between. This never contradicts the spec (it only
-    breaks ties the spec left to a hash) and it is what makes the all-zero case sane.
+    the agent is shown as *the pattern to copy*. The rank key is therefore a **tuple**: the spec's
+    score first, its own final tie-break last, one strictly-refining step between — and the middle
+    element differs by cell class, per the `m1` bullet above: role facts rank by
+    `(w·m1·centrality desc, w·m1 desc, stable_id asc)`, `_all` and directory facts by
+    `(w·centrality desc, w desc, stable_id asc)`. This never contradicts the spec (it only breaks
+    ties the spec left to a hash) and it is what makes the all-zero case sane.
   - **Top 3**, rendered `path:line#name` (`v6-spec.md:484`), stored as
     `{ rel, line, name }` exactly as Appendix D shows (`:890`).
   - **Render-time re-validation** (spec: "reaped scopes never render") is a **file-existence
@@ -535,6 +629,14 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   merges into `_repo`. So the entry carries exactly that — `'_repo'` when the merged bucket survived,
   `null` when it did not — which is what the next index would assign to the first scope written
   there. Criterion 4b(v) pins it.
+
+  **`fallback` answers the same question the same way when no scope ever routed to `'_root'`** — a
+  monorepo whose every file lives under some package root, which includes fixtures (i) and (ii).
+  `'_root'` is then absent from `scopesByKey` and has no final id either, so `fallback` carries the
+  `_repo` bucket's own outcome: `'_repo'` if the merged bucket survived, `null` if it did not. Same
+  rule, same reason — that is what the next index would assign to the first file created outside
+  every package root, which is exactly the new-file case the hook exists for. Criterion 4b asserts
+  it on fixtures (i) and (ii).
 
   **The matcher has one home, and it is not a second `keyFor`.** The lookup above is genuinely a
   second *implementation* of the arm test (the projection is of the decision, not of the code), so
@@ -626,7 +728,15 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   fact's, and `null` for an `_all` or `d[<dir>]` cell (§11.1's first line needs the label, and
   §9.4i's `local (<dir>/)` / `package-wide (<id>)` / `repo-wide` labels need the partition id —
   without both, three of the four locality labels are unrenderable); and `denyEligible` is the
-  boolean widening above. Every module-kind fact is dropped by the projection (T3). That single indirection is what lets the
+  boolean widening above. Every module-kind fact is dropped by the projection (T3).
+  **The partition-label rule has a third arm §9.4i does not spell out, decided here.** §9.4i says
+  `repo-wide` in `_repo` and `package-wide (<partition>)` otherwise — but D5 established that `''`
+  is a *live* partition id on the mainstream adopter shape (a `package.json` at the repository
+  root), for which the literal rule renders **`package-wide ()`**: an empty parenthesis, in the
+  first line of every message R5 emits, on a surface R5-I14 binds. So the rule is
+  `partitionId === '_repo' || partitionId === ''` ⇒ **`repo-wide`**, and `package-wide (<id>)`
+  keeps its meaning for every named package. The label describes what a convention spans, and a
+  package whose root *is* the repository root spans the repository. That single indirection is what lets the
   channel table's DENY row be exercised by unit tests today while remaining unreachable from any
   real snapshot until R6 sets the flag (`integration-design.md:365-383`: DENY arms at R6, never in
   CI, only in a hook's JSON payload). **R5 emits no `permissionDecision` under any input**, because
@@ -724,7 +834,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   architecture constraint rather than a taste.** `markKey` lives in `src/roots/weights.ts:267-269`,
   which is type `roots-engine`; `stores.ts` is type `roots-store`, whose allow-list is
   `calls: [persistence-adapter, utility]`, `uses: [types]`, `default: deny`
-  (`yg-architecture.yaml:775-778`) — **`roots-engine` is absent**, and `stores.ts`'s own header
+  (`yg-architecture.yaml:774-777`) — **`roots-engine` is absent**, and `stores.ts`'s own header
   already states the rule in the other direction. So the signature is
   `appendLedgerMarks(yggRoot, marks, keyOf)`: `src/cli/roots-check.ts` — the one type that legally
   reaches both (`command` `calls:` includes `roots-engine` and `roots-store`, `:61`) — imports
@@ -737,7 +847,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   docs, not hidden: `git status` shows a dirty `ledger.jsonl` after a productive session ("roots
   records that it shaped this code — commit it with your change", `:685`), and because
   `ledgerHash` is one of the model header's inputs, the **next** `yg roots index` will not take
-  D13's no-op short-circuit. That is the mechanism working: a new mark genuinely changes what the
+  R4's D13 no-op short-circuit. That is the mechanism working: a new mark genuinely changes what the
   next model should say.
 - **D16 — Where the demotion aggregation runs, and why it is outside the no-op short-circuit.**
   §18.2 says aggregation runs "in the same transaction as every snapshot write … and at
@@ -748,7 +858,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   demotion exists for — `index` short-circuits, the aggregation never runs, and nothing ever
   demotes. R5 therefore fixes the placement explicitly:
 
-  1. **The short-circuit governs the MINING, not the run.** `yg roots index` evaluates D13's
+  1. **The short-circuit governs the MINING, not the run.** `yg roots index` evaluates R4's D13
      short-circuit exactly as it does today, and when it fires it still writes nothing to `.cache/`
      and leaves `model.json` byte-identical — §6.6 clause 6's own wording is about writes to the
      cache (`v6-spec.md:260`).
@@ -868,8 +978,10 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
 - **D22 — What `status` gains in R5, and what it does not.** It gains exactly three things, each
   demanded by an invariant R5 creates: the list of **active modulators** (I2b's own requirement,
   `v6-spec.md:81`), the **withheld-conventions** line ("K conventions withheld: no established
-  instances yet" — §9.4c.4's J4 explanation, `:409`, `:697`), and the **agentShare alarm** rendered
-  as **Appendix A's T7** when `agentShare ≥ health.agentShareAlarm`. It does **not** gain `--exit-code`
+  instances yet" — §9.4c.4's J4 explanation, `:409`, `:697`), and the **composition alarm** —
+  **Appendix A's T7 *content*, rendered in design §11's vocabulary rather than its literal template**
+  (T10 Step 3 derives why: the template names a config key and a configured threshold, both of which
+  R5-I14 confines to `explain`) — when `agentShare ≥ health.agentShareAlarm`. It does **not** gain `--exit-code`
   or `--diagnose` (R7, `integration-design.md:84`), and it still always exits 0. The three
   additions are text in the existing renderer, not a new command surface; R7 restructures the same
   content into its fuller form.
@@ -933,6 +1045,10 @@ architecture admits all of it. No verdict logic, no message text, no command.
 - Create `source/cli/src/io/roots-session-store.ts`, `roots-telemetry-store.ts`,
   `roots-demotions-store.ts`, `roots-incidents-store.ts`.
 - Edit `source/cli/src/roots/stores.ts` — add `appendLedgerMarks` and `snapshotContentHash`.
+- Edit `source/cli/src/model/graph.ts` — declare `SessionEvent`, `TelemetryRecord` and
+  `DemotionsFile` beside `LedgerEntry` (`:273`) and `SeedEntry` (`:248`), per D1. All three are pure
+  interfaces, so the `types` node's "no runtime behavior" contract (`yg-architecture.yaml:341`)
+  holds; that node carries no `log_required`, so the edit costs no log entry.
 - Create `.yggdrasil/model/cli/io/roots-state/yg-node.yaml`,
   `.yggdrasil/model/cli/roots/speech/yg-node.yaml` (empty mapping until T3 — the design lock lands
   first), `.yggdrasil/model/cli/commands/roots-check/yg-node.yaml` (likewise).
@@ -947,9 +1063,9 @@ architecture admits all of it. No verdict logic, no message text, no command.
 **Two names in this task diverge from the spec, both deliberately, both following the landed
 tree** — flagged the way D10 flags the channel names, so a reviewer does not read either as a
 misquote. The spec calls the committed mark file `hook-ledger.jsonl` (`v6-spec.md:685`); the design
-(`integration-design.md:127`) and R4's landed `LEDGER_FILENAME` (`src/roots/stores.ts:43`) both say
+(`integration-design.md:133`) and R4's landed `LEDGER_FILENAME` (`src/roots/stores.ts:43`) both say
 **`ledger.jsonl`**, and R4 shipped it. The spec puts incidents in `.roots-state/incidents.jsonl`
-(`:719`); the design's storage layout (`:132-133`) and R4's landed `STATE_DIRNAME` both say
+(`:719`); the design's storage layout (`:137-138`) and R4's landed `STATE_DIRNAME` both say
 **`.yggdrasil/roots/.state/`**. The landed names win in both cases; this increment renames nothing
 R4 shipped.
 
@@ -972,29 +1088,34 @@ R4 shipped.
   exceptions, so no implementer has to guess per function.
   *(A correction to a stricter paraphrase that appears in some repo guidance: the
   `read-or-default-via-helper` aspect fires only on an inline ENOENT-swallow around the **async**
-  `readFile` (`check.mjs:37-46`) — `readFileSync` with a bare try/catch is legal and is the
+  `readFile` (`check.mjs:36-48`) — `readFileSync` with a bare try/catch is legal and is the
   established pattern in `incidents-store.ts:170-174`. Sync would therefore have been *permitted*;
   it is rejected here for the `atomicWriteFile` reason above, not by that aspect.)*
 
 **Interfaces produced.**
 ```ts
+// The three record shapes below are declared in `src/model/graph.ts` (the `types` node), NOT in
+// these files — D1's seam: the engine returns them and the stores append them, and neither layer
+// may import the other. They sit beside `LedgerEntry` and `SeedEntry`, which `stores.ts` already
+// imports from exactly there. The stores import them and re-export nothing.
+//
+//   SessionEvent    { ts, kind: 'warned' | 'closed' | 'checked' | 'sweep' | 'stop', … }    // §11.4
+//   TelemetryRecord { sessionId, ts, stableId, surface, factKey, expected, observed,
+//                     severity, deltaBits, observedAfter? }                                 // §18.1
+//   DemotionsFile   { snapshotContentHash, demoted: string[] }  // sorted factKeys           // §18.2
+
 // roots-session-store.ts — §11.4: O_APPEND, one event per line, state = fold.
-export interface SessionEvent { ts: string; kind: 'warned' | 'closed' | 'sweep' | 'stop'; /* + kind-specific fields */ }
 export function sessionLogPath(stateDir: string, sessionId: string): string;
 export function readSessionEvents(stateDir: string, sessionId: string): Promise<SessionEvent[]>;      // tolerant: bad line skipped
 export function appendSessionEvents(stateDir: string, sessionId: string, events: readonly SessionEvent[]): Promise<void>;
 export function pruneSessions(stateDir: string, pruneDays: number, nowMs: number): Promise<number>;   // mtime-based, returns count
 
 // roots-telemetry-store.ts — §18.1: role-free keys, retention compacted at index.
-export interface TelemetryRecord { sessionId: string; ts: string; stableId: string; surface: string;
-  factKey: string; expected: string; observed: string; severity: 'WARN' | 'DENY'; deltaBits: number;
-  observedAfter?: 'complied' | 'ignored' }
 export function readTelemetry(stateDir: string): Promise<TelemetryRecord[]>;
 export function appendTelemetry(stateDir: string, records: readonly TelemetryRecord[]): Promise<void>;
 export function compactTelemetry(stateDir: string, retentionDays: number, nowMs: number): Promise<number>;
 
 // roots-demotions-store.ts — §18.2: stamped with the snapshot content hash.
-export interface DemotionsFile { snapshotContentHash: string; demoted: string[] }   // sorted factKeys
 export function readDemotions(stateDir: string): Promise<DemotionsFile | undefined>;// absent/corrupt => undefined
 export function writeDemotions(stateDir: string, file: DemotionsFile): Promise<void>;// atomic; skipped by the caller when unchanged (D16.4)
 
@@ -1014,7 +1135,10 @@ export function snapshotContentHash(body: unknown): string;                     
 - [ ] **Step 1: Verify the architecture admits every new file and node** — the table in the
   authorization section, checked live: each `when:` predicate against the real path, each import
   edge against the real `relations:` list, `max_direct_relations` against the new nodes' edge
-  counts, and the fan-out leaderboard pin. **STOP and report a dictated minimal
+  counts, **the acyclicity of the new relation set** — `checkNoCycles`
+  (`src/core/checks/relations.ts:72`), the one architecture check the rest of this list does not
+  perform, and the one that the increment's own node design can break without touching
+  `yg-architecture.yaml` at all — and the fan-out leaderboard pin. **STOP and report a dictated minimal
   `yg-architecture.yaml` block if any row is false.** Also verify, do not assume, that
   `YGGDRASIL_GITIGNORE_LINES` already carries `roots/.state/`
   (`src/cli/init-scaffold.ts:143`, `:147`) — this increment is the first to write there, and a
@@ -1062,7 +1186,13 @@ export function snapshotContentHash(body: unknown): string;                     
    may not import `markKey` from the engine), against both the marks in the same call and the marks
    already in the file — and leaves an existing file byte-identical when every mark in the call is
    already present. The unit test supplies `weights.ts`'s real `markKey`, which is legal from a test
-   and is what production passes. **Two marks for the same `(stableId, surface)` produced by two runs on the same
+   and is what production passes. **A mark whose `date` is not exactly `YYYY-MM-DD` is SKIPPED, not
+   thrown on** — the store writes the other marks in the call, returns normally, and emits one
+   `debugWrite` line naming the rejected mark. Throwing would be the wrong shape three ways: R5-I15
+   is degrade-never-abort, D14 places the ledger append *after* the message has already been
+   printed (so a throw would abandon intents the agent has already been told about), and R5-I2's
+   single catch would convert it into an incident, which is reserved for faults rather than for a
+   caller passing a malformed record. **Two marks for the same `(stableId, surface)` produced by two runs on the same
    UTC day collapse to one line**; a mark whose `date` carries a time component is rejected by the
    store rather than written (it would silently defeat this dedupe and shift `releasedMarks`'
    `Date.parse` arithmetic, `weights.ts:256`).
@@ -1076,10 +1206,12 @@ export function snapshotContentHash(body: unknown): string;                     
    changes when any body value changes; it is unaffected by the header.
 
 **E2E coverage (R5-I12).** This task ships **no adopter-visible behavior** — nothing calls these
-stores until T3. Its contracts are pinned by the unit tests above and are exercised end-to-end by
-**T3's `cli-roots-check.test.ts`**, which asserts the exact on-disk content of the session log and
-the incident file after a real `yg roots check` run through the spawned binary, and by **T7's**
-ledger/telemetry assertions. Stated here so the gap is scoped, not forgotten: an implementer who
+stores until T3. Its contracts are pinned by the unit tests above and are exercised end-to-end in
+three places, each named for the half it covers: **T3's `cli-roots-check.test.ts`** asserts the
+incident file after a version-mismatched snapshot (T3 Step 7 is the only thing T3 writes — T3's own
+scope says "no budgets, dedup, session state, telemetry, ledger"); **T6's
+`cli-roots-check-budgets.test.ts`** is where the **session log**'s on-disk content is first proven;
+and **T7's `cli-roots-compliance-loop.test.ts`** is where telemetry and the committed ledger are. Stated here so the gap is scoped, not forgotten: an implementer who
 finishes T1 has not yet proven anything an adopter can see.
 
 **Test obligations / mutation round-trips.**
@@ -1108,7 +1240,7 @@ bump to 2 that makes an upgraded repository actually regenerate them (D3). Deter
 end to end.
 
 **Authorities.** Spec §9.11 (`v6-spec.md:483-484`), §8.5's membership and weight-index table
-(`:340`), §8.10 (`:360-364`), §6.8's partition rule (`:269-273`), §13.5's directional confidence
+(`:340`), §8.10 (`:360-362`), §6.8's partition rule (`:269-273`), §13.5's directional confidence
 (`:621`), Appendix D's fact record (`:875-891`) and its co-change row (`:867`), §20.2 (`:713`);
 design §12's "§9.11 exemplar ranking … with render-time re-validation" row (`:454`).
 
@@ -1151,6 +1283,14 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
   failure reads as a `status` regression rather than a version mismatch. Update all eight to the new
   constant (the fixtures should reference `ROOTS_VERSION` rather than a literal, as
   `tests/unit/roots/stores.test.ts:43` already does, so the next bump costs one line).
+  **The body-shape change breaks seven more, named here for the same reason:** six exact-shape
+  co-change assertions in `tests/unit/roots/history-cochange.test.ts` (`:178`, `:181`, `:203`,
+  `:244`, `:367`, `:571`), each a `toEqual({ a, b, sup, conf })` that vitest fails on an extra key
+  once `commitsA`/`commitsB` arrive; and `tests/unit/roots/mine.test.ts:470`
+  (`expect('exemplars' in fact).toBe(false)`) — **whose test title at `:457` must change too**
+  ("…stabilityDays/calib/trend/cohorts/exemplars are absent from every fact"), since `exemplars` is
+  no longer absent. Fifteen landed assertions in total: none is a bug, all are this increment's own
+  contract moving.
 - [ ] **Step 2: `exemplars.ts`, pure.** Candidate set, `m1`, centrality and the refined tie-break
   exactly as D4 fixes them; top 3; output `{ rel, line, name }`, `rel` POSIX-normalized. No I/O, no
   clock. The module header states the D4 tie-break refinement **and its reason** (the all-zero
@@ -1172,7 +1312,11 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
 - [ ] **Step 4: Directional co-change (D20).** `finishCochange` emits `commitsA`/`commitsB` beside
   `sup`/`conf`; the model body's row type widens to match; the cut predicate, the sort and the
   `maxPairs` cut are all **unchanged**, so no golden's co-change expectation moves except by the two
-  added keys. State at the field, in the code, that `conf` remains the max of the two directions and
+  added keys. **`HISTORY_STATE_SCHEMA_VERSION` (`history-resume.ts:61`) does NOT move**, and the
+  task report says so explicitly rather than leaving the non-bump silent: its doc invites a bump
+  when "a co-change row … changes shape", but the row this step widens is the finished cut, which
+  the resume never reads back — R5-I7 carries the derivation. Bumping it would force a full history
+  re-walk on every adopter's next index. State at the field, in the code, that `conf` remains the max of the two directions and
   that the directional confidence is now derivable as `sup / commitsA` (or `sup / commitsB`).
 - [ ] **Step 5: Determinism.** All three fields are sorted by their stated total orders and carry no
   wall clock. The existing double-`index --full` byte-identity suite must pass unchanged, and the
@@ -1180,8 +1324,10 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
   regeneration of committed expectations, not a weakening of an assertion.
 - [ ] **Step 6: Re-measure the prompt headroom** on `roles.ts`, `mine.ts`, `history-cochange.ts`
   and every other file touched, and report the before/after numbers from Step 1's baseline.
-- [ ] **Step 7: Graph ritual + report** — `exemplars.ts` joins the new `roots/speech` node's
-  mapping (not `roots/engine`'s), log entries on every log-gated node touched.
+- [ ] **Step 7: Graph ritual + report** — `exemplars.ts` joins **`cli/roots/engine`'s** mapping
+  (**not** `roots/speech`'s: it is index-time code called by `mine()`, and mapping it to `speech`
+  would close a `structural-cycle` — the authorization section derives it), log entries on every
+  log-gated node touched, and the report states that `checkNoCycles` is clean.
 
 **Acceptance criteria — hand-derivable on the landed goldens.**
 1. On the TypeScript golden, a named `_all` boolean fact carries exactly 3 exemplars, each of which
@@ -1202,7 +1348,9 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
    fixture whose partition **has** a `couplingByFile` map but in which none of the fact's candidates
    appears in it — the small-repository case D4 names, where no file clears the co-change cut. Every
    candidate's first tuple element is then exactly 0, so the *second* element is what orders them;
-   the test states the `w·m1` values and the resulting order by value. This, not criterion 3, is
+   the test states the `w·m1` values and the resulting order by value. **The fixture's `w·m1` order
+   must differ from its `stable_id` order** — otherwise deleting the middle element changes nothing
+   observable and MR-6 would still not kill. This, not criterion 3, is
    what makes D4's refinement observable: with `couplingByFile` **absent** the centrality factor is
    1, which makes the first and second tuple elements numerically equal and the refinement invisible.
 4. Routing every mined file through **`exemplars.ts`'s exported `routePartition`** — the single
@@ -1216,9 +1364,11 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
    their sources are **generated programmatically by the fixture builder**, never hand-written:
    (i) a `package.json` at the repo **root**, above the floor ⇒ partition id `''`, and routing any
    file returns `''` — **not** silence (this is the case a wrong sentinel makes fatal);
-   (ii) **nested** package roots `a/` and `a/b/`, both above the floor ⇒ a file under `a/b/` routes
-   to `a/b` and a file under `a/` but outside `a/b/` routes to `a` — the closest-ancestor rule, and
-   the only case in which the array's order is observable;
+   (ii) **nested** package roots `a/` and `a/b/`, **each clearing the 300-scope floor in its own
+   bucket — ~600 generated scopes in total**, since `keyFor` assigns every file to its closest
+   ancestor root (`partitions.ts:239-244`) and files under `a/b/` therefore never count toward `a`'s
+   bucket ⇒ a file under `a/b/` routes to `a/b` and a file under `a/` but outside `a/b/` routes to
+   `a` — the closest-ancestor rule, and the only case in which the array's order is observable;
    (iii) a single package root whose scopes fall below the floor **and** whose `_repo` bucket also
    falls below it ⇒ routing returns `null`;
    (iv) no package marker anywhere ⇒ every file routes through `fallback`;
@@ -1397,8 +1547,9 @@ never a new parameter, so no task re-opens this file's contract.
   implementing the complete table, including the DENY→WARN downgrade with its note on every
   non-`pre` channel.
 - [ ] **Step 6: Minimal render.** Appendix A's T1, first three lines plus the `See:` line, with the labels
-  §9.4i and design §11 fix: `local (<dir>/)` for a directory fact, `repo-wide` in the `_repo`
-  partition, `package-wide (<partition>)` otherwise, and the group's medoid label for a role fact.
+  §9.4i and design §11 fix: `local (<dir>/)` for a directory fact, `repo-wide` for the `_repo`
+  partition **and for the root-level package whose id is `''`** (D9), `package-wide (<partition>)`
+  for every other named partition, and the group's medoid label for a role fact.
   The locality contrast sentence renders verbatim when `parentExp ≠ expected`. Everything else of
   Appendix A is T4's.
 - [ ] **Step 7: The command.** `yg roots check [file...]`, config-only load (I10 — `findYggRoot` +
@@ -1473,14 +1624,18 @@ uncommitted, `yg roots check` with no arguments finds it; with the tree clean, i
 - **MR-10 (governance smallest-first):** pick the **largest** evidence class ⇒ criterion 7 fails.
 - **MR-11 (τ from the fact):** hard-code `preferenceGapBits` in the verdict ⇒ acceptance row 4 fires
   when it must not.
-- **MR-12 (⊥ pricing):** treat an unseen value as an in-alphabet zero-count value ⇒ row 5's Δ and its
-  novelty flag both change.
+- **MR-12 (novelty detection):** treat an unseen value as an in-alphabet zero-count value ⇒ row 5's
+  **novelty note disappears** and its WARN cap stops applying. **Δ does not move, and the plan says
+  so rather than sending an implementer after a delta that cannot exist:** `p̂(e)/p̂(v)` cancels the
+  shared KT denominator to `(n_e + ½)/(n_v + ½)`, and an in-alphabet zero-count value has
+  `n_v = 0` exactly as ⊥ does — §9.3's own words, "numerically like ⊥ but **NOT novel**"
+  (`v6-spec.md:385`). The observable difference is the flag, not the arithmetic.
 - **MR-13 (channel downgrade):** make the non-`pre` channels pass DENY through unchanged ⇒
   criterion 10 fails, and R5-I3 is broken in the one direction it forbids.
 - **MR-12b (novelty cap):** delete the `!novel` conjunct from D9's severity rule ⇒ a test driven
   from a **synthetic DENY-eligible** fact with an out-of-alphabet observed value now yields DENY
-  where it must yield WARN. This is the killer M8 identified as missing: MR-12 kills the ⊥
-  *pricing*, and nothing else in the plan observes the *cap*. The test lives beside criterion 10's
+  where it must yield WARN. MR-12 kills the novelty *detection*; this one kills the *cap*, and
+  nothing else in the plan observes it. The test lives beside criterion 10's
   synthetic-severity cases, since no real R5 snapshot can reach it.
 - **MR-14 (domain skip):** treat out-of-domain as `false` ⇒ criterion 11 fails and every
   undecidable surface becomes a deviation.
@@ -1547,9 +1702,14 @@ A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design 
   The narrowed claim — and the only one this plan makes — is that **R6 does not have to restructure
   this renderer**, not that the template is complete.
 - [ ] **Step 6: The naming-table test.** A single test asserts that no rendered message in the whole
-  corpus of fixtures contains any of the forbidden internal tokens (`FACT`, `pid`, `surface=`,
-  `factKey`, `roleKey`, `Δ`, `tau`, `_all`, `hook_shaped`, `d[`). This is R5-I14's killer, and it is
-  worth more than any individual phrasing assertion.
+  corpus of fixtures contains any of the forbidden internal tokens: `FACT`, `pid`, `surface=`,
+  `factKey`, `roleKey`, `Δ`, `tau`, `_all`, `hook_shaped`, `d[`, **`agentShare`**,
+  **`package-wide ()`** (M4's empty-parenthesis label), and **a bare configured threshold rendered
+  as a number-versus-number comparison** (the `>= {alarm}` shape §18.4's own template carries —
+  R5-I14 and design §11 (`:426`) put thresholds in `explain` alone, and `explain` is R7's). The
+  corpus this runs over includes T10's `status` strings, not only T4's messages, since two of the
+  three new tokens can only appear there. This is R5-I14's killer, and it is worth more than any
+  individual phrasing assertion.
 - [ ] **Step 7: Graph ritual + report.**
 
 **Acceptance criteria.**
@@ -1558,6 +1718,11 @@ A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design 
 2. The `nameshape` row renders three example names and **never** the shape string.
 3. A directory fact whose `parentExp ≠ expected` renders the `local (<dir>/)` label and appends the
    locality sentence verbatim; the same fact with `parentExp == expected` renders neither.
+3b. **All four partition labels render, `''` included.** A fact from partition `'_repo'` renders
+   `repo-wide`; a fact from partition `''` — the root-level-package shape D5 builds a fixture for —
+   **also** renders `repo-wide`, never `package-wide ()`; a fact from `'packages/api'` renders
+   `package-wide (packages/api)`; a role fact renders its medoid label. Stated by value, because the
+   `''` case is the one the literal §9.4i rule gets wrong.
 4. A fact with `hookShapedConform = 2` renders the echo-shaped note with N = 2; with 0 it renders no
    note at all.
 5. The naming-table test passes over every fixture message, and fails if any forbidden token is
@@ -1578,8 +1743,8 @@ verbalizer is reachable through the real command, not just callable in a unit te
   case fails, and every fact starts claiming to be a local exception.
 - **MR-18 (naming leak):** render the raw `factKey` in the header line ⇒ criterion 5 fails.
 
-**NON-goals.** No T5 completeness message (T9), no T6 seed-tension or T8 export text (R8), no T7
-agentShare alarm rendering (T10 owns where it prints).
+**NON-goals.** No Appendix A T5 (the completeness message — T9), no Appendix A T6 (seed tension) or
+T8 (export text) — both R8 — and no Appendix A T7 rendering here (T10 owns where the alarm prints).
 
 ---
 
@@ -1704,13 +1869,32 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
 
 **Steps.**
 - [ ] **Step 1: The fold.** `foldSession(events) → { warnCount, dedupKeys, openInterventions,
-  fileState, seedTruncated, floodSkipped, lastSweepTs, completenessEmitted }`. Pure, total, and
-  **idempotent under duplicate events** (D13) — a replayed event must not double-count a warning.
+  writtenFiles, fileState, seedTruncated, floodSkipped, lastSweepTs, completenessEmitted }`. Pure,
+  total, and **idempotent under duplicate events** (D13) — a replayed event must not double-count a
+  warning, and `writtenFiles` is a de-duplicated set, not a list.
+- [ ] **Step 1b: The `'checked'` event, because completeness has no other honest source.** T9's
+  sweep needs *D = the files this session wrote* (§13.5, `v6-spec.md:625`), and neither the other
+  four event kinds nor `fileState` can supply it: deriving `D` from `warned` events would make it
+  "files that produced a message", so a session that edited ten files cleanly and one badly would
+  get completeness advice about one — and the clean files are exactly the ones a completeness sweep
+  exists to pair up; deriving it from `fileState` covers Bash-sweep sessions only, and T9 Step 3
+  itself says an Edit-only session leaves `fileState` unset. So a **`'checked'`** event carrying
+  `{ files: string[] }` is appended by **every** run that evaluates files — a per-file check, a
+  protocol-path run over the dirty set, and a bash sweep alike — **regardless of whether it found
+  anything**, in D14's write order beside the `warned` events. `foldSession` unions their `files`
+  into `writtenFiles`. This is a widening of T1's `SessionEvent` union and T6's fold result, landed
+  **here**, so T9 consumes shapes that already exist rather than re-opening two contracts this plan
+  calls closed.
 - [ ] **Step 2: Dedup, WARN-only.** Key `(stable_id, surface, direction)`; DENY never deduplicated,
   with the reason in the code: a block a retry defeats is not a block, and repeated denies are
   naturally rate-limited because the denied edit never lands.
-- [ ] **Step 3: Budgets.** Per response ≤ 3 ordered `(severity desc, Δ desc, surface asc)`; per
-  session ≤ 12 WARNs, then DENY only. Both read the **post-`channelFilter`** severity. The overshoot
+- [ ] **Step 3: Budgets — `applyBudgetsAndDedup(findings, fold, config) → { emitted,
+  emissionIntents }`**, the signature D1's pipeline names, so Steps 2 and 3 land as one exported
+  function rather than two loose helpers. Per response ≤ 3 ordered
+  `(severity desc, Δ desc, surface asc)`; per session ≤ 12 WARNs, then DENY only. Both read the
+  **post-`channelFilter`** severity. `emissionIntents` carries the `warned` session events and the
+  §18.1 telemetry lines for exactly the findings that were emitted — never for the ones the budget
+  dropped, which the agent never saw. The overshoot
   bound from concurrent hook processes is documented at the function, not locked against.
 - [ ] **Step 4: Identity ladder** in `roots-check.ts` per D12, with each rung's fallback logged once
   at `debugWrite` level so a support question about merged budgets is answerable.
@@ -1722,12 +1906,23 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
 1. Five findings on one response emit **3**, and the three are the top three under
    `(severity desc, Δ desc, surface asc)` — asserted by value on hand-built findings whose Δ values
    are 4.0, 3.7, 3.7, 2.9, 2.6 with two of them sharing Δ so the `surface asc` tie-break is
-   exercised.
+   exercised. **The five are supplied in an input order — `(roleKey asc, surface asc)` — whose first
+   three are *not* the three highest by Δ**; without that the pre-budget truncation MR-26 mutates in
+   would produce the same three and the killer would not kill.
 2. The same `(stable_id, surface, direction)` warned twice in one session emits once; the same
    `stable_id` and `surface` with a **different** observed value emits again (direction is part of
    the key).
-3. A synthetic DENY finding repeated in one session emits **both** times.
-4. After 12 WARNs in a session, the 13th is silent, and a synthetic DENY still passes.
+3. **On the `pre` channel**, a synthetic DENY finding repeated in one session emits **both** times
+   (§11.3: DENY is never deduplicated). The channel is named because it is load-bearing: on any
+   other channel the same finding is downgraded to WARN by `channelFilter` and dedup *does* apply.
+4. **On a `post` channel session**, after 12 WARNs the 13th is silent; a `pre`-channel run in the
+   same session with a synthetic DENY still passes (§11.3: "then DENY only"). The mixed-channel
+   shape is stated because `pre` drops WARN, so twelve WARNs can never accumulate on `pre` alone.
+4b. **The downgraded DENY is a WARN for both purposes.** On a non-`pre` channel, a DENY-eligible
+   synthetic fact — downgraded to WARN by `channelFilter` — is **silent** after the twelfth warn,
+   and **is deduplicated** on its second sighting in the session; the identical fact on `pre` passes
+   both times. This is §11.3's own sentence ("a DENY downgraded to WARN on a non-pre channel is a
+   WARN for both purposes") and it is the only criterion that observes it.
 5. Replaying the identical event log twice produces identical fold state (idempotence).
 6. Two runs sharing an explicit `--session` share the budget; two runs with no `--session` in the
    same process tree and cwd also share it (the ladder's middle rung).
@@ -1742,9 +1937,10 @@ real session: many edits, bounded interruption.
 - **MR-23 (dedup direction):** drop `direction` from the key ⇒ criterion 2's second case fails and a
   changed deviation goes unreported.
 - **MR-24 (DENY never deduped):** include DENY in dedup ⇒ criterion 3 fails.
-- **MR-25 (post-filter severity):** read severity **before** `channelFilter` ⇒ a downgraded DENY
-  escapes both the WARN budget and the dedup, which criterion 4 catches with a downgraded finding
-  after the 12th warn.
+- **MR-25 (post-filter severity):** read severity **before** `channelFilter` ⇒ **criterion 4b**
+  fails in both halves: the downgraded DENY escapes the WARN budget (it emits after the twelfth
+  warn) and escapes the dedup (it emits twice). Pointed at 4b and not at criterion 4, which contains
+  no downgraded finding and therefore could never have observed this.
 - **MR-26 (single truncation authority):** truncate `evaluate`'s output to 3 **before** the budget
   stage — i.e. in input order, `(roleKey asc, surface asc)`, rather than in §11.3's
   `(severity desc, Δ desc, surface asc)` — ⇒ criterion 1's by-value ordering assertion fails,
@@ -1781,8 +1977,10 @@ intents); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
   the session that would close it, so a re-view inside the same session is not a fresh ignore. State
   the measured reason in the code: without the bound, a sweep or an agent re-reading a file before
   editing inflates the `ignored` denominator and can demote a 96 %-share convention within minutes.
-- [ ] **Step 3: Intents, applied in D14's order** by the command layer, each append idempotent under
-  its key.
+- [ ] **Step 3: Intents, merged then applied in D14's order** by the command layer — `evaluate`'s
+  `closureIntents` and `applyBudgetsAndDedup`'s `emissionIntents` concatenate into one `Intents`
+  record (session events, then telemetry, then ledger marks), each append idempotent under its key.
+  There is exactly one applier and exactly one order.
 - [ ] **Step 4: What a mark costs, said out loud.** The ledger append makes `git status` dirty and
   makes the next `index` do real work (D15). Both are intended; both go in the docs at T11.
 - [ ] **Step 5: Graph ritual + report.**
@@ -1806,7 +2004,9 @@ intents); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
    (`(stable_id, surface)`), not the record's contents. Asserting "no role information" would
    therefore be asserting something false, and M3's whole forward-resolution step exists *because*
    the recorded role key goes stale. What this criterion checks is the shape §18.1 actually
-   specifies: those nine fields and no tenth.
+   specifies: **its nine fields, plus `observedAfter` on a closure record — the tenth field §18.1
+   itself adds (`{…, observedAfter}`) and the one the whole of T7 exists to write — and nothing
+   else**: no separate `roleKey`, no role label.
 
 **E2E coverage.** `cli-roots-compliance-loop.test.ts` — the design's own named suite
 (`integration-design.md:501-504`), miniaturized: spawn the built binary, `index`, plant a deviation,
@@ -1841,9 +2041,9 @@ two-sided, **fixed**), Appendix E.7 (`:922`); design §12's "per-fact expected-f
 cross-session closure pass in demotion pooling" row (`integration-design.md:447-448`).
 
 **Files.** Create `source/cli/src/roots/health.ts`; edit `src/cli/roots.ts` (the `index` action, to
-run the aggregation **after the D13 short-circuit's decision and outside the build lock, on every
-`index` regardless of that decision** — D16.1-D16.3 — and the `status` renderer to
-compute-without-writing);
+compute `snapshotContentHash(model.body)` and run the aggregation with it **after R4's D13
+short-circuit has made its decision and outside the build lock, on every `index` regardless of that
+decision** — D16.1-D16.3 — and the `status` renderer to compute-without-writing);
 create `source/cli/tests/unit/roots/health.test.ts`; create
 `source/cli/tests/e2e/cli-roots-demotion.test.ts`.
 
@@ -1869,10 +2069,14 @@ create `source/cli/tests/unit/roots/health.test.ts`; create
   compliance is biased high, and precisely the conventions agents ignore never demote.
 - [ ] **Step 3: The bound.** Demote when `WilsonLB95(compliance) < health.minCompliance` (0.3) with
   ≥ `health.minSamples` (8) resolved. z = 1.96 two-sided, fixed, not configurable.
-- [ ] **Step 4: The stamp.** `demotions.json` carries `snapshotContentHash` from T1's helper; the
+- [ ] **Step 4: The stamp, computed by the caller.** `demotions.json` carries the snapshot content
+  hash, and `health.ts` receives it as a **parameter** — `src/cli/roots.ts` calls T1's
+  `snapshotContentHash(model.body)` and passes the string in. `health.ts` may not import it:
+  `stores.ts` is `roots-store`, which is absent from `roots-engine`'s `calls:` list
+  (`yg-architecture.yaml:759`), and this is instance (iii) of D1's composition seam. The
   check path ignores a mismatched stamp, which resurrects a demoted fact rather than silencing a
   healthy one (§18.2's stated direction).
-- [ ] **Step 5: Where it runs (D16), precisely.** Inside `yg roots index`, **after** the D13 no-op
+- [ ] **Step 5: Where it runs (D16), precisely.** Inside `yg roots index`, **after** R4's D13 no-op
   short-circuit has made its decision and regardless of what it decided — because telemetry moves
   none of the eight inputs that short-circuit compares, and an aggregation that only ran on a
   mining run would never fire on the quiet repositories demotion exists for. It takes **no build
@@ -1979,7 +2183,9 @@ completeness paragraph (`:625`) and its directional confidence (`:621`), Appendi
   Edit-only session) it is a no-op.
 - [ ] **Step 4: Completeness (D20), over the row shape T2 actually persists.** Gated by
   `hooks.claudeCode.stopCompleteness` and `completeness.mode` (`stop-feedback-once`). D = files
-  written this session (from the session log). For each written file `f` and each committed
+  written this session — **`foldSession`'s `writtenFiles`, unioned from the `'checked'` events T6
+  Step 1b lands**, not a derivation from `warned` events or `fileState`. For each written file `f`
+  and each committed
   co-change row, **both sides are scanned** — `a < b` is canonical, not directional
   (`history-cochange.ts:94`) — so the partner and the denominator are picked by which side `f` is:
   ```
@@ -2022,6 +2228,10 @@ completeness paragraph (`:625`) and its directional confidence (`:621`), Appendi
      every one of these cases) would have emitted all four.
    A second `stop` run in the same session emits nothing; with `stopCompleteness: false` neither run
    emits; a partner that no longer exists on disk is excluded.
+5b. **A silently-checked file still counts.** A session whose only edit produced **no** message —
+   the conforming, uninteresting case, and the majority one — still names that file's co-change
+   partner at `stop`. This is the criterion that fails if `D` is ever derived from `warned` events
+   instead of from the `'checked'` events, which is the derivation an implementer reaches for first.
 6. `stop` on a session with no written files emits nothing.
 
 **E2E coverage.** `cli-roots-check-sweep.test.ts`: drive a realistic bash-shaped session through the
@@ -2059,8 +2269,13 @@ tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.te
 
 **Steps.**
 - [ ] **Step 1: Active modulators**, one line each, in plain terms: how many conventions are locally
-  quieted, whether the index is behind the current commit, whether a session's sweep was truncated
-  or flooded. Names, not mechanisms (R5-I14).
+  quieted, and whether the index is behind the current commit. **The two sweep modulators —
+  `seedTruncated` and `floodSkipped` — are deliberately NOT here.** They are *session*-scoped:
+  `status` takes no `--session`, runs from a different process tree than the hooks do, and D12's
+  identity ladder lives in `roots-check.ts`, so `status` has no principled way to say *whose*
+  session was truncated — picking, say, the most-recently-modified session log would report a
+  stranger's state as the reader's. They surface where they apply: in the session, on the channel
+  that set them (T9). Names, not mechanisms (R5-I14).
 - [ ] **Step 2: The withheld line, over a predicate the snapshot can actually answer.**
   "K conventions withheld: no established instances yet" — §9.4c.4's J4 explanation. The draft's
   phrasing ("failed **only** the survived-display gate") is not computable from what is persisted:
@@ -2074,7 +2289,20 @@ tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.te
   held back by a different gate is not counted and not claimed. On a repository with no history that
   number is every accepted fact, because nothing survives — and saying so is the whole point: the
   product must explain its own silence. The wording R5 prints stays exactly the spec's.
-- [ ] **Step 3: The alarm.** When `agentShare ≥ health.agentShareAlarm` (0.85), render Appendix A's T7.
+- [ ] **Step 3: The alarm — Appendix A's T7 *content*, in design §11's vocabulary.** When
+  `agentShare ≥ health.agentShareAlarm` (0.85), say so. **The spec's literal template may not ship
+  as written, and the divergence is deliberate — flagged here exactly as T4 Step 3 flags
+  "echo-shaped".** T7 reads
+  `[roots] agentShare = {v} >= {alarm}: {pct}% of recent norm weight comes from unsurvived
+  agent-authored code.` — which puts a **config key name** (`agentShare`) and a **configured
+  threshold** (`{alarm}`) in stdout, and R5-I14 with design §11 (`:426`) confine thresholds, cell
+  keys and enumerator ids to `yg roots explain` (R7's). It also collides with the maintainer's
+  standing "don't expose internals in user-facing surfaces". R5 therefore renders T7's **second
+  sentence and its measurement**, in product English: *"{pct}% of the convention weight from
+  recently-added code comes from agent-written code that has not yet stood the test of time. Recent
+  conventions largely reflect unreviewed agent output. Either review that code, or wait for it to
+  settle."* The percentage stays — it is evidence, and design §11 keeps evidence numbers. The key
+  name and the threshold do not. R7's `explain`/`report` may print the raw pair when it lands.
   **No exit code** — `--exit-code` is R7's, and until it exists the alarm is information.
 - [ ] **Step 4: Everything status already prints stays byte-identical** where none of the three
   conditions holds. Pin that with a test, because a status regression is how a read surface starts
@@ -2092,8 +2320,9 @@ tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.te
    to the count of accepted facts, and still exits 0.
 2. A repository with 3 demoted facts prints the quieted-conventions line with 3.
 3. A snapshot whose `headSha` differs from the current HEAD prints the behind-the-commit modulator.
-4. `agentShare = 0.9` prints T7; `0.84` does not; `null` prints neither the alarm nor a fabricated
-   number.
+4. `agentShare = 0.9` prints the alarm; `0.84` does not; `null` prints neither the alarm nor a
+   fabricated number. The printed text contains **no** `agentShare` token and **no** `0.85`, and the
+   percentage it does print is `90%` — asserted by value, and covered by Step 6's token test.
 5. Every state still exits **0**.
 
 **E2E coverage.** `cli-roots-status-speech.test.ts`: after driving the T8 demotion cycle through the
@@ -2118,8 +2347,9 @@ numbers this increment owes.
 regeneration at the root or in any `examples/*/`.
 
 **Steps.**
-- [ ] **Step 1: `docs/roots.md` becomes true.** Three sections are now false and must be rewritten,
-  not patched: "What's not here yet → Speak up while you edit" (it does now), the `.state/` row
+- [ ] **Step 1: `docs/roots.md` becomes true.** **Four** statements are now false and must be
+  rewritten, not patched — the fourth is the page's own section heading, `## The two commands`
+  (`docs/roots.md:37`), which after T3 describes three: "What's not here yet → Speak up while you edit" (it does now), the `.state/` row
   ("Nothing writes to it in this release" — everything does now), and the `ledger.jsonl` row
   ("Nothing writes a new mark yet"). Add the two consequences an adopter will actually meet: a dirty
   `ledger.jsonl` after a productive session and what to do with it, and the fact that a check
@@ -2301,8 +2531,13 @@ re-reads all three before T11 relies on any of them.
    half that needs no design change: the scaffold notice prints the **absolute path** of the config
    it is about to modify. The confirmation gate stays an open question (OQ2) with a default of *do
    not add*, because the design authority mandates auto-scaffold and a prompt would break the
-   non-interactive use every agent and CI makes of `index`. Recorded in the dogfood report as
-   partially resolved at T11.
+   non-interactive use every agent and CI makes of `index`. **The entry records a second sharp edge
+   that R5 neither takes nor fixes, and naming it is what keeps this carry-in honest:** the scaffold
+   rewrites `yg-config.yaml` through the CST-preserving `parseDocument`/`Document#set` path, which
+   "may re-space a flow collection's brackets" (`src/cli/roots.ts:150-154`) — a cosmetic diff in a
+   committed file the adopter did not ask for. Fixing that means changing how the YAML writer emits,
+   not how roots calls it, so it is out of scope for R5. Recorded in the dogfood report as
+   **partially** resolved at T11, with the formatting side-effect explicitly still open.
 2. **`agentShare` window config-derivation (§18.4).** **Decided — deliberately not changed.** The
    120-day window is the spec's own word "fixed" (`v6-spec.md:687`), and `history.ts:693-707`
    already records honestly that the promote conjunct is a no-op at stock defaults because the
@@ -2438,7 +2673,7 @@ called out.
   everything is `async`, because `atomic-write-contract` bans `writeFileSync` (`check.mjs:4`) and
   both the FIFO trim and the telemetry compaction are whole-file rewrites. The draft's stricter
   paraphrase of `read-or-default-via-helper` is corrected to the aspect's real scope
-  (`check.mjs:37-46`).
+  (`check.mjs:36-48`).
 - **M2 — `m1 = 1` for role-less scopes would rank them above real group members** on the `_all`
   path, which §8.7 says is the majority path. D4 now scopes `m1` to role facts only and gives
   `_all`/directory facts their own rank tuple; T2 criterion 3b and MR-6b pin the split.
@@ -2576,6 +2811,99 @@ criterion 6's "role-free" reasoning is replaced (§18.1 puts `factKey` *inside* 
 
 **Not applied:** none. One remedy was chosen against the reviewer's first suggestion, with the
 evidence stated inline (B1's `types`-node option).
+
+### Round 3 — what the third adversarial review changed (1 blocking, 7 major, 21 minor)
+
+**Blocking**
+
+- **B1 — the increment's own node design closed a `structural-cycle`.** Verified from source:
+  `checkNoCycles` (`src/core/checks/relations.ts:72-113`) walks `uses`/`calls`/`extends`/`implements`
+  and emits `structural-cycle` at `severity: 'error'`; it is in `STRUCTURAL_CODES`
+  (`check-codes.ts:28-36`), the set that fails `yg check` "regardless of verification state"; the
+  validator calls it unconditionally (`validator.ts:192`). The two edges were both mandated by the
+  plan: `mine.ts` (`cli/roots/engine`) **calls** `exemplars.ts`, which T2 mapped to
+  `cli/roots/speech`; and `verdict.ts` (`cli/roots/speech`) **calls** `isBooleanSurface` from
+  `mine-stages.ts` (`cli/roots/engine`) per D7. **Fixed by mapping `exemplars.ts` into
+  `cli/roots/engine`** — it is index-time code that runs inside `mine()`, `routePartition` stays
+  reachable from the command layer as `command → roots-engine`, and `roots/speech` is left with one
+  outbound edge and no back edge. Beyond the one fix, the authorization section now carries a
+  **full new-edge audit table** for every node this increment creates or edits (speech, engine,
+  roots-state, roots-check, commands/roots, the e2e node), each row stating its outbound edges and
+  whether any back edge exists — and **T1 Step 1 now runs `checkNoCycles`**, the one architecture
+  check its list did not perform. Type-only imports were confirmed not to create edges
+  (`relations/extractors/typescript.ts:180-181`), so the type-naming imports are free.
+
+**Major**
+
+- **M1 — D1's round-2 type-home decision never reached T1.** This was the third "decision rewritten,
+  task not" failure, so it triggered the global sweep below. T1's interface block now points at
+  `src/model/graph.ts` for all three record shapes instead of declaring them in the stores, and
+  `src/model/graph.ts` is on T1's Files list with the note that the `types` node carries no
+  `log_required`.
+- **M2 — `snapshotContentHash` was the *third* instance of the engine↔store edge, unnamed.**
+  `health.ts` is `roots-engine`; `stores.ts` is `roots-store`; the import would be refused only at
+  `--approve --only-deterministic`. D1 now states the composition seam as **one rule with three
+  instances** (`stateDir`, `keyOf`, `snapshotContentHash`), and T8 Step 4 + Files say the command
+  layer computes and passes it.
+- **M3 — completeness had no computable input.** Neither the four declared event kinds nor the fold
+  carried "files written this session", and both natural workarounds are wrong in the same
+  direction (from `warned` events ⇒ only files that produced a message; from `fileState` ⇒
+  bash-sweep sessions only). T6 Step 1b lands a **`'checked'` event** carrying `{files}`, appended
+  by every run that evaluates files *regardless of findings*, and `writtenFiles` in the fold; T9
+  consumes those landed shapes, and criterion 5b pins the silently-checked file.
+- **M4 — the `''` partition rendered `package-wide ()`** on D5's own "mainstream adopter shape".
+  D9 adds the third arm (`'_repo'` **or** `''` ⇒ `repo-wide`), T3 Step 6 restates it, T4 criterion
+  3b renders all four labels by value, and `package-wide ()` joins Step 6's forbidden-token test.
+- **M5 — T6 criteria 3–4 named no channel and MR-25 had no killer.** Criteria 3 and 4 now name
+  `pre` and `post`, new criterion 4b pins §11.3's own sentence (a downgraded DENY is a WARN for both
+  budget and dedup), and MR-25 points at 4b.
+- **M6 — Appendix A's T7 puts a config key and a configured threshold in stdout**, which R5-I14 and
+  design §11 (`:426`) confine to `explain`. T10 Step 3 now renders T7's *content* in product
+  English, flags the divergence the way T4 Step 3 flags "echo-shaped", criterion 4 asserts the
+  absent tokens and the printed `90%`, and `agentShare` + a bare threshold comparison join the
+  token test.
+- **M7 — a third version notion was in scope and unnamed.** `HISTORY_STATE_SCHEMA_VERSION`
+  (`history-resume.ts:61`) invites a bump when "a co-change row … changes shape" — and T2 changes
+  one. Derived and stated in R5-I7 and T2 Step 4: **it does not move**, because the resume reads
+  back only `cochange-raw.jsonl` (`history-resume.ts:394`), whose rows T2 does not touch, while the
+  widened `CochangePair` is the informational cut `finishCochange` rebuilds every run
+  (`history.ts:1091-1094`). Bumping it would force a whole-history re-walk on every adopter — the
+  exact cost D11 refuses.
+
+**Minor** — all 21 applied: the seven landed **body-shape** assertions the change breaks are now
+named beside the eight `rootsVersion` ones (six `toEqual({a,b,sup,conf})` in
+`history-cochange.test.ts` and `mine.test.ts:470` **plus its test title at `:457`** — fifteen in
+total); R5-I11's MR range widened to every MR the tasks name; four bare `D13`s disambiguated to
+"R4's D13"; T4's NON-goals joined the Appendix-A notation pass; **MR-12's Δ claim corrected** — an
+in-alphabet zero-count value prices *identically* to ⊥ because the KT denominator cancels (§9.3's
+own "numerically like ⊥ but NOT novel"), so MR-12 is restated as a novelty-flag killer and MR-12b's
+rationale with it; T1's e2e attribution split across T3/T6/T7 by what each actually proves; T7
+criterion 6 widened to nine fields **plus `observedAfter`**, which it previously excluded; six
+anchors corrected (design `:133`/`:137-138`, the fan-out pin `:77-78`, `yg-architecture.yaml:207`
+and `:774-777`, §8.10 `:360-362`, `check.mjs:36-48`); the two unassigned `tests/unit/cli/*` files
+given their node; criterion 4b(ii) sized at **~600** generated scopes (two buckets must clear 300
+independently); criteria 3c and 1 given the fixture properties MR-6 and MR-26 depend on;
+`src/cli/roots-check.ts`'s ≈66 KB ceiling and its **STOP** escalation stated (no legal split target
+exists); multi-partition runs specified (per-partition `evaluate`, ascending `partitionId`,
+concatenate then order once) because §11.3's sort key is not total; the fourth false docs statement
+(`docs/roots.md:37`) named; T1 criterion 3 says a malformed date is **skipped**, not thrown;
+D5 decides what `fallback` carries when nothing routed to `'_root'`; D25 records the untaken
+YAML-reformatting half of the dogfood entry; and T10 Step 1 **drops** the two sweep modulators with
+the reason (`status` has no session), with R5-I3's table updated to match.
+
+**Global consistency sweep** (mandated after M1, the third decision-vs-task drift). Every decision
+amended in rounds 1–3 was grepped against every task, criterion and MR that restates it: D1
+(pipeline/intents), D3 (`ROOTS_VERSION`), D4 (tie-break), D5 (sentinel/routing/fallback), D6, D9
+(severity + projection), D11 (superset), D15 (`keyOf`), D16 (aggregation placement), D19 (budgets),
+D20 (directional co-change), D22 (`status` contents), D23, D24. **Four drifts found and repaired,
+none of which the review had flagged:** T6 Step 3 did not name `applyBudgetsAndDedup` or its return,
+so D1's pipeline existed in one place only; T7 Step 3 said "intents applied" without saying the two
+producers' records **merge**; D4's tie-break bullet still stated the single role-fact tuple after
+the cell-class split was added two bullets above it; and D22 still described the alarm as Appendix
+A's literal T7 after M6 replaced it with T7's content. The remaining ten decisions read identically
+everywhere they appear.
+
+**Not applied:** none.
 
 ### Drafting self-review (pre-review)
 
