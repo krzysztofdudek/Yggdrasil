@@ -13,10 +13,11 @@ intervention, notices when the agent complied, writes the echo-defense mark, and
 convention agents keep ignoring. Nothing gates CI, nothing blocks an edit, nothing is promoted, and
 no rule is armed to deny — those are R6–R8.
 
-**Architecture:** Five new pure engine modules under `source/cli/src/roots/`
+**Architecture:** Six new pure engine modules under `source/cli/src/roots/`
 (`verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts` — mapped by a new `cli/roots/speech`
-node — plus `exemplars.ts`, which maps into the **existing** `cli/roots/engine` node because it is
-index-time code and mapping it elsewhere would close a graph cycle), four new persistence
+node — plus `exemplars.ts` and `extract-file.ts`, which map into the **existing** `cli/roots/engine`
+node because both are production extraction/mining code, and mapping `exemplars.ts` elsewhere would
+close a graph cycle), four new persistence
 modules under `source/cli/src/io/` for the gitignored `.state/` triad plus incidents
 (`roots-session-store.ts`, `roots-telemetry-store.ts`, `roots-demotions-store.ts`,
 `roots-incidents-store.ts`), one new command file `source/cli/src/cli/roots-check.ts`, a ledger
@@ -77,7 +78,7 @@ is already on an existing type's relation allow-list. Verified at HEAD (a761dda)
 
 | New file | Classified by | Allowed because |
 | --- | --- | --- |
-| `src/roots/verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts`, `exemplars.ts` | `roots-engine` — `when: all_of[path "source/cli/src/roots/*.ts", not stores.ts, not *.test.ts]` (`yg-architecture.yaml:742-748`) | roots-engine `calls: [roots-engine, ast-adapter, persistence-adapter, utility]`, `uses: [types]` (`:759-760`) — every import these five need (other roots modules, `ast/parser.ts`, `utils/*`, `model/graph.ts` types) is on that list. They import **no** persistence adapter at all under D1. |
+| `src/roots/verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts`, `exemplars.ts`, `extract-file.ts` | `roots-engine` — `when: all_of[path "source/cli/src/roots/*.ts", not stores.ts, not *.test.ts]` (`yg-architecture.yaml:742-748`) | roots-engine `calls: [roots-engine, ast-adapter, persistence-adapter, utility]`, `uses: [types]` (`:759-760`) — every import these six need (other roots modules, `ast/parser.ts` via `ast-adapter`, `utils/language-registry.ts` via `utility`, `model/graph.ts` types) is on that list. They import **no** persistence adapter at all under D1. Note the *node* split is finer than the *type*: all six are `roots-engine`, but `exemplars.ts`/`extract-file.ts` map to `cli/roots/engine` and the other four to the new `cli/roots/speech` — see the node list below for why. |
 | `src/io/roots-session-store.ts`, `roots-telemetry-store.ts`, `roots-demotions-store.ts`, `roots-incidents-store.ts` | `persistence-adapter` — `when: any_of[... path "source/cli/src/io/*-store.ts" ...]` (`:183`) | **Inbound:** `command` → persistence-adapter and roots-engine → persistence-adapter are both allowed `calls` edges (`:61`, `:759`). **Outbound is the tighter half and the one that dictates their signatures:** persistence-adapter's own list is `calls: [persistence-adapter, utility]`, `uses: [types]`, `default: deny` (`:206-209`) — **`roots-store` is absent**, so none of these four may import `rootsStateDir`/`STATE_DIRNAME` from `src/roots/stores.ts`. They take an absolute `stateDir: string` instead (T1's contract), exactly as `roots-blob-cache.ts` takes `cacheDir` and `roots-history-store.ts` takes `dir`. They may reach `io/atomic-write.ts`, `io/read-or-default.ts`, `io/debug-log-writer.ts`, `io/hash.ts` and `src/utils/*`, which is everything they need. |
 | `src/cli/roots-check.ts` | `command` — `when: all_of[path "source/cli/src/cli/*.ts", not *.test.ts, content "export\s+function\s+register[A-Z]\w*Command\("]` (`:43-48`) | `command` `calls:` includes both `roots-engine` and `roots-store` (`:61`) — the only type in the tree that may reach both. |
 
@@ -118,7 +119,7 @@ this increment is not authorized to make. `src/cli/roots-check.ts` MUST export e
   runtime edge `cli/roots/engine → cli/roots/speech`, while `verdict.ts` (a `roots/speech` file)
   already needs the exported `isBooleanSurface` from `mine-stages.ts` (`cli/roots/engine`) per D7 —
   a runtime edge in the opposite direction. Two declared `calls` edges in opposite directions is a
-  **`structural-cycle`**: `checkNoCycles` (`src/core/checks/relations.ts:72-113`) walks
+  **`structural-cycle`**: `checkNoCycles` (`src/core/checks/relations.ts:73-123`) walks
   `uses`/`calls`/`extends`/`implements` depth-first and emits it at `severity: 'error'`; it is in
   `STRUCTURAL_CODES` (`src/core/check-codes.ts:28-36`), the set whose own doc says these "fail
   `yg check` regardless of verification state"; and the validator calls it unconditionally
@@ -129,21 +130,28 @@ this increment is not authorized to make. `src/cli/roots-check.ts` MUST export e
   (`:61`). `cli/roots/engine`'s own relation count is unchanged; `roots/speech` carries one `calls`
   and one `uses: types`.
 
-**The full new-edge audit, done once here so no task re-derives it** (type-only imports create no
+**The full new-edge audit, done once here so no task re-derives the allow-list question** (each
+task's graph ritual still declares the edges it lands — see the note below the table; type-only
+imports create no
 edge — `src/relations/extractors/typescript.ts:180-181` excludes whole-statement `import type` — so
 every module naming `MinedFact`/`MinedPartition`/`LedgerEntry` as a type is free):
 
 | New/edited node | Outbound runtime edges this increment adds | Back edge? |
 | --- | --- | --- |
 | `cli/roots/speech` (verdict, speech, session-state, health) | `→ cli/roots/engine` (`isBooleanSurface`, `isDecorativeRole`, `roleJaccard`) | none — nothing in `roots/engine` imports these four |
-| `cli/roots/engine` (+ `exemplars.ts`) | none new (`mine.ts → exemplars.ts` is intra-node) | — |
-| `cli/io/roots-state` (four stores) | `→ cli/io/atomic-write`, `→ cli/utils`, `uses cli/model/graph` | none — no `io` node imports a roots node |
-| `cli/commands/roots-check` | `→ cli/roots/engine`, `→ cli/roots/speech`, `→ cli/roots/stores`, `→ cli/io/roots-state`, plus the config/utils/formatter/preamble edges `cli/commands/roots` already declares | none — no engine, store or io node imports a command |
-| `cli/commands/roots` (edited) | `→ cli/commands/roots-check` (the registrar call), `→ cli/roots/speech` (T8's aggregation call) | none |
-| `cli/tests/e2e/roots-verdict` | none (e2e imports nothing from `src/**`) | — |
+| `cli/roots/engine` (+ `exemplars.ts`, `extract-file.ts`) | none new — `mine.ts → exemplars.ts`, `pipeline.ts → extract-file.ts` and `extract-file.ts → extract.ts/binding.ts` are all intra-node; `→ cli/ast/runtime` and `→ cli/language-registry` are already declared on this node | — |
+| `cli/io/roots-state` (four stores) | `→ cli/io/atomic-write` (`atomicWriteFile`), **`→ cli/io/stores`** (`appendToDebugLog` and `readFileOrDefault` are mapped there — `debug-log-writer.ts` and `read-or-default.ts` at `.yggdrasil/model/cli/io/stores/yg-node.yaml:18`/`:28`, **not** by `cli/io/atomic-write`, which maps only `atomic-write.ts`), `→ cli/utils`, `uses cli/model/graph` | none — no `io` node imports a roots node |
+| `cli/roots/stores` (edited: `appendLedgerMarks`, `snapshotContentHash`) | **none new** — `stores.ts` already imports `appendToDebugLog`/`hashString`/`readFileOrDefault` from `cli/io/stores` and the node already declares that edge. Stated because the neighbouring row differs: the *new* io node needs the edge declared, this one does not | — |
+| `cli/commands/roots-check` | `→ cli/roots/engine`, `→ cli/roots/speech`, `→ cli/roots/stores`, `→ cli/io/roots-state`, **`→ cli/ast/runtime`** (the shared parser pool) and **`→ cli/language-registry`** (`getGrammarForExtension`) — both required by D6's check-path parse, both legal for `command` (`ast-adapter`, `utility` on `:61`) — plus the config/utils/formatter/preamble edges `cli/commands/roots` already declares, and `uses cli/tests/unit/cli` (`sibling-test-file`) | none — no engine, store, io or test node imports a command |
+| `cli/commands/roots` (edited) | `→ cli/commands/roots-check` (the registrar call), `→ cli/roots/speech` (T8's aggregation call), **`→ cli/io/roots-state`** (T8 reads telemetry and session logs and writes `demotions.json`; T10's `status` reads demotions) — **10 → 13 relations**, still far under `max_direct_relations: 20` and clear of the 23 leaderboard tie | none |
+| `cli/tests/e2e/roots-verdict` | **`uses cli/tests/support`, `uses cli/tests/fixtures`** — the suites use `buildGoldenRepo` and the golden specs, exactly as the landed sibling node declares (`.yggdrasil/model/cli/tests/e2e/roots-basic/yg-node.yaml`). It imports nothing from `src/**` (`e2e-public-surface`), which is a different claim from "no edges" | none — neither support node reaches roots or commands |
 
-Every edge points from command → engine/store → io/types, one direction only. **T1 Step 1 verifies
-this by running the check rather than by re-reading the table.**
+Every edge points from command → engine/store → io/types (and test → test-support), one direction
+only. **The table settles the *allow-list* question once, so no task re-derives whether an edge is
+legal — each task's graph ritual still declares the edges it actually lands, and
+`relation-undeclared-dependency` is blocking (`src/core/check-codes.ts:96`), so an undeclared import
+fails at that task's own gate.** T1 Step 1 runs `checkNoCycles` over the design-locked nodes; it
+cannot verify edges that only arrive at T2-T8, which is precisely why the table exists.
 - `model/cli/io/roots-state/yg-node.yaml` — type `persistence-adapter`, mapping the four new
   `src/io/roots-*-store.ts` files, mirroring `io/roots-cache`'s own stated "three files of one
   subsystem in one node … to keep the fan-out leaderboard still"
@@ -162,7 +170,7 @@ this by running the check rather than by re-reading the table.**
   nodes are already the norm here (`tests/e2e/check-validation` maps six,
   `relation-conformance-scripting` and `attention-dump` five each), and eight single-file nodes
   would add eight new fan-out sources for no reviewability gain.
-- **Every new unit-test file joins an existing node, and none creates one.** The ~14 new
+- **Every new unit-test file joins an existing node, and none creates one.** The ~16 new
   `tests/unit/roots/*.test.ts` files (engine and store alike) join `cli/tests/unit/roots`, which
   already maps R4's store tests by the same convention. **All three** new `tests/unit/cli/*` files —
   `roots-check.test.ts` (T3), `roots-check-channels.test.ts` (T5) and
@@ -192,8 +200,9 @@ fabricated incidents, no hand-edited lock files, no graph mutation from roots (I
 Every task's reviewer checks these. Each names the test family that pins it (task in parentheses).
 
 - **R5-I1 — Roots never gates CI.** `yg roots check` exits **0 on every verdict outcome** — on
-  findings, on a malformed model, on an internal throw, on a path outside the repo, on a dormant
-  project (`integration-design.md:80`; program plan `:270-271`). No `--exit-code` flag exists on
+  findings, on a malformed model, on an internal throw, on a path outside the repo, **on a directory
+  with no `.yggdrasil/` at all** (where `index` legitimately refuses with exit 1 and `check` must
+  not — T3 Step 7), on a dormant project (`integration-design.md:80`; program plan `:270-271`). No `--exit-code` flag exists on
   `check`; the spec's exit-4 is deliberately not ported (`integration-design.md:470-478`).
   **The one carve-out, stated here so no task has to invent it:** a *usage* error — mutually
   exclusive or malformed arguments, before any evaluation happens — exits **1** with a
@@ -218,12 +227,14 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   is permanently active in this product (there is no daemon, `integration-design.md:373-379`) and
   is therefore folded into the channel table itself rather than being a live switch. `status` lists
   every active modulator (T10). *(T6, T9, T10)*
-- **R5-I4 — Engine purity.** `verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts` and
-  `exemplars.ts` contain no `node:fs`, no `console.*`, no `Date.now()`, no `process.env`, no
-  `process.stdout`. Every clock reading, session identity, file read and file append is a parameter
+- **R5-I4 — Engine purity.** `verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts`,
+  `exemplars.ts` and `extract-file.ts` contain no `node:fs`, no `console.*`, no `Date.now()`, no
+  `process.env`, no `process.stdout` — `extract-file.ts` included, which is why its signature takes
+  `(relPath, content)` and the command layer reads the bytes (D6). Every clock reading, session identity, file read and file append is a parameter
   supplied by the command layer, and every side effect is *returned as data* (D1). This is not a
   style preference: `roots-engine` carries `deterministic`, `no-direct-fs` and `no-direct-console`
-  (`yg-architecture.yaml:749-755`), and all three refuse the alternative. *(T3–T8)*
+  (`yg-architecture.yaml:749-755`), and all three refuse the alternative. *(T2–T8 — `exemplars.ts`
+  and `extract-file.ts` are created in T2 and T3, so the range starts at T2, not T3.)*
 - **R5-I5 — Model determinism survives (I2a).** The three snapshot fields R5 adds (`exemplars`,
   `partitionRouting`, and the co-change rows' `commitsA`/`commitsB`) are total functions of inputs
   the snapshot already fixes, ordered by a stated total order, carrying no wall clock. Two `index --full` runs remain byte-identical, and an
@@ -274,9 +285,9 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
 - **R5-I11 — Every load-bearing rule has a killer test.** For each rule this plan names as
   load-bearing there is a test that FAILS when the rule alone is deleted, and the implementer
   demonstrates that by actually deleting it, running the test, and restoring (the live mutation
-  round-trips **every MR named in the tasks below**, MR-1 through MR-37c — written as a range rather
-  than a fixed number so a task that adds a killer cannot fall outside the invariant every reviewer
-  checks). A rule with no killer test is not done. *(every task)*
+  round-trips **every MR named in the tasks below**, MR-1 through MR-40 — the phrase "every MR named
+  in the tasks below" is the binding half and the numeric range is only an aid, so a task that adds a
+  killer cannot fall outside the invariant every reviewer checks). A rule with no killer test is not done. *(every task)*
 - **R5-I12 — Every functional change lands with an end-to-end test.** AGENTS.md's standing rule
   (`AGENTS.md:101`): the test drives the complete user flow through the public surface — spawn the
   built `bin.js`, act as an adopter would, assert the flow's observable outcome (stdout, exit code,
@@ -288,7 +299,8 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   key; the `ignored` branch fires at most once per session per intervention (`v6-spec.md:479` —
   without that bound the harness's own re-checks demoted a 96 %-share convention mid-run); and the
   write order is chosen so a torn write biases toward *under*-recording, never toward demoting a
-  healthy convention (D14). *(T7, T8)*
+  healthy convention (D14). *(T6, T7, T8 — T6 lands `OpenIntervention`'s
+  `ignoredRecordedInSession` in the fold, which is the field the bound is implemented with.)*
 - **R5-I14 — No internal vocabulary in user-facing output.** Design §11's table
   (`integration-design.md:410-426`) binds every rendered string: no `FACT`, no `pid`, no `surface`,
   no `factKey`, no `roleKey`, no `Δ`, no `τ`, no "hook_shaped", no "partition `_all`". Numbers that
@@ -365,7 +377,8 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   file bytes + aspect bytes + ~1.8 K of scaffolding, and `command`'s largest LLM aspect,
   `cli-command-contract`, is 3 124 B; for scale, `src/cli/roots.ts` is 40 830 B today and
   `src/cli/aspect-test.ts` is 64 438 B). **T5, T6, T7 and T9 each re-measure it with
-  `node scripts/prompt-headroom.mjs` and report the figure.** If it crosses, that is an
+  `node scripts/prompt-headroom.mjs` in their own final step — the obligation is written into those
+  four steps, not left here as a global note nobody owns — and report the figure.** If it crosses, that is an
   architecture question — a new type or a widened `command-support` allow-list — and therefore a
   **STOP and report**, never a refactor a task performs on its own. (Graph-node `description:` growth is not a prompt risk — `src/llm/prompt.ts:179-181`
   excludes it from the assembled prompt.)
@@ -444,7 +457,16 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   render(emitted)         -> string[] | VerdictJson              // speech.ts   (T3 minimal, T4 complete)
   ```
   `Intents` is a plain, sorted record of *what should be appended where* —
-  `{ sessionEvents, telemetry, ledgerMarks }` — the two produced sets are merged by the caller, and
+  `{ sessionEvents, telemetry, ledgerMarks }`. **There are two engine producers and one
+  command-layer producer**, and the third is named here because a round of review found it had none:
+  the **`'checked'` session event** (T6 Step 1b) is a **command-layer fact**, constructed by
+  `src/cli/roots-check.ts` from the file set it resolved and merged into the applied `Intents`
+  alongside the two engine-produced sets. It cannot come from either engine stage:
+  `applyBudgetsAndDedup` sees only `findings`, which exist solely for deviating scopes — so the
+  silent-file case, the entire reason the event exists (T9 criterion 5b), is invisible to it by
+  construction; and `evaluate`'s `closureIntents` is defined as the closure's records only. Putting
+  it in the command layer moves no signature, which is what keeps T3's "every later task adds *data*,
+  never a new parameter" true. All three sets are merged by the caller, and
   `src/cli/roots-check.ts` is the single place that applies them, in the single order D14 fixes.
   "Messages" in this plan always means `render`'s output, never `evaluate`'s return.
 
@@ -505,8 +527,14 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   put it in (D5), and the two directional co-change counts completeness needs (D20). R5 therefore
   adds `MinedFact.exemplars`, a body-level `partitionRouting`, and `commitsA`/`commitsB` on every
   co-change row.
-  The reason `stores.ts` records at the constant today
-  (`src/roots/stores.ts:25-39`) is about *readability* — and readability is not the problem R5 has.
+  The rule `stores.ts` records at the constant today (`src/roots/stores.ts:25-37`) is a
+  **release-boundary** rule, not a readability one, and R5 is overriding it — so it is rebutted here
+  rather than recharacterized, the way D3 rebuts design §10's migrations paragraph below. The landed
+  comment says the body "has never shipped in a release, so no adopter holds a v1 `model.json` …
+  A version bump belongs to whichever package first changes the body's shape **AFTER a release**."
+  R5 bumps for a *pre*-release body-shape change, against that rule's letter, because the rule
+  answers a different question: it is about **compatibility** — who might hold an old-shaped file —
+  and R5's problem is **regeneration**.
   The problem is **regeneration**. `evaluateNoOpShortCircuit` (`src/cli/roots.ts:538-585`) compares
   exactly eight header INPUT fields — `headSha`, `clock`, `dirtyHash`, `configHash`, `seedsHash`,
   `decisionsHash`, `ledgerHash`, `bindingHash` — and **not one of them moves when the CLI's body
@@ -681,7 +709,36 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   surface's domain ⇒ `'false'` for a boolean surface; not in the domain ⇒ **`null`, which skips**
   (undecidable is never a deviation, `v6-spec.md:213`). Vocabularies are **never** recomputed at
   check time — they are a partition-wide statistic and recomputing them from one file would
-  silently change every surface id. `finalizeUnits` reads `partitions.moduleRootDirOfFile`
+  silently change every surface id.
+
+  **The parse step has a home, an interface and a node, decided here rather than left as a STOP for
+  T3.** `extractUnits(relPath, source, tree, binding, options)` (`extract.ts:417`) takes an
+  already-parsed `Tree` and a resolved `RootsBinding`, and the index produces both inside a ten-line
+  loop in `parseAndExtractAll` (`pipeline.ts:101-118`) that has **no exported single-file
+  equivalent**. R5 adds one: **`src/roots/extract-file.ts`**, a `roots-engine` module joining
+  **`cli/roots/engine`**'s mapping (intra-node — it adds no edge, and it keeps the parse out of
+  `src/cli/roots-check.ts`, whose ≈66 KB ceiling has no legal split target):
+  ```ts
+  export function minimalFileScope(relPath: string, binding: RootsBinding): RawScope;      // MOVED here from pipeline.ts
+  export async function extractScopesForCheck(relPath: string, content: string,
+                                              config: RootsConfig): Promise<RawScope[]>;
+  ```
+  Its body is the single-file projection of that loop, **gate for gate**: `getGrammarForExtension`
+  (`pipeline.ts:104`) — no registered grammar ⇒ `[]`, the same skip the index performs;
+  `config.history.blobMaxBytes` and `MAX_PARSE_LINES` (`:107-108`) ⇒ `[]`; `bindingForAsset(
+  assetNameOfWasmFile(...))` (`:110`); `withParsedFile(relPath, content, …)` → `extractUnits` with
+  `ExtractOptions` drawn from `config.enumerate.*` (`:95-99`); and the same catch degrading to
+  `minimalFileScope` (`:117`). Reproducing those gates is not tidiness — omitting one makes hook-time
+  and index-time enumeration differ on exactly the files where it matters, which is R5-I6.
+  `minimalFileScope` is **module-private in `pipeline.ts` today** (`:44`), so T3 **moves** it here and
+  `pipeline.ts` imports it back (intra-node): one implementation, shared by both paths by
+  construction rather than by intent.
+  **The signature takes `(relPath, content)`, never a path to read**, because `--content <p> --as <q>`
+  (T5) evaluates content that is not on disk at `q` — settled now so the seam is not re-cut two tasks
+  later — and because `roots-engine` carries `no-direct-fs`: the command layer reads the bytes and
+  passes them.
+
+  `finalizeUnits` reads `partitions.moduleRootDirOfFile`
   (`extract.ts:748`) — the **pre-merge package-root directory**, not `MinedPartition.moduleOfFile`
   (the resolved module directory, a different quantity) — so the synthesized map fills that slot by
   D5's own reconstruction rule: `''` when the resolved id is `'_repo'` or the fallback arm matched,
@@ -712,7 +769,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   as the survived raw population (`src/roots/mine.ts:130-132`) — not `counts`, which is weighted and
   seed-inclusive, and not `deviantsN`. Applicability is the spec's own three-way test: role facts
   of the scope's resolved role only, and **nothing** from a role that is ambiguous for this scope,
-  untyped, or decorative (§8.10's `role_lift ≤ 0` demotion, `:360-364` — reachable via
+  untyped, or decorative (§8.10's `role_lift ≤ 0` demotion, `:360-362` — reachable via
   `isDecorativeRole`); directory facts whose `<dir>` is an ancestor of the scope's path; `_all`
   facts always. A scope with no role and no directory context is governed by `_all` alone (I5).
 - **D9 — Severity in R5, and the inert DENY row.** The composed rule, stated once so no task
@@ -806,9 +863,15 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   idempotent under replay: the fold treats duplicate `(stable_id, surface, direction)` events as
   one, and §18.3's ledger dedupes on `(stable_id, surface, date)`.
 - **D14 — Write order, chosen for the direction a torn write biases in.** Emission: render →
-  **write the output first** → append session `warned` events → append telemetry intervention
-  lines. Closure: append the session `closed` event → append the telemetry `observedAfter` line →
-  append the ledger mark (complied only). The reasoning is the failure mode, not the happy path. A
+  **write the output first** → append the **`'checked'`** session event (the command-layer record of
+  which files this run looked at — first among the session appends, so a run that emits nothing
+  still records that it ran) → append the `'warned'` session events → append telemetry intervention
+  lines. Closure: append the session `'closed'` event → append the telemetry `observedAfter` line →
+  append the ledger mark (complied only). **The sweep path's two kinds ride the same order:**
+  `'sweep'` is appended by the bash channel in place of `'checked'`'s position (it carries the same
+  "this run looked" meaning plus the sweep's own state), and `'stop'` is appended last on the stop
+  channel, after any completeness output, since nothing reads it back within the same run. All five
+  kinds are therefore covered by this one order. The reasoning is the failure mode, not the happy path. A
   crash after printing but before recording loses an intervention: compliance is measured slightly
   high and a healthy convention is *not* demoted. A crash in the other order records an
   intervention the agent never saw, which later closes as `ignored` and pushes a healthy convention
@@ -886,9 +949,14 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
      compaction pass that wants to `readdir` the session directory — adds a `.state` entry to that
      snapshot and **fails the landed test**. So: every read on this path goes through
      `readFileOrDefault` or an `existsSync` guard, and `mkdir` happens **only inside the writer,
-     after the content-differs check has already decided to write**. T8 criterion 7's converse
-     asserts the whole-tree snapshot, not merely `demotions.json`'s absence, so the rule has a
-     killer rather than a promise.
+     after the content-differs check has already decided to write**. **This prohibition is scoped to
+     the aggregation path — `demotions.json` and the telemetry compaction at `index` — and is not a
+     blanket ban on `mkdir`:** every *other* store writer creates its parent directory immediately
+     before its first real write (T1 Step 2b), because nothing else creates `.state/` at all.
+     `atomicWriteFile` already satisfies the rule on this path by mkdir-ing only inside itself
+     (`atomic-write.ts:27-28`), so "skip the write when the content matches" is the whole of the
+     implementation here. T8 criterion 7's converse asserts the whole-tree snapshot, not merely
+     `demotions.json`'s absence, so the rule has a killer rather than a promise.
   5. **`status` computes and displays, and writes nothing** — the reader/writer split
      (`integration-design.md:160-163`). Concretely, and this is the part §18.2 hides: its
      cross-session closure pass would otherwise **append committed ledger marks** from a read
@@ -1099,7 +1167,24 @@ R4 shipped.
 // may import the other. They sit beside `LedgerEntry` and `SeedEntry`, which `stores.ts` already
 // imports from exactly there. The stores import them and re-export nothing.
 //
-//   SessionEvent    { ts, kind: 'warned' | 'closed' | 'checked' | 'sweep' | 'stop', … }    // §11.4
+//   SessionEvent — a discriminated union on `kind`; every payload field below feeds a named
+//   `foldSession` result (T6 Step 1), so none of them may be left to an implementer's choice:
+//     { ts, kind: 'checked', files: string[] }                                  -> writtenFiles
+//     { ts, kind: 'warned',  stableId, surface, expected, observed, factKey,
+//                            severity: 'WARN' | 'DENY' }                        -> warnCount, dedupKeys,
+//                                                                                  openInterventions
+//     { ts, kind: 'closed',  stableId, surface,
+//                            outcome: 'complied' | 'ignored' }                  -> openInterventions
+//                                                                                  (ignored also sets
+//                                                                                   ignoredRecordedInSession)
+//     { ts, kind: 'sweep',   fileState: Record<string,string>,
+//                            seedTruncated: boolean, floodSkipped: boolean }    -> fileState,
+//                                                                                  seedTruncated,
+//                                                                                  floodSkipped,
+//                                                                                  lastSweepTs (= ts)
+//     { ts, kind: 'stop',    completenessEmitted: boolean }                     -> completenessEmitted
+//   T6 folds every one of these; T9 only POPULATES the two sweep kinds, so T6 cannot defer their
+//   shapes to T9.                                                                            // §11.4
 //   TelemetryRecord { sessionId, ts, stableId, surface, factKey, expected, observed,
 //                     severity, deltaBits, observedAfter? }                                 // §18.1
 //   DemotionsFile   { snapshotContentHash, demoted: string[] }  // sorted factKeys           // §18.2
@@ -1136,7 +1221,7 @@ export function snapshotContentHash(body: unknown): string;                     
   authorization section, checked live: each `when:` predicate against the real path, each import
   edge against the real `relations:` list, `max_direct_relations` against the new nodes' edge
   counts, **the acyclicity of the new relation set** — `checkNoCycles`
-  (`src/core/checks/relations.ts:72`), the one architecture check the rest of this list does not
+  (`src/core/checks/relations.ts:73`), the one architecture check the rest of this list does not
   perform, and the one that the increment's own node design can break without touching
   `yg-architecture.yaml` at all — and the fan-out leaderboard pin. **STOP and report a dictated minimal
   `yg-architecture.yaml` block if any row is false.** Also verify, do not assume, that
@@ -1153,6 +1238,25 @@ export function snapshotContentHash(body: unknown): string;                     
   `appendToDebugLog` rather than importing `node:fs`, both to keep that file's stated no-`node:fs`
   shape and so the ledger's append has the same single chokepoint as everything else. Read
   `RAW_WRITE_FNS` (`check.mjs:4`) before reaching for any `node:fs` writer.
+- [ ] **Step 2b: The directory contract, because nothing creates `.state/` and the mandated append
+  helper will not.** `appendToDebugLog` is `appendFileSync(filePath, text, 'utf-8')` and nothing
+  else (`src/io/debug-log-writer.ts:7-9`) — it creates the **file**, never the **directory** — while
+  `atomicWriteFile` **does** `await mkdir(dir, { recursive: true })` (`src/io/atomic-write.ts:27-28`).
+  The asymmetry runs exactly the wrong way here: the one path D16.4 forbids from creating anything
+  eagerly (`demotions.json`) gets its `mkdir` for free, and the three that **must** create it — the
+  session log, `telemetry.jsonl`, `incidents.jsonl` — do not. And `.state/` does not exist: no R4 run
+  ever creates it (`rootsStateDir`, `stores.ts:61-63` — D16.4's whole argument depends on that), and
+  §11.4's session path needs a **second** level, `.state/sessions/`. Implemented as written, every
+  append would throw ENOENT, R5-I15 would degrade it to one `debugWrite`, and the product would ship
+  with permanently empty session state — no budgets, no dedup, no compliance loop, no incidents —
+  and no error anywhere.
+  **So, stated once and applying to every store in this task:** each *writer* calls
+  `mkdir(path.dirname(target), { recursive: true })` immediately before its first write — never at
+  module load, never on a read path — and each *reader* goes through `readFileOrDefault` or an
+  `existsSync` guard and creates nothing. `mkdir` is legal here: it is absent from
+  `atomic-write-contract`'s `RAW_WRITE_FNS` (`check.mjs:4`), and `persistence-adapter` does not carry
+  `no-direct-fs` (`yg-architecture.yaml:197-203`). This is **not** in tension with D16.4, whose
+  prohibition is scoped to the *aggregation* path — see D16.4's own wording.
 - [ ] **Step 3: Tolerance, per store, stated in each file's header.** Session, telemetry and
   incident logs are **per-record tolerant** — a malformed line is skipped, never fatal (I1, and the
   same tolerance `readSeeds`/`readLedger` already document). `demotions.json` is **all-or-nothing**:
@@ -1202,6 +1306,15 @@ export function snapshotContentHash(body: unknown): string;                     
    `snapshotContentHash` is not a string, and a file whose `demoted` is not an array of strings.
 6. `appendIncident` keeps the newest 500 records and drops the oldest; the 501st append leaves
    exactly 500 records with the first one gone.
+6b. **The directory contract, both directions, on a `stateDir` that does not exist** — the case every
+   unit test otherwise hides, because the landed precedent (`freshStateDir()`) hands the store an
+   already-created temp directory. Given a `stateDir` whose path is absent: the first
+   `appendSessionEvents` **creates `.state/` and `.state/sessions/`** and the round-trip returns the
+   event; the first `appendTelemetry` and `appendIncident` likewise create what they need; and
+   `readSessionEvents`, `readTelemetry`, `readIncidents` and `readDemotions` on the same absent
+   directory **create nothing** and return empty/`undefined`. This criterion is also the killer:
+   without the `mkdir` the first assertion fails with ENOENT rather than two tasks later behind a
+   fail-open catch.
 7. `snapshotContentHash` is stable across key-insertion-order permutations of the same body and
    changes when any body value changes; it is unaffected by the header.
 
@@ -1241,7 +1354,7 @@ end to end.
 
 **Authorities.** Spec §9.11 (`v6-spec.md:483-484`), §8.5's membership and weight-index table
 (`:340`), §8.10 (`:360-362`), §6.8's partition rule (`:269-273`), §13.5's directional confidence
-(`:621`), Appendix D's fact record (`:875-891`) and its co-change row (`:867`), §20.2 (`:713`);
+(`:622`), Appendix D's fact record (`:875-891`) and its co-change row (`:867`), §20.2 (`:713`);
 design §12's "§9.11 exemplar ranking … with render-time re-validation" row (`:454`).
 
 **Files.**
@@ -1285,7 +1398,7 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
   `tests/unit/roots/stores.test.ts:43` already does, so the next bump costs one line).
   **The body-shape change breaks seven more, named here for the same reason:** six exact-shape
   co-change assertions in `tests/unit/roots/history-cochange.test.ts` (`:178`, `:181`, `:203`,
-  `:244`, `:367`, `:571`), each a `toEqual({ a, b, sup, conf })` that vitest fails on an extra key
+  `:244`, `:367`, `:572`), each a `toEqual({ a, b, sup, conf })` that vitest fails on an extra key
   once `commitsA`/`commitsB` arrive; and `tests/unit/roots/mine.test.ts:470`
   (`expect('exemplars' in fact).toBe(false)`) — **whose test title at `:457` must change too**
   ("…stabilityDays/calib/trend/cohorts/exemplars are absent from every fact"), since `exemplars` is
@@ -1442,13 +1555,22 @@ budgets, dedup, session state, telemetry, ledger, hook protocols or fail-open bo
 those is a named later task that widens this same flow and re-runs this same e2e.
 
 **Authorities.** Spec §9.10 in full (`v6-spec.md:447-481`), §9.7 (`:439`), §9.3 (`:385`), §8.6's
-sticky rule (`:345`), §8.9 (`:356-358`), §8.10 (`:360-364`), §11.1 (`:505-527`), §19's `check` row
+sticky rule (`:345`), §8.9 (`:356-358`), §8.10 (`:360-362`), §11.1 (`:505-527`), §19's `check` row
 (`:698`); design §3's command row (`integration-design.md:80`), §11's naming table (`:410-426`).
 
 **Files.**
-- Create `source/cli/src/roots/verdict.ts`, `source/cli/src/roots/speech.ts`.
+- Create `source/cli/src/roots/verdict.ts`, `source/cli/src/roots/speech.ts`,
+  `source/cli/src/roots/extract-file.ts` (D6 — the single-file parse path; joins
+  **`cli/roots/engine`**'s mapping, not `roots/speech`'s, exactly as `exemplars.ts` does and for the
+  same reason: it is production extraction code, and the node assignment keeps the check path's
+  parse out of the command file's byte budget).
+- Edit `source/cli/src/roots/pipeline.ts` — **move** `minimalFileScope` (`:44`) into
+  `extract-file.ts` and import it back; no behavior change, one implementation.
 - Create `source/cli/src/cli/roots-check.ts` (exactly one `registerRootsCheckCommand` export).
 - Edit `source/cli/src/cli/roots.ts` — one line, calling the new registrar.
+- Create `source/cli/tests/unit/roots/extract-file.test.ts` (the gate-for-gate equivalence harness
+  of Step 1 lives here — it is a `tests/unit/roots/*` file joining `cli/tests/unit/roots`, like every
+  other unit test in this increment).
 - Create `source/cli/tests/unit/roots/verdict.test.ts`, `speech.test.ts`,
   `source/cli/tests/unit/cli/roots-check.test.ts` (required by `sibling-test-file`).
 - Create `source/cli/tests/e2e/cli-roots-check.test.ts`.
@@ -1468,11 +1590,23 @@ export interface VerdictFact {
   hookEligible: boolean; denyEligible: boolean; suppressedValue: string | null;
   seeded: boolean; parentExp: string | null; hookShapedConform: number;
   exemplars: ReadonlyArray<{ rel: string; line: number; name: string }>;
-  partitionId: string;      // §9.4i's label: `repo-wide` in `_repo`, `package-wide (<id>)` otherwise
+  partitionId: string;      // §9.4i's label: `repo-wide` for `_repo` AND for the root-level package whose id is `''` (D9); `package-wide (<id>)` otherwise
   roleLabel: string | null; // the `MinedRole.label` (`mine.ts:165`) of `roleKey`; null for `_all` and `d[<dir>]`
 }
 export type Channel = 'pre' | 'post' | 'bash' | 'stop' | 'generic';
 export type Severity = 'WARN' | 'DENY';
+
+/** One open intervention, folded from the session log. Every field is load-bearing for §9.10's
+ *  once-per-session ignore bound (`v6-spec.md:479`: "the open record carries the session that would
+ *  close it; a re-view inside the same session is not a fresh ignore") — modelled as
+ *  `{stableId, surface}` alone the bound cannot be implemented at all, and with only
+ *  `openedSessionId` it cannot tell "already recorded an ignore this session" from "opened this
+ *  session". */
+export interface OpenIntervention {
+  stableId: string; surface: string; expected: string;
+  openedSessionId: string; openedTs: string;
+  ignoredRecordedInSession: boolean;   // set once the current session has already banked its ignore
+}
 
 /** One post-edit scope the command layer resolved (D6) — the engine never parses anything itself. */
 export interface EvaluatedScope {
@@ -1498,8 +1632,8 @@ export interface VerdictInput {
 
 export interface Finding {
   stableId: string; scopeKind: string; scopeName: string; relPath: string; line: number;
-  partitionId: string;                 // M4: `repo-wide` vs `package-wide (<partition>)` needs it
-  roleLabel: string | null;            // M4: MinedRole.label of the governing role; null for `_all`/directory
+  partitionId: string;                 // the locality label needs it (D9)
+  roleLabel: string | null;            // `MinedRole.label` of the governing role; null for `_all`/directory
   fact: VerdictFact; observed: string; deltaBits: number; severity: Severity;
   novel: boolean; downgraded: boolean; localityContrast: boolean;
 }
@@ -1518,9 +1652,10 @@ in T3 rather than widening the signature three times is deliberate: every later 
 never a new parameter, so no task re-opens this file's contract.
 
 **Steps.**
-- [ ] **Step 1: Prove R5-I6 before building on it.** Write the equivalence harness first: take an
-  unmodified file from a golden fixture, run the index's own path over the whole repository, run the
-  check path's single-file path over that file, and assert `stableId`, `skeyR` and **every** surface
+- [ ] **Step 1: Land `extract-file.ts`, then prove R5-I6 before building on it.** Write
+  `extractScopesForCheck` to D6's gate list first, move `minimalFileScope` into it, then write the
+  equivalence harness: take an unmodified file from a golden fixture, run the index's own path over
+  the whole repository, run the check path's single-file path over that file, and assert `stableId`, `skeyR` and **every** surface
   value agree. **STOP and report** any divergence — a single-file `finalizeUnits` that shifts an
   ordinal or a partition id makes every downstream key wrong, and it is far cheaper to find here
   than in T7's ledger mismatch.
@@ -1554,8 +1689,15 @@ never a new parameter, so no task re-opens this file's contract.
   Appendix A is T4's.
 - [ ] **Step 7: The command.** `yg roots check [file...]`, config-only load (I10 — `findYggRoot` +
   `parseConfig`, **never** `loadGraphOrAbort`; the same delegation `cli/roots.ts` already
-  documents), dormant ⇒ print nothing and exit 0, no snapshot ⇒ print nothing and exit 0, a
-  snapshot whose `rootsVersion` does not match ⇒ print nothing, record one incident, exit 0.
+  documents), **no `.yggdrasil/` at all ⇒ print nothing, record NO incident, exit 0** — the case a
+  hook runtime with an inherited cwd hits first (the hazard carry-in 1 is about), and the one place
+  `check` must **not** reuse `findYggRootOrFail` (`src/cli/roots.ts:99-113`), which calls
+  `abortUnlessYggdrasilExists` and **exits 1**: that refusal is right for `index`, which cannot build
+  without a project, and wrong for a verdict path that never gates. No incident, because there is no
+  `.yggdrasil/roots/.state/` to record one in. **A throw before the root is resolved ⇒ silence, exit
+  0, one `debugWrite` and no incident**, for the same reason — R5-I2's catch needs a `yggRoot` it
+  does not yet have. Then: dormant ⇒ print nothing and exit 0, no snapshot ⇒ print nothing and exit
+  0, a snapshot whose `rootsVersion` does not match ⇒ print nothing, record one incident, exit 0.
   Registered from `cli/roots.ts` (never from `cli/entry` — the fan-out pin), exit 0 on every verdict
   outcome, exit 1 only on the argument-validation carve-out R5-I1 names.
 - [ ] **Step 8: The no-argument file set (D11).** With no positional paths and no `--hook`, the file
@@ -1601,9 +1743,12 @@ Additional criteria:
     and no finding, distinct from a sparse boolean's absent-means-false.
 12. Exit code is **0** for: findings, no findings, dormant project, missing snapshot, unreadable
     snapshot, a **version-mismatched** snapshot (an R4-shaped `model.json` after the D3 bump — which
-    additionally prints nothing and records exactly one incident), and a path outside the
-    repository. Exit is **1** only for the argument-validation carve-out R5-I1 names, and T5
-    criterion 3 is its one instance.
+    additionally prints nothing and records exactly one incident), a path outside the repository,
+    and **a working directory with no `.yggdrasil/` anywhere above it** — which prints nothing and
+    records **no** incident, there being no state directory to record one in, and which must NOT
+    reuse `findYggRootOrFail` (`src/cli/roots.ts:99-113`, exit 1 — right for `index`, wrong here).
+    Exit is **1** only for the argument-validation carve-out R5-I1 names, and T5 criterion 3 is its
+    one instance.
 13. **The no-argument form (D11).** On a golden with two dirty files and one clean one, bare
     `yg roots check` evaluates every scope in the two dirty files and none in the clean one; with
     an explicit path argument it evaluates that file whether or not it is dirty. With git
@@ -1707,9 +1852,12 @@ A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design 
   **`package-wide ()`** (M4's empty-parenthesis label), and **a bare configured threshold rendered
   as a number-versus-number comparison** (the `>= {alarm}` shape §18.4's own template carries —
   R5-I14 and design §11 (`:426`) put thresholds in `explain` alone, and `explain` is R7's). The
-  corpus this runs over includes T10's `status` strings, not only T4's messages, since two of the
-  three new tokens can only appear there. This is R5-I14's killer, and it is worth more than any
-  individual phrasing assertion.
+  corpus this runs over is **what exists when this task runs: the rendered messages**. Execution is
+  strict T1 → T11, so `status`'s strings — where `agentShare` and a bare threshold comparison could
+  appear — do not exist for another six tasks; asserting over them here would be vacuous by
+  construction. **T10 Step 6 extends this same test's corpus to the `status` renderer's output**, and
+  says so by its own number. This is R5-I14's killer, and it is worth more than any individual
+  phrasing assertion.
 - [ ] **Step 7: Graph ritual + report.**
 
 **Acceptance criteria.**
@@ -1807,7 +1955,9 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
   header, record the staleness modulator for T10's `status` line and note it on any message that
   would have been DENY (in R5, none). Say in the code exactly which input is **not** compared and
   who catches it.
-- [ ] **Step 6: Graph ritual + report.**
+- [ ] **Step 6: Graph ritual + report — including `src/cli/roots-check.ts`'s prompt headroom.**
+  Re-measure with `node scripts/prompt-headroom.mjs` from repo root and report the figure against
+  the ≈66 KB ceiling the Global constraints derive; crossing it is a **STOP**, never a refactor.
 
 **Acceptance criteria.**
 1. Each of the five channels, driven by a recorded stdin fixture, produces byte-exact expected
@@ -1881,8 +2031,21 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
   itself says an Edit-only session leaves `fileState` unset. So a **`'checked'`** event carrying
   `{ files: string[] }` is appended by **every** run that evaluates files — a per-file check, a
   protocol-path run over the dirty set, and a bash sweep alike — **regardless of whether it found
-  anything**, in D14's write order beside the `warned` events. `foldSession` unions their `files`
-  into `writtenFiles`. This is a widening of T1's `SessionEvent` union and T6's fold result, landed
+  anything**. **Its producer is the command layer** — `src/cli/roots-check.ts` builds it from the
+  file set it resolved and merges it into the applied `Intents` (D1); neither engine stage can, and
+  D1 says why. Its place in the write order is **first among the session events**, before the
+  `warned` appends (D14), so a run that prints nothing still records that it looked.
+  `foldSession` unions their `files` into `writtenFiles`.
+  **The field is an over-inclusive approximation of §13.5's `D`, and the direction is stated rather
+  than left to be discovered:** §13.5 says "files written this session", while `'checked'` fires for
+  every file a run *evaluated* — including `yg roots check <file>` on a file the session merely
+  inspected, the form R9 will teach agents to run. So completeness may name a partner for a file
+  nobody edited. That is bounded by `completeness.maxItems` (5) and the once-per-session guard, and
+  it errs toward *offering* a pairing rather than withholding one, which is the safe direction for an
+  advisory note. **The alternative — restricting `D` to files the session actually changed — is
+  rejected explicitly, not by silence:** roots observes checks, not edits, so "changed" would have to
+  be reconstructed from content hashes across runs, which is the bash sweep's own mechanism (T9) and
+  is unavailable on the Edit path. This is a widening of T1's `SessionEvent` union and T6's fold result, landed
   **here**, so T9 consumes shapes that already exist rather than re-opening two contracts this plan
   calls closed.
 - [ ] **Step 2: Dedup, WARN-only.** Key `(stable_id, surface, direction)`; DENY never deduplicated,
@@ -1898,9 +2061,18 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
   bound from concurrent hook processes is documented at the function, not locked against.
 - [ ] **Step 4: Identity ladder** in `roots-check.ts` per D12, with each rung's fallback logged once
   at `debugWrite` level so a support question about merged budgets is answerable.
-- [ ] **Step 5: Pruning.** `sessions.pruneDays` (7) applied opportunistically — at most once per
-  run, never blocking the verdict, failures swallowed to one `debugWrite` (R5-I15).
-- [ ] **Step 6: Graph ritual + report.**
+- [ ] **Step 5: Pruning, and the growth law it is the only bound on.** `sessions.pruneDays` (7)
+  applied opportunistically — at most once per run, never blocking the verdict, failures swallowed
+  to one `debugWrite` (R5-I15). **State the law where the prune lives**, because the `'checked'`
+  event changed it: before it a quiet session wrote ~0 events, and now **every evaluating run writes
+  one**, while `foldSession` reads the whole log on every hook invocation inside the 700 ms cold
+  budget. There is no size cap and no rotation — unlike incidents (FIFO 500) and telemetry
+  (retention compaction) — so mtime-based pruning at 7 days is the only bound, and that is a
+  deliberate choice rather than an oversight: one short line per run over at most seven days is
+  small, and a second capping mechanism would be machinery bought for a cost nobody has measured.
+  T11's dogfood step reports the observed session-log size beside its other figures.
+- [ ] **Step 6: Graph ritual + report — including `src/cli/roots-check.ts`'s prompt headroom**
+  (`node scripts/prompt-headroom.mjs`, against the ≈66 KB ceiling; crossing it is a **STOP**).
 
 **Acceptance criteria.**
 1. Five findings on one response emit **3**, and the three are the top three under
@@ -1923,6 +2095,12 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
    and **is deduplicated** on its second sighting in the session; the identical fact on `pre` passes
    both times. This is §11.3's own sentence ("a DENY downgraded to WARN on a non-pre channel is a
    WARN for both purposes") and it is the only criterion that observes it.
+4c. **The `'checked'` event reaches the fold from the command layer.** A run that evaluates two
+   files and emits **no** message still appends exactly one `'checked'` event naming both, and
+   `foldSession`'s `writtenFiles` contains both — the merge point D1 assigns to
+   `src/cli/roots-check.ts`, asserted through the applied `Intents` rather than by inspecting the
+   engine. A second run naming one of the same files leaves `writtenFiles` with two entries, not
+   three (it is a set).
 5. Replaying the identical event log twice produces identical fold state (idempotence).
 6. Two runs sharing an explicit `--session` share the budget; two runs with no `--session` in the
    same process tree and cwd also share it (the ladder's middle rung).
@@ -1977,13 +2155,16 @@ intents); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
   the session that would close it, so a re-view inside the same session is not a fresh ignore. State
   the measured reason in the code: without the bound, a sweep or an agent re-reading a file before
   editing inflates the `ignored` denominator and can demote a 96 %-share convention within minutes.
-- [ ] **Step 3: Intents, merged then applied in D14's order** by the command layer — `evaluate`'s
-  `closureIntents` and `applyBudgetsAndDedup`'s `emissionIntents` concatenate into one `Intents`
-  record (session events, then telemetry, then ledger marks), each append idempotent under its key.
-  There is exactly one applier and exactly one order.
+- [ ] **Step 3: Intents, merged then applied in D14's order** by the command layer — **three** sets
+  concatenate into one `Intents` record: `evaluate`'s `closureIntents`,
+  `applyBudgetsAndDedup`'s `emissionIntents`, and the command layer's own `'checked'` session event
+  (D1's third producer, which no engine stage can emit). Applied session events first (`'checked'`
+  ahead of `'warned'`, D14), then telemetry, then ledger marks, each append idempotent under its
+  key. There is exactly one applier and exactly one order.
 - [ ] **Step 4: What a mark costs, said out loud.** The ledger append makes `git status` dirty and
   makes the next `index` do real work (D15). Both are intended; both go in the docs at T11.
-- [ ] **Step 5: Graph ritual + report.**
+- [ ] **Step 5: Graph ritual + report — including `src/cli/roots-check.ts`'s prompt headroom**
+  (`node scripts/prompt-headroom.mjs`, against the ≈66 KB ceiling; crossing it is a **STOP**).
 
 **Acceptance criteria.**
 1. **The closed loop, by value:** deviation → one WARN → the file is fixed → the next check is
@@ -2159,7 +2340,7 @@ them", proven the only way it can be: from the outside.
 behavior is stateful rather than per-file.
 
 **Authorities.** Spec §12.4 (`v6-spec.md:583`), §12.2's `claude-stop` clause (`:576`), §13.5's
-completeness paragraph (`:625`) and its directional confidence (`:621`), Appendix A's T5
+completeness paragraph (`:625`) and its directional confidence (`:622`), Appendix A's T5
 (`:791-796`), Appendix G.4 (`:1020`); the R4 plan's own assignment of the sweep to R5
 (`2026-08-20-increment-3-r4-history.md:2321-2322`); the landed row shape
 (`src/roots/history-cochange.ts:94`, `:109-112`, `:394-398`).
@@ -2203,7 +2384,9 @@ completeness paragraph (`:625`) and its directional confidence (`:621`), Appendi
   the gate used, so the message can never show evidence that does not justify it. Once per session.
 - [ ] **Step 5: WARN-only, structurally.** Bash-path violations are WARN-only, so file *moves* are
   WARN-only (D21). Say it once, in the code and in the docs.
-- [ ] **Step 6: Graph ritual + report.**
+- [ ] **Step 6: Graph ritual + report — including `src/cli/roots-check.ts`'s prompt headroom**
+  (`node scripts/prompt-headroom.mjs`, against the ≈66 KB ceiling; crossing it is a **STOP**). This is
+  the last task to touch that file, so its figure is the increment's final one.
 
 **Acceptance criteria.**
 1. The first `bash` sweep on a dirty tree emits **nothing** and leaves a seeded `fileState` covering
@@ -2307,7 +2490,12 @@ tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.te
 - [ ] **Step 4: Everything status already prints stays byte-identical** where none of the three
   conditions holds. Pin that with a test, because a status regression is how a read surface starts
   lying.
-- [ ] **Step 5: Graph ritual + report.**
+- [ ] **Step 5: Extend the naming-table test's corpus to `status`.** T4 Step 6 owns the test and
+  scopes its corpus to the rendered messages, because at T4 nothing else exists. This step adds the
+  `status` renderer's output for **all three** new lines — the quieted-conventions line, the withheld
+  line and the alarm — to that same test, so R5-I14's only killer covers the half of R5's stdout most
+  likely to leak `_all`, `d[` or a raw partition id. Same forbidden-token list, one corpus.
+- [ ] **Step 6: Graph ritual + report.**
 
 **Acceptance criteria.**
 1. A repository with no demotions, a fresh index, **no withheld conventions (K = 0)** and no alarm
@@ -2322,8 +2510,21 @@ tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.te
 3. A snapshot whose `headSha` differs from the current HEAD prints the behind-the-commit modulator.
 4. `agentShare = 0.9` prints the alarm; `0.84` does not; `null` prints neither the alarm nor a
    fabricated number. The printed text contains **no** `agentShare` token and **no** `0.85`, and the
-   percentage it does print is `90%` — asserted by value, and covered by Step 6's token test.
+   percentage it does print is `90%` — asserted by value, and covered by **this task's Step 5**,
+   which extends T4's naming-table test to the `status` corpus.
 5. Every state still exits **0**.
+
+**Test obligations / mutation round-trips.** T10 is the only code task that reached round 4 without
+this section; its three load-bearing rules had criteria and no killers, against R5-I11.
+- **MR-38 (the naming table reaches `status`):** reintroduce `agentShare = {v} >= {alarm}` as the
+  alarm's literal text ⇒ Step 5's extended token test fails on two tokens. Without Step 5 this
+  mutation is invisible, which is exactly why the corpus extension is a step and not a note.
+- **MR-39 (the withheld predicate):** count *every* ineligible fact instead of
+  `hookEligible === false ∧ nTotalRaw < mdl.minInstancesRaw` ⇒ criterion 1b's K fails against the
+  fixture's own accepted-fact count, and criterion 1's K = 0 repository starts printing the line.
+- **MR-40 (the byte-identical baseline):** emit any of the three new lines unconditionally ⇒
+  criterion 1 fails — the a761dda output is the baseline, and a `status` that always speaks is a
+  `status` that has stopped reporting.
 
 **E2E coverage.** `cli-roots-status-speech.test.ts`: after driving the T8 demotion cycle through the
 built binary, run `yg roots status` and assert the quieted-conventions line reports the same count
@@ -2817,7 +3018,7 @@ evidence stated inline (B1's `types`-node option).
 **Blocking**
 
 - **B1 — the increment's own node design closed a `structural-cycle`.** Verified from source:
-  `checkNoCycles` (`src/core/checks/relations.ts:72-113`) walks `uses`/`calls`/`extends`/`implements`
+  `checkNoCycles` (`src/core/checks/relations.ts:73-123`) walks `uses`/`calls`/`extends`/`implements`
   and emits `structural-cycle` at `severity: 'error'`; it is in `STRUCTURAL_CODES`
   (`check-codes.ts:28-36`), the set that fails `yg check` "regardless of verification state"; the
   validator calls it unconditionally (`validator.ts:192`). The two edges were both mandated by the
@@ -2904,6 +3105,106 @@ A's literal T7 after M6 replaced it with T7's content. The remaining ten decisio
 everywhere they appear.
 
 **Not applied:** none.
+
+### Round 4 — what the fourth adversarial review changed (0 blocking, 6 major, 13 minor)
+
+First round with no blocking defect: round-3's cycle fix was re-derived independently and holds.
+Four of the six majors were created or left open by round-3's own edits, which is why both targeted
+sweeps were re-run afterwards.
+
+**Major**
+
+- **M1 — nothing created `.yggdrasil/roots/.state/`, and the mandated append helper does not.**
+  Verified: `appendToDebugLog` is `appendFileSync` and nothing else (`debug-log-writer.ts:7-9`) — it
+  creates the *file*, never the *directory* — while `atomicWriteFile` **does** `mkdir`
+  (`atomic-write.ts:27-28`). The asymmetry ran exactly backwards: the one path D16.4 forbids from
+  creating anything eagerly got its `mkdir` free, and the three that must create it did not, so
+  every append would have thrown ENOENT behind a fail-open catch and shipped permanently empty
+  session state. T1 Step 2b now states the directory contract (writers `mkdir` their parent
+  immediately before the first write; readers create nothing), D16.4's prohibition is **scoped to the
+  aggregation path** rather than reading as a blanket ban, and criterion 6b drives an absent
+  `stateDir` in both directions — the case every unit test hides, since the landed `freshStateDir()`
+  precedent hands the store a directory that already exists. `mkdir`'s legality re-checked:
+  absent from `RAW_WRITE_FNS` (`check.mjs:4`), and `persistence-adapter` does not carry
+  `no-direct-fs` (`:197-203`).
+- **M2 — the single-file parse path, the hinge R5-I6 rests on, had no home.** `extractUnits`
+  (`extract.ts:417`) takes a parsed `Tree` and a resolved `RootsBinding`, and the index builds both
+  in a loop with no exported single-file equivalent (`pipeline.ts:101-118`). **Decided now rather
+  than left as a STOP:** a new `src/roots/extract-file.ts` exporting
+  `extractScopesForCheck(relPath, content, config)`, mapped into `cli/roots/engine` (intra-node, no
+  new edge, and it keeps the parse out of `roots-check.ts`'s ≈66 KB budget), reproducing the index's
+  gates **one by one** (registry lookup, `blobMaxBytes`, `MAX_PARSE_LINES`, `bindingForAsset`,
+  `withParsedFile`, the `minimalFileScope` degrade). `minimalFileScope` is module-private today
+  (`pipeline.ts:44`), so T3 **moves** it there and `pipeline.ts` imports it back — one
+  implementation shared by both paths by construction. The signature takes `(relPath, content)`,
+  settled by `--content/--as` and by `no-direct-fs`.
+- **M3 — round 3's `'checked'` event had no producer.** Worked through all three candidates:
+  `applyBudgetsAndDedup` structurally cannot (it sees only `findings`, so the silent-file case that
+  motivated the event is invisible to it); `evaluate`'s `closureIntents` is defined as closure
+  records only. **D1 now names a third, command-layer producer** — `roots-check.ts` builds the event
+  from the file set it resolved and merges it into the applied `Intents`, so no signature moves — and
+  T6 Step 1b, T7 Step 3 and a new T6 criterion 4c all say the same thing.
+- **M4 — `OpenIntervention` was used in the central contract and defined nowhere**, and
+  `SessionEvent`'s payloads hid behind a `…` that the fold, the dedup key and the once-per-session
+  bound all read. Both are now declared to the field: `OpenIntervention` carries
+  `{stableId, surface, expected, openedSessionId, openedTs, ignoredRecordedInSession}` — every field
+  load-bearing for §9.10's bound (`v6-spec.md:479`) — and `SessionEvent` is a five-arm discriminated
+  union with each payload mapped to the fold result it feeds.
+- **M5 — R5-I14's only killer was assigned a corpus that does not exist when it runs.** T4 Step 6's
+  test cannot see `status` strings six tasks before T10 writes them, and T10's criterion 4 pointed
+  at a "Step 6" T10 did not have. T4's corpus is now scoped to the rendered messages, **T10 gains
+  Step 5** extending the same test to the `status` renderer's three new lines, and criterion 4 points
+  at it by its own number.
+- **M6 — the edge-audit table, billed as the increment's single graph authority, was incomplete in
+  five rows.** Verified each omission at source and added them: `cli/io/roots-state → cli/io/stores`
+  (`debug-log-writer.ts` and `read-or-default.ts` are mapped there, `:18`/`:28` — not by
+  `cli/io/atomic-write`); `cli/commands/roots → cli/io/roots-state`, which moves that node **10 → 13**
+  relations, not 10 → 11; `cli/commands/roots-check → cli/ast/runtime` and `→ cli/language-registry`
+  (required by M2's parse); and `cli/tests/e2e/roots-verdict → cli/tests/support` + `→ cli/tests/
+  fixtures`, exactly as the landed sibling node declares. Added a `cli/roots/stores` row stating it
+  needs **no** new edge (it already declares `cli/io/stores`) precisely because the neighbouring case
+  differs. None creates a cycle. The table's claim is softened to settling the *allow-list* question,
+  since `relation-undeclared-dependency` is blocking (`check-codes.ts:96`) at each task's own gate.
+
+**Minor** — 12 of 13 applied, 1 rejected with evidence. Applied: `checkNoCycles`'s anchor corrected
+to `:73-123` in all three places (it was the anchor of round 3's own blocking fix);
+`history-cochange.test.ts:571` → `:572`; T3's `VerdictFact.partitionId` comment brought in line with
+the `''` rule (the one place round 3's M4 fix did not reach); the two `M4:` review-finding ids removed
+from a code block written to be copied verbatim (`self-contained-references`); R5-I4's range widened
+to *(T2–T8)*; **D14 extended to all five event kinds**, having covered two; the `roots-check.ts`
+headroom re-measurement written into T5/T6/T7/T9's final steps instead of a global note nobody owned;
+**T10 given its missing mutation round-trips** (MR-38/39/40, the last code task without any);
+`writtenFiles`' over-inclusive approximation of §13.5's `D` named with its direction, and the
+restrict-to-changed alternative rejected explicitly; **the no-`.yggdrasil/` case decided** — silence,
+exit 0, **no** incident, and explicitly not `findYggRootOrFail` (which exits 1, right for `index`,
+wrong here) — plus the pre-root-resolution throw; D3's characterisation of the landed constant
+replaced by a **rebuttal** of the release-boundary rule it overrides; the session log's growth law
+stated at `pruneSessions` with prune named as its only bound; §13.5 `:621`→`:622` and §8.10's
+`:360-364`→`:360-362`.
+**Rejected — minor 13(c):** the claim that `nTotalRaw`'s doc is at `mine.ts:129` and outside the
+cited `:130-132`. Read at HEAD, `:128` is `counts`, `:129` is `alphabet`, `:130` is the doc comment
+`/** The SURVIVED raw population of §9.4c …`, `:131` is `nConformRaw` and `:132` is `nTotalRaw` — so
+`mine.ts:130-132` covers the doc and both fields exactly, and `:129` is a different field. Left as
+written.
+
+**Sweep A — decisions vs restatements** (limited to what rounds 3–4 touched: D1, D5, D6, D9, D14,
+D16.4, and the edge audit). **Two drifts found and repaired, neither flagged by the review:**
+T7 Step 3 still merged **two** intent sets after D1 gained a third producer; and the edge-audit
+table's "no task re-derives it" claim contradicted the graph ritual's per-task declaration duty
+(softened to the allow-list question, with `relation-undeclared-dependency`'s blocking status named).
+The rest — D5's `routePartition` home, D6's gate list, D9's `''` label in all four places, D14's five
+kinds, D16.4's scoped prohibition — read identically everywhere.
+
+**Sweep B — invariants and MRs vs tasks** (same scope). **Four drifts found and repaired:** R5-I11's
+MR range still read "MR-1 through MR-37c" after T10 added MR-38/39/40 — the exact class the invariant
+exists to prevent, so the range is now explicitly the aid and "every MR named in the tasks below" the
+binding half; R5-I4 and the Architecture paragraph and the authorization table's first row all still
+listed **five** engine modules after `extract-file.ts` made it six; R5-I13 pinned only *(T7, T8)*
+though T6 now lands the `ignoredRecordedInSession` field the bound is implemented with; and T3's
+Files list had no unit test for the module it creates. MR ids re-checked for uniqueness: 49 distinct
+ids, no collisions.
+
+**Not applied:** minor 13(c) only, rejected above with evidence.
 
 ### Drafting self-review (pre-review)
 
