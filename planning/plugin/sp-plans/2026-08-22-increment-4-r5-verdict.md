@@ -306,7 +306,7 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   load-bearing there is a test that FAILS when the rule alone is deleted, and the implementer
   demonstrates that by actually deleting it, running the test, and restoring (the live mutation
   round-trips **every MR named in the tasks below**, MR-1 through MR-41 including the lettered
-  variants (69 ids at present) — the phrase "every MR named
+  variants (71 ids at present) — the phrase "every MR named
   in the tasks below" is the binding half and the numeric range is only an aid, so a task that adds a
   killer cannot fall outside the invariant every reviewer checks). A rule with no killer test is not done.
   **The invariant cuts both ways, and round 8 is why that is written down: an MR whose mutation
@@ -548,7 +548,11 @@ Each resolves something the authorities leave under-determined, or reconciles tw
 may not re-litigate one; a task that finds a decision *wrong* stops and reports.
 
 - **D1 — The intents seam: a pure engine that returns its side effects as data.** `verdict.ts`,
-  `speech.ts`, `session-state.ts`, `health.ts` and `exemplars.ts` perform no I/O. **The pipeline,
+  `speech.ts`, `session-state.ts`, `health.ts`, `exemplars.ts` **and `extract-file.ts`** perform no
+  I/O — **six** modules, the sixth being the one whose no-read signature this decision spends a
+  paragraph on (`(relPath, content)`, never a path to read; R5-I4 and the authorization table have
+  said six since round 4, and this enumeration is the decision an implementer reads to learn what
+  may touch the filesystem). **The pipeline,
   named once here so no task has to infer it:**
   ```
   extractScopesForCheck(relPath, content, config) -> RawScope[]  // extract-file.ts (T3) — the parse
@@ -1313,14 +1317,26 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   `markKey` and passes it in. This is the same shape T1 already uses for `stateDir`: the composition
   seam supplies what the two layers may not hand each other directly. **There is therefore exactly
   one key format in the tree and nothing to keep in sync** — no duplicated derivation, and so no
-  divergence killer is needed. **That waiver is discharged by a criterion that must actually exist,
-  and it now does: T7 criterion 7 and MR-29b**, a pure value round-trip driving a mark this path
-  writes through R4's `releasedMarks` (`src/roots/weights.ts:250`) and asserting it is released —
-  the only property the key format exists to guarantee. Until round 10 this sentence pointed at a
-  criterion nobody had written, which meant D15 removed an R5-I11 obligation and replaced it with
-  nothing: a mark carrying a `stableId` from the wrong domain, a `surface` from the wrong
-  projection, or a `date` from the wrong clock would have passed T1 criterion 3 and T7 criteria 1
-  and 5 and still been invisible to the P5 regulator forever, with the whole increment green. Two consequences are intended and must be stated in the
+  divergence killer is needed. **That waiver has three obligations, and each is discharged onto an
+  observer that can actually fail** — the sentence is written out that way because two earlier
+  drafts discharged it onto one that could not:
+  - **the engine's projection** (does the mark carry the identity the finding had?) — **T7 criterion
+    7 leg B**, which drives `evaluate`'s own `closureIntents.ledgerMarks[0]` through R4's
+    `releasedMarks` (`src/roots/weights.ts:250`) against a lifecycle index keyed on the *finding's*
+    `stableId`, killed by **MR-29b**;
+  - **the store/seam contract** (does a mark survive the write→read→`markKey` path byte-identical,
+    and does `releasedMarks`' arithmetic hold at its exact thresholds?) — **leg A**, killed by
+    **MR-29c**;
+  - **the whole-domain case** (every `stableId` in the run drawn from the wrong domain, so mark and
+    intervention agree with each other and are both wrong) — **T3 Step 1's equivalence harness**,
+    the only thing in the increment that compares against the index itself. The `date` shape is T1
+    criterion 3.
+
+  Round 10's version named a criterion that did not exist; round 11's first repair named one whose
+  inputs were literals, so the producer never ran under it. Both left the same real gap: a mark
+  carrying a `stableId` from the wrong domain or a `surface` from the wrong projection passing T1
+  criterion 3 and T7 criteria 1 and 5 and staying invisible to the P5 regulator forever, with the
+  whole increment green. Two consequences are intended and must be stated in the
   docs, not hidden: `git status` shows a dirty `ledger.jsonl` after a productive session ("roots
   records that it shaped this code — commit it with your change", `:685`), and because
   `ledgerHash` is one of the model header's inputs, the **next** `yg roots index` will not take
@@ -1493,6 +1509,22 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   `classifyAgainstMedoids(bag, medoids, cloneMedoidJaccard, roleAmbiguityGap, roleMinMembership)`
   (`src/roots/roles.ts:351-357`). All four are landed with the spec's defaults; none is new, so none
   trips this decision's own "any new key is a STOP".
+  **Two more this list still omitted after round 10, and they are the two most load-bearing keys in
+  the whole increment** — added because a T3 or T10 implementer checking a read against this list
+  would find a key the decision does not name, and this plan's protocol turns a decision-vs-task
+  contradiction into a STOP:
+  - **`include` and `exclude`** (`config-parser.ts:42-43`, defaults `['**/*']` and `[]`). D6's
+    **gate 0** *is* these two keys: `forParsing` is
+    `matchesAny(relPath, includes) && !matchesAny(relPath, [...BUILT_IN_EXCLUSIONS, ...config.exclude,
+    ...TEST_PATTERN_EXCLUSIONS])` (`partitions.ts:127-136`), and T3 criterion 14 drives **both** arms
+    by name ("a path the fixture's `roots.exclude` names, and … a path outside a narrowed
+    `roots.include`"). Nothing in the check path is read more often.
+  - **`mdl.minInstancesRaw`** (`:78`, default 5). T10 Step 2's withheld predicate is
+    `hookEligible === false ∧ nTotalRaw < mdl.minInstancesRaw`, and it is a **config** value, not a
+    snapshot field. That it is `status`-side rather than check-side is no exclusion: this list
+    already carries `health.agentShareAlarm`, which is `status`-only, so the operative bound is
+    "keys R5 reads", which is what the decision's title says.
+  Both are landed with the spec's defaults, so neither trips the STOP and R5-I7 holds unchanged.
   `budgets.daemonBudgetMs` is present in the config and is **never read** — there is no daemon
   (`integration-design.md:374`); leave it parsed and unused, and say so once where the budget
   constants are consumed, so a later reader does not "fix" the omission. Any new key is a STOP.
@@ -1762,9 +1794,14 @@ export function snapshotContentHash(body: unknown): string;                     
     minus that file's *largest* assembled prompt). That is what "the margin" means everywhere in this
     plan, and it is spelled out because a file can appear in several LLM pairs;
   - and, when the path matched no pair at all, `<path>: no LLM aspect binds this file — no assembled
-    prompt and no margin`, then continue to the next path. **Not an error and not an empty line:**
-    the script is reporting-only and exits 0 on every path (its own standing contract, `:5-13`), and
-    a rule below that reads a margin is *inapplicable* to such a file rather than satisfied by it.
+    prompt and no margin`, then continue to the next path. **Not an error and not an empty line, and
+    the exit code does not move:** an unmatched path is not a failure — the script exits 0 on its
+    normal reporting path (`prompt-headroom.mjs:570`) and reserves the **non-zero** exit of `fail()`
+    (`:451`) for a run it could not perform at all (a missing built binary `:454`, a missing config
+    `:455`, an unresolvable tier ceiling, a `parsePromptTooLargeEntries` wording mismatch). **Do not
+    "fix" `fail()` to exit 0** — that is the gate step's own error reporting, and an earlier draft's
+    "exits 0 on every path" invited exactly that. A rule below that reads a margin is
+    *inapplicable* to an unmatched file rather than satisfied by it.
   **The pure seam and its test.** Factor the selection into an exported
   `selectFileMargins(entries, tierLimits, paths) -> [{ path, pairs: [{aspectId, tierName, chars,
   margin}], worstMargin: number | null }]` and unit-test it offline in
@@ -2500,7 +2537,19 @@ contract with no configuration in it. **The consequence for the graph is stated 
   target — which genuinely may not exist yet — is never resolved. A later increment that makes `pre`
   speak inherits row 2's treatment for it, and that sentence is the deferral, not an omission.
 
-  **Why the fork, and why it is exactly one filter wide (M3).** The `'checked'` session event — and
+  **Why the fork, why it is exactly one filter wide AT T3, and where T5's filter 3 lands.** The
+  heading carries the qualifier because the claim stops being true at T5: filter 3 (path safety) is
+  applied to the **evaluation** set only, so after T5 the two sets are two filters apart, not one.
+  **The consequence is small, real, and stated rather than left to be found:** a path that
+  realpaths *outside* the repository survives filter 1 — it `lstat`s as a regular file, has no
+  nested-project ancestor above it inside the repo, and matches no in-repo gitignore stack — so it
+  **enters the participation set** and is recorded in the `'checked'` session event, hence in
+  `writtenFiles` and §13.5's `D`, even though §21.2 makes it silent on stdout (T5 criterion 5).
+  Nothing observable breaks: an out-of-repo path matches no repo-relative co-change row, so it can
+  never produce a completeness partner, and T5 criterion 5's "silence" is a statement about output,
+  not about the participation record. This is deliberate — participation records what the run
+  *looked at*, and it did look at it — and the narrowing is left to filter 3 rather than duplicated
+  into filter 1, so path safety has exactly one home (T5 Step 4). The `'checked'` session event — and
   therefore `writtenFiles`, and therefore §13.5's `D` — is built from the **participation** set, not
   the evaluation set. Gate 0's honesty argument is about *speaking about a file's own conventions*,
   and completeness does no such thing: it uses membership in `D` only as a session-participation
@@ -3083,7 +3132,10 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
   direction there is ("you changed the test; you usually also change `src/order.ts`"), killing D20's
   own motivating pair, and leaving T9 criterion 5's second and third cases unreachable through the
   product while still passing as unit tests. Participation is broad and speaks about nothing;
-  evaluation is narrow and speaks. T3 Step 8 carries the same statement where the fork happens. Its place in the write order is **first among the session events**, before the
+  evaluation is narrow and speaks. T3 Step 8 carries the same statement where the fork happens —
+  **including its one asymmetry: T5's path-safety filter narrows the evaluation set only, so a path
+  that resolves outside the repository is silent on stdout yet still recorded here as looked-at.**
+  Its place in the write order is **first among the session events**, before the
   `warned` appends and before `'sweep'` (D14), so a run that prints nothing still records that it
   looked.
   `foldSession` unions their `files` into `writtenFiles`.
@@ -3302,7 +3354,9 @@ edge); create `source/cli/tests/e2e/cli-roots-compliance-loop.test.ts`.
    itself adds (`{…, observedAfter}`) and the one the whole of T7 exists to write — and nothing
    else**: no separate `roleKey`, no role label.
 7. **The mark R5 writes is the mark R4 releases — the wiring D15 waives a divergence killer on, and
-   the only criterion in the plan that crosses the R4/R5 seam.** A pure value round-trip, no clock
+   the only criterion in the plan that crosses the R4/R5 seam. Two legs, and the second one is what
+   makes the waiver honest.**
+   **Leg A — the seam, from literals.** No clock
    control and no filesystem beyond a temp dir. Write a mark with
    `appendLedgerMarks(yggRoot, [{stableId: S, surface: 'auto.deco:Injectable', date: '2026-01-01'}],
    markKey)` — the real `markKey` (`weights.ts:267`), which is what production passes (D15) — read
@@ -3323,9 +3377,36 @@ edge); create `source/cli/tests/e2e/cli-roots-compliance-loop.test.ts`.
    (2026-01-14, one day early) ⇒ **not** released; and `clockTs` one day earlier
    (`1774915200`, 2026-03-31) ⇒ `stableDaysOf` = 89 ⇒ **not** released. Both boundary values are
    exact-equality cases on purpose: an off-by-one in either comparison is invisible to a fixture
-   that clears the threshold by a week. **This is what makes a wrong `stableId` domain, a wrong
-   `surface` projection or a wrongly-formatted `date` fail here** rather than pass every other
-   criterion and leave the P5 echo defense silently disengaged.
+   that clears the threshold by a week.
+   **What leg A can and cannot see, said plainly, because D15's waiver used to claim more.** Its
+   `stableId`, `surface` and `date` are **literals the test chose**, so *the producer never runs* and
+   no mutation of the code that decides which identity goes onto a mark can move one byte of it. Leg
+   A pins the **seam**: `releasedMarks`' `rowFor(stableId, stableId)` shape, `markKey`'s format, the
+   `YYYY-MM-DD`/`Date.parse` arithmetic, and any store that would rewrite or normalize a mark on the
+   way to disk. That is real and nothing else pins it — but it is not the producer.
+
+   **Leg B — the same round-trip, over a mark the ENGINE produced.** Build a `VerdictInput` with one
+   open intervention on `(S, surf)` and a scope whose `surfaceValue` now equals `expected`, call
+   `evaluate` (pure — this is the same shape `verdict-closure.test.ts` already builds), and take
+   **`closureIntents.ledgerMarks[0]`** rather than a literal. Feed *that* through
+   `appendLedgerMarks` → `readLedger` → `releasedMarks`, with the `LifecycleIndex` keyed on the
+   **finding's own** `stableId` (`input.scopes[0].stableId`) and the `date` derived from the same
+   `nowIso` the input carried — never from the mark. Assert two things by value before the
+   round-trip and one after: `ledgerMarks[0].stableId === input.scopes[0].stableId`,
+   `ledgerMarks[0].surface === fact.surface`, and then the release. **Keying the index on the
+   expected identity rather than on the mark's own is the whole mechanism**: a closure that emits
+   the scope's `skeyR`, or a `surface` sliced out of `factKey` (`` `${roleKey}|${surface}` ``,
+   `mine.ts:121`), produces a mark `rowFor` cannot find, and leg B goes red where leg A would still
+   be green. This is the leg MR-29b is pointed at.
+
+   **Three properties, three owners, none of them assumed** — the waiver's obligations, each with a
+   real observer: the **engine's projection choice** is leg B and MR-29b; the **store/seam contract**
+   is leg A and MR-29c; and the **whole-domain** case D15 most fears — every `stableId` in the run
+   drawn from pre-partition raw scopes, so the mark and the intervention agree with each other and
+   are both wrong — is **T3 Step 1's equivalence harness**, which asserts `stableId`, `skeyR` and
+   every surface value against the index itself and is the only thing in the increment that can.
+   The `date` shape is T1 criterion 3. Until round 11 this criterion's closing sentence claimed all
+   three, and leg A could observe none of them.
 
 **E2E coverage.** `cli-roots-compliance-loop.test.ts` — the design's own named suite
 (`integration-design.md:501-504`), miniaturized: spawn the built binary, `index`, plant a deviation,
@@ -3350,14 +3431,22 @@ only proof that the product's regulator is a closed loop rather than three uncon
   cross-session pass has nothing left to close. Both halves of M4's consequence, one mutation.
 - **MR-29 (mark on compliance only):** write the mark on the `ignored` branch too ⇒ criterion 1's
   mark count fails, and roots would discount evidence it never shaped.
-- **MR-29b (the R4/R5 ledger seam):** write the mark with a `stableId` drawn from the *pre*-partition
-  raw scope rather than the finalized `stable_id`, or with the `surface` string from the fact's cell
-  id rather than the fact's own `surface` field ⇒ **criterion 7's positive case fails**:
-  `lifecycle.rowFor(mark.stableId, mark.stableId)` misses, or `markKey(mark)` names a key the caller
-  never looks up, and the mark is never released. This is the killer D15 waives the *format*
-  divergence killer in favour of, and it is the one mutation the rest of T7 cannot see — MR-29
-  watches the mark's existence, T7 criterion 5 its dedupe, T1 criterion 3 its `date` shape; none of
-  them asks whether R4 can find it.
+- **MR-29b (the engine's ledger projection):** in the closure, build the `LedgerEntry` from the
+  **scope's `skeyR`** instead of its `stableId`, or slice its `surface` out of `factKey`
+  (`` `${roleKey}|${surface}` ``, `mine.ts:121`) instead of reading `fact.surface` ⇒ **criterion 7's
+  leg B fails**, in two places: the by-value assertions on `ledgerMarks[0]` before the round-trip,
+  and the release itself, because the index is keyed on the finding's identity and `rowFor` misses.
+  **Leg B is named specifically and leg A is not**, because leg A's mark is a literal the test
+  chose — the producer never runs there, so this mutation is invisible to it. MR-29 watches the
+  mark's existence, T7 criterion 5 its dedupe, T1 criterion 3 its `date` shape; none of them asks
+  whether R4 can find what the engine actually emitted.
+- **MR-29c (the store/seam contract):** have `appendLedgerMarks` normalize a mark on write —
+  lower-case the `stableId`, or strip the `auto.` prefix from the `surface` — ⇒ **criterion 7's
+  leg A fails**: `readLedger` returns a mark whose `markKey` names a key nobody looks up and whose
+  `rowFor` misses. Separated from MR-29b because the two mutations live in different layers and
+  exactly one leg can see each; a single MR over both would have been satisfied by whichever leg
+  happened to fail, which is how round 10's version came to point at a leg that could not fail at
+  all.
 - **MR-30 (write order):** apply intents before writing output ⇒ a test that kills the process
   between the two stages leaves an intervention with no message — assert the ordering directly by
   the intents applier's own call sequence, since the crash itself is not reproducible in-process.
@@ -3670,21 +3759,53 @@ one place the terminal marker's day-crossing effect is observable at all — unw
 
 **E2E coverage.** `cli-roots-demotion.test.ts`, driving the built binary, in three legs whose
 sample accrual is exactly D13a(d)'s — **the "eight" is eight sessions, and the test is written so
-that it cannot be mistaken for eight anything else**:
-- **The demotion leg (path S1, no filesystem-time manipulation).** Plant a deviation, then for each
+that it cannot be mistaken for eight anything else**.
+
+**The re-plant mechanic, stated once here because one leg is impossible without it and the other is
+wrong with it.** An intervention opens only when a session's **first** check sees a deviating scope.
+So in any leg where a session *fixes* the scope, every later session's first check sees a conforming
+scope, emits no warning, opens no intervention and contributes no sample. A leg with fixing sessions
+must therefore **(re-)plant the deviation before each session**, with the **same** deviating value
+every time — same value because it must not touch a surface that feeds `stableId`
+(`relPath ∥ kind ∥ qualifiedName ∥ arity`, `extract.ts:627-628`; D13a(c)'s fixture rule), so all
+eight sessions' interventions share one identity and pool into one `factKey`. A leg where the scope
+is never fixed needs **no** re-plant and must not have one.
+- **The demotion leg (path S1, no filesystem-time manipulation, NO re-plant).** Plant a deviation
+  once, then for each
   of **8 distinct `--session` ids**: `yg roots check <file>` (the WARN, opening the intervention)
   and `yg roots check <file>` again with the scope still deviating (transition 2, banking that
-  session's one `ignored`). Assert `telemetry.jsonl` holds exactly 8 `observedAfter: 'ignored'`
+  session's one `ignored`). The scope is never fixed, so every session's first check still warns and
+  the single plant is enough. Assert `telemetry.jsonl` holds exactly 8 `observedAfter: 'ignored'`
   rows — one per session, and the assertion is per-`sessionId` so a regression that collapsed them
   is visible as a count, not as a pass. Then `yg roots index`, then `yg roots check` once more and
   assert **silence** for that fact while a different fact still speaks. `WilsonLB95(0/8) = 0`,
-  criterion 1's first n = 8 row, reached through the product.
-- **The non-demotion control.** The same 8 sessions, but 5 of them fix the scope before their
-  second check (transition 3) — 5 complied / 3 ignored, `WilsonLB95 = 0.3057 > 0.3` — and the fact
-  **still speaks** after `index`. This is the boundary row, and it is what stops the demotion leg
-  from passing for the wrong reason (a fact that stopped speaking because it stopped being mined).
+  criterion 1's first n = 8 row, reached through the product. No mark is ever written here, so
+  eligibility is untouched.
+- **The non-demotion control (RE-PLANT BEFORE EACH SESSION).** Eight distinct `--session` ids;
+  before **each** one the deviation is re-planted at the same scope with the same value, per the
+  mechanic above. Five sessions then fix the scope before their second check (transition 3) and
+  three leave it deviating (transition 2) ⇒ **5 complied / 3 ignored, n = 8,
+  `WilsonLB95 = 0.3057 > 0.3`** — and the fact **still speaks** after `index`.
+  **The re-plant is not bookkeeping, and the leg is worthless without it:** executed without one,
+  the first fixing session leaves the scope conforming, every later session contributes nothing, and
+  the pool is **one** resolved row. The assertion "still speaks" then passes — but on the
+  `minSamples` floor (n = 1 < 8), not on the Wilson bound, which is exactly the passing-for-the-wrong-
+  reason failure this control exists to prevent, reproduced inside the control. D13a(d) rules that
+  out in its own words: an acceptance number that depends on an unreachable state is unsatisfiable
+  and must be deleted, not weakened.
+  **Two consequences of the five `complied` closures, derived here so the leg is not debugged
+  twice.** (i) Their five ledger marks collapse to **one** line — §18.3 dedupes on
+  `(stableId, surface, date)` and a single test day is one `date` (T7 criterion 5's own rule), so the
+  leg asserts one mark, not five. (ii) That one mark is **unreleased**, so at the next `index` its
+  scope's conforming instance is echo-shaped and drops out of the §9.4c survived-display population;
+  the fixture's fact therefore needs enough survived conformers to stay at or above
+  `mdl.minInstancesRaw` (5, `config-parser.ts:78`) **after losing one**, or the fact stops being
+  hook-eligible and the leg fails silent for a third, unrelated reason that looks exactly like
+  demotion.
 - **The cross-session leg (path S2)** is criterion 4b(ii)'s two legs, which reuse this file's
-  fixture and add `utimes` back-dating.
+  fixture and add `utimes` back-dating. It plants once and never fixes before the final step, so it
+  needs no re-plant either; its one "fix the scope" step is *between* the two `index` runs, after all
+  sampling is done.
 This is the product promise "a convention agents keep ignoring stops interrupting them", proven the
 only way it can be: from the outside.
 
@@ -3729,6 +3850,12 @@ only way it can be: from the outside.
   p̂ = 0.5 rows are in the criterion.) **The 4/4 row is the one that matters after round 8**, because
   it sits at the reachable n = 8 rather than at a pool size only a unit test can build. The lower
   bound is what makes demotion require a sample large enough to be sure, not merely a low ratio.
+- **MR-34d (the control leg's re-plant):** drop the per-session re-plant from the non-demotion
+  control ⇒ the leg's own **pool-shape assertion** fails — it asserts `telemetry.jsonl` holds
+  **8 resolved rows for that pair, 5 `complied` and 3 `ignored`**, and without the re-plant it holds
+  one. Named as an MR because the *outcome* assertion ("the fact still speaks") passes either way;
+  only the pool-shape assertion separates a leg that proves `WilsonLB95(5/8) = 0.3057 > 0.3` from a
+  leg that proves `n = 1 < 8`. This is the one mutation that turns a control into a tautology.
 - **MR-34c (the sample floor):** demote at `n ≥ 1` instead of `n ≥ health.minSamples` (8) ⇒
   criterion 2's n = 7 case fails. Named because D13a(d) makes the floor the *only* thing standing
   between one unlucky session and a demotion, now that the store key has removed every other way n
@@ -3898,7 +4025,7 @@ every *repository-scoped* modulator and deliberately refuses the two session-sco
 `status` row (`:697`); design §3's `status` row (`integration-design.md:84`).
 
 **Files.** Edit `source/cli/src/cli/roots.ts` — `renderRootsStatusInner` (Steps 1-4) **and
-`ROOTS_SCAFFOLD_MESSAGE` / its `index`-action call site (`:128-129`, Step 7 / D25)**; create
+`ROOTS_SCAFFOLD_MESSAGE` / its `index`-action call site (`:128-129`, **Step 6** / D25)**; create
 `source/cli/tests/unit/cli/roots-status-modulators.test.ts` (**new sibling** — the existing status
 tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.test.ts`; extend
 `source/cli/tests/e2e/cli-roots-basic.test.ts` (the scaffold-notice assertions it already owns at
@@ -5469,6 +5596,128 @@ in their retirement notice** (mechanically re-checked).
 - *R5-I3's deletion × T10 criterion 1's byte baseline* — deleting a sentence in an invariant changes
   no rendered output; T10 Step 1's refusal to list the two session-scoped modulators is now
   consistent with the invariant's operative sentence instead of contradicting its last one. ✓
+
+### Round 11 — what the eleventh adversarial review changed (0 blocking, 2 major, 5 minor)
+
+Both majors are executability again, and both are **round 10's own repairs failing their second
+test**: a killer landed onto a criterion whose inputs are literals, and an e2e leg whose stated pool
+cannot be constructed by the recipe above it. Everything else held — the review re-derived the six Δ
+rows, all eight Wilson figures, T9's completeness trio, both fixture sizings, criterion 8's margins,
+round 10's five epoch constants against the landed `weights.ts`, and the prompt-margin prediction
+(reproducing 14 617 and 13 442 against the plan's ≈14 600 / ≈13 400), and re-verified ~95 anchors.
+
+- **M1 — MR-29b was pointed at a criterion that structurally could not observe it, and D15's
+  discharge sentence was therefore false.** T7 criterion 7 is "a pure value round-trip": its
+  `stableId`, `surface` and `date` are **literals the test chose**, and the `LifecycleIndex` is built
+  so that `rowFor(S, S)` hits. **The producer never runs**, so no mutation of the code that decides
+  which identity goes onto a mark can move one byte of it — and R5-I11's live round-trip obligation
+  would have had the T7 implementer perform MR-29b's mutation, run the test, and find it **passing**.
+  **Closed by the reviewer's option 3 plus option 2, because a killer must run the code the mutation
+  lives in.** Criterion 7 is now **two legs**: leg A is the literal round-trip, unchanged, with an
+  explicit statement of what it can and cannot see (it pins the *seam* — `rowFor`'s two-argument
+  shape, `markKey`'s format, the `Date.parse`/`YYYY-MM-DD` arithmetic at its exact thresholds, and
+  any store that rewrites a mark on write); **leg B drives `evaluate`'s own
+  `closureIntents.ledgerMarks[0]`** — a produced mark, not a literal — through the same
+  `appendLedgerMarks` → `readLedger` → `releasedMarks` path, **with the lifecycle index keyed on the
+  finding's `stableId` rather than on the mark's own**, which is the whole mechanism: a closure that
+  emits `skeyR`, or a `surface` sliced out of `factKey`, produces a mark `rowFor` cannot find. Cheap
+  and unit-level, since the engine is pure and `verdict-closure.test.ts` already builds that input
+  shape. **MR-29b is re-pointed at leg B** (and says why leg A cannot see it), **MR-29c is added**
+  for the store-normalization mutation only leg A can see, and **D15's waiver is rewritten as three
+  obligations with three named owners** — the engine's projection (leg B / MR-29b), the store-seam
+  contract (leg A / MR-29c), and the whole-domain case where mark and intervention agree with each
+  other and are both wrong (**T3 Step 1's equivalence harness**, the only thing in the increment
+  that compares against the index itself), with the `date` shape at T1 criterion 3.
+- **M2 — T8's non-demotion control could not produce the 5/3 pool it asserts, and executed as
+  written passed for the wrong reason.** "The same 8 sessions, but 5 of them fix the scope" inherits
+  the demotion leg's recipe, which plants **once**. An intervention opens only when a session's first
+  check sees a deviating scope — so the moment the first fixing session's second check lands, the
+  scope conforms and stays conforming, every later session warns about nothing, and the pool is
+  **one** resolved row. "The fact still speaks" then passes on the `minSamples` floor (n = 1 < 8)
+  rather than on `WilsonLB95(5/8) = 0.3057 > 0.3` — the exact passing-for-the-wrong-reason failure
+  the control exists to prevent, reproduced inside the control, and the shape D13a(d) says must be
+  deleted rather than weakened.
+  **The re-plant mechanic is now stated once**, at the top of the e2e block, with its reason (an
+  intervention opens only on a session's first check) and its constraint (the same value every time,
+  because it must not touch a surface feeding `stableId` — `extract.ts:627-628`, D13a(c)'s rule — so
+  all eight interventions share one identity and pool into one `factKey`), **and all three legs
+  reference it**: the control re-plants before each session; the demotion leg explicitly needs none
+  and says so (the scope is never fixed); the cross-session leg needs none because its one fix falls
+  *between* the two `index` runs, after sampling. The control's arithmetic is re-derived as **5
+  complied / 3 ignored, n = 8, 0.3057 > 0.3**, and **MR-34d** kills the missing re-plant — pointed at
+  the leg's **pool-shape** assertion (8 resolved rows, 5 + 3), because the *outcome* assertion passes
+  either way and only the pool shape separates the Wilson bound from the sample floor.
+  **Two derived consequences added in the same breath, so the leg is not debugged twice:** the five
+  `complied` closures' marks collapse to **one** ledger line under §18.3's `(stableId, surface, date)`
+  dedupe on a single test day; and that one *unreleased* mark makes its scope's conforming instance
+  echo-shaped at the next `index`, so the fixture's fact needs enough survived conformers to stay at
+  or above `mdl.minInstancesRaw` (5, `config-parser.ts:78`) **after losing one**, or the leg fails
+  silent for a third, unrelated reason that looks exactly like demotion.
+
+**Minor** — all 5 applied: T10's Files line pointed D25 at **Step 7**; D25 is **Step 6** (D25 itself,
+carry-in 1, criterion 6 and MR-41 all said 6 — this was the bare in-task form round 10's sweep did not
+cover). **D23 gains `include`/`exclude`** (`config-parser.ts:42-43` — D6's gate 0 *is* these two keys,
+`partitions.ts:127-136`, and T3 criterion 14 drives both arms by name) **and `mdl.minInstancesRaw`**
+(`:78`, T10 Step 2's withheld predicate; the list already carries the `status`-only
+`health.agentShareAlarm`, so "keys R5 reads" is the operative bound) — neither trips the STOP, both
+being landed with spec defaults. T1 Step 6's exit-code claim is corrected: the script does **not**
+exit 0 on every path — `fail()` (`prompt-headroom.mjs:451`) exits **1** for a missing binary
+(`:454`), a missing config (`:455`), an unresolvable ceiling or a parser wording mismatch, and only
+the normal reporting path exits 0 (`:570`); the rule the sentence supports is unchanged, but the
+justification is now true and the text says **not** to "fix" `fail()`. D1's no-I/O enumeration named
+five engine modules; **`extract-file.ts` is the sixth** — the one whose no-read signature D1 itself
+spends a paragraph on. And T3 Step 8's "exactly one filter wide" heading now says **at T3**, with the
+consequence stated: T5's filter 3 narrows the **evaluation** set only, so a path resolving outside
+the repository is silent on stdout yet still recorded as looked-at in `writtenFiles` — harmless (an
+out-of-repo path matches no repo-relative co-change row) and now stated at both the fork and its T6
+mirror.
+
+**Not applied:** none. Every finding was verified at source first. **Two of the review's own anchors
+were off by one and the measured values are used instead:** `fail()` is `prompt-headroom.mjs:451`
+(not `:452`) and the normal exit is `:570` (not `:569`) — re-read at HEAD, along with
+`config-parser.ts:42-43`/`:78`, `partitions.ts:127-136`, and the `weights.ts` release arithmetic.
+
+**Sweep A (decisions vs restatements), scoped to rounds 10-11.** D15 → T7 criterion 7's two legs,
+MR-29b, MR-29c, T3 Step 1 ✓ (this was M1, and the sweep is what confirmed T3 Step 1's harness really
+does assert `stableId`/`skeyR`/every surface value, which is what lets D15 name it as an owner).
+D13a(c)'s same-value fixture rule → the new re-plant mechanic ✓. D13a(d)'s
+"unsatisfiable-must-be-deleted" rule → the control leg, which was violating it ✓. D1's no-I/O list →
+R5-I4, the Architecture paragraph and the authorization table, all of which already said six ✓.
+D23 → T3 criterion 14 and T10 Step 2, the two tasks whose reads it omitted ✓. T3 Step 8's fork →
+T6 Step 1b's mirror, which now carries the T5 asymmetry too ✓.
+
+**Sweep B (invariants/MRs vs tasks), scoped to rounds 10-11.** R5-I11's id count refreshed to **71**
+(net +2: MR-29c, MR-34d) and its converse now has a **third** worked instance behind it — round 10's
+own repair produced a killer that could not fail, which is the failure mode the converse names.
+R5-I7 ✓ (D23's two additions are landed keys with spec defaults, so "R5 invents no config key"
+holds). R5-I12 ✓ (leg B is unit-level and correctly so — the engine is pure; T7's e2e still covers
+the adopter flow). R5-I4 ✓ (D1's enumeration now matches it). **Full mechanical re-validation,
+extended as instructed to the BARE in-task `Step N` form round 10's sweep missed** — qualified
+criterion refs, qualified step refs and bare in-task step refs, with previous-line joining so a
+wrapped "T6 / Step 1b" is not a false positive: **zero dangling in all three classes.** MR ids: 71
+live definitions, no duplicates, every `MR-*` in the task body defined except `MR-32c`/`MR-32d` in
+their retirement notice.
+
+**Interaction pass, scoped to rounds 10-11.** Six pairs, one defect:
+- *criterion 7 leg B × D1's intents seam* — leg B reads `closureIntents.ledgerMarks[0]`, a returned
+  value, and applies it itself; the engine still performs no I/O, so leg B is inside R5-I4 rather
+  than an exception to it. ✓
+- *criterion 7 leg B × leg A* — disjoint observers by construction: the index is keyed on the
+  finding's identity in B and on the mark's own in A, which is exactly why one MR can see each and
+  neither can see both. ✓
+- *the re-plant × D13a(c)'s changed-value rule* — **the two compose only because the re-plant uses
+  the SAME value**: a re-plant with a *different* deviating value would move `qualifiedName` only if
+  it renamed the scope (it does not), but it would produce eight interventions whose telemetry rows
+  differ in `observed` — harmless for the key, yet it would break the "one `factKey`" pooling
+  premise if the surface changed. Stated as a constraint on the mechanic rather than left to chance.
+- *the re-plant × the ledger dedupe* — five `complied` closures on one test day are one mark, not
+  five; the leg now asserts one. ✓
+- *the one unreleased mark × §9.4c's survived-display population* — **DEFECT (unstated
+  composition):** the mark makes its own scope echo-shaped at the next `index`, so a fixture sized to
+  exactly `mdl.minInstancesRaw` conformers drops below the floor and the fact goes silent for a
+  reason that is indistinguishable from demotion. The fixture's sizing constraint is now stated.
+- *D23's `include`/`exclude` × R5-I7* — both landed with spec defaults, so adding them to the list
+  changes what the list *says*, not what R5 *reads*; the STOP is untripped. ✓
 
 ### Drafting self-review (pre-review)
 
