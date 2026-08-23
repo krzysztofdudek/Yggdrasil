@@ -88,10 +88,17 @@ is already on an existing type's relation allow-list. Verified at HEAD (a761dda)
 is a landed **rule**, and T1's ledger append is the single import R5 plans that the rule refuses:
 `io/debug-log-writer` is not on its 13-entry allowlist and `stores.ts` does not import it today
 (D27 part 7 carries the measurement and the two rejected alternatives). The edit is one entry, in
-four places that must move together — `check.mjs`'s `ALLOWED_RESOLVED`, that check's own violation
-message, the aspect's `yg-aspect.yaml` description and the `errs census` row in
-`.yggdrasil/aspects/README.md` — and it takes the **same escalation shape as an architecture edit**:
-the controller puts it to the maintainer before T1 executes. It is pre-authorized by D27 and is the
+the **four places that enumerate or count the allowlist and therefore all move together** —
+`check.mjs`'s `ALLOWED_RESOLVED` set, the `THE ALLOWLIST` doc-comment directly above it (which
+carries the count, "13 specifiers"), that check's own violation message's inline list, and the
+aspect's `yg-aspect.yaml` description (which carries both the thirteen names and the count) — and it
+takes the **same escalation shape as an architecture edit**: the controller puts it to the maintainer
+before T1 executes. **The `errs census` row in `.yggdrasil/aspects/README.md` is a fifth site that
+does NOT move for this edit, and saying so is what stops an implementer hunting for text that is not
+there:** measured at HEAD, that row (`README.md:227`) characterises the `errs: over`
+over-approximation and records the two scope limits (a computed dynamic argument; re-export
+laundering). It enumerates no specifier and carries no count, so a longer allowlist makes nothing in
+it false. It is **re-read and confirmed still true**, not edited. It is pre-authorized by D27 and is the
 only one; **any other refused import is a STOP and report, never a second widening**, and no task
 may touch the aspect's `review_by` or write a `yg-suppress` marker under any circumstance.
 
@@ -128,7 +135,12 @@ with its `name`, `type`, `description` and `relations:` and **no `mapping:` key 
 mapping array is a load failure (`io/node-parser.ts:228`), an absent one is not, and the task that
 lands each node's first file adds the mapping in its own graph ritual (D27 part 9):
 - `model/cli/roots/speech/yg-node.yaml` — type `roots-engine`, mapping (from T3) **four** of the five new
-  engine files: `verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts`. **Its `aspects:` list is
+  engine files: `verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts`. **Its `relations:` block
+  is `relations: []` and stays that way for the whole increment** — no `calls`, no `uses`, in either
+  direction, which is the property D27 part 5's third seam and D7's cancelled Δ exist to establish
+  and which the edge audit's own row asserts. A task that finds one of these four files needing a
+  symbol from any other node **STOPs and reports**; it does not declare an edge here. **Its
+  `aspects:` list is
   empty**: `roots-import-boundary` is attached on the parent `cli/roots` node and reaches this one by
   cascade, selected by that aspect's own node-type `when` — so the four files are inside the frozen
   extraction boundary with no attachment work, which is correct, since they live in `src/roots/`
@@ -140,20 +152,42 @@ lands each node's first file adds the mapping in its own graph ritual (D27 part 
   aspect surface and mapping size, not a prompt-size one; state it that way in the node.)
 - **`exemplars.ts` joins `cli/roots/engine`, NOT `roots/speech` — and that placement is a
   correctness constraint, not a filing preference.** It is index-time production code: it runs
-  inside `mine()`, and `mine.ts` *calls* it (T2). Mapping it to `roots/speech` would create a
-  runtime edge `cli/roots/engine → cli/roots/speech`, while `verdict.ts` (a `roots/speech` file)
-  already needs the exported `isBooleanSurface` from `mine-stages.ts` (`cli/roots/engine`) per D7 —
-  a runtime edge in the opposite direction. Two declared `calls` edges in opposite directions is a
-  **`structural-cycle`**: `checkNoCycles` (`src/core/checks/relations.ts:73-123`) walks
-  `uses`/`calls`/`extends`/`implements` depth-first and emits it at `severity: 'error'`; it is in
-  `STRUCTURAL_CODES` (`src/core/check-codes.ts:28-36`), the set whose own doc says these "fail
-  `yg check` regardless of verification state"; and the validator calls it unconditionally
-  (`src/core/validator.ts:192`). Plain `yg check` would go red the moment T2 landed, and the remedy
-  would be a node-mapping change no task is authorized to make. With `exemplars.ts` in
-  `roots/engine`, `roots/speech` has **one** outbound edge (`→ cli/roots/engine`) and no back edge,
+  inside `mine()`, and `mine.ts` *calls* it (T2), so mapping it to `roots/speech` would put a runtime
+  edge `cli/roots/engine → cli/roots/speech` on the ordinary mining path, out of the node whose
+  `relations:` block this increment otherwise leaves untouched.
+  **The `structural-cycle` argument that stood here for fourteen rounds is RETIRED, and its
+  retirement is recorded rather than left as a silently weakened claim.** It rested on a back edge
+  that no longer exists: `verdict.ts` needed `isBooleanSurface` from `mine-stages.ts`, and D7 now
+  computes Δ in its cancelled form and takes no such import (D27 part 6), so **`cli/roots/speech`
+  declares zero outbound edges**. An `engine → speech` edge would therefore close no cycle *today*.
+  The placement stands on three surviving grounds, each independently sufficient, and they are
+  written out because "it would be a cycle" is no longer one of them:
+  - **The engine facade could not carry it.** `routePartition`'s production caller is the command
+    layer (D5), which enters the engine through `src/roots/index.ts` — itself a `cli/roots/engine`
+    file — and D27 part 5 forbids that facade from re-exporting a `cli/roots/speech` symbol for
+    exactly the reason it already forbids `export … from './stores.js'`: the re-export *is* the
+    outbound edge. A speech-mapped `exemplars.ts` would therefore force either that forbidden edge or
+    a fourth seam for one function.
+  - **Zero outbound edges on `cli/roots/speech` is now a load-bearing property**, not an accident of
+    this increment's imports: it is what D27 part 6's own fix establishes, and an `engine → speech`
+    edge re-arms the cycle class the moment any future speech file needs any engine symbol — which is
+    precisely how round 17's blocking defect arose in the first place.
+  - **The mechanism is unchanged and still worth stating, because it is what the property protects
+    against:** two declared `calls` edges in opposite directions is a **`structural-cycle`** —
+    `checkNoCycles` (`src/core/checks/relations.ts:73-123`) walks `uses`/`calls`/`extends`/
+    `implements` depth-first and emits it at `severity: 'error'`; it is in `STRUCTURAL_CODES`
+    (`src/core/check-codes.ts:28-36`), the set whose own doc says these "fail `yg check` regardless
+    of verification state"; and the validator calls it unconditionally (`src/core/validator.ts:192`).
+    A cycle is blocking on plain `yg check`, with the remedy a node-mapping change no task is
+    authorized to make.
+
+  With `exemplars.ts` in `roots/engine`, `roots/speech` has **zero** outbound edges and no back edge,
   and `routePartition` is still reachable from `src/cli/roots-check.ts` as `command → roots-engine`
-  (`:61`). `cli/roots/engine`'s own relation count is unchanged; `roots/speech` carries **one
-  `calls` and nothing else**. It declares **no `uses: cli/model/graph`**, and the absence is
+  (`:61`). `cli/roots/engine`'s own relation count is unchanged; `roots/speech` declares
+  **`relations: []`** — the explicit-empty shape the landed `scripts` node already uses, and legal
+  either way (`parseRelations` returns `[]` for an absent key too, `io/node-parser.ts:121`), written
+  explicitly so the emptiness reads as this design's own claim rather than as a forgotten block. It
+  declares **no `uses: cli/model/graph`**, and the absence is
   D27's: after part 4 no file in that node imports `../model/graph.js` — the intent record shapes
   come from the sibling `./model.js`, and a whole-statement type-only import creates no edge in any
   case. This mirrors the retirement the boundary freeze already performed on `cli/roots/stores`,
@@ -168,12 +202,12 @@ every module naming `MinedFact`/`MinedPartition`/`LedgerEntry` as a type is free
 
 | New/edited node | Outbound runtime edges this increment adds | Back edge? |
 | --- | --- | --- |
-| `cli/roots/speech` (verdict, speech, session-state, health) | `→ cli/roots/engine` (`isBooleanSurface` only — `isDecorativeRole` is on no edge at all in this increment: the engine-side decorative filter was deleted as unreachable, see D8). **`classifyAgainstMedoids` and `buildRoleFeatureBag` are NOT on this edge:** T3 Step 2's role ladder lives in `extract-file.ts` (D6's `resolveRolesForCheck`), which is intra-node with `roles.ts`, and `VerdictInput.roleOf` receives the already-resolved role. `roleJaccard`'s only consumer is D4's `m1` computation in `exemplars.ts` — also intra-node, which is what lets D4 keep `roles.ts` and its frozen test unedited. **No `uses: cli/model/graph` on this node** — D27 part 4 moves the three intent record shapes to `./model.js`, so nothing here imports that module. | none — nothing in `roots/engine` imports from `roots/speech` |
-| `cli/roots/engine` (+ `exemplars.ts`, `extract-file.ts`) | **none new at all** — `mine.ts → exemplars.ts`, `pipeline.ts → extract-file.ts` (for `minimalFileScope` **and `MAX_PARSE_LINES`**, both moved there so no import cycle remains), `extract-file.ts → extract.ts` / `binding.ts` / **`partitions.ts`** (D6's gate 0, `makeRootsFileFilters`), `extract-file.ts → roles.ts` (M1's `resolveRolesForCheck`: `buildRoleFeatureBag`, `classifyAgainstMedoids`) and `exemplars.ts → roles.ts` (D4's `m1`: `roleJaccard`, `buildRoleFeatureBag`) are all intra-node. **Gate −1's `repo-scanner.ts` helpers are NOT on this node** — see the `cli/commands/roots-check` row; T3 Step 8 resolves the file set in the **command layer**, before any read, and R5-I4 keeps `extract-file.ts` free of `lstat`/`readdir`/`readFile` (it carries `deterministic` and `no-direct-fs`). An earlier draft of this row listed them here, which invited exactly the file read the aspect forbids. `→ cli/io/stores`, `→ cli/ast/runtime` and `→ cli/language-registry` are all already declared on this node (`.yggdrasil/model/cli/roots/engine/yg-node.yaml:173-174`, `:179-180`, `:185-186`). **So this node's `relations:` block is not edited by this increment; only its `mapping:` grows.** | — |
+| `cli/roots/speech` (verdict, speech, session-state, health) | **NONE — this node declares `relations: []` and adds no edge in either direction, which is a load-bearing property of the design rather than an accident of which symbols the four files happen to need.** Four candidate imports were each checked and each is absent for its own stated reason. **`isBooleanSurface` (`mine-stages.ts`) is NOT on an edge:** D7's Δ is computed in its cancelled form `log2((n_e + ½)/(n_v + ½))`, so the KT denominator — the only thing `K` ever entered — never appears, and `verdict.ts` needs no boolean-versus-categorical distinction at all; the rule's live consumer on the check path is `extract-file.ts`'s sparse-boolean domain read (D6), which is **intra-node** with `mine-stages.ts` and therefore free (D27 part 6 carries the derivation and the rejected alternative). **`isDecorativeRole` is on no edge at all in this increment:** the engine-side decorative filter was deleted as unreachable (D8). **`classifyAgainstMedoids` and `buildRoleFeatureBag` are NOT on an edge:** T3 Step 2's role ladder lives in `extract-file.ts` (D6's `resolveRolesForCheck`), which is intra-node with `roles.ts`, and `VerdictInput.roleOf` receives the already-resolved role. **`roleJaccard`'s** only consumer is D4's `m1` computation in `exemplars.ts` — also intra-node, which is what lets D4 keep `roles.ts` and its frozen test unedited. **No `uses: cli/model/graph` on this node** — D27 part 4 moves the three intent record shapes to `./model.js`, so nothing here imports that module, and every cross-node type import these four files make (`./model.js`) is whole-statement `import type` and creates no edge in any case. | none — nothing in `roots/engine` imports from `roots/speech`, **and `src/roots/index.ts` may not re-export a speech symbol** (D27 part 5's third seam: the facade is a `cli/roots/engine` file, so the re-export *is* the outbound edge, exactly as it is for `./stores.js`) |
+| `cli/roots/engine` (+ `exemplars.ts`, `extract-file.ts`) | **none new at all** — `mine.ts → exemplars.ts`, `pipeline.ts → extract-file.ts` (for `minimalFileScope` **and `MAX_PARSE_LINES`**, both moved there so no import cycle remains), `extract-file.ts → extract.ts` / `binding.ts` / **`partitions.ts`** (D6's gate 0, `makeRootsFileFilters`), `extract-file.ts → roles.ts` (M1's `resolveRolesForCheck`: `buildRoleFeatureBag`, `classifyAgainstMedoids`), **`extract-file.ts → mine-stages.ts`** (D6's sparse-boolean domain read: `isBooleanSurface` — named here because round 17 moved it out of `verdict.ts`, where it was this increment's one `speech → engine` edge, into the node that already contains its producer) and `exemplars.ts → roles.ts` (D4's `m1`: `roleJaccard`, `buildRoleFeatureBag`) are all intra-node. **Gate −1's `repo-scanner.ts` helpers are NOT on this node** — see the `cli/commands/roots-check` row; T3 Step 8 resolves the file set in the **command layer**, before any read, and R5-I4 keeps `extract-file.ts` free of `lstat`/`readdir`/`readFile` (it carries `deterministic` and `no-direct-fs`). An earlier draft of this row listed them here, which invited exactly the file read the aspect forbids. `→ cli/io/stores`, `→ cli/ast/runtime` and `→ cli/language-registry` are all already declared on this node (`.yggdrasil/model/cli/roots/engine/yg-node.yaml:173-174`, `:179-180`, `:185-186`). **So this node's `relations:` block is not edited by this increment; only its `mapping:` grows** — and that claim is what D27 part 5's third seam exists to keep true: `src/roots/index.ts` is mapped here (`yg-node.yaml:229`), so every symbol the facade grows by must be an **engine** symbol. A facade re-export of `evaluate`, `foldSession` or `health.ts`'s aggregation entry point would add `→ cli/roots/speech` to this very row, which is the defect round 17 found. | — |
 | `cli/io/roots-state` (four stores) | `→ cli/io/atomic-write` (`atomicWriteFile`), **`→ cli/io/stores`** (`appendToDebugLog` and `readFileOrDefault` are mapped there — `debug-log-writer.ts` and `read-or-default.ts` at `.yggdrasil/model/cli/io/stores/yg-node.yaml:18`/`:28`, **not** by `cli/io/atomic-write`, which maps only `atomic-write.ts`), `→ cli/utils`, `uses cli/model/graph` — **this row's `uses` survives D27 and the engine row's does not, which is the point of stating both:** the four stores are `persistence-adapter`, outside the roots fence, and they take `SessionEvent`/`TelemetryRecord`/`DemotionsFile` from `../model/graph.js`, which re-exports them from `src/roots/model.ts` (D27 part 4). The relations extractor reads specifier text, so that import resolves to `cli/model/graph` and creates **no** io → roots edge | none — no `io` node imports a roots node |
 | `cli/roots/stores` (edited: `appendLedgerMarks`, `snapshotContentHash`) | **none new** — `stores.ts` already imports `hashString`/`readFileOrDefault` from `cli/io/stores` and the node already declares that edge, so `appendToDebugLog` (mapped there too) adds no edge either. Stated because the neighbouring row differs: the *new* io node needs the edge declared, this one does not. **The edge is not the whole story after D27, and the correction is recorded rather than left as a stale symbol list:** measured at HEAD, `stores.ts` imports exactly `../io/read-or-default.js`, `../io/hash.js` and `../io/atomic-write.js` — **not** `appendToDebugLog` — and `io/debug-log-writer` is not on the boundary aspect's 13-entry allowlist, so T1's append is a **new specifier** that needs the one pre-authorized allowlist entry D27 part 7 lands. Edge unchanged, import surface +1 | — |
-| `cli/commands/roots-check` | `→ cli/roots/engine`, `→ cli/roots/speech`, `→ cli/roots/stores`, `→ cli/io/roots-state`, **`→ cli/io/stores`** (`readTextFile`/`hashString` — `graph-fs.ts`, `read-or-default.ts` and `hash.ts` are all mapped there, `.yggdrasil/model/cli/io/stores/yg-node.yaml:24`/`:28`/`:25`; the command layer reads the bytes D6's engine function may not. **`readTextFile` now has two homes and the command files use one of them:** the boundary freeze added a `readTextFile` to `io/read-or-default.ts` — the module the engine's own `pipeline.ts` reads through and the one on the fence's allowlist — beside the long-standing `io/graph-fs.ts` one that the rest of the CLI uses. Both are mapped by this same node, so **the edge is identical either way**; the roots command files take `../io/read-or-default.js`'s, so every roots read path names one module — **and this is also where gate −1's `repo-scanner.ts` helpers land: `loadRootGitignoreStack`, `isIgnoredByStack` and T3's newly-exported `isNestedProjectBoundary`**, since T3 Step 8 does the whole resolution here, before any read. `findNestedProjectRoots` is **not** on any production edge — after M2 the production predicate is `isNestedProjectBoundary`, and the whole-tree function is called only by criterion 14b's **unit-tier** assertion, which lives in `tests/unit/io/repo-scanner-nested.test.ts` because `e2e-public-surface` refuses that import to every e2e file) and **`→ cli/language-registry`** (`getGrammarForExtension`, for T9's "changed **code** files" test — D6 moved the *parse* into `src/roots/extract-file.ts`, a `cli/roots/engine` file that already declares `cli/ast/runtime` and `cli/language-registry`, expressly so the command file would not carry it, so **no `→ cli/ast/runtime` edge is needed here** and an earlier draft of this row justified two edges with a reason D6 had removed) — both legal for `command` (`utility`, `persistence-adapter` on `:61`) — plus the config/utils/formatter/preamble edges `cli/commands/roots` already declares, and `uses cli/tests/unit/cli` (`sibling-test-file`) | none — no engine, store, io or test node imports a command |
-| `cli/commands/roots` (edited) | `→ cli/commands/roots-check` (the registrar call), `→ cli/roots/speech` (T8's aggregation call), **`→ cli/io/roots-state`** (T8 reads telemetry and session logs and writes `demotions.json`; T10's `status` reads demotions) — **10 → 13 relations**, still far under `max_direct_relations: 20` and clear of the 23 leaderboard tie. **D26's re-enumeration adds none of its own, verified against the landed block rather than assumed:** `extract-file.ts`/`enumerate.ts`/`exemplars.ts` are `cli/roots/engine` and `repo-scanner.ts`/`graph-fs.ts` are `cli/io/stores`, and this node already declares `calls` on both (`.yggdrasil/model/cli/commands/roots/yg-node.yaml`), as it does on `cli/utils`. The count stays 13 | none |
+| `cli/commands/roots-check` | `→ cli/roots/engine`, `→ cli/roots/speech`, `→ cli/roots/stores`, `→ cli/io/roots-state`, **`→ cli/io/stores`** — **the first three are D27 part 5's three seams, and each one is a real edge because this file names all three module sets directly: `../roots/index.js` for the engine (`routePartition`, `surfacesForFile`, `resolveRolesForCheck`, `markKey`), `../roots/verdict.js` / `../roots/speech.js` / `../roots/session-state.js` for speech (`evaluate`, `channelFilter`, `render`, `applyBudgetsAndDedup`, `foldSession`, and the types), and `../roots/stores.js` for the store (`appendLedgerMarks`, `snapshotContentHash`, `readModel`). The speech edge is NOT routed through the facade, and that is the point: `index.ts` is itself `cli/roots/engine`, so re-exporting a speech symbol would push this edge onto the engine node instead of onto the command node where it belongs** — (`readTextFile`/`hashString` — `graph-fs.ts`, `read-or-default.ts` and `hash.ts` are all mapped there, `.yggdrasil/model/cli/io/stores/yg-node.yaml:24`/`:28`/`:25`; the command layer reads the bytes D6's engine function may not. **`readTextFile` now has two homes and the command files use one of them:** the boundary freeze added a `readTextFile` to `io/read-or-default.ts` — the module the engine's own `pipeline.ts` reads through and the one on the fence's allowlist — beside the long-standing `io/graph-fs.ts` one that the rest of the CLI uses. Both are mapped by this same node, so **the edge is identical either way**; the roots command files take `../io/read-or-default.js`'s, so every roots read path names one module — **and this is also where gate −1's `repo-scanner.ts` helpers land: `loadRootGitignoreStack`, `isIgnoredByStack` and T3's newly-exported `isNestedProjectBoundary`**, since T3 Step 8 does the whole resolution here, before any read. `findNestedProjectRoots` is **not** on any production edge — after M2 the production predicate is `isNestedProjectBoundary`, and the whole-tree function is called only by criterion 14b's **unit-tier** assertion, which lives in `tests/unit/io/repo-scanner-nested.test.ts` because `e2e-public-surface` refuses that import to every e2e file) and **`→ cli/language-registry`** (`getGrammarForExtension`, for T9's "changed **code** files" test — D6 moved the *parse* into `src/roots/extract-file.ts`, a `cli/roots/engine` file that already declares `cli/ast/runtime` and `cli/language-registry`, expressly so the command file would not carry it, so **no `→ cli/ast/runtime` edge is needed here** and an earlier draft of this row justified two edges with a reason D6 had removed) — both legal for `command` (`utility`, `persistence-adapter` on `:61`) — plus the config/utils/formatter/preamble edges `cli/commands/roots` already declares, and `uses cli/tests/unit/cli` (`sibling-test-file`) | none — no engine, store, io or test node imports a command |
+| `cli/commands/roots` (edited) | `→ cli/commands/roots-check` (the registrar call), **`→ cli/roots/speech`**, **`→ cli/io/roots-state`** (T8 reads telemetry and session logs and writes `demotions.json`; T10's `status` reads demotions) — **10 → 13 relations** (measured at HEAD: this node declares exactly **10** targets today), still far under `max_direct_relations: 20` and clear of the 23 leaderboard tie. **The speech edge is real and its three causes are named, because the count depends on it and an earlier draft justified it with one call that D27 part 6 had routed through the facade:** `src/cli/roots.ts` names `../roots/health.js` (T8's aggregation entry point), `../roots/session-state.js` (`foldSession`, which the command layer applies to each ended log — T8 Step 2a) and `../roots/verdict.js` (the exported D8 selector `selectGoverningFact`, which D26's `resolveFact` is built from). All three are `cli/roots/speech` files reached by their own module paths — D27 part 5's third seam — never through `../roots/index.js`, which carries engine symbols only. **D26's re-enumeration adds none of its own, verified against the landed block rather than assumed:** `extract-file.ts`/`enumerate.ts`/`exemplars.ts` are `cli/roots/engine` and `repo-scanner.ts`/`graph-fs.ts` are `cli/io/stores`, and this node already declares `calls` on both (`.yggdrasil/model/cli/commands/roots/yg-node.yaml:22`/`:30`), as it does on `cli/utils` (`:32`). The count stays 13 | none |
 | `cli/tests/e2e/roots-verdict` | **`uses cli/tests/support`, `uses cli/tests/fixtures`** — the suites use `buildGoldenRepo` and the golden specs, exactly as the landed sibling node declares (`.yggdrasil/model/cli/tests/e2e/roots-basic/yg-node.yaml`). It imports nothing from `src/**` — **`e2e-public-surface` is enforced and is declared on the PARENT node `cli/tests/e2e` (`yg-node.yaml:5`), reaching this node by inheritance**; the new node's own `aspects:` list is empty exactly as `roots-basic`'s is, and that inheritance is what decides where criterion 14b's `findNestedProjectRoots` assertion may live. A different claim from "no edges" | none — neither support node reaches roots or commands |
 | `cli/tests/unit/roots` (edited) | `→ cli/io/roots-state` (T1's four store tests import `src/io/roots-*-store.ts`) and `→ cli/roots/speech` (T3's `verdict.test.ts`/`speech.test.ts`, T6's `session-state.test.ts`, T7's `verdict-closure.test.ts`, T8's `health.test.ts`, T9's `sweep-state.test.ts`) — **13 → 15 relations**. Legality is trivial (`test-suite` declares no type-level relation allow-list, `yg-architecture.yaml:418-431`) and both counts stay far under `max_direct_relations: 20` and far below the 23 leaderboard tie — but the row exists because the count *moves*, and a moving count with no row is what round 4's M6 was | none — no source node imports a test node |
 | `cli/tests/unit/cli/roots` (edited) | `→ cli/commands/roots-check` (T3's `roots-check.test.ts`, the file `sibling-test-file` requires; T5's and T10's new files in this node target modules it already declares) — **7 → 8**, and one more per node any of the three reaches for a *value* rather than a type (`cli/roots/speech`'s `channelFilter` is the likely one; `import type` creates no edge). The count is the task's to declare, not this table's to predict — what the table settles is that each such edge is legal | none — the landed `cli/commands/roots` ↔ `cli/tests/unit/cli/roots` pair has this exact shape today, because `sibling-test-file`'s own edge targets the PARENT node `cli/tests/unit/cli`, not this child |
@@ -184,6 +218,21 @@ legal — each task's graph ritual still declares the edges it actually lands, a
 `relation-undeclared-dependency` is blocking (`src/core/check-codes.ts:96`), so an undeclared import
 fails at that task's own gate.** T1 Step 1 runs `checkNoCycles` over the design-locked nodes; it
 cannot verify edges that only arrive at T2-T8, which is precisely why the table exists.
+
+**And because the table is the only thing that can see those edges, its acyclicity has to be an
+assertion the table makes about itself rather than a run T1 performs — round 17's blocking defect was
+a cycle this table declared into existence three tasks after `checkNoCycles` had already passed.**
+The property, stated so it is checkable by reading the nine rows rather than by trusting them: every
+edge above points **command → engine/speech/store → io/types** (and test → test-support), one
+direction only; **`cli/roots/speech` declares `relations: []` and appears as a target in exactly two
+rows, both of them command nodes**; and **no node this increment edits gains an edge into
+`cli/roots/speech`** — in particular `cli/roots/engine` does not, which is what D27 part 5's third
+seam is for, since the facade mapped into that node is the one place an engine → speech edge could
+otherwise be minted. A task that finds itself needing an edge into `cli/roots/speech` from anything
+but a `cli/commands/*` node has found a defect in this table and **STOPs and reports**; it does not
+declare the edge. T1 Step 1's own run still verifies what it can — the design-locked set — and its
+report states this post-T8 property as read off the table, so the reasoning is on the record at the
+one gate that runs before any of those edges exists.
 - `model/cli/io/roots-state/yg-node.yaml` — type `persistence-adapter`, mapping the four new
   `src/io/roots-*-store.ts` files, mirroring `io/roots-cache`'s own stated "three files of one
   subsystem in one node … to keep the fan-out leaderboard still"
@@ -611,8 +660,11 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   retrofit.
 - **Graph ritual, every task.** New source and test files join their owning node's `mapping:` —
   including the three design-lock nodes T1 creates without one, each filled by the task that lands
-  its first file (D27 part 9); new engine symbols a command file imports join
-  `src/roots/index.ts`'s re-export list in the same ritual (D27 part 6); new
+  its first file (D27 part 9); new **`cli/roots/engine`** symbols a command file imports join
+  `src/roots/index.ts`'s re-export list in the same ritual — **and nothing else does: a symbol
+  belongs on the facade iff the file that exports it is in `cli/roots/engine`'s `mapping:`, because
+  `index.ts` is mapped there and a value re-export creates a relation edge** (D27 parts 5 and 6; a
+  `cli/roots/speech` symbol reaches the command layer by its own module path instead); new
   import edges between mapped nodes get declared relations; watch `max_direct_relations` ceilings
   and the fan-out leaderboard pin in `tests/integration/portal-derive-rest.test.ts` (it pins **six**
   paths with exact counts — 32 / 25 / 24 / 23 / 23 / 23 at `:69-80` — plus a separate bounded lookup
@@ -1065,6 +1117,17 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   (undecidable is never a deviation, `v6-spec.md:213`). Vocabularies are **never** recomputed at
   check time — they are a partition-wide statistic and recomputing them from one file would
   silently change every surface id.
+  **"For a boolean surface" is decided by the exported `isBooleanSurface`
+  (`src/roots/mine-stages.ts:52`) and never by inspecting the alphabet's contents, and THIS is that
+  rule's one home in the check path (D7).** It mirrors the index's own landed line for the identical
+  question (`mine-stages.ts:221`), which is what R5-I6's value-for-value equivalence requires; both
+  files are `cli/roots/engine`, so the import is intra-node and costs no edge. **No killer is owed
+  for the categorical arm of it, and the absence is derived rather than skipped:** `enumerate.ts`'s
+  own contract is that a categorical surface's domain member always carries a value (the landed
+  defensive `continue` at `mine-stages.ts:222` says so in those words), so a categorical's
+  absent-but-in-domain state is unreachable through the product and a mutation of it could change no
+  observable — R5-I11's converse. The *boolean* arm is observable and is T3 criterion 11's and
+  MR-14's territory.
 
   **The parse step has a home, an interface and a node, decided here rather than left as a STOP for
   T3.** `extractUnits(relPath, source, tree, binding, options)` (`extract.ts:417`) takes an
@@ -1077,7 +1140,8 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   `../ast/types.js` and `getGrammarForExtension` from `../utils/language-registry.js` are all on the
   boundary allowlist; `RootsConfig` comes from **`./model.js`**, never `../model/graph.js`; and
   everything else it needs (`extract.ts`, `binding.ts`, `partitions.ts`, `roles.ts`,
-  `enumerate.ts`, `mine.ts`'s types) is a sibling. It reads no file — `no-direct-fs` and D1's
+  `enumerate.ts`, **`mine-stages.ts`'s `isBooleanSurface` for the sparse-boolean read above**,
+  `mine.ts`'s types) is a sibling. It reads no file — `no-direct-fs` and D1's
   `(relPath, content)` signature — so it needs nothing from `io/` at all:
   ```ts
   export function minimalFileScope(relPath: string, binding: RootsBinding): RawScope;      // MOVED here from pipeline.ts
@@ -1263,10 +1327,39 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   with KT smoothing α = ½ over the fact's own persisted `counts` and `alphabet`
   (`v6-spec.md:385`): `n_eff = Σ counts`, `K = 2` for a boolean surface and `|alphabet| + 1`
   otherwise, `p̂(v) = (n_v + ½)/(n_eff + K/2)`, and `p̂(⊥) = ½/(n_eff + K/2)` when the observed
-  value is outside the alphabet. Boolean-versus-categorical is decided by the **exported**
-  `isBooleanSurface` (`src/roots/mine-stages.ts:52`), never by inspecting the alphabet's contents —
-  a categorical whose observed values happened to be `true`/`false` must not be mistaken for a
-  boolean. τ is the fact's own persisted `tau` field, which the index already set from §9.4f's
+  value is outside the alphabet.
+
+  **`K` cancels out of every Δ this increment computes, so `verdict.ts` computes the cancelled form
+  and no posterior at all — stated here as a rule rather than left as arithmetic an implementer
+  might or might not notice, because the alternative is an import that closes a graph cycle.** Both
+  posteriors in the ratio are taken over the **same fact**, so they carry the identical denominator
+  `n_eff + K/2`, and it divides out in both cases: an observed value inside the alphabet gives
+  `Δ = log2((n_e + ½)/(n_v + ½))`, and ⊥ gives `Δ = log2((n_e + ½)/½) = log2(2·n_e + 1)` — which is
+  Appendix E.1's own identity (`v6-spec.md:905`) and exactly what MR-12 already rests on ("the shared
+  KT denominator cancels"). **So `evaluate` reads `counts[expected]` and `counts[observed]` (absent ⇒
+  0, which is both the ⊥ case and §9.3's in-alphabet zero-count case — "numerically like ⊥ but NOT
+  novel", `:385`) and needs neither `n_eff` nor `K` nor `isBooleanSurface`.** The full form above is
+  retained because it is §9.3's own formula and the provenance of the six worked Δ rows in T3's
+  acceptance table — every one of which reproduces identically under either form, which is what makes
+  this a simplification rather than a change.
+  **`isBooleanSurface`'s live consumer on the check path is therefore `extract-file.ts`, not
+  `verdict.ts` — and that is where the "never by inspecting the alphabet's contents" rule now lives,
+  with something observable behind it.** The rule was always this: a categorical whose observed
+  values happened to be `true`/`false` must not be mistaken for a boolean. Under the cancelled form
+  that mistake changes no Δ, so in `verdict.ts` it was unobservable. Where it *does* decide an
+  outcome is D6's surface-value read — "absent but in the surface's domain ⇒ `'false'` **for a
+  boolean surface**" — which mirrors the index's own landed line
+  (`mine-stages.ts:221`: `const value = bool ? (bag.surfaces[surface] === 'true' ? 'true' : 'false')
+  : bag.surfaces[surface]`) and is what R5-I6 requires the two paths to agree on. `extract-file.ts`
+  and `mine-stages.ts` are both `cli/roots/engine`, so that import is **intra-node and costs no
+  edge**. The alternative — projecting boolean-ness onto `VerdictFact` as a fifth non-copy field so
+  the engine could keep the classification — is **rejected**, with its reason recorded so no later
+  round re-proposes it: under the cancellation nothing in `verdict.ts` could read that field to a
+  different answer, so it would be a field whose mutation changes no observable, which is the defect
+  R5-I11's converse names and which D8's decorative filter and T4's fourth `{unit_plural}` arm were
+  both deleted for. (D27 part 6 carries the graph half of the same decision.)
+
+  τ is the fact's own persisted `tau` field, which the index already set from §9.4f's
   tiers; the verdict **never re-derives the tier**, so the fire-ability gate and the verdict can
   never disagree about τ by construction. R6's calibrated `τ_c` will move that same field, and the
   verdict will need no change. Unseen value (⊥) ⇒ novelty note and severity **capped at WARN**
@@ -1335,6 +1428,15 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   file-existence filter runs here, because the layers downstream of it (`verdict.ts`, `speech.ts`)
   carry `no-direct-fs` and cannot ask the filesystem anything (T3 Step 7b, T3 criterion 16, MR-14g).
   Every module-kind fact is dropped by the projection (T3).
+  **FOUR is the whole list, and a fifth was considered and refused — recorded here because the
+  obvious next round would propose it as the fix to a defect that is already fixed elsewhere.** The
+  candidate was `isBoolean: boolean`, filled from `isBooleanSurface(fact.surface)`, so `verdict.ts`
+  could keep D7's boolean-versus-categorical distinction without importing across the node boundary.
+  It is refused on its own arithmetic: `K` cancels out of every Δ (D7's cancelled form), so nothing
+  in `verdict.ts` could read that field to a different answer — a projection field whose mutation
+  changes no observable, which is the defect R5-I11's converse names. The graph problem it was
+  offered for is solved instead by `verdict.ts` not needing the classification at all (D7) and by
+  the facade staying engine-only (D27 part 5).
   **The partition-label rule has THREE arms §9.4i does not spell out, decided here — because the
   id domain has three literals the naive rule renders wrongly, not one.** §9.4i
   (`v6-spec.md:428`, the section's closing sentence — the same line D9 cites below for the contrast
@@ -1781,8 +1883,11 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   reaches both (`command` `calls:` includes `roots-engine` and `roots-store`, `:61`) — imports
   `markKey` and passes it in. `roots-check.ts` reaches `markKey` through **`../roots/index.js`**,
   which T7 grows for it (D27 part 6), and `appendLedgerMarks` through **`../roots/stores.js`**,
-  which the facade may never re-export — the two seams of D27 part 5, both composed in the one file
-  that legally reaches both types. This is the same shape T1 already uses for `stateDir`: the
+  which the facade may never re-export — two of D27 part 5's three seams, both composed in the one
+  file that legally reaches both types. (`markKey` is on the facade because `weights.ts` is a
+  `cli/roots/engine` file; the third seam, `cli/roots/speech`'s own modules, is where that same
+  command file gets `evaluate` and `applyBudgetsAndDedup`, and it is a seam for the mirror-image
+  reason — the facade may not re-export those either.) This is the same shape T1 already uses for `stateDir`: the
   composition seam supplies what the two layers may not hand each other directly.
 
   **One more constraint rides this same edge, one module further out, and it is now on two edges
@@ -2304,13 +2409,19 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   own package is a cut rather than a trace. Three things moved: `RootsConfig`, `SeedEntry` and
   `LedgerEntry` now live in **`src/roots/model.ts`** and are re-exported from `src/model/graph.ts`
   for the CLI layer; the pipeline's `readTextFile` comes from `src/io/read-or-default.ts`; and the
-  CLI layer enters the engine only through **`src/roots/index.ts`**. A new deterministic aspect,
+  CLI layer enters the engine only through **`src/roots/index.ts`** — a facade over `cli/roots/engine`
+  and nothing else, which is why R5's new `cli/roots/speech` node gets a seam of its own rather than
+  a place on it (part 5). A new deterministic aspect,
   **`roots-import-boundary`** (the graph's 71st), enforces it. This decision is what R5 builds
   against; it is not open to a task's re-litigation, and an apparent crossing is a **flag to the
   maintainer**, never a quiet edit (part 8).
 
   **(1) What is fenced, exactly.** THE CORE is the `roots-engine` and `roots-store` nodes' own
-  mapped files — **17** of them: `binding`, `extract`, `enumerate`, `roles`, `mine`, `mine-stages`,
+  mapped files — **17 at HEAD, 18 after T2 and 23 after T3**, which is why the definition that
+  governs is the *rule* ("those two nodes' own mapped files") and the seventeen names are only
+  today's reading of it. **The landed aspect states it both ways and the enumeration goes stale at
+  T2** — that is MAJOR-3's finding, and T2's graph ritual owns deleting the enumeration from the
+  aspect's own description and its `check.mjs` header (T2 Files, T2 Step 7). Today's seventeen: `binding`, `extract`, `enumerate`, `roles`, `mine`, `mine-stages`,
   `config`, `weights`, `partitions`, `history`, `history-resume`, `history-replay`,
   `history-cochange`, `pipeline`, `model`, `index` (the 16 mapped by `cli/roots/engine`) and
   `stores` (the one mapped by `cli/roots/stores`). Every `../` import from one of them must name a
@@ -2356,8 +2467,9 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
     legal fix short of an architecture edit. This is R5-I4's engine-purity principle one layer out —
     the command layer renders, the engine returns data — and it is why `speech.ts` builds plain
     strings rather than issue messages.
-  - The CLI layer enters the engine through **`../roots/index.js`** and the store through
-    **`../roots/stores.js`** (part 5).
+  - The CLI layer enters the engine through **`../roots/index.js`**, the store through
+    **`../roots/stores.js`**, and R5's new `cli/roots/speech` node through **each of its four
+    modules' own deep paths** — three seams, and the facade carries engine symbols only (part 5).
   - **Tests are exempt** — they are outside both nodes' mappings and outside `roots-engine`'s own
     `when` (`not: **/*.test.ts`), so `tests/unit/roots/*.test.ts` keeps its existing deep imports
     into `src/roots/**`, which is what lets T3's equivalence harness and `extract-file.test.ts`
@@ -2406,42 +2518,100 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   `../roots/model.js`, stays a **whole-statement `import type`**, because the relations extractor
   drops exactly those and nothing else.
 
-  **(5) Two seams, and they may never be unified.** The engine's public surface is
-  `src/roots/index.ts`; the store's is `src/roots/stores.ts`, reached by its own deep path. That is
-  not a stylistic split: `index.ts` is itself forced into the `roots-engine` type by that type's
-  file-pattern `when`, and `roots-engine` may not reach `roots-store` in either direction
-  (`yg-architecture.yaml:759`, `:774-777`), so an `export … from './stores.js'` in `index.ts` is
-  the forbidden edge — `relation-undeclared-dependency` fired on a draft that tried it, which is
-  why the file's own header says so. `src/cli/roots.ts` and `src/cli/roots-check.ts` are the
-  **sanctioned composers of both**: `command` is the only type that reaches `roots-engine` and
-  `roots-store` (`:61`). The landed shape is exactly this — `cli/roots.ts` imports 15 names from
-  `../roots/stores.js` and 9 from `../roots/index.js` — and R5 keeps it. **So `appendLedgerMarks`
-  and `snapshotContentHash` (T1) are reached from `../roots/stores.js`, never through `index.ts`**,
-  and D15's `keyOf` parameter is the same rule one module further in: `markKey` is engine-side and
-  travels as an argument.
+  **(5) THREE seams, and they may never be unified.** The landed tree has two — the engine's public
+  surface `src/roots/index.ts`, and the store's `src/roots/stores.ts` reached by its own deep path.
+  **R5 adds the third: `cli/roots/speech`'s four modules are their own public surface, reached by
+  their own deep paths (`../roots/verdict.js`, `../roots/speech.js`, `../roots/session-state.js`,
+  `../roots/health.js`), and the engine facade never carries one of their symbols.** So, whole:
 
-  **(6) `index.ts` grows, and the growth is a task deliverable.** `index.ts` today re-exports
-  exactly the nine names `cli/roots.ts` imports — `rootsConfigHash`, `runRootsIndex`,
-  `computeUsedGrammarSetHash`, `isMinedModel`, `resolveWalkMode`, `isWindowingActive` and the types
-  `MinedModel`, `WalkMode`, `HistoryProgressInfo` — and nothing else. R5's two command files reach
-  further, so **the task that lands an engine symbol a command file imports also adds it to
-  `index.ts` in that task's own graph ritual.** The whole list, so no task has to derive it:
+  | Seam | Entered through | Reached by |
+  | --- | --- | --- |
+  | engine (`cli/roots/engine`) | `../roots/index.js` — the facade, and only it | `src/cli/roots.ts`, `src/cli/roots-check.ts` |
+  | store (`cli/roots/stores`) | `../roots/stores.js` — its own deep path | the same two command files |
+  | speech (`cli/roots/speech`) | each module's own deep path | the same two command files |
+
+  **None of the three is a stylistic split, and each is forbidden from being folded into another for
+  its own reason.**
+  - **Store into engine — architecturally impossible.** `index.ts` is itself forced into the
+    `roots-engine` type by that type's file-pattern `when`, and `roots-engine` may not reach
+    `roots-store` in either direction (`yg-architecture.yaml:759`, `:774-777`), so an
+    `export … from './stores.js'` in `index.ts` is the forbidden edge —
+    `relation-undeclared-dependency` fired on a draft that tried it, which is why the file's own
+    header says so.
+  - **Speech into engine — legal in the type system and refused by this decision, which is the
+    distinction that has to be stated or the rule reads as arbitrary.** `cli/roots/speech` and
+    `cli/roots/engine` are both type `roots-engine`, and `roots-engine.calls` includes
+    `roots-engine` (`:759`), so `cli/roots/engine → cli/roots/speech` is *type*-legal — an
+    `export { evaluate } from './verdict.js'` in `index.ts` would not be
+    `relation-target-forbidden`. It would be an **undeclared dependency** until declared, and once
+    declared it would put an outbound edge on the one node the edge audit promises this increment
+    does not edit, and would arm the `structural-cycle` class the moment any speech file ever needed
+    an engine symbol back. Round 17 found exactly that shape: with `verdict.ts` importing
+    `isBooleanSurface`, a facade re-export of the speech surface closed the cycle three tasks after
+    T1's `checkNoCycles` had passed. Both halves are now closed — the back edge is gone (D7's
+    cancelled Δ) **and** the facade stays engine-only — because closing one alone leaves the other
+    free to re-create it.
+  - **Engine or speech into the store, or the store into either — the same architectural refusal as
+    the first bullet, from the other side.**
+
+  `src/cli/roots.ts` and `src/cli/roots-check.ts` are the **sanctioned composers of all three**:
+  `command` is the only type that reaches `roots-engine` and `roots-store` (`:61`), and both speech
+  and engine are `roots-engine`. The landed shape is the two-seam version of exactly this —
+  `cli/roots.ts` imports 15 names from `../roots/stores.js` and 9 from `../roots/index.js` — and R5
+  keeps it while adding the third. **So `appendLedgerMarks` and `snapshotContentHash` (T1) are
+  reached from `../roots/stores.js`, never through `index.ts`; `evaluate`, `channelFilter`,
+  `selectGoverningFact`, `render`, `applyBudgetsAndDedup`, `foldSession` and T8's aggregation entry
+  point are reached from their own modules, never through `index.ts`; and `routePartition`,
+  `surfacesForFile`, `resolveRolesForCheck` and `markKey` are reached through `index.ts` and never by
+  deep path.** D15's `keyOf` parameter is the same family of rule one module further in: `markKey` is
+  engine-side and travels as an argument rather than as an import the store may not make.
+  **The graph consequence, so the three seams are checkable and not merely described:** the speech
+  edge lands on `cli/commands/roots-check` and `cli/commands/roots` (both audit rows declare it), and
+  on no engine node. **The cost, stated rather than waved at, is that each command file carries
+  THREE import blocks where the two-seam shape gave it two** — tens of characters against
+  `roots-check.ts`'s ≈66 KB ceiling, and strictly *less* growth on `index.ts` than the rejected
+  shape, which would have put **nineteen** names on the facade across the increment (the four the
+  kept shape adds, plus seven speech values and the eight types beside them) rather than **four**.
+  What it buys is
+  `cli/roots/engine` an unedited `relations:` block and `cli/roots/speech` zero edges in either
+  direction.
+
+  **(6) `index.ts` grows by ENGINE symbols only, and the growth is a task deliverable.** `index.ts`
+  today re-exports exactly the nine names `cli/roots.ts` imports — `rootsConfigHash`,
+  `runRootsIndex`, `computeUsedGrammarSetHash`, `isMinedModel`, `resolveWalkMode`,
+  `isWindowingActive` and the types `MinedModel`, `WalkMode`, `HistoryProgressInfo` — and nothing
+  else. R5's two command files reach further, so **the task that lands a `cli/roots/engine` symbol a
+  command file imports also adds it to `index.ts` in that task's own graph ritual.** The whole list,
+  so no task has to derive it — **four names across three tasks, every one of them a file mapped by
+  `cli/roots/engine`**:
   - **T2** — `routePartition` (`exemplars.ts`, D5).
-  - **T3** — `surfacesForFile` and `resolveRolesForCheck` (`extract-file.ts`, D6); `evaluate`,
-    `channelFilter` and the exported D8 selector `selectGoverningFact` (`verdict.ts`); `render`
-    (`speech.ts`); and the types `VerdictInput`, `VerdictFact`, `EvaluatedScope`, `Finding`,
-    `Intents`, `OpenIntervention`, `Channel`, `Severity`.
-  - **T6** — `applyBudgetsAndDedup` and `foldSession` (`session-state.ts`).
+  - **T3** — `surfacesForFile` and `resolveRolesForCheck` (`extract-file.ts`, D6).
   - **T7** — `markKey` (`weights.ts`), which `roots-check.ts` passes to `appendLedgerMarks` (D15).
-  - **T8** — the aggregation entry point T8 exports from `health.ts`.
-  **Three names are deliberately NOT on that list**, each for a checkable reason:
-  `isBooleanSurface` (`mine-stages.ts`) is consumed by `verdict.ts` and by nothing in the command
-  layer — it is the edge audit's single `cli/roots/speech → cli/roots/engine` import, and D9's
-  projection copies fields rather than re-deriving Δ; `extractScopesForCheck` and
+
+  **What is deliberately NOT on that list, in two classes — and the second class is the round-17
+  correction, so it is stated as a rule rather than as three more names.**
+  **Class one: engine symbols the command layer does not import.** `isBooleanSurface`
+  (`mine-stages.ts`) is consumed by **`extract-file.ts`** — intra-node, for D6's sparse-boolean
+  domain read — and by nothing in the command layer, because D7's cancelled Δ leaves `verdict.ts`
+  with no boolean-versus-categorical distinction to make. `extractScopesForCheck` and
   `minimalFileScope` are reached only by `pipeline.ts`, `history.ts` and tests, all of which import
-  by deep path and keep doing so; and nothing from `stores.ts` may appear here at all (part 5). A
-  task that finds it needs a symbol this list omits adds it to `index.ts` and says so in its
-  report — extending the facade is ordinary work; reaching around it is not.
+  by deep path and keep doing so.
+  **Class two: everything outside `cli/roots/engine`, excluded by the seam rather than by name.**
+  Nothing from `stores.ts` may appear here at all, and **nothing from `cli/roots/speech` may either**
+  — `evaluate`, `channelFilter`, `selectGoverningFact`, `render`, `applyBudgetsAndDedup`,
+  `foldSession`, T8's aggregation entry point and every type declared in those four files reach the
+  command layer through their own modules (part 5's third seam). **This is the correction round 17
+  made and the reason it is a rule and not a list:** an earlier draft of this part put **all seven of
+  those values — plus the eight types beside them —** on the facade, which — because `index.ts` is mapped by `cli/roots/engine`
+  (`yg-node.yaml:229`) and a value `export … from` creates a relation edge
+  (`src/relations/extractors/typescript.ts:207-222`, which breaks out only for a whole-statement
+  `export type … from` and an all-inline-type clause) — would have declared
+  `cli/roots/engine → cli/roots/speech` into existence at T3, T6 and T8, against a `cli/roots/speech
+  → cli/roots/engine` edge the same document declared, i.e. a `structural-cycle` at T3's own gate.
+  **The test an implementer applies is one line: a symbol belongs on `index.ts` iff the file that
+  exports it is in `cli/roots/engine`'s `mapping:`.** A task that finds it needs an **engine** symbol
+  this list omits adds it to `index.ts` and says so in its report — extending the facade is ordinary
+  work; reaching around it is not, and neither is widening it past its node.
 
   **(7) The one planned import that is outside the allowlist, and how it lands.** T1 Step 2 routes
   `appendLedgerMarks`' write through `appendToDebugLog` (`src/io/debug-log-writer.ts`), the
@@ -2457,16 +2627,32 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   re-proposes them: routing the append through the already-allowlisted `atomicWriteFile` turns a
   one-line append into a whole-file rewrite of a **committed** file on the hook path and loses a
   concurrent append, which is worse for the one file R5-I8 adds; and `appendFileSync` from
-  `node:fs` is outside this check's scope but breaks `stores.ts`'s stated no-`node:fs` shape and
-  the chokepoint doctrine T1 Step 2 is written around. **No killer is needed for this one:** an
+  `node:fs` is outside this check's scope but breaks the chokepoint doctrine T1 Step 2 is written
+  around, and departs from `stores.ts`'s **observed** no-`node:fs` shape — measured at HEAD, that
+  file's only builtin import is `node:path` (`stores.ts:18`). **"Observed", not "stated", and the
+  one-word correction matters because the rejection was resting on an attribution the file does not
+  carry:** `stores.ts`'s header states the *engine/store* seam ("`roots-engine` files never import
+  this module …", `:12-15`) and says nothing about `node:fs`; `roots-store` carries no `no-direct-fs`
+  aspect either (`yg-architecture.yaml:768-771` lists exactly `source-no-raw-control-chars` and
+  `source-hygiene`), and `atomic-write-contract`'s glob does not bind the file (`check.mjs:19`),
+  which this plan correctly says at T1 Step 2. The rejection stands on the chokepoint-doctrine ground
+  the same sentence gives, which is the ground that was always doing the work. **No killer is needed
+  for this one:** an
   implementer who forgets the entry does not ship a silent defect — the gate refuses the file, with
   the aspect's own what/why/next naming the specifier.
 
   **(8) Growing the allowlist is a maintainer-flagged, reviewed edit — never an implementer's
   workaround.** The aspect declares `errs: over` precisely so a genuinely new, legitimate engine
   dependency is **flagged** rather than silently passed; the sanctioned route is a deliberate edit
-  to the aspect's own `check.mjs`, its `yg-aspect.yaml` description and the `errs census` row in
-  `.yggdrasil/aspects/README.md`, all three together. Because that edits a landed **rule** rather
+  to the aspect's own `check.mjs` and its `yg-aspect.yaml` description, **plus the `errs census` row
+  in `.yggdrasil/aspects/README.md` when — and only when — that row's own claim moves.** The
+  distinction is stated rather than left as "all three together", because for the entry part 7 lands
+  the row does not move at all: measured at HEAD it characterises the over-approximation and records
+  the two scope limits (a computed dynamic argument; re-export laundering) and **enumerates no
+  specifier and carries no count** (`README.md:227`), so a longer allowlist makes nothing in it
+  false. A widening that changed the *character* of the over-approximation — a new class of skipped
+  form, a second scope limit — would move it, and that is the case the three-part phrasing was
+  written for. Every such edit is re-read and confirmed either way. Because that edits a landed **rule** rather
   than source, it takes the same escalation shape this plan already gives an architecture edit: the
   implementer **STOPS and reports** the exact entry and the import that needs it, and the
   controller puts it to the maintainer before execution continues. Part 7's entry is pre-authorized
@@ -2478,9 +2664,11 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   T1's Files block creates three nodes ahead of the files that fill them. As written — "empty
   mapping until T3" — that step is **not executable**: `io/node-parser.ts:228` throws
   unconditionally on an empty mapping array (`mapping array must not be empty`), so the graph fails
-  to load and every later step of T1 is blocked. The mechanism that does work is one line up:
-  `parseMapping` returns `undefined` when the key is **absent** (`:218`), so a node that simply
-  omits `mapping:` loads normally. Proven live rather than reasoned: a probe node typed
+  to load and every later step of T1 is blocked. The mechanism that does work is **`parseMapping`'s
+  own first guard, `:219`** — `if (!rawMapping) return undefined;` — so a node that simply omits
+  `mapping:` loads normally. (`:218` is the function's declaration, nine lines above the throw, not
+  the guard the decision turns on; anchors measured at HEAD, and this file is untouched by the
+  boundary freeze, so a761dda and HEAD agree on it.) Proven live rather than reasoned: a probe node typed
   `roots-engine` under `cli/roots`, carrying a name, a description and a declared `calls` relation
   and **no `mapping:` key**, made `yg check` report `PASS 436 nodes` with the verified-pair count
   unchanged at 5281 — it contributes no pairs, no aspect subject and no coverage obligation, which
@@ -2552,10 +2740,15 @@ verdict logic, no message text, no command.
   `.yggdrasil/model/cli/roots/speech/yg-node.yaml`, `.yggdrasil/model/cli/commands/roots-check/yg-node.yaml`
   and `.yggdrasil/model/cli/tests/e2e/roots-verdict/yg-node.yaml`. **Not an empty mapping array:**
   `io/node-parser.ts:228` throws unconditionally on one, so `mapping: []` is a graph that will not
-  load, while an absent key parses to `undefined` (`:218`) and a mapping-less node checks clean and
+  load, while an absent key parses to `undefined` at `parseMapping`'s own first guard (`:219`) and a mapping-less node checks clean and
   contributes no pair (D27 part 9 carries the live proof). Each carries its `name`, `type`,
   `description` and its intended `relations:` — declared **bare**, since a `consumes:` list on a
-  target with no ports is a blocking `consumes-without-ports` error — and the task that lands each
+  target with no ports is a blocking `consumes-without-ports` error. **For `cli/roots/speech` the
+  intended `relations:` is empty and stays empty: write `relations: []` and nothing else.** That is
+  the design lock this node exists for as much as its type is (the authorization section and D27
+  part 5 derive why zero edges in either direction is load-bearing), and it is the one of the three
+  whose shape differs from part 9's live probe — Step 1 verifies a `relations: []`, mapping-less node
+  loads and checks clean before the rest of T1 proceeds. And the task that lands each
   node's first file adds the mapping in its own graph ritual: **T2** for `cli/tests/e2e/roots-verdict`
   (`unmapped-files` is blocking under `coverage.required: ["/"]`, `.yggdrasil/yg-config.yaml:9`, so
   the node must exist by the time that file does), **T3** for the other two.
@@ -2781,7 +2974,25 @@ export function snapshotContentHash(body: unknown): string;                     
   (`src/core/checks/relations.ts:73`), the one architecture check the rest of this list does not
   perform, and the one that the increment's own node design can break without touching
   `yg-architecture.yaml` at all — and the fan-out leaderboard pin. **STOP and report a dictated minimal
-  `yg-architecture.yaml` block if any row is false.** Also verify, do not assume, that
+  `yg-architecture.yaml` block if any row is false.**
+  **Two things this run cannot see, and what the step does about each instead of leaving them to a
+  later gate.** *(a) The edges that only arrive at T2-T8.* `checkNoCycles` reads the design-locked
+  set, so the post-T8 set is reasoned off the edge audit rather than run — and the report states the
+  property that table asserts about itself: every edge points command → engine/speech/store → io, one
+  direction only; `cli/roots/speech` declares `relations: []` and is a target only from
+  `cli/commands/*` rows; and **no node this increment edits gains an edge into `cli/roots/speech`**,
+  `cli/roots/engine` included, which is what D27 part 5's third seam exists to keep true. Round 17's
+  blocking defect was a cycle the plan declared into existence three tasks *after* this run passed,
+  so writing the property down here is the only place it can be checked before the fact.
+  *(b) A design-lock node carrying `relations: []`.* D27 part 9's live probe used a node with a
+  **declared `calls` relation** and no `mapping:`; `cli/roots/speech` now has neither. Verify — do
+  not assume — that the graph loads and `yg check` still reports PASS with the verified-pair count
+  unchanged for a node with `name`, `type`, `description`, **`relations: []`** and no `mapping:`.
+  It should: `parseRelations` returns `[]` for an absent or empty key (`io/node-parser.ts:121`),
+  `parseMapping` returns `undefined` for an absent one (`:219`), every deterministic checker iterates
+  an empty `ctx.files`, and no relation means no edge to check. If it does not, **STOP and report** —
+  the fallback is a bare `relations:` block on the node, never an invented edge.
+  Also verify, do not assume, that
   `YGGDRASIL_GITIGNORE_LINES` already carries `roots/.state/`
   (`src/cli/init-scaffold.ts:143`, `:147`) — this increment is the first to write there, and a
   missing entry would commit an adopter's local telemetry.
@@ -2792,8 +3003,11 @@ export function snapshotContentHash(body: unknown): string;                     
   `demotions.json`, the incident FIFO trim and the telemetry compaction are whole-file writes and go
   through `atomicWriteFile`. `appendLedgerMarks` lives in `src/roots/stores.ts`, which the aspect
   does **not** bind (its glob is `**/src/io/*.ts`, `check.mjs:19`) — it still routes through
-  `appendToDebugLog` rather than importing `node:fs`, both to keep that file's stated no-`node:fs`
-  shape and so the ledger's append has the same single chokepoint as everything else. Read
+  `appendToDebugLog` rather than importing `node:fs`, so the ledger's append has the same single
+  chokepoint as everything else, and so `stores.ts` keeps the **observed** no-`node:fs` shape it has
+  today (its only builtin import is `node:path`, `stores.ts:18`). *Observed, not stated:* no aspect
+  and no header sentence imposes it on this file, so it is a property worth preserving rather than a
+  rule being obeyed, and the chokepoint is the reason that carries weight (D27 part 7). Read
   `RAW_WRITE_FNS` (`check.mjs:4`) before reaching for any `node:fs` writer.
   **That one import is this increment's only planned crossing outside the frozen boundary, and it
   lands here with it (D27 part 7).** `stores.ts` does not import `debug-log-writer` today —
@@ -2802,11 +3016,38 @@ export function snapshotContentHash(body: unknown): string;                     
   allowlist, so writing the append without the allowlist entry fails this task's own
   `check --approve --only-deterministic` gate with the aspect naming the specifier. So this step
   also lands **one** allowlist entry, `io/debug-log-writer`, as the single reviewed edit D27 part 8
-  pre-authorizes: `ALLOWED_RESOLVED` in
-  `.yggdrasil/aspects/roots-import-boundary/check.mjs`, the inline list in that check's own
-  violation message, the aspect's `yg-aspect.yaml` description (which claims the allowlist *is* the
-  core's real surface, so it must stay literally true), and the `errs census` row in
-  `.yggdrasil/aspects/README.md` — all four together, or the description starts lying. Nothing else
+  pre-authorizes. **Four sites enumerate or count the allowlist and all four move together, or the
+  rule starts describing a check it no longer is** — and each is named with what changes in it,
+  because three of the four are in one file and a find-and-replace on the set alone leaves two of
+  them lying:
+  1. **`ALLOWED_RESOLVED`** — the `Set` itself (`.yggdrasil/aspects/roots-import-boundary/check.mjs`,
+     the thirteen string literals): one entry added.
+  2. **The `THE ALLOWLIST` doc-comment directly above that set** (same file): it states the count
+     ("13 specifiers") and the "nothing reserved, nothing aspirational" claim — the count moves to
+     **14** and the claim must stay true of the new entry, which it is (`stores.ts` imports it as of
+     this step).
+  3. **The violation message's inline list** (same file, inside the `report(...)` call): the message
+     names all thirteen to an agent, so the fourteenth joins it or the diagnostic tells the reader
+     the truth minus one.
+  4. **The aspect's `yg-aspect.yaml` description**: it carries both the thirteen names and the
+     "13 specifiers" count, and it claims the allowlist *is* the core's real external surface — so it
+     must stay literally true.
+
+  **A fifth site is deliberately NOT on that list, and the reason is stated so the step does not send
+  an implementer hunting for text that is not there:** the `errs census` row in
+  `.yggdrasil/aspects/README.md` (`:227`) is a single line about `errs: over` and the check's two
+  scope limits (a computed/interpolated dynamic argument; re-export laundering). It **enumerates no
+  specifier and carries no count**, so a longer allowlist makes nothing in it false. **Re-read it and
+  confirm it still holds; do not edit it** — an earlier draft of this step mandated it as a fourth
+  edit "or the description starts lying", which is false of that one site and is exactly the kind of
+  instruction an implementer satisfies by inventing a change. (D27 part 8 carries the general rule:
+  that row moves when the *character* of the over-approximation moves, not when the list lengthens.)
+  **And one paragraph in each of the two files this step edits is deliberately NOT touched here:**
+  THE CORE's own literal seventeen-name enumeration, in the `yg-aspect.yaml` description and again in
+  `check.mjs`'s header comment. This task adds no `src/roots/` file, so that enumeration is still
+  true at the end of it; **T2 is what falsifies it** (`exemplars.ts` takes THE CORE to eighteen) and
+  **T2 owns de-enumerating it**, in T2's own Files block and Step 7. Leave it exactly as it is.
+  Nothing else
   about the aspect moves: **no `review_by` edit, no `yg-suppress`, no new drill needed** (the
   landed six already cover the check's own behaviour), and no second entry. Any *other* import a
   task finds itself wanting from a core file is a **STOP and report**, never a second widening.
@@ -3170,6 +3411,19 @@ access to.
 
 **Files.**
 - Create `source/cli/src/roots/exemplars.ts`.
+- Edit `.yggdrasil/aspects/roots-import-boundary/yg-aspect.yaml`'s `description:` **and that aspect's
+  `check.mjs` header comment** — delete THE CORE's literal seventeen-name enumeration from both,
+  keeping the clause each already carries beside it ("exactly the `roots-engine` and `roots-store`
+  nodes' own mapped files"). Listed as a file of this task because **this task's own mapping line is
+  what makes the enumeration false** — `exemplars.ts` takes THE CORE to eighteen — and because the
+  graph-ritual bullet covers mappings, relations, ceilings and log entries and is silent about
+  descriptions, which is exactly why T2 already tracks `mine.ts:155-160`'s "STRUCTURALLY ABSENT"
+  comment as a sixteenth site and T3 tracks `cli/tests/support`'s enumerating description. Step 7
+  carries the wording, the reason it is not part 8's escalation, and why T3 then needs no further
+  edit to either site. **T1 already edited both files and this is not a redo:** T1 Step 2's four
+  sites are the *allowlist*'s names and count — a different sentence of the same `description:`
+  block scalar, and a different region of `check.mjs` — and that step is told explicitly to leave
+  THE CORE's enumeration alone. Two tasks edit one field, in two places, for two reasons.
 - Edit `source/cli/src/roots/index.ts` — re-export **`routePartition`** (D27 part 6). It is the
   first engine symbol this increment adds that a command file imports (`src/cli/roots-check.ts` at
   T3, `src/cli/roots.ts` at T8), and the CLI layer enters the engine through this facade only.
@@ -3299,9 +3553,37 @@ access to.
   aspect has no margin and is simply absent from the report**, which is a legitimate outcome, not a
   measurement failure.
 - [ ] **Step 7: Graph ritual + report** — `exemplars.ts` joins **`cli/roots/engine`'s** mapping
-  (**not** `roots/speech`'s: it is index-time code called by `mine()`, and mapping it to `speech`
-  would close a `structural-cycle` — the authorization section derives it), log entries on every
-  log-gated node touched, and the report states that `checkNoCycles` is clean.
+  (**not** `roots/speech`'s: it is index-time production code called by `mine()`, and the
+  authorization section derives the three grounds — the engine facade could not carry
+  `routePartition` out of a speech node, `cli/roots/speech` at zero outbound edges is a load-bearing
+  property, and an `engine → speech` edge re-arms the cycle class), log entries on every log-gated
+  node touched, and the report states that `checkNoCycles` is clean.
+  **This step also owns THE CORE's two enumerating descriptions, because this task is what
+  falsifies them.** `roots-import-boundary`'s own statement of what it binds is written as a literal
+  seventeen-name list — "THE CORE — `src/roots/{binding,extract,…,model,index}.ts`, **exactly the
+  roots-engine and roots-store nodes' own mapped files**" — and this task's mapping line makes THE
+  CORE eighteen files. R5 takes it to **23** (T3 adds `extract-file.ts` plus the `cli/roots/speech`
+  quartet, all fenced the moment they are mapped, D27 part 2), so the sentence stops naming either
+  seventeen files or those nodes' mapped files. **The fix is a deletion, not a rewrite, and it is why
+  this costs one edit and not one per future roots file:** drop the brace-list and keep the clause
+  that follows it, which the description already carries and which stays true forever — THE CORE is
+  *exactly the `roots-engine` and `roots-store` nodes' own mapped files*. Two sites, verbatim the
+  same enumeration:
+  - `.yggdrasil/aspects/roots-import-boundary/yg-aspect.yaml`'s `description:` — the one `yg context`
+    prints to every agent working in this tree, which is why it must stay literally true;
+  - that aspect's `check.mjs` **header comment**, whose "so in production `ctx.files` here is exactly
+    those two nodes' own mapped files — THE CORE (binding, extract, … index)" carries the identical
+    parenthetical. T1 Step 2 already edits this file for the allowlist entry and is told not to touch
+    this paragraph; **it is T2's, because T2 is what makes it false.**
+
+  **This is not part 8's escalation and the difference is stated so it is not escalated by reflex:**
+  no allowlist entry is added, no `check()` behaviour changes, no drill moves and no `review_by` is
+  touched — the edit deletes an enumeration that has gone stale and leaves the rule saying what it
+  already said. It is AGENTS.md's reflect-changes-in-documentation obligation applied to a rule's own
+  description, i.e. ordinary graph-ritual work, and the report says it was done. **After it, T3 needs
+  no further edit to either site** even though T3 takes THE CORE from 18 to 23 — which is the whole
+  point of de-enumerating at the first task that breaks it. Prompt cost: the edit only *removes*
+  characters from both files and adds none, so no assembled prompt can grow and no ceiling can move.
 
 **Acceptance criteria — hand-derivable on the landed goldens.**
 1. On the TypeScript golden, a named `_all` boolean fact carries exactly 3 exemplars, each of which
@@ -3481,16 +3763,38 @@ sticky rule (`:345`), §8.9 (`:356-358`), §8.10 (`:360-362`), §11.1 (`:505-527
   that node's own documentation. **Prompt cost: nil** — node `description:` text is excluded from
   the assembled reviewer prompt (`src/llm/prompt.ts:179-181`, the same anchor the node list above
   cites).
-- Edit `source/cli/src/roots/index.ts` — re-export what this task's command file imports from the
-  engine (D27 part 6): `surfacesForFile` and `resolveRolesForCheck` (`extract-file.ts`), `evaluate`,
-  `channelFilter` and `selectGoverningFact` (`verdict.ts`), `render` (`speech.ts`), and the types
-  `VerdictInput`, `VerdictFact`, `EvaluatedScope`, `Finding`, `Intents`, `OpenIntervention`,
-  `Channel`, `Severity`. **`isBooleanSurface`, `extractScopesForCheck` and `minimalFileScope` are
-  deliberately not added** — the first is `verdict.ts`'s own intra-tree import and the other two are
-  reached only by `pipeline.ts`, `history.ts` and tests, all by deep path.
+- Edit `source/cli/src/roots/index.ts` — re-export the **two engine symbols** this task's command
+  file imports (D27 part 6): `surfacesForFile` and `resolveRolesForCheck`, both from
+  `extract-file.ts`, a `cli/roots/engine` file. **Nothing from `verdict.ts`, `speech.ts` or
+  `session-state.ts` goes on the facade — not `evaluate`, not `channelFilter`, not
+  `selectGoverningFact`, not `render`, and none of the types `VerdictInput`, `VerdictFact`,
+  `EvaluatedScope`, `Finding`, `Intents`, `OpenIntervention`, `Channel`, `Severity`.** Those files
+  are `cli/roots/speech`, `index.ts` is `cli/roots/engine` (`yg-node.yaml:229`), and a value
+  `export … from` creates a relation edge, so re-exporting them would put
+  `cli/roots/engine → cli/roots/speech` on a node this increment's edge audit promises is not
+  edited — D27 part 5's third seam, and the round-17 blocking defect it exists to prevent. The
+  command file imports them from their own modules instead. **`isBooleanSurface`,
+  `extractScopesForCheck` and `minimalFileScope` are also not added:** the first is
+  `extract-file.ts`'s own intra-node import for D6's sparse-boolean read and reaches no command file
+  (D7's cancelled Δ is why `verdict.ts` does not want it), and the other two are reached only by
+  `pipeline.ts`, `history.ts` and tests, all by deep path.
 - Create `source/cli/src/cli/roots-check.ts` (exactly one `registerRootsCheckCommand` export).
-  **It enters the engine through `../roots/index.js` and only through it**, and the store through
-  `../roots/stores.js` — the two seams of D27 part 5, which no later task may unify.
+  **It enters the engine through `../roots/index.js` and only through it, the store through
+  `../roots/stores.js`, and speech through `../roots/verdict.js` / `../roots/speech.js` /
+  `../roots/session-state.js` — the three seams of D27 part 5, which no later task may unify.**
+- **Edit `.yggdrasil/model/cli/roots/engine/yg-node.yaml`'s `description:`** — the clause
+  "index.ts is the public facade: cli/roots.ts (**the only CLI-layer composer of engine + store**)
+  now imports the names it actually consumes from here" (`:181-182`) goes false in this task, and it
+  is this task that falsifies it: `src/cli/roots-check.ts` is created here and imports from
+  `../roots/index.js` **and** `../roots/stores.js`, so there are two sanctioned composers from now
+  on, exactly as D27 part 5 says. Soften the parenthetical to name both rather than deleting it —
+  the sentence's point is that the composers are a closed, named set, and that stays true. Named in
+  this Files block for the same reason `cli/tests/support`'s description is, one bullet up: the
+  graph ritual is silent about node descriptions, and AGENTS.md's reflect-changes rule covers
+  `.yggdrasil/` metadata. **Prompt cost: nil** (`src/llm/prompt.ts:179-181`). *(THE CORE's own
+  enumeration in the boundary aspect's description and `check.mjs` header is a different pair of
+  sites with a different owner — T2, whose mapping line is what first falsifies it; after T2's
+  de-enumeration this task's five new fenced files need no further edit there.)*
 - Edit `source/cli/src/cli/roots.ts` — one line, calling the new registrar.
 - Create `source/cli/tests/unit/roots/extract-file.test.ts` (the gate-for-gate equivalence harness
   of Step 1 lives here — it is a `tests/unit/roots/*` file joining `cli/tests/unit/roots`, like every
@@ -3719,7 +4023,9 @@ rule would survive only in letter; (3) `classifyAgainstMedoids` returns a `roleI
 parallel array, so the engine would additionally carry a `medoidRoleKeys` array and the index→key
 mapping — a coupling with no test of its own. Resolution upstream costs one closure and buys a
 contract with no configuration in it. **The consequence for the graph is stated in the edge table:
-`cli/roots/speech` imports neither `buildRoleFeatureBag` nor `classifyAgainstMedoids`.**
+`cli/roots/speech` imports neither `buildRoleFeatureBag` nor `classifyAgainstMedoids` — and, after
+round 17 moved `isBooleanSurface` to `extract-file.ts` (D7), it imports nothing from
+`cli/roots/engine` at all, which is what leaves that node with `relations: []`.**
 
 **Steps.**
 - [ ] **Step 1: Land `extract-file.ts`, then prove R5-I6 before building on it.** Write
@@ -3845,7 +4151,15 @@ contract with no configuration in it. **The consequence for the graph is stated 
   would be dead. Note the closure is driven **once per `(scope, surface)` pair over the governing
   fact**, not once per candidate fact (T7 Step 1) — the ladder below it is per governing fact for
   the same reason.
-- [ ] **Step 5: Δ, severity, channel.** D7's posteriors; severity as D9's **composed** rule
+- [ ] **Step 5: Δ, severity, channel.** D7's Δ, computed in the **cancelled form
+  `log2((n_e + ½)/(n_v + ½))`** — not by building two posteriors and dividing them. D7 derives why
+  and it is a rule rather than an optimisation: both posteriors are taken over the same fact, so the
+  KT denominator `n_eff + K/2` is identical in numerator and denominator and divides out, which means
+  `evaluate` needs `counts[expected]` and `counts[observed]` (absent ⇒ 0) and needs **no `n_eff`, no
+  `K`, and therefore no `isBooleanSurface`** — the import that would otherwise put a
+  `cli/roots/speech → cli/roots/engine` edge on this file (D27 part 5). Novelty is still the
+  `alphabet` membership test, unchanged, and `⊥` is just the `n_v = 0` case of the same expression
+  (`Δ = log2(2·n_e + 1)`, Appendix E.1). Severity as D9's **composed** rule
   `(denyEligible && !novel) ? DENY : WARN` — one expression, both conjuncts, because §9.7's "a
   never-seen value is never denied" (`v6-spec.md:440`) is binding and is invisible if the novelty
   cap lives in a comment; `channelFilter` as a pure total function of `(channel, severity)`
@@ -4048,7 +4362,11 @@ contract with no configuration in it. **The consequence for the graph is stated 
 - [ ] **Step 9: Graph ritual + report.**
 
 **Acceptance criteria — the arithmetic, by value, at the §4.5 defaults.**
-Every row below is a unit test whose numbers appear in a comment. `p̂(v) = (n_v + ½)/(n_eff + K/2)`.
+Every row below is a unit test whose numbers appear in a comment. Each Δ is written in §9.3's own
+posterior form, `p̂(v) = (n_v + ½)/(n_eff + K/2)`, so the arithmetic is checkable against the spec —
+**and every one of them reduces to `log2((n_e + ½)/(n_v + ½))`, which is what Step 5 actually
+computes** (D7: the shared denominator cancels, so `K` never enters a result). The two forms give the
+same number on every row; the table states the first and the code computes the second.
 
 | Fact | K | Δ | τ | Fires? |
 | --- | --- | --- | --- | --- |
@@ -4775,10 +5093,16 @@ session-identity ladder (`integration-design.md:329-334`), §12's "sessions as a
 logs" row (`:466`).
 
 **Files.** Create `source/cli/src/roots/session-state.ts`; edit `verdict.ts`/`roots-check.ts` to
-route findings through it; **edit `source/cli/src/roots/index.ts` — re-export `applyBudgetsAndDedup`
-and `foldSession`** (D27 part 6: both are called from the command layer, `foldSession` from both
-command files); create `source/cli/tests/unit/roots/session-state.test.ts`; create
+route findings through it; create `source/cli/tests/unit/roots/session-state.test.ts`; create
 `source/cli/tests/e2e/cli-roots-check-budgets.test.ts`.
+**`source/cli/src/roots/index.ts` is NOT edited by this task, and the non-edit is listed because an
+earlier draft of this plan edited it here.** `applyBudgetsAndDedup` and `foldSession` are both called
+from the command layer (`foldSession` from both command files), but `session-state.ts` is mapped by
+**`cli/roots/speech`**, and the facade is mapped by `cli/roots/engine` — so re-exporting them would
+create `cli/roots/engine → cli/roots/speech`, the edge D27 part 5's third seam exists to prevent and
+the one round 17 found closing a cycle. Both command files import them from
+**`../roots/session-state.js`** directly; the edge lands on `cli/commands/roots-check` and
+`cli/commands/roots`, where the audit already declares it.
 
 **Steps.**
 - [ ] **Step 1: The fold.** `foldSession(events, sessionId) → { warnCount, dedupKeys, openInterventions,
@@ -5096,8 +5420,12 @@ implementer reads.
 **Files.** Edit `verdict.ts` (the closure hook T3 left in place), `roots-check.ts` (applying
 intents); **edit `source/cli/src/roots/index.ts` — re-export `markKey`** (`weights.ts`), the one
 engine symbol D15's `appendLedgerMarks(yggRoot, marks, keyOf)` seam requires the command layer to
-hold, reached through the facade while `appendLedgerMarks` itself comes from `../roots/stores.js`
-(D27 parts 5 and 6); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
+hold, and **the last symbol this increment adds to the facade** (D27 part 6's list is four names
+across T2, T3 and this task, every one of them from a `cli/roots/engine` file — `weights.ts` is
+mapped there, which is what makes this re-export legal where `session-state.ts`'s and `health.ts`'s
+would not be). It is reached through the facade while `appendLedgerMarks` itself comes from
+`../roots/stores.js` and the closure's own stages come from `../roots/verdict.js` — all three of
+D27 part 5's seams, composed in one file; create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
 `source/cli/tests/unit/roots/ledger-release-roundtrip.test.ts` (criterion 7 — a **new sibling**
 rather than a section of `verdict-closure.test.ts`, whose subject is the closure fold, not the
 R4/R5 ledger seam; it joins `cli/tests/unit/roots`, which already declares
@@ -5435,10 +5763,16 @@ transaction.
 two-sided, **fixed**), Appendix E.7 (`:922`); design §12's "per-fact expected-flip filter plus the
 cross-session closure pass in demotion pooling" row (`integration-design.md:447-448`).
 
-**Files.** Create `source/cli/src/roots/health.ts`; **edit `source/cli/src/roots/index.ts` — re-export
-this task's aggregation entry point from `health.ts`** (D27 part 6; `src/cli/roots.ts` calls it on
-both the `index` and the `status` path, and it is the last engine symbol this increment adds to the
-facade); edit `src/cli/roots.ts` (the `index` action, to
+**Files.** Create `source/cli/src/roots/health.ts`. **`source/cli/src/roots/index.ts` is NOT edited
+by this task, and the non-edit is listed because an earlier draft of this plan edited it here.**
+`src/cli/roots.ts` calls this task's aggregation entry point on both the `index` and the `status`
+path — but `health.ts` is mapped by **`cli/roots/speech`** and the facade by `cli/roots/engine`, so
+a re-export would create `cli/roots/engine → cli/roots/speech`: D27 part 5's third seam, and the
+round-17 blocking defect. `src/cli/roots.ts` imports it from **`../roots/health.js`** directly, as it
+does `foldSession` from `../roots/session-state.js` and `selectGoverningFact` from
+`../roots/verdict.js` — the three calls that make the audit's `cli/commands/roots → cli/roots/speech`
+edge real. **The last symbol this increment adds to the facade is T7's `markKey`**, not this one.
+Also edit `src/cli/roots.ts` (the `index` action, to
 compute `snapshotContentHash(model.body)`, **build D26's two lookups — `resolveFact` from the loaded
 body, `currentValue` by re-enumerating the files the ended sessions' open interventions name** —
 and run the aggregation with them **after R4's D13
@@ -5462,11 +5796,17 @@ with `readSessionEvents`, reads `telemetry.jsonl`, and passes in **six things an
    the command layer from the loaded `model.body`: `routePartition` (D5) over `id.relPath`, then
    `assignments[id.skeyR]`, then **`verdict.ts`'s exported D8 selector** — one implementation, called
    over the loaded body's own `MinedFact`s rather than over a `VerdictFact` projection (D26) —
-   restricted to `id.surface` and `appliesKind === id.scopeKind`. **Both of those symbols, and
-   `surfacesForFile` for input 6, reach `src/cli/roots.ts` through `../roots/index.js`** — the one
-   engine seam (D27 part 5), which T2, T3 and this task grow in turn; `snapshotContentHash` above
-   comes from `../roots/stores.js`, the other seam, exactly as `cli/roots.ts`'s landed store imports
-   already do. `null` means the identity does not
+   restricted to `id.surface` and `appliesKind === id.scopeKind`. **Those three symbols reach
+   `src/cli/roots.ts` through all THREE of D27 part 5's seams, and which one carries which is fixed
+   by the node its file is mapped to — not by which of them happens to be convenient:**
+   `routePartition` (`exemplars.ts`) and `surfacesForFile` for input 6 (`extract-file.ts`) are
+   `cli/roots/engine` files and come through **`../roots/index.js`**, the engine facade, which T2, T3
+   and T7 grow in turn (this task grows it by nothing); **`selectGoverningFact` (`verdict.ts`) is a
+   `cli/roots/speech` file and comes from `../roots/verdict.js` directly**, because the facade is
+   itself `cli/roots/engine` and may not re-export it; and `snapshotContentHash` above comes from
+   **`../roots/stores.js`**, exactly as `cli/roots.ts`'s landed store imports already do. `foldSession`
+   (`../roots/session-state.js`, for input 1's folds) and this task's aggregation entry point
+   (`../roots/health.js`) take the same speech seam. `null` means the identity does not
    resolve: for Step 1 that is a row that pools nowhere, for Step 2 an intervention no fact governs
    any more, which Step 2 treats as **gone**.
    **It is typed over the identity tuple rather than over a telemetry row because both callers hold
@@ -7084,8 +7424,11 @@ evidence stated inline (B1's `types`-node option).
   validator calls it unconditionally (`validator.ts:192`). The two edges were both mandated by the
   plan: `mine.ts` (`cli/roots/engine`) **calls** `exemplars.ts`, which T2 mapped to
   `cli/roots/speech`; and `verdict.ts` (`cli/roots/speech`) **calls** `isBooleanSurface` from
-  `mine-stages.ts` (`cli/roots/engine`) per D7. **Fixed by mapping `exemplars.ts` into
-  `cli/roots/engine`** — it is index-time code that runs inside `mine()`, `routePartition` stays
+  `mine-stages.ts` (`cli/roots/engine`) per D7. *(The second of those two edges is **retired by
+  round 17**: D7's Δ is computed in its cancelled form, so `verdict.ts` takes no such import and
+  `cli/roots/speech` declares `relations: []`. The mapping fix below stands, on the three grounds the
+  authorization section now states; what no longer holds is "it would be a cycle" as its reason.)*
+  **Fixed by mapping `exemplars.ts` into `cli/roots/engine`** — it is index-time code that runs inside `mine()`, `routePartition` stays
   reachable from the command layer as `command → roots-engine`, and `roots/speech` is left with one
   outbound edge and no back edge. Beyond the one fix, the authorization section now carries a
   **full new-edge audit table** for every node this increment creates or edits (speech, engine,
@@ -7617,7 +7960,9 @@ named. **Eleven pairs checked, two defects found:**
 - *`VerdictInput` × the command layer (`decorativeRoles`, `demoted`, `openInterventions`)* — all
   three are still command-produced sets; M1 moved a *lookup* upstream, not a set. ✓
 - *`VerdictInput` × the edge table* — speech's only remaining engine import is `isBooleanSurface`;
-  `isDecorativeRole` moved to the command layer with the set it builds. ✓
+  `isDecorativeRole` moved to the command layer with the set it builds. ✓ *(Corrected in place by
+  round 17: that last import is gone too — D7's cancelled Δ needs no boolean-versus-categorical
+  distinction, so `cli/roots/speech` now imports nothing from `cli/roots/engine` at all.)*
 - *gate −1 matrix × positional/dirty-set source* — unchanged behavior; the matrix's first row is the
   pre-existing rule, so criterion 15 and MR-14d still hold. ✓
 - *gate −1 matrix × `--content`/`--as`* — `p` existence-only, `q` everything-but-existence; T5
@@ -9611,14 +9956,20 @@ places that must move together (`ALLOWED_RESOLVED`, the violation message's inli
 aspect's description, the `errs census` row), under the same maintainer escalation an architecture
 edit gets. Both alternatives are recorded as rejected with their costs: `atomicWriteFile` turns a
 one-line append into a whole-file rewrite of a **committed** file on the hook path, and
-`appendFileSync` from `node:fs` breaks `stores.ts`'s stated no-`node:fs` shape. No killer is owed —
+`appendFileSync` from `node:fs` breaks `stores.ts`'s stated no-`node:fs` shape. *(Corrected in place
+by round 17, the way round 12 corrected round 11's anchors: that shape is **observed**, not stated —
+`stores.ts`'s header states the engine/store seam and says nothing about `node:fs`, and no aspect
+imposes it. D27 part 7 now rests the rejection on the chokepoint doctrine, which is the ground that
+was always doing the work.)* No killer is owed —
 an implementer who forgets the entry gets the gate's refusal, not a silent defect.
 
 **The eighth item, which is not about the boundary at all and would have blocked T1 outright
 (D27 part 9).** T1 creates three graph nodes as a design lock "with an empty mapping until T3".
 That is not loadable: `io/node-parser.ts:228` throws unconditionally on an empty mapping array. The
-mechanism that works is one line up — `parseMapping` returns `undefined` when the key is **absent**
-(`:218`) — and it was proven with a live probe rather than reasoned: a node typed `roots-engine`
+mechanism that works is `parseMapping`'s own first guard — it returns `undefined` when the key is
+**absent** (`:219`) — and it was proven with a live probe rather than reasoned:
+*(anchor and phrasing corrected in place by round 17: `:218` is the function's declaration, nine
+lines above the throw rather than one, so "one line up" described a gap that is not there.)* a node typed `roots-engine`
 under `cli/roots`, carrying a name, a description and a declared `calls` relation and **no
 `mapping:` key**, made `yg check` report `PASS 436 nodes` with the verified-pair count unchanged at
 **5281**. So the three nodes are created without a `mapping:` key and the task that lands each
@@ -9638,7 +9989,8 @@ follows, including the one that will bite — **a green lint is not a green boun
 aspect refuses it, and plain `yg check` never runs a deterministic checker; the two-seam truth
 (engine via `index.ts`, store via `stores.ts`'s own deep path, `index.ts` forbidden from
 re-exporting the store because it is itself `roots-engine`, both composed only by the two command
-files — the landed `cli/roots.ts` imports 15 store names and 9 engine names and R5 keeps that
+files — *round 17 makes this the **three**-seam truth: `cli/roots/speech`'s four modules are their
+own surface, for the mirror-image reason, and part 6's per-task list is engine symbols only* — the landed `cli/roots.ts` imports 15 store names and 9 engine names and R5 keeps that
 shape); the `index.ts` growth as a per-task deliverable, enumerated by task with three names named
 as deliberately absent; and the flag-to-maintainer rule for any other crossing. `formatters/
 message-builder` is named as not merely un-allowlisted but architecturally illegal for both roots
@@ -9757,6 +10109,252 @@ Steps 2/8, T8 criterion 4) resolves; **zero dangling in all three classes.**
   repo's count, so a moving baseline costs it nothing: round 10's M2 working as designed. ✓
 - *part 10's `review_by` × the "PASS with zero warnings" gate rule* — the one place the horizon
   actually bites, and the reason OQ4 exists rather than a note. ✓
+
+### Round 17 — what the seventeenth adversarial review changed (1 blocking, 2 major, 3 minor)
+
+**The blocking defect was created by round 16b's own fold-in, and it re-created round 3's B1 by a
+different route — which makes it the second time this plan has closed a `structural-cycle` between
+`cli/roots/engine` and `cli/roots/speech`, and the first time it did so while carrying a section
+whose whole purpose is to prevent that.** D27 part 6 required `src/roots/index.ts` — a
+`cli/roots/engine` file — to **value**-re-export seven symbols from four `cli/roots/speech` files, at
+T3, T6 and T8. A value `export … from` creates a relation edge
+(`src/relations/extractors/typescript.ts:207-222`: it breaks out only for a whole-statement
+`export type … from` and for an all-inline-type clause), and the file's own landed header says so
+about itself, having had `relation-undeclared-dependency` fire on an earlier draft that re-exported
+the store. Against the `cli/roots/speech → cli/roots/engine` edge the plan's own audit declared, that
+is a cycle at T3's own gate — and the same document asserted, in the same table, that
+`cli/roots/engine` adds "none new at all" and that "nothing in `roots/engine` imports from
+`roots/speech`". Everything else the review re-derived held: D27's ten parts against the landed
+freeze, the six drills, the 13-entry allowlist, the normalization and dynamic-import handling, the
+cascade probe, `index.ts`'s nine exports, `stores.ts`'s three-specifier `../` surface, the six Δ
+rows, the eight Wilson figures, T9's completeness trio, both fixture sizings, criterion 8's margins,
+MR-12's cancellation, the five epoch constants, the live 1201 baseline with margins 657 / 660 / 849,
+R5's own 41 new pairs, the 82-MR set and all three cross-reference classes.
+
+**Blocking**
+
+- **B1 — the facade growth D27 part 6 mandates closes the cycle the authorization section exists to
+  prevent.** Fixed at **two** places rather than one, because closing either alone leaves the other
+  free to re-create the defect — which is exactly how round 3's fix decayed into this one.
+  - **The back edge is broken, and NOT by the reviewer's preferred remedy, which was checked and
+    found to carry a defect of the kind this plan refuses.** The review proposed moving boolean-ness
+    onto `VerdictFact` as a fifth non-copy projection field so `verdict.ts` could keep D7's
+    boolean-versus-categorical distinction without importing `isBooleanSurface` across the node
+    boundary. **Re-deriving D7's own arithmetic shows the field would have no observable consumer:**
+    `Δ = log2(p̂(expected)/p̂(observed))` takes both posteriors over the **same fact**, so the KT
+    denominator `n_eff + K/2` is identical top and bottom and divides out — `Δ = log2((n_e + ½)/(n_v
+    + ½))` for an in-alphabet value and `log2(2·n_e + 1)` for ⊥, which is Appendix E.1's identity and
+    precisely what MR-12 already rests on. **`K` is numerically inert in R5, so nothing in
+    `verdict.ts` could read that field to a different answer** — a projection field whose mutation
+    changes no observable, which is R5-I11's converse and the reason D8's decorative filter and T4's
+    fourth `{unit_plural}` arm were both deleted rather than carried. So the plan takes the smaller
+    and honest route instead: **`verdict.ts` computes the cancelled form and needs no `n_eff`, no
+    `K` and no `isBooleanSurface` at all.** D9 stays at **four** non-copy projection fields, with the
+    refused fifth recorded so no later round re-proposes it.
+    **The rule that import carried does not disappear — it moves to where it is observable.** "Never
+    by inspecting the alphabet's contents" decides a real outcome in D6's surface-value read
+    ("absent but in the surface's domain ⇒ `'false'` **for a boolean surface**"), which mirrors the
+    index's own landed line (`mine-stages.ts:221`) and is what R5-I6's value-for-value equivalence
+    requires. That read lives in `extract-file.ts`, which is **intra-node** with `mine-stages.ts`
+    (both `cli/roots/engine`), so the import costs no edge. Its categorical arm is recorded as owing
+    no killer, derived rather than skipped: `enumerate.ts`'s contract is that a categorical's domain
+    member always carries a value (`mine-stages.ts:222`'s landed defensive `continue`), so that state
+    is unreachable through the product. **`cli/roots/speech` now declares `relations: []`.**
+  - **The facade stays engine-only, and D27 part 5's "two seams" becomes the THREE-seam truth:**
+    engine via `../roots/index.js`, store via `../roots/stores.js`, **speech via its own four
+    modules**. The distinction between the seams is stated rather than left to read as arbitrary:
+    the store seam is *architecturally* forced (`roots-engine` may not reach `roots-store` in either
+    direction), while the speech seam is *type-legal and refused by this decision* — an
+    `export { evaluate } from './verdict.js'` in `index.ts` is not `relation-target-forbidden`, it is
+    an undeclared dependency that, once declared, puts an outbound edge on the one node the edge
+    audit promises is not edited and re-arms the cycle class for any future speech→engine import.
+    Part 6's per-task list is re-cut to **four names across three tasks** (T2 `routePartition`; T3
+    `surfacesForFile`, `resolveRolesForCheck`; T7 `markKey`), every one from a file mapped by
+    `cli/roots/engine`, with **T6's and T8's `index.ts` edits deleted outright** and recorded as
+    non-edits in their Files blocks. The "deliberately NOT on that list" section is re-cut into two
+    classes — three named engine symbols, and *everything outside `cli/roots/engine`, excluded by the
+    seam rather than by name* — and the implementer's test is one line: **a symbol belongs on the
+    facade iff the file that exports it is in `cli/roots/engine`'s `mapping:`.**
+  **Landed at twenty-nine sites, counted rather than asserted** (two of them shared with M1 below):
+  the authorization section's `exemplars.ts` bullet and its `cli/roots/speech` node bullet; **four**
+  edge-audit rows (`cli/roots/speech`, `cli/roots/engine`, `cli/commands/roots-check`,
+  `cli/commands/roots`); the note under the audit table; D6 twice (the surface-value read, and
+  `extract-file.ts`'s own import list); D7; D9; D15; D27's preamble and parts 1, 3, 5 and 6; the
+  Global constraints' graph-ritual bullet; T1's Files and Step 1; T3's Files twice (the `index.ts`
+  bullet and `roots-check.ts`'s seam sentence), Step 5, its acceptance-table header and its M1 note;
+  and T6's, T7's and T8's Files, plus T8's Files input 5. **No MR is added or retired,
+  and the count stays 82** — the new rule is killed by the graph rather than by vitest, in MR-4's and
+  MR-42's shape (a facade re-export of a speech symbol is `relation-undeclared-dependency` at that
+  task's own gate, or `structural-cycle` once declared), and a second copy in this plan would report
+  coverage `checkNoCycles` and the relation pass already have.
+  **One argument is retired rather than quietly weakened, because it was the authorization section's
+  own:** with the back edge gone, mapping `exemplars.ts` to `roots/speech` would close **no** cycle
+  today. The placement stands, on three surviving grounds now written out — the engine facade could
+  not carry `routePartition` out of a speech node; `cli/roots/speech` at zero outbound edges is a
+  load-bearing property rather than an accident; and an `engine → speech` edge re-arms the cycle
+  class the moment any future speech file needs an engine symbol.
+
+**Major**
+
+- **M1 (review's M2) — the audit's command-layer `→ cli/roots/speech` edges contradicted D27 part 6,
+  and `cli/commands/roots`' "10 → 13" was 10 → 12 under it.** Resolved by the same shape rather than
+  by moving the number: under the three-seam truth both command files name `cli/roots/speech`
+  modules directly, so the edges the audit declares are real and the count is right. **Re-derived
+  from scratch rather than defended:** measured at HEAD, `cli/commands/roots` declares exactly **10**
+  targets, and this increment adds `cli/commands/roots-check` (the registrar), `cli/io/roots-state`
+  (T8's telemetry/session reads and `demotions.json`, T10's `status`) and `cli/roots/speech` — 13.
+  The speech edge's **three** causes are now named in the row, because the count depends on them and
+  the old row justified it with one call that part 6 had routed through the facade:
+  `../roots/health.js` (T8's aggregation entry point), `../roots/session-state.js` (`foldSession`,
+  which the command layer applies per ended log) and `../roots/verdict.js` (`selectGoverningFact`,
+  which D26's `resolveFact` is built from). T8's Files block input 5 — which said all of them "reach
+  `src/cli/roots.ts` through `../roots/index.js` — the one engine seam" — now routes each symbol
+  through the seam its own node dictates. One authority table, one true count.
+- **M2 (review's M3) — three landed descriptions enumerate a surface R5 grows, and no task owned the
+  update.** Each is now assigned to the task whose change falsifies it, in that task's **Files block**
+  as well as its step, because the graph-ritual bullet covers mappings, relations, ceilings and log
+  entries and is silent about descriptions — which is exactly why round 13 had to write T3's
+  `cli/tests/support` obligation into its Files list.
+  - **THE CORE's literal seventeen-name list, in `roots-import-boundary`'s `yg-aspect.yaml`
+    description and again in its `check.mjs` header — owner T2**, derived rather than guessed: T2's
+    own mapping line (`exemplars.ts` joining `cli/roots/engine`) is what takes THE CORE to eighteen,
+    and T3 then takes it to 23. **The fix is a deletion, not a rewrite:** both texts already carry
+    "exactly the `roots-engine` and `roots-store` nodes' own mapped files" beside the enumeration, so
+    dropping the brace-list leaves the rule saying what it already said and stops it going stale at
+    every future roots file — after which **T3 needs no further edit to either site**. Recorded as
+    **not** part 8's escalation (no allowlist entry, no `check()` change, no drill, no `review_by`)
+    and as not colliding with T1 Step 2, which edits the *allowlist*'s names and count in a different
+    sentence of the same block scalar and is now told explicitly to leave THE CORE alone.
+  - **`cli/roots/engine`'s node description — owner T3.** Its "index.ts is the public facade:
+    cli/roots.ts (**the only CLI-layer composer of engine + store**) now imports the names it
+    actually consumes from here" (`yg-node.yaml:181-182`) goes false when T3 creates
+    `src/cli/roots-check.ts`, the second sanctioned composer. Softened to name both rather than
+    deleted: the sentence's point is that the composers are a closed, named set, and that stays true.
+    Prompt cost nil (`src/llm/prompt.ts:179-181`).
+
+**Minor** — all 3 applied, each measured at HEAD before being acted on.
+**(1) `io/node-parser.ts:218` is the function declaration; the guard D27 part 9 rests on is `:219`.**
+Measured: `:218` is `function parseMapping(rawMapping: unknown, filePath: string)`, `:219` is
+`if (!rawMapping) return undefined;`, and `:228` is the empty-array throw — so "the mechanism that
+does work is **one line up**" described a **nine**-line gap. Corrected at D27 part 9 and T1's Files,
+with the anchor policy noted (this file is untouched by the freeze, so a761dda and HEAD agree), and
+**round 16b's changelog entry is corrected in place**, the treatment round 12 gave round 11's
+anchors.
+**(2) "`stores.ts`'s STATED no-`node:fs` shape" is not stated in `stores.ts`.** The landed header
+(`:12-15`) states the *engine/store* seam and says nothing about `node:fs`; `roots-store` carries no
+`no-direct-fs` aspect (`yg-architecture.yaml:768-771` is `source-no-raw-control-chars` +
+`source-hygiene`), and `atomic-write-contract`'s glob does not bind the file (`check.mjs:19`) — which
+this plan correctly says elsewhere. What is true is the **observed** shape: its only builtin import
+is `node:path` (`:18`). Corrected at D27 part 7 and T1 Step 2, with the rejection re-rested on the
+chokepoint doctrine the same sentence already gave — the ground that was always doing the work — and
+round 16b's changelog corrected in place.
+**(3) T1 Step 2's fourth mandated edit site had nothing to edit — and re-deriving it found a fifth
+that does.** The `errs census` row (`README.md:227`) characterises the `errs: over`
+over-approximation and records the check's two scope limits; it **enumerates no specifier and carries
+no count**, so `io/debug-log-writer` makes nothing in it false and "all four together, or the
+description starts lying" was false of that one site — the shape an implementer satisfies by
+inventing a change. Re-derived from the two files: **four sites do change** — `ALLOWED_RESOLVED`, the
+`THE ALLOWLIST` doc-comment directly above it (which carries the count, "13 specifiers"), the
+violation message's inline list, and the aspect's `yg-aspect.yaml` description (which carries both
+the names and the count) — three of them in one file, so a find-and-replace on the set alone leaves
+two lying. The census row is stated as **re-read and confirmed, not edited**. Fixed at all three
+restatement sites: the authorization section, T1 Step 2 and **D27 part 8**, whose general "all three
+together" phrasing carried the same wrong claim and is now scoped to when that row's own claim moves.
+
+**Not applied:** none of the six findings was rejected. **One remedy was replaced with a different
+one and the defect in the original is stated inline:** B1's preferred fix (boolean-ness as a fifth
+`VerdictFact` field) is refused because `K` cancels out of every Δ, so the field would have no
+observable consumer — R5-I11's converse — and the plan takes the cancellation itself as the fix,
+which needs no field, no projection step and no killer. **One finding was widened beyond what the
+review asked:** minor 3 asked for "three edits"; the count is **four** that change plus one that does
+not, and the fifth site — D27 part 8's general rule — was carrying the same defect one section over.
+
+**Sweep A (decisions vs restatements), scoped to round 17's touched decisions.** D7's cancelled Δ →
+D6's surface-value read and `extract-file.ts` import list, D9's refused fifth field, the edge audit's
+speech and engine rows, T3 Step 5, T3's acceptance-table header, T3's M1 note, D27 part 6 ✓. The
+three-seam rule → D27 preamble/parts 1/3/5/6, the graph-ritual bullet, D15, the audit's two command
+rows and the speech row's back-edge column, T1's Files, T2's Files, T3's Files, T6/T7/T8's Files, T8's
+input 5 ✓. The description owners → D27 part 1, T1 Step 2, T2's Files and Step 7, T3's Files ✓. The
+allowlist edit sites → the authorization section, T1 Step 2, D27 part 8 ✓. **Three drifts found by
+this sweep and repaired, none review-flagged:** D27 part 3's own one-line seam rule still said
+"engine through `index.js` and the store through `stores.js`" with no third arm; D27's preamble said
+the CLI layer "enters the engine only through `src/roots/index.ts`" without saying the facade is a
+facade over *one node*, which is the whole of why speech needs its own seam; and D27 part 1 stated
+THE CORE's count as a flat 17 with no note that this increment moves it, which is the same class of
+staleness MAJOR-3 is about, one document in.
+
+**Sweep B (invariants/MRs vs tasks).** **MR ids: 82 live definitions, no duplicates, and every
+`MR-*` referenced in the task body is defined except `MR-32c`/`MR-32d` in their retirement notice** —
+re-checked mechanically. The arithmetic: **82 + 0 − 0 = 82**, and R5-I11's "(82 ids at present)" is
+unchanged; the round's one new rule is graph-killed rather than vitest-killed and deliberately gets
+no MR, for MR-42's own stated reason. **Full mechanical re-validation of all three reference
+classes** — qualified criterion refs, qualified step refs, and bare in-task `Step N` / `criterion N`,
+with previous-line joining so a wrapped reference is not a false positive: **zero dangling in all
+three.** The apparent hits are the documented classes (`T8 Step 2a`/`2b`, Step 2's labelled
+subsections; and a wrapped `T6 Step 1, criterion 2b`). **Counts touched, each re-derived rather than
+adjusted:** D27's seams **two → three**; part 6's per-task facade list **five tasks / ~16 names →
+three tasks / four names**; `cli/roots/speech`'s outbound edges **one → zero** and its block **one
+`calls` → `relations: []`**; THE CORE **17 → 18 (T2) → 23 (T3)**, now with an owner; the allowlist's
+moving sites **four including the census row → four excluding it, plus one confirmed unchanged**;
+`io/node-parser.ts` **`:218` → `:219`**. Unmoved and confirmed unmoved: **MRs 82**; D9's **four**
+non-copy projection fields (a fifth refused); the new-edge audit's **9** rows and
+`cli/commands/roots`' **10 → 13**; the six Δ rows and all eight Wilson figures (the cancelled form
+reproduces every one); D3's **three** added body fields; the **six** `--file` measuring sites; T2
+Step 1's **fifteen** landed assertion sites; T1's 9 steps / 14 criteria, T3's 10 steps and 16
+numbered / 15 live criteria; R5's **41** new LLM pairs and the **1201** baseline. R5-I4 ✓ (the
+cancelled Δ removes an import and adds no read; every `stat`, clock and config lookup stays in the
+command layer). R5-I5 ✓ (nothing added to the body). R5-I6 ✓ — **strengthened**: the boolean/
+categorical split now sits in the one module whose job is to reproduce the index's enumeration, next
+to the landed line it must match. R5-I7 ✓ (no config key). R5-I8 ✓ (no new committed path). R5-I9 ✓.
+R5-I11 ✓ (one rule deleted for being unobservable; no killer added or lost). R5-I12 ✓ (no new e2e
+file and no new criterion). R5-I16 ✓ (no repo-check step added or removed).
+
+**Interaction pass over the touched pairs. Fourteen pairs, three defects.**
+- *the cancelled Δ × MR-12* — MR-12 already asserted the cancellation to explain why its mutant moves
+  no Δ; the fix makes that the computed form, so the killer's premise and the code's shape are now
+  the same statement. ✓
+- *the cancelled Δ × T3's six Δ rows* — every row reproduces under either form, which is what makes
+  this a simplification and not a change; the table now states both forms and which one is computed. ✓
+- *the cancelled Δ × D6's sparse-boolean read* — the rule lands where it decides an outcome, and its
+  unreachable categorical arm is recorded as owing no killer. ✓
+- *the cancelled Δ × R5-I6 and T3 Step 1's harness* — the harness compares surface values against the
+  index, so the moved classification is inside what it already proves. ✓
+- *the cancelled Δ × D9's projection* — four fields, fifth refused with its arithmetic. ✓
+- *the third seam × D15's `markKey`* — `weights.ts` is engine, so `markKey` stays on the facade while
+  `appendLedgerMarks` and the closure's own stages take the other two seams: three seams composed in
+  one file, which D15 now says. ✓
+- *the third seam × `roots-check.ts`'s ≈66 KB ceiling* — **DEFECT (a cost claim that had flipped):**
+  round 16b's interaction line read "one import block instead of four deep paths is
+  neutral-to-smaller", which the three-seam shape makes wrong-way-round. The real cost is stated
+  instead — three import blocks where two were planned, tens of characters — together with the fact
+  that the facade grows by **four** names across the increment rather than the **nineteen** the
+  rejected shape would have put on it, so `index.ts`'s own margin is *better* off.
+- *the third seam × D27 part 9's design-lock nodes* — **DEFECT (an outcome nobody had checked):**
+  part 9's live probe used a node with a **declared `calls` relation** and no `mapping:`, and
+  `cli/roots/speech` now has neither. T1's Files fixes the shape (`relations: []`, explicitly, the
+  form the landed `scripts` node already uses) and **T1 Step 1 verifies it loads and checks clean
+  before the rest of T1 proceeds**, with the mechanism anchored (`parseRelations` returns `[]` for an
+  absent or empty key, `io/node-parser.ts:121`) and a STOP if it does not.
+- *the third seam × T1 Step 1's `checkNoCycles`* — the run still cannot see T2-T8's edges, so the
+  acyclicity claim is re-cut as a property the audit asserts **about itself** and the step reports:
+  one direction only, `cli/roots/speech` at `relations: []` and a target from `cli/commands/*` alone,
+  and no edge into it from any node this increment edits. A task needing one **STOPs**.
+- *the description owners × T1 Step 2's own edits to the same two files* — **DEFECT (unstated
+  composition):** two tasks now edit one `description:` field and one `check.mjs`, for two different
+  reasons, in two different sentences. Both ends now say which sentence is whose, and T1 Step 2 is
+  told explicitly to leave THE CORE's enumeration alone.
+- *the description owners × D27 part 8's escalation* — T2's edit adds no allowlist entry, changes no
+  `check()` behaviour, moves no drill and touches no `review_by`, so it is ordinary graph-ritual work
+  rather than a maintainer escalation. Stated at the step. ✓
+- *the corrected allowlist sites × D27 part 8's general rule* — both corrected in the same round, so
+  the specific instruction and the general one now agree about the census row. ✓
+- *`cli/roots/speech` at `relations: []` × the `unmapped-files` / aspect-inertness argument* — a
+  file-less, edge-less node contributes no pair, no aspect subject, no coverage obligation and no
+  relation to check; part 9's own probe covers the first three and Step 1 now covers the fourth. ✓
+- *the retired cycle argument × round 3's changelog* — the fix it produced still stands and only its
+  reason changed, so round 3's entry is annotated **in place** rather than rewritten, alongside round
+  7's interaction line ("speech's only remaining engine import is `isBooleanSurface`", now none) and
+  round 16b's two-seam sentence. The record says what was decided then and what is true now. ✓
 
 ### Drafting self-review (pre-review)
 
