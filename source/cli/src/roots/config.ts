@@ -11,7 +11,7 @@
  * name).
  */
 
-import type { RootsConfig } from '../model/graph.js';
+import type { RootsConfig } from './model.js';
 import { hashString } from '../io/hash.js';
 
 /**

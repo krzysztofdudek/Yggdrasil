@@ -8,5 +8,6 @@ description: "Parent node for the roots convention-mining module (source/cli/src
   is classified as the existing `command` type, not either child type here, so it
   lands under model/cli/commands/ instead of this subtree once it exists — this
   umbrella owns only the roots/** module itself."
-aspects: []
+aspects:
+  - roots-import-boundary
 relations: []

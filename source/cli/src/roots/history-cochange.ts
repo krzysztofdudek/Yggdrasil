@@ -84,7 +84,7 @@
  */
 
 import type { HistoryCommitRecord } from '../utils/git-history.js';
-import type { RootsConfig } from '../model/graph.js';
+import type { RootsConfig } from './model.js';
 import { dirnameOf } from './extract.js';
 
 // -----------------------------------------------------------------------------

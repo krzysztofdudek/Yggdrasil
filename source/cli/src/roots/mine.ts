@@ -41,7 +41,7 @@ import { overlapGroupForSurface } from './enumerate.js';
 import type { PartitionMap } from './partitions.js';
 import type { RoleAssignment, WeightFn, RoleLiftSurfaceInput } from './roles.js';
 import { roleLift as computeRoleLift, isDecorativeRole } from './roles.js';
-import type { RootsConfig, SeedEntry } from '../model/graph.js';
+import type { RootsConfig, SeedEntry } from './model.js';
 import {
   ancestorDirsOf,
   isBooleanSurface,

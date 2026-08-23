@@ -42,7 +42,7 @@
  * pipeline order" at enumeration time), that pipeline's job, not this file's.
  */
 
-import type { RootsConfig } from '../model/graph.js';
+import type { RootsConfig } from './model.js';
 import type { ScopeUnit } from './extract.js';
 import { dirnameOf, basenameOf, MIN_MODULE_CODE_FILES } from './extract.js';
 import type { PartitionMap } from './partitions.js';

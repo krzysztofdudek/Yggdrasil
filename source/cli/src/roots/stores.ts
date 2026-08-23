@@ -16,7 +16,7 @@
  */
 
 import path from 'node:path';
-import type { SeedEntry, LedgerEntry } from '../model/graph.js';
+import type { SeedEntry, LedgerEntry } from './model.js';
 import { readFileOrDefault } from '../io/read-or-default.js';
 import { hashString } from '../io/hash.js';
 import { atomicWriteFile } from '../io/atomic-write.js';

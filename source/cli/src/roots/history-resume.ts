@@ -38,7 +38,7 @@ import { readHistoryState, type HistoryState, type HistoryStateMeta } from '../i
 import { isCommitReachable } from '../utils/git-history.js';
 import { LANGUAGES } from '../utils/language-registry.js';
 import { debugWrite } from '../utils/debug-log.js';
-import type { RootsConfig } from '../model/graph.js';
+import type { RootsConfig } from './model.js';
 import { assetNameOfWasmFile, bindingForAsset } from './binding.js';
 import { EXTRACTOR_VERSION } from './extract.js';
 import type { LifecycleRow, ValueEvent, AliasEdge, ReplayStateSnapshot } from './history-replay.js';

@@ -61,7 +61,7 @@
  * carry. Recorded as an open item for a future increment.
  */
 
-import type { RootsConfig } from '../model/graph.js';
+import type { RootsConfig } from './model.js';
 import { globMatch } from '../utils/mapping-path.js';
 import { dirnameOf, basenameOf, type RawScope } from './extract.js';
 

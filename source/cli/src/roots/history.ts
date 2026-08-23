@@ -82,7 +82,7 @@ import { debugWrite } from '../utils/debug-log.js';
 import { hashString } from '../io/hash.js';
 import { readBlobRecord, writeBlobRecord } from '../io/roots-blob-cache.js';
 import { writeHistoryState, type HistoryStateMeta } from '../io/roots-history-store.js';
-import type { RootsConfig, LedgerEntry } from '../model/graph.js';
+import type { RootsConfig, LedgerEntry } from './model.js';
 import { assetNameOfWasmFile, bindingForAsset, type RootsBinding } from './binding.js';
 import { extractUnits, EXTRACTOR_VERSION, dirnameOf, type RawScope, type ExtractOptions } from './extract.js';
 import { makeRootsFileFilters } from './partitions.js';

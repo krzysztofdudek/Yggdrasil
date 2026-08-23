@@ -12,7 +12,18 @@ description: "Roots store — persistence for the mined convention model, under
   engine node's own mapping for new behavior rather than reopening this file,
   but nothing here is frozen against a genuine change to the store's own
   contract (a new store file, a header field, a path layout change) — that is
-  exactly the kind of change this node's own log records."
+  exactly the kind of change this node's own log records. SeedEntry/
+  LedgerEntry now come from the sibling `./model.js` (moved there so the
+  roots-engine import boundary can be frozen ahead of a future package
+  extraction — see the roots-import-boundary aspect, attached on the parent
+  cli/roots node so it cascades here by node type); this node's own former
+  `uses: cli/model/graph` relation is retired because nothing here reads that
+  module any more. LATENT-EDGE TENSION, unresolved, maintainer-owned: this
+  node's own `./model.js` import is a roots-store -> roots-engine edge (since
+  model.ts is forced into the roots-engine type — see that node's own
+  description for the full investigation and the second, more consequential
+  edge it also creates); no permitted relation type covers it, and only a
+  whole-statement type-only import keeps it invisible to `yg check` today."
 relations:
   - target: cli/io/atomic-write
     type: calls
@@ -20,7 +31,5 @@ relations:
       - write-atomic
   - target: cli/io/stores
     type: calls
-  - target: cli/model/graph
-    type: uses
 mapping:
   - source/cli/src/roots/stores.ts

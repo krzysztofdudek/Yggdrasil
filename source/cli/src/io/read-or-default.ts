@@ -24,3 +24,15 @@ export async function readFileOrDefault<T>(
     throw err;
   }
 }
+
+/**
+ * Read a UTF-8 text file, throwing on any error (including ENOENT) — the
+ * identical body of io/graph-fs.ts's `readTextFile`, kept as a sibling here
+ * purely so a caller inside the roots-engine boundary (whose allowlist has no
+ * edge to io/graph-fs.ts) can read a text file without crossing it. Not a
+ * fork: same signature, same semantics, same one-line implementation. Callers
+ * outside the roots engine should keep using io/graph-fs.ts's copy.
+ */
+export async function readTextFile(filePath: string): Promise<string> {
+  return readFile(filePath, 'utf-8');
+}

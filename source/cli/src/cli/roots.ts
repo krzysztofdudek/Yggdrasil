@@ -56,10 +56,17 @@ import {
   type RootsModel,
   type RootsModelHeader,
 } from '../roots/stores.js';
-import { rootsConfigHash } from '../roots/config.js';
-import { runRootsIndex, computeUsedGrammarSetHash } from '../roots/pipeline.js';
-import { isMinedModel, type MinedModel } from '../roots/mine.js';
-import { resolveWalkMode, isWindowingActive, type WalkMode, type HistoryProgressInfo } from '../roots/history.js';
+import {
+  rootsConfigHash,
+  runRootsIndex,
+  computeUsedGrammarSetHash,
+  isMinedModel,
+  type MinedModel,
+  resolveWalkMode,
+  isWindowingActive,
+  type WalkMode,
+  type HistoryProgressInfo,
+} from '../roots/index.js';
 import { readHistoryState } from '../io/roots-history-store.js';
 import { acquireBuildLock, releaseBuildLock, BuildLockHeldError } from '../io/roots-build-lock-store.js';
 import type { YggConfig, RootsConfig } from '../model/graph.js';

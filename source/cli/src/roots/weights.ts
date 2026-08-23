@@ -53,7 +53,7 @@
  */
 
 import type { LifecycleRow } from './history-replay.js';
-import type { LedgerEntry, RootsConfig } from '../model/graph.js';
+import type { LedgerEntry, RootsConfig } from './model.js';
 import type { ScopeUnit } from './extract.js';
 
 const SECONDS_PER_DAY = 86400;

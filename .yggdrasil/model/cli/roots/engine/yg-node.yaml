@@ -168,14 +168,54 @@ description: "Roots mining engine — pure, deterministic convention-mining
   re-pass over the parse-candidate set (never a read of the process-lifetime
   binding cache runRootsIndex itself warms), which is what lets the command
   layer compute the model header's bindingHash before mining ever runs, for
-  the no-op short-circuit's own input comparison."
+  the no-op short-circuit's own input comparison. Two additions freeze this
+  node's own import boundary ahead of a future package extraction (parsing
+  layer vs. roots engine), with no behavior change: model.ts holds
+  RootsConfig/SeedEntry/LedgerEntry, moved here verbatim from
+  src/model/graph.ts (which now only re-exports them, so every existing
+  importer keeps working unchanged) — forced into THIS node rather than the
+  neutral cli/model/graph 'types' node by the roots-engine architecture
+  type's own file-pattern `when` (any bare *.ts directly under src/roots/,
+  stores.ts and tests excepted, classifies as roots-engine); this node's own
+  former `uses: cli/model/graph` relation is retired accordingly, since
+  nothing here reads that module any more. index.ts is the public facade:
+  cli/roots.ts (the only CLI-layer composer of engine + store) now imports
+  the names it actually consumes from here instead of five separate deep
+  paths; every internal module keeps importing every other one by its own
+  deep path, unchanged, and tests keep their existing deep imports since they
+  test internals. The roots-import-boundary aspect — attached on the parent
+  cli/roots node so it cascades to every roots-engine/roots-store descendant
+  by node type, R5's planned cli/roots/speech included, rather than needing
+  re-attachment on every leaf — is what actually enforces the frozen `../`
+  allowlist those two files (and every other file here) may cross into.
+  LATENT-EDGE TENSION, unresolved, maintainer-owned: model.ts's own file-
+  pattern `when` forces it into THIS type (roots-engine) rather than the
+  neutral cli/model/graph 'types' node, even though `stores.ts` genuinely
+  imports it. That creates TWO edges no permitted relation type covers —
+  roots-store -> roots-engine (stores.ts importing ./model.js) and
+  cli/model/graph (types) -> roots-engine (model/graph.ts's own `import type`
+  and `export type ... from '../roots/model.js'`, the re-export shim) — both
+  invisible to `yg check` today ONLY because relations/extractors/typescript.ts
+  deliberately drops whole-statement type-only imports. The types -> engine
+  edge is the more consequential: it makes the core depend on the very thing
+  a future extraction is supposed to pull out from under it. An explicit
+  types-type node for model.ts was investigated and does not resolve this:
+  model.ts matches roots-engine's own `enforce: strict` `when` and mapping it
+  under a different type would trip `type-strict-misplaced`; separately, the
+  `types` architecture type's own `enforce: strict` `when` requires
+  `source/cli/src/model/*.ts`, which a file physically at
+  `source/cli/src/roots/model.ts` can never satisfy either way. No
+  `yg-architecture.yaml`-free remap exists; keeping model.ts here, as the
+  directive requires, is the only option available to this change. The
+  moment either crossing becomes a value import (a real risk — R5 edits
+  stores.ts and may need a shared constant or runtime type-guard from
+  ./model.js) `yg check` goes red with no legal fix short of an architecture
+  edit, which only the maintainer may make."
 relations:
   - target: cli/io/stores
     type: calls
   - target: cli/io/roots-cache
     type: calls
-  - target: cli/model/graph
-    type: uses
   - target: cli/ast/runtime
     type: calls
   - target: cli/ast/report
@@ -185,6 +225,8 @@ relations:
   - target: cli/language-registry
     type: calls
 mapping:
+  - source/cli/src/roots/model.ts
+  - source/cli/src/roots/index.ts
   - source/cli/src/roots/config.ts
   - source/cli/src/roots/binding.ts
   - source/cli/src/roots/extract.ts

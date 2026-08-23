@@ -1,0 +1,77 @@
+name: RootsImportBoundary
+description: >-
+  Freezes the future roots-engine package's import boundary NOW, ahead of any
+  actual extraction: THE CORE — src/roots/{binding,extract,enumerate,roles,
+  mine,mine-stages,config,weights,partitions,history,history-resume,
+  history-replay,history-cochange,stores,pipeline,model,index}.ts, exactly the
+  roots-engine and roots-store nodes' own mapped files — may cross the
+  src/roots/ directory boundary (a `../` relative import) ONLY into a fixed
+  allowlist: ast/parser, ast/types, ast/node-types, utils/language-registry,
+  utils/git-history, utils/debug-log, utils/mapping-path, io/hash,
+  io/atomic-write, io/read-or-default, io/repo-scanner, io/roots-blob-cache,
+  io/roots-history-store. That allowlist IS, today, THE CORE's entire real
+  external surface — 13 specifiers, none reserved or aspirational (grep-
+  verified against every core file). It previously also listed
+  formatters/message-builder and io/roots-build-lock-store; both were removed
+  because neither is imported by any core file, and the former is
+  architecturally illegal for roots-engine/roots-store to import at all (ports
+  and relations do not include the formatter type for either), so its
+  presence on the allowlist actively steered an agent into a dead end — this
+  check would have been satisfied while `yg check`'s relation pass still
+  refused the import with no legal fix short of an architecture edit. A
+  sibling roots file (`./…`) is always allowed — this fences the boundary
+  AROUND src/roots/, never movement within it — and this is decided from the
+  NORMALIZED specifier, not the raw one: `'./../x.js'` normalizes to
+  `'../x.js'` before classification, closing an earlier hole where a `./`-
+  prefixed escape (`'./../core/graph-loader.js'`) was waved through as a
+  "sibling" merely because of its raw leading text while resolving to the
+  identical file `'../core/graph-loader.js'` already forbids. A node: builtin
+  or a non-relative package specifier is out of this check's scope; other
+  rules already police those (no-direct-fs for node:fs, the roots-genericity
+  ESLint fence for grammar packages/.wasm literals). Fires on any static
+  `import … from` or `export … from`, AND on a dynamic `import(...)` or
+  `require(...)` call carrying a statically-resolvable string/template
+  argument, whose specifier — normalized, then stripped of its leading `../`
+  and trailing extension — names anything outside the allowlist. Matching is
+  plain text, not a module resolver, since every one of THE CORE's files
+  lives flat in one directory (no nesting), so the one segment a `../` import
+  crosses into is fully determined by the normalized specifier text alone
+  (mirrors why the pre-existing roots-genericity ESLint fence also avoids a
+  resolver). Type-only imports are NOT exempt here (unlike most import-fence
+  aspects in this repo): a type crossing the boundary still has to be
+  resolved — published or duplicated — once the roots engine ships as its own
+  package, so `import type` is exactly as much a boundary crossing as a value
+  import. Two stated scope limits, not silent gaps: a computed/interpolated
+  dynamic-import or require argument is not a static fact this check can
+  read and is silently skipped (mirrors the relations extractor's own
+  handling of the same forms); and this check only ever reads a core file's
+  own DIRECT specifier text — an allowlisted module that itself re-exports
+  something outside the allowlist (e.g. `io/hash.ts` adding `export * from
+  '../core/graph-loader.js'`) widens every core file's real reachable surface
+  invisibly to this check, because the disallowed specifier never appears in
+  a core file at all. Both are recorded verbatim in the `errs census` in
+  `.yggdrasil/aspects/README.md`. WHY this exists now, before any extraction
+  is scheduled: today every one of these files lives in one npm package, so a
+  stray `../model/graph.js` or `../core/…` import costs nothing to write and
+  nothing to notice. The day this becomes two packages, each such import is a
+  broken build, discovered file-by-file, under release pressure. This aspect
+  makes that day boring: the allowlist above already IS the roots engine's
+  real external dependency surface, so extraction becomes "cut here" rather
+  than "trace every import first." errs: over rather than under,
+  deliberately, because this allowlist is a fixed, curated set of today's
+  known-legitimate crossings — not an exhaustively-derived closed surface the
+  way no-direct-fs's enumeration of node's entire fs API is. A genuinely new,
+  legitimate engine dependency the allowlist has not yet caught up with would
+  be FLAGGED by this check rather than silently passed; growing the allowlist
+  is a deliberate, reviewed edit to this aspect's own check.mjs, never a
+  silent workaround around it.
+errs: over
+reviewer:
+  type: deterministic
+review_by: 2026-11-23
+when:
+  any_of:
+    - node:
+        type: roots-engine
+    - node:
+        type: roots-store
