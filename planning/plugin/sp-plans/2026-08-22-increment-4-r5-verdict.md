@@ -237,8 +237,7 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   active modulator" (`v6-spec.md:81`) — derived at T10 Step 1, and flagged here the way D10 flags the
   channel names — not an omission. Modulator (4) of the spec's list — daemon-absent —
   is permanently active in this product (there is no daemon, `integration-design.md:374-381`) and
-  is therefore folded into the channel table itself rather than being a live switch. `status` lists
-  every active modulator (T10). *(T6, T9, T10)*
+  is therefore folded into the channel table itself rather than being a live switch. *(T6, T9, T10)*
 - **R5-I4 — Engine purity.** `verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts`,
   `exemplars.ts` and `extract-file.ts` contain no `node:fs`, no `console.*`, no `Date.now()`, no
   `process.env`, no `process.stdout` — `extract-file.ts` included, which is why its signature takes
@@ -261,7 +260,11 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   walked but never *parsed* (test-pattern, excluded, outside `include`) both have no index-time
   enumeration to be equivalent to, so the honest equivalence is silence — which T3 criteria 14 and
   14b observe and T3 Step 1's harness, which drives a file that *was* mined, structurally cannot.
-  *(T3, criteria 1, 14 and 14b)*
+  *(T3 **Step 1**'s equivalence harness for the positive half, T3 criteria 14 and 14b for the silent
+  half.)* The pointer names the **step**, not a criterion: T3's numbered criteria 1-6 are the six
+  rows of its Δ-arithmetic table, and an earlier `criteria 1, 14 and 14b` resolved "1" to that
+  table's first row — a Δ figure that has nothing to do with this invariant. Found by round 10's own
+  mechanical cross-reference sweep after MAJOR-1, which is the sweep's whole point.
 - **R5-I7 — Config verbatim.** R5 invents **no** config key. Every threshold it reads already
   exists in `DEFAULT_ROOTS` (`src/io/config-parser.ts:41-140`) with the spec's own default; the
   parser is where a default is checkable. The keys R5 newly *consumes* are named in D23. No graph
@@ -303,7 +306,7 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   load-bearing there is a test that FAILS when the rule alone is deleted, and the implementer
   demonstrates that by actually deleting it, running the test, and restoring (the live mutation
   round-trips **every MR named in the tasks below**, MR-1 through MR-41 including the lettered
-  variants (68 ids at present) — the phrase "every MR named
+  variants (69 ids at present) — the phrase "every MR named
   in the tasks below" is the binding half and the numeric range is only an aid, so a task that adds a
   killer cannot fall outside the invariant every reviewer checks). A rule with no killer test is not done.
   **The invariant cuts both ways, and round 8 is why that is written down: an MR whose mutation
@@ -866,7 +869,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   **The mechanism, chosen for cost as well as fidelity — three per-path tests built from
   `repo-scanner.ts`'s own exported helpers, never a re-implementation and never an O(repo) walk:**
   1. **`lstat`** — the path exists and is a **regular file**: not a directory, and **not a symlink**
-     (`collectFiles` admits an entry only under `entry.isFile()`, `:98` — a symlink is neither
+     (`collectFiles` admits an entry only under `entry.isFile()`, `:99` — a symlink is neither
      `isDirectory()` nor `isFile()` and falls out of both arms). One syscall, and it
      **subsumes the existence filter** T3 Step 8 already performs, so the two are one test.
   2. **Nested-project boundary** — no ancestor directory strictly between the path and the repo root
@@ -1310,9 +1313,14 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   `markKey` and passes it in. This is the same shape T1 already uses for `stateDir`: the composition
   seam supplies what the two layers may not hand each other directly. **There is therefore exactly
   one key format in the tree and nothing to keep in sync** — no duplicated derivation, and so no
-  divergence killer is needed. What *is* pinned instead is the wiring: T7 criterion 7 asserts that a
-  mark this path writes is the same mark R4's `releasedMarks` later recognizes and releases, which
-  is the only property the key format actually exists to guarantee. Two consequences are intended and must be stated in the
+  divergence killer is needed. **That waiver is discharged by a criterion that must actually exist,
+  and it now does: T7 criterion 7 and MR-29b**, a pure value round-trip driving a mark this path
+  writes through R4's `releasedMarks` (`src/roots/weights.ts:250`) and asserting it is released —
+  the only property the key format exists to guarantee. Until round 10 this sentence pointed at a
+  criterion nobody had written, which meant D15 removed an R5-I11 obligation and replaced it with
+  nothing: a mark carrying a `stableId` from the wrong domain, a `surface` from the wrong
+  projection, or a `date` from the wrong clock would have passed T1 criterion 3 and T7 criteria 1
+  and 5 and still been invisible to the P5 regulator forever, with the whole increment green. Two consequences are intended and must be stated in the
   docs, not hidden: `git status` shows a dirty `ledger.jsonl` after a productive session ("roots
   records that it shaped this code — commit it with your change", `:685`), and because
   `ledgerHash` is one of the model header's inputs, the **next** `yg roots index` will not take
@@ -1742,7 +1750,7 @@ export function snapshotContentHash(body: unknown): string;                     
   *specific file's* margin. This step lands the mode, in T1 because T1 is the only task that runs
   before the first of them.
   **Interface — additive, and the no-argument invocation's output must not change by one byte**,
-  since `scripts/repo-check.sh:127`'s step and the gate's reported figure are that output:
+  since `scripts/repo-check.sh:209`'s step and the gate's reported figure are that output:
   ```
   node scripts/prompt-headroom.mjs [--file <repo-relative-path>]...      # repeatable
   ```
@@ -1765,6 +1773,11 @@ export function snapshotContentHash(body: unknown): string;                     
   `dist/`, hand-built `entries`. The data needed is already in hand at the print site: every parsed
   entry carries `unitKey` (`file:<path>`), `chars`, `aspectId` and `tierName`
   (`prompt-headroom.mjs:249-254`), and `computeTierMargins` already resolves each tier's ceiling.
+  **The default-output guard (criterion 8b) is the one piece that must spawn**, and it spawns
+  against a **scratch fixture project with a frozen graph**, not against this repository — whose
+  measured pair count this very increment moves by ~34. That file already builds exactly such a
+  project for its signal test (`:470-500`), so the shape is landed precedent rather than new
+  machinery.
   **Graph cost: none.** `scripts/*.mjs` is already mapped by the `scripts` node
   (`.yggdrasil/model/scripts/yg-node.yaml:8`), whose type is `build-script` with
   `relations: []` and two aspects — `source-no-raw-control-chars` (enforced) and
@@ -1837,11 +1850,33 @@ export function snapshotContentHash(body: unknown): string;                     
    no entry, `pairs: []` and `worstMargin: null`. **The multi-pair case is the criterion**, because a
    one-pair fixture is satisfied by an implementation that returns whichever entry it finds first,
    and the four `roots-check.ts` obligations read exactly this number.
-8b. **The no-argument invocation is byte-identical to today's.** Spawning the real script with no
-   arguments against the same captured stdout produces the same per-tier block and the same summary
-   line as before Step 6. This is the regression guard on `scripts/repo-check.sh:127`'s own step,
-   whose reported figure is that output; a query mode that reshuffled the default output would
-   change the gate's report while passing every test of the new mode.
+8b. **The no-argument invocation is byte-identical — against a SCRATCH FIXTURE PROJECT, never
+   against this repository.** Spawn the real, unmodified script twice against a scratch project with
+   a small **frozen** graph — one tier, a handful of LLM pairs, the stand-in `dist/bin.js` shape
+   `prompt-headroom.test.ts` already builds for its signal test (`:470-500`, `mkdtempSync` + a
+   `node_modules` symlink + a scripted stand-in) — once with no arguments and once with `--file`
+   naming one of that project's own subjects: **the no-argument run's per-tier block and summary
+   line are byte-identical to the `--file` run's first N lines**, and the `--file` run appends its
+   query block and nothing else.
+   **This repository's own output is deliberately NOT the baseline, and that is the whole finding.**
+   The summary line is
+   ``measured ${entries.length} LLM pair(s) across ${tierMargins.tiers.length} tier(s). Tightest
+   margin anywhere: ${worstMarginOverall}.`` (`prompt-headroom.mjs:567`), and `entries.length` is a
+   measurement of *this graph* — **1198 today, and this increment moves it**: 6 new `roots-engine`
+   files × 1 LLM pair, 4 new `persistence-adapter` stores × 1, `roots-check.ts` × 2, and ~22 new
+   `tests/**` files × 1 — roughly **34** new pairs, five of them at T2 alone. A landed byte
+   comparison against this repo's captured output would be **red from T2 onward**, and the execution
+   protocol commits once per task against a green `repo-check.sh`. The implementer would then either
+   delete a criterion the plan calls a regression guard or spend a cycle rediscovering why. The
+   scratch fixture makes the guard test **the script**, which is what it was always for, rather than
+   this repo's pair count, which is not a property of the script at all.
+   *(For completeness, the two things that do **not** move it: `scripts/prompt-headroom.mjs` itself
+   is no LLM subject — `build-script` binds only the deterministic `source-no-raw-control-chars` and
+   the advisory `repo-check-gate-steps` — and `prompt-headroom.test.ts`'s own growth cannot enter the
+   top three, at ≈35 K assembled against a 849-char third place.)*
+   The guard's target is unchanged: `scripts/repo-check.sh:209` runs the script with no arguments and
+   reports that output, so a query mode that reshuffled the default block would change the gate's
+   report while passing every test of the new mode.
 
 **E2E coverage (R5-I12).** This task ships **no adopter-visible behavior** — nothing calls these
 stores until T3. Its contracts are pinned by the unit tests above and are exercised end-to-end in
@@ -2429,7 +2464,7 @@ contract with no configuration in it. **The consequence for the graph is stated 
   | Source | Bytes from | `lstat` regular-file test | Nested-project + gitignore | Gate 0 `forParsing` | T5 Step 4 containment |
   | --- | --- | --- | --- | --- | --- |
   | Positional `<path>…`, and D11's `getDirtyFiles` set | the path, read by the command layer | **on the path** — this is where deleted paths and rename old-sides leave the set | on the path | on the path | `realpath(path)` |
-| `--content <p> --as <q>` | **`p`**, read once by the command layer | **on `p` always; on `q` only if `q` exists.** `q` need not exist — that is `--as`'s purpose — but **if it does exist it must be a regular file**, not a symlink and not a directory | **on `q`** — an agent may not get answers about a path the index would never have walked, whether or not the bytes are real | **on `q`** | resolved against the **nearest existing ancestor** of `q` |
+  | `--content <p> --as <q>` | **`p`**, read once by the command layer | **on `p` always; on `q` only if `q` exists.** `q` need not exist — that is `--as`'s purpose — but **if it does exist it must be a regular file**, not a symlink and not a directory | **on `q`** — an agent may not get answers about a path the index would never have walked, whether or not the bytes are real | **on `q`** | resolved against the **nearest existing ancestor** of `q` |
   | Hook payload paths (`--hook`) | the path, read by the command layer | on the path — a `post`/`bash` payload names a file the tool has already written | on the path | on the path | `realpath(path)` |
 
   Three consequences the table makes binding. **First, `q` is not gated on existence — but it IS
@@ -2439,7 +2474,7 @@ contract with no configuration in it. **The consequence for the graph is stated 
   the path claims to live*, and content the caller supplied does not buy an exemption from it. **The
   same rule reaches an existing symlink or directory at `q`, and an earlier draft's "`q` gets none of
   the `lstat` test" did not:** `collectFiles` admits an entry only under `entry.isFile()`
-  (`repo-scanner.ts:98`), so a symlinked source file is **never mined**, and answering about one
+  (`repo-scanner.ts:99`), so a symlinked source file is **never mined**, and answering about one
   mints a `stableId` the next index can never match — the precise harm gate −1 exists to prevent,
   arrived at through the one row that was meant to be the exception. Because `q` may not
   exist, both walks start at `q`'s **nearest existing ancestor** (walking up until one `stat`s), so
@@ -2449,11 +2484,17 @@ contract with no configuration in it. **The consequence for the graph is stated 
   sentence has read as "everything else is a drop", which is false: the two admitted outcomes on `q`
   are **absent** and **a regular file**; every other `lstat` outcome — a symlink, a directory, any
   other dirent kind — is a drop.
-  **Second, `p` is gated on existence only.** `p` is a byte source, not a subject: it is `lstat`ed
+  **Second, `p` is gated on existence and kind, and on nothing else.** `p` is a byte source, not a
+  subject: it is `lstat`ed
   and read, and nothing is ever said about `p`'s own location. A `--content` path that is missing,
   unreadable or not a regular file yields **silence, exit 0 and one incident** (not exit 1 — it is a
   missing input, not a malformed argument, and R5-I1's carve-out is deliberately narrow; T5
   criterion 3's exit-1 case is the option-mutex violation, which is a different fault).
+  **This outcome is an explicit exception to this step's own totality clause below**, and the clause
+  now names it: every other `lstat` failure in this step is a silent drop with a `debugWrite`,
+  because a path that fails is one subject fewer in a set; `p` is in neither set, so a failure there
+  is a run with no input at all, which is a fault the adopter should be able to see in the incident
+  count. One prescribed outcome per input, stated in both places.
   **Third, the `pre` channel reads no path at all in R5** and this is why the table's third row says
   "already written": `pre` drops WARN and R5 mints no DENY (D10, R5-I3), so a `pre` payload's
   target — which genuinely may not exist yet — is never resolved. A later increment that makes `pre`
@@ -2479,6 +2520,14 @@ contract with no configuration in it. **The consequence for the graph is stated 
   before the boundary opens, not error *recovery* inside it, and MR-19's "one catch" claim is
   untouched. A path that cannot be resolved is not an exception to be caught; it is a path that is
   not in the set.
+  **The one path this clause does NOT cover is `--content`'s byte source `p`, and the exception is
+  stated here because the two rules otherwise prescribe different outcomes for the same `lstat`
+  failure.** `p` is not a member of the participation set or the evaluation set — it is not a
+  subject at all, only the place the bytes come from (the gate matrix's "Second" consequence). So a
+  failing `lstat` on `p` is **not a drop**: dropping the only byte source leaves the run with no
+  input rather than with one fewer subject, and the prescribed outcome is **silence, exit 0 and
+  exactly one incident** (T5 criterion 3c). An implementer who read the bolded totality sentence as
+  universal would build a silent drop with a `debugWrite` and no incident, and fail 3c.
 
   With no positional paths and no `--hook`, the candidate set is `getDirtyFiles(repoRoot)`
   (`src/utils/git.ts:125`) and **every** scope in the surviving files is evaluated — the declared, budget-bounded superset of §19's `body_hash`-filtered set, for the
@@ -2919,6 +2968,11 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
    mode `000` (skipped where the suite already skips its chmod cases under root) — is **silence,
    exit 0 and exactly one incident**, never exit 1 and never a stack trace. The exit code is the
    point: R5-I1's carve-out covers malformed *arguments*, and a missing input file is not one.
+   **The incident is the other half of the assertion and the half that collides with T3 Step 8's
+   totality clause if the exception there is missed:** `p` is a byte source, not a set member, so
+   this is not the silent `debugWrite` drop every other `lstat` failure in that step produces. Both
+   sites now say so — T3 Step 8's "Second" consequence and its totality clause — and this criterion
+   asserts `.state/incidents.jsonl` gained exactly one line, not merely that the run was silent.
 4. **Escaping faults.** A forced throw at each of **§12.5's five stage boundaries** (parse,
    enumerate, role, verdict, format — the same seam criterion 5b uses, and the same five the phrase
    "the five stages" means everywhere in this plan) yields zero findings, exit 0, and **exactly one**
@@ -3143,9 +3197,13 @@ which contradicted this task's own Step 3: the §18.1 **intervention** rows are 
 
 ## Task 7 — Compliance closure, telemetry, and ledger writing
 
-**Scope.** The loop that makes §18 real: record every message as an intervention, notice at the next
-sight of the same (scope, surface) whether the agent complied, write the telemetry line and — on
-compliance — the committed ledger mark.
+**Scope.** The loop that makes §18 real: notice at the next
+sight of the same (scope, surface) whether the agent complied, write the **closure** telemetry line
+and — on compliance — the committed ledger mark. **The §18.1 *intervention* row itself is T6's**
+(D13a(b), transition 1: only the budget stage knows which findings became messages), and this task
+owns transitions 2 and 3 only. An earlier Scope line said "record every message as an intervention",
+which round 9 moved to T6 everywhere except here — and this line is the first thing a fresh T7
+implementer reads.
 
 **Authorities.** Spec §9.10's `closeIntervention` paragraph (`v6-spec.md:479`), §18.1 (`:681`),
 §18.3 (`:685`); design §13's compliance-loop E2E (`integration-design.md:501-504`), §12's
@@ -3153,7 +3211,12 @@ compliance — the committed ledger mark.
 
 **Files.** Edit `verdict.ts` (the closure hook T3 left in place), `roots-check.ts` (applying
 intents); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
-`source/cli/tests/e2e/cli-roots-compliance-loop.test.ts`.
+`source/cli/tests/unit/roots/ledger-release-roundtrip.test.ts` (criterion 7 — a **new sibling**
+rather than a section of `verdict-closure.test.ts`, whose subject is the closure fold, not the
+R4/R5 ledger seam; it joins `cli/tests/unit/roots`, which already declares
+`uses cli/roots/engine` and `uses cli/roots/stores`
+(`.yggdrasil/model/cli/tests/unit/roots/yg-node.yaml:287-288`), so it costs a mapping line and no
+edge); create `source/cli/tests/e2e/cli-roots-compliance-loop.test.ts`.
 
 **Steps.**
 - [ ] **Step 1: Closure runs before every skip** (T3 Step 4's ordering), for every candidate fact of
@@ -3238,6 +3301,31 @@ intents); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
    specifies: **its nine fields, plus `observedAfter` on a closure record — the tenth field §18.1
    itself adds (`{…, observedAfter}`) and the one the whole of T7 exists to write — and nothing
    else**: no separate `roleKey`, no role label.
+7. **The mark R5 writes is the mark R4 releases — the wiring D15 waives a divergence killer on, and
+   the only criterion in the plan that crosses the R4/R5 seam.** A pure value round-trip, no clock
+   control and no filesystem beyond a temp dir. Write a mark with
+   `appendLedgerMarks(yggRoot, [{stableId: S, surface: 'auto.deco:Injectable', date: '2026-01-01'}],
+   markKey)` — the real `markKey` (`weights.ts:267`), which is what production passes (D15) — read
+   it back with `readLedger(yggRoot)` (`stores.ts:274`), and feed the result to
+   `releasedMarks(marks, lifecycle, clockTs, config)` (`weights.ts:250`) with everything by value:
+   - a `LifecycleIndex` whose `rowFor(S, S)` returns a row — **the two-argument call is
+     `(mark.stableId, mark.stableId)`** (`weights.ts:253`), so the test's index must be
+     `stableId`-keyed, exactly as `releasedMarks`' own header (`:235-244`) tells its caller to build;
+   - `row.lastModifiedTs = 1767225600` (2026-01-01T00:00:00Z) and
+     `clockTs = 1775001600` (2026-04-01T00:00:00Z) ⇒ `stableDaysOf` = **exactly 90**
+     (`weights.ts:108-110`), which clears `ledger.releaseStableDays` (90) on `<`;
+   - `row.lastHumanCommitTs = 1768435200` (2026-01-15T00:00:00Z) = exactly
+     `floor(Date.parse('2026-01-01')/1000) + 14 × 86400`, the `releaseMinDaysAfterMark` threshold,
+     which clears it on `>=`.
+
+   **⇒ `releasedMarks` returns a set containing `markKey(mark)`.** Then the two negatives, each
+   flipping one input by the smallest step the rule can see: `lastHumanCommitTs = 1768348800`
+   (2026-01-14, one day early) ⇒ **not** released; and `clockTs` one day earlier
+   (`1774915200`, 2026-03-31) ⇒ `stableDaysOf` = 89 ⇒ **not** released. Both boundary values are
+   exact-equality cases on purpose: an off-by-one in either comparison is invisible to a fixture
+   that clears the threshold by a week. **This is what makes a wrong `stableId` domain, a wrong
+   `surface` projection or a wrongly-formatted `date` fail here** rather than pass every other
+   criterion and leave the P5 echo defense silently disengaged.
 
 **E2E coverage.** `cli-roots-compliance-loop.test.ts` — the design's own named suite
 (`integration-design.md:501-504`), miniaturized: spawn the built binary, `index`, plant a deviation,
@@ -3262,6 +3350,14 @@ only proof that the product's regulator is a closed loop rather than three uncon
   cross-session pass has nothing left to close. Both halves of M4's consequence, one mutation.
 - **MR-29 (mark on compliance only):** write the mark on the `ignored` branch too ⇒ criterion 1's
   mark count fails, and roots would discount evidence it never shaped.
+- **MR-29b (the R4/R5 ledger seam):** write the mark with a `stableId` drawn from the *pre*-partition
+  raw scope rather than the finalized `stable_id`, or with the `surface` string from the fact's cell
+  id rather than the fact's own `surface` field ⇒ **criterion 7's positive case fails**:
+  `lifecycle.rowFor(mark.stableId, mark.stableId)` misses, or `markKey(mark)` names a key the caller
+  never looks up, and the mark is never released. This is the killer D15 waives the *format*
+  divergence killer in favour of, and it is the one mutation the rest of T7 cannot see — MR-29
+  watches the mark's existence, T7 criterion 5 its dedupe, T1 criterion 3 its `date` shape; none of
+  them asks whether R4 can find it.
 - **MR-30 (write order):** apply intents before writing output ⇒ a test that kills the process
   between the two stages leaves an intervention with no message — assert the ordering directly by
   the intents applier's own call sequence, since the crash itself is not reproducible in-process.
@@ -3795,7 +3891,9 @@ change to the scaffold notice** — which is here because it is the increment's 
 built (round 8's M4: D25 appeared in the decisions block, a carry-in and an open question, and in no
 task's Files, Steps, criteria or MRs). Nothing else.
 
-**Authorities.** Spec §3.3's I2b ("`status` lists every active modulator", `v6-spec.md:81`),
+**Authorities.** Spec §3.3's I2b ("`status` lists every active modulator", `v6-spec.md:81` — quoted
+as the text R5-I3 declares a **reasoned divergence** from, not as this task's rule: Step 1 lists
+every *repository-scoped* modulator and deliberately refuses the two session-scoped ones),
 §9.4c.4's withheld explanation (`:409`), §18.4 and Appendix A's T7 (`:687`, `:803-806`), §19's
 `status` row (`:697`); design §3's `status` row (`integration-design.md:84`).
 
@@ -5165,7 +5263,7 @@ criterion whose recipe omits the one step that makes it discriminate.
   **"The margin" is now defined once** — the ceiling minus that file's *largest* assembled prompt,
   since one file can appear in several LLM pairs — with **MR-1c** killing the comfortable
   misreading, criterion **8** pinning it on a two-pair fixture, and criterion **8b** guarding the
-  no-argument output byte-for-byte because `scripts/repo-check.sh:127`'s reported figure *is* that
+  no-argument output byte-for-byte because `scripts/repo-check.sh:209`'s reported figure *is* that
   output. A path binding no LLM aspect is reported as having no margin, and every rule that reads a
   margin is declared inapplicable to it rather than satisfied by it.
   **The 2000-char trigger is left as it is, and is now backed by a prediction.** Re-measured live
@@ -5245,7 +5343,7 @@ ships with unit criteria 8/8b, and T1's standing "no adopter-visible behavior" e
 
 **Interaction pass, scoped to rounds 8-9.** Seven pairs, one defect:
 - *`--file` mode × the no-argument gate step* — additive only; criterion 8b is the byte-identity
-  guard on `scripts/repo-check.sh:127`'s own reported figure. ✓
+  guard on `scripts/repo-check.sh:209`'s own reported figure. ✓
 - *`--file` mode × the 2000-char fallback* — the trigger is unchanged and now decidable; the
   prediction (≈14 600 / ≈13 400) makes a near-trigger reading a STOP rather than a silent fallback. ✓
 - *`--file` mode × a file that binds no LLM aspect* — reported as "no margin", and every margin rule
@@ -5260,6 +5358,117 @@ ships with unit criteria 8/8b, and T1's standing "no adopter-visible behavior" e
   a brand-new file would have needed both, and the criterion now says so. ✓
 - *criterion 8c's new-scope fixture × rung 0* — a new method that fails `minOwnFeatures` never
   reaches rung 2 either, so the fixture's method must clear criterion 8b's own gate. Stated. ✓
+
+### Round 10 — what the tenth adversarial review changed (0 blocking, 2 major, 5 minor)
+
+Both majors are the same class as round 9's — **executability, not correctness**. The review
+re-derived every worked number from the spec (all eight Wilson figures, all six Δ rows, T9's
+completeness trio, the 4b(ii) and 4b(v) fixture sizings, criterion 8's margin arithmetic) and
+independently reproduced round 9's one-LLM-pair prediction from three live calibration points,
+landing `roles.ts` at **14 223–14 752** and `mine.ts` at **13 048–13 577** — the plan's ≈14 600 and
+≈13 400 both sit inside the band. Nothing in the derivation moved.
+
+- **M1 — D15 discharged an R5-I11 obligation by pointing at an acceptance criterion that did not
+  exist.** D15 waives the *format* divergence killer on the strength of "T7 criterion 7 asserts that
+  a mark this path writes is the same mark R4's `releasedMarks` later recognizes and releases".
+  T7's criteria were 1, 2, 3, 3b, 4, 5, 6. The waiver therefore removed an obligation and replaced
+  it with nothing: a mark carrying a `stableId` from the wrong domain, a `surface` from the wrong
+  projection or a `date` from the wrong clock passes T1 criterion 3 and T7 criteria 1 and 5, and is
+  invisible to the P5 echo defense forever — with the increment green.
+  **T7 criterion 7 is now written, as the pure value round-trip the reviewer prescribed** (no clock
+  control, no e2e): write with `appendLedgerMarks(…, markKey)`, read back with `readLedger`, feed to
+  `releasedMarks(marks, lifecycle, clockTs, config)` (`weights.ts:250`) with a **`stableId`-keyed**
+  `LifecycleIndex` — the call is `rowFor(mark.stableId, mark.stableId)` (`:253`), which the store's
+  own header (`:235-244`) tells its caller — and every threshold hit **on the nose**:
+  `date '2026-01-01'` (epoch 1 767 225 600), `lastModifiedTs` = the same and `clockTs` = 1 775 001 600
+  (2026-04-01) ⇒ `stableDaysOf` exactly **90**, clearing `releaseStableDays` on `<`;
+  `lastHumanCommitTs` = 1 768 435 200 (2026-01-15) = exactly `floor(Date.parse(date)/1000) + 14 ×
+  86400`, clearing `releaseMinDaysAfterMark` on `>=`. Two negatives flip one input by one day each
+  (1 768 348 800 ⇒ not released; `clockTs` 1 774 915 200 ⇒ 89 days ⇒ not released), because
+  exact-equality boundaries are the only ones an off-by-one can fail. **MR-29b** kills the seam
+  itself (wrong `stableId` domain / wrong `surface` projection ⇒ `rowFor` misses or `markKey` names
+  a key nobody looks up), and it is the one mutation MR-29, T7 criterion 5 and T1 criterion 3 all
+  structurally cannot see. Its home is a **new sibling** `tests/unit/roots/ledger-release-roundtrip.test.ts`
+  under `cli/tests/unit/roots`, which already declares `uses cli/roots/engine` and
+  `uses cli/roots/stores` (`yg-node.yaml:287-288`) — a mapping line, no edge.
+  **The cross-reference property was then re-established mechanically, as instructed**, and the
+  sweep immediately paid for itself: see the sweep results below.
+- **M2 — criterion 8b pinned the script's default output against a baseline this increment moves.**
+  The summary line embeds `entries.length`, a measurement of *this* graph (1198 today), and R5 adds
+  ~34 LLM subjects — 6 `roots-engine` files, 4 `persistence-adapter` stores, `roots-check.ts` × 2
+  aspects, ~22 new test files — five of them at T2 alone. Landed as a byte comparison against this
+  repository's captured output the criterion is **red from T2 onward**, against an execution
+  protocol that commits once per task on a green gate. **Rewritten onto a scratch fixture project
+  with a frozen graph** — the shape `prompt-headroom.test.ts` already builds for its signal test
+  (`:470-500`) — so the guard tests **the script**, which is what it was always for, rather than
+  this repo's pair count, which is not a property of the script at all. The two non-movers are
+  recorded too (the script is no LLM subject under `build-script`; the test file's own growth cannot
+  reach the top three at ≈35 K assembled against a 849-char third place).
+
+**Minor** — all 5 applied: `scripts/repo-check.sh:127` → **`:209`** at both live sites (`:127` is
+the markdownlint step; `:209` is the prompt-headroom `run_step`, and the anchor is load-bearing
+because criterion 8b is billed as that step's regression guard); `repo-scanner.ts:98` → **`:99`** at
+both live sites (`:98` is the recursive `collectFiles` push; `entry.isFile()` is `:99` — round 7
+moved this anchor `:97`→`:98` and the answer was one further on); **R5-I3's trailing sentence
+deleted** — it restated verbatim the literal §3.3 rule the invariant had just declared a reasoned
+divergence from, three sentences earlier, and a reviewer holding T10 Step 1 against the invariant's
+last line would have found a decision-vs-task contradiction, which this plan's protocol turns into a
+STOP; **T7's Scope** no longer says "record every message as an intervention" (round 9 moved that to
+T6 everywhere except the one line a fresh T7 implementer reads first); and the **`--content` byte
+source** now has one prescribed outcome stated in both places — T3 Step 8's totality clause carries
+an explicit exception for `p`, its "Second" consequence says why (`p` is in neither set, so a
+failure is a run with no input rather than one subject fewer), and T5 criterion 3c now asserts the
+incident line rather than only the silence.
+
+**Not applied:** none. Each finding was verified at source before being acted on —
+`weights.ts:250`/`:253`/`:108-110`/`:267`, `stores.ts:274`, `repo-check.sh:127` vs `:209` (read at
+HEAD), `repo-scanner.ts:88-101`, `prompt-headroom.mjs:567`, and the epoch arithmetic recomputed
+(1 767 225 600 / 1 768 435 200 / 1 775 001 600 / 1 768 348 800 all confirmed against UTC dates).
+
+**Sweep A (decisions vs restatements), scoped to rounds 9-10.** D15 → T7 criterion 7 + MR-29b + T7's
+Files ✓ (this was M1). The prompt-margin mechanism → all eight sites still carry one command form,
+and criterion 8b's baseline is now stated where the test lives ✓. D13a(b) transition 1 → T6 Step 3,
+T6's NON-goal, T7's Scope ✓ (T7's Scope was the residue; T7's Steps were already consistent, and
+Step 3 was re-read to confirm it names `emissionIntents` as an *input*). R5-I3 → T10 Step 1 and
+T10's Authorities line, which now quotes §3.3 as the text diverged from rather than as the rule ✓.
+**Full-document mechanical re-validation, as instructed:** every task's criterion list was extracted
+and every `T<n> criterion <m>` reference in the body checked against it. **Zero dangling references
+now; one was found and fixed beyond the review's list** — R5-I6's closing pointer read
+`*(T3, criteria 1, 14 and 14b)*`, and T3's numbered criteria 1-6 are the six rows of its
+Δ-arithmetic table, so "criterion 1" resolved to a Δ figure with nothing to do with the invariant.
+It names **T3 Step 1's equivalence harness** now. Step references were validated the same way: zero
+dangling (`T8 Step 2a`/`2b` are Step 2's labelled `(a)`/`(b)` subsections, and D16.1–D16.5 are D16's
+numbered items — both real).
+
+**Sweep B (invariants/MRs vs tasks), scoped to rounds 9-10.** R5-I11's id count refreshed to **69**
+(net +1: MR-29b). R5-I11's own converse is what M1 and M2 both turn on and it now has two worked
+instances behind it: a waiver pointing at nothing, and a guard whose baseline moves. R5-I3 amended;
+R5-I8 ✓ (criterion 7 asserts the wiring of the one committed file R5 adds, which nothing else did);
+R5-I12 ✓ (criterion 7 is deliberately unit-level — a value round-trip has no adopter flow, and T7's
+e2e already covers the flow that produces marks); R5-I16 ✓ (unchanged). **MR ids: 69 live
+definitions, no duplicates, every `MR-*` referenced in the task body defined except `MR-32c`/`MR-32d`
+in their retirement notice** (mechanically re-checked).
+
+**Interaction pass, scoped to rounds 9-10.** Six pairs, one defect:
+- *criterion 7 × D15's caller-passes-`keyOf` rule* — the round-trip supplies the **real** `markKey`,
+  which is what production passes, so the test exercises the composition seam rather than a stand-in.
+  ✓
+- *criterion 7 × T1 criterion 3* — disjoint by design: T1 pins the store's `date` shape and dedupe,
+  criterion 7 pins whether R4 can find the result. Neither subsumes the other, which is why the
+  waiver needed this one specifically. ✓
+- *criterion 8b's scratch fixture × T1 Step 6's "graph cost: none"* — a scratch project is created
+  and torn down inside the test; it adds no fixture directory to this repo's graph and no LLM
+  subject. ✓
+- *criterion 8b's scratch fixture × the four `roots-check.ts` obligations* — those measure **this**
+  repo with `--file` and are unaffected by where the guard runs; the guard covers the default block
+  they do not use. ✓
+- *the `--content` exception × MR-19's "one catch"* — **DEFECT:** stating the exception only in the
+  totality clause would have left the matrix's "Second" consequence and T5 criterion 3c reading as
+  two independent rules. All three now cross-reference, and MR-19's claim is untouched because the
+  incident is raised by the run's own no-input path, not by a per-file catch.
+- *R5-I3's deletion × T10 criterion 1's byte baseline* — deleting a sentence in an invariant changes
+  no rendered output; T10 Step 1's refusal to list the two session-scoped modulators is now
+  consistent with the invariant's operative sentence instead of contradicting its last one. ✓
 
 ### Drafting self-review (pre-review)
 
