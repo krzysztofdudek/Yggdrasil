@@ -138,8 +138,8 @@ every module naming `MinedFact`/`MinedPartition`/`LedgerEntry` as a type is free
 
 | New/edited node | Outbound runtime edges this increment adds | Back edge? |
 | --- | --- | --- |
-| `cli/roots/speech` (verdict, speech, session-state, health) | `→ cli/roots/engine` (`isBooleanSurface`, `isDecorativeRole`, `roleJaccard`) | none — nothing in `roots/engine` imports these four |
-| `cli/roots/engine` (+ `exemplars.ts`, `extract-file.ts`) | none new — `mine.ts → exemplars.ts`, `pipeline.ts → extract-file.ts` and `extract-file.ts → extract.ts` / `binding.ts` / **`partitions.ts`** (D6's gate 0, `makeRootsFileFilters`) are all intra-node; `→ cli/ast/runtime` and `→ cli/language-registry` are already declared on this node | — |
+| `cli/roots/speech` (verdict, speech, session-state, health) | `→ cli/roots/engine` (`isBooleanSurface`, `isDecorativeRole`, `classifyAgainstMedoids`, `buildRoleFeatureBag` — the last two are T3 Step 2's rungs 2 and 0; `roleJaccard`'s only consumer is D4's `m1` fallback in `exemplars.ts`, which is intra-node and therefore not this edge) | none — nothing in `roots/engine` imports these four |
+| `cli/roots/engine` (+ `exemplars.ts`, `extract-file.ts`) | none new — `mine.ts → exemplars.ts`, `pipeline.ts → extract-file.ts` (for `minimalFileScope` **and `MAX_PARSE_LINES`**, both moved there so no import cycle remains) and `extract-file.ts → extract.ts` / `binding.ts` / **`partitions.ts`** (D6's gate 0, `makeRootsFileFilters`) are all intra-node; **`→ cli/io/stores`** is new on this node for gate −1's `repo-scanner.ts` helpers (`loadRootGitignoreStack`, `isIgnoredByStack`, `findNestedProjectRoots` — `repo-scanner.ts` is mapped by `cli/io/stores` (`yg-node.yaml:29`)), a legal `roots-engine → persistence-adapter` edge (`:759`); `→ cli/ast/runtime` and `→ cli/language-registry` are already declared on this node | — |
 | `cli/io/roots-state` (four stores) | `→ cli/io/atomic-write` (`atomicWriteFile`), **`→ cli/io/stores`** (`appendToDebugLog` and `readFileOrDefault` are mapped there — `debug-log-writer.ts` and `read-or-default.ts` at `.yggdrasil/model/cli/io/stores/yg-node.yaml:18`/`:28`, **not** by `cli/io/atomic-write`, which maps only `atomic-write.ts`), `→ cli/utils`, `uses cli/model/graph` | none — no `io` node imports a roots node |
 | `cli/roots/stores` (edited: `appendLedgerMarks`, `snapshotContentHash`) | **none new** — `stores.ts` already imports `appendToDebugLog`/`hashString`/`readFileOrDefault` from `cli/io/stores` and the node already declares that edge. Stated because the neighbouring row differs: the *new* io node needs the edge declared, this one does not | — |
 | `cli/commands/roots-check` | `→ cli/roots/engine`, `→ cli/roots/speech`, `→ cli/roots/stores`, `→ cli/io/roots-state`, **`→ cli/io/stores`** (`readTextFile`/`hashString` — `graph-fs.ts` and `hash.ts` are mapped there, `.yggdrasil/model/cli/io/stores/yg-node.yaml:24`/`:25`; the command layer reads the bytes D6's engine function may not) and **`→ cli/language-registry`** (`getGrammarForExtension`, for T9's "changed **code** files" test — D6 moved the *parse* into `src/roots/extract-file.ts`, a `cli/roots/engine` file that already declares `cli/ast/runtime` and `cli/language-registry`, expressly so the command file would not carry it, so **no `→ cli/ast/runtime` edge is needed here** and an earlier draft of this row justified two edges with a reason D6 had removed) — both legal for `command` (`utility`, `persistence-adapter` on `:61`) — plus the config/utils/formatter/preamble edges `cli/commands/roots` already declares, and `uses cli/tests/unit/cli` (`sibling-test-file`) | none — no engine, store, io or test node imports a command |
@@ -230,7 +230,11 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   (1) session dedup + budgets; (2) telemetry demotion via `demotions.json`; (3) staleness; (4)
   bash-sweep `seedTruncated` / `floodSkipped`. **Modulators (1) and (4) are session-scoped and
   surface in the session, not in `status`** — `status` has no session to speak of (T10 Step 1);
-  (2) and (3) are repository-scoped and `status` lists them. Modulator (4) of the spec's list — daemon-absent —
+  (2) and (3) are repository-scoped and `status` lists them. So: **`status` lists every
+  *repository-scoped* active modulator (T10); the two session-scoped ones surface on the channel that
+  set them.** That is a deliberate, reasoned divergence from §3.3's literal "`status` lists every
+  active modulator" (`v6-spec.md:81`) — derived at T10 Step 1, and flagged here the way D10 flags the
+  channel names — not an omission. Modulator (4) of the spec's list — daemon-absent —
   is permanently active in this product (there is no daemon, `integration-design.md:374-381`) and
   is therefore folded into the channel table itself rather than being a live switch. `status` lists
   every active modulator (T10). *(T6, T9, T10)*
@@ -251,10 +255,12 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   computed for that same scope — same `stableId`, same `skeyR`, same domain membership. This is the
   hinge the whole increment hangs from: if it fails, every verdict is measured against a value the
   index never recorded. It is pinned by an explicit equivalence test over a golden fixture, not
-  assumed from shared code. **D6's gate 0 is part of this invariant, not an addition to it:** a file
-  the index never parsed has no index-time enumeration to be equivalent to, so the honest equivalence
-  is silence, which T3 criterion 14 observes and T3 Step 1's harness — which drives a file that *was*
-  mined — structurally cannot. *(T3, criteria 1 and 14)*
+  assumed from shared code. **D6's gates −1 and 0 are part of this invariant, not additions to it:**
+  a file the index never *walked* (gitignored, symlinked, inside a nested checkout) and a file it
+  walked but never *parsed* (test-pattern, excluded, outside `include`) both have no index-time
+  enumeration to be equivalent to, so the honest equivalence is silence — which T3 criteria 14 and
+  14b observe and T3 Step 1's harness, which drives a file that *was* mined, structurally cannot.
+  *(T3, criteria 1, 14 and 14b)*
 - **R5-I7 — Config verbatim.** R5 invents **no** config key. Every threshold it reads already
   exists in `DEFAULT_ROOTS` (`src/io/config-parser.ts:41-140`) with the spec's own default; the
   parser is where a default is checkable. The keys R5 newly *consumes* are named in D23. No graph
@@ -296,7 +302,7 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   load-bearing there is a test that FAILS when the rule alone is deleted, and the implementer
   demonstrates that by actually deleting it, running the test, and restoring (the live mutation
   round-trips **every MR named in the tasks below**, MR-1 through MR-40 including the lettered
-  variants (54 ids at present) — the phrase "every MR named
+  variants (59 ids at present) — the phrase "every MR named
   in the tasks below" is the binding half and the numeric range is only an aid, so a task that adds a
   killer cannot fall outside the invariant every reviewer checks). A rule with no killer test is not done. *(every task)*
 - **R5-I12 — Every functional change lands with an end-to-end test.** AGENTS.md's standing rule
@@ -307,11 +313,15 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   (T1, T11) say so explicitly and name the task whose e2e covers their contracts. E2E files import
   nothing from `src/**` (`e2e-public-surface`). *(every task)*
 - **R5-I13 — Compliance accounting never double-counts.** Every append is idempotent under its own
-  key; the `ignored` branch fires at most once per session per intervention (`v6-spec.md:479` —
-  without that bound the harness's own re-checks demoted a 96 %-share convention mid-run); and the
-  write order is chosen so a torn write biases toward *under*-recording, never toward demoting a
-  healthy convention (D14). *(T6, T7, T8 — T6 lands `OpenIntervention`'s
-  `ignoredRecordedInSession` in the fold, which is the field the bound is implemented with.)*
+  key — **including telemetry, whose key `(sessionId, stableId, surface, observedAfter)` D13 now
+  names**, since it is the one store T8's re-runnable aggregation appends to; the `ignored` branch
+  fires at most once per session per intervention (`v6-spec.md:479` — without that bound the
+  harness's own re-checks demoted a 96 %-share convention mid-run) and **at most once per
+  intervention across both producers**, T7's in-session bank and T8's cross-session pass being
+  mutually exclusive by `ignoredRecordedInSession` (T8 Step 2); and the write order is chosen so a
+  torn write biases toward *under*-recording, never toward demoting a healthy convention (D14).
+  *(T1 criterion 4b for the key, T6 for the fold field the bound is implemented with, T7 for the
+  in-session half, T8 criteria 4b/4c for the cross-session half and the re-run idempotence.)*
 - **R5-I14 — No internal vocabulary in user-facing output.** Design §11's table
   (`integration-design.md:410-426`) binds every rendered string: no `FACT`, no `pid`, no `surface`,
   no `factKey`, no `roleKey`, no `Δ`, no `τ`, no "hook_shaped", no "partition `_all`". Numbers that
@@ -738,21 +748,65 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   export async function extractScopesForCheck(relPath: string, content: string,
                                               config: RootsConfig): Promise<RawScope[]>;
   ```
-  Its body is the single-file projection of that loop, **gate for gate — all six, starting with the
-  one an earlier draft of this decision dropped**:
+  Its body is the single-file projection of that loop — but a loop has an *input* as well as gates,
+  and both halves have to be projected.
+
+  **Gate −1: the file universe.** `parseAndExtractAll` iterates `walkRepoFiles(repoRoot)`
+  (`pipeline.ts:92`), whose documented membership predicate (`src/io/repo-scanner.ts:524-538`,
+  implemented in `collectFiles` `:55-96`) excludes **gitignore-matched paths** (a per-directory
+  stack), **symlinks**, `.git` in both its directory and pointer-file forms, and **every
+  separate-project subtree** — a nested checkout, submodule or linked worktree, pruned via
+  `findNestedProjectRoots`. `forParsing` knows none of that: it is
+  `include ∧ ¬(BUILT_IN_EXCLUSIONS ∪ config.exclude ∪ TEST_PATTERN_EXCLUSIONS)`
+  (`partitions.ts:136`). The residue is real, not theoretical — `.git`, `.yggdrasil/`, `dist/`,
+  `vendor/`, `node_modules/` are all built-in, but an adopter's gitignored `local-scratch/` or
+  `.venv/`, and **a submodule at `packages/external/`**, are not. `getDirtyFiles` happens to be safe
+  (`git status --porcelain` never lists ignored paths), but the other two candidate sources are not:
+  a hook payload names whatever the agent just edited, and a positional `yg roots check <path>`
+  accepts anything. Such a path would parse, route by directory prefix (which matches a submodule
+  path under a package root perfectly happily), and be measured against `_all` facts mined from a
+  tree it was never part of — the same harm gate 0 exists to prevent, one layer up, and it would mint
+  `stableId`s the next index can never match, which then ride into `telemetry.jsonl` and, on
+  compliance, into the **committed** `ledger.jsonl`.
+
+  **The mechanism, chosen for cost as well as fidelity — three per-path tests built from
+  `repo-scanner.ts`'s own exported helpers, never a re-implementation and never an O(repo) walk:**
+  1. **`lstat`** — the path exists and is a **regular file**: not a directory, and **not a symlink**
+     (`collectFiles` admits an entry only under `entry.isFile()`, `:97`). One syscall, and it
+     **subsumes the existence filter** T3 Step 8 already performs, so the two are one test.
+  2. **Nested-project boundary** — no ancestor directory strictly between the path and the repo root
+     contains a `.git` or a `.yggdrasil` entry. That is `findNestedProjectRoots`' own predicate
+     (`repo-scanner.ts:229-244`) evaluated for **one path** instead of the whole tree: at most
+     `depth` `existsSync` calls rather than a recursive walk. Stated as a deliberate *narrowing* of
+     that function, not a copy — and T3 criterion 14's submodule case drives the real
+     `findNestedProjectRoots` alongside it and asserts the two agree, so the narrowing cannot drift.
+  3. **Gitignore** — `isIgnoredByStack(absPath, stack)` (`repo-scanner.ts:33`), the exported matcher,
+     with the stack assembled for the path's **own ancestor chain**: the root's via the exported
+     `loadRootGitignoreStack` (`:21`) plus each intermediate directory's `.gitignore`, which is
+     exactly the per-directory stack `collectFiles` accumulates as it descends (`:61-68`). No
+     matching logic is rewritten here; only the traversal is replaced by a walk *up* one chain.
+
+  **The cost is O(path depth) file reads per candidate, not O(repo)** — which is why
+  `walkRepoFiles` itself is not called, even though intersecting with it would be the most literal
+  projection: a recursive tree walk with a `.gitignore` read per directory does not fit a 700 ms cold
+  hook budget, and `index` pays it once per build where `check` would pay it per edit. T11's dogfood
+  step measures the real per-invocation cost of gate −1 beside its other figures.
+
+  Then the loop's own gates, **all six, starting with the one an earlier draft of this decision
+  dropped**:
   **(0) `makeRootsFileFilters(config).forParsing(relPath)`** (`pipeline.ts:103`, the filter itself at
   `partitions.ts:127-137`) false ⇒ `[]`; **(1)** `getGrammarForExtension` (`:104`) — no registered
   grammar ⇒ `[]`, the same skip the index performs; **(2)** `config.history.blobMaxBytes` and
   **(3)** `MAX_PARSE_LINES` (`:108-109`) ⇒ `[]`; **(4)** `bindingForAsset(assetNameOfWasmFile(...))`
   (`:111`); **(5)** `withParsedFile(relPath, content, …)` → `extractUnits` with `ExtractOptions`
-  drawn from `config.enumerate.*` (`:95-99`), and the same catch degrading to `minimalFileScope`
+  drawn from `config.enumerate.*` (`:96-100`), and the same catch degrading to `minimalFileScope`
   (`:117`).
 
   **Gate 0 is the load-bearing one and it deserves its own paragraph, because dropping it is not a
   performance bug — it is the product speaking where it has no evidence.** `forParsing` enforces
   `config.include`, `BUILT_IN_EXCLUSIONS` (`node_modules`, `dist`, `build`, `out`, `vendor`,
   `target`, `migrations`, `fixtures`, `__mocks__`, `**/*.d.ts`, `**/*generated*/**`, …) **and**
-  `TEST_PATTERN_EXCLUSIONS` = `['**/*.test.*','**/*.spec.*']` (`partitions.ts:100-101`, `:128-130`).
+  `TEST_PATTERN_EXCLUSIONS` = `['**/*.test.*','**/*.spec.*']` (`partitions.ts:101-102`, `:128-130`).
   Without it, `extractScopesForCheck` returns real scopes for `src/order.test.ts`, for
   `dist/bundle.js`, for `types/api.d.ts` and for anything the adopter listed in `roots.exclude` —
   scopes carrying `stableId`s the index never minted, routed by `partitionRouting` (which knows only
@@ -908,7 +962,12 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   fold. `telemetry.jsonl` carries the same interventions in a role-free, cross-session, retained
   form for §18.2's pooling (`:681`, `:683`) and is never consulted for a budget decision. Both are
   idempotent under replay: the fold treats duplicate `(stable_id, surface, direction)` events as
-  one, and §18.3's ledger dedupes on `(stable_id, surface, date)`.
+  one, and §18.3's ledger dedupes on `(stable_id, surface, date)`. **Telemetry needs its own key and
+  now has one: `(sessionId, stableId, surface, observedAfter)`** — an earlier draft asserted "each
+  append idempotent under its key" (T7 Step 3) while naming keys for only two of the three stores,
+  which left the one set that T8's re-runnable aggregation appends to unprotected. `observedAfter`
+  being part of the key is deliberate: an intervention record and its later closure are two rows that
+  must both survive, while a *repeat* of either is one row.
 - **D14 — Write order, chosen for the direction a torn write biases in.** Emission: render →
   **write the output first** → append the **`'checked'`** session event (the command-layer record of
   which files this run looked at — first among the session appends, so a run that emits nothing
@@ -916,8 +975,11 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   lines. Closure: append the session `'closed'` event → append the telemetry `observedAfter` line →
   append the ledger mark (complied only). **The sweep path's two kinds ride the same order, and
   `'sweep'` does NOT replace `'checked'`:** on the bash channel a sweep that evaluates files appends
-  **`'checked'` first** — carrying the ≤ `budgets.bashSweepMaxFiles` paths it actually evaluated,
-  never the seeded set — and **then** `'sweep'` carrying the sweep's own state; a *seed* sweep, which
+  **`'checked'` first** — carrying the ≤ `budgets.bashSweepMaxFiles` changed paths it **took up in
+  that sweep** (its *participation* set: T3 Step 8 filter 1's output, capped by path order so the cap
+  stays deterministic and matches §12.4's bound), never the seeded set and never the narrower
+  post-`forParsing` set, since the payload is participation everywhere (T3 Step 8's fork) — and
+  **then** `'sweep'` carrying the sweep's own state; a *seed* sweep, which
   evaluates nothing by design (T9 Step 1), appends `'sweep'` alone. `'stop'` is appended last on the
   stop channel, after any completeness output, since nothing reads it back within the same run.
   **The replacement reading is rejected explicitly**, because it is silently fatal rather than merely
@@ -929,7 +991,11 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   sessions only") would be inverted into its mirror defect. The alternative repair — giving `'sweep'`
   a `files` payload that also folds into `writtenFiles` — is also rejected: it would make two event
   kinds producers of one fold field, against D1's one-producer-per-set rule, for no gain. All five
-  kinds are covered by this one order. The reasoning is the failure mode, not the happy path. A
+  kinds are covered by this one order. **One writer sits outside the check path and is named here so
+  "the single order" stays true: T8's cross-session closure pass** appends a terminal `'closed'`
+  event with `scope: 'cross-session'` into an *ended* session's log, followed by its telemetry sample
+  and — on `complied` only — its ledger mark: the same session → telemetry → ledger order, applied by
+  `index` rather than by a check run. The reasoning is the failure mode, not the happy path. A
   crash after printing but before recording loses an intervention: compliance is measured slightly
   high and a healthy convention is *not* demoted. A crash in the other order records an
   intervention the agent never saw, which later closes as `ignored` and pushes a healthy convention
@@ -1016,7 +1082,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
      implementation here. T8 criterion 7's converse asserts the whole-tree snapshot, not merely
      `demotions.json`'s absence, so the rule has a killer rather than a promise.
   5. **`status` computes and displays, and writes nothing** — the reader/writer split
-     (`integration-design.md:160-163`). Concretely, and this is the part §18.2 hides: its
+     (`integration-design.md:161-164`). Concretely, and this is the part §18.2 hides: its
      cross-session closure pass would otherwise **append committed ledger marks** from a read
      surface (§18.2 says a cross-session `complied` sample "appends the §18.3 ledger mark"). Per
      D1's seam, `health.ts` *returns* those marks as intents; only `index` applies them. T8
@@ -1130,10 +1196,13 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   (`config-parser.ts:57-62`), the `ExtractOptions` D6's gate 5 passes to `extractUnits`, and
   `support`/`topK`, which reach the check path only through the snapshot's persisted vocabulary and
   are never recomputed (D6); **`history.blobMaxBytes`** (`:51`), D6's gate 2; and **`roles.*`** —
-  `cloneMedoidJaccard`, `roleAmbiguityGap` and `roleMinMembership` (`:130-136` and `thresholds`
-  `:88-89`), which T3 Step 2's classification path needs because the landed classifier's signature is
+  **`minOwnFeatures`** (`config-parser.ts:135`), which T3 Step 2's **rung 0** needs, plus
+  `cloneMedoidJaccard` (`:137`), `roleAmbiguityGap` and `roleMinMembership` (`:91-92`, in the
+  `thresholds` block, not the `roles:` block — the `roles:` block itself is `:131-138`), which its
+  rung 2 needs because the landed classifier's signature is
   `classifyAgainstMedoids(bag, medoids, cloneMedoidJaccard, roleAmbiguityGap, roleMinMembership)`
-  (`src/roots/roles.ts:351-357`).
+  (`src/roots/roles.ts:351-357`). All four are landed with the spec's defaults; none is new, so none
+  trips this decision's own "any new key is a STOP".
   `budgets.daemonBudgetMs` is present in the config and is **never read** — there is no daemon
   (`integration-design.md:374`); leave it parsed and unused, and say so once where the budget
   constants are consumed, so a later reader does not "fix" the omission. Any new key is a STOP.
@@ -1245,7 +1314,12 @@ R4 shipped.
 //                            severity: 'WARN' | 'DENY' }                        -> warnCount, dedupKeys,
 //                                                                                  openInterventions
 //     { ts, kind: 'closed',  stableId, surface,
-//                            outcome: 'complied' | 'ignored' }                  -> openInterventions
+//                            outcome: 'complied' | 'ignored',
+//                            scope: 'session' | 'cross-session' }               -> openInterventions
+//       scope 'cross-session' is TERMINAL for BOTH outcomes: an ended session can never later
+//         comply, and the marker is what stops T8's pass re-firing on every subsequent index
+//         (D16.2 runs it unconditionally). Only T8 writes it; T7 always writes 'session'.
+//       With scope 'session':
 //       'complied' REMOVES the intervention from openInterventions (it is finished).
 //       'ignored'  LEAVES IT OPEN and only sets ignoredRecordedInSession = true — §9.10's bound is
 //                  written over "the open record", present tense, AFTER the ignore
@@ -1272,6 +1346,7 @@ export function pruneSessions(stateDir: string, pruneDays: number, nowMs: number
 // roots-telemetry-store.ts — §18.1: role-free keys, retention compacted at index.
 export function readTelemetry(stateDir: string): Promise<TelemetryRecord[]>;
 export function appendTelemetry(stateDir: string, records: readonly TelemetryRecord[]): Promise<void>;
+                                          // dedupes on (sessionId, stableId, surface, observedAfter) — D13
 export function compactTelemetry(stateDir: string, retentionDays: number, nowMs: number): Promise<number>;
 
 // roots-demotions-store.ts — §18.2: stamped with the snapshot content hash.
@@ -1376,6 +1451,9 @@ export function snapshotContentHash(body: unknown): string;                     
    `Date.parse` arithmetic, `weights.ts:256`).
 4. `compactTelemetry` drops records older than `health.telemetryRetentionDays` (180) against an
    injected `nowMs` and preserves the rest in order; a run with nothing to drop rewrites nothing.
+4b. `appendTelemetry` **dedupes on `(sessionId, stableId, surface, observedAfter)`** (D13): appending
+   the same record twice leaves the file byte-identical, while an intervention row and its later
+   `observedAfter` closure row — same session, same pair, different `observedAfter` — both survive.
 5. `readDemotions` returns `undefined` for: an absent file, a file that is not JSON, a file whose
    `snapshotContentHash` is not a string, and a file whose `demoted` is not an array of strings.
 6. `appendIncident` keeps the newest 500 records and drops the oldest; the 501st append leaves
@@ -1638,8 +1716,12 @@ sticky rule (`:345`), §8.9 (`:356-358`), §8.10 (`:360-362`), §11.1 (`:505-527
   **`cli/roots/engine`**'s mapping, not `roots/speech`'s, exactly as `exemplars.ts` does and for the
   same reason: it is production extraction code, and the node assignment keeps the check path's
   parse out of the command file's byte budget).
-- Edit `source/cli/src/roots/pipeline.ts` — **move** `minimalFileScope` (`:44`) into
-  `extract-file.ts` and import it back; no behavior change, one implementation.
+- Edit `source/cli/src/roots/pipeline.ts` — **move** `minimalFileScope` (`:44`) **and
+  `MAX_PARSE_LINES` (`:41`)** into `extract-file.ts`, and have `pipeline.ts` and the existing second
+  consumer `history.ts:89` import them from there. Moving the constant with the function is not
+  tidiness: `extract-file.ts` reproduces gate 3, so leaving `MAX_PARSE_LINES` behind would make
+  `pipeline.ts → extract-file.ts → pipeline.ts` a real (if benign) ESM import cycle, unstated. No
+  behavior change, one implementation of each.
 - Create `source/cli/src/cli/roots-check.ts` (exactly one `registerRootsCheckCommand` export).
 - Edit `source/cli/src/cli/roots.ts` — one line, calling the new registrar.
 - Create `source/cli/tests/unit/roots/extract-file.test.ts` (the gate-for-gate equivalence harness
@@ -1733,7 +1815,24 @@ never a new parameter, so no task re-opens this file's contract.
   value agree. **STOP and report** any divergence — a single-file `finalizeUnits` that shifts an
   ordinal or a partition id makes every downstream key wrong, and it is far cheaper to find here
   than in T7's ledger mismatch.
-- [ ] **Step 2: Scope resolution, sticky first.** `stickyRole(scope) ?? classify(scope, ctx)`
+- [ ] **Step 2: Scope resolution — the eligibility gate FIRST, then sticky, then classify.** The
+  ladder has three rungs, not two, and the missing one is the reason an earlier draft would have
+  assigned roles the index categorically refuses to assign.
+  **Rung 0 — `_untyped` eligibility (§8.1).** A scope is eligible for *any* role only if its kind is
+  `method` or `type` **and** `buildRoleFeatureBag(unit)` (`roles.ts:149`) yields
+  `ownFeatureCount >= config.roles.minOwnFeatures`. That is the index's own filter
+  (`induceRolesForPartition`, `roles.ts:819-823`), and the landed comment states the consequence in
+  binding terms (`:814-817`): fewer than `minOwnFeatures` own features "excludes a scope from
+  clustering **AND from role-conditioned conventions entirely** — it never enters `eligible` at all,
+  so it gets no assignments-map entry". §8.10 (`v6-spec.md:362`) names the class: `_untyped` members
+  fall back to `_all`. **An ineligible scope therefore gets no sticky lookup, no classification and
+  `_all` governance only.** Skipping this rung is not a near-miss: `classifyAgainstMedoids` contains
+  no such gate — its only rejections are §8.5's membership floor and the ambiguity gap, both of which
+  a one-own-feature scope (a single `sup:` or `dec:` tag matching a medoid) clears routinely — so the
+  scope would receive a role, and D8 would then let that role's facts, being the smaller evidence
+  class, **shadow** the `_all` facts that are its only correct governance: a wrong message that also
+  suppresses the right one, on the ordinary small method.
+  **Rung 1 — sticky, rung 2 — classify:** `stickyRole(scope) ?? classify(scope, ctx)`
   (`v6-spec.md:345`) — where `classify` is the **landed** `classifyAgainstMedoids(bag, medoids,
   cloneMedoidJaccard, roleAmbiguityGap, roleMinMembership)` (`src/roots/roles.ts:351-357`), called
   with medoid bags rebuilt from the snapshot's `medoidFeatures`, never a second implementation of
@@ -1746,6 +1845,12 @@ never a new parameter, so no task re-opens this file's contract.
   the non-obvious half: a deviation that strips a role-defining marker also strips the membership
   evidence, so feature-only reclassification would let the deviating scope escape the role and
   silence exactly the message that should fire.
+  **The rest of `roles.ts`'s induction path was walked end to end once, here, so no other landed gate
+  is missing the way rung 0 was:** `minClusterSize` (`roles.ts:887`, a total member weight, dropped
+  clusters' members falling back to `_all`) and `clusterSampleCap` (`:871`) are **build-time**
+  gates — they decide which roles exist at all, and the check path inherits their outcome by reading
+  only the roles the snapshot persisted, so there is nothing for it to re-apply. §8.9(b)'s file-role
+  plurality (`:704-712`) is already on this step. Rung 0 was the only omission.
 - [ ] **Step 3: Candidate facts and governance** exactly as D8 fixes them, iterating in
   `(roleKey asc, surface asc)` input order and truncating nothing (R5-I9).
 - [ ] **Step 4: The skip ladder, in the spec's order** (`:455-470`): compliance closure would run
@@ -1779,30 +1884,50 @@ never a new parameter, so no task re-opens this file's contract.
   0, a snapshot whose `rootsVersion` does not match ⇒ print nothing, record one incident, exit 0.
   Registered from `cli/roots.ts` (never from `cli/entry` — the fan-out pin), exit 0 on every verdict
   outcome, exit 1 only on the argument-validation carve-out R5-I1 names.
-- [ ] **Step 8: Resolving the file set — one place, three filters, before any evaluation.** Whatever
+- [ ] **Step 8: Resolving the file set — one place, and it produces TWO sets, not one.** Whatever
   supplied the candidate paths (positional arguments, a hook payload, or D11's `getDirtyFiles`), the
-  command layer resolves the set **once**, before path safety and before any read, applying in order:
-  1. **Existence.** Drop any path that is not an existing regular file, one `debugWrite` per drop.
-     This is not defensive padding: `getDirtyFiles`' own contract states that "a rename/copy
-     contributes **BOTH** its old and new path" (`src/utils/git.ts:113-124`), so the set routinely
-     contains deleted files and the old side of every rename. Without the filter, `readFile` (or T5
-     Step 4's `realpath`, which runs earlier still) throws ENOENT on such a path — and because
-     R5-I2 mandates **one** catch around the whole run and MR-19 exists precisely to forbid a
-     per-file catch, that single missing path would abort the entire invocation: zero findings for
-     **every** file, one incident, exit 0, nothing an adopter can see. One `git mv` would silence the
-     product for that run.
+  command layer resolves them **once**, before any read, in this order:
+  1. **Membership in the index's file universe — D6's gate −1**, whose three per-path tests
+     (`lstat` regular-file-and-not-symlink; no nested-project boundary above it; not gitignored)
+     also **subsume the existence check**, so this is one filter rather than two. The existence half
+     is not defensive padding: `getDirtyFiles`' own contract states that "a rename/copy contributes
+     **BOTH** its old and new path" (`src/utils/git.ts:113-124`), so the set routinely contains
+     deleted files and the old side of every rename; and without the filter `readFile` (or T5 Step
+     4's `realpath`, earlier still) throws ENOENT on such a path — which, because R5-I2 mandates
+     **one** catch around the whole run and MR-19 forbids a per-file one, would abort the entire
+     invocation: zero findings for **every** file, one incident, nothing an adopter can see. One
+     `git mv` would silence the product for that run. One `debugWrite` per drop.
+     **⇒ The surviving set is the PARTICIPATION set: the files this run legitimately looked at.**
   2. **`forParsing`** — `makeRootsFileFilters(config).forParsing(relPath)` (D6 gate 0). A path the
-     index would never mine is dropped here rather than inside `extractScopesForCheck`, so the set
-     the rest of the run works from is already the set the index would have recognized. (The gate
-     still lives in `extractScopesForCheck` too, for callers that reach it directly — belt and
-     braces on the one rule whose absence makes the product speak without evidence.)
-  3. **Path safety** — specified and landed at **T5 Step 4**, inserted into *this* order when it
-     arrives. T3 implements filters 1 and 2 only; the slot is named here so T5 widens an existing
-     resolution step rather than inventing a second one somewhere else.
-  **This resolution step is deliberately OUTSIDE R5-I2's fail-open boundary**, and that is what keeps
-  MR-19's "one catch" claim true: it is set *construction*, performed before the boundary opens, not
-  error *recovery* inside it. A path that cannot be resolved is not an exception to be caught; it is
-  a path that is not in the set.
+     index would never *mine* is dropped here rather than inside `extractScopesForCheck`, so the set
+     the verdict path works from is already the set the index would have recognized. (The gate still
+     lives in `extractScopesForCheck` too, for callers reaching it directly — belt and braces on the
+     one rule whose absence makes the product speak without evidence.)
+     **⇒ The surviving set is the EVALUATION set.**
+  3. **Path safety** — specified and landed at **T5 Step 4**, applied to the evaluation set. T3
+     implements filters 1 and 2 only; the slot is named here so T5 widens an existing resolution step
+     rather than inventing a second one somewhere else.
+
+  **Why the fork, and why it is exactly one filter wide (M3).** The `'checked'` session event — and
+  therefore `writtenFiles`, and therefore §13.5's `D` — is built from the **participation** set, not
+  the evaluation set. Gate 0's honesty argument is about *speaking about a file's own conventions*,
+  and completeness does no such thing: it uses membership in `D` only as a session-participation
+  signal and names a **partner**, which is never evaluated and never spoken about. Building `D`
+  post-`forParsing` would make it structurally **test-free** — `TEST_PATTERN_EXCLUSIONS` is inside
+  `forParsing` — which would silence the single most useful completeness direction there is ("you
+  changed the test; you usually also change `src/order.ts`"), kill D20's own motivating pair, and
+  leave T9 criterion 5's second and third cases unreachable through the product while still passing
+  as unit tests. So: participation is broad and says nothing; evaluation is narrow and speaks.
+  T6 Step 1b carries the same statement where the event is produced.
+
+  **Every filter is total, and the step as a whole cannot throw (m5).** `lstat`, the ancestor scan
+  and `realpath` all throw on `EACCES` / `ELOOP` / `ENAMETOOLONG`, and by this point the graph root
+  is resolved, so T3 Step 7's pre-root catch no longer applies: **any throw inside a per-path test is
+  a drop with one `debugWrite`, never an exception.** That is what lets the step sit **deliberately
+  OUTSIDE R5-I2's fail-open boundary** without weakening R5-I1 — it is set *construction* performed
+  before the boundary opens, not error *recovery* inside it, and MR-19's "one catch" claim is
+  untouched. A path that cannot be resolved is not an exception to be caught; it is a path that is
+  not in the set.
 
   With no positional paths and no `--hook`, the candidate set is `getDirtyFiles(repoRoot)`
   (`src/utils/git.ts:125`) and **every** scope in the surviving files is evaluated — the declared, budget-bounded superset of §19's `body_hash`-filtered set, for the
@@ -1836,6 +1961,12 @@ Additional criteria:
    `nTotalRaw`, the role wins over the directory, which wins over `_all`.
 8. **Ambiguity is silence.** A scope stored as `'-1'` produces no role-fact finding and still
    produces its `_all` finding.
+8b. **`_untyped` is silence too, and for a different reason.** A scope with fewer than
+   `roles.minOwnFeatures` (2) own features — an ordinary small method — has **no** `assignments`
+   entry at all, and produces its `_all` finding and **no role finding**, even when its single
+   feature would match a medoid comfortably. Asserted on a scope built to clear
+   `roleMinMembership` against a fixture medoid, so the criterion fails if rung 0 is skipped rather
+   than passing by accident.
 9. **Decorative roles contribute nothing.** A role with `role_lift ≤ 0` yields neither facts nor
    shadows; its members fall back to `_all` (`isDecorativeRole`, `roles.ts:598`).
 10. **The channel table, complete.** For each of the five channels × two severities, the returned
@@ -1862,10 +1993,21 @@ Additional criteria:
     path the fixture's `roots.exclude` names, and with a path outside a narrowed `roots.include`:
     silent in both cases, exit 0, no incident. This is the criterion that observes gate 0 — T3 Step
     1's equivalence harness cannot, because it drives a file the index *did* mine.
+14b. **A file outside the index's universe is silent (D6 gate −1).** On a fixture carrying a
+    **gitignored** source file, a **symlink** to a real source file, and a **nested checkout**
+    (a `packages/external/` directory with its own `.git`), each planted with the same deviation:
+    `yg roots check` on each of the three prints nothing, exits 0, records no incident. The same test
+    calls the landed `findNestedProjectRoots(repoRoot)` and asserts the nested directory is in its
+    result — so gate −1's per-path narrowing and the function it narrows agree on the fixture rather
+    than merely being claimed to.
 15. **A deleted path does not silence the run (Step 8.1).** On a golden where one dirty path has been
     deleted (or `git mv`-ed, so the set carries its old name) and another still deviates, bare
     `yg roots check` **reports the deviation**, exits 0, and records **no** incident — the deleted
-    path contributing one `debugWrite` line and nothing else.
+    path contributing one `debugWrite` line and nothing else. **The same holds for a path whose
+    parent directory is unreadable** (mode `000`, skipped where the suite already skips its
+    chmod-simulation cases under root): the per-path test throws, the path is dropped with one
+    `debugWrite`, and the other file's finding still prints — the totality clause of Step 8, whose
+    absence would surface as a stack trace and a non-zero exit on a hook path.
 
 **E2E coverage.** `cli-roots-check.test.ts` drives the adopter flow end to end on a golden fixture:
 `yg roots index`, then edit a file to violate a mined convention, then `yg roots check <file>` —
@@ -1879,6 +2021,9 @@ uncommitted, `yg roots check` with no arguments finds it; with the tree clean, i
 - **MR-9 (sticky roles):** replace `stickyRole(scope) ?? classify(...)` with `classify(...)` alone ⇒
   the e2e's strip-a-role-marker case goes silent (the deviating scope escapes its role) — the exact
   50 %→93 % detection effect §8.6 records.
+- **MR-9b (rung 0):** delete the `ownFeatureCount >= minOwnFeatures` gate ⇒ criterion 8b fails: the
+  `_untyped` scope receives a role, and D8's smallest-evidence-class rule then shadows the `_all`
+  finding the criterion also asserts, so both halves move at once.
 - **MR-10 (governance smallest-first):** pick the **largest** evidence class ⇒ criterion 7 fails.
 - **MR-11 (τ from the fact):** hard-code `preferenceGapBits` in the verdict ⇒ acceptance row 4 fires
   when it must not.
@@ -1903,6 +2048,9 @@ uncommitted, `yg roots check` with no arguments finds it; with the tree clean, i
 - **MR-14c (gate 0):** delete the `forParsing` gate from the set resolution **and** from
   `extractScopesForCheck` ⇒ criterion 14 fails on all three of its cases — the test file, the
   excluded path and the narrowed include — which is the product speaking about code it never mined.
+- **MR-14e (gate −1):** delete any one of gate −1's three tests ⇒ criterion 14b fails on the
+  corresponding case (gitignored / symlink / nested checkout). Deleting the whole gate fails all
+  three at once **and** re-breaks criterion 15, since the existence check lives inside it.
 - **MR-14d (existence filter):** delete the existence filter from Step 8.1 ⇒ criterion 15 fails, and
   it fails in the shape that matters: not a wrong message but **silence plus one incident** for the
   whole run, which is how this defect would present in production.
@@ -1948,10 +2096,21 @@ A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design 
   evidence)" (`v6-spec.md:513`), flagged here the way D10 flags the channel names so a reviewer does
   not read it as a transcription error: design §11's naming table (`integration-design.md:410-426`)
   maps `hook_shaped` to "echo-shaped" precisely because "hook-shaped" is internal vocabulary, and
-  R5-I14 makes the naming table binding on every rendered string), `{seed_note}` (" (+seeded)"),
+  R5-I14 makes the naming table binding on every rendered string). **Two rows of that same table are
+  deliberately overridden in the other direction — spec over design — and are flagged here for the
+  same reason:** `:416` maps `d[...]` to "local to `<dir>/`" while this increment renders §9.4i's own
+  **`local (<dir>/)`**, and `:417` maps a role to "group «label»" while it renders the **bare medoid
+  label**. In both cases §11.1's *rendered examples* (`v6-spec.md:517`) are the more literal
+  authority for the message **body**, while design §11's table governs vocabulary choices the spec
+  leaves open; T4 criterion 3 asserts the spec's forms "verbatim", and this is what "verbatim" means.
+  ), `{seed_note}` (" (+seeded)"),
   `{novelty_note}`, `{stability_note}` (**omitted** in R5 — `stabilityDays` is structurally absent
-  until R6, and the spec's own rule at `:513` is "omitted when absent"), and the locality
-  contrast sentence. No transition text ever renders in a message (Appendix A's T3 is report-only, `:513`).
+  until R6, and the spec's own rule at `:513` is "omitted when absent"), and **the locality contrast
+  sentence, which has two forms, keyed on cell class**: §9.4i gives it as "this is the local default
+  of this directory / **of this group**" (`v6-spec.md:428`), and `parentExp` is `null` only for
+  `_all` facts (`mine.ts:139-140`) — so a **role** fact carries it too and must render the *group*
+  wording, while §11.1's quoted example (`:527`) shows only the directory wording. "Verbatim" in T4
+  criterion 3 therefore means "verbatim in the form its cell class selects". No transition text ever renders in a message (Appendix A's T3 is report-only, `:513`).
 - [ ] **Step 4: `{unit_plural}` from `appliesKind`** — methods / types / files / directories — and
   the per-row deviation phrase ("does not…", "is `<observed>`" for categoricals), which design §12
   names as a productionized gap the prototype left generic (`:463`).
@@ -1984,7 +2143,10 @@ A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design 
    has one) for a hand-built fact, matching the spec's text word for word.
 2. The `nameshape` row renders three example names and **never** the shape string.
 3. A directory fact whose `parentExp ≠ expected` renders the `local (<dir>/)` label and appends the
-   locality sentence verbatim; the same fact with `parentExp == expected` renders neither.
+   locality sentence's **directory** form verbatim; the same fact with `parentExp == expected`
+   renders neither. **A role fact with `parentExp ≠ expected` renders the sentence's *group* form**
+   (§9.4i's second wording) beside its medoid label — the arm an earlier draft left both unstated and
+   untested, though `parentExp` is non-null for every role fact.
 3b. **All four partition labels render, `''` included.** A fact from partition `'_repo'` renders
    `repo-wide`; a fact from partition `''` — the root-level-package shape D5 builds a fixture for —
    **also** renders `repo-wide`, never `package-wide ()`; a fact from `'packages/api'` renders
@@ -2073,7 +2235,11 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
   findings and zero incidents — an earlier draft of this step listed exactly those four and was
   unsatisfiable, because satisfying it would have meant *breaking* T1's tolerance contract. Criterion
   4 covers the escaping regime, criterion 4b the absorbed one.
-- [ ] **Step 4: Path safety (§21.2).** Every input path is realpath-resolved and must lie inside the
+- [ ] **Step 4: Path safety (§21.2) — landing into T3 Step 8's third slot, not beside it.** This is
+  filter 3 of the set resolution T3 Step 8 already owns, applied to the **evaluation** set and
+  inheriting that step's totality rule: a `realpath` that throws (`EACCES`/`ELOOP`/`ENAMETOOLONG`) is
+  a drop with one `debugWrite`, never an exception, so the step as a whole still cannot throw and
+  still sits outside R5-I2's boundary. Every input path is realpath-resolved and must lie inside the
   repository; one incident per session for the whole class, not one per path; symlink escape
   refused. A rejected path is silence, not an error.
 - [ ] **Step 5: Staleness (D17).** Compute the cheap tuple, and when it differs from the snapshot
@@ -2100,8 +2266,16 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
    about the run and not about a single file (MR-19 depends on it); with the harness option the same
    injection throws instead.
 4b. **Absorbed faults, the half no criterion previously observed.** With a deliberately corrupted
-   session log line, a non-JSON `demotions.json`, a file whose grammar is unregistered, and a source
-   file that will not parse — each present in a run that also contains one genuinely deviating file —
+   session log line, a non-JSON `demotions.json`, a file whose grammar is unregistered, and **a
+   forced `parseFile` throw** — the fourth driven through the **same test-only injection seam**
+   criterion 4 and 5b use, **not** by writing malformed source: tree-sitter is error-tolerant, so
+   broken syntax yields a tree full of ERROR nodes and never throws, and D6 gate 5's catch
+   (`pipeline.ts:115-118`) is reachable only when `parseFile` itself throws (a grammar-load failure,
+   or `parser.parse()` returning null — `ast/parser.ts:115-122`). A fixture file cannot produce it,
+   and a criterion that looked satisfied by a file which in fact parsed cleanly would be the same
+   unsatisfiable shape this criterion exists to replace. `extract-file.test.ts` additionally covers
+   the `minimalFileScope` degrade directly, since no landed test exercises it today. Each of the four
+   present in a run that also contains one genuinely deviating file —
    the run **still emits that file's finding**, exits 0, and records **zero** incidents. Each
    degradation contributes one `debugWrite` line and nothing else. This is R5-I15 made observable,
    and it is the criterion that fails if anyone "fixes" tolerance by throwing.
@@ -2175,8 +2349,16 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
   `'sweep'` (its own state); the two are not alternatives, and D14 says so in those words.** The one
   run that appends no `'checked'` is a *seed* sweep, because it evaluates nothing at all by design
   (T9 Step 1). **Its producer is the command layer** — `src/cli/roots-check.ts` builds it from the
-  file set it resolved and merges it into the applied `Intents` (D1); neither engine stage can, and
-  D1 says why. Its place in the write order is **first among the session events**, before the
+  **participation** set (T3 Step 8 filter 1's output: everything in the index's file universe that
+  this run legitimately looked at), **not** from the narrower evaluation set, and merges it into the
+  applied `Intents` (D1); neither engine stage can, and D1 says why. **The distinction is
+  load-bearing, not bookkeeping:** the evaluation set is post-`forParsing`, which contains
+  `TEST_PATTERN_EXCLUSIONS`, so building the payload from it would make `writtenFiles` — and
+  therefore §13.5's `D` — structurally **test-free**, silencing the most useful completeness
+  direction there is ("you changed the test; you usually also change `src/order.ts`"), killing D20's
+  own motivating pair, and leaving T9 criterion 5's second and third cases unreachable through the
+  product while still passing as unit tests. Participation is broad and speaks about nothing;
+  evaluation is narrow and speaks. T3 Step 8 carries the same statement where the fork happens. Its place in the write order is **first among the session events**, before the
   `warned` appends and before `'sweep'` (D14), so a run that prints nothing still records that it
   looked.
   `foldSession` unions their `files` into `writtenFiles`.
@@ -2186,7 +2368,10 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
   inspected, the form R9 will teach agents to run. So completeness may name a partner for a file
   nobody edited. That is bounded by `completeness.maxItems` (5) and the once-per-session guard, and
   it errs toward *offering* a pairing rather than withholding one, which is the safe direction for an
-  advisory note. **The alternative — restricting `D` to files the session actually changed — is
+  advisory note. Note the direction is over-inclusive in one axis and **exactly right in another**:
+  a test file the agent edited *is* in `D` (D6 gate 0 keeps it out of *evaluation*, never out of
+  participation), which is what makes the test→source completeness direction reachable at all.
+  **The alternative — restricting `D` to files the session actually changed — is
   rejected explicitly, not by silence:** roots observes checks, not edits, so "changed" would have to
   be reconstructed from content hashes across runs, which is the bash sweep's own mechanism (T9) and
   is unavailable on the Edit path. This is a widening of T1's `SessionEvent` union and T6's fold result, landed
@@ -2297,7 +2482,15 @@ intents); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
   on `(stable_id, surface)` and `v == expected` ⇒ telemetry `observedAfter: complied` **and** a
   ledger mark, **and the intervention is removed from `openInterventions`**: it is finished. Open and
   still deviating ⇒ `observedAfter: ignored`, **at most once per session per intervention** — and
-  **the intervention stays open**, with only `ignoredRecordedInSession` set. The asymmetry is the
+  **the intervention stays open**, with only `ignoredRecordedInSession` set. **Every closure T7
+  writes carries `scope: 'session'`**; `'cross-session'` is T8's alone (T1's union), and the
+  in-session bound is therefore untouched by T8's terminal marker. **How this composes with §11.3's
+  dedup, since both fire on a re-check:** the third and later sightings of the same deviation in one
+  session are suppressed as *messages* by the WARN dedup key `(stable_id, surface, direction)`, while
+  closure still runs on every sighting — it precedes every skip (T3 Step 4) — and
+  `ignoredRecordedInSession` is what stops those silent re-views banking a second `ignored`. Dedup
+  bounds what the agent *sees*; the flag bounds what the pool *counts*; neither substitutes for the
+  other. The asymmetry is the
   whole mechanism and it is stated because the natural reading of "closed" is removal, which is
   wrong in two ways at once:
   - a PostToolUse hook fires on every Edit, so re-checks of the same file inside one session are the
@@ -2409,12 +2602,45 @@ create `source/cli/tests/unit/roots/health.test.ts`; create
   guessed at. Then filter to events whose recorded `(surface, expected)` matches the current fact —
   an expected flip must not poison the pool. Resolved = has `observedAfter`; unresolved excluded
   from the denominator.
-- [ ] **Step 2: Cross-session closure.** The aggregation folds each ended session's log with
-  `foldSession(events, sessionId)` — **supplying the id from the log's own file name**
-  (`sessionLogPath`'s inverse), since no event carries one (T6 Step 1) — and closes the
-  interventions left open by those sessions: current index shows the pair at `expected` ⇒ a `complied` sample **and** the §18.3
-  mark (same dedupe); the pair exists and still deviates ⇒ an `ignored` sample; the scope is gone ⇒
-  the intervention is dropped. The `ignored` branch is load-bearing and the code says why: without
+- [ ] **Step 2: Cross-session closure — one sample per intervention, ever, and a close that cannot
+  re-fire.** The aggregation folds each ended session's log with `foldSession(events, sessionId)` —
+  **supplying the id from the log's own file name** (`sessionLogPath`'s inverse), since no event
+  carries one (T6 Step 1) — and closes the interventions those sessions left open: current index
+  shows the pair at `expected` ⇒ a `complied` sample **and** the §18.3 mark (same dedupe); the pair
+  exists and still deviates ⇒ an `ignored` sample; the scope is gone ⇒ the intervention is dropped.
+
+  **Two rules make that terminal, and without them the pass is an over-firing demotion engine that
+  passes every fixture:**
+  1. **It skips any open intervention whose fold already set `ignoredRecordedInSession`.** That
+     session banked its ignore in-session (T7), and the field exists precisely to say so. Without
+     this, the *dominant* path — warn → re-check while still deviating (one `ignored`) → session
+     ends — books a **second** `ignored` for one intervention, against R5-I13's "compliance
+     accounting never double-counts", which pins *(T6, T7, T8)*. Stated positively: **exactly one
+     `ignored` sample per intervention, ever** — banked in-session by T7 if the agent re-checked, or
+     by this pass if it never did, never both.
+  2. **It appends a terminal `'closed'` event with `scope: 'cross-session'`** into that ended
+     session's own log, through `Intents.sessionEvents` like every other write (D1/D14), and the fold
+     treats a cross-session close as **terminal for both outcomes** — a session that has ended can
+     never later comply, so there is nothing left for it to close. Without a representable terminal
+     marker the pass has no way to record that it already ran: `demotions.json` is content-addressed
+     output, not a cursor, and D16.2 runs the aggregation **unconditionally on every `index`**, so
+     each later run would re-fold the same un-pruned log (`sessions.pruneDays` = 7) and re-fire the
+     same close. **Worked through: eight `yg roots index` runs inside one week — an ordinary week —
+     would reach `health.minSamples` (8) from a single ignored intervention, and
+     `WilsonLB95(0/8) = 0 < 0.3` demotes a healthy convention.** With the two rules that same
+     intervention contributes **one** sample and never re-enters the pool: n = 1 < 8, nothing
+     demotes, and the number of index runs stops being an input to compliance at all. The `complied`
+     arm has the mirror problem and the same fix — a re-fire on a **new UTC day** would slip past the
+     ledger's `(stableId, surface, date)` dedupe (`weights.ts:267-269`) and write a spurious
+     echo-defense cap against real evidence.
+
+  **One loss this design accepts, stated rather than discovered:** `sessions.pruneDays` is 7 and
+  mtime-based, so a session log pruned before any `index` ran takes its open interventions with it —
+  their samples are never banked. That is a *lost* sample, and §18.2 fixes the acceptable direction
+  for exactly this ("a lost demotion resurrects a FACT, never falsely silences one",
+  `v6-spec.md:683`). It is the same direction D16.5 chose for a stale `demotions.json`, and the
+  opposite of the direction the un-terminated pass fails in — which is why the terminal marker is a
+  mechanism and the prune window is left alone. The `ignored` branch is load-bearing and the code says why: without
   it the dominant real path — agent warned, moves on, session ends — never enters the denominator,
   compliance is biased high, and precisely the conventions agents ignore never demote.
 - [ ] **Step 3: The bound.** Demote when `WilsonLB95(compliance) < health.minCompliance` (0.3) with
@@ -2438,7 +2664,8 @@ create `source/cli/tests/unit/roots/health.test.ts`; create
   the cross-session ledger marks as intents (D1's seam) and only `index` applies them, because
   §18.2's cross-session `complied` branch appends a **committed** ledger mark and a read surface may
   not (R5-I8). Telemetry compaction (`health.telemetryRetentionDays`) runs beside the aggregation,
-  under the same write-only-on-change rule.
+  under the same write-only-on-change rule. **The count `status` computes here is not rendered until
+  T10** — this task proves the computation and the absence of writes; T10 adds the line.
 - [ ] **Step 6: Graph ritual + report.**
 
 **Acceptance criteria — by value.**
@@ -2459,9 +2686,24 @@ create `source/cli/tests/unit/roots/health.test.ts`; create
    the resolution through `stableId` is what finds them.
 4. Cross-session closure over a session log whose session is gone produces the three outcomes of
    Step 2 on three hand-built scopes.
+4b. **Idempotence of the pass itself.** Running the aggregation **twice** over the same ended-session
+   log leaves the pool count, `telemetry.jsonl` and `ledger.jsonl` **byte-identical** after the
+   second run. Driven through two consecutive `yg roots index` invocations on an unchanged tree, so
+   it observes D16.2's unconditional-aggregation path rather than a direct call.
+4c. **One ignored sample per intervention, across both producers.** A scope warned and re-checked
+   while still deviating (T7 banks one `ignored`), whose session then ends: the cross-session pass
+   adds **no** second sample — `telemetry.jsonl` holds exactly one `ignored` for that pair. The
+   converse also holds: a scope warned and **never** re-checked before the session ended gets its one
+   `ignored` from the pass, since `ignoredRecordedInSession` is false. Eight index runs in a row
+   change neither count — which is the criterion that fails if either rule of Step 2 is dropped, and
+   the shape in which this defect would otherwise reach production: a healthy convention demoted by
+   nothing but the number of times someone ran `index`.
 5. A `demotions.json` whose stamp does not match the current snapshot is ignored: the fact speaks.
-6. `status` reports the same demotion count `index` would write, and **writes nothing** — asserted
-   by mtime and content on `demotions.json` **and on the committed `ledger.jsonl`**, on a repository
+6. `status` **computes** the same demotion count `index` would write — asserted through
+   `health.ts`'s returned value, not through rendered output, because **the rendered line is T10's**
+   (D22) and T10 criterion 1 requires a no-demotion repository to still print the a761dda bytes — and
+   **writes nothing**: asserted by mtime and content on `demotions.json` **and on the committed
+   `ledger.jsonl`**, on a repository
    that has open cross-session interventions whose scopes now sit at `expected` (i.e. the case that
    would otherwise append a mark from a read surface). Both files are byte-identical across the
    `status` run.
@@ -2485,6 +2727,11 @@ them", proven the only way it can be: from the outside.
 - **MR-31 (expected-flip filter):** remove the filter ⇒ criterion 3 fails.
 - **MR-32 (cross-session `ignored` branch):** record only `complied` on the cross-session pass ⇒
   criterion 4 fails and nothing ever demotes in the dominant real path.
+- **MR-32b (the terminal marker):** stop writing the `scope: 'cross-session'` close ⇒ criterion 4b
+  fails on the second run, and criterion 4c's eight-index-run clause fails with eight samples where
+  there must be one.
+- **MR-32c (the `ignoredRecordedInSession` skip):** let the pass sample every open intervention ⇒
+  criterion 4c's first case fails with two `ignored` rows for one intervention.
 - **MR-33 (stamp check):** honor a stale stamp ⇒ criterion 5 fails and a stale demotion silences a
   live fact.
 - **MR-34 (point estimate vs lower bound):** demote on the **point estimate** instead of the Wilson
@@ -2584,11 +2831,22 @@ completeness paragraph (`:625`) and its directional confidence (`:622`), Appendi
    the conforming, uninteresting case, and the majority one — still names that file's co-change
    partner at `stop`. This is the criterion that fails if `D` is ever derived from `warned` events
    instead of from the `'checked'` events, which is the derivation an implementer reaches for first.
+5d. **A session whose only edit was a test file still gets its source partner named.** With the
+   criterion-5 row and a session that edited `test/order.test.ts` **and nothing else**, the `stop`
+   run names `src/order.ts` with evidence `9/12`. This is the case that is unreachable if `'checked'`
+   is built from the evaluation set instead of the participation set (T3 Step 8's fork), and it is
+   the direction the spec's own measured signal exhibits (`v6-spec.md:623`:
+   `routing.py ↔ tests/test_routing.py`, support 54) and the landed fixture carries
+   (`history-cochange.test.ts:367`: `{a:'src/new.ts', b:'test/x.spec.ts'}`). Driven through the
+   **e2e**, not only as a unit test, so "reachable through the product" is asserted rather than
+   assumed.
 5c. **Completeness has live data on the Bash flow (D14/M2).** A session whose files were changed
    outside the Edit tool — seed sweep, edits, second sweep — has those swept paths in
    `foldSession`'s `writtenFiles`, so the `stop` run names their co-change partners. The seed sweep
    contributes **nothing** to `writtenFiles` (it evaluates nothing), and the second sweep contributes
-   exactly the ≤ `bashSweepMaxFiles` paths it evaluated — not the whole seeded listing.
+   exactly the ≤ `bashSweepMaxFiles` changed paths it took up — its **participation** set, so a
+   swept test file is in `writtenFiles` even though it is never evaluated (T3 Step 8's fork), which
+   is what makes criterion 5d reachable on the Bash channel too — and not the whole seeded listing.
 6. `stop` on a session with no written files emits nothing — which after 5c means a session whose
    only sweep was the silent seed, not merely a session that printed nothing.
 
@@ -2608,6 +2866,10 @@ exactly where per-edit hooks see nothing.
   it must not), which is the false "you forgot to touch X" the row shape alone would have shipped.
 - **MR-37c (both sides scanned):** treat `row.a` as always being the edited file ⇒ criterion 5's
   second case fails and every partner on the `b` side goes unreported.
+- **MR-37e (participation vs evaluation):** build the `'checked'` payload from the **evaluation**
+  set (post-`forParsing`) instead of the participation set ⇒ criterion 5d fails — `writtenFiles` is
+  test-free, `D` never contains a test file, and the test→source direction goes permanently silent
+  while every other completeness criterion still passes.
 - **MR-37d (`'sweep'` does not replace `'checked'`):** make the bash channel append `'sweep'` alone
   ⇒ criterion 5c fails with an empty `writtenFiles` and a silent `stop`, which is the defect in its
   production shape: completeness dead on the entire Bash flow while every unit test still passes.
@@ -3395,7 +3657,7 @@ end to end: which files the check path looks at, and what it does when one misbe
 - **M1 — D6's "gate for gate" list omitted the first gate in the loop it projects.** Verified at
   source: `parseAndExtractAll` runs six gates and `filters.forParsing` is gate 1
   (`pipeline.ts:103`), enforcing `config.include`, `BUILT_IN_EXCLUSIONS`, `config.exclude` **and**
-  `TEST_PATTERN_EXCLUSIONS = ['**/*.test.*','**/*.spec.*']` (`partitions.ts:100-101`, `:128-137`).
+  `TEST_PATTERN_EXCLUSIONS = ['**/*.test.*','**/*.spec.*']` (`partitions.ts:101-102`, `:128-137`).
   Without it the check path would return real scopes for test files, `dist/`, `**/*.d.ts` and
   anything an adopter put in `roots.exclude`, measure them against `_all` facts mined exclusively
   from production code, and WARN on an agent's test file for not carrying its production siblings'
@@ -3468,6 +3730,125 @@ now names the lettered variants and the count, with "every MR named in the tasks
 binding half); and R5-I2's pin said only *(T5)* without distinguishing the criterion that now covers
 each regime, while R5-I6's pin named only Step 1's harness — the one test that structurally cannot
 observe gate 0. MR ids re-checked: **54 distinct, each defined exactly once, no collisions.**
+
+**Not applied:** none.
+
+### Round 6 — what the sixth adversarial review changed (0 blocking, 4 major, 9 minor)
+
+Three of the four majors are **interactions between round-5's own fixes** — the class neither scoped
+sweep can see, since each sweep follows one decision through its restatements rather than following
+two decisions into each other. An **interaction pass** is added to this round's procedure and is
+recorded below; it found three further defects on its own.
+
+**Major**
+
+- **M1 — D6 projected the loop's gates but not the *universe* the loop iterates.**
+  `parseAndExtractAll` iterates `walkRepoFiles(repoRoot)` (`pipeline.ts:92`), which excludes
+  gitignored paths, symlinks, `.git` in both forms, and **every separate-project subtree**
+  (`repo-scanner.ts:524-538`, `collectFiles` `:55-96`). `forParsing` knows none of that, so a hook
+  payload or a positional argument naming a gitignored `local-scratch/` file or a **submodule** path
+  would parse, route by directory prefix and be measured against facts mined from a tree it was never
+  part of — gate 0's harm one layer up, minting `stableId`s the next index can never match, which
+  ride into telemetry and, on compliance, into the **committed** ledger. **Gate −1 added**, and the
+  mechanism chosen against both options the review offered: not `walkRepoFiles` (an O(repo) walk with
+  a `.gitignore` read per directory does not fit a 700 ms cold hook budget) and not a
+  re-implementation, but **three per-path tests built from `repo-scanner.ts`'s own exported helpers**
+  — `lstat` (regular file, not a symlink; this **subsumes** the existence filter, so it is one test
+  rather than two), an ancestor scan for `.git`/`.yggdrasil` (`findNestedProjectRoots`' predicate
+  applied to one path, at most `depth` `existsSync` calls), and `isIgnoredByStack` with the stack
+  assembled up the path's own chain via `loadRootGitignoreStack`. Cost is O(depth), stated, and T11
+  measures it. New criterion 14b drives a gitignored file, a symlink and a nested checkout **and**
+  calls the real `findNestedProjectRoots` so the narrowing cannot drift; MR-14e.
+- **M2 — T3 Step 2's role ladder omitted §8.1's `_untyped` eligibility gate.** The index filters
+  before it classifies (`roles.ts:819-823`), and the landed comment states the consequence in binding
+  terms: below `minOwnFeatures` a scope is excluded "from clustering **AND from role-conditioned
+  conventions entirely**". `classifyAgainstMedoids` has no such gate, so the check path would assign a
+  role the index refuses — and D8 would let that role's facts, being the smaller evidence class,
+  **shadow** the `_all` facts that are the scope's only correct governance: a wrong message that also
+  suppresses the right one, on the ordinary small method. **Rung 0 added** ahead of sticky and
+  classify. The coordinator's instruction to walk the classifier path end to end was carried out and
+  its result recorded in the step: `minClusterSize` and `clusterSampleCap` are **build-time** gates
+  whose outcome the check path inherits by reading only the roles the snapshot persisted, and §8.9(b)
+  was already present — rung 0 was the only omission. `minOwnFeatures` added to D23. New criterion 8b
+  (built to clear `roleMinMembership`, so it fails only if the gate is skipped) and MR-9b.
+- **M3 — gate 0's placement emptied `writtenFiles` of every test file.** `'checked'` was built from
+  the *resolved* set, which is post-`forParsing`, which contains `TEST_PATTERN_EXCLUSIONS` — so
+  §13.5's `D` was structurally test-free, D20's own motivating pair (a test beside its source) was
+  dead, and T9 criterion 5's second and third cases were unreachable through the product while still
+  passing as unit tests. **Reconciled honestly rather than by dropping the criterion, exactly as
+  instructed:** T3 Step 8 now produces **two sets** one filter apart — a **participation** set (post
+  gate −1) that feeds `'checked'`/`writtenFiles`, and an **evaluation** set (post gate 0) that feeds
+  the verdict. The argument is on the merits: gate 0's honesty rule is about *speaking about a file's
+  own conventions*, and completeness speaks about none — it uses `D` as a session-participation
+  signal and names a **partner** that is never evaluated. New T9 criterion 5d (a session whose only
+  edit was a test file still gets its source partner, driven through the **e2e**) and MR-37e.
+- **M4 — the cross-session pass had neither termination nor an idempotency key.** After round 5 made
+  an `ignored` closure leave the intervention open, T8 Step 2 — unrevisited — still sampled every
+  open intervention unconditionally, so the dominant path (warn → re-check → session ends) banked
+  **two** `ignored` samples for one intervention, against R5-I13; and with no representable terminal
+  marker, D16.2's unconditional per-`index` aggregation re-fired the same close every run. **Worked
+  through and re-derived after the fix, as instructed:** eight `index` runs in one week reached
+  `health.minSamples` (8) from a *single* intervention and `WilsonLB95(0/8) = 0 < 0.3` demoted a
+  healthy convention; with the two new rules — skip any intervention whose fold set
+  `ignoredRecordedInSession`, and append a terminal `'closed'` with **`scope: 'cross-session'`**,
+  terminal for both outcomes — that intervention contributes **n = 1 < 8** and never re-enters the
+  pool, so the number of `index` runs stops being an input to compliance at all. The `complied`
+  mirror (a re-fire on a new UTC day slipping past the ledger's date-keyed dedupe) closes with it.
+  Telemetry's missing idempotency key named in D13 and T1: `(sessionId, stableId, surface,
+  observedAfter)`. New T8 criteria 4b (run the aggregation twice ⇒ all three stores byte-identical)
+  and 4c (one sample per intervention across both producers, unchanged by eight runs), MR-32b/32c,
+  T1 criterion 4b. One loss is accepted and stated: a session log pruned at 7 days before any `index`
+  takes its samples with it — §18.2's permitted direction, the same one D16.5 chose.
+
+**Minor** — all 9 applied: R5-I3's closing sentence no longer contradicts its own table (repository-
+scoped modulators in `status`, session-scoped ones on their channel, flagged as a reasoned divergence
+from `v6-spec.md:81`); four anchors corrected (`partitions.ts:101-102`, `pipeline.ts:96-100`,
+`config-parser.ts:91-92`/`:131-138`/`:135`/`:137`, `integration-design.md:161-164`); the edge table's
+speech row now names the symbols T3 Step 2 actually imports (`classifyAgainstMedoids`,
+`buildRoleFeatureBag`) instead of `roleJaccard`, whose only consumer went intra-node in round 3;
+T5 criterion 4b's fourth absorbed fault is driven through the **injection seam** rather than by
+malformed source (tree-sitter is error-tolerant and never throws — a fixture could not produce it,
+and `extract-file.test.ts` covers the `minimalFileScope` degrade no landed test exercises); two
+design-§11 rows are flagged as deliberate spec-over-design choices beside "echo-shaped"; T8 criterion
+6 now asserts the count through `health.ts`'s return value and the absence of writes, since **the
+rendered line is T10's**; `MAX_PARSE_LINES` moves with `minimalFileScope` so
+`pipeline.ts → extract-file.ts → pipeline.ts` is not left as an unstated import cycle; and the
+locality contrast sentence's **group** form is stated and given its own arm in T4 criterion 3.
+
+**Sweep A — decisions vs restatements** (rounds 5-6: D6's gates, D13, D14, D23, T3 Step 8's fork,
+T7/T8's closure semantics, the edge audit). **Three drifts found and repaired:** R5-I6 named gate 0
+but not gate −1 after M1 added it; D14 claimed to be "the single order" while T8's cross-session
+close — a fourth writer — sat outside it; and T7 Step 2 did not say which `scope` value it writes now
+that the discriminator exists.
+
+**Sweep B — invariants and MRs vs tasks.** **Two drifts:** R5-I11's count read 54 after the round's
+five new killers took it to **59**; R5-I13 gained a third mechanism (the telemetry key) and two more
+pinning sites without its parenthetical moving. Both repaired. MR ids re-checked: **59 distinct, each
+defined once, no collisions.**
+
+**Interaction pass (new).** For every pair of mechanisms rounds 5-6 amended, one line on how they
+compose, verified in both places. **Nine pairs checked, three defects found — none of which either
+sweep could have seen:**
+- *gate −1 × existence filter* — one test, not two (both sites say "subsumes"). ✓
+- *gate −1 × participation set* — `D` is built post-gate-−1, so a gitignored file never reaches
+  completeness either. ✓
+- *gate 0 × `writtenFiles`* — the fork; both sites carry the same reasoning. ✓ (this was M3)
+- *bash `'checked'` × participation set* — **DEFECT:** D14 and T9 criterion 5c both still said the
+  sweep's `'checked'` carries the paths it *evaluated*, which after M3 is the wrong set and would
+  have left the test→source direction dead on the Bash channel specifically. Both re-pointed at the
+  participation set, with `bashSweepMaxFiles` applied to it by path order so §12.4's bound holds.
+- *ignored-stays-open × §11.3's WARN dedup* — **DEFECT (unstated composition):** both fire on a
+  re-check and neither substitutes for the other. Now stated: dedup bounds what the agent *sees*,
+  `ignoredRecordedInSession` bounds what the pool *counts*, and closure runs on every sighting
+  because it precedes every skip.
+- *three-filter set × MR-19's one-catch* — construction outside the boundary, totality clause makes
+  it safe. ✓
+- *gate −1's `lstat` × T5's `realpath`* — **DEFECT:** T5 Step 4 still read as a standalone step after
+  T3 Step 8 claimed the resolution. Re-pointed at slot 3, inheriting the totality rule.
+- *terminal close × `sessions.pruneDays`* — a log pruned before aggregation loses its samples; a
+  permitted direction, now stated rather than left to be discovered.
+- *rung 0 × D8's applicability* — D8 already excludes an "untyped" role from contributing facts or
+  shadows, so the two compose exactly. ✓
 
 **Not applied:** none.
 
