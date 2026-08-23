@@ -81,6 +81,7 @@ is already on an existing type's relation allow-list. Verified at HEAD (a761dda)
 | `src/roots/verdict.ts`, `speech.ts`, `session-state.ts`, `health.ts`, `exemplars.ts`, `extract-file.ts` | `roots-engine` — `when: all_of[path "source/cli/src/roots/*.ts", not stores.ts, not *.test.ts]` (`yg-architecture.yaml:742-748`) | roots-engine `calls: [roots-engine, ast-adapter, persistence-adapter, utility]`, `uses: [types]` (`:759-760`) — every import these six need (other roots modules, `ast/parser.ts` via `ast-adapter`, `utils/language-registry.ts` via `utility`, `model/graph.ts` types) is on that list. They import **no** persistence adapter at all under D1. Note the *node* split is finer than the *type*: all six are `roots-engine`, but `exemplars.ts`/`extract-file.ts` map to `cli/roots/engine` and the other four to the new `cli/roots/speech` — see the node list below for why. |
 | `src/io/roots-session-store.ts`, `roots-telemetry-store.ts`, `roots-demotions-store.ts`, `roots-incidents-store.ts` | `persistence-adapter` — `when: any_of[... path "source/cli/src/io/*-store.ts" ...]` (`:183`) | **Inbound:** `command` → persistence-adapter and roots-engine → persistence-adapter are both allowed `calls` edges (`:61`, `:759`). **Outbound is the tighter half and the one that dictates their signatures:** persistence-adapter's own list is `calls: [persistence-adapter, utility]`, `uses: [types]`, `default: deny` (`:206-209`) — **`roots-store` is absent**, so none of these four may import `rootsStateDir`/`STATE_DIRNAME` from `src/roots/stores.ts`. They take an absolute `stateDir: string` instead (T1's contract), exactly as `roots-blob-cache.ts` takes `cacheDir` and `roots-history-store.ts` takes `dir`. They may reach `io/atomic-write.ts`, `io/read-or-default.ts`, `io/debug-log-writer.ts`, `io/hash.ts` and `src/utils/*`, which is everything they need. |
 | `src/cli/roots-check.ts` | `command` — `when: all_of[path "source/cli/src/cli/*.ts", not *.test.ts, content "export\s+function\s+register[A-Z]\w*Command\("]` (`:43-48`) | `command` `calls:` includes both `roots-engine` and `roots-store` (`:61`) — the only type in the tree that may reach both. |
+| *(edited, not new)* `scripts/prompt-headroom.mjs` | `build-script` — `when: any_of[path "scripts/*.sh", "scripts/*.mjs", "scripts/*.ts"]` (`:442-449`) | Already mapped by the `scripts` node's `scripts/*.mjs` glob (`.yggdrasil/model/scripts/yg-node.yaml:8`), which declares `relations: []`; the type carries only `source-no-raw-control-chars` (enforced) and the advisory `repo-check-gate-steps` (`:450-454`). **No node, no mapping, no edge, and no gate step added or removed** (R5-I16). Listed here because it is the increment's one edit outside `source/cli/`, and the authorization table is where that is recorded rather than discovered. |
 
 **The `command` / `command-support` split is the load-bearing trap of this increment, and it is a
 one-character-class difference in a regex.** A file under `src/cli/` that does **not** export a
@@ -302,7 +303,7 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   load-bearing there is a test that FAILS when the rule alone is deleted, and the implementer
   demonstrates that by actually deleting it, running the test, and restoring (the live mutation
   round-trips **every MR named in the tasks below**, MR-1 through MR-41 including the lettered
-  variants (67 ids at present) — the phrase "every MR named
+  variants (68 ids at present) — the phrase "every MR named
   in the tasks below" is the binding half and the numeric range is only an aid, so a task that adds a
   killer cannot fall outside the invariant every reviewer checks). A rule with no killer test is not done.
   **The invariant cuts both ways, and round 8 is why that is written down: an MR whose mutation
@@ -332,7 +333,7 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   key. **Two things the key does not bound, and each has its own named owner:** rows from different
   sessions (legitimate pooling — D13a(d), the only way n = 8 is reachable), and an `ignored` row
   followed later by a `complied` row for the same intervention (governed by transition 4's terminal
-  `scope: 'cross-session'` marker — T8 Step 2 rule 2). One row per outcome is permitted and correct;
+  `scope: 'cross-session'` marker — T8 Step 2b's terminal-marker rule). One row per outcome is permitted and correct;
   §18.2's own direction requires it, since suppressing a late `complied` biases that intervention to
   0 and pushes toward demoting a convention that was in fact followed. And the write order is chosen
   so a torn write biases toward *under*-recording, never toward demoting a healthy convention (D14).
@@ -348,15 +349,34 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
 - **R5-I15 — Degrade, never abort; symmetric across reads and writes.** A corrupt session file, an
   unreadable `demotions.json`, a missing grammar, a file that will not parse, an `EACCES` on a
   `.state/` append — each is one `debugWrite` line and a continued run, **with findings still
-  emitted and no incident recorded** (`v6-spec.md:719`; R4-I10). This is the **absorbed** list;
+  emitted and no incident recorded** (R4-I10). This is the **absorbed** list;
   R5-I2 governs what escapes it, and the two lists are disjoint by construction so the same input
-  never has two prescribed outcomes. Derived state may be lost; the product may never be lost silently,
+  never has two prescribed outcomes.
+  **This is a declared divergence from a literal reading of §21.1, flagged in the same register as
+  D10's channel names and T1's two file names rather than left as a silent reinterpretation.**
+  §21.1 (`v6-spec.md:719`) writes: "The fail-open boundary MUST wrap the whole verdict entry
+  point … a parse failure, a missing grammar, **a corrupt session file** or a malformed model row
+  all have to exit through the same catch, **returning zero findings plus one incident**." Read
+  literally, that prescribes an incident *and the loss of every finding in the run* for a single
+  bad line in a session log. R5 reads the clause as governing faults that **escape**, and absorbs
+  these five before they reach the boundary — because §21.1's own neighbouring clauses already
+  prescribe degradation for two of them ("grammar or node-types load failure ⇒ that grammar
+  disabled for the session; a blob that fails to parse is recorded as empty and the walk
+  continues"), because I1 generalizes it, and because the literal reading would let one malformed
+  line silence a whole run. **So `:719` is cited here as the text this invariant departs from, not
+  as its authority** — an earlier draft cited it as support for the opposite of what it says. The
+  corrupt-session-file case is the one §21.1 names explicitly on the incident side, and it is the
+  one this invariant most deliberately flips; T5 criterion 4b is where that flip is observable. Derived state may be lost; the product may never be lost silently,
   and no degradation may ever *increase* what roots says. *(T1, T5, T6)*
 - **R5-I16 — No new repo-check step.** The 17-step list in AGENTS.md is untouched; everything
   enters through the existing typecheck/lint/build/test/coverage/graph steps
   (`integration-design.md:513-517`). Latency budgets (`v6-spec.md:586`, `:712`) are measured by
   hand at T11 and reported, never gated — a timing assertion in the commit gate is flaky by
-  construction. *(T11)*
+  construction. **T1 Step 6's `--file` query mode is inside this invariant, not an exception to
+  it:** it adds an optional argument to a tool an existing step already runs, changes that step's
+  own invocation and output not at all (criterion 8b is the byte-identity guard), and adds no step —
+  so AGENTS.md's list and the advisory `repo-check-gate-steps` rule that protects seven of its
+  entries are both untouched. *(T1, T11)*
 - **R5-I17 — Dormant without config, silent without evidence.** A project with no `roots:` block
   gets zero runtime change: `yg roots check` prints nothing and exits 0. A project with a block but
   no snapshot, or a snapshot in which nothing is hook-eligible (the J4 case — a young repo, a
@@ -396,8 +416,40 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   bytes — the *larger* of the two, and therefore the one whose assembled prompts are plausibly the
   tighter; an earlier draft of this plan said 49.6 k and had the risk ordering backwards) appears
   among the three tightest, so each has more than 849 chars of margin — but neither exact figure is
-  known. **So T2 measures both files' real margins BEFORE editing either** (`node
-  scripts/prompt-headroom.mjs` from repo root, reading the per-file numbers), applies the same
+  known.
+
+  **The instrument that makes "each file's own margin" obtainable, named once here so all six
+  measuring sites inherit it — and landed by T1 before the first of them runs.** As it stands
+  `scripts/prompt-headroom.mjs` takes **no arguments** and prints, per tier, the single largest
+  assembled prompt plus the next two (`:558-565`) and nothing else — so "read the per-file numbers"
+  had no answer for any file outside that top three, which is every file this increment edits.
+  **T1 Step 6 adds an optional `--file <repo-relative-path>` (repeatable) query mode** and all six
+  sites call it. It is a small, purely additive change to repo tooling, and it is the right half of
+  the fork for three reasons: the measurement it would otherwise be replaced by (hand-writing a
+  1-char `max_prompt_chars` into the gitignored `yg-secrets.yaml` overlay, running
+  `check --details`, grepping, restoring) is *precisely what this script already automates behind a
+  signal-safe restore* (`:16-26`, `:33-45`), and asking six task steps to perform it by hand
+  re-implements that restore six times; the data is already in hand at the print site (every parsed
+  entry carries `unitKey` in the form `file:<path>`, its `chars`, its `aspectId` and its
+  `tierName`); and `scripts/` is exactly where AGENTS.md puts dogfood measurement instruments.
+  **"The margin" means one thing:** the tier ceiling minus that file's **largest** assembled prompt,
+  since one file can appear in several LLM pairs. **A path that is no LLM subject at all has no
+  margin**, the mode says so in those words, and every rule below that reads a margin is inapplicable
+  to it rather than satisfied by it.
+
+  **What the numbers are predicted to be, so a wildly different measurement is itself a signal.**
+  A `roots-engine` file has exactly **one** LLM pair: `deterministic` (`yg-architecture.yaml:749-755`
+  lists `source-no-raw-control-chars`, `deterministic`, `no-direct-fs`, `no-direct-console` and
+  `source-hygiene`; only `deterministic` is `reviewer.type: llm`, `per: file`, content.md **1 182 B**
+  — `source-hygiene` is an `aggregate` whose six children are all deterministic). By this section's
+  own `file bytes + aspect bytes + ~1.8 K` relationship that puts `roles.ts` near **14 600** chars of
+  margin and `mine.ts` near **13 400** — both an order of magnitude above the 2 000 trigger, so the
+  fallback is expected **not** to fire. The prediction does not replace the measurement; it makes the
+  measurement falsifiable.
+
+  **So T2 measures both files' real margins BEFORE editing either**
+  (`node scripts/prompt-headroom.mjs --file source/cli/src/roots/roles.ts --file
+  source/cli/src/roots/mine.ts` from repo root), applies the same
   discipline to both — D4's `m1` field in `roles.ts` and T2's three edits in `mine.ts`, each capped at
   ~30 lines — and re-measures immediately after. If either file's pre-edit margin is under 2000
   chars, its edit moves to a new sibling module instead (D4 already names that fallback for
@@ -417,8 +469,11 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   file bytes + aspect bytes + ~1.8 K of scaffolding, and `command`'s largest LLM aspect,
   `cli-command-contract`, is 3 124 B; for scale, `src/cli/roots.ts` is 40 830 B today and
   `src/cli/aspect-test.ts` is 64 438 B). **T5, T6, T7 and T9 each re-measure it with
-  `node scripts/prompt-headroom.mjs` in their own final step — the obligation is written into those
-  four steps, not left here as a global note nobody owns — and report the figure.** If it crosses, that is an
+  `node scripts/prompt-headroom.mjs --file source/cli/src/cli/roots-check.ts` in their own final
+  step — the obligation is written into those
+  four steps, not left here as a global note nobody owns — and report the figure.** The `--file`
+  form is what makes those four obligations answerable at all: unless that one file happens to be
+  inside the top three, the bare invocation prints three unrelated filenames and no figure for it. If it crosses, that is an
   architecture question — a new type or a widened `command-support` allow-list — and therefore a
   **STOP and report**, never a refactor a task performs on its own. (Graph-node `description:` growth is not a prompt risk — `src/llm/prompt.ts:179-181`
   excludes it from the assembled prompt.)
@@ -624,7 +679,9 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
     medoid bags `induceRoles` already built. **Preferred implementation: extend
     `RoleClassification` (`src/roots/roles.ts:335-339`) with `m1: number`**, so the membership has
     one home; that is a ~30-line edit inside the prompt-ceiling cap the Global constraints set, and
-    it is re-measured immediately. If the post-edit measurement shows `roles.ts` inside 2000 chars
+    it is re-measured immediately (`node scripts/prompt-headroom.mjs --file
+    source/cli/src/roots/roles.ts` — T1 Step 6's query mode; the bare invocation cannot answer for
+    this file). If the post-edit measurement shows `roles.ts` inside 2000 chars
     of the ceiling, revert to computing `m1` in `exemplars.ts` from the exported `roleJaccard`
     (`roles.ts:194`) over the same bags, and pin the two against each other by value.
     **`m1` applies to role facts only.** §9.11's own filter is written over "non-ambiguous **role
@@ -948,7 +1005,9 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   without both, three of the four locality labels are unrenderable); and `denyEligible` is the
   boolean widening above. Every module-kind fact is dropped by the projection (T3).
   **The partition-label rule has THREE arms §9.4i does not spell out, decided here — because the
-  id domain has three literals the naive rule renders wrongly, not one.** §9.4i (`v6-spec.md:429`)
+  id domain has three literals the naive rule renders wrongly, not one.** §9.4i
+  (`v6-spec.md:428`, the section's closing sentence — the same line D9 cites below for the contrast
+  wording; `:429` is the redundant-refinement-pruning paragraph and says nothing about labels)
   says `repo-wide` in `_repo` and `package-wide (<partition>)` otherwise. Both other literals in
   D5's own enumerated id domain are live final ids, and both break that rule in user-facing stdout:
   - **`''`** — the mainstream adopter shape (a `package.json` at the repository root). Literal rule
@@ -1061,9 +1120,11 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   consecutive rounds produced a local patch here that a later round had to undo, each time because a
   step was re-derived without re-reading the spec's own field definitions. Rounds 6 and 7 both
   argued from "`observedAfter` is the observed value"; §9.10 says otherwise, in the very paragraph
-  those rounds cited. So the whole story is derived once, here, and **T7, T8, D14, R5-I13 and every
-  criterion and MR in the complex restate this and add nothing to it.** A task that finds this
-  derivation wrong stops and reports; it does not patch locally.
+  those rounds cited. So the whole story is derived once, here, and **T6, T7, T8, D14, R5-I13 and
+  every criterion and MR in the complex restate this and add nothing to it.** T6 is on that list
+  because T6 Step 3 is where the §18.1 *intervention* row is actually produced — an earlier draft
+  omitted it and the table's Writer column then disagreed with the task (round 9, MINOR-6). A task
+  that finds this derivation wrong stops and reports; it does not patch locally.
 
   **(a) The telemetry row, field by field, from §18.1 and §9.10.**
   §18.1 (`v6-spec.md:681`) fixes the row: "every message ⇒ `{sessionId, ts, stable_id, surface,
@@ -1099,11 +1160,18 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
 
   | # | From → To | Event written (session log) | Telemetry row | Ledger | Writer |
   | --- | --- | --- | --- | --- | --- |
-  | 1 | — → **OPEN** | `'warned'` | intervention row (no `observedAfter`) — *unresolved* | — | T7, on emission |
+  | 1 | — → **OPEN** | `'warned'` | intervention row (no `observedAfter`) — *unresolved* | — | **T6**'s `applyBudgetsAndDedup`, in `emissionIntents`, for exactly the findings the budget emitted; applied by the command layer (D14) |
   | 2 | OPEN → **OPEN (ignore banked)** | `'closed'` `{outcome:'ignored', scope:'session'}` | `observedAfter:'ignored'` | — | T7, on an in-session re-check that still deviates |
   | 3 | OPEN *or* OPEN(ignore banked) → **CLOSED** | `'closed'` `{outcome:'complied', scope:'session'}` | `observedAfter:'complied'` | one mark | T7, on an in-session re-check that now conforms |
   | 4 | OPEN *or* OPEN(ignore banked) → **CLOSED (terminal)** | `'closed'` `{outcome:…, scope:'cross-session'}` | `observedAfter:'complied'` or `'ignored'` per the current index | one mark on the `complied` arm only | T8's pass, over an **ended** log |
   | 5 | any → **DROPPED** | *nothing* | *nothing* | — | T8's pass, when `stableId` no longer resolves |
+
+  **Transition 1's writer is T6, not T7, and the two-task split is the point.** §18.1's row is
+  written for "every **message**", and only the budget stage knows which findings became messages —
+  a finding the per-response cap dropped was never shown to anyone and must not be recorded as an
+  intervention (T6 Step 3 says so where it produces the set). T7 owns transitions 2 and 3: the
+  *closure* rows and the ledger. An earlier draft's Writer cell said "T7, on emission", which
+  contradicted T6 Step 3 in the one table the plan tells a task to trust literally.
 
   Three properties of this table are load-bearing and each is stated because a previous round got
   one of them wrong. **(i) Transition 2 does not close the record** — §9.10's bound is written over
@@ -1137,7 +1205,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
     (1) rows from **different sessions** — which is legitimate pooling, not a defect: eight sessions
     that each warned and were each ignored *are* eight samples; and (2) **two different outcomes for
     one intervention** — an `ignored` row and a later `complied` row, which transition 4's terminal
-    marker is what governs (T8 Step 2 rule 2).
+    marker is what governs (T8 Step 2b's terminal-marker rule).
 
   **Consequence, recorded so no later round re-litigates it:** §9.10's "at most once per session per
   intervention" bound on the `ignored` branch is **enforced mechanically by this store key**, not by
@@ -1410,7 +1478,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   (`config-parser.ts:57-62`), the `ExtractOptions` D6's gate 5 passes to `extractUnits`, and
   `support`/`topK`, which reach the check path only through the snapshot's persisted vocabulary and
   are never recomputed (D6); **`history.blobMaxBytes`** (`:51`), D6's gate 2; and **`roles.*`** —
-  **`minOwnFeatures`** (`config-parser.ts:135`), which T3 Step 2's **rung 0** needs, plus
+  **`minOwnFeatures`** (`config-parser.ts:136` — **not** `:135`, which is the neighbouring `minClusterSize: 3`), which T3 Step 2's **rung 0** needs, plus
   `cloneMedoidJaccard` (`:137`), `roleAmbiguityGap` and `roleMinMembership` (`:91-92`, in the
   `thresholds` block, not the `roles:` block — the `roles:` block itself is `:131-138`), which its
   rung 2 needs because the landed classifier's signature is
@@ -1458,7 +1526,9 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
 **Scope.** Everything that touches the filesystem, before anything computes a verdict: the four new
 `src/io/roots-*-store.ts` modules, the ledger *append* added to `src/roots/stores.ts`, the snapshot
 content-hash helper D16 needs, the two new graph nodes for them, and the verification that the
-architecture admits all of it. No verdict logic, no message text, no command.
+architecture admits all of it. **Plus one instrument: the `--file` query mode five later steps
+measure with** — it is here because T1 is the only task that runs before the first of them. No
+verdict logic, no message text, no command.
 
 **Authorities.** Spec §11.4 (`v6-spec.md:554`), §18.1 (`:681`), §18.2's `demotions.json` stamp
 (`:683`), §18.3 (`:685`), §21.1's incident FIFO (`:719`); design §4's storage layout
@@ -1486,6 +1556,12 @@ architecture admits all of it. No verdict logic, no message text, no command.
   `build-lock-store.test.ts` all live there and are mapped by `cli/tests/unit/roots`). The new
   `stores-ledger-append.test.ts` is a **new sibling**: the existing `stores-ledger.test.ts` covers
   reading and is not to be grown into a second subject.
+- Edit `scripts/prompt-headroom.mjs` — Step 6's optional `--file` query mode and its exported
+  `selectFileMargins` seam; and extend `source/cli/tests/unit/prompt-headroom.test.ts`, the landed
+  file that already owns that script's pure pieces (mapped by
+  `.yggdrasil/model/cli/tests/unit/prompt-headroom`). **The one non-`source/cli` edit in this
+  increment**, named here so it is not read as scope creep: it is a measurement instrument under
+  `scripts/`, five later steps depend on it, and it changes no `repo-check.sh` step (R5-I16).
 
 **Two names in this task diverge from the spec, both deliberately, both following the landed
 tree** — flagged the way D10 flags the channel names, so a reviewer does not read either as a
@@ -1659,7 +1735,42 @@ export function snapshotContentHash(body: unknown): string;                     
   Appendix D's "header excluded from content hash" (`:861`) is the rule; this is its one
   implementation, and the reason it is exported rather than inlined is that D16's writer and the
   check path's reader must agree on it byte for byte.
-- [ ] **Step 6: Graph ritual + report.** **Four** new nodes, mappings, relations, `yg log add` on every
+- [ ] **Step 6: The per-file prompt-margin query mode — because five later steps are told to read a
+  number the instrument cannot print.** `scripts/prompt-headroom.mjs` takes no arguments today; it
+  prints, per tier, the largest assembled prompt and the next two (`:558-565`) and stops. T2 Step 1,
+  T2 Step 6, D4's fallback gate, and T5/T6/T7/T9's four `roots-check.ts` obligations all ask for a
+  *specific file's* margin. This step lands the mode, in T1 because T1 is the only task that runs
+  before the first of them.
+  **Interface — additive, and the no-argument invocation's output must not change by one byte**,
+  since `scripts/repo-check.sh:127`'s step and the gate's reported figure are that output:
+  ```
+  node scripts/prompt-headroom.mjs [--file <repo-relative-path>]...      # repeatable
+  ```
+  With one or more `--file`, after the existing per-tier block the script prints, for each requested
+  path in the order given:
+  - one line per measured pair whose `unitKey` is `file:<path>` — `<chars> chars (aspect '<id>',
+    '<tier>' tier) — margin <ceiling − chars>` — sorted by margin ascending;
+  - one summary line, `<path>: margin <M>`, where **M is the smallest of those margins** (the ceiling
+    minus that file's *largest* assembled prompt). That is what "the margin" means everywhere in this
+    plan, and it is spelled out because a file can appear in several LLM pairs;
+  - and, when the path matched no pair at all, `<path>: no LLM aspect binds this file — no assembled
+    prompt and no margin`, then continue to the next path. **Not an error and not an empty line:**
+    the script is reporting-only and exits 0 on every path (its own standing contract, `:5-13`), and
+    a rule below that reads a margin is *inapplicable* to such a file rather than satisfied by it.
+  **The pure seam and its test.** Factor the selection into an exported
+  `selectFileMargins(entries, tierLimits, paths) -> [{ path, pairs: [{aspectId, tierName, chars,
+  margin}], worstMargin: number | null }]` and unit-test it offline in
+  `source/cli/tests/unit/prompt-headroom.test.ts`, exactly as that file already tests
+  `computeTierMargins`, `resolveTierLimits` and `parsePromptTooLargeEntries` — no subprocess, no
+  `dist/`, hand-built `entries`. The data needed is already in hand at the print site: every parsed
+  entry carries `unitKey` (`file:<path>`), `chars`, `aspectId` and `tierName`
+  (`prompt-headroom.mjs:249-254`), and `computeTierMargins` already resolves each tier's ceiling.
+  **Graph cost: none.** `scripts/*.mjs` is already mapped by the `scripts` node
+  (`.yggdrasil/model/scripts/yg-node.yaml:8`), whose type is `build-script` with
+  `relations: []` and two aspects — `source-no-raw-control-chars` (enforced) and
+  `repo-check-gate-steps` (advisory, `yg-architecture.yaml:442-454`). No node, no mapping, no
+  edge, and the advisory step-list rule is untouched because no gate step is added or removed.
+- [ ] **Step 7: Graph ritual + report.** **Four** new nodes, mappings, relations, `yg log add` on every
   log-gated node touched, `check --approve --only-deterministic` clean.
 
 **Acceptance criteria.**
@@ -1718,6 +1829,19 @@ export function snapshotContentHash(body: unknown): string;                     
    fail-open catch.
 7. `snapshotContentHash` is stable across key-insertion-order permutations of the same body and
    changes when any body value changes; it is unaffected by the header.
+8. **The `--file` query mode, by value on hand-built entries (Step 6).** `selectFileMargins` over
+   entries containing two pairs for `file:a.ts` (60 000 and 65 000 chars) and one for `file:b.ts`
+   (10 000), against a single 72 000 ceiling, returns for `a.ts` both pairs ordered
+   **margin-ascending** (7 000 then 12 000) and `worstMargin` **7 000** — the ceiling minus the
+   *largest* prompt, not the first-listed one; for `b.ts`, `worstMargin` 62 000; and for a path in
+   no entry, `pairs: []` and `worstMargin: null`. **The multi-pair case is the criterion**, because a
+   one-pair fixture is satisfied by an implementation that returns whichever entry it finds first,
+   and the four `roots-check.ts` obligations read exactly this number.
+8b. **The no-argument invocation is byte-identical to today's.** Spawning the real script with no
+   arguments against the same captured stdout produces the same per-tier block and the same summary
+   line as before Step 6. This is the regression guard on `scripts/repo-check.sh:127`'s own step,
+   whose reported figure is that output; a query mode that reshuffled the default output would
+   change the gate's report while passing every test of the new mode.
 
 **E2E coverage (R5-I12).** This task ships **no adopter-visible behavior** — nothing calls these
 stores until T3. Its contracts are pinned by the unit tests above and are exercised end-to-end in
@@ -1731,6 +1855,11 @@ finishes T1 has not yet proven anything an adopter can see.
 **Test obligations / mutation round-trips.**
 - **MR-1 (ledger dedupe):** delete the `(stableId, surface, date)` dedupe ⇒ criterion 3's
   "byte-identical on a repeat call" fails.
+- **MR-1c (the per-file margin's definition):** return the ceiling minus the file's **smallest**
+  assembled prompt (or minus its first-listed one) instead of its largest ⇒ criterion 8's `a.ts`
+  case fails with 12 000 where 7 000 is required. The mutation is the plausible misreading, not a
+  typo: "the margin" reads as a single number until a file turns out to have two LLM pairs, and the
+  wrong one is always the comfortable one — a fallback gate fed the optimistic figure never fires.
 - **MR-1b (the telemetry key's shape):** add `observed` to `appendTelemetry`'s dedupe key ⇒
   criterion 4b fails with **four** rows, because the changed-value intervention row survives. The
   mirror mutation — drop `observedAfter` from the key ⇒ criterion 4b fails with **one** row, the two
@@ -1792,8 +1921,15 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
   turns that throw into "no comparable header" and proceeds (`roots.ts:551-556`), and `status`
   renders its existing "could not be read — run `yg roots index`" paragraph. **Write no migration
   file:** `model.json` is derived state whose only correct migration is regeneration. Also
-  **measure both `roles.ts` and `mine.ts` prompt margins now, before editing either** (Global
-  constraints), and apply the stated fallback to whichever is under 2000 chars.
+  **measure both `roles.ts` and `mine.ts` prompt margins now, before editing either** —
+  `node scripts/prompt-headroom.mjs --file source/cli/src/roots/roles.ts --file
+  source/cli/src/roots/mine.ts` from repo root, T1 Step 6's query mode, reading each file's
+  `margin` summary line (the ceiling minus that file's **largest** assembled prompt; both are
+  single-LLM-pair files, so each reports one pair) — and apply the stated fallback to whichever is
+  under 2000 chars. **Both are predicted to come in near 14 600 and 13 400 respectively** (Global
+  constraints derives it), so a measured figure anywhere near 2 000 means something has changed
+  about the graph since this plan was written and is itself a **STOP and report**, not a quiet
+  fallback.
   **The bump breaks eight landed assertions, and they are named here so none is discovered as a
   mystery failure:** seven hard-coded `rootsVersion: 1` header fixtures in
   `tests/unit/cli/roots.test.ts` (`:202`, `:342`, `:375`, `:404`, `:432`, `:639`, `:674`) and
@@ -1851,7 +1987,11 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
   incremental ≡ full suite too — after being re-baselined once for the new body shape, which is a
   regeneration of committed expectations, not a weakening of an assertion.
 - [ ] **Step 6: Re-measure the prompt headroom** on `roles.ts`, `mine.ts`, `history-cochange.ts`
-  and every other file touched, and report the before/after numbers from Step 1's baseline.
+  and every other file touched — `node scripts/prompt-headroom.mjs --file <path>` per file (T1
+  Step 6's query mode; `--file` is repeatable, so this is one invocation) — and report the
+  before/after numbers against Step 1's baseline. **A file the mode reports as binding no LLM
+  aspect has no margin and is simply absent from the report**, which is a legitimate outcome, not a
+  measurement failure.
 - [ ] **Step 7: Graph ritual + report** — `exemplars.ts` joins **`cli/roots/engine`'s** mapping
   (**not** `roots/speech`'s: it is index-time code called by `mine()`, and mapping it to `speech`
   would close a `structural-cycle` — the authorization section derives it), log entries on every
@@ -1887,8 +2027,10 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
    of them.
 4b. **The routing fixtures, purpose-built** — no landed golden carries a package marker at all
    (`packageRootDirs` is empty on every one of them, so criterion 4 alone exercises only the
-   `fallback` arm and the `roots` array's order is unobservable). Five cases, and the first, second
-   and fourth need **~300 real scopes** to clear `PARTITION_SCOPE_FLOOR` (`partitions.ts:69`), so
+   `fallback` arm and the `roots` array's order is unobservable). Five cases, and **four of them need
+   generated scopes** — the first, second and fourth to clear `PARTITION_SCOPE_FLOOR`
+   (`partitions.ts:69`) in an **own-floor** bucket, and the fifth to clear it in the **merged**
+   bucket (see (v)) — so
    their sources are **generated programmatically by the fixture builder**, never hand-written:
    (i) a `package.json` at the repo **root**, above the floor ⇒ partition id `''`, and routing any
    file returns `''` — **not** silence (this is the case a wrong sentinel makes fatal);
@@ -1902,7 +2044,16 @@ design §12's "§9.11 exemplar ranking … with render-time re-validation" row (
    (iv) no package marker anywhere ⇒ every file routes through `fallback`;
    (v) a detected package root directory holding **no mined scopes at all** ⇒ the entry carries the
    `_repo` bucket's own outcome (D5), and a synthetic path under it routes there rather than to
-   `null`.
+   `null`. **The "rather than to `null`" half is only producible if the `_repo` merge survives, and
+   that constrains the rest of the fixture:** a key with no scopes never enters `scopesByKey`, so
+   the entry inherits whatever `repoBucketSurvives` decided — and `repoBucketSurvives` is
+   `mergedCount ≥ 300` where `mergedCount` sums **only the keys that individually fell below the
+   floor** (`partitions.ts:257-275`; a key at ≥ 300 takes `'own-floor'` and never joins the merge).
+   So this fixture needs **at least two distinct sub-floor keys whose scopes sum to ≥ 300** —
+   e.g. a package root `x/` with 200 generated scopes plus a `_root` remainder of 150 — alongside
+   the empty package-root directory under test. One large bucket, or a small hand-written tree,
+   both make `repoBucketSurvives` false, every merged key `'dropped'`, and the entry `null`, which
+   fails the criterion's own clause while looking like a routing bug.
 5. Two `index --full` runs on the same tree produce byte-identical `model.json`, header included;
    an incremental index equals a forced full one.
 6. **The upgrade actually re-indexes (D3/B2).** With an R4-shaped `model.json` on disk
@@ -2294,8 +2445,10 @@ contract with no configuration in it. **The consequence for the graph is stated 
   exist, both walks start at `q`'s **nearest existing ancestor** (walking up until one `stat`s), so
   no `ENOENT` arises in the walk at all; and the containment test resolves that ancestor, then
   re-appends `q`'s remaining segments and normalizes, so a `..` escape is still refused. `ENOENT` on
-  `q` itself is therefore **never a drop** — it is the expected case, and it is the *only* `lstat`
-  outcome on `q` that is not.
+  `q` itself is therefore **never a drop**. Stated positively, since the negative form of this
+  sentence has read as "everything else is a drop", which is false: the two admitted outcomes on `q`
+  are **absent** and **a regular file**; every other `lstat` outcome — a symlink, a directory, any
+  other dirent kind — is a drop.
   **Second, `p` is gated on existence only.** `p` is a byte source, not a subject: it is `lstat`ed
   and read, and nothing is ever said about `p`'s own location. A `--content` path that is missing,
   unreadable or not a regular file yields **silence, exit 0 and one incident** (not exit 1 — it is a
@@ -2370,13 +2523,28 @@ Additional criteria:
    `resolveRolesForCheck`** (`tests/unit/roots/extract-file.test.ts`), which is where the ladder
    lives after M1 — a version of this criterion pointed at `verdict.ts` would have nothing to
    observe, since `VerdictInput.roleOf` arrives already resolved.
-8c. **The role a scope resolves to is the right one, by name.** On a partition carrying **two**
+8c. **The role a scope resolves to is the right one, by name — and rung 2 is what answers.** On a
+   partition carrying **two**
    roles whose medoid bags differ sharply (so no tie is in play), a scope matching the **second**
    entry's medoid resolves to `roles[1].roleKey` and a scope matching the first resolves to
    `roles[0].roleKey` — both asserted by value against `resolveRolesForCheck`, and the second one
    end to end by the emitted message naming that role's own `label`. **Both directions are
    required**: a one-role fixture, or a fixture where only one arm is checked, is satisfied by an
-   implementation that returns a constant. **The fixture makes no claim about sort order**, and an
+   implementation that returns a constant.
+   **The fixture property that makes rung 2 the answering rung, without which neither arm tests
+   anything:** both scopes must carry **no `assignments` entry** — i.e. they are *new since the
+   index ran*. `induceRoles` writes an entry (a `roleKey` or `'-1'`) for every eligible scope it
+   saw (`roles.ts:983`), and rung 1's sticky lookup returns on a hit, so a scope present in the
+   mined golden never reaches rung 2 at all. Planting a *deviation* does not help: `skeyR` is
+   `relPath#kind#qualifiedName` (`extract.ts:203-204`), which an edited body does not move, so the
+   sticky hit survives the edit. The e2e arm therefore **adds a new method to an already-mined
+   file** after `yg roots index` has run. Two consequences the fixture must respect and which are
+   named here rather than discovered: the new method must be **eligible** (kind `method`,
+   `ownFeatureCount ≥ roles.minOwnFeatures` — rung 0, criterion 8b's own gate) and it must carry the
+   features of `roles[1]`'s medoid; and putting it in an **existing** file in an existing directory
+   is what keeps `routePartition` (D5) answering the same partition as its siblings, so no new
+   routing entry and no re-index are needed. A brand-new *file* would need both.
+   **The fixture makes no claim about sort order**, and an
    earlier draft's did — it asked for two roles "whose `roleKey`s sort in the opposite order to
    their position in `roles[]`", which is a `MinedPartition` **no index run can emit**, since
    `roles[]` *is* `roleKey`-sorted (`roles.ts:1030`, `mine.ts:1035`). That fixture was
@@ -2452,10 +2620,16 @@ uncommitted, `yg roots check` with no arguments finds it; with the tree clean, i
   **in `resolveRolesForCheck`** ⇒
   the e2e's strip-a-role-marker case goes silent (the deviating scope escapes its role) — the exact
   50 %→93 % detection effect §8.6 records.
-- **MR-9c (the medoid index→key mapping):** index `roles[]` by anything other than the `roleIndex`
-  `classifyAgainstMedoids` returned — by `medoids.length - 1 - roleIndex`, or by the position in a
-  locally re-sorted copy ⇒ criterion 8c fails on both arms: each scope resolves to the *other*
-  role's `roleKey`, and the end-to-end message names the wrong `label` while still being a message.
+- **MR-9c (the medoid index→key mapping):** index `roles[]` by
+  **`medoids.length - 1 - roleIndex`** instead of by the `roleIndex` `classifyAgainstMedoids`
+  returned ⇒ criterion 8c fails on both arms: each scope resolves to the *other*
+  role's `roleKey`, and the end-to-end message names the wrong `label` while still being a message —
+  which the e2e arm can observe **only because criterion 8c's scopes are new since the index and
+  therefore reach rung 2**; over a mined scope, rung 1's sticky hit returns the right key and this
+  mutant survives end to end. One mutation, named exactly: an earlier draft offered "or by the
+  position in a locally re-sorted copy" without naming the sort key, and the natural reading of
+  "re-sorted" is by `roleKey` — which is the **no-op** the next sentence retires, performed under a
+  new name. An ambiguous mutation is not a killer.
   **The mutation an earlier draft named — "rebuild `RoleMedoid[]` in sorted-by-`roleKey` order
   instead of `roles[]` order" — is a no-op and is retired**: `roles[]` is `roleKey`-sorted by
   construction (`roles.ts:1030` + `mine.ts:1035`), so the mutant and the original build the same
@@ -2714,7 +2888,9 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
   would have been DENY (in R5, none). Say in the code exactly which input is **not** compared and
   who catches it.
 - [ ] **Step 6: Graph ritual + report — including `src/cli/roots-check.ts`'s prompt headroom.**
-  Re-measure with `node scripts/prompt-headroom.mjs` from repo root and report the figure against
+  Re-measure with `node scripts/prompt-headroom.mjs --file source/cli/src/cli/roots-check.ts` from
+  repo root (T1 Step 6's query mode — the bare invocation reports only the three tightest pairs
+  repo-wide and says nothing about this file) and report the figure against
   the ≈66 KB ceiling the Global constraints derive; crossing it is a **STOP**, never a refactor.
 
 **Acceptance criteria.**
@@ -2902,7 +3078,8 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
   small, and a second capping mechanism would be machinery bought for a cost nobody has measured.
   T11's dogfood step reports the observed session-log size beside its other figures.
 - [ ] **Step 6: Graph ritual + report — including `src/cli/roots-check.ts`'s prompt headroom**
-  (`node scripts/prompt-headroom.mjs`, against the ≈66 KB ceiling; crossing it is a **STOP**).
+  (`node scripts/prompt-headroom.mjs --file source/cli/src/cli/roots-check.ts`, against the
+  ≈66 KB ceiling; crossing it is a **STOP**).
 
 **Acceptance criteria.**
 1. Five findings on one response emit **3**, and the three are the top three under
@@ -2957,7 +3134,10 @@ real session: many edits, bounded interruption.
   already truncated to 3 changes nothing observable and would have been a killer that cannot fail
   (R5-I11).
 
-**NON-goals.** Telemetry and closure (T7). Sweep state is folded here but not *populated* until T9.
+**NON-goals.** **Closure telemetry and the ledger (T7)** — narrowed from "telemetry and closure",
+which contradicted this task's own Step 3: the §18.1 **intervention** rows are produced *here*, by
+`applyBudgetsAndDedup`, because only the budget stage knows which findings became messages
+(D13a(b), transition 1). Sweep state is folded here but not *populated* until T9.
 
 ---
 
@@ -3021,7 +3201,8 @@ intents); create `source/cli/tests/unit/roots/verdict-closure.test.ts`; create
 - [ ] **Step 4: What a mark costs, said out loud.** The ledger append makes `git status` dirty and
   makes the next `index` do real work (D15). Both are intended; both go in the docs at T11.
 - [ ] **Step 5: Graph ritual + report — including `src/cli/roots-check.ts`'s prompt headroom**
-  (`node scripts/prompt-headroom.mjs`, against the ≈66 KB ceiling; crossing it is a **STOP**).
+  (`node scripts/prompt-headroom.mjs --file source/cli/src/cli/roots-check.ts`, against the
+  ≈66 KB ceiling; crossing it is a **STOP**).
 
 **Acceptance criteria.**
 1. **The closed loop, by value:** deviation → one WARN → the file is fixed → the next check is
@@ -3296,10 +3477,15 @@ one place the terminal marker's day-crossing effect is observable at all — unw
 4. Cross-session closure over a session log whose session is gone produces the three outcomes of
    Step 2 on three hand-built scopes.
 4b. **Idempotence of the pass itself, over the two keys the stores' own dedupe does NOT cover.**
+   **Every leg of this criterion runs the aggregation twice, and every one of them must carry call
+   1's returned session events into call 2's input** — through the command layer in the two e2e legs
+   (which apply for real, so it happens by itself) and **explicitly in the unit leg, which applies
+   nothing**. That is the whole discriminating step and it is stated once, here, for all three legs.
    Running the aggregation **twice** over the same ended-session log leaves the pool count,
    `telemetry.jsonl` and `ledger.jsonl` **byte-identical** after the second run, over an unchanged
    tree — the same-day leg, which observes D16.2's unconditional-aggregation path and the fact that
-   the pass's own write moves the log's mtime out of the ended set (Step 2a). **The session log is
+   the pass's own write moves the log's mtime out of the ended set (Step 2a), so run 2 skips the log
+   before the marker is even consulted. **The session log is
    the one file that legitimately changes** — the first run appends the terminal `'closed'` event —
    so it is asserted separately: byte-identical between the second run and the first, and exactly
    **one** `scope: 'cross-session'` event in it after both.
@@ -3310,10 +3496,20 @@ one place the terminal marker's day-crossing effect is observable at all — unw
    So the effect is asserted at the two levels where it genuinely is observable:
    **(i) Unit level, in `health.test.ts`** — `health.ts` takes `nowMs` and derives from it both the
    ended-session predicate **and** the `date` it stamps on the ledger marks it returns (that is why
-   it takes the clock at all, R5-I4). Call the aggregation twice over the same fixture with `nowMs`
+   it takes the clock at all, R5-I4). Call the aggregation twice with `nowMs`
    on two different UTC days, the scope deviating on the first call and at `expected` on the second:
    with the marker the second call returns **no** telemetry sample and **no** ledger mark; without
    it, one of each. Pure values, no filesystem, no wall clock.
+   **The step that makes this discriminate, and without which it cannot:
+   call 2's session-event input is call 1's input PLUS the terminal `'closed'` event call 1
+   returned.** `health.ts` applies nothing — it is pure, and the terminal event is a *returned
+   value*, not a mutation of any fixture (this task's own Files block). So a test that fed both
+   calls the *same* events would give the correct implementation and the mutant identical output —
+   call 2's fold would never see a marker in either — and MR-32b would lose its only unit-level
+   killer. **The unit test performs the apply the command layer performs in production**, and
+   nothing else about call 2's input differs from call 1's, so the marker is the only variable.
+   (The mutant leg has nothing to feed forward, which *is* the difference: it returned no terminal
+   event.)
    **(ii) E2E level, in `cli-roots-demotion.test.ts`, with no clock at all** — the observable is
    *presence versus absence*, not a dedupe outcome, so the day never has to move. Two legs, each
    driving the built binary: seed an ended session log (mtime back-dated with `utimes`, the same
@@ -3402,7 +3598,9 @@ only way it can be: from the outside.
   criterion 4 fails and nothing ever demotes in the dominant real path.
 - **MR-32b (the terminal marker):** stop writing the `scope: 'cross-session'` close ⇒ criterion 4b's
   **fix-then-re-index** legs fail in both places they are asserted: at unit level the second
-  aggregation returns a `complied` sample and a ledger mark where it must return neither, and end to
+  aggregation returns a `complied` sample and a ledger mark where it must return neither — **which
+  is observable only because 4b feeds call 1's returned events into call 2**; a version of that leg
+  that fed both calls the same input would let this mutant live — and end to
   end the second `yg roots index` appends a `complied` row to `telemetry.jsonl` and a mark to
   `ledger.jsonl` where the marker leg appends nothing. **Presence versus absence, in an empty
   ledger — no dedupe outcome and no clock override is involved**, which is what makes this MR
@@ -3511,7 +3709,8 @@ completeness paragraph (`:625`) and its directional confidence (`:622`), Appendi
 - [ ] **Step 5: WARN-only, structurally.** Bash-path violations are WARN-only, so file *moves* are
   WARN-only (D21). Say it once, in the code and in the docs.
 - [ ] **Step 6: Graph ritual + report — including `src/cli/roots-check.ts`'s prompt headroom**
-  (`node scripts/prompt-headroom.mjs`, against the ≈66 KB ceiling; crossing it is a **STOP**). This is
+  (`node scripts/prompt-headroom.mjs --file source/cli/src/cli/roots-check.ts`, against the
+  ≈66 KB ceiling; crossing it is a **STOP**). This is
   the last task to touch that file, so its figure is the increment's final one.
 
 **Acceptance criteria.**
@@ -3829,7 +4028,11 @@ file names the convention, the evidence behind it and real examples to copy; wha
 budgeted and deduplicated so a session is never flooded; following the advice is recorded, and a
 convention agents keep ignoring stops interrupting them. Tasks are internal stages of that one
 change and get no entries of their own — per-task entries would be a work log, which AGENTS.md's
-changelog rules forbid.
+changelog rules forbid. **T1 Step 6's `--file` query mode gets no entry either, and that is a
+decision rather than an omission:** `scripts/` holds this repo's own measurement instruments, not
+shipped CLI surface (AGENTS.md's scripts-directory rule and `CONTRIBUTING.md`'s own section on it),
+so no adopter's release notes are made truer by it. A maintainer reading `git log` finds it in the
+T1 commit message, which is where a tooling change belongs.
 
 Timing: the entry is **drafted at T2**, not T3. T2 is the first task whose commit changes what an
 adopter sees — the `ROOTS_VERSION` bump makes every adopter's next `yg roots index` re-walk and
@@ -4710,7 +4913,7 @@ of either, and R5-I13 now says so explicitly rather than being read charitably.
 one writer outside it) ✓; D6 (gates −1/0, `resolveRolesForCheck`, the gate matrix — restated at T3
 Steps 1/2/8, T5 Steps 1/4, criteria 14/14b/3b/3c, R5-I6) ✓; D12 (hashed rung 3 → T6 Step 4's shape
 test, T1 criterion 4c's round-trip, T8 Step 2a's "not recoverable from the id") ✓; D13 (telemetry
-key → T1 criterion 4b, T8 Step 2b, R5-I13) ✓; D14 (write order → T8 Step 2 rule 2, T7 Step 3) ✓;
+key → T1 criterion 4b, T8 Step 2b, R5-I13) ✓; D14 (write order → T8 Step 2b's terminal-marker rule, T7 Step 3) ✓;
 D16 (aggregation site → T8 Step 5, now naming **all three** intent sets rather than the ledger alone)
 ✓; D23 (`thresholds.*` vs `roles.*` → T3 Step 2, the `VerdictInput` note) ✓ — **one defect found and
 fixed by this sweep**: this round's own first draft of the M1 fix called all three classifier numbers
@@ -4931,6 +5134,132 @@ one re-pointed (MR-32b), one widened (MR-22b), one absorbed (MR-32b2 into MR-32b
   the Files line had to say which function each step edits or an implementer would read criterion 1
   as forbidding Step 6. Now split explicitly (`renderRootsStatusInner` for Steps 1-4,
   `ROOTS_SCAFFOLD_MESSAGE` for Step 6).
+
+### Round 9 — what the ninth adversarial review changed (0 blocking, 2 major, 7 minor)
+
+**D13a held under full independent re-derivation** — the review re-derived §9.10's and §18.1's field
+domains, the five-transition lifecycle, the ≤3-rows bound, both producible demotion paths and all
+eight Wilson figures from the spec rather than from the plan, and found the substance correct. Both
+majors are **executability** gaps: a mandated measurement the named tool cannot produce, and a
+criterion whose recipe omits the one step that makes it discriminate.
+
+- **M1 — the mandated per-file prompt-margin measurement is not obtainable from the named tool, and
+  a design fallback is gated on it.** `scripts/prompt-headroom.mjs` takes **no arguments**
+  (`process.argv` appears once, at `:576`, only to detect direct invocation) and prints, per tier,
+  the largest assembled prompt plus the next two and a summary (`:558-565`). Six sites ask it for a
+  *specific file's* number: T2 Step 1's pre-edit baseline, T2 Step 6's before/after report, D4's
+  `m1` fallback gate, and T5/T6/T7/T9's four `roots-check.ts` obligations — the four the plan
+  deliberately gave owners so the figure would not be "a global note nobody owns". None of those
+  files is inside the top three, so the tool answered none of them.
+  **Resolved by landing the instrument, not by weakening the rules — T1 Step 6 adds an optional,
+  repeatable `--file <path>` query mode**, and Global constraints names it once so all six sites
+  inherit it. The fork was decided on three grounds, all checked at source: the alternative
+  mechanism (hand-writing a 1-char ceiling into the gitignored `yg-secrets.yaml`, running
+  `check --details`, grepping, restoring) is *exactly what this script already automates behind a
+  four-signal restore* (`:16-26`, `:33-45`), and six task steps re-implementing that by hand is the
+  opposite of this plan's discipline; the data is already in hand at the print site (every parsed
+  entry carries `unitKey` as `file:<path>`, plus `chars`, `aspectId`, `tierName` —
+  `prompt-headroom.mjs:249-254`); and the graph cost is **zero** (`scripts/*.mjs` is already mapped
+  by the `scripts` node, type `build-script`, `relations: []`, aspects
+  `source-no-raw-control-chars` + advisory `repo-check-gate-steps`, `yg-architecture.yaml:442-454`).
+  **"The margin" is now defined once** — the ceiling minus that file's *largest* assembled prompt,
+  since one file can appear in several LLM pairs — with **MR-1c** killing the comfortable
+  misreading, criterion **8** pinning it on a two-pair fixture, and criterion **8b** guarding the
+  no-argument output byte-for-byte because `scripts/repo-check.sh:127`'s reported figure *is* that
+  output. A path binding no LLM aspect is reported as having no margin, and every rule that reads a
+  margin is declared inapplicable to it rather than satisfied by it.
+  **The 2000-char trigger is left as it is, and is now backed by a prediction.** Re-measured live
+  on today's tree (`node scripts/prompt-headroom.mjs`, reproducing 1198 pairs and margins
+  657/660/849 exactly): a `roots-engine` file has exactly **one** LLM pair, `deterministic`
+  (`reviewer.type: llm`, `per: file`, content.md **1 182 B** — `source-hygiene` is an `aggregate`
+  whose six children are all deterministic, so it contributes no prompt), which by the section's own
+  `file bytes + aspect bytes + ~1.8 K` relationship puts `roles.ts` near **14 600** and `mine.ts`
+  near **13 400**. T2 Step 1 now says a measured figure anywhere near 2 000 is itself a **STOP**,
+  not a quiet fallback — the prediction makes the measurement falsifiable rather than replacing it.
+- **M2 — criterion 4b(i) could not discriminate the marker from MR-32b.** `health.ts` applies
+  nothing; the terminal `'closed'` event is a **returned value**, and the marker's only effect is on
+  a *later fold* of that session's events. Two calls "over the same fixture" therefore feed call 2
+  an event stream with no marker in it under both the correct implementation and the mutant, so both
+  return a `complied` sample and a ledger mark and the criterion's expectation is false for the
+  correct code. **The missing step is now stated: call 2's session-event input is call 1's input
+  plus the terminal event call 1 returned — the unit test performs the apply the command layer
+  performs in production**, and nothing else about call 2's input differs, so the marker is the only
+  variable. MR-32b re-verified under the clause and now says outright that a same-input version of
+  the leg would let the mutant live. **The same feedback shape was checked everywhere the
+  aggregation runs twice**, and criterion 4b now carries the requirement once for all three of its
+  legs: the two e2e legs get it free (the command layer really applies), the unit leg must do it
+  explicitly. No other site calls the aggregation twice — 4c mixes producers but asserts on files,
+  4d and 3b are single runs, and criterion 6's `status` applies nothing by design.
+
+**Minor** — all 7 applied: the two live pointers to "T8 Step 2 rule 2" (a rule round 8 renumbered)
+now read "T8 Step 2b's terminal-marker rule" — they sat in R5-I13 and in D13a(c), the two documents a
+task is told to trust literally; **criterion 8c** now states the fixture property that makes rung 2
+the answering rung (both scopes carry **no `assignments` entry** — added to an already-mined file
+*after* `index` ran, since `induceRoles` writes an entry for every eligible scope it saw
+(`roles.ts:983`) and an edited body does not move `skeyR`), together with the two constraints that
+keep it constructible (the new method must clear rung 0's eligibility gate, and living in an
+existing file in an existing directory is what keeps `routePartition` answering without a new
+routing entry); **MR-9c** drops its ambiguous second mutation ("the position in a locally re-sorted
+copy" reads most naturally as re-sorted by `roleKey`, which is the no-op the same bullet retires) and
+keeps the unambiguous reversal alone; **T2 criterion 4b(v)** gains its sizing — `repoBucketSurvives`
+is `mergedCount ≥ 300` over **only the sub-floor keys** (`partitions.ts:257-275`), so the case needs
+two distinct sub-floor buckets summing above the floor or its entry is `null` and the criterion
+fails looking like a routing bug; two anchors corrected (`minOwnFeatures` is
+`config-parser.ts:136`, **not** `:135`, which is the neighbouring `minClusterSize: 3` — a repair
+introduced by round 6's own correction; and §9.4i's label sentence is `v6-spec.md:428`, the
+section's closing sentence, not `:429`); D13a(b)'s Writer column for transition 1 is corrected from
+T7 to **T6's `applyBudgetsAndDedup`** with T6's NON-goal narrowed to "closure telemetry and the
+ledger (T7)" and T6 added to D13a's own list of restating documents; and **R5-I15** now flags its
+§21.1 divergence in the D10 register — `v6-spec.md:719` is cited as the text the invariant *departs
+from*, not as its authority, with the corrupt-session-file case named as the one §21.1 puts on the
+incident side and this plan deliberately absorbs.
+
+**Also fixed, from the review's "checked and did not raise" list:** the gate matrix's "the *only*
+`lstat` outcome on `q` that is not [a drop]" is restated positively — the two admitted outcomes are
+**absent** or **a regular file**, every other dirent kind is a drop.
+
+**Not applied:** none. All nine findings were verified against their cited authority before being
+acted on — the script's argument handling and output block, `roles.ts:983`/`:1030`,
+`partitions.ts:257-275`, `config-parser.ts:131-140`, `v6-spec.md:428`/`:479`/`:681`/`:719`, and
+`scripts/prompt-headroom.mjs:249-254`/`:558-565`/`:576` — and all nine held.
+
+**Sweep A (decisions vs restatements), scoped to rounds 8-9.** The prompt-margin mechanism → Global
+constraints (named once), T1 Step 6 (landed), T2 Step 1, T2 Step 6, D4's fallback, T5/T6/T7 Step 6
+and T9's step ✓ — **eight sites reconciled to one command form**, which is what the "name it once so
+all six inherit it" instruction requires. D13a → T6 (newly added to the list), T7, T8, D14, R5-I13 ✓.
+D9's three arms → T3 Step 6, `VerdictFact.partitionId`, T4 criterion 3b, T4 Step 6 ✓ (untouched this
+round, re-checked). D25 → T10 ✓. **One defect found by this sweep:** the four `roots-check.ts`
+obligations were textually identical in three places and one more in T2's neighbour, so a
+find-and-replace risked missing the one whose wording differed; each was checked individually and
+all four now carry `--file source/cli/src/cli/roots-check.ts`.
+
+**Sweep B (invariants/MRs vs tasks), scoped to rounds 8-9.** R5-I11's id count refreshed to **68**
+(net +1: MR-1c added). R5-I13 and R5-I15 both amended above; R5-I4 ✓ (the script is repo tooling,
+not engine code, and `health.ts` still takes its clock as a parameter); R5-I16 ✓ (**no repo-check
+step is added or removed** — T1 Step 6 changes what an existing step's tool can be *asked*, not the
+17-step list, so the advisory `repo-check-gate-steps` rule is untouched); R5-I12 ✓ (T1's new step
+ships with unit criteria 8/8b, and T1's standing "no adopter-visible behavior" e2e note still holds
+— a measurement instrument has no adopter flow). **MR ids: 68 live definitions, no duplicates, every
+`MR-*` referenced in the task body defined except `MR-32c`/`MR-32d` in their retirement notice**
+(mechanically re-checked).
+
+**Interaction pass, scoped to rounds 8-9.** Seven pairs, one defect:
+- *`--file` mode × the no-argument gate step* — additive only; criterion 8b is the byte-identity
+  guard on `scripts/repo-check.sh:127`'s own reported figure. ✓
+- *`--file` mode × the 2000-char fallback* — the trigger is unchanged and now decidable; the
+  prediction (≈14 600 / ≈13 400) makes a near-trigger reading a STOP rather than a silent fallback. ✓
+- *`--file` mode × a file that binds no LLM aspect* — reported as "no margin", and every margin rule
+  is declared inapplicable rather than satisfied. ✓
+- *4b(i)'s feedback clause × `health.ts`'s purity* — the clause is the unit test doing what the
+  command layer does; purity is preserved, which is why the clause is needed at all. ✓
+- *4b(i)'s feedback clause × 4b's other two legs* — **DEFECT:** the requirement was stated only
+  inside leg (i), where a reader could take it for a local detail. Hoisted to 4b's opening as a
+  statement about every leg, with the note that the e2e legs satisfy it by applying for real.
+- *criterion 8c's new-scope fixture × `routePartition`* — an added method in an **existing** mined
+  file routes by the same directory prefix as its siblings, so no new routing entry and no re-index;
+  a brand-new file would have needed both, and the criterion now says so. ✓
+- *criterion 8c's new-scope fixture × rung 0* — a new method that fails `minOwnFeatures` never
+  reaches rung 2 either, so the fixture's method must clear criterion 8b's own gate. Stated. ✓
 
 ### Drafting self-review (pre-review)
 
