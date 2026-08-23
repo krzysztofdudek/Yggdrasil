@@ -324,7 +324,7 @@ Every task's reviewer checks these. Each names the test family that pins it (tas
   load-bearing there is a test that FAILS when the rule alone is deleted, and the implementer
   demonstrates that by actually deleting it, running the test, and restoring (the live mutation
   round-trips **every MR named in the tasks below**, MR-1 through MR-41 including the lettered
-  variants (76 ids at present) — the phrase "every MR named
+  variants (81 ids at present) — the phrase "every MR named
   in the tasks below" is the binding half and the numeric range is only an aid, so a task that adds a
   killer cannot fall outside the invariant every reviewer checks). A rule with no killer test is not done.
   **The invariant cuts both ways, and round 8 is why that is written down: an MR whose mutation
@@ -656,7 +656,11 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   derivation; it is named here so the divergence reads as this decision's own and not as drift.) An earlier draft called it "sorted" and named no key, which is
   not a contract: the three arrays hold three different record types and there is no field they
   share to sort on. What actually fixes the order is stated where each array is produced —
-  `closureIntents` in `evaluate`'s scope-then-candidate-fact input order, `emissionIntents` in
+  `closureIntents` in `evaluate`'s **scope-then-surface** input order — the closure's own driver,
+  which is once per `(scope, surface)` pair over the fact D8's governance selected for it and
+  **not** once per candidate fact (T7 Step 1 derives why: a scope routinely has a role, a directory
+  and an `_all` candidate on one surface, and a candidate-driven closure would put two or three
+  `'closed'` events in the log for one closure) — `emissionIntents` in
   §11.3's emitted order, the command layer's own events in D14's order — and D14 fixes the order the
   sets are *applied* in. **There are two engine producers and one
   command-layer producer**, and the third is named here because a round of review found it had none:
@@ -1226,13 +1230,17 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
     // decorative-role demotion` (`mine.ts:626`) — and `scorePartitionFacts` is the sole producer of
     `MinedPartition.facts` (`mine.ts:1002` → prune → dedup → cull → `:1055`);
   - the persisted flag cannot disagree with the set the index used: `computeRoleLiftForPartition`
-    writes one entry per role unconditionally (`mine.ts:496`, the `liftByRoleKey.set(...)` at the
-    end of its per-role loop), so `roleLiftByKey` is **total** over `rolesForPartition`, and
+    (`mine.ts:496-546`) writes one entry per role unconditionally — the `liftByRoleKey.set(...)` at
+    the end of its per-role loop is **`mine.ts:542`**, and `:496` is the function's own declaration —
+    so `roleLiftByKey` is **total** over `rolesForPartition`, and
     `MinedRole.roleLift = roleLiftByKey.get(r.roleKey) ?? 0` (`:1032`) reads that same map. So
     `roleLift ≤ 0` ⟺ `roleKey ∈ decorativeRoleKeys` ⟺ **that role has zero facts**;
   - a scope whose sticky `assignments` entry names a decorative role still reaches this rule with
-    that `roleKey` (`induceRoles` writes an entry for every eligible scope, `roles.ts:983`), finds no
-    role facts for it, and falls back to `_all` — **with or without the filter**.
+    that `roleKey` — the entry exists precisely because `induceRoles` **classified that scope into
+    that role** (`roles.ts:983`, inside the write loop `:978-985`, which runs only for the eligible
+    scopes `classifyAgainstMedoids` placed: `rank1RoleIndex` is populated only on
+    `roleIndex >= 0` (`:913-914`) and the loop `continue`s when the lookup misses) — finds no role
+    facts for it, and falls back to `_all` — **with or without the filter**.
 
   So the filter cannot change any verdict on any snapshot the product can emit. R5-I11 gives two
   honest outcomes for a rule with no possible killer — delete it, or record it explicitly as
@@ -1351,7 +1359,21 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   documented where it is computed: it merges two same-day sessions in one checkout into one budget
   (`integration-design.md:331`), which costs an agent some speech and can never cause any.
   **All three rungs yield the SAME shape — 12 lowercase hex characters — and the third is hashed
-  too**, `sha256(ppid ∥ cwd ∥ UTC-day)[:12]`, matching the second rung's form. The spec writes the
+  too**, `sha256(ppid ∥ cwd ∥ UTC-day)[:12]`, matching the second rung's form.
+  **`--session <id>` goes through the same fold, so the shape is a property of EVERY session id in
+  the system rather than of the ladder's three.** D10 makes an explicit `--session` override the
+  payload's id, and rung 1 hashes the payload's id — so leaving the flag's value raw would make the
+  one id a caller can choose the one id that need not be 12 hex characters, on the exact value T1
+  turns into a file name (`sessionLogPath`) and T8 reads back out of one (`listSessionLogs`). A
+  value containing a `/` would silently place the log outside `.state/sessions/` and break that
+  inverse in both directions; the argument that hashes rung 3's `cwd` applies unchanged and for the
+  same reason. Nothing about the flag's *use* changes: the same value hashes to the same id, so two
+  runs sharing a `--session` still share a budget (T6 criterion 6), and eight distinct values still
+  give eight distinct sessions (T8's e2e). **One consequence for every test that reads a session log
+  from disk:** the file's stem is the **folded** id, not the flag's value, so a suite either globs
+  `.state/sessions/*.jsonl` or applies the same fold — building the path from the raw `--session`
+  string finds nothing, and finding nothing is how a session-log assertion passes for the wrong
+  reason (T7 criterion 2 and T6's e2e are the two that read those bytes). The spec writes the
   third rung as the tuple itself (`v6-spec.md:554`), and taking that literally would put a `cwd` —
   absolute, containing `/`, and on Windows a `\` and a drive colon — inside a value T1 turns straight
   into a file name (`sessionLogPath`) and T8 reads back out of one (`listSessionLogs`). Hashing is
@@ -1464,6 +1486,19 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
     row could carry and nothing the agent could have complied with. T8 Step 2 treats it as **gone**:
     no sample, no ledger mark, no terminal event, which is §18.2's own direction (a lost sample
     resurrects a fact, never falsely silences one, `v6-spec.md:683`).
+  - **The walk's rule has a converse, and it is what decides the undecidable value on BOTH paths.**
+    The rule above is "a field this table names is a field some stage must be able to construct".
+    Its converse: **a state in which a producer cannot construct an honest value for a field this
+    table declares non-optional must write no row at all** — never a row with a substituted value.
+    The state is the surface value being `null` (out of the surface's domain), and the field is
+    `observed`, which this table defines as "the deviating value" and T1 types as a `string`. There
+    is no string an undecidable value could honestly be written as: `'false'` is the reading §6.4
+    forbids outright (`v6-spec.md:213`), the empty string is a value the alphabet may itself contain,
+    and `expected` would assert a compliance nobody performed. So neither closure producer writes a
+    row: T7's third branch leaves the intervention open (D13a(b) transition 6, T7 Step 2) and T8's
+    treats it as gone (T8 Step 2). Stated here rather than only at the two branches, because this is
+    where a later round re-walks the table and would otherwise read `observed`'s `string` type as a
+    producer obligation to invent one.
 
   Everything else on this table is reachable without a contract change: `stableId`/`surface`/
   `expected` from the open intervention, `observed` from `surfaceValue` at closure (T7) or from
@@ -1492,6 +1527,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   | 3 | OPEN *or* OPEN(ignore banked) → **CLOSED** | `'closed'` `{outcome:'complied', scope:'session'}` | `observedAfter:'complied'` | one mark | T7, on an in-session re-check that now conforms |
   | 4 | OPEN *or* OPEN(ignore banked) → **CLOSED (terminal)** | `'closed'` `{outcome:…, scope:'cross-session'}` | `observedAfter:'complied'` or `'ignored'` per the current index | one mark on the `complied` arm only | T8's pass, over an **ended** log |
   | 5 | any → **DROPPED** | *nothing* | *nothing* | — | T8's pass, when `stableId` no longer resolves |
+| 6 | OPEN *or* OPEN(ignore banked) → **OPEN (unchanged)** | *nothing* | *nothing* | — | T7, on an in-session re-check whose surface value is **`null`** — out of the surface's domain, so neither of §9.10's two conditionals fires (T7 Step 2). Nothing is written and nothing is set; the record is left for a later in-session sighting or for T8's pass |
 
   **Transition 1's writer is T6, not T7, and the two-task split is the point.** §18.1's row is
   written for "every **message**", and only the budget stage knows which findings became messages —
@@ -1500,7 +1536,7 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   *closure* rows and the ledger. An earlier draft's Writer cell said "T7, on emission", which
   contradicted T6 Step 3 in the one table the plan tells a task to trust literally.
 
-  Three properties of this table are load-bearing and each is stated because a previous round got
+  Four properties of this table are load-bearing and each is stated because a previous round got
   one of them wrong. **(i) Transition 2 does not close the record** — §9.10's bound is written over
   "the open record", present tense, *after* the ignore, so an `ignored` closure leaves the
   intervention open and only sets `ignoredRecordedInSession`. **(ii) Transition 4 is the pass's one
@@ -1508,7 +1544,16 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   `scope:'cross-session'` marker records. **(iii) An intervention can legitimately produce both an
   `ignored` and a `complied` row** (2 then 3, or 2 then 4): one row per *outcome*, which is what
   R5-I13's bound — written over the `ignored` branch — permits and what §18.2's own safety direction
-  requires (see T8 Step 2).
+  requires (see T8 Step 2). **(iv) Transitions 5 and 6 write nothing at all, and they are this
+  table's answer to the two states §9.10's two conditionals do not cover** — a scope that is gone,
+  and a value that is undecidable. They are the same rule under two passes: neither an out-of-domain
+  value nor a vanished scope may bank a sample or a mark (`v6-spec.md:213`, `:683`). They differ
+  only in what happens to the record afterwards, and that follows from whether anything later can
+  still observe the pair — nothing can, for an ended log (5, drop), and the rest of the session can,
+  for a live one (6, leave open). **A row with no event and no telemetry is not a gap in this
+  table's "every transition names the event that causes it" claim; it is a transition whose event is
+  the *absence* of one, which is exactly what an implementer needs told**, since the natural reading
+  of a three-way branch with two rows is that the third case must belong to one of them.
 
   **(c) What the dedupe key actually bounds, given (a).** The key is
   `(sessionId, stableId, surface, observedAfter)` with `observedAfter ∈ {absent, 'complied',
@@ -1592,17 +1637,31 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   that sweep** (its *participation* set: T3 Step 8 filter 1's output, capped by path order so the cap
   stays deterministic and matches §12.4's bound), never the seeded set and never the narrower
   post-`forParsing` set, since the payload is participation everywhere (T3 Step 8's fork) — and
-  **then** `'sweep'` carrying the sweep's own state. **A sweep that takes up no files appends
-  `'sweep'` alone, and there are TWO such sweeps, not one** — the enumeration is written out because
-  an earlier draft named only the first and a rule stated as exhaustive with a case missing is how
-  an implementer invents one: a **seed** sweep, which evaluates nothing by design (T9 Step 1), and a
-  **flood-skipped** sweep, which took nothing up either — deferring *is* taking nothing up (T9
-  Step 2). Neither appends a `'checked'`, and the flood case matters beyond tidiness: a `'checked'`
+  **then** `'sweep'` carrying the sweep's own state. **Off the sweep channels the same rule reads as
+  one line: `'checked'` is appended iff the run's participation set is non-empty** (T6 Step 1b), so
+  a run that resolved no file at all — a hook payload naming nothing, every candidate dropped by
+  gate −1, a dormant or snapshot-less project, `getDirtyFiles` returning `null` or `[]` — appends
+  none rather than an empty one, and "a run that emits nothing still records that it ran" keeps its
+  intended meaning: a run that *looked* and found nothing records that it looked. **A sweep that
+  takes up no files appends `'sweep'` alone — and this is stated as the RULE's own consequence
+  rather than as a list of sweeps, because the list has now moved twice.** It was one case, then
+  two, and a third has always been reachable: a **seed** sweep, which evaluates nothing by design
+  (T9 Step 1); a **flood-skipped** sweep, which took nothing up either — deferring *is* taking
+  nothing up (T9 Step 2); and an **ordinary sweep whose diff is empty**, the commonest sweep there
+  is, which hashed and found nothing changed. All three are instances of one rule — participation
+  empty ⇒ no `'checked'` — and naming them is illustration, not enumeration; a fourth kind of
+  no-op sweep needs no new clause. The flood case matters beyond tidiness: a `'checked'`
   carrying the 21 flooded paths would put files this run deliberately did not look at into
   `writtenFiles`, and therefore into §13.5's `D`, on the one flow where the run's whole point was to
   defer them. They enter `D` when they are actually taken up — in the deferred `stop` summary, which
   evaluates files and therefore appends its own `'checked'` like any other evaluating run (T6
-  Step 1b). `'stop'` is appended last on the
+  Step 1b). **"Enter `D`" is literally true only because of the merge T9 Step 4 states, and the two
+  sentences are one rule:** a `stop` run's `D` is the fold's `writtenFiles` **unioned with that same
+  run's own `'checked'` payload**. The fold is read at the start of the run and the deferred
+  summary's `'checked'` is appended by the run itself, and no later run consumes it — T9 criterion 5
+  pins that a second `stop` in the same session emits nothing — so without the union the deferred
+  paths would reach `writtenFiles` in the log and **no completeness computation would ever see
+  them**, on exactly the flow this clause exists to protect. `'stop'` is appended last on the
   stop channel, after any completeness output, since nothing reads it back within the same run.
   **The replacement reading is rejected explicitly**, because it is silently fatal rather than merely
   ambiguous: the `'sweep'` arm carries no `files` payload and folds only into
@@ -1759,7 +1818,17 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
   to detect a condition that only a CLI upgrade can create. The check path therefore compares
   `headSha`, `configHash`, `seedsHash` and `rootsVersion`, and **states in the plan and in the code
   what it does not check**: a grammar-package upgrade that changes `bindingHash` without changing
-  `rootsVersion` leaves the check path unaware the model is stale. `yg roots index` and
+  `rootsVersion` leaves the check path unaware the model is stale.
+  **And one of the four it does compare has three states, not two — `headSha`.** Reading the
+  current HEAD can fail: a snapshot can legitimately exist in a directory that is not a git
+  repository, in a repository with no commits, or with git missing (R4 builds in degraded mode, and
+  R5-I17 already names those shapes). **Cannot tell is not stale**: when HEAD cannot be read the
+  comparison is simply not made — no staleness note, no `debugWrite` claiming staleness, one
+  `debugWrite` recording why the comparison was skipped — and the run proceeds exactly as it does
+  against a fresh model. This is one rule with two callers, like the rest of this decision: the
+  check path applies it per run and `status` applies it when it recomputes the same comparison
+  (T10 Step 1, T10 criterion 3, MR-40b). Treating an unreadable HEAD as a mismatch would mark every
+  non-git adopter permanently behind their own index. `yg roots index` and
   `yg roots status` compute the full tuple and are where that case surfaces. Stale ⇒ the run
   proceeds against the stale model, noting the staleness on any DENY-eligible message (none in R5)
   and in one `debugWrite` line; snapshot missing ⇒
@@ -1988,7 +2057,21 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
      identity whose `relPath` routes to `null`, routes
      to a **different** partition than the one it recorded, or finds no governing fact **does not
      resolve**: for a pooled telemetry row that means it pools nowhere, and for an open intervention
-     it means **gone** (bullet 3). **It answers for both of T8's stages, which is why it is stated
+     it means **gone** (bullet 3).
+     **The key this returns is not partition-qualified, and that is §18.2's own key rather than a
+     choice made here — written down because a reader of this derivation will ask, and because a
+     monorepo makes it visible.** `factKey` is `` `${roleKey}|${surface}` `` (`mine.ts:121`), so for
+     an `_all` cell the string — `_all|auto.ret` — is **identical in every partition**. §18.2 pools
+     "per `factKey` = `(roleKey|_all, surface)`" (`v6-spec.md:683`) and `demotions.json` carries a
+     flat `demoted: string[]` (T1), so pooling, the Wilson bound and the check path's
+     locally-demoted skip are all partition-blind by construction: samples banked against one
+     package's `_all` fact pool with another's, and demoting quiets that convention everywhere.
+     (Role keys are hashes of member `stable_id`s and coincide across partitions only by accident;
+     the `_all` and `d[<dir>]` classes are where this actually bites. The expected-flip filter is
+     applied per row against **its own** partition's current fact, so two partitions that disagree
+     on `expected` each pass their own filter and then pool together.) It is left exactly as the
+     spec writes it — this plan does not re-cut a spec key — and it is recorded here so the
+     behaviour is a known consequence rather than a surprise. **It answers for both of T8's stages, which is why it is stated
      over an identity rather than over a row:** T8 Step 1 asks it about a `TelemetryRecord`'s
      identity, and T8 Step 2 asks it about an `OpenIntervention`'s, because every closure sample is
      itself a `TelemetryRecord` and D13a(a) requires the **current** key on it — a key the fold does
@@ -2003,6 +2086,32 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
      changed partition is kept (it is now an exact test rather than an inference from a stale
      `stableId`) and it is the conservative direction: a dropped sample resurrects a fact, never
      silences one.
+     **One class of scope gets a different role answer here than the check path gives it, and the
+     divergence is named and accepted rather than engineered around** — the register T3 Step 2
+     already uses for the medoid push-order tie ("that exposure is accepted and named rather than
+     engineered around"). This resolution reads `assignments[skeyR]` and stops; the check path runs
+     the **three-rung** ladder — rung 0 eligibility, rung 1 sticky `assignments`, rung 2
+     `classifyAgainstMedoids` (T3 Step 2). The two agree for every scope the index assigned (rung 1
+     *is* that same map) and for every ineligible or role-less scope (`null` on both). They can
+     differ for exactly one class: **a scope new since the index**, which rung 2 may place in a role
+     and which `assignments` does not know — so the check path can warn under a role fact's
+     `factKey` while this resolution pools that row, and closes that intervention, under `_all`.
+     **The outcome, stated in full rather than left to be discovered:** such a row pools into the
+     `_all` fact rather than the role fact it was recorded against. Where the two facts disagree on
+     `expected`, §18.2's expected-flip filter — the same sentence this bullet already implements —
+     excludes it and the row pools nowhere. Where they agree, the sample counts toward `_all`: a
+     small pollution in the falsely-silencing direction §18.2 warns about, bounded by the size of
+     that class (scopes minted between two `index` runs that also earned a message and also resolved
+     to a role at rung 2, rather than to `null`).
+     **It is the assignments-only reading that is correct, not a fidelity loss to be repaired.**
+     §18.2 pools "via **current membership**" (`v6-spec.md:683`), and current membership is what the
+     current *snapshot* records — `assignments` — not what a hook-time classifier would guess for a
+     scope the snapshot has never seen. Re-running rung 2 here would also need the medoid bags,
+     three config numbers and a `ScopeUnit` per scope, i.e. the parse this bullet exists to avoid
+     (Q1 is parse-free, and that is what bounds the pass's cost). T3 Step 3's parenthetical
+     ("`roleOf`'s answer on the check path, `assignments[skeyR]`'s on T8's") is the only other place
+     the two inputs are named; the consequence lives here, so that parenthetical stops being the
+     whole of a reader's notice.
   3. **Q2 — the closure's three-way branch — re-enumerates exactly the files it is about to close.**
      For the ended session logs the pass is closing, the command layer takes each open intervention's
      `relPath`, applies T3 Step 8's filters 1 and 2 (gate −1 and gate 0 — a path the index would no
@@ -2017,8 +2126,12 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
      no scope with that `skeyR` ⇒ **gone** (drop, no event, no sample); value `=== expected` ⇒
      **complied**; value present and different ⇒ **ignored**; value `null`, i.e. out of the
      surface's domain ⇒ **gone** — undecidable is never a deviation (`v6-spec.md:213`) and is
-     equally never a compliance, so it may not bank a sample or a ledger mark. The value read is
-     also the closure row's `observed`.
+     equally never a compliance, so it may not bank a sample or a ledger mark. **Which layer decides
+     each of those four is fixed by bullet 4's contract and is not a filing preference:** the
+     command layer answers only "is the scope there" — `{state:'gone'}` or `{state:'value', v}` with
+     `v` forwarded from `surfaceValue` **including its `null`** — and `health.ts` maps all four
+     branches, so the two `gone`s and the two value branches are one rule in one module. The value
+     read is also the closure row's `observed`, on the two branches that write a row.
      **A fourth `gone`, and it comes from Q1's lookup rather than from this one.** Every sample this
      branch banks is a `TelemetryRecord`, whose `factKey` is non-optional and which D13a(a) requires
      to be the **current** key — and the re-enumeration answers what the scope's surface *is*, never
@@ -2041,7 +2154,22 @@ may not re-litigate one; a task that finds a decision *wrong* stops and reports.
      exactly as `roleOf` and `surfaceValue` reach `evaluate` (D1's seam):
      `resolveFact({ relPath, skeyR, scopeKind, partitionId, surface }) →
      { factKey, expected } | null` for Q1 and `currentValue(intervention) → { state: 'gone' } |
-     { state: 'value'; v: string }` for Q2, both built by `src/cli/roots.ts`.
+     { state: 'value'; v: string | null }` for Q2, both built by `src/cli/roots.ts`.
+     **`v` is `string | null`, not `string`, and the one character is load-bearing three times
+     over.** It is the declared return of the thing the builder actually calls —
+     `surfacesForFile`'s `surfaceValue(surface)`, whose domain is `string | null` (D6), where `null`
+     means "out of the surface's domain". With `v: string` the command layer would have to decide
+     what an undecidable value *means* before `health.ts` ever saw it, and the `null ⇒ gone` rule
+     T8 Step 2's prose puts inside the engine would be **unstatable there** — a branch for a stage
+     that structurally cannot take it. With the widening: the builder forwards `surfaceValue`'s
+     answer unchanged, the rule lives where its prose already puts it, and the shape matches the
+     check path exactly — `VerdictInput.surfaceValue` is `string | null` and the engine owns "null
+     is not a deviation" there too (T3 criterion 11, MR-14), so the two paths stop disagreeing about
+     which layer decides that undecidable is undecidable. It also keeps the two lookups' third
+     states **distinct injected inputs**: `{state:'gone'}` (the scope is not there) and
+     `{state:'value', v:null}` (the scope is there and the surface says nothing about it) are
+     different facts about the world, and a contract that collapsed them would make T8 criterion 4's
+     legs (iii) and (iv) the same test and MR-34e's mirror arm unkillable.
      **Q1's lookup is typed over the identity tuple, not over a telemetry row, and that is what lets
      ONE implementation serve both of the pass's stages.** Its callers are the pooling step, which
      holds a `TelemetryRecord`, and the closure step, which holds an `OpenIntervention` and no row at
@@ -2208,6 +2336,14 @@ R4 shipped.
 //         in EVERY record that carries it (this event, `TelemetryRecord`, `OpenIntervention`) —
 //         `kind` is `SessionEvent`'s own union discriminant, and `Finding.scopeKind` already
 //         spells it that way, so one name means one thing across the increment.
+//       A SECOND 'warned' for a `(stableId, surface)` that is ALREADY OPEN is a NO-OP for
+//         `openInterventions` — it contributes its `dedupKeys` entry (its `direction` differs, or
+//         §11.3's dedup would have suppressed the message) and therefore its `warnCount`, and it
+//         changes no field of the open record: not `expected`, not the emitted pair below, and
+//         above all not `ignoredRecordedInSession`, whose reset would let a re-check append a
+//         second `'closed'{ignored}` into one session log against §9.10's per-session bound
+//         (`v6-spec.md:479`). The overwriting `map.set(key, …)` is the natural implementation and
+//         the wrong one; T6 Step 1 carries the derivation and T6 criterion 2b the assertion.
 //       `severity` and `deltaBits` are §18.1's emitted pair, and they are on the EVENT so that
 //         `OpenIntervention` can carry them forward to whoever closes the intervention — T7 in the
 //         same session, T8's pass a day later. Without them on the log, a closure row's "as
@@ -2221,6 +2357,13 @@ R4 shipped.
 //         intervention's outcome and the session that owned it is over, so no later sighting can
 //         add anything; the marker is what stops the pass re-firing on every subsequent index
 //         (D16.2 runs it unconditionally). Only T8 writes it; T7 always writes 'session'.
+//       A 'closed' whose (stableId, surface) is NOT open in the fold is a NO-OP — no record is
+//         created and nothing throws. Reachable through a degradation this plan promises rather
+//         than through a bad fixture: a corrupt line is skipped (R5-I15), and the skipped line may
+//         be the 'warned' that opened the record. Inventing a record from a 'closed' is the one
+//         wrong answer available — this arm carries no `expected`, no emitted pair and none of
+//         D26's four identity fields, so the record would be built with holes and then handed to
+//         the cross-session pass as something to resolve and sample. T6 Step 1 derives it.
 //       With scope 'session':
 //       'complied' REMOVES the intervention from openInterventions (it is finished).
 //       'ignored'  LEAVES IT OPEN and only sets ignoredRecordedInSession = true — §9.10's bound is
@@ -2358,7 +2501,17 @@ export function snapshotContentHash(body: unknown): string;                     
   prohibition is scoped to the *aggregation* path — see D16.4's own wording.
 - [ ] **Step 3: Tolerance, per store, stated in each file's header.** Session, telemetry and
   incident logs are **per-record tolerant** — a malformed line is skipped, never fatal (I1, and the
-  same tolerance `readSeeds`/`readLedger` already document). `demotions.json` is **all-or-nothing**:
+  same tolerance `readSeeds`/`readLedger` already document).
+  **"Malformed" means two things and the second is the one an implementer skips:** a line that is
+  **not JSON**, *and* a line that is well-formed JSON but **does not carry its record's required
+  fields** — an object with no `kind`, a `'warned'` arm missing `deltaBits`, a `TelemetryRecord`
+  with a non-string `ts`. The shape check belongs at the store boundary, once, rather than at every
+  consumer: `foldSession` is required to be total over the event stream (T6 Step 1) and would
+  otherwise have to defend itself against half-records; an `OpenIntervention` built from a `'warned'`
+  event missing `deltaBits` carries `undefined` into a closure row whose `deltaBits` is typed
+  `number` (T1's declarations), which is a defect no test would see until a telemetry row was read
+  back days later. Skipping is the same one-`debugWrite`-and-continue as any other bad line, and it
+  is what makes the fold's totality a store guarantee rather than a hope. `demotions.json` is **all-or-nothing**:
   a corrupt or stale-stamped file reads as `undefined`, which means "no demotions", which is the
   fail-open direction §18.2 chooses. Each header names which tolerance it has and why.
   **The tolerance is over I/O as well as over records, and that half has to be written down because
@@ -2476,7 +2629,11 @@ export function snapshotContentHash(body: unknown): string;                     
 
 **Acceptance criteria.**
 1. `appendSessionEvents` then `readSessionEvents` round-trips N events in append order; a line of
-   garbage inserted in the middle is skipped and the other N are still returned; the file is opened
+   garbage inserted in the middle is skipped and the other N are still returned; **a line that is
+   valid JSON but not a valid record — `{"kind":"warned"}` with no `deltaBits`, and an object with
+   no `kind` at all — is skipped on the same terms** (Step 3's second sense of "malformed"), which
+   is the arm a `try { JSON.parse } catch` implementation passes the first half of and fails the
+   second; the file is opened
    O_APPEND so two interleaved writers never truncate each other.
 2. `pruneSessions` removes exactly the session files whose mtime is older than
    `sessions.pruneDays` (7) against an injected `nowMs`, and returns the count. It never removes a
@@ -3115,7 +3272,18 @@ export interface Finding {
   partitionId: string;                 // the locality label needs it (D9) — and D26's resolution reads it
   roleLabel: string | null;            // `MinedRole.label` of the governing role; null for `_all`/directory
   fact: VerdictFact; observed: string; deltaBits: number; severity: Severity;
-  novel: boolean; downgraded: boolean; localityContrast: boolean;
+  novel: boolean; downgraded: boolean;
+  localityContrast: boolean;          // `fact.parentExp !== null && fact.parentExp !== fact.expected`
+                                      //   — the predicate has ONE home and it is this field, computed
+                                      //   in `evaluate`; `speech.ts` renders on the flag and never
+                                      //   re-derives it from `fact.parentExp`, or the rule would have
+                                      //   two homes and drift. **Both conjuncts:** `parentExp` is
+                                      //   `null` for every `_all` fact (`mine.ts:141-142` — nothing
+                                      //   wider encloses it), and `null !== expected` is TRUE, so the
+                                      //   bare inequality §9.4i's prose suggests would append "this is
+                                      //   the local default of this directory" to every repo-wide
+                                      //   message — the cell class §8.7 says carries most of the
+                                      //   enforceable mass. T4 criterion 3's third arm asserts it.
 }
 
 export interface Intents {
@@ -3280,7 +3448,9 @@ contract with no configuration in it. **The consequence for the graph is stated 
   **Those four are the FACT side of the signature; the scope side is four more values, named here
   because D8's applicability test cannot be applied without them and T8's caller has to supply them
   by hand:** the scope's resolved `roleKey` (or `null` for `_all`-only governance — `roleOf`'s answer
-  on the check path, `assignments[skeyR]`'s on T8's), its `relPath` (the directory cells' ancestor
+  on the check path, `assignments[skeyR]`'s on T8's; **the two can differ for one class of scope and
+  D26.2 names it, the outcome and why this is §18.2's own reading rather than a fidelity loss** —
+  the selector is one call, but its role *input* is not one derivation), its `relPath` (the directory cells' ancestor
   test), the `surface` being governed, and its `scopeKind` (the `appliesKind === scopeKind`
   restriction). So the selector reads
   `selectGoverningFact(facts, { roleKey, relPath, surface, scopeKind }) -> fact | null`, and D26's
@@ -3293,6 +3463,15 @@ contract with no configuration in it. **The consequence for the graph is stated 
   `v == expected`, `v == suppressedValue`; then `Δ < τ`. **Order is behavior, not style:** closure
   before every skip is what makes a fact that has become ineligible still able to close an open
   intervention.
+  **One consequence of that order belongs in the comment T3 leaves behind, because it is what T7
+  fills the hook with:** running first means the closure sees the **unskipped** `v`, including the
+  `null` the very next rung would have skipped — so the closure's own branch is **three-way**
+  (`expected` / present-and-different / `null`), not two-way, and the third arm writes nothing at
+  all (T7 Step 2, D13a(b) transition 6). The ladder's position is also what makes the arm reachable
+  in the first place: with the skip first there would be no `null` at the closure and the branch
+  would be dead. Note the closure is driven **once per `(scope, surface)` pair over the governing
+  fact**, not once per candidate fact (T7 Step 1) — the ladder below it is per governing fact for
+  the same reason.
 - [ ] **Step 5: Δ, severity, channel.** D7's posteriors; severity as D9's **composed** rule
   `(denyEligible && !novel) ? DENY : WARN` — one expression, both conjuncts, because §9.7's "a
   never-seen value is never denied" (`v6-spec.md:440`) is binding and is invisible if the novelty
@@ -3304,7 +3483,15 @@ contract with no configuration in it. **The consequence for the graph is stated 
   partition **and for the root-level package whose id is `''` and for the catch-all `'_root'`
   bucket** (D9's three arms), `package-wide (<partition>)`
   for every other named partition, and the group's medoid label for a role fact.
-  The locality contrast sentence renders verbatim when `parentExp ≠ expected`. **The `See:` line
+  The locality contrast sentence renders verbatim **exactly when `Finding.localityContrast` is
+  true** — the renderer reads the flag and re-derives nothing, because the predicate has one home
+  and it is that field's declaration (above): `parentExp !== null && parentExp !== expected`,
+  **both conjuncts, and the first is not defensive padding.** `MinedFact.parentExp`
+  is `string | null` and is `null` for an **`_all`** fact, because nothing wider encloses it
+  (`mine.ts:141-142`, the field's own doc). Read as the bare inequality the spec's prose suggests,
+  `null ≠ expected` is *true*, so **every repo-wide fact would append "this is the local default of
+  this directory"** — a sentence that is false by construction for the cell class §8.7 says carries
+  most of the enforceable mass. T4 criterion 3 asserts the `_all` arm by value. **The `See:` line
   renders exactly the exemplars `VerdictFact.exemplars` hands it and is omitted when that list is
   empty** — the renderer performs no validation of its own and may not (`no-direct-fs`); D4's
   existence filter has already run in the projection (Step 7b), so an empty list here means either
@@ -3530,10 +3717,16 @@ Additional criteria:
    required**: a one-role fixture, or a fixture where only one arm is checked, is satisfied by an
    implementation that returns a constant.
    **The fixture property that makes rung 2 the answering rung, without which neither arm tests
-   anything:** both scopes must carry **no `assignments` entry** — i.e. they are *new since the
-   index ran*. `induceRoles` writes an entry (a `roleKey` or `'-1'`) for every eligible scope it
-   saw (`roles.ts:983`), and rung 1's sticky lookup returns on a hit, so a scope present in the
-   mined golden never reaches rung 2 at all. Planting a *deviation* does not help: `skeyR` is
+   anything:** both scopes must carry **no `assignments` entry**, and the fixture guarantees that by
+   making them *new since the index ran*. `induceRoles` writes an entry (a `roleKey`, or `'-1'` when
+   the classification was ambiguous) for every eligible scope it **classified into a role**
+   (`roles.ts:983`, in the write loop `:978-985`; an eligible scope that matched no medoid gets
+   `roleIndex < 0`, no `rank1RoleIndex` entry, `:913-914`, and therefore no `assignments` entry at
+   all — exactly as D26.2 states from the other direction). Rung 1's sticky lookup returns on a hit,
+   so a scope the index placed in a role never reaches rung 2; a scope *added after* the index ran
+   is guaranteed to have no entry at all, which is why the fixture is built that way rather than by
+   hunting for a mined scope that happens to be role-less. Planting a *deviation* does not help:
+   `skeyR` is
    `relPath#kind#qualifiedName` (`extract.ts:203-204`), which an edited body does not move, so the
    sticky hit survives the edit. The e2e arm therefore **adds a new method to an already-mined
    file** after `yg roots index` has run. Two consequences the fixture must respect and which are
@@ -3566,8 +3759,14 @@ Additional criteria:
     synthetic findings.
 11. **Out-of-domain is not a deviation.** A surface whose domain excludes the scope yields `null`
     and no finding, distinct from a sparse boolean's absent-means-false.
-12. Exit code is **0** for: findings, no findings, dormant project, missing snapshot, unreadable
-    snapshot, a **version-mismatched** snapshot (an R4-shaped `model.json` after the D3 bump — which
+12. Exit code is **0** for: findings, no findings, dormant project, missing snapshot, **unreadable
+    snapshot — a `model.json` that is absent-versus-unparseable are two different states and only
+    the first is silent-and-clean: an unparseable or mis-shaped one prints nothing and records
+    **one incident**, exactly as the version mismatch does, because R5-I15's absorbed list is closed
+    at five faults and a corrupt snapshot is not on it; T5's own e2e drives exactly this leg, a
+    snapshot corrupted on disk ⇒ silence, exit 0, one incident line, so the clause has an observer
+    rather than a promise** — a **version-mismatched** snapshot (an
+    R4-shaped `model.json` after the D3 bump — which
     additionally prints nothing and records exactly one incident), a path outside the repository,
     and **a working directory with no `.yggdrasil/` anywhere above it** — which prints nothing and
     records **no** incident, there being no state directory to record one in, and which must NOT
@@ -3798,18 +3997,44 @@ A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design 
   ), `{seed_note}` (" (+seeded)"),
   `{novelty_note}`, `{stability_note}` (**omitted** in R5 — `stabilityDays` is structurally absent
   until R6, and the spec's own rule at `:513` is "omitted when absent"), and **the locality contrast
-  sentence, which has two forms, keyed on cell class**: §9.4i gives it as "this is the local default
+  sentence, which has two forms keyed on cell class — and a third outcome, which is no sentence at
+  all**: §9.4i gives it as "this is the local default
   of this directory / **of this group**" (`v6-spec.md:428`), and `parentExp` is `null` only for
   `_all` facts (`mine.ts:141-142` — the doc comment, then the field) — so a **role** fact carries it too and must render the *group*
   wording, while §11.1's quoted example (`:527`) shows only the directory wording. "Verbatim" in T4
-  criterion 3 therefore means "verbatim in the form its cell class selects". No transition text ever renders in a message (Appendix A's T3 is report-only, `:513`).
+  criterion 3 therefore means "verbatim in the form its cell class selects".
+  **The third state is the `null` one, and it is the majority path rather than an edge case.** An
+  `_all` fact has no enclosing cell to contrast against, so it renders **neither** form — and the
+  renderer must carry that as a rule, because the switch is written everywhere else as
+  `parentExp ≠ expected` and `null ≠ expected` is **true**. The predicate is
+  `parentExp !== null && parentExp !== expected`, and its one home is `Finding.localityContrast`'s
+  declaration (T3) — this renderer reads that flag and re-derives nothing;
+  without the first conjunct every repo-wide message ends by claiming to be a local
+  exception, on the cell class §8.7 says carries most of the enforceable mass. Criterion 3's third
+  arm asserts it and MR-17's second arm kills it. No transition text ever renders in a message (Appendix A's T3 is report-only, `:513`).
   **One switch that looks like a note and is not, named here so this enumeration reads as complete:**
   whether the `See:` line renders at all is **not** a note this task switches. It follows from
   whether `VerdictFact.exemplars` is empty, and the emptying is D4's file-existence filter, which
   runs one layer earlier in the command layer's projection (T3 Step 7b, T3 criterion 16, MR-14g)
   because `speech.ts` carries `no-direct-fs`. The renderer's whole obligation is the one it already
   owes a fact with no conformers: render the message, omit the line.
-- [ ] **Step 4: `{unit_plural}` from `appliesKind`** — methods / types / files / directories — and
+- [ ] **Step 4: `{unit_plural}` from `appliesKind`** — **methods / types / files, and those three
+  only.** A fourth arm ("directories") is **DELETED rather than carried**, with the reason recorded
+  so no later round re-adds it as the obvious missing case: `VerdictFact.appliesKind` is
+  `'method' | 'type' | 'file'` (T3's declaration, narrowing `MinedFact`'s `ScopeKind | 'module'`),
+  `ScopeKind` is exactly those three at source (`extract.ts:100`), and the only surfaces that speak
+  about a directory — E12's `auto.moddirshape` / `auto.modsize` / `auto.modfileshape` — are emitted
+  on **module**-kind units (`enumerate.ts:353-364`), whose facts the projection drops and whose
+  units D6 discards before evaluation. So the arm has no producer on any snapshot R5 can emit. This
+  is D8's decorative-filter deletion applied one layer out, and it is **not** D9's DENY row: DENY's
+  flag has a future producer (R6 sets it), while a module fact can never be hook-eligible at all (a
+  module scope is never survived — `weights.ts`'s own header), so nothing is waiting to make this
+  arm live. A renderer arm that cannot be reached is a coverage claim the plan does not have.
+  **What this does NOT delete: E12's own rows in Step 1's table.** Those rows exist for Step 2's
+  coverage lint, which enumerates every surface prefix the twelve enumerators can emit and is a test
+  over the *table*, not over rendered output — so the table stays complete while `{unit_plural}`
+  stays three-valued. The two are consistent because the plural comes from `appliesKind`, which is
+  never `'module'` in a `VerdictFact`, not from the surface's own row. — and
   the per-row deviation phrase ("does not…", "is `<observed>`" for categoricals), which design §12
   names as a productionized gap the prototype left generic (`:463`).
 - [ ] **Step 5: Appendix A's **T2** (the DENY reason), landing only the lines R5 can source.**
@@ -3847,6 +4072,14 @@ A (`:770-817`), Appendix B's per-row verbalizer obligation (`:819-844`); design 
    renders neither. **A role fact with `parentExp ≠ expected` renders the sentence's *group* form**
    (§9.4i's second wording) beside its medoid label — the arm an earlier draft left both unstated and
    untested, though `parentExp` is non-null for every role fact.
+   **Third arm — an `_all` fact, whose `parentExp` is `null`, renders NO contrast sentence in
+   either form**, asserted by value on a message that is otherwise complete (header, evidence,
+   `See:`). This is the arm the bare `≠` test gets wrong, and it gets it wrong on the commonest cell
+   class there is: `null !== expected` in TypeScript, so an implementation transcribing the spec's
+   own phrasing appends "this is the local default of this directory" to every repo-wide message.
+   The three arms together are the field's whole state space — non-null-and-equal, non-null-and-
+   different, and `null` — which is why the criterion enumerates them rather than testing the two
+   the spec's example shows.
 3b. **All five partition labels render — `''` and `'_root'` included.** A fact from partition
    `'_repo'` renders `repo-wide`; a fact from partition `''` — the root-level-package shape D5
    builds a fixture for — **also** renders `repo-wide`, never `package-wide ()`; a fact from
@@ -3872,7 +4105,12 @@ verbalizer is reachable through the real command, not just callable in a unit te
   that enumerator.
 - **MR-16 (nameshape by example):** render the shape string instead of examples ⇒ criterion 2 fails.
 - **MR-17 (locality contrast):** render the contrast sentence unconditionally ⇒ criterion 3's second
-  case fails, and every fact starts claiming to be a local exception.
+  case fails, and every fact starts claiming to be a local exception. **Second arm, and it is the
+  one an implementation reaches by transcribing rather than by carelessness:** keep the condition but
+  write it as the bare `parentExp !== expected`, dropping the non-null conjunct ⇒ **criterion 3's
+  third arm fails** — the `_all` fact appends the directory form, because `null !== expected`. Both
+  arms are named because they fail different cases and only the second survives a reviewer reading
+  the code against §9.4i's own wording, which does not mention `null` at all.
 - **MR-18 (naming leak):** render the raw `factKey` in the header line ⇒ criterion 5 fails.
 
 **NON-goals.** No Appendix A T5 (the completeness message — T9), no Appendix A T6 (seed tension) or
@@ -3901,6 +4139,33 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
   once in the file header as a table. Stdin is read **only** when `--hook` was passed and stdin is
   not a TTY, and that read carries its own timeout — an unclosed pipe is the one genuinely
   asynchronous wait on this path, and a timer is the right tool only there.
+  **What the read can return is three states, not one, and each has its own prescribed outcome —
+  written out because the routine one is the one a naive `JSON.parse` gets wrong.**
+  - **Zero bytes.** This is **not** a fault and must not be treated as one: a `--hook` invocation
+    with stdin redirected from `/dev/null` is ordinary, and it is what every hook-channel test that
+    exercises the flags rather than a payload does. It means **no payload** — one `debugWrite` line,
+    then fall through to the flags and positionals exactly as D10's precedence table already
+    prescribes; if that leaves no file set either, the run is D10's silent no-op, exit 0 (criterion
+    6). **No incident.**
+  - **Non-empty bytes that do not parse as a JSON object.** A genuine escape, and it needs **no new
+    rule**: it throws inside the entry point and exits through R5-I2's single catch — silence, one
+    incident naming the stage, the channel's nothing-to-say output, exit 0. This is stated as a
+    pointer rather than as a rule on purpose: R5-I15's five absorbed faults are an enumerated,
+    closed list and adding a sixth would break the "the two lists are disjoint" property both
+    invariants rest on. A host sending garbage is exactly what the incident file is for.
+  - **A payload that parses but whose fields are missing or of the wrong type.** A missing or
+    non-string `session_id` is treated as **absent**, which D12's ladder already defines (fall to
+    rung 2); a missing, non-array or empty file list is treated as **no file set**, which D10
+    already defines. Neither is an error and neither mints an incident — the payload's *shape* is
+    the host's business and this command's contract is to use what it recognizes.
+  **`--content <p>` needs exactly one target, and the missing-target case is an argument error.**
+  The bytes have to claim a location or nothing downstream can run: `q` is what `partitionRouting`
+  routes (D5), what gate −1 and gate 0 test (T3 Step 8's matrix), and what the emitted `path` is.
+  So `--content` requires **either** `--as <q>` **or** exactly one positional path, and **neither**
+  is the same what/why/next exit-1 usage error as **both-and-more-than-one** — one carve-out, one
+  criterion (criterion 3), raised before any evaluation begins. Stated here because the plan
+  otherwise names only the too-many arm, and an implementer closing only that one leaves
+  `--content p` alone resolving a target of `undefined`.
   **`--content <p>` is read here, once, by the command layer**, and which gate applies to `p` versus
   to `--as`'s target `q` is fixed by T3 Step 8's per-source gate matrix — this step implements that
   row rather than inventing a second policy. `p` is `lstat`ed and read and nothing is ever said
@@ -3945,8 +4210,14 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
   1 and 5 for the parse), so they produce a normal run with
   findings and zero incidents — an earlier draft of this step listed four of them and was
   unsatisfiable, because satisfying it would have meant *breaking* T1's tolerance contract. Criterion
-  4 covers the escaping regime, criterion 4b the absorbed one, and 4b's five legs are exactly
-  R5-I15's five faults.
+  4 covers the escaping regime, criterion 4b the absorbed one, and **4b's five legs are exactly
+  R5-I15's five faults, fault for fault** — which requires leg 2 to be an **unreadable**
+  `demotions.json` (R5-I15's own word) and not a *malformed* one: the content-shaped cases belong to
+  T1 criterion 5 and are absorbed by `readDemotions`' own parse handling, which needs none of the
+  wrapper T1 Step 3's I/O half had to add. R5-I2 keeps the two apart in the same register ("the
+  *content*-shaped cases are criterion 5, and the two are different faults with one outcome"), and
+  leg 2 is the run-level observer for the wrapper — the fault that, unabsorbed, throws `EISDIR` out
+  of the store and silences a whole check run.
 - [ ] **Step 4: Path safety (§21.2) — landing into T3 Step 8's third slot, not beside it.** This is
   filter 3 of the set resolution T3 Step 8 already owns, applied to the **evaluation** set and
   inheriting that step's totality rule: a `realpath` that throws (`EACCES`/`ELOOP`/`ENAMETOOLONG`) is
@@ -3987,10 +4258,14 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
    output — including the two "nothing" cases (`post` with no findings; `pre` always).
 2. `stop_hook_active: true` produces no output and exits 0.
 3. `--content <p> --as <q>` evaluates the content of `p` as though it lived at `q`, and the emitted
-   `path` is `q`. `--content` with more than one positional file is a what/why/next error and exit
-   **1** — the single argument-validation carve-out R5-I1 already names and scopes, raised before
+   `path` is `q`. **Both malformed-target arms are the same what/why/next error and exit `1`**:
+   `--content` with **more than one** positional file, and `--content` with **no** target at all
+   (no `--as` and no positional). One carve-out, two arms, asserted together — the single
+   argument-validation exception R5-I1 already names and scopes, raised before
    any evaluation begins, wrapped in `buildIssueMessage` exactly as `cli-command-contract` requires
-   of an option-mutex violation. It is refusing to run, not reporting a finding.
+   of an option-mutex violation. It is refusing to run, not reporting a finding. The second arm is
+   the one an implementation that guards only the first leaves resolving a target of `undefined`,
+   which then routes, gates and renders as the string `"undefined"`.
 3b. **The `--as` target need not exist — asserted on a path that does not.** With `p` an **existing**
    golden file carrying a planted deviation and `q` = `src/brand-new.ts`, a path present nowhere in
    the working tree: the run emits **one** finding whose `path` is `src/brand-new.ts`, exits 0, and
@@ -4020,7 +4295,10 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
    about the run and not about a single file (MR-19 depends on it); with the harness option the same
    injection throws instead.
 4b. **Absorbed faults, the half no criterion previously observed — all FIVE of R5-I15's.** With a
-   deliberately corrupted session log line, a non-JSON `demotions.json`, a file whose grammar is
+   deliberately corrupted session log line, **an UNREADABLE `demotions.json` — a directory at
+   `.state/demotions.json`, so `readFileOrDefault` throws `EISDIR` for every user and the leg needs
+   no `chmod` and is not skipped under root, exactly T1 criterion 5b's own fixture choice** — a file
+   whose grammar is
    unregistered, **a forced `parseFile` throw**, and **a failed `.state/` append** — the fourth
    driven through the **same test-only injection seam**
    criterion 4 and 5b use, **not** by writing malformed source: tree-sitter is error-tolerant, so
@@ -4042,6 +4320,12 @@ staleness (`:592`), §21.1–§21.2 (`:719-720`); design §3's command row
    and it is the criterion that fails if anyone "fixes" tolerance by throwing. The fifth leg is what
    gives R5-I15's fifth clause a killer at all: before it, an append that threw would have exited
    through R5-I2's catch and no criterion in the plan would have noticed.
+   **Two legs use an `EISDIR` fixture and they are not redundant, because they sit on opposite sides
+   of the store:** leg 2 is a **read** that must not throw (T1 Step 3's I/O half, whose absence
+   silences the run) and leg 5 is a **write** that must not throw (T1 Step 3b's writer contract,
+   whose absence mints an incident after the message has already printed). Both `.state/` entries
+   are directories inside a `.state/` that stays writable, so all five legs run in one fixture and
+   the "zero incidents" assertion stays real for every one of them.
 5. A path outside the repository yields silence and one incident for the session, however many such
    paths were passed.
 5b. **The deadline fires at a stage boundary.** With an injected slow stage (the same injection
@@ -4070,7 +4354,9 @@ drives — which is the only way to prove the JSON contract an agent host will a
   that fault's leg. **The failure is not the same on both arms, and the MR says which, because an
   implementer performing R5-I11's live round-trip looks for the stated observable and would
   otherwise read a surviving mutant as dead:**
-  - **the four read-side faults** (corrupt session line, non-JSON `demotions.json`, unregistered
+  - **the four read-side faults** (corrupt session line, **unreadable** `demotions.json` — the
+    `EISDIR` fixture, not a malformed one, which `readDemotions`' own parse handling absorbs with no
+    wrapper to delete — unregistered
     grammar, injected `parseFile` throw) all precede evaluation, so the run genuinely produces
     nothing: **the deviating file's finding disappears and an incident appears** where R5-I15
     promises none;
@@ -4134,6 +4420,15 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
   say which wins.** Three rules, and no field is outside them:
   - **Set union** — `writtenFiles` (over `'checked'`.`files`), `dedupKeys` and `warnCount`'s
     underlying identity set. This is what makes the fold idempotent under a replayed event.
+    **`warnCount`'s identity set is `dedupKeys` itself — `(stableId, surface, direction)`, §11.3's
+    own key — and naming it is not bookkeeping**: a WARN is emitted only when its dedup key is new
+    (T6 Step 2), so the two sets coincide by construction and `warnCount` is `dedupKeys.size`. It is
+    carried as its own field because §11.3's session budget is a named consumer and it costs
+    nothing, not because it is independently derived. The identity that matters is the **key**, not
+    the pair: two messages about one `(stableId, surface)` in opposite directions are two WARNs
+    against the 12-per-session budget — the agent really saw two — and they are one intervention.
+    That is exactly the case the `openInterventions` rules below turn on, which is why the two
+    identities are stated side by side rather than left to be inferred from each other.
   - **Last writer wins** — `fileState` and `lastSweepTs`, both of which name a moment: the last
     sweep that recorded hashes, and when it ran. (A flood-skipped sweep re-emits the `fileState` it
     was handed, so "last writer" is still the last sweep that actually hashed — T9 Step 2.)
@@ -4146,10 +4441,52 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
     would let a second `stop` run emit again (T9 criterion 5). One rule, one line, two observers —
     T9 criteria 3 and 5 — and `floodSkipped` rides the same line rather than carrying a third.
 
-  `openInterventions` is not in any of the three classes and is governed by its own rules at T1's
-  `SessionEvent` union: `'warned'` opens, `'closed'`+`'complied'` removes, `'closed'`+`'ignored'`
-  with `scope: 'session'` leaves the record open and sets `ignoredRecordedInSession`, and
-  `scope: 'cross-session'` is terminal for both outcomes.
+  `openInterventions` is not in any of the three classes and is governed by its own rules, stated
+  here in full and mirrored at T1's `SessionEvent` union: a `'warned'` whose `(stableId, surface)`
+  is **not** already open **opens** a record; `'closed'`+`'complied'` **removes** it;
+  `'closed'`+`'ignored'` with `scope: 'session'` **leaves the record open** and sets
+  `ignoredRecordedInSession`; `scope: 'cross-session'` is **terminal** for both outcomes.
+  **A `'warned'` whose `(stableId, surface)` IS already open is a NO-OP for `openInterventions` —
+  the record keeps its first emission's `expected`, `severity`, `deltaBits`, `openedSessionId` and,
+  decisively, its `ignoredRecordedInSession`.** The clause belongs here, at the fold's own
+  definition, rather than 2,500 lines away in T8's e2e re-plant mechanic (which states the same fact
+  from the other end: "an intervention opens only when a session's **first** check sees a deviating
+  scope"), because this is the rule an implementer of *this* function needs and the natural
+  implementation is the one that breaks it. Three things make it load-bearing:
+  - **The sequence is produced by design, not by accident.** T6 criterion 2 *requires* it: the same
+    `stableId` and `surface` with a **different** observed value emits again, because `direction` is
+    part of §11.3's dedup key — and T6 Step 3 appends a `'warned'` event for every emitted finding.
+    Two `'warned'` events for one pair therefore land in one session log on the ordinary path of an
+    agent that changes a deviating value rather than fixing it.
+  - **The natural implementation (`map.set(key, …)`) overwrites, and the overwrite resets
+    `ignoredRecordedInSession` to `false`.** That is a §9.10 violation with a visible consequence:
+    the bound is "at most once per session per intervention" over **the open record**
+    (`v6-spec.md:479`), and T7's only mechanism for it is that flag (T7 Step 2, criterion 2), so a
+    reset lets a re-check append a **second** `'closed'{ignored}` event into the same session log.
+    The telemetry row is collapsed by the store key either way (D13a(c)) — **the session log is the
+    only place the breach is observable**, which is precisely why the rule has to be stated where
+    the log is folded rather than left to the store to hide.
+  - **It also re-dates the "as emitted" pair a closure row must copy** (D13a(a)): the record the
+    closure closes was opened by the first message, so `severity` and `deltaBits` are that message's.
+    Any other rule makes a closure row's evidence depend on which of several sightings happened to
+    land last, and there is no reading of "as emitted" under which that is the right pair.
+  The second `'warned'` is not discarded — it contributes its own `dedupKeys` entry (its direction
+  differs, or it would never have been emitted) and therefore its own `warnCount` — it simply does
+  not touch the intervention. One event, two folds, two identities: the **key** counts the message,
+  the **pair** owns the intervention. Criterion 2b asserts all three halves and MR-23b kills the
+  overwrite.
+  **And the mirror state: a `'closed'` whose `(stableId, surface)` is NOT open is ignored — no
+  record is created, nothing throws.** It is reachable through a degradation this plan already
+  promises rather than through a malformed fixture: R5-I15 skips a corrupt session line, and the
+  corrupt line may be the `'warned'` that opened the record, leaving its `'closed'` orphaned in an
+  otherwise readable log. The same shape arises from any partial log — a `'closed'`+`'complied'`
+  that already removed the record followed by another `'closed'` for the pair, and a re-read of a
+  log the cross-session pass has already terminated. The fold must therefore be **total over the
+  event stream, not only over well-formed histories**: an unmatched `'closed'` is a no-op. Creating
+  a record from it is the one wrong answer available and it is worse than it looks — the `'closed'`
+  arm carries no `expected`, no `severity`, no `deltaBits` and none of D26's four identity fields
+  (T1's union), so the record would have to be invented with holes and would then be handed to T8's
+  pass as a real open intervention to resolve and sample.
 - [ ] **Step 1b: The `'checked'` event, because completeness has no other honest source.** T9's
   sweep needs *D = the files this session wrote* (§13.5, `v6-spec.md:625`), and neither the other
   four event kinds nor `fileState` can supply it: deriving `D` from `warned` events would make it
@@ -4160,9 +4497,21 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
   `{ files: string[] }` is appended by **every** run that evaluates files — a per-file check, a
   protocol-path run over the dirty set, and a bash sweep alike — **regardless of whether it found
   anything** — **including a bash sweep, which appends `'checked'` (the paths it evaluated) and then
-  `'sweep'` (its own state); the two are not alternatives, and D14 says so in those words.** The one
-  run that appends no `'checked'` is a *seed* sweep, because it evaluates nothing at all by design
-  (T9 Step 1). **Its producer is the command layer** — `src/cli/roots-check.ts` builds it from the
+  `'sweep'` (its own state); the two are not alternatives, and D14 says so in those words.**
+  **The runs that append no `'checked'` are exactly the runs that took up no file — stated as a rule
+  and not as a list, because the list has moved twice already** (D14 carries the same rule). Its
+  instances, named as illustration rather than as an enumeration: a *seed* sweep, which evaluates
+  nothing at all by design (T9 Step 1); a *flood-skipped* sweep, which deferred rather than took up
+  (T9 Step 2); an ordinary sweep whose diff is empty; and **any other run whose participation set is
+  empty** — every candidate dropped by gate −1, a hook
+  payload naming nothing, a dormant or snapshot-less project that never resolved a file set at all
+  (T3 Step 7's early exits), or `getDirtyFiles` returning `null`/`[]` (D11). An empty `'checked'` is
+  not written in that case: it is a line in a log the hook path reads **whole** on every invocation
+  (T6 Step 5's growth law) and `writtenFiles` unions the empty set to itself, so it would carry no
+  information for any consumer. The rule is one sentence — **`'checked'` is appended iff the
+  participation set is non-empty** — and it keeps D14's "a run that emits nothing still records that
+  it ran" exactly as strong as it should be: a run that *looked* and found nothing records that it
+  looked; a run that looked at nothing has nothing to record. **Its producer is the command layer** — `src/cli/roots-check.ts` builds it from the
   **participation** set (T3 Step 8 filter 1's output: everything in the index's file universe that
   this run legitimately looked at), **not** from the narrower evaluation set, and merges it into the
   applied `Intents` (D1); neither engine stage can, and D1 says why. **The distinction is
@@ -4220,8 +4569,10 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
   emitting the `ppid ∥ cwd ∥ UTC-day` tuple raw. That is not cosmetic: T1 turns the id straight into
   a file name (`sessionLogPath`) and T8 reads it back out of one (`listSessionLogs`), so a raw `cwd`
   in the id — absolute, slash-bearing, drive-colon-bearing on Windows — breaks the round-trip in
-  both directions. Asserted here as a shape test on all three rungs (`/^[0-9a-f]{12}$/`) and
-  round-tripped at T1 criterion 4c.
+  both directions. Asserted here as a shape test on all three rungs **and on an explicit
+  `--session` value, which D12 folds the same way for the same reason** (`/^[0-9a-f]{12}$/`), and
+  round-tripped at T1 criterion 4c. The `--session` arm is the one a test suite exercises most and
+  the one that would otherwise ship raw: it is the only id a caller chooses.
   **The clock this step reads sits beside the identity it resolves, and it is UTC.** The run's one
   `nowIso` is `new Date().toISOString()` — `Z`-suffixed — resolved here alongside the ladder and
   handed to `evaluate` and `applyBudgetsAndDedup` unchanged; the third rung's own `UTC-day` input is
@@ -4262,6 +4613,20 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
 2. The same `(stable_id, surface, direction)` warned twice in one session emits once; the same
    `stable_id` and `surface` with a **different** observed value emits again (direction is part of
    the key).
+2b. **The second `'warned'` does not reset the intervention (Step 1's `openInterventions` rules).**
+   Fold, by value, a log holding in order: `'warned'` on `(S, u)` with `expected: E`,
+   `observed: O1`, `severity: 'WARN'`, `deltaBits: 4.0`; then `'closed'` `{outcome:'ignored',
+   scope:'session'}` on `(S, u)`; then a second `'warned'` on the **same** `(S, u)` with
+   `observed: O2` and `deltaBits: 2.9`. The result holds **exactly one** open intervention for
+   `(S, u)`, and by value: `deltaBits` **4.0** (the first emission's, not 2.9),
+   `ignoredRecordedInSession` **still `true`**, `expected` `E` — while `dedupKeys` holds **two**
+   entries and `warnCount` is **2**, because the two messages differ in `direction`. **All three
+   halves are required and each fails a different wrong implementation:** an overwrite gives 2.9 and
+   `false`; a rule that discarded the second event entirely gives `warnCount` 1 and would under-count
+   §11.3's session budget against a message the agent actually saw; and a rule that opened a second
+   record gives two interventions, which T7 would then close twice. This is the criterion T6
+   criterion 2's own second case makes producible — it is the same event sequence, folded instead of
+   emitted.
 3. **On the `pre` channel**, a synthetic DENY finding repeated in one session emits **both** times
    (§11.3: DENY is never deduplicated). The channel is named because it is load-bearing: on any
    other channel the same finding is downgraded to WARN by `channelFilter` and dedup *does* apply.
@@ -4279,6 +4644,13 @@ route findings through it; create `source/cli/tests/unit/roots/session-state.tes
    `src/cli/roots-check.ts`, asserted through the applied `Intents` rather than by inspecting the
    engine. A second run naming one of the same files leaves `writtenFiles` with two entries, not
    three (it is a set).
+   **Third arm — the empty case, which is the other half of the same rule (Step 1b).** A third run
+   in the same session whose every candidate is dropped before evaluation — one gitignored path,
+   which gate −1 removes from the **participation** set — appends **no `'checked'` event at all**,
+   and `writtenFiles` still holds exactly the two entries. Without this arm the rule is stated in
+   one direction only, and the natural implementation (build the event, then append it) writes an
+   empty one on every dormant, clean-tree or nothing-to-look-at run — one line per run, forever, in
+   the file the hook path reads whole inside a 700 ms cold budget (Step 5's growth law).
 5. Replaying the identical event log twice produces identical fold state (idempotence).
 6. Two runs sharing an explicit `--session` share the budget; two runs with no `--session` in the
    same process tree and cwd also share it (the ladder's middle rung).
@@ -4292,11 +4664,31 @@ real session: many edits, bounded interruption.
 **Test obligations / mutation round-trips.**
 - **MR-23 (dedup direction):** drop `direction` from the key ⇒ criterion 2's second case fails and a
   changed deviation goes unreported.
+- **MR-23b (the second `'warned'` is a no-op for `openInterventions`):** fold the `'warned'` arm with
+  a plain `map.set(key, buildIntervention(event))` — the natural implementation — so a second
+  `'warned'` on an already-open pair replaces the record ⇒ **criterion 2b fails on two of its three
+  halves at once**: `deltaBits` reads 2.9 where the emitted pair must be 4.0, and
+  `ignoredRecordedInSession` reads `false` where it must stay `true`. The second is the one with
+  teeth downstream: with the flag cleared, T7's guard (T7 Step 2, criterion 2) lets a re-check append
+  a second `'closed'{ignored}` event into one session log, breaking §9.10's per-session bound
+  (`v6-spec.md:479`) in the one place it is observable — the telemetry row is collapsed by the store
+  key regardless (D13a(c)), so no row count anywhere can see this mutation. **T7 criterion 2 cannot
+  kill it either**, and that is why this MR exists rather than being folded into it: that criterion
+  re-checks the *same* value, so it never mints a second `'warned'` and never reaches the state this
+  mutation corrupts.
 - **MR-24 (DENY never deduped):** include DENY in dedup ⇒ criterion 3 fails.
 - **MR-25 (post-filter severity):** read severity **before** `channelFilter` ⇒ **criterion 4b**
   fails in both halves: the downgraded DENY escapes the WARN budget (it emits after the twelfth
   warn) and escapes the dedup (it emits twice). Pointed at 4b and not at criterion 4, which contains
   no downgraded finding and therefore could never have observed this.
+- **MR-26b (`'checked'` iff participation is non-empty):** append the `'checked'` event
+  unconditionally, with `files: []` when the run took nothing up ⇒ **criterion 4c's third arm
+  fails** — the gitignored-path run gains a session-log line where there must be none. The mutation
+  is the natural implementation rather than a contrived one (build the payload, then append it), and
+  its cost is paid on the commonest runs there are: dormant projects, clean trees and hook
+  invocations with nothing to look at each leave a line in a log that is read whole on every later
+  invocation. Nothing else observes it — `writtenFiles` unions the empty set to itself, so every
+  fold-level assertion in the increment passes under the mutant.
 - **MR-26 (single truncation authority):** truncate `evaluate`'s output to 3 **before** the budget
   stage — i.e. in input order, `(roleKey asc, surface asc)`, rather than in §11.3's
   `(severity desc, Δ desc, surface asc)` — ⇒ criterion 1's by-value ordering assertion fails,
@@ -4336,14 +4728,80 @@ R4/R5 ledger seam; it joins `cli/tests/unit/roots`, which already declares
 edge); create `source/cli/tests/e2e/cli-roots-compliance-loop.test.ts`.
 
 **Steps.**
-- [ ] **Step 1: Closure runs before every skip** (T3 Step 4's ordering), for every candidate fact of
-  every evaluated scope, whether or not that fact will speak. It emits **no message** and is exempt
+- [ ] **Step 1: Closure runs before every skip** (T3 Step 4's ordering), **once per
+  `(scope, surface)` pair of every evaluated scope, over the one fact D8's governance selected for
+  that pair** — whether or not that fact will speak. It emits **no message** and is exempt
   from budgets (`:479`).
-- [ ] **Step 2: The two branches — and which of them actually closes anything.** Open intervention
-  on `(stable_id, surface)` and `v == expected` ⇒ telemetry `observedAfter: complied` **and** a
-  ledger mark, **and the intervention is removed from `openInterventions`**: it is finished. Open and
-  still deviating ⇒ `observedAfter: ignored`, **at most once per session per intervention** — and
-  **the intervention stays open**, with only `ignoredRecordedInSession` set. **Every closure T7
+  **"Once per pair, over the governing fact" is the driver, and it is stated that way rather than as
+  "every candidate fact" because the two are not the same iteration.** §9.10 is written over a
+  `(stable_id, surface)` intervention and D8 guarantees at most one fact governs a scope per surface
+  — but a scope routinely has **several** candidate facts on one surface (a role fact, a directory
+  fact and an `_all` fact are the standard three), and a closure driven off the candidate list would
+  fire two or three times for one intervention. The store key collapses the telemetry rows
+  (D13a(c)) and `markKey` collapses the ledger marks (D15), so the damage would land exactly where
+  nothing else guards it: **two or three `'closed'` events in the session log for one closure**, on
+  the `complied` arm where `ignoredRecordedInSession` does not apply — and `openInterventions` is an
+  *input* to `evaluate`, not a running mutation, so a second candidate on the same pair still sees
+  the record as open. T7 criterion 1's "exactly one `complied` line and exactly one ledger mark"
+  would still pass; only a session-log assertion could see it, which is why the driver is fixed here
+  rather than left to be inferred from Step 2's "the governing candidate fact `evaluate` already has
+  in hand".
+  **Two states of the pair space follow from the driver and are stated so neither reads as an
+  omission.** An open intervention whose **scope is not among this run's evaluated scopes** (the
+  agent edited a different file) is never visited: it stays open, exactly as it does under Step 2's
+  `null` branch, and T8's pass resolves it at session end. An open intervention whose scope **is**
+  evaluated but whose **surface has no governing fact this run** — the snapshot was rebuilt
+  mid-session and the fact was culled, its role dissolved, or its partition changed — is likewise
+  never visited and likewise stays open; T8's pass then finds `resolveFact → null` and drops it
+  (T8 Step 2's fourth `gone` producer, T8 criterion 4 leg (v)). Both are the conservative direction
+  §18.2 fixes: a sample that is never banked resurrects a fact and never falsely silences one.
+- [ ] **Step 2: The three branches — and which of them actually closes anything.** The value the
+  closure reads is `surfaceValue(stableId, surface)`, whose declared domain is **`string | null`**
+  (T3's `VerdictInput`), so the branch is three-way and not two-way — and §9.10 is the authority for
+  that, not a widening of it: `:479` is written as **two conditionals**, one over `v == f.expected`
+  and one over "`v` still deviates", and a `null` satisfies **neither**. Given an open intervention
+  on `(stable_id, surface)`:
+  - **`v === expected`** ⇒ telemetry `observedAfter: complied` **and** a ledger mark, **and the
+    intervention is removed from `openInterventions`**: it is finished (D13a(b)'s transition 3).
+  - **`v` present and different** ⇒ `observedAfter: ignored`, **at most once per session per
+    intervention** — and **the intervention stays open**, with only `ignoredRecordedInSession` set
+    (transition 2).
+  - **`v === null`** — the scope exists but is **out of the surface's domain** — ⇒ **neither branch
+    fires: no telemetry row, no `'closed'` event, no ledger mark, no flag set, no state change of
+    any kind, and the intervention stays open** (transition 6). §6.4's sparse-boolean clause is
+    binding here in both directions: "A scope outside the domain contributes nothing (**undecidable
+    ≠ false**)" (`v6-spec.md:213`) — so an undecidable value is never a deviation, and it is equally
+    never a compliance, and it may bank neither a sample nor a committed mark. Banking an `ignored`
+    for it would put a resolved row into §18.2's denominator for a fact nobody was shown to have
+    ignored, pushing toward demoting a convention on evidence that does not exist — the direction
+    §18.2 itself rules out ("a lost demotion resurrects a FACT, never falsely silences one",
+    `v6-spec.md:683`).
+    **This is T8's rule for the same question and the two are symmetric where symmetry is the
+    property that matters: neither producer writes anything at all for an undecidable value** (T8
+    Step 2's own `null` clause). What differs is only what becomes of the record afterwards, and
+    that difference belongs to the pass rather than to the branch — it is the same difference the
+    two paths already have for a *gone* scope. T8 runs over an **ended** log, where nothing later
+    can observe the pair, so §18.2's "if the scope is gone, the intervention is dropped" applies and
+    the record is dropped. T7 runs **mid-session**, where the surface may re-enter its own domain
+    before the session ends and where T8's terminal pass will in any case resolve whatever is still
+    open — so leaving it open is the in-session-correct answer, and it is also the answer T7 already
+    gives a scope that has disappeared from the file entirely (such a scope is simply absent from
+    `VerdictInput.scopes`, the closure never runs for it, and its record survives to the pass).
+    Two further reasons make it the only available answer rather than merely the best one: an
+    in-session drop would need a session-log event the union has no arm for (T1 declares five kinds
+    and none of them removes a record without recording an outcome), and a record dropped here would
+    take its `ignoredRecordedInSession` and its emitted pair with it — so a later re-check of a
+    re-entered surface would open a **second** intervention for one message, against §9.10's own
+    per-session bound.
+  **Why this branch is reachable rather than theoretical, stated so no implementer prunes it as
+  dead.** T3 Step 4 fixes the ladder so that closure runs **before** the `v == null` skip,
+  deliberately and as behavior rather than style, so the closure is precisely where an
+  out-of-domain value arrives. An ordinary refactor produces one: `auto.ret`'s domain is "methods
+  with ≥ 1 return statement" and `auto.call:*` / `auto.stshape:*` / `auto.first1`'s is "methods with
+  ≥ 1 body statement" (`src/roots/enumerate.ts:296-318`), so deleting the return, or emptying the
+  body, takes the scope out of the domain while leaving it a real scope with the same `skeyR` — an
+  agent that restructures instead of complying. Criterion 8 observes it and MR-28c kills it.
+  **Every closure T7
   writes carries `scope: 'session'`**; `'cross-session'` is T8's alone (T1's union), and the
   in-session bound is therefore untouched by T8's terminal marker. **Both closure rows repeat the
   intervention's `severity` and `deltaBits` off `OpenIntervention`** — D13a(a)'s "as emitted" pair,
@@ -4414,7 +4872,9 @@ edge); create `source/cli/tests/e2e/cli-roots-compliance-loop.test.ts`.
    telemetry row. **The session-log half is the load-bearing assertion and the telemetry half is
    not**, and the criterion says which is which: the telemetry row is collapsed by the store key
    regardless (D13a(c)), so asserting only "one `ignored` record" would pass with
-   `ignoredRecordedInSession` deleted. Asserted over the raw `.state/sessions/<id>.jsonl` lines.
+   `ignoredRecordedInSession` deleted. Asserted over the raw `.state/sessions/<id>.jsonl` lines —
+   `<id>` being the **folded** session id (D12), never the `--session` value the test passed, or the
+   assertion reads an absent file and passes on zero lines.
 3. The same scope still unfixed in a **new** session produces a second `ignored` record (the bound
    is per session, not forever) — which is only reachable because the intervention survived the
    first session's ignore, **and which is the accrual D13a(d) identifies as the only path to a
@@ -4499,6 +4959,34 @@ edge); create `source/cli/tests/e2e/cli-roots-compliance-loop.test.ts`.
    every surface value against the index itself and is the only thing in the increment that can.
    The `date` shape is T1 criterion 3. Until round 11 this criterion's closing sentence claimed all
    three, and leg A could observe none of them.
+8. **An undecidable value closes nothing (Step 2's third branch).** Two legs, because the branch has
+   a value half and a record half and only one of them is observable at each tier.
+   **Leg A — by value, over `evaluate`.** Build the same `VerdictInput` shape criterion 7's leg B
+   uses: one open intervention on `(S, u)` with `ignoredRecordedInSession: false`, one scope with
+   that `stableId`, and `surfaceValue(S, u)` returning **`null`**. Then
+   `closureIntents.sessionEvents`, `.telemetry` and `.ledgerMarks` are **all three empty** — not
+   "no ledger mark", not "no `complied`": nothing at all — and re-folding the session log with those
+   (zero) events appended leaves the intervention **open**, with `ignoredRecordedInSession` still
+   `false`. The `null` is a one-line change to an injected lookup, exactly as T8 criterion 4's leg
+   (iv) is, so the two paths' undecidable branches are asserted the same way at the same tier.
+   **Leg B — through the product, on the domain-exit fixture.** In one session on a golden: plant a
+   deviation on a surface whose domain is conditional (`auto.ret`, domain "methods with ≥ 1 return
+   statement", or `auto.call:*`, domain "methods with ≥ 1 body statement" —
+   `src/roots/enumerate.ts:296-318`), `yg roots check <file>` (the WARN opens the intervention),
+   then **take the scope out of that domain** — delete the return statement, or empty the body,
+   leaving the method's name and arity untouched so `skeyR` and `stableId` do not move
+   (`extract.ts:203-204`, `:627-628`) — and `yg roots check <file>` again. Assert:
+   `telemetry.jsonl` and the committed `ledger.jsonl` are **byte-identical** to their state before
+   the second check, and `.state/sessions/<id>.jsonl` gains **no** `'closed'` line.
+   **Then the half that separates "left open" from "quietly dropped", which the byte-identity
+   assertions cannot see:** restore the original deviation (same value, same scope) and check a
+   third time. The message is suppressed — §11.3's WARN dedup key `(stableId, surface, direction)`
+   is already in `dedupKeys` — so **no second `'warned'` event is appended and no second
+   intervention can be opened**; the closure therefore has something to close only if the first
+   intervention survived the `null` sighting. It did, so this check banks the session's one
+   `ignored` (transition 2). Under a "drop it" implementation there is nothing open, the third check
+   banks nothing, and `telemetry.jsonl` holds no `ignored` row for the pair at all.
+   Driven in `cli-roots-compliance-loop.test.ts`, beside criterion 3b's own same-session sequence.
 
 **E2E coverage.** `cli-roots-compliance-loop.test.ts` — the design's own named suite
 (`integration-design.md:501-504`), miniaturized: spawn the built binary, `index`, plant a deviation,
@@ -4518,6 +5006,18 @@ only proof that the product's regulator is a closed loop rather than three uncon
   earlier draft's and D13a(d) retires it. What this mutation actually costs is an unbounded session
   log on the hook path, read in full inside a 700 ms cold budget on every invocation (T6 Step 5's
   growth law), which is why the rule survives with the killer re-pointed rather than being deleted.
+- **MR-28c (the undecidable branch):** collapse Step 2's three branches back into two — write
+  `v === expected ? complied : ignored`, so a `null` value falls through to the `ignored` arm ⇒
+  **criterion 8's leg A fails** on all three intent arrays (a `'closed'` event, an `ignored`
+  telemetry row and a set `ignoredRecordedInSession` where there must be nothing), and **leg B
+  fails** on `telemetry.jsonl`'s byte identity. **The mirror mutation — route `null` to the
+  `complied` arm** — fails leg A on `ledgerMarks` and leg B on the committed `ledger.jsonl`, which
+  is the worse direction of the two: a mark discounting evidence for code nobody wrote. This is the
+  same defect MR-34e's mirror arm kills on T8's side, and the two are named as a pair on purpose —
+  the branch is one rule with two producers, and a killer on one path cannot see the other. Note
+  what this MR does **not** claim: leg B's third check still banks its `ignored` under the mutant
+  too (the intervention is closed-or-open by a different rule), so the discriminating assertion is
+  the byte identity **at the second check**, not the row count at the end.
 - **MR-28b (ignored does not close):** make an `ignored` closure remove the intervention from
   `openInterventions` ⇒ criterion 3b fails — no `complied` line, no ledger mark — and T8 criterion 4's
   cross-session pass has nothing left to close. Both halves of M4's consequence, one mutation.
@@ -4593,9 +5093,15 @@ with `readSessionEvents`, reads `telemetry.jsonl`, and passes in **six things an
    consequence is worth having on purpose: the "routed partition ≠ recorded `partitionId` ⇒ does not
    resolve" rule is one line of one implementation, so it applies to the closure as well as to the
    pool, in the same conservative direction (a dropped sample resurrects a fact, never silences one);
-6. **`currentValue(intervention) -> { state: 'gone' } | { state: 'value'; v: string }`** — D26's
-   closure lookup for Step 2, built by the command layer by re-enumerating the intervention's own
-   file through `extract-file.ts`'s `surfacesForFile`, after T3 Step 8's filters 1 and 2;
+6. **`currentValue(intervention) -> { state: 'gone' } | { state: 'value'; v: string | null }`** —
+   D26's closure lookup for Step 2, built by the command layer by re-enumerating the intervention's
+   own file through `extract-file.ts`'s `surfacesForFile`, after T3 Step 8's filters 1 and 2.
+   **Three states, not two, and `v`'s `null` is the third one** (D26.4 carries the derivation):
+   `surfaceValue(surface)` returns `string | null` and the builder forwards its answer unchanged, so
+   `health.ts` receives the out-of-domain case and applies Step 2's `null ⇒ gone` rule itself. Under
+   a two-state contract that rule would name a branch this module cannot take, the mapping would be
+   forced into the command layer's builder, and criterion 4's legs (iii) and (iv) would be one
+   injected input rather than two;
 
 plus **the two config numbers Step 3 reads — `health.minCompliance` and `health.minSamples`** — as
 parameters, since `health.ts` may not read configuration any more than it may read a clock. (The
@@ -4758,19 +5264,33 @@ one place the terminal marker's day-crossing effect is observable at all — unw
      snapshot's **persisted** vocabulary and nothing is recomputed (D6/D26). This path uses the
      `scopes` half of that return and ignores `units` — the role ladder is the check path's, and the
      closure needs no roles;
-  3. find the scope whose `skeyR` equals the intervention's. Absent ⇒ **gone**. Present ⇒ read
-     `surfaceValue(intervention.surface)`.
+  3. find the scope whose `skeyR` equals the intervention's. Absent ⇒ `{state:'gone'}`. Present ⇒
+     `{state:'value', v: surfaceValue(intervention.surface)}` — **forwarded unchanged, `null`
+     included**. The builder interprets nothing: `surfaceValue`'s domain is `string | null` (D6),
+     the lookup's `v` is `string | null` (D26.4, this task's Files block input 6), and the
+     `null ⇒ gone` rule below is `health.ts`'s. That is one fewer rule in the layer that may not
+     hold rules, and it is the same division the check path already has (`VerdictInput.surfaceValue`
+     hands the engine a `string | null` and the engine owns "null is not a deviation").
 
-  Then, per §18.2: the value **equals `expected`** — the intervention's own recorded `expected`,
-  which is what the agent was told to write — ⇒ a `complied` sample **and** the §18.3 mark
-  (same dedupe); the value is present and **differs** ⇒ an `ignored` sample; **gone** ⇒ the
+  Then, per §18.2, over the three states the lookup can return — and the branch is **four-way**
+  because the value state splits: the value **equals `expected`** — the intervention's own recorded
+  `expected`, which is what the agent was told to write — ⇒ a `complied` sample **and** the §18.3
+  mark (same dedupe); the value is present and **differs** ⇒ an `ignored` sample; **gone** ⇒ the
   intervention is dropped, with no event and no sample. **A `null` value — the scope exists but is
   out of the surface's domain — is `gone`, not `complied`**: undecidable is never a deviation
   (`v6-spec.md:213`) and is equally never a compliance, so it may bank neither a sample nor a
-  committed mark. **Each sample repeats the
+  committed mark. **That clause is a rule about `health.ts`'s own logic and, under input 6's
+  three-state contract, `health.ts` can actually receive the value it is about** — which is what
+  makes it implementable where it is written and killable by MR-34e's mirror arm rather than by
+  nothing. It is also T7's third branch under the other pass (T7 Step 2, D13a(b) transition 6): the
+  two producers write the same nothing for an undecidable value, and differ only in what becomes of
+  the record, because this pass's log is ended and T7's is live. **Each sample repeats the
   intervention's own `severity` and `deltaBits` off the folded `OpenIntervention`** (D13a(a)'s "as
   emitted" pair), so this pass computes no Δ of its own and needs no `counts`/`alphabet` at all.
-  The value read in (3) is also the closure row's `observed` (D13a(a)).
+  The value read in (3) is also the closure row's `observed` (D13a(a)) — **on the two arms that
+  write a row**, which is exactly why the other two write none: `observed` is a non-optional
+  `string` (T1), and neither `gone` nor an out-of-domain `null` has an honest string to put there
+  (D13a(a)'s converse bullet).
 
   **The sample's `factKey`, which is the one field of it neither the fold nor the re-enumeration
   produces.** `TelemetryRecord.factKey` is non-optional (`:2065`) and D13a(a) fixes what a T8 closure
@@ -4942,18 +5462,29 @@ one place the terminal marker's day-crossing effect is observable at all — unw
    distinction is the whole of D26: `stableId` folds an `arity` the snapshot does not persist, so a
    resolution written over it cannot be implemented at all.
 4. **Cross-session closure over a session log whose session is gone produces Step 2's outcomes on
-   hand-built scopes — FIVE legs, because "gone" has three producers inside this criterion and only
-   one of them is a deleted scope.** With five open interventions in one ended log and both lookups
-   supplied by value — `currentValue` and `resolveFact`:
-   (i) a scope now at `expected`, with a governing fact ⇒ one `complied` sample and one ledger mark;
-   (ii) a scope still deviating ⇒ one `ignored` sample, no mark; (iii) a scope whose `skeyR` is
-   absent from the re-enumeration of its file ⇒ **dropped** — no sample, no mark, no event;
-   (iv) a scope that is **present but whose surface value is `null`** (out of domain) ⇒ **dropped
-   too**, on the same terms; and (v) a scope that is **present and at `expected` but for which
-   `resolveFact` returns `null`** — readable, conforming, and governed by no current fact (culled,
-   re-partitioned, or its role dissolved) ⇒ **dropped as well**: no sample, no mark, no event.
-   Legs (i) and (v) are deliberately the same scope state with one lookup flipped, so the criterion
-   separates "is it at `expected`" from "does any fact still say so".
+   hand-built scopes — FIVE legs, because "gone" has three producers inside this criterion, they are
+   three genuinely different injected inputs, and only one of them is a deleted scope.** With five
+   open interventions in one ended log and both lookups supplied by value — `currentValue` and
+   `resolveFact`. **Each leg names the exact value the lookups return, because the criterion's whole
+   point is that these are distinct inputs rather than distinct stories about one input:**
+   (i) `currentValue → {state:'value', v: expected}` and `resolveFact → {factKey, expected}` ⇒ one
+   `complied` sample and one ledger mark;
+   (ii) `currentValue → {state:'value', v: <something else>}` ⇒ one `ignored` sample, no mark;
+   (iii) `currentValue → {state:'gone'}` — the scope's `skeyR` is absent from the re-enumeration of
+   its file ⇒ **dropped**: no sample, no mark, no event;
+   (iv) `currentValue → {state:'value', v: null}` — the scope is **present** and the surface says
+   **nothing** about it (out of domain) ⇒ **dropped too**, on the same terms;
+   (v) `currentValue → {state:'value', v: expected}` but `resolveFact → null` — readable,
+   conforming, and governed by no current fact (culled, re-partitioned, or its role dissolved) ⇒
+   **dropped as well**: no sample, no mark, no event.
+   **Legs (iii) and (iv) are two inputs, not two descriptions of one**, and that is what input 6's
+   `v: string | null` buys: under a `v: string` contract the only way to express "out of domain"
+   would have been `{state:'gone'}`, the two legs would be the same injected value producing the
+   same output, and the criterion would have reported a coverage it did not have. Legs (i) and (v)
+   are deliberately the same `currentValue` answer with the *other* lookup flipped, so the criterion
+   separates "is it at `expected`" from "does any fact still say so"; legs (i) and (iv) are the same
+   `state` with the *value* flipped, so it separates "the surface says `expected`" from "the surface
+   says nothing".
    Leg (iv) is the one an implementation reaching for a two-way
    equals-`expected` test gets wrong, and it gets it wrong in the direction that writes a committed
    ledger mark for code nobody complied with; leg (v) is the one an implementation that skips the
@@ -4990,8 +5521,9 @@ one place the terminal marker's day-crossing effect is observable at all — unw
    **(i) Unit level, in `health.test.ts`** — `health.ts` takes `nowMs` and derives from it both the
    ended-session predicate **and** the `date` it stamps on the ledger marks it returns (that is why
    it takes the clock at all, R5-I4). Call the aggregation twice with `nowMs`
-   on two different UTC days, **the supplied `currentValue` lookup reporting the scope deviating on
-   the first call and at `expected` on the second** — which is a one-line change to an injected
+   on two different UTC days, **the supplied `currentValue` lookup returning
+   `{state:'value', v: <deviating>}` on the first call and `{state:'value', v: expected}` on the
+   second** — which is a one-line change to an injected
    function now that D26 makes the value a parameter rather than something the pass reads: with the
    marker the second call returns **no** telemetry sample and **no** ledger mark; without
    it, one of each. Pure values, no filesystem, no wall clock.
@@ -5102,7 +5634,10 @@ sample accrual is exactly D13a(d)'s — **the "eight" is eight sessions, and the
 that it cannot be mistaken for eight anything else**.
 
 **The re-plant mechanic, stated once here because one leg is impossible without it and the other is
-wrong with it.** An intervention opens only when a session's **first** check sees a deviating scope.
+wrong with it.** An intervention opens only when a session's **first** check sees a deviating scope
+— **that is the fold's own rule, not an e2e observation**: a `'warned'` whose `(stableId, surface)`
+is already open is a no-op for `openInterventions` (T6 Step 1, criterion 2b), so a second message in
+the same session re-tells one intervention rather than starting another.
 So in any leg where a session *fixes* the scope, every later session's first check sees a conforming
 scope, emits no warning, opens no intervention and contributes no sample. A leg with fixing sessions
 must therefore **(re-)plant the deviation before each session**, with the **same** deviating value
@@ -5234,9 +5769,15 @@ only way it can be: from the outside.
   fails**: the recorded value is by definition the deviating one, so no ended intervention can ever
   bank a `complied` sample or its ledger mark, every one of them banks `ignored`, and every
   convention an agent was ever warned about drifts toward demotion while every fixture that only
-  counts `ignored` rows still passes. **The mirror mutation** — treat a `null` (out-of-domain) value
-  as `complied` rather than as gone ⇒ **criterion 4's leg (iv) fails**, with a committed ledger mark
-  written for a scope nobody complied with. **And a third arm, on the same seam one field over:**
+  counts `ignored` rows still passes. **The mirror mutation** — inside `health.ts`, treat a `null`
+  (out-of-domain) value as `complied` rather than as gone: one line, `v === expected || v === null`
+  in the branch table ⇒ **criterion 4's leg (iv) fails**, with a committed ledger mark written for a
+  scope nobody complied with. **The arm is expressible at all only because input 6's `v` is
+  `string | null`** — under a two-state `currentValue` there is no `null` inside `health.ts` to
+  mutate, the mapping lives in the command layer's builder instead, and criterion 4's by-value
+  injection bypasses it, so the mutant survives on both possible homes at once. That is the
+  round-16 finding this arm carries; the shape is a contract fix, not a test fix (D26.4).
+  **And a third arm, on the same seam one field over:**
   skip Step 2's `resolveFact` gate — take the closure row's `factKey` from anywhere else (a key
   sliced off the recorded telemetry row, or an empty string) and let an unresolved intervention fall
   through to the value branches ⇒ **criterion 4's leg (v) fails**: a scope no current fact governs
@@ -5313,7 +5854,27 @@ completeness paragraph (`:625`) and its directional confidence (`:622`), Appendi
 - [ ] **Step 4: Completeness (D20), over the row shape T2 actually persists.** Gated by
   `hooks.claudeCode.stopCompleteness` and `completeness.mode` (`stop-feedback-once`). D = files
   written this session — **`foldSession`'s `writtenFiles`, unioned from the `'checked'` events T6
-  Step 1b lands**, not a derivation from `warned` events or `fileState`. For each written file `f`
+  Step 1b lands**, not a derivation from `warned` events or `fileState`.
+  **Plus this run's own `'checked'` payload, and the union is a rule rather than a convenience.**
+  `foldSession` is read at the *start* of the run, so a `stop` run that evaluates files — the
+  deferred flood summary, which is the only kind that does (Step 3) — has those paths in its own
+  intents and **not** in the fold it just read. No later run puts them there either: criterion 5
+  pins that a second `stop` in the same session emits nothing, so nothing ever consumes that
+  event. Without the union, the paths a flood-skipped sweep deferred are named as partners for
+  nobody and appear in no `D` any computation sees — which would make D14's own "they enter `D`
+  when they are actually taken up" false, on the one flow it is written about. So the `stop` run
+  computes `D = fold.writtenFiles ∪ thisRun.checked.files`. It is the same merge D1 already assigns
+  the command layer for `Intents` (the `'checked'` event is that layer's own fact), it costs nothing
+  on the Edit-only path (a `stop` run that evaluates nothing contributes an empty set, and Step 3
+  makes it a no-op anyway), and it needs no criterion of its own beyond criterion 4's flood→stop
+  leg, which now asserts the deferred paths' partners as well as their findings.
+  **The union cuts both ways and the second direction is intended, not a side effect:** `D` is also
+  the set a partner must be **outside** of, so the deferred paths this run just took up are excluded
+  from its own partner list. That is right — a file the run has now looked at is not a "you also
+  usually change X" candidate — and it is the same reason `partner ∉ D` exists at all. Computing
+  the gate against the pre-union `D` while naming partners from the post-union one, or the reverse,
+  would produce a note telling the agent to touch a file this very run just reported on.
+  For each written file `f`
   and each committed
   co-change row, **both sides are scanned** — `a < b` is canonical, not directional
   (`history-cochange.ts:94`) — so the partner and the denominator are picked by which side `f` is:
@@ -5373,6 +5934,12 @@ completeness paragraph (`:625`) and its directional confidence (`:622`), Appendi
    this fixture's own sequence (seed, then flood) is the seed sweep's, because the flooded sweep
    re-emitted what it was handed rather than the hashes it never computed (Step 2); with
    `floodSkipped` unset the `stop` summary does not run at all.
+   **And the deferred paths reach `D` in that same run (Step 4's union).** Give one of the 21 a
+   committed co-change partner clearing both gates and outside `D`: the same `stop` run's
+   completeness note **names that partner**. This is the leg that fails when `D` is taken from the
+   fold alone — the fold was read before this run appended its own `'checked'`, so the deferred
+   paths would be in the log and in no computation, and the note would name nothing while every
+   other clause of this criterion still passed.
 4b. **A flooded sweep does not advance `fileState`, and a third sweep proves it.** Seed, then a
    normal sweep that evaluates one changed file, then a flooded sweep, then `stop`: the fold's
    `fileState` after the flood is **byte-identical** to the state the *normal* sweep left, and the
@@ -5417,8 +5984,11 @@ completeness paragraph (`:625`) and its directional confidence (`:622`), Appendi
    one: it took no files up, so it appends no `'checked'` (D14, T9 Step 2), and its paths reach
    `writtenFiles` through the `stop` summary's own `'checked'` when that summary takes them up.
 6. `stop` on a session with no written files emits nothing — which after 5c means a session whose
-   only sweeps were silent — the seed, or a seed and a flood — not merely a session that printed
-   nothing.
+   sweeps all took **no files up**, not merely a session that printed nothing. A seed sweep, a
+   flood-skipped sweep and an ordinary sweep whose diff is empty all qualify, and they qualify for
+   one reason rather than three: no participation, so no `'checked'`, so nothing in `writtenFiles`
+   (T6 Step 1b's rule, D14's same sentence). Stated as the rule rather than as a list of sweep
+   kinds, because that list has moved twice.
 
 **E2E coverage.** `cli-roots-check-sweep.test.ts`: drive a realistic bash-shaped session through the
 built binary — seed sweep, edit files outside the Edit tool, sweep again, then `stop` — asserting
@@ -5452,6 +6022,14 @@ exactly where per-edit hooks see nothing.
   set (post-`forParsing`) instead of the participation set ⇒ criterion 5d fails — `writtenFiles` is
   test-free, `D` never contains a test file, and the test→source direction goes permanently silent
   while every other completeness criterion still passes.
+- **MR-37h (the `stop` run's own `'checked'` is in `D`):** compute `D` from `foldSession`'s
+  `writtenFiles` alone, dropping the union with this run's own `'checked'` payload (Step 4) ⇒
+  **criterion 4's completeness clause fails** — the deferred flood paths are absent from `D`, so the
+  `stop` run names no partner for the very files it just took up. Named as its own killer because
+  every other completeness criterion (5, 5b, 5c, 5d) drives a session whose `'checked'` events were
+  appended by *earlier* runs and is therefore satisfied by the fold alone; only the deferred-summary
+  flow has a run whose `D` includes its own work, and without this MR D14's "they enter `D` when
+  they are actually taken up" would be a claim with no observer.
 - **MR-37d (`'sweep'` does not replace `'checked'`):** make the bash channel append `'sweep'` alone
   ⇒ criterion 5c fails with an empty `writtenFiles` and a silent `stop`, which is the defect in its
   production shape: completeness dead on the entire Bash flow while every unit test still passes.
@@ -5483,7 +6061,15 @@ tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.te
 
 **Steps.**
 - [ ] **Step 1: Active modulators**, one line each, in plain terms: how many conventions are locally
-  quieted, and whether the index is behind the current commit. **The two sweep modulators —
+  quieted, and whether the index is behind the current commit.
+  **"Behind the commit" has three states and only two of them print anything.** The comparison is
+  the snapshot header's `headSha` against the current HEAD (criterion 3), and HEAD is not always
+  readable — a directory that is not a git repository, a repository with no commits, or git missing
+  entirely, all of which R5-I17 already names as shapes a snapshot can exist in (R4 builds in
+  degraded mode without history). **Cannot tell is not behind:** when HEAD cannot be read the
+  comparison is not made, the line is not printed, and nothing is fabricated — the same
+  `null`-versus-`[]` discipline D11 applies to `getDirtyFiles`, and the same direction R5-I17 fixes
+  for silence generally. One `debugWrite` line records why, and `status` still exits 0. **The two sweep modulators —
   `seedTruncated` and `floodSkipped` — are deliberately NOT here.** They are *session*-scoped:
   `status` takes no `--session`, runs from a different process tree than the hooks do, and D12's
   identity ladder lives in `roots-check.ts`, so `status` has no principled way to say *whose*
@@ -5549,6 +6135,10 @@ tests stay as they are); create `source/cli/tests/e2e/cli-roots-status-speech.te
    to the count of accepted facts, and still exits 0.
 2. A repository with 3 demoted facts prints the quieted-conventions line with 3.
 3. A snapshot whose `headSha` differs from the current HEAD prints the behind-the-commit modulator.
+   **Three states, all asserted:** equal ⇒ no line; different ⇒ the line; **HEAD unreadable (the
+   fixture is a snapshot in a directory that is not a git repository) ⇒ no line and no fabricated
+   one**, exit 0. The third is the one a two-state implementation gets wrong in the direction that
+   tells every non-git adopter their index is stale forever.
 4. `agentShare = 0.9` prints the alarm; `0.84` does not; `null` prints neither the alarm nor a
    fabricated number. The printed text contains **no** `agentShare` token and **no** `0.85`, and the
    percentage it does print is `90%` — asserted by value, and covered by **this task's Step 5**,
@@ -5572,6 +6162,13 @@ this section; its three load-bearing rules had criteria and no killers, against 
 - **MR-40 (the byte-identical baseline):** emit any of the three new lines unconditionally ⇒
   criterion 1 fails — the a761dda output is the baseline, and a `status` that always speaks is a
   `status` that has stopped reporting.
+- **MR-40b (cannot-tell is not behind):** treat an unreadable HEAD as a mismatch — the natural
+  `readHead() !== header.headSha` comparison, where the left side is `null` or `''` ⇒ **criterion 3's
+  third arm fails**: the behind-the-commit modulator prints on every project without git, which
+  R5-I17 names as a shape a snapshot legitimately exists in. **MR-40 cannot see it** — criterion 1's
+  fixture is a fresh index with a readable, matching HEAD, so an unconditional-emission mutant and a
+  cannot-tell mutant fail different criteria, and only this one fails on a fixture that has no git
+  at all.
 - **MR-41 (the scaffold notice's path):** print the config path **relative** to cwd instead of
   absolute ⇒ criterion 6 fails. The mutation is the defect D25 exists to prevent in its purest
   form: a relative path resolved against an inherited cwd is exactly the ambiguity the dogfood
@@ -8171,6 +8768,12 @@ existing e2e files). R5-I16 ✓ (no repo-check step added or removed).
   fact resolution is parse-free (D26.2), so the pass's stated cost bound does not move. ✓
 - *`resolveFact` × D8's deleted decorative clause* — one governance rule, one call, so the two
   applications of "D8's governance" cannot diverge; the review's own closest-call disappears. ✓
+  **(Corrected in round 16, in place, the way round 12 corrected round 11's anchors: this is true of
+  the fact *selector*, which is genuinely one call, and it is NOT true of the *role input* fed to
+  it — the check path resolves the role through a three-rung ladder and this pass reads
+  `assignments[skeyR]`, so a scope new since the index can be governed by a role fact on one path
+  and by `_all` on the other. The claim above overstated its own scope; D26.2 now names the class,
+  the outcome and why the assignments-only reading is the correct one.)**
 - *`resolveFact` `null` ⇒ gone × transition 5* — writes nothing, exactly as the other three `gone`
   producers do; a log whose every intervention drops gains no terminal event and is re-folded until
   the 7-day prune, which is the cost Step 2b already names ("AND: the work"), not a new one. ✓
@@ -8201,6 +8804,365 @@ existing e2e files). R5-I16 ✓ (no repo-check step added or removed).
   missing):** deleting the criterion outright would have left T3's numbering with a hole while
   criteria 10-16 are referenced by number across four tasks. Retired in place instead, which the
   mechanical re-validation then confirms resolves.
+
+### Round 16 — what the sixteenth adversarial review changed (0 blocking, 2 major, 6 minor)
+
+**Round 15's fixpoint claim was false, and the honest record of why is the most useful thing this
+round produces.** That round iterated a producer/consumer walk over the D13a complex until a
+complete pass found nothing, and wrote "producer walk iterated to fixpoint; final pass clean". The
+walk asked one question of every record: *does every field have a producer that can construct it and
+a consumer that reads it?* It never asked the next one: *for every value a consumer reads, does
+every state that value can take have a stated outcome?* Both of this round's majors sit in the gap
+between those two questions, on the same value — the surface value at closure, whose declared domain
+is `string | null` and whose `null` state neither producer had an answer for. A field-complete walk
+cannot see a missing branch, because the field is present and both ends of it type-check. **The
+walk was field-complete and branch-blind. This round re-ran it under the stronger question, which
+subsumes the weaker one** — a field with no producer or no consumer is the degenerate case of a
+state with no stated outcome — **and it took nine passes and found fifteen gaps, thirteen of them
+beyond the review's eight findings.** It is written up below the minors, with per-pass counts.
+
+Everything the review re-derived independently held: all three authorities behind M1 read in full
+(§9.10 `:479`'s two conditionals, §6.4 `:213`'s "undecidable ≠ false", §18.2 `:683`'s fail-open
+direction and its cross-session clause), the six Δ rows, all eight Wilson figures, T9's completeness
+trio, both fixture sizings, criterion 8's margins, the five epoch constants, the 76-MR set and all
+three cross-reference classes, and ~90 landed anchors.
+
+**Major**
+
+- **M1 — T7's compliance closure had two branches where the value it reads has three states, and the
+  missing one banked an `ignored` sample for a value the product itself calls undecidable.**
+  Verified rather than argued, on three authorities the plan already cites elsewhere: §9.10 is
+  written as **two conditionals** — `v == f.expected`, and "`v` still deviates" — and a `null`
+  satisfies **neither** (`v6-spec.md:479`, read in full); §6.4's sparse-boolean clause says "A scope
+  outside the domain contributes nothing (**undecidable ≠ false**)" (`:213`), the same line the plan
+  invokes for T3 criterion 11 on the speech side; and T8 already carried the answer for the
+  identical question one task over. T7's text prescribed "open and still deviating ⇒ `ignored`",
+  and `null !== expected`, so a scope whose surface had left its domain banked a **resolved**
+  `ignored` row into §18.2's denominator — pushing toward demoting a convention nobody was shown to
+  have ignored, which is the one direction §18.2's own fail-open rule forbids. **The branch is
+  reachable by design, not by accident:** T3 Step 4 fixes closure *before* the `v == null` skip and
+  calls that order "behavior, not style", so the closure is exactly where an out-of-domain value
+  arrives — and an ordinary refactor produces one (`auto.ret`'s domain is "methods with ≥ 1 return
+  statement", `auto.call:*`'s is "methods with ≥ 1 body statement", `enumerate.ts:296-318`).
+  **Landed as a three-arm closure with the record's fate derived rather than asserted.** T7 Step 2 is
+  now three branches: `expected` ⇒ complied and removed; present-and-different ⇒ ignored and left
+  open; **`null` ⇒ nothing written and nothing set — no telemetry row, no `'closed'` event, no
+  ledger mark, no flag — and the intervention stays open.** The symmetry with T8 is stated where it
+  is real: **neither producer writes anything at all for an undecidable value**, and what differs is
+  only what becomes of the record, which follows from the pass rather than from the branch — T8's
+  log is *ended*, so §18.2's "if the scope is gone, the intervention is dropped" applies; T7's
+  session is *live*, so the surface may re-enter its domain and T8's pass will resolve whatever is
+  still open. Two independent reasons make leaving it open the only available answer as well as the
+  best one: an in-session drop would need a session-log event the union has no arm for, and a
+  dropped record would take its `ignoredRecordedInSession` and its emitted pair with it, so a later
+  re-check would open a **second** intervention for one message. **Sites: T7 Step 2 (the branches
+  and the derivation), T7 Step 1 (the driver — see the walk's pass 2), T3 Step 4 (the ladder
+  position that makes the arm reachable), D13a(b)'s new **transition 6** and its properties list
+  (three → **four**), D13a(a)'s new converse bullet (a producer that cannot construct an honest
+  value for a non-optional field writes **no row** — `observed` is a `string` and an undecidable
+  value has no honest string), T8 Step 2's symmetry clause, new **T7 criterion 8** (two legs — by
+  value over `evaluate`'s three empty intent arrays, and through the product on a domain-exit
+  fixture whose third check proves the record survived rather than being quietly dropped) and new
+  **MR-28c** with both mis-routings named.**
+- **M2 — `currentValue`'s declared contract made T8 criterion 4's leg (iv) the same injected input
+  as leg (iii), and left MR-34e's mirror arm with no possible observer.** The lookup was declared
+  twice as a **two-arm** union, `{state:'gone'} | {state:'value'; v: string}` — while T8 Step 2's
+  branch table reads as `health.ts`'s own logic and includes "**a `null` value … is `gone`, not
+  `complied`**", a branch that module could never take under the declared contract. Two consequences,
+  both of the class this plan refuses elsewhere: leg (iii) ("a `skeyR` absent from the
+  re-enumeration") and leg (iv) ("present but whose surface value is `null`") collapsed to one
+  injected value producing one output, so the criterion's own justification ("gone has three
+  producers inside this criterion") was false at the layer it drives; and MR-34e's mirror mutation
+  was inexpressible inside `health.ts` (no `null` to mutate) and bypassed in the command layer (the
+  criterion injects the lookup), so the mutant survived on both of its possible homes.
+  **Fixed with the one-character widening rather than by re-homing the criterion:**
+  `{state:'value'; v: string | null}` at both declaration sites (D26.4 and T8's Files block input
+  6), with the `null ⇒ gone` rule kept **inside `health.ts`** exactly where its prose already put
+  it. That is the shape the check path already has — `VerdictInput.surfaceValue` returns
+  `string | null` and the engine owns "null is not a deviation" (T3 criterion 11, MR-14) — so the
+  two paths stop diverging on which layer decides that undecidable is undecidable, and the command
+  layer's builder simply forwards `surfaceValue(surface)` unchanged, which is one fewer rule in the
+  layer that may not hold rules. Legs (iii) and (iv) are now two different injected values, stated
+  by value in the criterion; MR-34e's mirror arm is a one-line `health.ts` mutation that fails leg
+  (iv) for real, and the arm now says the shape is what makes it killable. The alternative the
+  review costed (keep the contract, re-home leg (iv) and the MR onto a command-layer observer) is
+  **rejected** on its own arithmetic: a new fixture, and one rule split across two layers, against
+  one character.
+
+**Minor** — all 6 applied.
+**(1) The fold had no rule for a second `'warned'` on an already-open intervention, and T6 criterion
+2 produces exactly that sequence.** Its second case *requires* it — same `stableId` and `surface`, a
+different observed value, emits again because `direction` is part of §11.3's key — and T6 Step 3
+appends a `'warned'` for every emitted finding. The plan did contain the answer, 2,500 lines away in
+T8's e2e re-plant mechanic ("an intervention opens only when a session's **first** check sees a
+deviating scope"), where a T6 implementer building "from this plan plus the repository alone" will
+not find it. **Promoted to the fold's own contract at T6 Step 1 and mirrored at T1's `'warned'`
+arm:** a `'warned'` whose pair is already open is a **no-op for `openInterventions`** — the record
+keeps its first emission's `expected`, emitted pair, `openedSessionId` and, decisively,
+`ignoredRecordedInSession`. The §9.10 reason is stated with it: the natural `map.set(key, …)`
+overwrites, the overwrite resets the flag, and a reset lets T7 append a **second**
+`'closed'{ignored}` into one session log — which the telemetry key collapses either way, so **the
+session log is the only place the breach is observable**. `warnCount`'s identity set is named in the
+same clause (it is `dedupKeys` itself, `(stableId, surface, direction)`, so the second message still
+counts against §11.3's session budget while not re-opening anything). New **T6 criterion 2b**
+(three halves by value: `deltaBits` 4.0 not 2.9, the flag still `true`, `dedupKeys` 2 and
+`warnCount` 2) and **MR-23b**, which is pointed here rather than folded into T7 criterion 2 because
+that criterion re-checks the *same* value and never mints a second `'warned'` at all.
+**(2) D8 cited `mine.ts:496` for a `set` call that is at `:542`.** Measured at HEAD: `:496` is
+`function computeRoleLiftForPartition(` and the `liftByRoleKey.set(...)` is `:542`, the function
+spanning `:496-546`. The claim itself re-verified and unchanged (the call is unconditional inside
+`for (const role of rolesForPartition)`, so `roleLiftByKey` is total and `MinedRole.roleLift` at
+`:1032` reads that same map); only the anchor moved.
+**(3) "`induceRoles` writes an entry for every eligible scope" contradicted D26.2 and the code, in
+two places.** The landed write loop is `for (const item of eligible) { const idx =
+rank1RoleIndex.get(...); if (idx === undefined) continue; … }` (`roles.ts:978-985`) and
+`rank1RoleIndex` is populated only when `classifyAgainstMedoids` returns `roleIndex >= 0`
+(`:913-914`) — so an **eligible** scope that matches no medoid gets no entry at all, which is
+exactly what D26.2 says from the other direction. The plan was asserting P and ¬P about the same
+landed function. Corrected at both sites (D8's third bullet and T3 criterion 8c) to "for every
+eligible scope it **classified into a role**", with the loop and the gate anchored; neither
+conclusion moves, and criterion 8c's fixture requirement is re-stated as what it actually needs
+(**no `assignments` entry**, which "new since the index" guarantees) rather than as a property of
+every mined scope.
+**(4) `resolveFact` resolves roles from `assignments` alone while the check path runs a three-rung
+ladder, and the consequence was never derived.** The divergence was *named* in passing at T3 Step 3
+and nowhere analysed, while round 15's own interaction pass claimed the opposite shape ("one
+governance rule, one call, so the two applications of D8's governance cannot diverge") — true of the
+fact *selector*, false of the *role input* fed to it. **D26.2 now carries the paragraph**, in the
+register T3 Step 2 uses for the medoid push-order tie: the class is a scope **new since the index**,
+which rung 2 may place in a role and `assignments` does not know; the outcome is that its rows pool
+under `_all` rather than the role fact they were recorded against, partially guarded by the
+expected-flip filter; and the assignments-only reading is **§18.2's own "via current membership"**
+rather than a fidelity loss, since current membership is what the snapshot records and re-running
+rung 2 would need the medoid bags, three config numbers and the parse that bullet exists to avoid.
+Round 15's interaction line is corrected **in place**, the way round 12 corrected round 11's
+anchors, and T3 Step 3's parenthetical now points at the analysis.
+**(5) D14's "they enter `D`" was unobservable: completeness is once-per-session and computed `D`
+from the fold alone.** T9 Step 4 defined `D` as `foldSession`'s `writtenFiles` — read at the *start*
+of the run — while the deferred `stop` summary's own `'checked'` is appended by that same run, and
+T9 criterion 5 pins that a second `stop` in the same session emits nothing. So on a flood-skipped
+session the deferred paths reached `writtenFiles` in the log and **no completeness computation ever
+saw them**, on the one flow D14's clause exists to protect. **Fixed at both ends with one rule:** a
+`stop` run's `D` is the fold's `writtenFiles` **unioned with that run's own `'checked'` payload` —
+the same merge D1 already assigns the command layer for `Intents`, free on the Edit-only path.
+Criterion 4's flood→stop leg now asserts the deferred paths' **partners** as well as their findings,
+and new **MR-37h** kills the union's removal (every other completeness criterion drives a session
+whose `'checked'` events were appended by earlier runs and is satisfied by the fold alone). The
+composition the union creates is stated too: the deferred paths are now also excluded as partners of
+themselves, which is what `partner ∉ D` is for.
+**(6) T5 criterion 4b's leg 2 was not the R5-I15 fault it was claimed to be.** R5-I15's second fault
+is an **unreadable** `demotions.json`, owned by T1 Step 3's I/O half; leg 2 was a **non-JSON** one —
+the content fault, absorbed by `readDemotions`' own parse handling, which needs none of the wrapper
+that half had to add, and which R5-I2 explicitly keeps separate ("the *content*-shaped cases are
+criterion 5, and the two are different faults with one outcome"). Coverage was not lost (T1
+criterion 5b is the wrapper's killer) but the word "exactly" was false and the leg with teeth at the
+**run** level was missing. Leg 2 is now a **directory** at `.state/demotions.json` — `EISDIR` for
+every user, no `chmod`, not skipped under root, T1 criterion 5b's own fixture choice — and T5 Step 3
+says fault-for-fault why. MR-19b's read-side list is corrected with it, and the criterion now states
+why its two `EISDIR` legs are not redundant: leg 2 is a **read** that must not throw, leg 5 a
+**write** that must not, and both live inside a `.state/` that stays writable so "zero incidents"
+stays a real assertion.
+
+**The branch-totality walk, iterated to fixpoint — nine passes, fifteen gaps.**
+The question, asked of every consumer of every record, event and lookup in D13a and of the
+check-path equivalents: **enumerate the full state space of each value it reads — present / `null` /
+gone / absent-field where optional — and verify that every state has a DEFINED, stated outcome.**
+- **Pass 1 (3).** *`parentExp === null` was mishandled by the contrast predicate stated everywhere
+  as `parentExp ≠ expected`.* `MinedFact.parentExp` is `null` for every `_all` fact (`mine.ts:141-142`
+  — nothing wider encloses it) and `null !== expected` is **true**, so an implementation
+  transcribing §9.4i's own wording appends "this is the local default of this directory" to **every
+  repo-wide message** — the cell class §8.7 says carries most of the enforceable mass. The predicate
+  is `parentExp !== null && parentExp !== expected`; T4 criterion 3 gains a **third arm** and MR-17
+  a second. *A `'closed'` event whose pair is not open in the fold had no stated outcome*, and it is
+  reachable through a degradation the plan promises rather than a bad fixture: R5-I15 skips a corrupt
+  line, and the skipped line may be the `'warned'` that opened the record. It is a **no-op** —
+  inventing a record is the one wrong answer available, since that arm carries no `expected`, no
+  emitted pair and none of D26's four identity fields, so the record would be built with holes and
+  handed to T8's pass to sample. *The `'checked'` enumeration was stated as exhaustive with a case
+  missing:* "the one run that appends no `'checked'` is a seed sweep" omitted every run whose
+  **participation set is empty** — a payload naming nothing, every candidate dropped by gate −1, a
+  dormant or snapshot-less project, `getDirtyFiles` returning `null` or `[]`. Restated as a rule
+  (`'checked'` iff participation is non-empty) at T6 Step 1b and D14, with T6 criterion 4c's new
+  third arm and **MR-26b** as its killer.
+- **Pass 2 (1).** *T7's closure driver was "for every candidate fact of every evaluated scope", which
+  is not the same iteration as §9.10's `(stable_id, surface)` intervention.* A scope routinely has a
+  role, a directory and an `_all` candidate on one surface, so a candidate-driven closure fires two
+  or three times for one intervention — and the store key collapses the telemetry rows and `markKey`
+  the ledger marks, so the damage lands exactly where nothing else guards it: **two or three
+  `'closed'` events in the session log**, on the `complied` arm where `ignoredRecordedInSession` does
+  not apply, with `openInterventions` an input rather than a running mutation. The driver is now
+  "once per `(scope, surface)` over the fact D8's governance selected", stated at T7 Step 1 and
+  D1 (whose `closureIntents` order phrase said "scope-then-candidate-fact"). The same fix states two
+  further states the driver decides: an intervention whose **scope is not evaluated** this run, and
+  one whose **surface has no governing fact** this run — both stay open, both resolved by T8's pass.
+- **Pass 3 (3).** *The stdin payload had one stated state and can take three.* **Zero bytes** is
+  routine, not a fault — a `--hook` run with stdin from `/dev/null` — and means "no payload": one
+  `debugWrite`, fall through to D10's precedence, **no incident**. **Non-empty non-JSON** is a
+  genuine escape and needs no new rule: it exits through R5-I2's single catch, stated as a pointer
+  precisely so R5-I15's closed five-item list is not widened to six. **Wrong-typed fields** are
+  treated as absent, which D12's ladder and D10 already define. *`--content` with no target at all*
+  had no outcome — the plan named only the too-many arm — so an implementation resolves a target of
+  `undefined`; both arms are now the same exit-1 usage error and T5 criterion 3 asserts both.
+  *`--session <id>` was the one session id in the system that was not folded*, on the exact value T1
+  turns into a file name and T8 reads back out of one; D12 now folds it like the payload's, with the
+  consequence for tests spelled out (the log's stem is the folded id, so a suite globs or folds —
+  building the path from the raw flag finds nothing and passes on zero lines).
+- **Pass 4 (3).** *`{unit_plural}`'s fourth arm ("directories") has no producer*: `appliesKind` is
+  `'method' | 'type' | 'file'` (`extract.ts:100`) and the only surfaces that speak about a directory
+  are E12's, emitted on **module** units (`enumerate.ts:353-364`) whose facts the projection drops.
+  Deleted with the reason, on D8's decorative precedent rather than D9's DENY one (DENY has a future
+  producer; a module fact can never be hook-eligible at all) — and with an explicit note that E12's
+  rows in Step 1's *table* stay, since Step 2's lint is a test over the table, not over rendered
+  output. *`status`'s behind-the-commit modulator had two states and needs three*: HEAD can be
+  unreadable — no git, no commits, degraded-mode snapshot, all shapes R5-I17 already names — and
+  **cannot tell is not behind**, or every non-git adopter is told their index is stale forever.
+  Stated once at **D17** (one rule, two callers) and asserted at T10 criterion 3's third arm with
+  **MR-40b**, which MR-40 structurally cannot see (criterion 1's fixture has a readable, matching
+  HEAD). *T3 criterion 12 listed "unreadable snapshot" among the exit-0 cases without saying whether
+  it mints an incident*; it does, exactly as the version mismatch does, because R5-I15's absorbed
+  list is closed and a corrupt snapshot is not on it — and T5's own e2e already drives that leg, so
+  the clause now names its observer.
+- **Pass 5 (1).** *D14's "there are TWO such sweeps" had become three.* A **seed** sweep, a
+  **flood-skipped** sweep and an **ordinary sweep whose diff is empty** all take up no files — the
+  third being the commonest sweep there is. The list has now moved twice (one → two in round 15 →
+  three here), so it is restated as the **rule's** own consequence with the three named as
+  illustration, at D14, T6 Step 1b and T9 criterion 6; a fourth kind of no-op sweep needs no clause.
+- **Pass 6 (2).** *D1's `closureIntents` ordering phrase* (pass 2's other end). *The pooling key is
+  not partition-qualified and nothing said so:* `factKey` is `` `${roleKey}|${surface}` ``, so an
+  `_all` cell's key — `_all|auto.ret` — is **identical in every partition**, and §18.2 pools by that
+  key with `demotions.json` carrying a flat `string[]`. Pooling, the Wilson bound and the check
+  path's locally-demoted skip are therefore partition-blind **by the spec's own key**: samples from
+  one package pool with another's and demoting quiets the convention everywhere. Left exactly as the
+  spec writes it — this plan does not re-cut a spec key — and recorded at D26.2 so it is a known
+  consequence rather than a monorepo surprise, together with the note that the flip filter runs per
+  row against its own partition's fact.
+- **Pass 7 (1).** *"A malformed line is skipped" had one sense and needs two.* A line that is
+  well-formed JSON but not a well-formed **record** — no `kind`, a `'warned'` missing `deltaBits`, a
+  non-string `ts` — would otherwise reach the fold, and an `OpenIntervention` built from it carries
+  `undefined` into a closure row typed `number`, a defect nothing sees until the row is read back
+  days later. The shape check belongs at the store boundary, once (T1 Step 3), which is what makes
+  T6 Step 1's "total over the event stream" a store guarantee rather than a hope; T1 criterion 1
+  gains the arm a `try { JSON.parse } catch` implementation fails.
+- **Pass 8 (1).** *The contrast predicate had two possible homes* — `Finding.localityContrast` and
+  the renderer — and the plan named neither as the single one, which is how a rule fixed in pass 1
+  drifts back apart. Fixed at the field's declaration (computed in `evaluate`; `speech.ts` renders
+  on the flag and re-derives nothing), with T3 Step 6 and T4 Step 3 pointing there.
+- **Pass 9 — clean.** **Branch walk iterated to fixpoint; the ninth pass covered every value's full
+  state space and found nothing.**
+**What the final clean pass covered, so the claim is checkable rather than a word:** the three
+lookups (`surfaceValue`, `currentValue`, `resolveFact`) and every state each can return, on both
+producers; `roleOf`, `routePartition`, `getDirtyFiles`, `readDemotions` and the stamp comparison;
+every arm of the `SessionEvent` union against every fold field, including the second-`'warned'`, the
+orphaned-`'closed'` and the empty-participation states; `observedAfter`'s three values against the
+store key and the pool; every nullable `VerdictFact` field (`parentExp`, `roleLabel`,
+`suppressedValue`, empty `exemplars`) against its consumer; the fold's nine fields in their unset
+states; the input surface (payload, `--content`/`--as`, `--session`, positional, dirty set) and
+every `lstat` outcome the gate matrix admits; the snapshot's absent / unreadable / version-mismatched
+/ stale states; HEAD's three; and the co-change row's two sides. **Both questions are now answered
+for every one of them — fields AND branches — and the branch question subsumes the field question
+round 15 asked.** Two states were examined and deliberately **not** given text, each with its
+reason: a routed partition id that names no partition in the loaded body (both come from one
+`PartitionMap` in one run, and the cross-version case is D3's version gate, so the state is
+unsatisfiable — the plan does not add branches that cannot arise), and `commitsA`/`commitsB` of zero
+(`sup ≥ minSupport` forces `commits ≥ 8`, so the division is total).
+
+**Not applied:** none. Every finding was verified at source before being acted on — `v6-spec.md:479`,
+`:213` and `:683` read in full; `mine.ts:119-160` (including `counts`' declared
+`Record<string,string>` and `parentExp`'s `null`-for-`_all` doc), `:496-546` and `:542`;
+`roles.ts:913-914` and `:978-985`; `extract.ts:100`; `enumerate.ts:296-318` and `:353-364`;
+`read-or-default.ts:5-6`; `debug-log-writer.ts:7-9`. **One of the review's remedies was narrowed and
+one was widened, both stated inline:** its M1 fix listed "no telemetry row, no `'closed'` event, no
+ledger mark" and the plan adds *and no flag set, and no state change of any kind*, since
+`ignoredRecordedInSession` is exactly the state a partial implementation would still touch; and its
+M2 preferred fix is taken with the alternative's cost re-derived rather than restated.
+
+**Sweep A (decisions vs restatements), scoped to rounds 15-16.** T7's three-arm closure → T7 Step 2,
+T7 Step 1, T3 Step 4, D13a(a), D13a(b), T8 Step 2, T7 criterion 8, MR-28c ✓. `currentValue`'s
+`string | null` → D26.3, D26.4, T8's Files block, T8 Step 2's builder and branch table, T8 criterion
+4's five legs, criterion 4b(i), MR-34e ✓ (both declaration sites and every usage site checked
+mechanically — two declarations, eight usages, all three-state). The second-`'warned'` no-op → T6
+Step 1, T1's `'warned'` arm, T6 criterion 2b, MR-23b, T8's e2e re-plant mechanic ✓. The `D` union →
+D14, T9 Step 4, T9 criterion 4, MR-37h ✓. The contrast predicate → `Finding.localityContrast`, T3
+Step 6, T4 Step 3, T4 criterion 3, MR-17 ✓. The participation rule → T6 Step 1b, D14, T6 criterion
+4c, T9 criterion 6, MR-26b ✓. **Four drifts found by this sweep and repaired, none review-flagged:**
+T3 Step 4's ladder said closure runs first without saying that running first is *why* the closure
+sees a `null` at all; T8's e2e re-plant mechanic still presented the fold's own rule as an e2e
+observation; T1's `SessionEvent` union mirrored three of the `'closed'` arm's fold effects and not
+the not-open one; and **D17 compared `headSha` on the check path with the same two-state assumption
+T10 had** — one rule, two callers, and only one of them had been corrected.
+
+**Sweep B (invariants/MRs vs tasks), scoped to rounds 15-16.** **MR ids: 81 live definitions, no
+duplicates, and every `MR-*` referenced in the task body is defined except `MR-32c`/`MR-32d` in their
+retirement notice** — re-checked mechanically. The arithmetic: **76 + 5 (MR-23b, MR-26b, MR-28c,
+MR-37h, MR-40b) − 0 retired = 81**, and R5-I11's "(76 ids at present)" is updated to **81**.
+**Full mechanical re-validation of all three reference classes** — qualified criterion refs,
+qualified step refs, and bare in-task `Step N` / `criterion N`, with previous-line joining so a
+wrapped reference is not a false positive: **zero dangling in all three**, after one real hit this
+round's own edit introduced (a bare "criterion 2b" written inside T1's interface block, now
+qualified as `T6 criterion 2b`). The remaining apparent hits are the documented classes
+(`T8 Step 2a`/`2b`, and wrapped `T3 criterion 13` / `T3 criteria 14 and 14b` / `T6 Step 1b` /
+`T10 Step 6 (criterion 6)`). **Counts touched, each re-derived rather than adjusted:** MRs 76 →
+**81**; T7's acceptance criteria 7 → **8**; T6's 8 → **9**; D13a(b)'s transitions 5 → **6** and its
+load-bearing properties three → **four**; T7 Step 2's branches two → **three**; T8 Step 2's closure
+branch three-way → **four-way over three lookup states**; `currentValue`'s `v` `string` →
+**`string | null`**; T4 Step 4's `{unit_plural}` arms four → **three**; T5 criterion 3's arms one →
+**two**; T10 criterion 3's states two → **three**; T1 criterion 1's tolerance arms one → **two**; T6
+criterion 4c's arms two → **three**; D14's and T6 Step 1b's no-`'checked'` enumerations → **rules**.
+Unmoved and confirmed unmoved: D3's **three** added body fields, `TelemetryRecord`'s **14** fields,
+`Finding`'s **15** (`localityContrast` gained a comment, not a sibling), `OpenIntervention`'s **11**,
+the `'warned'` payload's **11**, `health.ts`'s **six inputs plus two config numbers**, D9's **four**
+non-copy projection fields, `applyBudgetsAndDedup`'s **four** arguments, `extract-file.ts`'s **four**
+exports, R5-I2's and R5-I15's **five**-item lists (leg 2 was re-cut to match one of them, not added
+to it), T2 Step 1's **fifteen** landed assertion sites, the **six** `--file` measuring sites, the
+new-edge audit's **9** rows and `cli/commands/roots`' **13**, T3's **16 numbered / 15 live**
+criteria. R5-I4 ✓ (nothing gained a filesystem, a clock or a config read; the third state reaches
+`health.ts` as a parameter). R5-I5 ✓ (nothing added to the body). R5-I7 ✓ (no config key invented).
+R5-I8 ✓ (no new committed path). R5-I9 ✓ (the `D` union is a set feeding a gate, not an ordering or
+a truncation of findings). R5-I11 ✓ (six new rules, six killers — MR-23b, MR-26b, MR-28c, MR-37h,
+MR-40b and MR-17's second arm — plus one renderer arm **deleted** for having no producer). R5-I12 ✓
+(every new criterion rides an existing e2e file or is unit-level by nature; **no new e2e file**).
+R5-I13 ✓ (transition 6 writes no row, so the three-row ceiling is untouched). R5-I16 ✓ (no
+repo-check step added or removed).
+
+**Interaction pass, scoped to rounds 15-16.** Sixteen pairs, three defects:
+- *T7's third branch × T8's `null ⇒ gone`* — the same nothing written; the record's fate follows
+  from live-versus-ended, which is the same asymmetry the two already have for a vanished scope.
+  Stated at both ends. ✓
+- *T7's third branch × D13a(c)'s three-row ceiling* — no row, so the ceiling and MR-1b's arithmetic
+  are untouched; D13a(b)'s property (iv) says so. ✓
+- *T7's third branch × §11.3's dedup and budgets* — a `null` re-check produces no message and no
+  closure, so neither the dedup key set nor the WARN count moves. ✓
+- *T7's third branch × D13a(d)'s S1 path* — S1's re-check keeps the scope deviating, so no session's
+  sample is lost to the new arm; criterion 8's leg B is a separate sequence rather than a variant of
+  the e2e loop, precisely so the two do not interfere. ✓
+- *T7's driver × T7 criterion 4 (an ineligible fact still closes)* — governance selects the fact,
+  the closure runs, `!hookEligible` then skips the message; the criterion is unaffected by the
+  driver's narrowing. ✓
+- *`currentValue`'s widening × R5-I4 and D16.5* — a parameter, not a read; `status` runs the
+  identical lookup and applies nothing. ✓
+- *The second-`'warned'` no-op × D13a(a)'s "as emitted"* — the closure row copies the **first**
+  emission's pair, which is the only reading under which "as emitted" names one pair. ✓
+- *The second-`'warned'` no-op × §11.3's session budget* — the second message still counts (its
+  dedup key is new), so the 12-WARN bound is unchanged while the intervention is not re-opened. ✓
+- *The orphaned-`'closed'` no-op × T6 criterion 5's idempotence* — a no-op is idempotent under
+  replay. ✓
+- *The participation rule × T9 criteria 5c and 6* — **DEFECT (a list that the rule made read
+  wrong):** criterion 6 still named "the seed, or a seed and a flood" as though exhaustive.
+  Restated over the rule, like D14 and T6 Step 1b.
+- *The `D` union × `partner ∉ D`* — **DEFECT (unstated composition):** the union also excludes the
+  deferred paths from their own partner list, which is correct and is now said, together with the
+  failure a half-applied union produces (a note telling the agent to touch a file the same run just
+  reported on).
+- *The `D` union × R5-I9* — a set feeding a gate; §11.3 still orders and truncates findings alone. ✓
+- *`{unit_plural}`'s deletion × T4 Step 2's coverage lint* — **DEFECT (a deletion that read wider
+  than it is):** the lint enumerates every enumerator's surface prefix against the **table**, so
+  E12's rows stay while the plural stays three-valued. Stated at the deletion.
+- *The store shape check × R5-I15's five* — a skipped record is still one `debugWrite` and a
+  continued run; the list is not widened. ✓
+- *The payload's non-JSON state × R5-I2 and R5-I15* — routed to the boundary rather than made a
+  sixth absorbed fault, which is what keeps the two lists disjoint and enumerated. ✓
+- *The `--session` fold × T8's eight-session e2e and T6 criterion 6* — same value, same id; only the
+  file's stem changes, which is why the consequence for tests is stated where the fold is. ✓
 
 ### Drafting self-review (pre-review)
 
