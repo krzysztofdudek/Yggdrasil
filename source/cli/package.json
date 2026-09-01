@@ -80,8 +80,8 @@
     "minimatch": "^10.2.5",
     "minisearch": "^7.2.0",
     "semver": "^7.8.1",
-    "smol-toml": "^1.6.1",
-    "web-tree-sitter": "^0.26.9",
+    "smol-toml": "^1.8.0",
+    "web-tree-sitter": "^0.26.12",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
