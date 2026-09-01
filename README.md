@@ -161,7 +161,7 @@ Delete `.yggdrasil/` and the rules file. No runtime dependencies, no build hooks
 
 ## Examples and docs
 
-[`examples/`](examples/) has six runnable projects, four of them keyless. This repository uses Yggdrasil on itself, so [`.yggdrasil/`](.yggdrasil/) is a live graph you can read. Full docs at [krzysztofdudek.github.io/Yggdrasil](https://krzysztofdudek.github.io/Yggdrasil/).
+[`examples/`](examples/) has seven runnable projects, five of them keyless. This repository uses Yggdrasil on itself, so [`.yggdrasil/`](.yggdrasil/) is a live graph you can read. Full docs at [krzysztofdudek.github.io/Yggdrasil](https://krzysztofdudek.github.io/Yggdrasil/).
 
 ## License
 
