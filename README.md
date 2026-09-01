@@ -102,6 +102,22 @@ Judgment rules are the higher variance layer, so keep those components small and
 
 The rest of the vocabulary, components, flows, ports, statuses and the predicate language, is in the [docs](https://krzysztofdudek.github.io/Yggdrasil/). You do not need any of it to get the first finding.
 
+## Turning it on in a codebase that is not clean
+
+The obvious objection: you switch a rule on, it is broken in two hundred places by the evening, and from then on every unrelated change is red. The tool is now in your way.
+
+Name a branch to measure against and that stops. A plain `yg check` fails only on what your change actually touched. Everything it inherited stays on the report and stays counted, as a warning that does not fail the build.
+
+```yaml
+# .yggdrasil/yg-config.yaml
+progressive:
+  reference: origin/main
+```
+
+Nothing is hidden and no rule is switched off. `yg check --full` answers for the whole project whenever you want the plain picture, and a recording run pays to review the rules your change reached instead of the whole backlog. Leave the key out and nothing changes at all.
+
+[Progressive mode](https://krzysztofdudek.github.io/Yggdrasil/progressive-mode) has the rest.
+
 ## The part that is genuinely not available elsewhere
 
 Every verdict, from a script or from a model, is recorded against a content hash of everything that produced it. CI does not re-run your model review. It recomputes the hashes and re-proves the existing verdicts, for free, with no API key.
@@ -138,6 +154,8 @@ I built it while shipping things alone, fast, which is where the wall above come
 ```
 
 The first line rebuilds the free local cache that a fresh checkout never has. The second is the gate: it recomputes the input hash of every rule against its recorded verdict, and fails if anything changed without being verified. No keys, no model calls.
+
+If you measure changes against a branch, add `--full` to the leg that runs on the branch you merge into. A plain run there passes by construction, so it is the `--full` leg that actually answers for it.
 
 ## Works with
 
