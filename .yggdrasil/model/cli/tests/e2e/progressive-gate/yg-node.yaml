@@ -13,6 +13,16 @@ description: "Subprocess E2E for the progressive gate on `yg check`, driven
   reference that cannot be resolved (whole-project gate plus a notice naming the
   cause and the fix).
 
+  One case covers a filename git would have QUOTED. Git octal-escapes any
+  non-ASCII byte in a path unless a listing asks it not to, and a touched-set
+  reader taking that string at face value matches it against no component — the
+  file leaves scope and its findings read as inherited debt, with nobody having
+  hidden anything. Asserting only that the run blocks proves nothing there: the
+  byte guard re-admits such a file anyway, which a probe that quoted every path
+  confirmed. So the case's discriminator is the guard's own notice, asserted
+  ABSENT — the file must reach scope because the READER placed it, leaving the
+  guard nothing to do.
+
   Three of its cases carry more weight than the rest. A project that never named
   a reference must be byte-identical to the whole-project gate — asserted as two
   real runs compared on both streams and the exit code, not as matching exit

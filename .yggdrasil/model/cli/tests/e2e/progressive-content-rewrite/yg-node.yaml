@@ -1,0 +1,46 @@
+name: E2E Tests — Progressive Mode Under a Checkout Rewrite
+type: test-suite
+description: "Subprocess E2E for the state the byte guard's own notice warns
+  about — a project where something rewrites files between the object store and
+  the working copy, so the bytes on disk can never hash to the id the reference
+  branch recorded. Nothing is hidden here and nobody is evading anything, which
+  is what separates it from the byte-guard suite next door: there one file is
+  concealed on purpose and everything else stays honest, here EVERY file
+  mismatches on EVERY run and the documented consequence is that measuring
+  against a branch stops narrowing anything at all.
+
+  Both mechanisms the notice names are reproduced with nothing but git: a
+  committed `text eol=` attribute, which stores LF and checks out CRLF, and a
+  `filter=` clean/smudge driver, which is the shape large-file storage takes —
+  the branch holds one thing, the working copy another, and the clean filter
+  hides the difference from every diff. Each is asserted to leave `git status`
+  reporting a clean tree BEFORE anything else is claimed, because a rewrite git
+  had noticed would reach scope through the ordinary touched-set reader and
+  prove nothing about the guard.
+
+  It then walks the three parts of what the notice promises. Every inherited
+  finding stays blocking on a branch that changed nothing, while the header still
+  reports a measured run rather than a whole-project fallback. The run says so in
+  its own words, naming both causes — the line that separates 'your build is red'
+  from 'this mode is currently buying you nothing', whose fix is not in the code.
+  And a recording run then buys the whole project's reviews: asserted as a count
+  off the mock reviewer on three otherwise identical projects, where the
+  measurable one buys nothing, the rewritten one buys every component's review,
+  and the whole-project form buys exactly the same.
+
+  Two cases hold the boundaries. The measured run reports the same findings as
+  `--full`, which is what makes the guard only ever stricter; and a rewritten
+  project that never named a reference is untouched by any of it, carrying
+  neither the notice nor a progressive segment while reporting the identical
+  errors — the assertion that keeps a state this pervasive away from anyone who
+  did not opt in. The control that gives all of it meaning is the same project
+  with nothing rewriting it, where the inherited refusal is a warning and the run
+  passes."
+aspects: []
+relations:
+  [
+    { target: cli/tests/support, type: uses },
+    { target: cli/tests/e2e/support, type: uses }
+  ]
+mapping:
+  - source/cli/tests/e2e/cli-progressive-content-rewrite.test.ts

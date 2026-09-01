@@ -112,6 +112,45 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     expect(warningSection(stdout)).toContain(TODO_IN('beta'));
   });
 
+  it('blocks on a file whose name git would have quoted, not only on plain ASCII ones', () => {
+    // Git prints a path holding any byte it considers unusual — every non-ASCII
+    // one included — QUOTED and octal-escaped: `src/alpha/café.ts` comes back as
+    // `"src/alpha/caf\303\251.ts"`. A touched-set reader taking that string at
+    // face value matches it against no component in the graph, so the file falls
+    // out of scope and every finding it causes is reported as inherited debt —
+    // a green build over an edit nothing reviewed, reached without anyone hiding
+    // anything.
+    //
+    // Every listing this reader runs passes `-z`, which makes git emit paths
+    // raw, so the corruption never arises. That defence is invisible at the call
+    // site: a later edit switching to `--porcelain=v2`, or adding a `git log`
+    // pass without `-z`, silently reinstates the bug.
+    //
+    // The byte guard would CATCH that regression — a path nothing matches is a
+    // finding about to be set aside, whose bytes then disagree with the
+    // reference — so asserting only that the run blocks proves nothing about
+    // the reader: it passes either way, which a probe that quoted every path
+    // confirmed. The guard's own notice is therefore the discriminator. It must
+    // be ABSENT here: this file has to reach scope because the reader placed it,
+    // with nothing left for the guard to re-admit.
+    const fixture = scaffoldReference('non-ascii-path', 'main');
+    fixture.branchWithEdit('feature', 'src/alpha/café.ts', VIOLATING_EDIT);
+    run(['check', '--approve', '--only-deterministic'], fixture.dir);
+
+    const { status, stdout } = run(['check'], fixture.dir);
+
+    expect(status).toBe(1);
+    // The refusal in the non-ASCII file is the change's own…
+    expect(errorSection(stdout)).toContain('café.ts');
+    expect(errorSection(stdout)).toContain('TODO comment found');
+    // …and the inherited one is still only a warning, so this is a measured run
+    // that placed the file correctly, not one that gave up and gated everything.
+    expect(warningSection(stdout)).toContain(TODO_IN('beta'));
+    expect(headerOf(stdout)).toContain('outside your changes vs main');
+    // The discriminator, per above: the reader placed the file, not the guard.
+    expect(stdout).not.toContain('Content check:');
+  });
+
   it('does not block for a violation already on the reference that the change never reached', () => {
     const fixture = scaffoldReference('inherited', 'main');
     fixture.branchWithEdit('feature', 'src/alpha/alpha.ts', CLEAN_EDIT);
