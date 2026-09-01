@@ -48,6 +48,62 @@ That one key is the whole switch. What it has to satisfy:
   it answers for the whole project, because a change that re-points the
   measurement could otherwise narrow the gate on its own authority.
 
+## How it works
+
+Five steps, in order. Everything else on this page is a consequence of one of
+them.
+
+**1. Decide whether the measurement can be made at all.** Before anything is
+narrowed, the run asks git a handful of independent questions: is there a shared
+ancestor with the named branch, is this a shallow clone, is the repository root
+also where the graph lives, is a submodule pointer among the changed paths. Any
+answer of "no" — or of "could not tell" — ends the measurement there and the run
+answers for the whole project, with a notice naming the cause and its remedy.
+Nothing is ever narrowed on a guess, and the mode cannot quietly stop working:
+every way it declines to measure is a line on your terminal. The full list is in
+[Every state](#every-state-and-what-the-run-does) below.
+
+**2. Work out what changed.** Your change is the union of two readings: what git
+reports in the working copy, and what differs between the reference branch and
+your latest commit. Both halves are needed — the first alone would miss
+everything you have committed on the branch, the second alone would miss
+everything you have not committed yet. Additions, edits, deletions, untracked
+files and both names of a rename all count.
+
+**3. Turn those files into obligations.** A changed file reaches further than
+itself, because the graph decides which rule applies to what. This is the step
+[What decides whether a finding is yours](#what-decides-whether-a-finding-is-yours)
+sets out in full; in outline, a changed source file reaches the rules whose
+review subject includes it and the component that owns it, a changed rule reaches
+every use of that rule, a changed component declaration reaches that component's
+descendants, ancestors and everyone declaring a relation to it, and a changed
+flow reaches that flow's rules on every participant. A rule that recorded reading
+a changed file while it was being judged is reached too, even though that file is
+not its subject.
+
+**4. Re-code the findings that fall outside.** The run is assembled exactly as it
+always was — nothing is skipped and nothing goes unchecked. Only at the end is
+each finding asked whether your change reached it. Those it did keep their name
+and their severity. Those it did not are re-coded to a twin of the same finding
+at warning severity, with `(outside changes)` appended and the `Fix:` line left
+off. Which findings are eligible for that at all is a fixed, declared set: the
+graph's own integrity is never in it, and neither is anything the run cannot
+attribute to a file or a component. See
+[What never becomes a warning](#what-never-becomes-a-warning).
+
+**5. Check the bytes before letting anything go.** A finding about to be set
+aside gets one last test: the content of the files behind it is compared against
+the content the reference branch holds. If they disagree, the finding stays
+blocking whatever git said about it. This is what closes the gap between "git
+reports no change here" and "this file has not changed" — see
+[A file git has been told to ignore](#a-file-git-has-been-told-to-ignore-still-answers-for-itself).
+It only ever adds to what blocks.
+
+The same five steps decide what a recording run buys, not only what a plain run
+reports — which is why `yg check --approve` under a measurement pays for the
+rules your change reached and no others. See
+[Recording verdicts under a measurement](#recording-verdicts-under-a-measurement).
+
 ## What a run looks like
 
 The header gains one segment: how many obligations sit outside your change, what
