@@ -2,7 +2,15 @@ name: Check Render Views
 type: command-support
 description: "Top-level yg check render dispatcher (formatOutput) and the
   --summary/--top/--aspect view bodies: view selection, the Next: line
-  composition, and the zero-classifying-types standing notice."
+  composition, and the zero-classifying-types standing notice. --summary's
+  per-node aggregate gives a finding put outside the change its own bucket
+  (keyed on OUTSIDE_CODES), counted by issue object so per-node totals still
+  reconcile with the header. --aspect's drill-in header replaces the plain
+  header's first line with its own aspect-scoped verdict; it re-derives the
+  same change-scope segment the plain header would have shown (via
+  check-render-header's exported renderChangeScope, same true error count) so
+  drilling into one aspect never silently drops the fact that the project
+  measures changes against a reference branch."
 mapping:
   - source/cli/src/cli/check-render-views.ts
 relations:

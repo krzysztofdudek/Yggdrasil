@@ -3,9 +3,13 @@ type: engine
 description: >-
   The fixture's engine core. Owns the runCheck seam the rule derives its option
   set from: two issue-gating options written as the ternary the derivation
-  matches, one byproduct switch written as an if-statement, and a same-file
-  helper carrying its own gating ternary that must NOT leak into the derived
-  key set.
+  matches, one whole-list rewrite written as the shape the second derivation
+  matches and returned as this seam's issues, a near miss of that rewrite that
+  differs in one respect only — it assembles a byproduct rather than the
+  returned list — one member declared ahead of its consumer that the body never
+  reads, one byproduct switch written as an if-statement, and a same-file helper carrying
+  its own gating ternary and its own rewrite, neither of which may leak into
+  the derived key set.
 aspects: []
 relations: []
 mapping:

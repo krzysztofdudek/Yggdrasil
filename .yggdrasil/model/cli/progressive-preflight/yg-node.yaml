@@ -1,0 +1,19 @@
+name: Progressive Preflight State Machine
+type: command-support
+description: "Pure decision table that turns the progressive-mode git probes
+  (utils/git-introspect.ts's isAncestor/isShallowRepository/
+  getToplevelAndPrefix/treesIdentical/hasCleanWorktree, plus the touched-set
+  reader changedFilesAgainst) into exactly one verdict for `yg check`: gate
+  everything (off/full), gate only the touched set (scoped), stay quiet
+  (honest-empty), or fall back to the full graph gate because the state could
+  not be trusted (global-fallback). Does no git, filesystem, clock, or
+  environment access itself — every fact arrives as an already-resolved plain
+  value from its caller, which is what keeps the same inputs always producing
+  the same verdict and makes the table replayable in a unit test without a
+  repository. honest-empty is reachable ONLY by a positive proof (never a
+  null probe standing in for one) and an empty touched set that cannot prove
+  itself clean lands in global-fallback rather than being mistaken for
+  honest-empty — closing the silent-green hole an unproven empty diff would
+  otherwise open."
+mapping:
+  - source/cli/src/cli/progressive-preflight.ts

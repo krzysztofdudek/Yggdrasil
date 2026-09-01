@@ -47,6 +47,7 @@ export default defineConfig({
           { text: "Aspect Status", link: "/aspect-status" },
           { text: "Conditional Aspects", link: "/conditional-aspects" },
           { text: "Configuration", link: "/configuration" },
+          { text: "Progressive Mode", link: "/progressive-mode" },
           { text: "CLI Reference", link: "/cli-reference" },
           { text: "Running in Parallel", link: "/concurrency" },
           { text: "Structural Attention", link: "/feature-field" },

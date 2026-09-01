@@ -24,11 +24,11 @@ import type { PortalCounts } from './contract.js';
  * shows up as in `warnings` (runCheck emits it as a warning issue). The count-parity identity
  * stays whole: verified + refused + unverified + advisoryRefused === expected pairs.
  *
- * The residue-track counts (suppressed / noRule / notApplicable / typeCoveredUnenforced /
- * typeCoveredUncomputable) are seeded 0 here and filled by a post-pass in extractPortalData,
- * because each is derived from the built node array / residue ledger / suppression
- * inventory — data that does not exist yet at this seam. They are additive residue, not part
- * of the count-parity identity.
+ * The residue-track counts (suppressed / suppressionMarkers / noRule / notApplicable /
+ * typeCoveredUnenforced / typeCoveredUncomputable) are seeded 0 here and filled by a
+ * post-pass in extractPortalData, because each is derived from the built node array /
+ * residue ledger / suppression inventory — data that does not exist yet at this seam.
+ * They are additive residue, not part of the count-parity identity.
  */
 export function buildCounts(
   graph: Graph,
@@ -91,16 +91,17 @@ export function buildCounts(
     refused,
     unverified,
     advisoryRefused,
-    // The residue-track counts (noRule / notApplicable / suppressed / typeCoveredUnenforced /
-    // typeCoveredUncomputable) are NOT part of the count-parity identity and cannot be computed
-    // here — each depends on data derived AFTER this seam (the built node array, the residue
-    // ledger, the suppression inventory). They are seeded 0 and OVERWRITTEN by the post-pass in
-    // extractPortalData once that data exists. (Never leave them 0: that prints "0 waived / 0 no
-    // rule / 0 not applicable" over a list.)
+    // The residue-track counts (noRule / notApplicable / suppressed / suppressionMarkers /
+    // typeCoveredUnenforced / typeCoveredUncomputable) are NOT part of the count-parity identity
+    // and cannot be computed here — each depends on data derived AFTER this seam (the built node
+    // array, the residue ledger, the suppression inventory). They are seeded 0 and OVERWRITTEN by
+    // the post-pass in extractPortalData once that data exists. (Never leave them 0: that prints
+    // "0 waived / 0 no rule / 0 not applicable" over a list.)
     noRule: 0,
     draft: check.draftSkipped,
     notApplicable: 0,
     suppressed: 0,
+    suppressionMarkers: 0,
     // A file satisfied by the type-level lattice has its own verdict — it must
     // never ALSO inflate "uncovered". coveredFiles keeps its legacy conflated
     // meaning (nodeOwnedFiles + excludedFiles, unchanged below); subtracting

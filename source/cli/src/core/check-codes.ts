@@ -6,6 +6,9 @@
  * is exactly what happened when each file hard-coded its own set.
  */
 
+import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH } from '../utils/rules-artifact-names.js';
+import { ARCHITECTURE_FILE, CONFIG_FILE } from './progressive-scope.js';
+
 /**
  * Standing notice: coverage.type_level is on, but no type in the architecture
  * declares when:, so the classification lattice can never match a single
@@ -162,6 +165,135 @@ export const APPROVE_GATING_CODES = new Set<string>([
 ]);
 
 /**
+ * Wide-tier scoped codes — the codes progressive mode is ever allowed to consider
+ * downgrading from a blocking error to a non-blocking warning when a change cannot
+ * be honestly held accountable for them. Nothing consumes this set yet; declaring
+ * it is the whole of this module's job here. Everything NOT in this set keeps
+ * blocking unconditionally, forever, regardless of what a future consumer does —
+ * so membership is doctrine, not convenience. Adding a code requires its own
+ * documented policy rationale, the same bar as every entry below; it must never
+ * be added merely because a downgrade would be convenient for some caller.
+ *
+ * Four codes are deliberate carve-outs FROM `STRUCTURAL_CODES` above: each stays a
+ * structural member (self-consistency of the graph still requires it to block
+ * unconditionally today) AND is admitted here, because each is a
+ * code-versus-graph drift finding — a brownfield reality an adopter inherits from
+ * code that predates or diverges from the graph — rather than a graph-authoring
+ * self-inconsistency the graph author alone could have avoided:
+ *
+ *   - relation-undeclared-dependency — the drift is between the SOURCE TREE's
+ *     import graph and the architecture's declared relations; the graph itself
+ *     is well-formed, but the code a change touches may or may not be the code
+ *     that introduced the undeclared edge.
+ *   - type-relation-forbidden — same shape, one layer more specific: a
+ *     statically-resolved import between two classified endpoints has no
+ *     allowed relation type. The architecture's allow-list is not wrong; the
+ *     code's actual dependency is what disagrees with it.
+ *   - ambiguous-node-type — an uncovered FILE's own shape matches two
+ *     classifying types at once. Nothing about the type definitions is
+ *     self-contradictory; the file is the thing that is ambiguous, and a
+ *     change that never touched it did not create the ambiguity.
+ *   - type-when-mismatch — a node's own mapped file fails its declared type's
+ *     `when:` predicate. The type definition and the node's declaration are
+ *     both well-formed; the drift is between the file's actual content and
+ *     the shape the graph asserts for it — exactly the same family as the
+ *     three above, just keyed to a node's own mapping instead of a relation.
+ *
+ * No other `STRUCTURAL_CODES` member may be added here without the same kind of
+ * documented rationale — a code stays out by default.
+ *
+ * STRUCTURED-IDENTITY NOTE — read this before wiring any consumer to this set.
+ * Every code below now emits its issue with a structured, machine-checkable
+ * subject — a `nodePath`, `unitKey`, `aspectId`, `flowName`, or (for an
+ * aggregate with no single subject file) `relationEdges` — never prose alone.
+ * The six that once emitted with no structured identity at all are now
+ * covered: `type-relation-forbidden` (the full per-type-pair edge list, not
+ * just the example the message samples, via `relationEdges`),
+ * `ambiguous-node-type` (`unitKey`, from the file path already known at the
+ * push site), `tracked-file-gitignored` and `type-strict-orphan` (`unitKey`,
+ * from the scanned path), `strict-overlap-conflict` (`relationEdges`, one
+ * self-referencing `{fromFile, toFile}` entry per matching file — the
+ * aggregate has no real edge, just files sharing a type-pair conflict, so the
+ * existing edge-list shape is reused rather than adding a second aggregate
+ * field), and the ASPECT/FLOW branches of `description-missing` (`aspectId` /
+ * `flowName` respectively; its NODE branch already set `nodePath`). A future
+ * classification step may now treat every member here as attributable to a
+ * change by reading its structured field(s) — no code in this set still
+ * requires parsing `messageData` prose to find its subject.
+ */
+export const SCOPED_CODES = new Set<string>([
+  // Pair-verdict codes: a reviewer/deterministic verdict a change's own pairs
+  // did or did not reach.
+  'unverified',
+  'aspect-violation-enforced',
+  'prompt-too-large',
+  'aspect-companion-runtime-error',
+  // Log-gate codes: a component's log is its own channel, reached only when
+  // the component itself is touched.
+  'log-entry-missing',
+  'log-integrity',
+  'log-format',
+  'log-conflict',
+  // Metadata completeness: a per-node fact, reached only when that node is
+  // touched.
+  'description-missing',
+  // Coverage codes: per-file findings, reached only when the named file is
+  // touched.
+  'unmapped-files',
+  'tracked-file-gitignored',
+  // Strict-mapping codes: per-file/per-node overlap findings, reached only
+  // when the file or node in question is touched.
+  'type-strict-orphan',
+  'type-strict-misplaced',
+  'strict-overlap-conflict',
+  // Carve-outs from STRUCTURAL_CODES — see the four rationale bullets above.
+  'type-when-mismatch',
+  'relation-undeclared-dependency',
+  'type-relation-forbidden',
+  'ambiguous-node-type',
+]);
+
+/**
+ * The ONLY place the `-outside` suffix is spelled. Every producer and consumer
+ * of an outside-twin code must call this function rather than re-spelling the
+ * suffix inline — a hand-spelled copy that drifts from this one would silently
+ * stop matching, defeating the twin scheme without raising any error.
+ */
+export function outsideTwin(code: string): string {
+  return `${code}-outside`;
+}
+
+/**
+ * Every outside twin, mapped back to the code it stands for. Built by applying
+ * {@link outsideTwin} to `SCOPED_CODES` — so the forward and reverse directions
+ * cannot disagree, and neither can drift from the set the moment a code is added
+ * to it. A consumer that needs to strip the suffix reads this map rather than
+ * slicing the string, for the same reason producers call `outsideTwin` rather
+ * than concatenating it: one spelling, in one place.
+ */
+const BASE_CODE_BY_OUTSIDE_TWIN: ReadonlyMap<string, string> = new Map(
+  Array.from(SCOPED_CODES, (code) => [outsideTwin(code), code] as const),
+);
+
+/**
+ * The outside-twin of every `SCOPED_CODES` member, derived — never hand-listed.
+ * A hand-listed copy would drift from `SCOPED_CODES` the first time this set
+ * changes and nobody remembered to update a parallel list.
+ */
+export const OUTSIDE_CODES = new Set<string>(BASE_CODE_BY_OUTSIDE_TWIN.keys());
+
+/**
+ * The code an outside twin stands for, or `undefined` when the code is not a
+ * twin at all. Lets a renderer describe a twin exactly as it describes the
+ * finding it mirrors — one label rule, derived — instead of falling through to
+ * printing the raw code, which is how an internal identifier reaches a person's
+ * screen.
+ */
+export function baseCodeOfOutsideTwin(code: string): string | undefined {
+  return BASE_CODE_BY_OUTSIDE_TWIN.get(code);
+}
+
+/**
  * Non-blocking warning codes. Warnings are emitted at `severity: 'warning'` and
  * render in the grouped Warnings block; they are deliberately NOT members of the
  * three sets above (STRUCTURAL / COMPLETENESS / APPROVE_GATING), because those
@@ -220,4 +352,52 @@ export const APPROVE_GATING_CODES = new Set<string>([
  * parse-time blocking error carried by aspectParseErrors, intentionally NOT a
  * member of STRUCTURAL_CODES). No set membership is required for it to block.
  */
+
+/**
+ * The handful of codes whose finding is never about anything in a change's
+ * own diff at all: the check's entire input is one fixed, well-known repo
+ * file, independent of which files a change touched. Mapped to the exact
+ * path(s) each check actually reads, verified against the reading code
+ * itself (not asserted from memory):
+ *
+ *   - `rules-digest-stale` — core/checks/digest-gate.ts judges the three
+ *     committed rules-distribution artifacts named in
+ *     utils/rules-artifact-names.ts (AGENTS_FILENAME, CLAUDE_FILENAME,
+ *     CLINERULES_RELATIVE_PATH) — imported from there rather than re-typed,
+ *     the same single-source rule every other consumer of these three names
+ *     follows.
+ *   - `incident-ledger-out-of-order` — core/checks/incident-ledger.ts reads
+ *     the ledger via io/incidents-store.ts's `readIncidents(graph.rootPath)`,
+ *     i.e. `<yggdrasil-root>/incidents.md`.
+ *   - `coverage-required-shadowed` — core/check-coverage-tiers.ts's
+ *     `checkRequiredShadowedByExcluded` judges the `coverage:` block of the
+ *     project's parsed yg-config.yaml (io/config-parser.ts); it takes no
+ *     file list, only that one config's coverage section.
+ *   - `type-unknown-parent` — core/checks/architecture.ts's
+ *     `checkTypeUnknownParent` judges `graph.architecture.node_types`,
+ *     parsed from yg-architecture.yaml (core/graph-loader.ts).
+ *
+ * Deliberately NOT exhaustive: a code whose input is anything OTHER than a
+ * fixed path (a node's own mapping, a graph-wide scan of many files, a
+ * change's own subject files, ...) does not belong here. A finding under one
+ * of the four codes above can never be attributed to a change's own diff —
+ * there is no per-change file for it to be "about" — which is exactly why
+ * none of them are members of `SCOPED_CODES`.
+ *
+ * EVERY path here is REPO-RELATIVE, spelled exactly as the touched set spells
+ * it — a consumer intersects these against the changed-file set, so a path
+ * written any other way silently never matches and the finding is judged by an
+ * input it can never see. The three rules-distribution artifacts sit at the
+ * repository root and are imported from the module that names them; the two
+ * committed graph files sit UNDER the graph directory and are imported from the
+ * burn table that spells that directory, rather than re-typed here. Both were
+ * once written bare (`yg-config.yaml`, `yg-architecture.yaml`) and could not
+ * have matched anything; importing is what stops that from recurring.
+ */
+export const SINGLETON_INPUTS: Map<string, string[]> = new Map([
+  ['rules-digest-stale', [AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH]],
+  ['incident-ledger-out-of-order', ['.yggdrasil/incidents.md']],
+  ['coverage-required-shadowed', [CONFIG_FILE]],
+  ['type-unknown-parent', [ARCHITECTURE_FILE]],
+]);
 

@@ -22,3 +22,11 @@ The instant loading page and the human-readable render-failure page were moved o
 The self-contained portal page gained a new dependency-structure surface, so its browser view module and its stylesheet are inlined into the emitted page alongside the other views. Ordering is load-bearing: the view module is placed before the bootstrap that orchestrates the views, and its stylesheet is placed after the shared design tokens it references, so both the script load sequence and the style cascade stay correct.
 ## [2026-08-01T19:01:45.070Z]
 coverage-view.js grew past the focused-file-size cap once the type-covered per-file ledger gained a third (uncomputable) block and a row cap, so that block moved into its own sibling module, coverage-typecovered.js, mirroring the existing panel-view.js / panel-aspect.js split. The new file needs to load before coverage-view.js, which now calls it at render time, so it is added to the module order here alongside its sibling.
+## [2026-08-10T18:25:12.612Z]
+The page's asset manifest gained a dedicated worklist module and its own
+stylesheet. The rendering of a finding grew per-subject detail — each subject's
+own remedy, and the finding's own text where it names no component — and both the
+module holding that logic and the styles it needs would otherwise have pushed
+their files past the size budget every file in this area is held to. Splitting
+them keeps each file inside that budget without shrinking what the page is able
+to say.

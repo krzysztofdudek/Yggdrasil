@@ -21,9 +21,27 @@ import type { FreshnessMarkerInput } from '../contract.js';
  * honestly elsewhere: a node with reviewer pairs flips those pairs to `unverified`
  * on any input change (the pair-state path), and a no-rule node is already the
  * distinct, non-green `no-rule` state. This signal adds the ONE case neither
- * covers: a node that HAS a committed baseline (so its green is a real attestation
- * of specific bytes) whose source has since been edited — exactly where a cached
- * green must never re-render as a pass.
+ * covers: a node that HAS a committed baseline whose source has since been edited
+ * — exactly where a cached green must never re-render as a pass.
+ *
+ * ── What a baseline attests, exactly ───────────────────────────────────────
+ * Not always "a reviewer read these bytes". Closure records the fingerprint when
+ * every enforced rule the run was ASKED to settle is approved, and a run measured
+ * against a change is asked for less: the rules that change is not accountable
+ * for are deliberately left unbought (core/fill-closure.ts, condition (c)). Two
+ * consequences, recorded here rather than papered over:
+ *
+ *   - a node that closed that way and is then edited stops raising this marker,
+ *     because its baseline moved with it. Its unbought rule is still `unverified`
+ *     and still drives the node's own state, so the panel does not read green —
+ *     but the "bytes moved" signal specifically is absent for it.
+ *   - at the extreme, a baseline can exist for a component no reviewer has ever
+ *     read, if every one of its reviewer-judged rules has been outside every
+ *     change so far. The same unverified pairs are what keeps it honest.
+ *
+ * Neither can manufacture a false green: a node in either state has at least one
+ * unverified pair, and the pair-state path answers for it. What they cost is this
+ * marker's precision on such a node, not the panel's honesty.
  *
  * A mapping-less node has an undefined fingerprint and is never marked changed.
  * Read-only; reuses the engine's own fingerprint function so the portal's freshness

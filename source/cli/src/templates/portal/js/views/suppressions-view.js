@@ -4,9 +4,12 @@
  * Suppressed is NOT verified (§3.6, §3a V8): the permanent, surfaced ledger of every deliberate
  * hole and which are dangerous. Every active waiver marker on mapped source as a table —
  * file:line, the waived aspect, the reason text, and a RISK flag resolved by the CLI's own
- * suppress-range resolver (not ad-hoc regex): wildcard (`*`, all aspects off), unbounded (runs
- * to end of file / a long range), inert (the aspect is draft, so the waiver is a no-op), or typo
- * (the aspect-id matches no known aspect). Sorted risk-first; a standing banner if any marker is
+ * suppress-range resolver (not ad-hoc regex): wildcard (`*`, all aspects off), typo (the
+ * aspect-id matches no known aspect), inert (the aspect is draft, so the waiver is a no-op),
+ * errs-under (the aspect can never itself false-alarm, so the waiver silences nothing that
+ * could actually fire), or unbounded (runs to end of file / a long range). A clean marker (no
+ * risk) instead reads its real span — a single line, a range, or the whole file; a whole-file
+ * waiver is never called "bounded". Sorted risk-first; a standing banner if any marker is
  * wildcard or unbounded. A waiver NEVER hides the real verdict.
  *
  * The waived state is read from the one shared honest-state model (the `suppressed` treatment),
@@ -22,13 +25,25 @@
   var dom = Yg.dom;
   Yg.views = Yg.views || {};
 
-  // Risk → severity rank (lower = more dangerous, sorted first) + a plain label.
-  var RISK_RANK = { wildcard: 0, unbounded: 1, inert: 2, typo: 3 };
+  // Risk → precedence rank, sorted first-to-last: wildcard > typo > inert > errs-under >
+  // unbounded — the SAME order the backend's own resolver picks a risk in when a marker could
+  // read more than one way (source/cli/src/portal/api/suppress-adapt.ts, `resolveRisk`). Plain
+  // integers, explicit and readable — never a fractional rank shoehorned between two others.
+  var RISK_RANK = { wildcard: 0, typo: 1, inert: 2, 'errs-under': 3, unbounded: 4 };
   var RISK_LABEL = {
     wildcard: 'WILDCARD — all aspects off',
-    unbounded: 'RANGE — runs unbounded',
-    inert: 'INERT — aspect is draft, waiver is a no-op',
     typo: 'TYPO — aspect-id matches no known rule',
+    inert: 'INERT — aspect is draft, waiver is a no-op',
+    'errs-under': 'WAIVES A RULE THAT CANNOT FALSE-ALARM',
+    unbounded: 'RANGE — runs unbounded',
+  };
+
+  // Clean-waiver (no risk) label, by the marker's real span (`form`) — never the blanket
+  // "bounded" claim: a whole-file waiver is not bounded, so it reads as its own, honest label.
+  var FORM_LABEL = {
+    line: 'single line · bounded',
+    range: 'range · bounded',
+    file: 'whole file',
   };
 
   function riskRank(s) {
@@ -64,9 +79,12 @@
 
   function riskCell(sup) {
     if (!sup.risk) {
-      var ok = dom.el('span', 'sup-flag sup-flag-ok', 'bounded · single rule');
+      // Clean waiver: describe its real span, never a blanket "bounded" claim.
+      var ok = dom.el('span', 'sup-flag sup-flag-ok', FORM_LABEL[sup.form] || sup.form);
       return ok;
     }
+    // A risk present wins the cell outright — the form label is never shown beside it (a row
+    // must never read "whole file" and "runs unbounded" at once).
     var cls = sup.risk === 'wildcard' ? 'sup-flag-wild' : sup.risk === 'unbounded' ? 'sup-flag-unb' : 'sup-flag-other';
     return dom.el('span', 'sup-flag ' + cls, RISK_LABEL[sup.risk] || sup.risk);
   }
@@ -117,20 +135,31 @@
       return s.risk === 'wildcard';
     }).length;
     var unb = dangerous.length - wild;
+    var errsUnder = suppressions.filter(function (s) {
+      return s.risk === 'errs-under';
+    }).length;
     var msg = '';
     if (wild) msg += wild + ' wildcard marker' + (wild === 1 ? '' : 's') + ' (waives every rule on that line) ';
     if (unb) msg += (msg ? '· ' : '') + unb + ' unbounded range' + (unb === 1 ? '' : 's') + ' ';
+    if (errsUnder) msg += (msg ? '· ' : '') + errsUnder + ' waiver' + (errsUnder === 1 ? '' : 's') + ' on a rule that cannot false-alarm ';
     var box = dom.el('div', 'sup-banner');
     box.appendChild(Yg.states.badge('suppressed'));
     box.appendChild(dom.el('span', null, msg + '— review whether each is intended.'));
     return box;
   }
 
-  function summary(suppressions) {
+  function summary(suppressions, markerCount) {
     var files = {};
     for (var i = 0; i < suppressions.length; i += 1) files[suppressions[i].file] = true;
     var fileCount = Object.keys(files).length;
-    return suppressions.length + ' active waiver' + (suppressions.length === 1 ? '' : 's') + ' across ' + fileCount + ' file' + (fileCount === 1 ? '' : 's') + ' — a suppressed line is NOT verified; the reviewer was told to skip it. Sorted risk-first.';
+    var text = suppressions.length + ' active waiver' + (suppressions.length === 1 ? '' : 's') + ' across ' + fileCount + ' file' + (fileCount === 1 ? '' : 's') + ' — a suppressed line is NOT verified; the reviewer was told to skip it. Sorted risk-first.';
+    // Only mention the marker total when it actually differs from the waiver count — a
+    // range-closing marker on disk is not itself a waiver, but a sentence that always repeats
+    // an equal number invites the reader to hunt for a discrepancy that does not exist.
+    if (typeof markerCount === 'number' && markerCount > suppressions.length) {
+      text += ' · ' + markerCount + ' markers on disk (a closing marker is not a waiver)';
+    }
+    return text;
   }
 
   Yg.views.suppressions = function (stage, route, data, ctx) {
@@ -164,7 +193,8 @@
       return;
     }
 
-    stage.appendChild(dom.el('div', 'rb-sub', summary(suppressions)));
+    var markerCount = data.meta && data.meta.counts ? data.meta.counts.suppressionMarkers : undefined;
+    stage.appendChild(dom.el('div', 'rb-sub', summary(suppressions, markerCount)));
     var b = banner(suppressions);
     if (b) stage.appendChild(b);
 

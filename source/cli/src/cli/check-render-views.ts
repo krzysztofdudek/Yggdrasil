@@ -1,9 +1,9 @@
 // yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
-import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check-codes.js';
-import { groupIssues, issuePriorityRank, type IssueGroup } from './group-issues.js';
-import { renderHeader, useEmoji, renderTypeVisibilityBlock } from './check-render-header.js';
+import { ZERO_CLASSIFYING_TYPES_NOTICE, OUTSIDE_CODES } from '../core/check-codes.js';
+import { groupIssues, issuePriorityRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, type IssueGroup } from './group-issues.js';
+import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderChangeScope, renderByteGuardNotice } from './check-render-header.js';
 import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup } from './check-render-groups.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -107,6 +107,16 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
     sections.push(chalk.dim(ZERO_CLASSIFYING_TYPES_NOTICE));
   }
 
+  // The content check's own statement of fact, same posture as the notice above
+  // and printed in every view (the --aspect drill-in replaces only sections[0],
+  // so this survives it). Absent entirely on a run that met neither of the two
+  // states it reports, which is every ordinary run.
+  const byteGuardNotice = renderByteGuardNotice(result);
+  if (byteGuardNotice !== undefined) {
+    sections.push('');
+    sections.push(chalk.dim(byteGuardNotice));
+  }
+
   // Type-visibility: a statement of fact about the type tier's own coverage,
   // not an issue — printed ahead of every view, same posture as the notice
   // above. The two triage views (--summary, --top) exist to keep the wall
@@ -164,8 +174,15 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
     const verdictWord = errors.length > 0 ? chalk.red('FAIL') : chalk.green('PASS');
     // Emoji prefix mirrors renderHeader: same gate (chalk.level > 0) and same symbols.
     const aspectEmojiPrefix = emoji ? (errors.length > 0 ? '❌ ' : '✅ ') : '';
-    // Replace the header already added with the aspect-scoped header line.
-    sections[0] = `${aspectEmojiPrefix}${verdictWord}  (aspect '${view.id}' — ${K} of ${N} errors)`;
+    // Replace the header already added with the aspect-scoped header line — but
+    // reprint the progressive qualifier the plain header would have carried
+    // (same computation, same TRUE total N, never a second aspect-scoped
+    // tally): a project measuring changes against a reference otherwise loses
+    // that fact the moment anyone drills into one aspect, silently discarding
+    // it along with the rest of `sections[0]`.
+    const changeScope = renderChangeScope(result, N);
+    const changeScopeSeg = changeScope !== undefined ? `  ·  ${changeScope}` : '';
+    sections[0] = `${aspectEmojiPrefix}${verdictWord}  (aspect '${view.id}' — ${K} of ${N} errors)${changeScopeSeg}`;
     if (filteredErrors.length > 0) {
       sections.push('');
       sections.push(renderErrorSection(filteredErrors, drillOpts));
@@ -179,7 +196,21 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
     // not raw emission order — so the drill-in pointer cannot disagree with the
     // global Next when a lower-priority issue happens to be emitted first. Stable
     // min-by: strict `<` keeps the first-encountered on equal rank.
-    const combined = [...filteredErrors, ...filteredWarnings];
+    //
+    // A finding put OUTSIDE the change can never be that pointer, and is dropped
+    // before the pick rather than ranked down. Its `messageData` is deliberately
+    // untouched by the classifier (check-progressive.ts's `toOutsideTwin`), so its
+    // `next` still reads as the remedy for the finding it mirrors — `yg check
+    // --approve`, which reviews the WHOLE project rather than this one pair, on a
+    // run that has just declined to hold this change accountable for it. Every
+    // other surface already refuses to say that: the group renderer suppresses the
+    // Fix: line on a twin in all four of its shapes (check-render-groups.ts's
+    // `isOutsideFinding`), and the run's bottom line points at the audit instead
+    // (check-suggested-next.ts's `standingOutsideLine`). With nothing left after
+    // the filter, this view falls through to that same standing line below —
+    // which is the honest answer, and is also what a scoped recording run does:
+    // it declines out-of-scope work, so the advice would not even act.
+    const combined = [...filteredErrors, ...filteredWarnings].filter((i) => !OUTSIDE_CODES.has(i.code));
     const firstFiltered =
       combined.length > 0
         ? combined.reduce((best, cur) => (issuePriorityRank(cur) < issuePriorityRank(best) ? cur : best))
@@ -191,11 +222,13 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
       sections.push('');
       return sections.join('\n');
     }
-    // Empty filtered set (this aspect has zero issues THIS run): do NOT dead-end.
-    // Fall through to the global `result.suggestedNext` block below so the agent
-    // still gets a next step pointing at the rest of the wall (e.g. when other
-    // errors remain). With no global suggestedNext (a clean run) nothing prints —
-    // self-evidently done. The aspect-scoped header (0 of N) is already in place.
+    // Nothing left to point at — this aspect has zero issues THIS run, or every
+    // one of them was put outside the change: do NOT dead-end. Fall through to
+    // the global `result.suggestedNext` block below so the agent still gets a
+    // next step pointing at the rest of the wall (the audit when everything here
+    // is inherited; whatever else remains when other errors do). With no global
+    // suggestedNext (a clean run) nothing prints — self-evidently done. The
+    // aspect-scoped header (K of N) is already in place either way.
   } else if (view.kind === 'details') {
     // --details: ungrouped, one block per issue, grouped only by severity into
     // Errors(N): / Warnings(N): sections. Coverage issues still render via
@@ -277,10 +310,11 @@ function renderTopBody(errors: CheckIssue[], warnings: CheckIssue[], n: number, 
   const chosenWarnings = chosenGroups.filter(g => g.severity === 'warning');
   const renderOneGroup = (g: IssueGroup): string => {
     const lines: string[] = [];
-    if (g.code === 'unmapped-files') {
-      renderUnmappedBlock(g.members[0], lines);
-    } else if (g.code === 'uncovered-advisory') {
-      renderUnmappedBlock(g.members[0], lines, 'uncovered');
+    // Same shared coverage set the full and details views dispatch on, so a
+    // coverage finding cannot render as a file-list block in one view and as a
+    // truncated one-liner in another.
+    if (COVERAGE_GROUP_EXCLUDED_CODES.has(g.code)) {
+      renderUnmappedBlock(g.members[0], lines, coverageBlockLabel(g.code));
     } else {
       renderGroup(g, lines, opts);
     }
@@ -325,13 +359,23 @@ function renderSummaryRows(issues: CheckIssue[]): string {
     unverifiedDet: number;
     unverifiedLlm: number;
     refused: number;
+    /**
+     * Findings put outside the change — a `-outside` twin, whatever code it
+     * mirrors. Bucketed BEFORE the unverified/refused checks below (which key
+     * on the untwinned codes, e.g. `unverified`, and would otherwise never
+     * match a twin's OWN code, e.g. `unverified-outside`) so a run with
+     * inherited debt does not fold every twin into "other" beside genuinely
+     * unclassified findings — indistinguishable from real, in-scope debt this
+     * change actually owes.
+     */
+    outside: number;
     other: number;
   }
   const byNode = new Map<string, NodeAgg>();
   const agg = (node: string): NodeAgg => {
     let a = byNode.get(node);
     if (!a) {
-      a = { unverifiedDet: 0, unverifiedLlm: 0, refused: 0, other: 0 };
+      a = { unverifiedDet: 0, unverifiedLlm: 0, refused: 0, outside: 0, other: 0 };
       byNode.set(node, a);
     }
     return a;
@@ -345,7 +389,12 @@ function renderSummaryRows(issues: CheckIssue[]): string {
     const node = issue.nodePath
       ?? (issue.unitKey?.startsWith('file:') ? toPosixPath(issue.unitKey.slice('file:'.length)) : '(repo)');
     const a = agg(node);
-    if (issue.code === 'unverified') {
+    if (OUTSIDE_CODES.has(issue.code)) {
+      // Count by ISSUE OBJECT, matching "other" below — the aggregate coverage
+      // twin's own `uncoveredCount` is a DIFFERENT number (how many files it
+      // names), not how many issue objects the header counted.
+      a.outside += 1;
+    } else if (issue.code === 'unverified') {
       if (issue.pairKind === 'deterministic') a.unverifiedDet++;
       else if (issue.pairKind === 'llm') a.unverifiedLlm++;
       else a.other++; // unverified without a pairKind should not occur, but never drop it
@@ -369,6 +418,7 @@ function renderSummaryRows(issues: CheckIssue[]): string {
     const parts: string[] = [];
     parts.push(`${unverified} unverified (${a.unverifiedDet} deterministic-free, ${a.unverifiedLlm} LLM)`);
     parts.push(`${a.refused} refused`);
+    if (a.outside > 0) parts.push(`${a.outside} outside changes`);
     if (a.other > 0) parts.push(`${a.other} other`);
     lines.push(`  ${node}  ${parts.join(', ')}`);
   }

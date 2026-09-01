@@ -267,4 +267,16 @@ describe('portal frontend modules (real source, real fixture data)', () => {
     expect(glossary.lookup('no-rule')).toMatch(/unguarded|nothing/i);
     expect(glossary.lookup('not-a-real-term')).toBeNull();
   });
+
+  it('.cov-seg carries a min-width so a tiny non-zero bar segment stays visible instead of vanishing', async () => {
+    // A segment's width is otherwise proportional to its share of the total, so a handful of
+    // refusals or advisories in a project with thousands of expected checks could round to a
+    // fraction of a pixel and disappear — a real problem rendering as if it did not exist. This
+    // pins the CSS rule that keeps that from happening; deleting it regresses the bug with no
+    // other test noticing (a DOM-only assertion can't see a computed CSS width in this sandbox).
+    const css = await readFile(path.join(MODULE_DIR, '../views-worklist.css'), 'utf-8');
+    const rule = css.match(/\.cov-seg\s*\{([^}]*)\}/);
+    expect(rule, '.cov-seg rule exists in views-worklist.css').toBeTruthy();
+    expect(rule![1]).toMatch(/min-width\s*:\s*[1-9]/);
+  });
 });

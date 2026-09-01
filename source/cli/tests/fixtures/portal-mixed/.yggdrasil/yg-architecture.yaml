@@ -1,0 +1,18 @@
+# Two independent deterministic aspects on the same type: no-todo-comments (enforced)
+# and no-fixme-comments (advisory). Every service node carries both by default, so the
+# SAME two nodes produce both an enforced-severity and an advisory-severity unverified
+# pair — the fixture this repo's portal-mixed regression exists to prove: a page must
+# render the blocking and the advisory finding as two SEPARATE groups, never folded
+# into one.
+node_types:
+  module:
+    description: 'Logical grouping of related services'
+    log_required: false
+  service:
+    description: 'Discrete service unit'
+    log_required: false
+    when:
+      path: "**"
+    aspects:
+      - no-todo-comments
+      - no-fixme-comments

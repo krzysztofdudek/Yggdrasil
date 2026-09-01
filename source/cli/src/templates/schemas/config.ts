@@ -28,7 +28,8 @@ auto_approve: false               # optional — controls the behavior of bare \
                                   #     \`yg check --approve --only-deterministic\` — fills only
                                   #     deterministic pairs (free, keyless, local).
                                   #   "full": bare \`yg check\` behaves as \`yg check --approve\` —
-                                  #     fills all unverified pairs and may call the reviewer (needs keys).
+                                  #     fills the unverified pairs that run answers for and may call
+                                  #     the reviewer (needs keys).
                                   #
                                   #   Explicit CLI flags (--approve, --no-approve, --only-deterministic)
                                   #   ALWAYS override this setting regardless of the configured value.
@@ -49,6 +50,33 @@ coverage:                         # optional — scopes the unmapped-files gate.
                                   # Committed-config only: a yg-secrets.yaml overlay can never change
                                   # this key, since it changes what counts as covered for everyone.
                                   # Does nothing until some type declares \`when:\`.
+
+progressive:                      # optional — names the branch your changes are measured against.
+  reference: origin/main          #   Absent = off: every run answers for the whole project, unchanged.
+                                  # When set, a plain \`yg check\` blocks only on what your current change
+                                  # is accountable for. Everything it inherited from that branch is still
+                                  # listed and still counted — as a warning that does not fail the build,
+                                  # never hidden — and the header says how much of it there is.
+                                  # \`yg check --full\` answers for the whole project instead: everything
+                                  # blocks again, whatever your change touched.
+                                  # A run that RECORDS verdicts (\`--approve\`, or a bare run under
+                                  # auto_approve) is measured the same way, and reviews only the rules your
+                                  # change is accountable for; it names how many it left, and
+                                  # \`yg check --full --approve\` reviews those. Checks that run locally
+                                  # cover the whole project either way, since they cost nothing.
+                                  # The block must name \`reference\` and nothing else — a misspelling, a
+                                  # blank value, or an empty block (\`progressive: {}\`) is refused rather
+                                  # than silently ignored, since any of them would leave you believing
+                                  # this was on when it was not.
+                                  # Committed-config only: a yg-secrets.yaml overlay can never introduce or
+                                  # repoint this key, since it decides how much of the project a run answers
+                                  # for — the answer must be the same for everyone working on the branch.
+                                  # Whenever the comparison cannot be made honestly (the named branch is
+                                  # unknown locally, or has no shared history with your work) the run
+                                  # answers for the whole project and says so, rather than guessing at a
+                                  # smaller answer. A change that reaches yg-architecture.yaml, or the part
+                                  # of this file that decides what the graph MEANS, also answers for the
+                                  # whole project — measured, deliberate, and announced the same way.
 
 signals:                          # optional — attention-layer switches. Absent = every signal at its default.
   attention: true                 #   attention (default true): the advisory "structurally unusual" note in

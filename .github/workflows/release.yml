@@ -48,6 +48,48 @@ jobs:
           else
             echo "published=false" >> $GITHUB_OUTPUT
           fi
+      # The release page's story comes from CHANGELOG.md, not from the commit
+      # list. `generate_release_notes` alone produces only the merged-PR listing,
+      # which says what landed but never what the release is FOR — while this
+      # repository already writes its changelog to release-notes standard and had
+      # no way to get it in front of a reader. Extracted here rather than
+      # hand-pasted at tag time so the published notes cannot drift from the file
+      # the repository reviews.
+      #
+      # It runs BEFORE the publish, and that placement is load-bearing: the step
+      # fails the run when the changelog carries no section for this version, and
+      # `npm publish` cannot be taken back. A version published without its
+      # release page could not get one from a re-run either — the npm-existence
+      # check above skips every remaining step, this one and the release itself
+      # included, once the version is on the registry.
+      - name: Build release notes from CHANGELOG
+        if: steps.npm-check.outputs.published == 'false'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          awk -v want="## [${VERSION}]" '
+            /^## \[/ { if (found) exit; found = (index($0, want) == 1); next }
+            found { print }
+          ' CHANGELOG.md | sed '/./,$!d' > "${RUNNER_TEMP}/release-notes.md"
+          # Fail closed. An empty body would publish a release whose notes are the
+          # bare commit list — indistinguishable from this step not existing, and
+          # discovered only by whoever reads the release afterwards.
+          if [ ! -s "${RUNNER_TEMP}/release-notes.md" ]; then
+            echo "::error::CHANGELOG.md carries no section for ${VERSION} — add '## [${VERSION}] - <date>' before releasing."
+            exit 1
+          fi
+          # The artifact this release is asking people to move to. A release
+          # note that describes a change without naming the thing you install to
+          # get it leaves the reader to go and find it. Written with printf
+          # rather than a heredoc: a heredoc body would have to sit at column 0
+          # and would end this YAML block scalar early.
+          {
+            printf '\n## Update\n\n'
+            printf '```\n'
+            printf 'npm i -g @chrisdudek/yg@%s\n' "${VERSION}"
+            printf '```\n\n'
+            printf 'Package: https://www.npmjs.com/package/@chrisdudek/yg/v/%s\n' "${VERSION}"
+          } >> "${RUNNER_TEMP}/release-notes.md"
       - uses: actions/setup-node@v7
         if: steps.npm-check.outputs.published == 'false'
         with:
@@ -77,6 +119,9 @@ jobs:
         if: steps.npm-check.outputs.published == 'false'
         with:
           tag_name: ${{ steps.version.outputs.tag }}
+          # The changelog section leads; the generated commit list is appended
+          # beneath it as reference material.
+          body_path: ${{ runner.temp }}/release-notes.md
           generate_release_notes: true
           # Flag prerelease versions (X.Y.Z-<id>) so they don't show as Latest.
           prerelease: ${{ contains(steps.version.outputs.version, '-') }}

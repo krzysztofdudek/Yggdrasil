@@ -232,9 +232,14 @@ export function collectIndirectDependents(
  *                                    removing / renaming it changes the listing hash)
  *   - graph:<node>                → repoRelative IS that node's yg-node.yaml (any
  *                                    ctx.graph access folds the node's yaml bytes)
- *   - graph-children:<parentNode> → repoRelative IS that parent node's yg-node.yaml
- *                                    (editing a node's yaml may change its children
- *                                    membership observed via ctx.graph.children())
+ *   - graph-children:<parentNode> → repoRelative IS that parent node's yg-node.yaml,
+ *                                    OR the yg-node.yaml of one of its DIRECT children
+ *                                    (editing the parent's yaml may change its children
+ *                                    membership observed via ctx.graph.children(); adding
+ *                                    or deleting a child's yaml moves that membership
+ *                                    outright, and the observing unit need not be the
+ *                                    parent — any unit may call children() on a relation
+ *                                    target)
  *   - graph-flow:<flowName>       → repoRelative IS that flow's yg-flow.yaml (editing
  *                                    the flow file may change participant membership
  *                                    observed via ctx.graph.flow())
@@ -277,6 +282,27 @@ export function touchedReferencesFile(
         // ctx.graph.children(). Maps to the same file as graph:<parentNodePath>.
         const ygNodeRel = toPosix(path.posix.join('.yggdrasil', 'model', target, 'yg-node.yaml'));
         if (ygNodeRel === repoRelative) return true;
+        // ...AND a DIRECT CHILD's own yg-node.yaml. A directory becomes a node
+        // exactly when it gains a yg-node.yaml, and the loader stops descending
+        // at a directory that has none — so a node's direct children are
+        // precisely the one-segment subdirectories under it that carry that
+        // file, and adding or deleting one is what MOVES the membership
+        // ctx.graph.children(target) recorded. Matching only the parent's own
+        // yaml (as this did) misses that case entirely whenever the observing
+        // unit is not the parent itself — e.g. a check on node A that called
+        // children(B) for a relation target B. Deeper paths are deliberately
+        // NOT matched: a node two levels down cannot exist unless the level
+        // between it is a node too, so it changes THAT node's children, not
+        // this one's.
+        const childPrefix = `${toPosix(path.posix.join('.yggdrasil', 'model', target))}/`;
+        const CHILD_YAML_SUFFIX = '/yg-node.yaml';
+        if (repoRelative.startsWith(childPrefix) && repoRelative.endsWith(CHILD_YAML_SUFFIX)) {
+          const between = repoRelative.slice(
+            childPrefix.length,
+            repoRelative.length - CHILD_YAML_SUFFIX.length,
+          );
+          if (between !== '' && !between.includes('/')) return true;
+        }
         break;
       }
       case 'graph-flow': {

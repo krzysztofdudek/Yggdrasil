@@ -22,8 +22,24 @@ export interface InfraDiagnosticItem {
 }
 
 /**
+ * The remedy every "these paid pairs were left alone" notice ends in. One
+ * phrasing, two causes — a run that skips paid work for a second reason should
+ * extend this rather than inventing a parallel sentence, so the two read as the
+ * same kind of statement about the same kind of omission.
+ */
+const reviewThemWith = (count: number, command: string): string =>
+  `run \`${command}\` to review ${count === 1 ? 'it' : 'them'}`;
+
+/**
  * Print the pre-dispatch header (EXACT wording): how many pairs this run will
  * fill, over how many subjects, and what the reviewer-call budget is.
+ *
+ * Every number here describes what this run will ACTUALLY fill, not everything
+ * it found unverified. The two differ whenever paid work is deliberately left
+ * alone (deterministic-only mode, or a pair outside the current change), and
+ * quoting the larger set would name a bill the run never intends to spend.
+ * Whatever is left out is then said out loud below, so the smaller number never
+ * reads as "there was nothing else".
  *
  * `nodeCount` counts only DEFINED owners — a nodeless (file-level) pair would
  * otherwise inflate it by one phantom component. `fileCount` counts distinct
@@ -34,12 +50,13 @@ export interface InfraDiagnosticItem {
  */
 export function writeDispatchHeader(
   counts: {
-    unverifiedPairs: number;
+    fillPairs: number;
     nodeCount: number;
     fileCount: number;
     detPairs: number;
     reviewerCallBudget: number;
     skippedLlmPairs: number;
+    skippedOutsideLlmPairs: number;
   },
   write: (s: string) => void,
 ): void {
@@ -47,7 +64,7 @@ export function writeDispatchHeader(
     ? `${counts.nodeCount} components and ${counts.fileCount} files`
     : `${counts.nodeCount} nodes`;
   write(
-    `Filling ${counts.unverifiedPairs} unverified pairs across ${acrossLabel} — ` +
+    `Filling ${counts.fillPairs} unverified pairs across ${acrossLabel} — ` +
       `${counts.detPairs} deterministic (no cost), ${counts.reviewerCallBudget} reviewer calls (consensus included)\n`,
   );
   // Deterministic-only mode fills the free deterministic pairs but leaves every
@@ -56,7 +73,16 @@ export function writeDispatchHeader(
   if (counts.skippedLlmPairs > 0) {
     write(
       `  Deterministic-only mode — ${counts.skippedLlmPairs} LLM pair${counts.skippedLlmPairs === 1 ? '' : 's'} will NOT be reviewed this run; ` +
-        `run \`yg check --approve\` to review ${counts.skippedLlmPairs === 1 ? 'it' : 'them'}.\n`,
+        `${reviewThemWith(counts.skippedLlmPairs, 'yg check --approve')}.\n`,
+    );
+  }
+  // The same statement for the other reason paid work is left alone: the change
+  // is not accountable for it. The remedy differs — these pairs need the run
+  // that answers for the whole project, not merely another --approve.
+  if (counts.skippedOutsideLlmPairs > 0) {
+    write(
+      `  ${counts.skippedOutsideLlmPairs} LLM pair(s) outside this change — ` +
+        `${reviewThemWith(counts.skippedOutsideLlmPairs, 'yg check --full --approve')}.\n`,
     );
   }
 }
@@ -174,6 +200,10 @@ export interface FillTotals {
   malformedSuppressErrors: number;
   /** Unverified LLM pairs left untouched by --only-deterministic (0 otherwise). */
   skippedLlmPairs: number;
+  /** Unverified LLM pairs left untouched because the change is not accountable
+   *  for them (0 without a change scope, and 0 under --only-deterministic —
+   *  see FillPairSets.skippedOutsideLlmPairs). */
+  skippedOutsideLlmPairs: number;
   /** Provider/tier identities behind the infra dispositions, for the summary's parenthetical. */
   infraReport: Array<{ provider?: string; tier?: string }>;
 }
@@ -200,6 +230,14 @@ export function reportFillTotals(
       write(
         `0 reviewer calls made — deterministic-only mode; ${totals.skippedLlmPairs} LLM pair${totals.skippedLlmPairs === 1 ? '' : 's'} left unverified. ` +
           `Run \`yg check --approve\` to review ${totals.skippedLlmPairs === 1 ? 'it' : 'them'}.\n`,
+      );
+    } else if (totals.skippedOutsideLlmPairs > 0) {
+      // Same rule, other cause: pairs outside this change were never dispatched,
+      // so "all expected pairs hold valid verdicts" would be false — the ones
+      // this change is not accountable for are still waiting for a reviewer.
+      write(
+        `0 reviewer calls made — ${totals.skippedOutsideLlmPairs} LLM pair(s) outside this change left unverified. ` +
+          `Run \`yg check --full --approve\` to review ${totals.skippedOutsideLlmPairs === 1 ? 'it' : 'them'}.\n`,
       );
     } else {
       write('0 reviewer calls made — all expected pairs hold valid verdicts\n');

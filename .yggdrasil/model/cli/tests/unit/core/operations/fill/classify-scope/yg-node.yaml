@@ -1,0 +1,26 @@
+name: Fill Classification Scope Unit Tests
+type: test-suite
+description: "Unit tests for what a measured change narrows in the fill stage's
+  pair classification, over real on-disk projects: the paid half of the fill set
+  is intersected with the change's obligations while the free deterministic half
+  stays whole-project, the reviewer-call budget follows the narrowed set through
+  its tier's consensus, and a change reaching something no pair can bound leaves
+  everything in.
+
+  Its central case is the separation the stage depends on: the component set the
+  mandatory-log gate is asked about stays UNNARROWED while the set the header
+  counts follows what will actually be filled, and the full unverified count —
+  which the convergence sentinel is primed with — stays whole. It also pins that
+  deterministic-only mode reports its own skipped-reviewer count alone, never
+  alongside the outside-the-change one, which would announce the same pairs
+  twice."
+aspects: []
+relations:
+  [
+    { target: cli/core/fill, type: uses },
+    { target: cli/core/progressive-scope, type: uses },
+    { target: cli/core/loader, type: uses },
+    { target: cli/io/lock-store, type: uses }
+  ]
+mapping:
+  - source/cli/tests/unit/core/fill-classify-scope.test.ts

@@ -12,7 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "noEmit": true,
-    "rootDir": "."
+    "rootDir": ".."
   },
   "include": ["**/*.ts"],
   "exclude": ["node_modules"]

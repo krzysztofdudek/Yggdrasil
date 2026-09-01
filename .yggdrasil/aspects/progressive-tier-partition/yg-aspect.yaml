@@ -1,0 +1,30 @@
+name: ProgressiveTierPartition
+description: >-
+  Guards the SCOPED_CODES partition in check-codes.ts — the declaration of
+  which issue codes progressive mode may ever consider downgrading from a
+  blocking error to a non-blocking warning. Refuses four ways that
+  declaration can quietly drift: (1) a STRUCTURAL_CODES member entering
+  SCOPED_CODES without carrying its OWN named rationale bullet in the doc
+  comment above the SCOPED_CODES declaration — checked per code, so a bare
+  code appended next to one that IS documented gets no free pass from
+  proximity. Scope is deliberately narrow: this verifies rationale only for
+  the SCOPED_CODES ∩ STRUCTURAL_CODES collision: a wholly novel scoped code
+  that collides with neither STRUCTURAL_CODES nor APPROVE_GATING_CODES is not
+  checked for a stated reason at all. (2) any overlap between SCOPED_CODES
+  and APPROVE_GATING_CODES, since a fill-abort reason can never be a downgrade
+  candidate; (3) OUTSIDE_CODES hand-listed as a literal array instead of
+  derived from SCOPED_CODES via outsideTwin, which lets the two sets drift
+  apart the next time only one is edited; (4) a second spelling of the
+  '-outside' suffix anywhere in the file outside outsideTwin(), the file's own
+  sanctioned single spelling site. Everything is derived from a live parse of
+  check-codes.ts itself — the per-code rationale set is read off the doc
+  comment's own bullet list by code name, not off any single marker word or
+  array-position heuristic, so a prose copyedit that preserves the bullet
+  shape can never turn an already-documented exception into a false refusal.
+  A declaration this check cannot confidently recognize is skipped rather
+  than guessed at (errs: under).
+errs: under
+reviewer:
+  type: deterministic
+status: enforced
+review_by: 2027-02-12

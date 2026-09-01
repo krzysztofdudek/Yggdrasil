@@ -1,0 +1,38 @@
+name: Progressive Scope Unit Tests
+type: test-suite
+description: "Unit tests for the progressive-mode burn-set engine —
+  impliesClosure's unconditional structural walk over an aspect's `implies`
+  edges (including cycle termination), buildReverseTargetIndex's target ->
+  source-node reverse map over every relation kind,
+  collectFlowParticipants's declared-node-plus-descendants set, and
+  computeBurnSet's full burn table (one case per row: subject files, a deleted
+  path resolved through a glob mapping, aspect + implies closure, the node row
+  with descendants / ancestors / reverse relations, the log.md carve-out, flow
+  participants, architecture and config escalation, ignored lock outputs,
+  stored observations cross-checked against touchedReferencesFile, cold pairs
+  failing closed, and the linear performance shape), plus the config-vocabulary
+  comparison. All built against small hand-built in-memory graphs and
+  hand-built pair lists (no fixture project, no mocking).
+
+  The BYTE GUARD's own cases sit in a second file beside them: the object-id
+  form pinned against git itself in both of git's object formats, the digest
+  resolved from the recorded ids' width (and refused for a width it cannot
+  reproduce), what the guard re-admits (a moved subject; the file AND its owning
+  component TOGETHER WITH every rule check that component owns; only the files
+  that actually moved; a binary subject compared correctly both ways), which way
+  an unanswerable comparison falls (unreadable bytes, a path the reference never
+  listed, no subjects at all), the four states in which it declines to run, the
+  count of what it kept read off the two burn sets rather than off finding
+  identity, and a sweep over every combination of the deciding inputs proving it
+  can only ever ADD. Split from the file above because one reviewer prompt covers
+  one file, and the two subjects together no longer fit inside the tier's
+  ceiling."
+aspects: []
+relations:
+  - target: cli/core/progressive-scope
+    type: uses
+  - target: cli/core/graph
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/progressive-scope.test.ts
+  - source/cli/tests/unit/core/progressive-byte-guard.test.ts

@@ -28,6 +28,7 @@ import { mappingEntryMatchesFile, isGlobPattern, normalizeMappingPath } from '..
 import { debugWrite } from '../utils/debug-log.js';
 import { partitionByCoverageTier } from './check-coverage-tiers.js';
 import type { CheckIssue } from './check-contract.js';
+import { fileUnit } from '../model/lock.js';
 
 /**
  * Find coverage-visible files not covered by any node mapping.
@@ -169,6 +170,7 @@ export async function scanTrackedButIgnored(
       why: 'The repository ships this file, yet the disk walk that feeds coverage, classification, and enforcement skips gitignored paths. Code that ships but nothing can see is a false green.',
       next: `Either un-ignore the file (remove the .gitignore rule) or untrack it (git rm --cached '${p}').`,
     },
+    unitKey: fileUnit(p),
   });
 
   return [

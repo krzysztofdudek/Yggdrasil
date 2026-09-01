@@ -12,5 +12,7 @@ export function methodShorthand(graph: string, files: string[]): string[] {
       return new Date();
     },
     rulesArtifacts: ['agents-md'],
+    scopeFilter: 'in-scope',
+    changeScope: 'whole-project',
   });
 }

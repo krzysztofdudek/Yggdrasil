@@ -1,5 +1,36 @@
 import type { CheckIssue } from '../core/check.js';
-import { STRUCTURAL_CODES, COMPLETENESS_CODES } from '../core/check-codes.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin } from '../core/check-codes.js';
+
+/**
+ * The same codes, plus the `-outside` twin of every one of them that a change
+ * scope can actually produce a twin for.
+ *
+ * DERIVED, never hand-listed. Each of the three sets below decides how a code
+ * renders — collapsed into one group, shown with its full actionable body, or
+ * pulled out as a file-list block — and a twin that fell out of one silently
+ * rendered worse than the finding it stands for: fragmented into a group per
+ * aspect, truncated to its first line with the reviewer's reason gone, or
+ * stripped of the file list that IS its content. A parallel hand-written list
+ * of twins would drift from `SCOPED_CODES` the first time that set changed, so
+ * the twins are computed from it here. A code that is not scoped has no twin
+ * and contributes nothing, which is why the filter is not merely decorative.
+ */
+function withOutsideTwins(codes: readonly string[]): Set<string> {
+  return new Set([...codes, ...codes.filter((c) => SCOPED_CODES.has(c)).map(outsideTwin)]);
+}
+
+/**
+ * How a finding put outside the change reads: exactly what the finding it
+ * mirrors reads, plus the one phrase that says whose business it is.
+ *
+ * DERIVED from the base code, never a second list of labels. A twin with no
+ * label rule of its own falls through to the bottom of {@link getIssueLabel} and
+ * renders as its raw code — `aspect-violation-enforced-outside` sitting beside
+ * `unverified (not yet reviewed)` — which puts an internal identifier on a
+ * person's screen and reads as a different, unexplained kind of finding rather
+ * than a familiar one the change did not cause.
+ */
+export const OUTSIDE_LABEL_SUFFIX = ' (outside changes)';
 
 export interface IssueGroup {
   code: string;
@@ -59,8 +90,13 @@ export interface IssueGroup {
  * `unverified` is the primary case: editing one aspect previously produced
  * N near-identical group blocks (one per aspect) with the same why+fix text.
  * Now they collapse into one block, with each line annotating its aspect.
+ *
+ * Its twin collapses the same way, and must: a run reporting inherited debt
+ * typically carries far MORE unverified pairs than a blocking one, so leaving
+ * `unverified-outside` to fragment into a block per aspect would push genuine
+ * warnings past the section's overflow cap and out of view entirely.
  */
-export const CODE_ONLY_GROUP_CODES = new Set(['unverified']);
+export const CODE_ONLY_GROUP_CODES = withOutsideTwins(['unverified']);
 
 // ── Shared code-set constants ────────────────────────────────
 
@@ -78,7 +114,7 @@ const STRICT_CODES = new Set(['type-strict-orphan', 'type-strict-misplaced', 'st
  * strictly less informative than `yg aspect-test`. All other codes keep the
  * terse one-line summary.
  */
-export const FULL_WHAT_CODES = new Set([
+export const FULL_WHAT_CODES = withOutsideTwins([
   'aspect-violation-enforced',
   'aspect-violation-advisory',
   // The relation refusal's `what` carries the violation list (each
@@ -92,6 +128,45 @@ export const FULL_WHAT_CODES = new Set([
   // the agent needs to allow, graduate, or remove.
   'type-relation-forbidden',
 ]);
+
+/**
+ * Coverage issue codes the grouped SECTION renderers exclude from groupIssues and
+ * render as their own file-list blocks (renderUnmappedBlock). Single-sourced here so
+ * the portal worklist partitions identically, and so the details and --top views
+ * decide the same way — each of those dispatches on THIS set rather than on its own
+ * literal codes, which is what stopped a coverage finding's file list from being
+ * truncated away in one view while rendering in another.
+ *
+ * The inherited half of a split coverage finding (`unmapped-files-outside`) belongs
+ * here for the same reason its blocking half does: the file list IS the finding, and
+ * the generic issue renderer shows only the first line of `what` — "N source files
+ * not covered by any node." with every filename gone.
+ *
+ * NOTE, unchanged: renderTopBody does not EXCLUDE these from grouping the way the
+ * section renderers do — the --top view renders coverage inside its priority cascade,
+ * so a coverage finding can be one of the `n` blocks it shows. It consults this set
+ * only to choose the block renderer.
+ */
+export const COVERAGE_GROUP_EXCLUDED_CODES = withOutsideTwins(['unmapped-files', 'uncovered-advisory']);
+
+/**
+ * The label `renderUnmappedBlock` heads a coverage block with. `uncovered-advisory`
+ * is the non-blocking visibility tier and says so; everything else in
+ * {@link COVERAGE_GROUP_EXCLUDED_CODES} is an unmapped-files finding.
+ *
+ * A coverage finding SPLIT by a change scope produces two of these blocks in one
+ * report, and this is the only label either half gets — so the outside half
+ * carries the same marker every other outside finding carries, derived the same
+ * way (see {@link OUTSIDE_LABEL_SUFFIX}). Leaving it off was not merely terse:
+ * both halves then rendered under the identical word, distinguishable only by
+ * which severity section they happened to sit in, which is exactly the reading a
+ * person scanning for their own work should not have to do.
+ */
+export function coverageBlockLabel(code: string): string {
+  const baseCode = baseCodeOfOutsideTwin(code);
+  if (baseCode !== undefined) return coverageBlockLabel(baseCode) + OUTSIDE_LABEL_SUFFIX;
+  return code === 'uncovered-advisory' ? 'uncovered' : 'unmapped';
+}
 
 /**
  * Priority rank for an issue, mirroring computeSuggestedNext's §6 cascade so the
@@ -130,11 +205,33 @@ export function issuePriorityRank(issue: CheckIssue): number {
     if (COMPLETENESS_CODES.has(issue.code)) return base + 2; // completeness
     return base + 3;                                          // any other error
   }
-  // Warnings always last.
+  // Warnings always last, and a `-outside` twin sub-ranks after every ORDINARY
+  // warning — an aspect-violation-advisory, a review-cadence overdue notice, a
+  // `tracked-file-gitignored` sitting outside `coverage.required` — rather than
+  // sharing their rank and falling back to alphabetical label order. A twin's
+  // label is exactly its mirror's label plus a suffix (getIssueLabel), so an
+  // early-alphabet base code (e.g. `aspect-violation-enforced`, label
+  // "enforced") used to sort its twin AHEAD of an unrelated warning whose own
+  // label happens to sort later (e.g. "tracked-file-gitignored") — burying a
+  // finding the change IS accountable for beneath debt it merely inherited. A
+  // run whose only warnings are inherited debt must not make that debt look
+  // more urgent than a genuine warning would; sub-ranking twins last fixes the
+  // GROUP order the full/`--top` views render (the standing "Next:" line for a
+  // warnings-only run already has its own carve-out — see
+  // check-suggested-next.ts's standingOutsideLine — this is the other half of
+  // the same concern, for the body above that line).
+  if (baseCodeOfOutsideTwin(issue.code) !== undefined) return base + 5;
   return base + 4;
 }
 
 export function getIssueLabel(issue: CheckIssue): string {
+  // An outside twin borrows its mirror's label, whatever that turns out to be —
+  // including a future label rule added for the base code alone.
+  const baseCode = baseCodeOfOutsideTwin(issue.code);
+  if (baseCode !== undefined) {
+    return getIssueLabel({ ...issue, code: baseCode }) + OUTSIDE_LABEL_SUFFIX;
+  }
+
   // Verdict-lock states (spec §10).
   if (issue.code === 'unverified') return 'unverified';
   if (issue.code === 'prompt-too-large') return 'prompt-too-large';

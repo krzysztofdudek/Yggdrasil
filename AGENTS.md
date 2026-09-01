@@ -37,7 +37,12 @@ Universal install covers every agent that reads AGENTS.md natively; Claude Code 
 ## Version Bump & Changelog
 
 - **Changelog is always updated.** Every code or behavior change gets an entry under `## [Unreleased]` in `CHANGELOG.md`. This happens as part of normal work — do not wait for a release.
-- **A changelog entry records what changed between versions — it is not a work log.** Write for someone reading release notes: what was wrong, what is now true, why it matters to them. Leave out how you found it, what you ran to verify it, and the order you did things in. "Verified by reproducing each case and comparing output" is your method, not a change. One entry per change, not one per step; group related fixes rather than listing each file you touched.
+- **The changelog is a PRODUCT document. It is not an engineering record.** Its only audience is an adopter or user deciding whether to upgrade and what to expect afterwards. Write it for them and for nobody else.
+  - **Only differences between versions.** If someone on the previous version would notice nothing, it does not go in. Internal refactoring, new helpers, options threaded through code, test suites, dogfood rules — all invisible to them, all left out. A fix to something introduced in the same unreleased version is not a fix: it is part of building the feature, and the feature gets ONE entry.
+  - **No technical internals. None.** No module, function, class, type or file names. No data structures, caches, hashes or algorithms. No account of how it is built. Product surface IS allowed and expected — command names, flags, config keys, and what shows up in the output — because that is what the user operates.
+  - **Plain language, short.** Say what changed and what it means for them, the way you would say it out loud once. No narration, no build-up, no restating one point three ways, no hedging, no padding.
+  - **One entry per user-visible change**, with everything behind it grouped into it.
+- **A release ships its changelog section as the release description, and names the package to install.** `.github/workflows/release.yml` builds the GitHub release body from the `## [X.Y.Z]` section of `CHANGELOG.md`, appends the install command and the package link, and fails the release if that section is missing. Write each section knowing it IS the release page.
 - **Version bumps only on explicit user request.** Never bump the version in `source/cli/package.json` unless the user explicitly asks for a release. When they do:
   1. Bump version (patch/minor/major per [semver](https://semver.org/)).
   2. Run `npm install` in `source/cli/` to update `package-lock.json`.
@@ -65,7 +70,7 @@ The gate is 17 fail-fast steps, in order: CLI typecheck; portal-e2e typecheck; l
 Two of those bite in ways the category list would not warn you about:
 
 - **The portal E2E needs Chromium installed for Playwright.** Without it the guard fails the gate by design rather than letting the suite skip. Install it once: `(cd source/cli && npx playwright install --with-deps chromium)`.
-- **The digest gate is not repo-root-only.** It checks both installed artifacts — `AGENTS.md` and `.clinerules/yggdrasil.md` — at the repo root *and* in every `examples/*/` directory that carries its own `.yggdrasil/`. So after editing `templates/digest.ts`, one `init --upgrade` at the root is not enough: each such example needs its own, run from that directory against this repo's built binary. A newly added example with a graph but no agent-rules install fails this step too.
+- **The digest gate is not repo-root-only.** It checks both installed artifacts — `AGENTS.md` and `.clinerules/yggdrasil.md` — at the repo root *and* in every `examples/*/` directory that carries its own `.yggdrasil/`. So after editing `templates/digest.ts`, one `init --upgrade` at the root is not enough: each such example needs its own, run from that directory against this repo's built binary. A newly added example with a graph but no agent-rules install fails this step too. It also checks any `source/cli/tests/fixtures/*/` fixture that already carries an `AGENTS.md` with a `yggdrasil:digest` anchor (most fixtures carry no agent-rules install at all and are out of scope; a fixture only opts in by having the anchor in the first place) — after editing `templates/digest.ts`, run `init --upgrade` from that fixture's own root too, against this repo's built binary, same as an example.
 
 Only seven of the seventeen steps are themselves protected against being quietly dropped, by the advisory `repo-check-gate-steps` rule (typecheck, lint, build, test/coverage, docs build, markdownlint, graph check). The other ten rest on this list alone — if you add or remove a step, update it here.
 
@@ -111,7 +116,7 @@ Consider both:
 2. **Dogfood** — Is this repo's graph coverage correct and complete?
 
 <!-- yggdrasil:start -->
-<!-- yggdrasil:digest cli=5.7.2 sha256=a94d3f23a66367520d042063e75e36f6ef1ad1ab5d131592f5f34160912c506f -->
+<!-- yggdrasil:digest cli=5.8.0 sha256=a94d3f23a66367520d042063e75e36f6ef1ad1ab5d131592f5f34160912c506f -->
 ## Yggdrasil
 
 This repository is managed by Yggdrasil — continuous architecture enforcement.

@@ -116,7 +116,13 @@ mapping:
   - source/cli/tests/integration/portal-boundary.test.ts
   - source/cli/tests/integration/portal-server.test.ts
   - source/cli/tests/integration/portal-frontend-modules.test.ts
-  - source/cli/tests/integration/portal-views.test.ts
+  - source/cli/tests/integration/portal-views-support.ts
+  - source/cli/tests/integration/portal-views-overview.test.ts
+  - source/cli/tests/integration/portal-views-worklist.test.ts
+  - source/cli/tests/integration/portal-views-typecovered.test.ts
+  - source/cli/tests/integration/portal-views-panel.test.ts
+  - source/cli/tests/integration/portal-views-relations.test.ts
+  - source/cli/tests/integration/portal-views-suppressions.test.ts
   - source/cli/tests/integration/portal-views-rulebook.test.ts
   - source/cli/tests/integration/portal-attestation-meta.test.ts
   - source/cli/tests/integration/portal-phase5-frontend.test.ts

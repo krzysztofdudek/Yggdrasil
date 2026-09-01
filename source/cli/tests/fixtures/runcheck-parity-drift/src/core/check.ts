@@ -11,8 +11,14 @@
  *   - `now` is gone, but the rule's side-effect allowlist still names it — a
  *     stale exemption that would silently pre-approve any future member taking
  *     that name.
+ *   - this seam declares no `changeScope` at all, while the rule's
+ *     ISSUE_TRANSFORM map names one. That entry demands a key no caller could
+ *     legally pass, so every call site would be judged against something that
+ *     cannot exist — and, left unswept, it would silently pre-classify any
+ *     future member taking that name. The same stale-entry treatment the
+ *     side-effect allowlist gets must apply to the demanding map too.
  *
- * Both must surface as loud, classification-demanding refusals.
+ * All three must surface as loud, classification-demanding refusals.
  */
 
 export interface RunCheckOptions {

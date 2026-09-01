@@ -19,8 +19,26 @@ description: "Unified check orchestrator — runs validation, coverage, the
   issue/result contract, one pair's verdict translated into its issues, log
   integrity plus the mandatory-log requirement, everything gated on a readable
   lock, the uncovered-file and tracked-but-gitignored scans, the coverage
-  tiers plus the type-level lattice, and the single next step a finished check
-  points at."
+  tiers plus the type-level lattice, the change-scope classification that
+  re-codes a finding the current change is not accountable for into a
+  non-blocking twin, the byte guard's gathering half that collects the files
+  behind every blocking FINDING that classification is about to treat as
+  inherited — driven by the assembled findings rather than by rule checks alone,
+  since a finding keyed by a component or a file carries no rule check at all —
+  together with what those files currently contain, so the pure comparer in
+  core/progressive-scope.ts can re-admit any whose content contradicts git's own
+  report of what changed (together with the component -> rule-check index that
+  re-admission reads, so re-admitting a component re-admits every check it owns).
+  Both gathering halves — this one and the fill stage's — resolve a component to
+  its files through ONE shared resolver, so they ask about the same files rather
+  than merely agreeing what to do with an answer: a component file that is no
+  rule check's subject (mapped documentation; a binary asset, which a prose rule
+  is never given) belongs to the component and to no subject set, and a half that
+  asked only about subjects never saw it. Then the single next step a finished
+  check points at.
+  The orchestrator owns the byte cache the verification fills, so the guard
+  compares the very bytes each verdict was re-hashed from rather than reading
+  the same files again, and reports how many findings the guard kept."
 max_direct_relations:
   limit: 25
   reason: >-
@@ -34,8 +52,9 @@ max_direct_relations:
     checks and this node's own feature-index output require. The count grows by one
     each time a new check is added, which is the intended shape: keeping the
     composition in one auditable place is what lets a single run produce one
-    consistent issue set and exit code. The ceiling is the current count (23) plus modest headroom,
-    so a couple of future checks land without churning this allowance while a
+    consistent issue set and exit code. The ceiling is the current count (24, after
+    the scope engine whose burn-set shape this node's options contract names) plus
+    modest headroom, so one more check lands without churning this allowance while a
     larger jump still re-raises the warning for review.
 aspects:
   - posix-paths-output
@@ -88,6 +107,8 @@ relations:
     type: calls
   - target: cli/core/type-visibility
     type: calls
+  - target: cli/core/progressive-scope
+    type: calls
 mapping:
   - source/cli/src/core/check.ts
   - source/cli/src/core/check-contract.ts
@@ -97,6 +118,8 @@ mapping:
   - source/cli/src/core/check-coverage-scan.ts
   - source/cli/src/core/check-coverage-phase.ts
   - source/cli/src/core/check-suggested-next.ts
+  - source/cli/src/core/check-progressive.ts
+  - source/cli/src/core/check-byte-guard.ts
   - source/cli/src/core/feature-index-write.ts
   - source/cli/src/core/feature-index-read.ts
   - source/cli/src/core/feature-field-schema.ts

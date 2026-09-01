@@ -1,0 +1,7 @@
+name: UsersService
+type: service
+description: "Users service — looks up users by id."
+aspects: []
+relations: []
+mapping:
+  - src/users/users.service.ts

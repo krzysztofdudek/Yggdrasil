@@ -16,15 +16,20 @@ description: >-
   cost preview and — confirmed over a temp fixture — runs the real fill so the next data follows
   the CLI to green; --no-write disables the write control and the server rejects a stray write 409;
   the file-aware loop renders a touched file as unverified everywhere; the page's verdict counts
-  EQUAL `yg check` on the same fixture; and the accessibility contract holds in the real browser
-  (ARIA verdict bar, keyboard-only traversal, the Canvas matrix's DOM-list mirror, reduced-motion).
+  EQUAL `yg check` on the same fixture; the accessibility contract holds in the real browser
+  (ARIA verdict bar, keyboard-only traversal, the Canvas matrix's DOM-list mirror, reduced-motion);
+  and, over a real progressive-mode project with a reference branch, the page's worklist DIVERGES
+  from a change-scoped `yg check` on purpose — a violation the current branch never touched
+  passes the scoped gate as a non-blocking warning but still renders as a plain blocking error on
+  the page, because the page is never given a change scope and always shows the project's whole
+  standing picture.
   The support/ helpers are off the public surface too — they spawn the bin and read the files it
   wrote, importing nothing from src/**.
 aspects:
   - e2e-public-surface
   - portal/every-surface-has-e2e
   - portal/every-spec-uses-playwright-chromium
-relations: []
+relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/portal-e2e/views-render.spec.ts
   - source/cli/tests/portal-e2e/panel-and-global.spec.ts
@@ -34,6 +39,7 @@ mapping:
   - source/cli/tests/portal-e2e/consistency-with-check.spec.ts
   - source/cli/tests/portal-e2e/a11y.spec.ts
   - source/cli/tests/portal-e2e/file-aware-loop.spec.ts
+  - source/cli/tests/portal-e2e/progressive-scope-divergence.spec.ts
   - source/cli/tests/portal-e2e/support/harness.ts
   - source/cli/tests/portal-e2e/support/surfaces.ts
   - source/cli/tests/portal-e2e/support/fixtures.ts

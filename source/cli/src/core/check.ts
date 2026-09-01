@@ -22,9 +22,12 @@
  *      conformance, the type gate, log integrity and the mandatory-log
  *      requirement — fail-closed on a lock that cannot be read.
  *   4. Coverage, plus the one anomaly check fed by injected git output.
- *   5. Assemble: combine the issue sets, pick the single next step, and — only
- *      when the caller asks for it — write the silent attention index as a
- *      byproduct, after the issue set is final so it can never change one.
+ *   5. Assemble: combine the issue sets; classify them against the change scope
+ *      when one was supplied (a finding the change is not accountable for
+ *      becomes a non-blocking `-outside` twin, so the tallies below all read the
+ *      classified list); pick the single next step; and — only when the caller
+ *      asks for it — write the silent attention index as a byproduct, after the
+ *      issue set is final so it can never change one.
  *
  * INJECTED INPUTS, gated HERE. The engine keeps no clock, shells out to no git,
  * and reads no files of its own: a caller supplies each such input, and an absent
@@ -41,6 +44,14 @@
  *   - check-coverage-scan.ts  — the uncovered-file and tracked∩gitignored scans
  *   - check-coverage-phase.ts — coverage tiers + the type-level lattice (step 4)
  *   - check-coverage-tiers.ts — the single coverage-tier / exclusion authority
+ *   - check-progressive.ts    — the change-scope classification of the assembled
+ *                               issues (in scope ⇒ untouched; outside ⇒ its
+ *                               `-outside` twin at warning severity)
+ *   - check-byte-guard.ts     — the gathering half of the byte guard: the
+ *                               subject bytes of every blocking obligation the
+ *                               scope is about to treat as inherited, so the
+ *                               pure comparer can re-admit any whose content
+ *                               provably moved despite git reporting otherwise
  *   - check-suggested-next.ts — the one `next` a finished check points at
  *
  * `runAttentionDump` — the read-only calibration lens behind a hidden flag —
@@ -60,6 +71,9 @@ import { computeTypeCoverageCached } from './type-coverage.js';
 import type { TypeCoverageResult } from './type-coverage.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { validate } from './validator.js';
+import type { BurnSet } from './progressive-scope.js';
+import { forceInScopeOnByteMismatch, keptByByteGuard } from './progressive-scope.js';
+import { collectFindingByteGuardCandidates } from './check-byte-guard.js';
 import { checkReviewOverdue } from './checks/aspect-contracts.js';
 import { checkDigestGate } from './checks/digest-gate.js';
 import type { RulesArtifacts } from './checks/digest-gate.js';
@@ -73,6 +87,7 @@ import type { LockVerification } from './verify-lock.js';
 import { runCoveragePhase } from './check-coverage-phase.js';
 import { scanUncoveredFiles, scanTrackedButIgnored } from './check-coverage-scan.js';
 import { computeSuggestedNext } from './check-suggested-next.js';
+import { applyChangeScope, countOutside } from './check-progressive.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
 import {
@@ -128,12 +143,23 @@ export {
  *        rules-distribution artifacts plus the installed CLI's canonical
  *        digest, for the committed-digest staleness gate; same absence-skips
  *        seam as `nowUtc`. Read-only.
+ * @param options.changeScope -- INJECTED change scope. Plain data: the burn
+ *        set a caller already computed plus the name it was measured against.
+ *        Core touches no git and resolves no reference itself. Supplying it
+ *        REWRITES the assembled issue list (core/check-progressive.ts): a
+ *        finding the change is not accountable for is re-coded to its
+ *        `-outside` twin at warning severity, so it still appears and is still
+ *        counted but no longer blocks. Absent ⇒ the list is unrewritten and
+ *        every count, code and exit code is exactly what it always was.
  */
-// Each field below is either ISSUE-GATING (`options?.<key> ? <issues> : []` —
-// absence silently skips a check) or a side-effect switch. A NEW optional field
-// must be one or the other, or `.yggdrasil/aspects/runcheck-injected-input-parity`
-// refuses it as unclassified: write the ternary, or list it in that check.mjs's
-// SIDE_EFFECT_ONLY allowlist with a reason.
+// Each field below is ISSUE-GATING (`options?.<key> ? <issues> : []` — absence
+// silently skips a check), a WHOLE-LIST REWRITE
+// (`options?.<key> ? fn(list, options.<key>) : list` — absence leaves the whole
+// issue list unrewritten), or a side-effect switch. A NEW optional field must be
+// one of those three, or `.yggdrasil/aspects/runcheck-injected-input-parity`
+// refuses it as unclassified: write one of the two ternaries, or list it in that
+// check.mjs's SIDE_EFFECT_ONLY allowlist (it alters no issue) or its
+// ISSUE_TRANSFORM map (it will, once its consumer lands) with a reason.
 export interface RunCheckOptions {
   /** INJECTED clock for the review-cadence check (spec RZ-18). Absent ⇒ that check is skipped. */
   nowUtc?: () => Date;
@@ -186,6 +212,32 @@ export interface RunCheckOptions {
   precomputedVerification?: LockVerification;
   /** runFill's own fill→check handoff, this run only. Absent ⇒ none (a plain read never fills). */
   runtimeDispositions?: Array<{ file: string; aspectId: string; code: string }>;
+  /**
+   * INJECTED change scope: which of this run's obligations the current change is
+   * accountable for (`burn`), the plain name it was measured against
+   * (`referenceName`, for the report to quote), and the reference tree's
+   * path→object-id listing (`blobOidByPath`) the byte guard checks git's own
+   * answer against. PLAIN DATA — the caller computes the burn set and reads that
+   * listing from git itself; core touches no git and resolves no reference.
+   *
+   * `blobOidByPath` is `null`, never absent, when the listing could not be
+   * obtained: the guard is then skipped, and the run gates exactly as it would
+   * have without it. A required-but-nullable member rather than an optional one
+   * on purpose — a caller that simply forgot it would silently disarm the guard,
+   * and "I could not read the tree" is a fact worth having to state.
+   *
+   * Consumed as a WHOLE-LIST REWRITE of the assembled issues
+   * (`applyChangeScope`, core/check-progressive.ts) — the classification step
+   * that re-codes a finding the change did not reach to its `-outside` twin at
+   * warning severity, splitting the aggregate coverage finding rather than
+   * re-coding it, and keeping any finding it cannot positively attribute as a
+   * blocking error. A caller OMITTING it gets the unrewritten list, which is why
+   * `.yggdrasil/aspects/runcheck-injected-input-parity` demands this member at
+   * every runCheck call site (surfaces wanting global truth pass an explicit
+   * `undefined`): a surface that forgot it would silently report a different
+   * issue set from every other.
+   */
+  changeScope?: { burn: BurnSet; referenceName: string; blobOidByPath: Map<string, string> | null };
 }
 
 export async function runCheck(
@@ -269,6 +321,13 @@ export async function runCheck(
 
   // `coverage`/`earlyTypeCoverage` moved above section 1 (K15); read again below.
 
+  // Byte cache OWNED here rather than by the verification below, so the byte
+  // guard further down compares the very bytes each verdict was re-hashed from
+  // instead of reading the same files a second time (and possibly reading
+  // different content than the verdict saw). Empty on the injected-verification
+  // path, where nothing is re-hashed at all — the guard then reads what it needs.
+  const subjectByteCache = new Map<string, Buffer | null>();
+
   // 2. Lock verification: pair verdicts, relation conformance, the type gate,
   // parser-infrastructure failures, log integrity and the mandatory-log
   // requirement — every one of them reported only when the lock can be read.
@@ -280,6 +339,7 @@ export async function runCheck(
     typeVisibility,
     featureFactsByPath,
     featureHashByPath,
+    pairs,
   } = await runLockPhase({
     graph,
     projectRoot,
@@ -288,6 +348,7 @@ export async function runCheck(
     relResult,
     runtimeDispositions: options?.runtimeDispositions,
     precomputedVerification: options?.precomputedVerification,
+    byteCache: subjectByteCache,
   });
 
   // 3. Coverage scan (unmapped-files / uncovered-advisory), plus the
@@ -317,13 +378,78 @@ export async function runCheck(
   }
 
   // Combine all issues
-  const allIssues: CheckIssue[] = [
+  const assembledIssues: CheckIssue[] = [
     ...lockIssues,
     ...validationIssues,
     ...reviewOverdueIssues,
     ...digestGateIssues,
     ...coverageIssues,
   ];
+
+  // Byte guard, gathered BEFORE the classification below reads the scope: the
+  // files behind every blocking finding the measurement is about to treat as
+  // inherited, and what those files currently contain. Git can be told to report
+  // a modified file as unmodified (`assume-unchanged`, `skip-worktree`), and
+  // every finding about such a file would otherwise be released on that false
+  // report — not only the ones keyed by a rule check, which is why the candidate
+  // set is derived from the assembled findings themselves. Reads nothing at all
+  // when there is no scope, no reference listing, or a scope that already went
+  // global — so a run with the feature off is untouched by its existence.
+  const byteGuard = await collectFindingByteGuardCandidates({
+    scope: options?.changeScope,
+    issues: assembledIssues,
+    pairs,
+    graph,
+    visibleFiles: coverageVisibleFiles,
+    projectRoot,
+    alreadyRead: subjectByteCache,
+  });
+
+  // Change-scope classification. With a scope supplied, every finding the
+  // change is NOT accountable for is re-coded to its `-outside` twin at warning
+  // severity (the aggregate coverage finding is split rather than re-coded); a
+  // finding that cannot be attributed stays a blocking error. Absent ⇒ the
+  // assembled list is handed on unrewritten, which is every run today that does
+  // not opt in. This sits BEFORE the two derived tallies below deliberately: the
+  // suggested next step and the advisory count must both read the CLASSIFIED
+  // list, or the report would point at a finding it no longer blocks on.
+  //
+  // The scope it classifies against is the measured one WIDENED by the byte
+  // guard — `forceInScopeOnByteMismatch` re-admits any candidate whose bytes
+  // disagree with the reference tree and returns the burn set untouched (the
+  // same object) when none do, so this is the plain measurement plus, never
+  // minus.
+  //
+  // Reached through a MEMOIZED local rather than called inline: two things need
+  // the widened answer — this classification and the changed-input count below,
+  // which must report the files the run actually gated on rather than the
+  // smaller set git admitted to — and hashing every candidate's bytes a second
+  // time to answer the same question twice would be the only alternative. The
+  // call still names `options.changeScope` directly, which is what lets the rule
+  // proving every call site complete see the option feeding the rewrite.
+  let guarded: BurnSet | undefined;
+  const guardScope = (scope: NonNullable<RunCheckOptions['changeScope']>): BurnSet =>
+    (guarded ??= forceInScopeOnByteMismatch(scope, byteGuard));
+  const allIssues = options?.changeScope
+    ? applyChangeScope(assembledIssues, guardScope(options.changeScope), pairs)
+    : assembledIssues;
+  // How many findings the guard KEPT, read off the two burn sets rather than by
+  // running the comparison twice. Reported, because a repository where a content
+  // filter sits between the stored blob and the working copy has every inherited
+  // finding kept on every run, and a mode that has effectively switched itself
+  // off must say so in its own output instead of only in its documentation.
+  const byteGuardKept = options?.changeScope
+    ? keptByByteGuard(options.changeScope.burn, guardScope(options.changeScope), byteGuard.candidates)
+    : undefined;
+  const byteGuardUnavailable = options?.changeScope ? byteGuard.unsupportedObjectFormat : undefined;
+  // Deliberately a SECOND, independently-shaped expression rather than a richer
+  // return from the call above: the rule that proves every runCheck call site
+  // supplies this option derives the rewrite from `options?.<key> ? fn(list, …)
+  // : list` exactly, and an object return would make the alternative an object
+  // literal, leaving the classification unproven and the gate red everywhere.
+  const outsideCount = options?.changeScope ? countOutside(allIssues) : undefined;
+  const progressiveReference = options?.changeScope ? options.changeScope.referenceName : undefined;
+  const changedInputCount = options?.changeScope ? guardScope(options.changeScope).changedInputCount : undefined;
 
   // Node type counts
   const nodeTypeCounts = new Map<string, number>();
@@ -370,12 +496,18 @@ export async function runCheck(
     draftSkipped,
     verifiedDet,
     verifiedLlm,
+    pairs,
     typeLevel,
     typeCoveredCount,
     classifyingTypeCount,
     nodeOwnedFiles,
     excludedFiles,
     typeVisibility,
+    outsideCount,
+    progressiveReference,
+    changedInputCount,
+    byteGuardKept,
+    byteGuardUnavailable,
   };
 }
 

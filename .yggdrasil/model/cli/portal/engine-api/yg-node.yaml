@@ -27,6 +27,7 @@ description: >-
   way it excludes a type-covered one.
 aspects:
   - runcheck-injected-input-parity
+  - portal/worklist-mirrors-groups
 max_direct_relations:
   limit: 23
   reason: >-
@@ -105,6 +106,7 @@ mapping:
   - source/cli/src/portal/api/attestation.ts
   - source/cli/src/portal/api/boundary.ts
   - source/cli/src/portal/api/suppress-scan.ts
+  - source/cli/src/portal/api/suppress-adapt.ts
   - source/cli/src/portal/api/suppress-eligibility.ts
   - source/cli/src/portal/api/suppress-coverage.ts
   - source/cli/src/portal/api/type-coverage.ts

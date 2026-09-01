@@ -150,3 +150,37 @@ The shipped agent manual's node-mapping paragraph stated two things the anomaly 
 The shipped agent manual described nodes and rule scoping as if every source file needed an explicit component and every rule attached to one, which type-level coverage made false: a file matching exactly one classifying type is now enforced by that type's per-file rules with no node of its own. The manual now states this directly under Nodes — where a node still earns its keep versus where the type alone already covers a file — and adds the missing scope.per guidance: a file-local rule belongs at per: file, the only scope that can ever reach a file with no owning node, while a whole-unit rule stays per: node and therefore only ever runs on an explicit component. The architecture and config schema references had the same gap: enforce: strict was documented only as bidirectional enforcement with no word on how it relates to type-level coverage (it never accepts the lattice as proof of ownership — an explicit node is always required), and coverage.type_level itself was undocumented in the config schema reference entirely, a real gap no earlier pass had caught.
 ## [2026-08-07T16:17:22.352Z]
 The agent manual's account of the mapping-versus-gitignore mirror diagnostic described it as firing when a mapping names an untracked file. The enforcement it describes actually fires whenever a mapping entry names a gitignored file directly, whether or not git tracks that file — being ignored is the deciding axis, and tracking status is never consulted. The manual now states the gitignore axis explicitly, because a reader steered toward the tracking axis would try to clear such a report by adding the file to version control, which cannot clear it; the two honest exits are un-ignoring the file or removing the mapping claim.
+## [2026-08-13T09:22:00.945Z]
+The agent-facing manual and the configuration reference described a recording run as answering for the whole project and promising a notice about it. Neither is true once such a run is measured like any other, and a manual that ships to every adopting repository must not carry a claim the tool no longer honours. The wording now names the condition explicitly rather than hedging, so a project that never turns the feature on reads exactly what it did before.
+## [2026-08-13T10:09:50.701Z]
+Three surfaces that ship to every adopting repository still described verification as repo-wide and all-or-nothing with one free scoping flag, and the document defining when a component records its baseline still stated the pre-change rule. An agent reading the manual would have believed a recording run reviews everything, and anyone reading the log-management topic would have believed a component records its baseline only when every rule on it passed. Both are now stated as the code behaves, with the condition named explicitly rather than hedged, so a project that never turns the feature on reads what it always did.
+## [2026-08-13T11:35:01.287Z]
+The manual an agent reads at the start of a session now states what to do when a
+run reports obligations the current change did not reach. Until now it described
+only the measurement — that a project can have its changes measured against a
+branch, and that findings outside a change are listed as warnings — and left the
+conduct to each agent's judgement, which is the part that carries consequences.
+An agent reading such a list as a work order widens the change to clear it,
+reaches for a recording run that answers for the whole project and spends the
+reviewer budget on code nobody asked about, or waives a rule on code it never
+touched. The manual now says plainly that an inherited finding is not a mandate,
+that it is never cleared by a recording run answering for the whole project, that
+it is never waived, and that anything still reported as an error is the change's
+own to resolve — including a finding the run could not attribute to any subject,
+which stays an error deliberately. A run that could not make the measurement at
+all gets its own instruction: report the cause it names rather than start
+clearing a backlog nobody asked for.
+
+The same change puts a condition on a sentence that had been unconditional. The
+manual stated that an enforced rule always blocks when refused or unverified.
+That stopped being exactly true once a project could have its changes measured
+against a branch: an enforced finding a change did not reach is reported as a
+warning until a run answering for the whole project blocks on it again. The
+rule's status is untouched by that, and on a project that measures nothing the
+original sentence still holds — so this is written as a condition naming exactly
+when it applies, never as a hedge. The manual ships to every repository that
+adopts this tool, and the overwhelming majority of them will never turn the
+measurement on; a reader who never will must not come away less certain about
+what blocks their build.
+## [2026-08-13T17:02:58.639Z]
+The manual that ships into every adopting repository stated that the built-in dependency-conformance check is always an error and always blocks. Since a project can now name a branch to measure changes against, that is no longer true of it: it is one of the findings a change can inherit, and one the run lists as a warning when the change never reached the code carrying it. The earlier correction pass reached everything phrased in terms of rule status and missed everything phrased as not being a rule at all, which is exactly the family this check belongs to. The manual now states when the exception applies and, just as plainly, that with no branch named the finding blocks unconditionally — so a reader on a project that will never turn the measurement on is no less certain than before. It also says what to do when a run reports that the change reaches the whole project, so that a deliberate outcome is not mistaken for a malfunction and undone.

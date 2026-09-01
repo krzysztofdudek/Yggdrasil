@@ -1,18 +1,40 @@
 // yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import chalk from 'chalk';
 import type { CheckIssue } from '../core/check.js';
-import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES } from './group-issues.js';
+import { SCOPED_CODES, baseCodeOfOutsideTwin } from '../core/check-codes.js';
+import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, OUTSIDE_LABEL_SUFFIX } from './group-issues.js';
 import { useEmoji } from './check-render-header.js';
 
 /** Code sets for grouping errors by category. STRUCTURAL_CODES and
  *  COMPLETENESS_CODES are shared with the check engine via core/check-codes.ts
  *  so the rendered grouping and the summary tally cannot drift apart. */
-// `unmapped-files` renders through renderUnmappedBlock (count + file list).
+// `unmapped-files` / `uncovered-advisory` render through renderUnmappedBlock
+// (count + file list) — see COVERAGE_GROUP_EXCLUDED_CODES in group-issues.ts.
 // `mapping-path-missing` is NOT a coverage code: it carries a nodePath and
 // structured messageData, so it falls through to the normal validation-error
 // renderer (code + node path + what/why/next) — renderUnmappedBlock would
 // otherwise drop both the code and the offending node path.
-const COVERAGE_CODES = new Set(['unmapped-files']);
+
+/**
+ * Whether `code` is a `-outside` twin — every Fix: line below is suppressed
+ * for one, in every shape it can render as (single block, unmapped-files
+ * block, grouped shared line, grouped per-member divergent line).
+ *
+ * `messageData` is untouched by the classifier on purpose (check-progressive.ts's
+ * `toOutsideTwin`: "the what/why/next a person reads describes the finding, not
+ * its scope") — so `next` still reads exactly like the finding it mirrors, e.g.
+ * `unverified`'s literal `yg check --approve`. That is the RIGHT remedy for the
+ * finding it mirrors and the WRONG one to print here: this finding is a warning
+ * specifically because the change did not reach it, `--approve` reviews the
+ * WHOLE project rather than this one pair (docs/cli-reference.md), and the run's
+ * own bottom line already names the one honest next step for everything outside
+ * the change (`yg check --full` — computeSuggestedNext's standingOutsideLine).
+ * Repeating the recording command per finding contradicts that line. Why: stays
+ * — the rationale is still true of the finding regardless of scope.
+ */
+function isOutsideFinding(code: string): boolean {
+  return baseCodeOfOutsideTwin(code) !== undefined;
+}
 
 // ── Details view: ungrouped, one block per issue ──────────
 
@@ -27,10 +49,13 @@ export function renderDetailsSection(issues: CheckIssue[], mode: 'error' | 'warn
   const lines: string[] = [];
   for (const issue of issues) {
     lines.push('');
-    if (issue.code === 'unmapped-files') {
-      renderUnmappedBlock(issue, lines);
-    } else if (issue.code === 'uncovered-advisory') {
-      renderUnmappedBlock(issue, lines, 'uncovered');
+    // Dispatch on the shared coverage set, not on literal codes: a coverage
+    // finding's file list lives on lines 2+ of its `what`, which the generic
+    // block renderer truncates away, so a code missing from this branch loses
+    // the whole content of the finding in THIS view while rendering fine in
+    // the others.
+    if (COVERAGE_GROUP_EXCLUDED_CODES.has(issue.code)) {
+      renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code));
     } else {
       renderIssueBlock(issue, lines, mode);
     }
@@ -57,8 +82,8 @@ const GROUP_CAP = 12;
  * line is appended after the 12th.
  */
 export function renderErrorSection(errors: CheckIssue[], opts: { isTTY: boolean }, emoji = useEmoji): string {
-  const unmapped = errors.filter(i => COVERAGE_CODES.has(i.code));
-  const rest = errors.filter(i => !COVERAGE_CODES.has(i.code));
+  const unmapped = errors.filter(i => COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
+  const rest = errors.filter(i => !COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
   const groups = groupIssues(rest);
   const M = groups.length;
   const N = errors.length;
@@ -100,8 +125,8 @@ export function renderErrorSection(errors: CheckIssue[], opts: { isTTY: boolean 
  *   - M === 1 (or zero non-coverage warnings) → `Warnings (N):`
  */
 export function renderWarningSection(warnings: CheckIssue[], opts: { isTTY: boolean }, emoji = useEmoji): string {
-  const coverage = warnings.filter(i => i.code === 'uncovered-advisory');
-  const rest = warnings.filter(i => i.code !== 'uncovered-advisory');
+  const coverage = warnings.filter(i => COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
+  const rest = warnings.filter(i => !COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
   const groups = groupIssues(rest);
   const M = groups.length;
   const N = warnings.length;
@@ -121,10 +146,14 @@ export function renderWarningSection(warnings: CheckIssue[], opts: { isTTY: bool
     lines.push(`  ... in ${groups.length} groups — showing ${GROUP_CAP}; run yg check --top <n> or --aspect <id>`);
   }
 
-  // Coverage warnings — compact block with file list (unchanged)
+  // Coverage warnings — compact block with file list. The label comes from the
+  // code, not from the section: this block now also carries the INHERITED half
+  // of a split coverage finding, which is an unmapped-files finding that does
+  // not block, not the advisory visibility tier, and calling it "uncovered"
+  // would merge two different facts under one word.
   for (const issue of coverage) {
     lines.push('');
-    renderUnmappedBlock(issue, lines, 'uncovered');
+    renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code));
   }
 
   return lines.join('\n');
@@ -174,7 +203,7 @@ function renderIssueBlock(issue: CheckIssue, lines: string[], mode: 'error' | 'w
   if (md.why) {
     lines.push(`${BLOCK_INDENT}Why: ${md.why}`);
   }
-  if (md.next) {
+  if (md.next && !isOutsideFinding(issue.code)) {
     // Advisory warnings never block: advisory aspect violations AND advisory
     // unverified pairs (an unverified pair renders as a warning only when its
     // effective status is advisory) both carry the not-blocking hint.
@@ -217,7 +246,7 @@ export function renderUnmappedBlock(issue: CheckIssue, lines: string[], label = 
   if (md.why) {
     lines.push(`            Why: ${md.why}`);
   }
-  if (md.next) {
+  if (md.next && !isOutsideFinding(issue.code)) {
     lines.push(`            Fix: ${md.next.split('\n')[0]}`);
   }
 }
@@ -226,8 +255,36 @@ export function renderUnmappedBlock(issue: CheckIssue, lines: string[], label = 
 
 const CAP_NODES = 12;
 
-/** Jargon glosses: machine token first, human gloss in parentheses (parseable by tooling). */
-const LABEL_GLOSS: Record<string, string> = { unverified: 'unverified (not yet reviewed)' };
+/**
+ * Jargon glosses: machine token first, human gloss in parentheses (parseable by
+ * tooling). Keyed by CODE, not by the rendered label — for every entry here
+ * today the code and its untwinned label happen to be identical bare words
+ * (`getIssueLabel('unverified') === 'unverified'`), which is what lets
+ * {@link LABEL_GLOSS} below key off this table directly without a second
+ * code→label lookup.
+ */
+const BASE_LABEL_GLOSS: Record<string, string> = { unverified: 'unverified (not yet reviewed)' };
+
+/**
+ * {@link BASE_LABEL_GLOSS}, plus the twin gloss of every entry whose code has
+ * an outside twin — DERIVED from `SCOPED_CODES`, never a hand-written second
+ * copy, for the same reason `FULL_WHAT_CODES` and `CODE_ONLY_GROUP_CODES` are
+ * (group-issues.ts's `withOutsideTwins`): a twin missing from this table would
+ * fall through {@link glossLabel} unglossed, leaving `unverified (outside
+ * changes)` on screen with no explanation of the jargon its own mirror
+ * explains one line away. The twin's KEY is its rendered label — the base
+ * label plus {@link OUTSIDE_LABEL_SUFFIX}, exactly what `getIssueLabel`
+ * produces for it — and its VALUE is the base gloss with the same suffix
+ * appended, so the one gloss sentence still ends by saying whose business the
+ * finding is, same as every other twin label does.
+ */
+const LABEL_GLOSS: Record<string, string> = Object.fromEntries(
+  Object.entries(BASE_LABEL_GLOSS).flatMap(([code, gloss]): Array<[string, string]> =>
+    SCOPED_CODES.has(code)
+      ? [[code, gloss], [`${code}${OUTSIDE_LABEL_SUFFIX}`, `${gloss}${OUTSIDE_LABEL_SUFFIX}`]]
+      : [[code, gloss]],
+  ),
+);
 
 function glossLabel(label: string): string {
   // Own-property guard: a reserved key inherited from Object.prototype
@@ -254,6 +311,7 @@ function glossLabel(label: string): string {
  * exactly as in the node case.
  */
 function renderRepoLevelGroup(group: IssueGroup, lines: string[]): void {
+  const isOutside = isOutsideFinding(group.code);
   lines.push(`  ${glossLabel(group.label)}`);
   // Per-member why/fix fires ONLY for `perMemberReason` codes (FULL_WHAT_CODES:
   // today, only `type-relation-forbidden` ever reaches this repo-level branch —
@@ -273,14 +331,14 @@ function renderRepoLevelGroup(group: IssueGroup, lines: string[]): void {
     if (group.perMemberReason && group.divergentWhy && m.messageData.why) {
       lines.push(`${BLOCK_INDENT}Why: ${m.messageData.why.split('\n')[0]}`);
     }
-    if (group.perMemberReason && group.divergentNext && m.messageData.next) {
+    if (group.perMemberReason && group.divergentNext && m.messageData.next && !isOutside) {
       const nextLines = m.messageData.next.split('\n');
       lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}`);
       for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);
     }
   }
   if (group.sharedWhy && !group.divergentWhy) lines.push(`${BLOCK_INDENT}Why: ${group.sharedWhy}`);
-  if (group.sharedNext && !group.divergentNext) {
+  if (group.sharedNext && !group.divergentNext && !isOutside) {
     const nextLines = group.sharedNext.split('\n');
     lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}`);
     for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);
@@ -327,11 +385,14 @@ export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: b
     ? (group.nodeCount > 0 ? `${group.nodeCount} nodes, ${group.fileCount} files` : `${group.fileCount} files`)
     : `${group.nodeCount} nodes`;
   lines.push(`  ${glossLabel(group.label)}  ${group.pairCount} pairs  ${countSeg}${aspectSeg}`);
+  // A `-outside` twin group's Fix line — shared or per-member, below — is
+  // suppressed entirely: see isOutsideFinding's doc comment.
+  const isOutside = isOutsideFinding(group.code);
   // Shared why/fix render once ABOVE the member list — but only when they are
   // genuinely shared. A divergent why/next belongs per-member (below), so the
   // shared line is suppressed here to avoid naming only the first node.
   if (group.sharedWhy && !group.divergentWhy) lines.push(`${BLOCK_INDENT}${group.sharedWhy}`);
-  if (group.sharedNext && !group.divergentNext) {
+  if (group.sharedNext && !group.divergentNext && !isOutside) {
     const nextLines = group.sharedNext.split('\n');
     lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}`);
     for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);
@@ -344,7 +405,7 @@ export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: b
     if (group.divergentWhy && m.messageData.why) {
       lines.push(`${MEMBER_DETAIL_INDENT}Why: ${m.messageData.why.split('\n')[0]}`);
     }
-    if (group.divergentNext && m.messageData.next) {
+    if (group.divergentNext && m.messageData.next && !isOutside) {
       const nextLines = m.messageData.next.split('\n');
       lines.push(`${MEMBER_DETAIL_INDENT}Fix: ${nextLines[0]}`);
       for (const extra of nextLines.slice(1)) lines.push(`${MEMBER_DETAIL_INDENT}${extra}`);

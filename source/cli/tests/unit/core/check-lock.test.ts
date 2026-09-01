@@ -17,6 +17,9 @@ import type { Graph, GraphNode, AspectDef, LlmConfig, AspectStatus } from '../..
 import type { LockFile } from '../../../src/model/lock.js';
 import { nodeUnit, LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
 import { runCheck } from '../../../src/core/check.js';
+import type { CheckIssue } from '../../../src/core/check.js';
+import type { BurnSet } from '../../../src/core/progressive-scope.js';
+import { OUTSIDE_CODES, SCOPED_CODES } from '../../../src/core/check-codes.js';
 import { writeLock } from '../../../src/io/lock-store.js';
 import { writeSeededLock } from '../helpers/seed-lock.js';
 
@@ -160,6 +163,37 @@ describe('runCheck — verdict-lock issue emission', () => {
     expect(result.issues.filter((i) => i.code === 'lock-invalid')).toHaveLength(1);
     expect(result.issues.some((i) => i.code === 'unverified')).toBe(false);
     expect(result.suggestedNext).toContain('git checkout');
+  });
+});
+
+// ── Lock phase exposes verified pairs (for a later classification step) ──────
+
+describe('runCheck — lock phase exposes verified pairs', () => {
+  it('a readable lock returns the verified pair for the node, carrying its subjectFiles', async () => {
+    const graph = buildGraph('enforced');
+    const result = await seedAndCheck(graph, { verdict: 'approved' });
+    expect(result.pairs).toBeDefined();
+    const vp = result.pairs!.find((p) => p.pair.aspectId === 'asp' && p.pair.nodePath === 'svc');
+    expect(vp).toBeDefined();
+    expect(vp!.pair.subjectFiles).toEqual(['src/a.ts']);
+    expect(vp!.state.kind).toBe('verified');
+  });
+
+  it('an unverified pair (missing entry) still appears in the pair list, unverified', async () => {
+    const graph = buildGraph('enforced');
+    const result = await seedAndCheck(graph, null);
+    const vp = result.pairs!.find((p) => p.pair.aspectId === 'asp' && p.pair.nodePath === 'svc');
+    expect(vp).toBeDefined();
+    expect(vp!.state.kind).toBe('unverified');
+  });
+
+  it('a garbled lock fails closed with an empty pair list (same posture as verifiedDet/verifiedLlm)', async () => {
+    writeFile('src/a.ts', 'code');
+    const graph = buildGraph('enforced');
+    mkdirSync(graph.rootPath, { recursive: true });
+    writeFileSync(path.join(graph.rootPath, 'yg-lock.nondeterministic.json'), '{ not valid json', 'utf-8');
+    const result = await runCheck(graph, null);
+    expect(result.pairs).toEqual([]);
   });
 });
 
@@ -435,5 +469,139 @@ describe('runCheck — verified pair tally split (deterministic vs LLM)', () => 
     expect(result.verifiedLlm).toBe(1);
     expect(result.verifiedDet).toBe(1);
     expect(result.verifiedDet + result.verifiedLlm).toBe(2);
+  });
+});
+
+// ── Change scope: accepted, threaded, and acted on ────────────────────────────
+
+describe('runCheck — change scope classifies the assembled issues', () => {
+  /** The narrowest honest scope there is: a real reference, nothing burned. */
+  const emptyBurn = (): BurnSet => ({
+    global: false,
+    pairKeys: new Set(),
+    nodePaths: new Set(),
+    files: new Set(),
+    logOnlyNodePaths: new Set(),
+    changedInputCount: 0,
+  });
+
+  it('re-codes every scoped error the change did not reach, and reports the tally', async () => {
+    writeFile('src/a.ts', 'code');
+    const graph = buildGraph('enforced');
+    const lock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
+    await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
+
+    const withoutOption = await runCheck(graph, null);
+    const withOption = await runCheck(graph, null, {
+      changeScope: { burn: emptyBurn(), referenceName: 'origin/main', blobOidByPath: null },
+    });
+
+    // Guard against a vacuous pass: there IS a scoped blocking finding here.
+    const scopedErrors = withoutOption.issues.filter(
+      (i) => i.severity === 'error' && SCOPED_CODES.has(i.code),
+    );
+    expect(scopedErrors.length).toBeGreaterThan(0);
+    expect(withoutOption.outsideCount).toBeUndefined();
+
+    // With nothing burned, every ATTRIBUTABLE one is now a non-blocking twin.
+    const twins = withOption.issues.filter((i) => OUTSIDE_CODES.has(i.code));
+    expect(twins.length).toBeGreaterThan(0);
+    expect(twins.every((i) => i.severity === 'warning')).toBe(true);
+    expect(withOption.outsideCount).toBe(twins.length);
+
+    // …and the ones that stayed blocking are exactly the ones nothing could
+    // attribute: this fixture's undescribed ASPECT names no component, no file
+    // and no pair, so there is no honest way to say the change missed it. Fail
+    // closed — never treat "cannot attribute" as "not touched".
+    const stillBlocking = withOption.issues.filter(
+      (i) => i.severity === 'error' && SCOPED_CODES.has(i.code),
+    );
+    expect(stillBlocking.map((i) => i.code)).toEqual(['description-missing']);
+    expect(stillBlocking[0].aspectId).toBe('asp');
+    expect(stillBlocking[0].nodePath).toBeUndefined();
+    expect(twins.length + stillBlocking.length).toBe(scopedErrors.length);
+    expect(withOption.progressiveReference).toBe('origin/main');
+    expect(withOption.changedInputCount).toBe(0);
+  });
+
+  it('a progressive-green run points at the audit, never at a repo-wide review', async () => {
+    // The live shape: one ENFORCED rule (its unverified pair blocks, and with
+    // nothing burned becomes a twin) beside one ADVISORY rule (whose unverified
+    // pair is already a warning and stays one, carrying `yg check --approve` as
+    // its own next). Every description is filled in so nothing is left
+    // unattributable and the run really does reach zero errors.
+    writeFile('src/a.ts', 'code');
+    const rootPath = path.join(tmpDir, '.yggdrasil');
+    mkdirSync(rootPath, { recursive: true });
+    const mkAspect = (id: string, status: AspectStatus): AspectDef => {
+      // Real rule source on disk — the aspect contract check reads the file,
+      // and a missing one is a structural error that would never be scoped.
+      writeFile(path.join('.yggdrasil', 'aspects', id, 'content.md'), 'rule');
+      return {
+        id, name: id, description: `${id} rule`, reviewer: { type: 'llm' }, status,
+        artifacts: [{ filename: 'content.md', content: 'rule' }],
+      } as AspectDef;
+    };
+    const node: GraphNode = {
+      path: 'svc',
+      meta: { name: 'svc', type: 'service', description: 'the service', aspects: ['blocking', 'advising'], mapping: ['src/a.ts'] },
+      children: [], parent: null,
+    } as GraphNode;
+    const graph = {
+      config: { version: '5.0.0', reviewer: { tiers: { default: TIER }, default: 'default' } },
+      architecture: { node_types: { service: { description: 'test', when: { path: 'src/**' } } } },
+      nodes: new Map([['svc', node]]),
+      aspects: [mkAspect('blocking', 'enforced'), mkAspect('advising', 'advisory')],
+      flows: [], schemas: [], rootPath,
+    } as unknown as Graph;
+    const lock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
+    await writeLock(rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
+
+    const unscoped = await runCheck(graph, null);
+    expect(unscoped.suggestedNext).toBe('yg check --approve');
+
+    const scoped = await runCheck(graph, null, {
+      changeScope: { burn: emptyBurn(), referenceName: 'origin/main', blobOidByPath: null },
+    });
+    expect(scoped.issues.filter((i) => i.severity === 'error')).toHaveLength(0);
+    expect(scoped.suggestedNext).not.toBe('yg check --approve');
+    expect(scoped.suggestedNext).toBe(
+      "1 obligation outside your changes — run 'yg check --full' for the complete audit",
+    );
+  });
+
+  it('a global scope leaves every issue exactly as an unscoped run reports it', async () => {
+    writeFile('src/a.ts', 'code');
+    const graph = buildGraph('enforced');
+    const lock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
+    await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set<string>() });
+
+    const withoutOption = await runCheck(graph, null);
+    const globalScope = await runCheck(graph, null, {
+      changeScope: { burn: { ...emptyBurn(), global: true, changedInputCount: 3 }, referenceName: 'origin/main', blobOidByPath: null },
+    });
+
+    expect(withoutOption.issues.length).toBeGreaterThan(0);
+    expect(globalScope.issues).toEqual(withoutOption.issues);
+    expect(globalScope.suggestedNext).toBe(withoutOption.suggestedNext);
+    expect(globalScope.outsideCount).toBe(0);
+    expect(globalScope.changedInputCount).toBe(3);
+  });
+
+  it('an issue can carry flow and edge identity', () => {
+    // Type-level smoke for the two identity fields added alongside the option:
+    // a flow issue has no nodePath to be matched by, and an edge-derived issue
+    // has no single subject file, so both need somewhere structured to say what
+    // they are about. Nothing populates them yet.
+    const issue: CheckIssue = {
+      code: 'description-missing',
+      severity: 'warning',
+      rule: 'description-required',
+      messageData: { what: 'flow lacks a description', why: 'readers cannot tell what it does', next: 'add one' },
+      flowName: 'checkout',
+      relationEdges: [{ fromFile: 'src/a.ts', toFile: 'src/b.ts' }],
+    };
+    expect(issue.flowName).toBe('checkout');
+    expect(issue.relationEdges).toEqual([{ fromFile: 'src/a.ts', toFile: 'src/b.ts' }]);
   });
 });

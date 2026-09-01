@@ -92,8 +92,8 @@ yg flows                          # list all flows with participants and aspects
 yg impact --flow <name>           # all participating nodes (with descendants)
 \`\`\`
 
-A flow's pairs are filled like any other by \`yg check --approve\` (verification is
-repo-wide; there is no per-flow approve command).
+A flow's pairs are filled like any other by \`yg check --approve\` — there is no
+per-flow approve command, and no way to ask for one flow's pairs alone.
 
 ## Renaming or splitting nodes
 

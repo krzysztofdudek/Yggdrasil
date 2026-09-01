@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.8.0] - 2026-08-31
+
+Adopt Yggdrasil on a large codebase that is not clean yet, without fixing everything first.
+
+### Added
+
+- **Fail only on what your change touched.** Name a branch to measure against and `yg check` stops failing on problems your change did not cause. They stay on the report and stay counted, as warnings. Turn it on with one line in `yg-config.yaml`: `progressive: { reference: origin/main }`. Without that line, nothing changes. Run `yg check --full` on your integration branch to check everything — a plain run on the branch you measure against always passes. If the comparison cannot be made — usually a shallow CI checkout — the run checks everything and tells you why. See [Progressive mode](https://krzysztofdudek.github.io/Yggdrasil/progressive-mode).
+
+- **Reviews cost only what your change reaches.** `yg check --approve` pays to review the rules your change is accountable for instead of the whole backlog, and says how many it left for later. `--dry-run` shows the bill first.
+
+- **A hidden edit is still your edit.** Telling git to ignore a file (`--assume-unchanged`, `--skip-worktree`) no longer passes that file's problems off as somebody else's. Its content is compared against the branch, and it keeps failing when the two differ.
+
+### Changed
+
+- **The free check's progress line counted the wrong thing.** `yg check --approve --only-deterministic` reported how many checks were unverified instead of how many it was about to run.
+
+- **A refusal over a missing log entry now says what it measures against.** It compares a component's source against the last verdicts recorded for it, not against your change — an earlier commit can just as easily be the cause. The old wording read as "you changed this".
+
+### Fixed
+
+- **`.mts` and `.cts` files were not treated as TypeScript.** They were never parsed, classified or checked, so dependencies inside them went unseen and no rule ever ran on them. Both now work like `.ts`.
+
+- **`yg impact` missed work that adding or removing a component creates.** A rule that looks at a component's children was not reported as affected when a child appeared or disappeared.
+
+- **The portal called every waiver "bounded".** A waiver covering a whole file was labelled the same as one covering a single line. Each now says what it actually covers.
+
+- **The portal's needs-attention list showed wrong information.** Findings could carry the wrong severity, show another component's fix, disappear if they were about a file rather than a component, or link to a rule that does not exist.
+
+- **The portal could show a type as banned from every dependency** when the architecture had placed no restriction on it at all. Affected the relations matrix and the type's "may depend on" list.
+
+- **A refused file could look like a passing one in the portal,** or drop out of the list entirely.
+
+- **A component's rule list did not say which rules block the build.** Every row now shows whether a rule blocks or only advises.
+
+- **A small slice of the coverage bar could shrink away to nothing** and disappear.
+
+- **The portal's summary line called advisory findings blocking.** Anything not yet reviewed was described as something that blocks until resolved.
+
 ## [5.7.2] - 2026-08-09
 
 ### Fixed

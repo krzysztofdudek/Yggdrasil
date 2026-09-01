@@ -26,7 +26,12 @@ description: "Renders the yg check verdict/metrics header line — PASS/FAIL, no
   same file). Reduced to counts only under the --summary/--top triage views,
   where the same 'no confirmed verdict' fact still appends as a bare count
   (never the fill-only specific reason, which only a --approve run — and never
-  a counts-only view, which cannot combine with --approve — can ever discover)."
+  a counts-only view, which cannot combine with --approve — can ever discover).
+  Exports renderChangeScope (a project measuring changes against a reference
+  branch: how much sits outside the change and what it was measured against)
+  so check-render-views's --aspect drill-in, which overwrites this header's
+  first line with its own aspect-scoped verdict, can reprint the identical
+  segment rather than silently dropping it."
 mapping:
   - source/cli/src/cli/check-render-header.ts
 relations:

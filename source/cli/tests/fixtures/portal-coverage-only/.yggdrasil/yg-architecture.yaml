@@ -1,0 +1,17 @@
+# yg-architecture.yaml — the one committed fixture whose ONLY real failure is a
+# coverage gap. `service` classifies src/** but carries no default aspects at all,
+# and the one node below declares no aspects of its own either — so the fixture's
+# one mapped file (src/a.ts) contributes ZERO verdict pairs (nothing to be
+# unverified or refused about). `module` is declared purely as the organizational
+# parent kind the pattern normally carries; no node of that type exists here.
+# src/b.ts is deliberately left OUT of every node's mapping, so under
+# coverage.required: ["/"] it is the fixture's one and only unmapped-files error.
+node_types:
+  module:
+    description: "Organizational grouping — no node of this type is instantiated in this fixture."
+    log_required: false
+  service:
+    description: "Source under src/, classified by path alone. Carries no default aspects — a node of this type produces zero verdict pairs, so nothing here can ever be unverified or refused."
+    log_required: false
+    when:
+      path: "src/**"

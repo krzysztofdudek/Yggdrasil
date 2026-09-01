@@ -4,7 +4,11 @@ description: Pure coverage-tier helpers — normalizeRoot, matchesRoot, and
   partitionByCoverageTier. Splits uncovered files into required (error) and
   middle (warning) tiers based on a CoverageConfig; excluded files are silently
   dropped. No I/O; longest-match-wins algorithm with excluded winning
-  equal-length ties.
+  equal-length ties. Also builds the unmapped-files/uncovered-advisory issues
+  themselves (buildCoverageIssue / buildCoverageAdvisoryIssue), and can split
+  the aggregate unmapped-files finding by a given file set into two
+  independently-regenerated findings (splitCoverageIssueByTouched) — groundwork
+  for a later change-accountability step, not yet called from anywhere.
 aspects: []
 relations:
   - target: cli/model/graph

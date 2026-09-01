@@ -91,7 +91,7 @@ Verification runs per \`(aspect, unit)\` pair. A **unit** is the subject of one 
 - **Refused (code violation)** → violation report with what and where. The refusal is cached and FINAL for unchanged inputs: re-running \`yg check --approve\` re-renders the stored refusal at zero cost, not a second opinion. Three ways out: fix the code; sharpen the aspect's \`content.md\` (re-verifies EVERY node using the aspect — run \`yg impact --aspect <id>\` first); or \`yg-suppress\` with the user's approval. Do NOT make a cosmetic edit just to force re-verification — it re-rolls the verdict on every affected pair (the laundering there is deliberately no command for). (These exits are for ASPECT refusals; the built-in relation-conformance check below is not an aspect — not sharpenable, not \`yg-suppress\`-able — its only exits are declare-the-relation or remove-the-dependency.)
 - **Refused (infrastructure — fail closed)** → when a pair cannot be verified at all (the LLM provider is unreachable, returns an error or unparseable response, NO reviewer is configured for an effective non-draft LLM pair, or a \`check.mjs\` fails to import or run), \`yg check --approve\` writes NOTHING for that pair. The pair stays unverified and a later \`yg check\` stays red rather than going green over code the reviewer never saw. This is not a code rejection — fix the configuration or connection (or set the aspect to \`draft\` if it is not ready to enforce), then re-run.
 
-Verification is all-or-nothing and repo-wide: \`yg check --approve\` fills EVERY unverified pair (deterministic first, free; then LLM). The only scoping flag is \`--only-deterministic\` (the free, keyless CI gate); \`yg impact\` is the pre-edit cost predictor. Deterministic checks run first; a node with an enforced deterministic refusal has its LLM pairs skipped that run, so a known-broken node never bills the reviewer. Refusals are cached like approvals.
+Verification is all-or-nothing: \`yg check --approve\` fills every unverified pair it is answering for (deterministic first, free; then LLM). By default that is the whole project. When progressive mode is on (the project names a branch in \`progressive.reference\`), a recording run still runs every free deterministic check project-wide but buys reviewer work ONLY for the rules your change is accountable for, and says how many it left outside it — \`yg check --full --approve\` reviews those. \`--only-deterministic\` is the free, keyless CI gate (no reviewer at all); \`yg impact\` is the pre-edit cost predictor. Deterministic checks run first; a node with an enforced deterministic refusal has its LLM pairs skipped that run, so a known-broken node never bills the reviewer. Refusals are cached like approvals.
 
 Interrupting \`yg check --approve\` is safe: finished verdicts are already committed to the lock; only in-flight pairs are lost and the next run resumes them. Read the raw output — never pipe it through \`| grep\`, \`| head\`, or \`| tail\`: those silently drop lines and the count you act on stops matching the count the build enforces. The default \`yg check\` output is **grouped**: issues with the same rule are collapsed into one block (shared why+fix shown once, affected nodes listed beneath). When a rule's fix is NODE-SPECIFIC (the next command names the node — e.g. a per-node log entry, or declaring a dependency in one node's file), the block instead prints EACH affected node's own fix beneath its line, so following the block clears every node, not just the first. The triage and narrowing flags are READ-ONLY views over that same result and never combine with a fill flag (\`--approve\` / \`--only-deterministic\`). When the output is still large, the SANCTIONED way to narrow it further is \`yg check --summary\` (per-node counts only) or \`yg check --top [N]\` (the N highest-priority GROUPS; bare \`--top\` shows just the single suggested-next group) — both always print the TRUE aggregate \`Errors (N)\`/\`Warnings (N)\` header and preserve the real exit code, so a narrowed view can never read as a clean build. To drill into one rule: \`yg check --aspect <id>\`. For the old ungrouped per-pair view: \`yg check --details\`. Orient with \`--summary\`/\`--top\`, then drill with \`--aspect\` or plain \`yg check\`. The reviewer already ran; the output is the return on that cost.
 
@@ -101,7 +101,7 @@ A draft aspect produces no expected pairs — nothing is verified, nothing recor
 
 Independently of the aspect reviewers, every \`yg check\` (with or without \`--approve\`) runs ONE built-in, deterministic check LIVE over every node: it parses each mapped source file (TypeScript/JS/TSX, Python, Go, Java, PHP, Kotlin, Rust, C, C++, C#, Ruby), finds each statically-resolvable dependency on ANOTHER node's code, and REFUSES the node if it depends on a node it does not declare a relation to (issue code \`relation-undeclared-dependency\`). The graph's relation edges must match the code's real dependencies.
 
-This is NOT an aspect. It has no \`content.md\`/\`check.mjs\`, it is not attached via any of the 7 channels, \`status:\` does not apply (no draft/advisory/enforced — it is ALWAYS \`error\` and blocks \`yg check\`, like the built-in architecture and mapping validators), and it is NOT \`yg-suppress\`-able. Unlike aspect verdicts, its result is NOT cached — every \`yg check\` recomputes it live (parse + resolve + verify), so it is always the current truth of the code against the graph, at zero LLM cost, like the built-in architecture and mapping validators.
+This is NOT an aspect. It has no \`content.md\`/\`check.mjs\`, it is not attached via any of the 7 channels, \`status:\` does not apply (no draft/advisory/enforced — it is ALWAYS \`error\`, and with no reference branch configured it blocks \`yg check\` unconditionally, like the built-in architecture and mapping validators), and it is NOT \`yg-suppress\`-able. ONE exception to the blocking, and only when progressive mode is on (\`progressive.reference\` set in \`yg-config.yaml\`): a refusal the current change did not reach renders as a warning, and \`yg check --full\` blocks on it again — the same carve-out enforced aspect pairs get, applied to a check that has no status. It stays an error the moment a change reaches the code carrying it. Unlike aspect verdicts, its result is NOT cached — every \`yg check\` recomputes it live (parse + resolve + verify), so it is always the current truth of the code against the graph, at zero LLM cost, like the built-in architecture and mapping validators.
 
 Two properties keep it false-positive-free:
 - **One-directional.** A detected code dependency MUST be declared. A declared relation needs NO code backing — reflection, dependency injection, HTTP, and event edges are legitimately declared without any static call, and the check never complains about a relation with no matching code.
@@ -119,7 +119,7 @@ A verdict is valid exactly while the inputs that produced it hash to the stored 
 
 If you modify code without reading the aspect content files (\`yg context --file\` → follow the \`read:\` paths), you will likely write code that violates rules you didn't know about. The reviewer will refuse it. You will have to read the aspects anyway, then rewrite. Double cost.
 
-Status governs blocking uniformly. An advisory pair never blocks \`yg check\` — whether it is refused OR unverified, it renders as a warning. An enforced pair always blocks when refused or unverified. Only \`draft\` removes a pair from the expected set, so flipping an aspect to advisory does NOT make an unverified enforced pair go green — the pair is still unverified, just now a warning; \`yg check --approve\` is what fills it. To park an aspect, use \`status: draft\`, never a \`when\` edit (a \`when\` edit drops the pairs and garbage-collection prunes their verdicts; a \`draft\` round-trip keeps them). When \`yg check\` emits both errors AND warnings, \`suggestedNext\` points at the highest-priority error (a fixed priority cascade, not output order). Fix errors before warnings. When only warnings remain, it surfaces an advisory next-step so a warnings-only run still points somewhere.
+Status governs blocking uniformly. An advisory pair never blocks \`yg check\` — whether it is refused OR unverified, it renders as a warning. An enforced pair always blocks when refused or unverified — with one exception, and only when progressive mode is on: an enforced finding your change did not reach renders as a warning, and \`yg check --full\` blocks on it again. Status itself is untouched by that — the pair stays enforced and blocks the moment a change reaches it. Only \`draft\` removes a pair from the expected set, so flipping an aspect to advisory does NOT make an unverified enforced pair go green — the pair is still unverified, just now a warning; \`yg check --approve\` is what fills it. To park an aspect, use \`status: draft\`, never a \`when\` edit (a \`when\` edit drops the pairs and garbage-collection prunes their verdicts; a \`draft\` round-trip keeps them). When \`yg check\` emits both errors AND warnings, \`suggestedNext\` points at the highest-priority error (a fixed priority cascade, not output order). Fix errors before warnings. When only warnings remain, it surfaces an advisory next-step so a warnings-only run still points somewhere.
 
 Full lock format, hash ingredients, caching policy, merge procedure, garbage-collection, and the revert recipe: \`yg knowledge read verification-and-lock\`.
 
@@ -128,7 +128,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | Command | Purpose |
 |---|---|
 | \`yg check\` | By default: writes no verdicts, no LLM calls — re-hash lock verdicts, run the relation check live, validate coverage. Blocks CI. Behavior changes if \`auto_approve\` is set (see below). |
-| \`yg check --approve\` | Fill every unverified pair (deterministic first, then LLM), then report. The only writer of verdicts. Overrides \`auto_approve\`. |
+| \`yg check --approve\` | Fill every unverified pair the run answers for (deterministic first, then LLM), then report. The only writer of verdicts. Overrides \`auto_approve\`. |
 | \`yg check --approve --only-deterministic\` | Fill ONLY deterministic pairs (free, keyless), writing ONLY the gitignored cache; then report. The CI / pre-commit gate. Overrides \`auto_approve\`. |
 | \`yg check --approve --dry-run\` | Free cost preview — print the reviewer-call budget (an upper bound) + per-node breakdown, then exit 0 WITHOUT writing or calling the reviewer. |
 | \`yg check --top [N]\` | Read-only: show only the N highest-priority GROUPS (bare \`--top\` = single suggested-next group). True aggregate header always shown. |
@@ -162,7 +162,7 @@ The table above is the working set, not the whole surface. The commands it omits
 
 Cost is counted per PAIR. \`yg impact\` shows which pairs an edit invalidates. For an LLM pair, re-verification is one reviewer request × the tier's consensus count × the number of units — so editing an LLM aspect that touches 20 single-unit nodes is at least 20 reviewer calls. A source-code edit re-verifies every effective non-draft pair whose subject set includes that file. Deterministic pairs run locally and cost zero LLM calls regardless of how many they touch. A \`scope\` edit (\`per\` or \`files\`) invalidates every pair of the aspect — it cascades exactly like a \`content.md\` edit; run \`yg impact --aspect <id>\` first. For \`companion.mjs\` aspects: editing \`companion.mjs\` re-bills all pairs; a resolved companion edit re-bills only its readers — and because the verdict folds every file the hook reads to decide (not only the paths it returns), editing any read-to-decide file re-bills its readers too; \`yg impact --file\` previews this precisely, including companion pairs not yet in the lock. Plain LLM aspects are unaffected.
 
-Before a repo-wide fill, preview the bill for free: \`yg check --approve --dry-run\` runs the same classification and budget computation a real \`--approve\` would, prints the reviewer-call budget plus a per-node / per-aspect breakdown (deterministic pairs are free; each LLM pair shows its consensus call count), then exits 0 WITHOUT calling the reviewer or writing anything. Treat the number as an UPPER BOUND — a node with an enforced deterministic refusal has its LLM fills skipped, and a fresh refusal or infra disposition can leave a pair unfilled, so the real run bills at most that many calls. \`yg impact\` predicts the blast radius of one edit; \`--dry-run\` totals the bill across every currently-unverified pair right before you commit to it.
+Before a fill, preview the bill for free: \`yg check --approve --dry-run\` runs the same classification and budget computation a real \`--approve\` would, prints the reviewer-call budget plus a per-node / per-aspect breakdown (deterministic pairs are free; each LLM pair shows its consensus call count), then exits 0 WITHOUT calling the reviewer or writing anything. Treat the number as an UPPER BOUND — a node with an enforced deterministic refusal has its LLM fills skipped, and a fresh refusal or infra disposition can leave a pair unfilled, so the real run bills at most that many calls. \`yg impact\` predicts the blast radius of one edit; \`--dry-run\` totals the bill for exactly what the real run would buy right before you commit to it — every currently-unverified pair, or, when progressive mode is on, the ones your change is accountable for.
 
 When code doesn't match an aspect, five options:
 
@@ -183,13 +183,22 @@ const DECISIONS = `## DECISIONS
 
 **Start of conversation:** \`yg check\`. If errors — fix before any other work. \`yg check\` failures block commits and CI. Nothing passes until check is clean.
 
+**When the project measures changes against a branch** (progressive mode — the project sets \`progressive.reference\` in \`yg-config.yaml\`): \`yg check\`'s header ends with how many obligations sit outside your change and what it was measured against, and those findings are listed as \`(outside changes)\` warnings. Read that line, then get on with the task — the run is clean when nothing of YOURS is red. If the header says nothing about changes, the project is not measuring and none of the following applies. Findings outside your change are inherited debt, not a work list:
+
+- **Not a mandate.** Nobody asked you to fix them, and they are not a verdict on the code you are about to touch. Do not widen the change to reach them; if they look worth fixing, say so and let the user decide.
+- **Never clear them with a whole-project recording run.** \`yg check --full --approve\` reviews the entire project and records verdicts for code your change never touched — it spends the user's reviewer budget and answers for other people's work under your run. \`--full\` is the user's audit lever: propose it, never run it as cleanup.
+- **Never suppress one** — see \`yg-suppress\` below.
+- **Yours still block.** Anything still listed as an ERROR is yours to resolve, including a finding the run could not attribute to any file or component — those stay errors on purpose.
+- **If the run says the change could not be measured**, it gated the whole project instead and the notice names the cause (most often a shallow CI checkout) and the fix. Report that cause; do not start clearing a backlog you did not create.
+- **If the run says the change REACHES the whole project**, the measurement was made and the change moved something nothing smaller can bound — \`yg-architecture.yaml\`, or the part of \`yg-config.yaml\` that decides what the graph means (which includes attaching a new rule to a type). Everything is in scope for that one run and the header reports \`0 obligations outside your changes\`. That is correct and there is nothing to fix; the notice says so. Do NOT undo the graph edit to get a smaller gate, and do not read the zero as the mode having failed.
+
 **Before touching a source file:** \`yg context --file <path>\`. Read the files listed under \`read:\` — these are the rules the reviewer will check your code against. For LLM aspects, \`read:\` points to \`content.md\` (and \`companion.mjs\` when present). For deterministic aspects, \`read:\` points to \`check.mjs\` — read it to know what rules will be enforced. Aggregating aspects have no \`read:\` of their own; their implied children each carry their own \`read:\` paths. For blast radius: \`yg impact --file <path>\`.
 
 **After modifying code:** iterate edits with plain \`yg check\` (free by default — no LLM calls unless \`auto_approve\` is set in config) until the working tree is final, then run \`yg check --approve\` exactly ONCE at the end. Every source edit after an \`--approve\` invalidates the verdicts you just paid for, so verifying mid-edit double-pays. Before the final \`--approve\`, add a \`yg log add\` entry for each affected node whose type opts into the log gate. Verification is part of the change — the change is not done until \`yg check --approve\` passes and \`yg check\` is clean. Do not defer it.
 
 **Failing tests or checks:** Never write off a failure as pre-existing without evidence that actually establishes it — a single clean re-run is not that evidence, since a freshly introduced flake reproduces exactly the same result.
 
-**End of conversation:** \`yg check\` — resolve every unverified pair and refusal. \`yg check\` failures block CI. If any pair stays unverified or an enforced pair is refused, the build breaks.
+**End of conversation:** \`yg check\` — resolve every unverified pair and refusal it reports. \`yg check\` failures block CI: if any pair it holds you accountable for stays unverified, or such an enforced pair is refused, the build breaks. Under progressive mode that is the set your change reached; \`yg check --full\` is the whole project.
 
 **Unmapped files:** \`yg context --file\` will say if a file has no owner and suggest candidates. Either add it to an existing node's mapping or create a new node. Code without graph coverage works but is not verified — inform the user and propose options.
 
@@ -324,8 +333,9 @@ in \`yg context --node\`) to know whether an entry is required.
 
 A fresh log entry is required whenever BOTH hold: the node's type has
 \`log_required: true\` AND the node's mapped source changed since its last
-positive closure (the moment all the node's enforced pairs last went green), or
-this is the node's first verification and it owns source files. The entry must be
+positive closure (the moment every enforced pair of the node was last settled —
+approved, or under progressive mode deliberately left unbought), or this is the
+node's first verification and it owns source files. The entry must be
 newer than the one recorded at that closure — one fresh entry per closure cycle.
 This requirement is a property of the node TYPE plus a source change: it is
 INDEPENDENT of aspect status AND of whether the node has any aspects or pairs at
@@ -348,7 +358,9 @@ verified) and stays red until every missing entry exists. Add the entries and re
 If a pair is refused, iterate on the code WITHOUT adding new log entries. One
 log entry covers all source edits until the node reaches positive closure —
 a refused enforced pair keeps the cycle open, so the same entry stays valid
-across every retry until the node is actually green.
+across every retry until the node is actually green. Under progressive mode a
+node can close while reviewer work the change never reached stays unbought, so
+the next source change on it needs its own entry, as after any closure.
 
 \`yg log add\` does NOT invalidate any verdict or run the reviewer. You can
 append context entries between code changes freely. Only source-file changes in
@@ -439,9 +451,9 @@ only for source files in node mappings.
 For changes that span multiple nodes (cross-cutting rename, schema migration,
 shared concept update):
 
-  1. Edit ALL affected source files first. Verification is repo-wide and
-     all-or-nothing, so there is nothing to batch by hand — one
-     \`yg check --approve\` at the end fills every pair across every node.
+  1. Edit ALL affected source files first. Verification is all-or-nothing, so
+     there is nothing to batch by hand — one \`yg check --approve\` at the end
+     fills every pair the run answers for, across every node it reaches.
 
   2. Add a log entry per affected node whose type opts into the gate
      (\`yg log add --node X --reason "..."\` for each). One entry per node,
@@ -531,6 +543,7 @@ Authorization rules (these live here — behavioral, not syntax):
 - You MUST NEVER write a suppress without explicit user confirmation — no exceptions.
 - You do not invent reasons — the user provides or approves them.
 - A single-line marker waives ONLY the line directly below it; the bracket disable/enable form (or a bare disable that runs to end of file) waives a range. Suppress scope is resolved once into line ranges and every reviewer kind (LLM and deterministic) honors the exact same ranges — to waive a whole file, use the bracket form, never a single-line marker.
+- When progressive mode is on: NEVER write a suppress for a finding the run listed as \`(outside changes)\`. It waives a rule on code your change never touched, and that debt was not yours to sign off — the run is already telling you it is not this change's business. Waive only what your change reached, and only with the user's confirmation as below.
 
 When proposing a suppress (the only path to a written suppress):
 

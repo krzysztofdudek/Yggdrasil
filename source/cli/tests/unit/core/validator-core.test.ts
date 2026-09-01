@@ -688,6 +688,8 @@ describe('validator', () => {
       expect(issues).toHaveLength(1);
       expect(issues[0].code).toBe('description-missing');
       expect(issues[0].severity).toBe('error');
+      // Structured identity: the aspect this issue concerns, not just prose.
+      expect(issues[0].aspectId).toBe('no-desc-aspect');
     });
 
     it('missing-description emitted for a flow without description', async () => {
@@ -706,6 +708,9 @@ describe('validator', () => {
       expect(issues).toHaveLength(1);
       expect(issues[0].code).toBe('description-missing');
       expect(issues[0].severity).toBe('error');
+      // Structured identity: the flow this issue concerns — a flow has no
+      // nodePath, so without this there is nothing to match it against.
+      expect(issues[0].flowName).toBe('checkout-flow');
     });
   });
 });

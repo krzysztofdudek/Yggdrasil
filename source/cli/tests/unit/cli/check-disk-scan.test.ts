@@ -67,6 +67,7 @@ function makeCheckResult(issues: CheckIssue[]): CheckResult {
     draftSkipped: 0,
     verifiedDet: 0,
     verifiedLlm: 0,
+    pairs: [],
   };
 }
 

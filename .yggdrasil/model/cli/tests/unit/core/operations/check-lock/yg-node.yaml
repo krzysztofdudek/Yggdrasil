@@ -8,6 +8,7 @@ aspects: []
 relations:
   [
     { target: cli/core/check, type: uses },
+    { target: cli/core/check-codes, type: uses },
     { target: cli/io/lock-store, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/tests/unit/helpers, type: uses }

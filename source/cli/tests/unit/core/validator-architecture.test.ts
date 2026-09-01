@@ -827,7 +827,12 @@ describe('checkStrictOverlapConflict', () => {
     try {
       const graph = await makeOverlapGraph(tmpDir, 2);
       const result = await validate(graph);
-      expect(result.issues.find((i) => i.code === 'strict-overlap-conflict')).toBeDefined();
+      const conflict = result.issues.find((i) => i.code === 'strict-overlap-conflict');
+      expect(conflict).toBeDefined();
+      // Structured identity: the matching file, attached as a self-referencing
+      // edge (one file, not a relationship between two, is the subject) —
+      // reusing the same aggregate-edge-list shape type-relation-forbidden uses.
+      expect(conflict!.relationEdges).toEqual([{ fromFile: 'src/foo.ts', toFile: 'src/foo.ts' }]);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
@@ -867,6 +872,19 @@ describe('checkStrictOverlapConflict', () => {
       const conflicts = result.issues.filter((i) => i.code === 'strict-overlap-conflict');
       // 2 files both match same pair (typeA, typeB) → exactly 1 conflict error, not 2
       expect(conflicts.length).toBe(1);
+      // The MESSAGE still samples only ONE file as its example (display
+      // concern, unchanged from before this field existed) — exactly one of
+      // the two, whichever the scan reached first (file-walk order is not
+      // pinned). The structured field is for machines and must be complete:
+      // BOTH matching files, regardless of which one the message happened to
+      // sample — asserted set-wise since walk order is not pinned either.
+      const what = conflicts[0].messageData.what;
+      expect(what.includes('a.ts') !== what.includes('b.ts')).toBe(true);
+      const edges = [...(conflicts[0].relationEdges ?? [])].sort((x, y) => x.fromFile.localeCompare(y.fromFile));
+      expect(edges).toEqual([
+        { fromFile: 'src/a.ts', toFile: 'src/a.ts' },
+        { fromFile: 'src/b.ts', toFile: 'src/b.ts' },
+      ]);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }

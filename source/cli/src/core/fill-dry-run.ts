@@ -21,6 +21,14 @@ import { toPosixPath } from '../utils/posix.js';
 /**
  * Write the per-subject cost breakdown, then the upper-bound caveat.
  *
+ * A preview prices the run it previews, so it is handed the SAME two fill sets
+ * the run would dispatch — never the raw unverified set. Anything the run has
+ * already decided not to fill (an LLM pair under --only-deterministic, or one
+ * the current change is not accountable for) is absent from both sets and is
+ * therefore absent from the bill; the header printed just above says how many
+ * were left out and why, so the shorter breakdown never reads as the whole
+ * outstanding backlog.
+ *
  * The fill set is grouped by node, and each node's pairs split by reviewer kind.
  * Within the LLM group, each pair's consensus resolves exactly as the header
  * budget resolved it, so the per-aspect numbers reconcile with that total.
@@ -33,17 +41,19 @@ import { toPosixPath } from '../utils/posix.js';
 export function writeDryRunBreakdown(
   graph: Graph,
   params: {
-    unverifiedPairs: ExpectedPair[];
+    /** The free half this run would fill — always the whole project. */
+    detPairs: ExpectedPair[];
+    /** The paid half this run would fill — narrowed to the change, when measured. */
+    llmPairs: ExpectedPair[];
     aspectById: Map<string, AspectDef>;
-    onlyDeterministic: boolean;
     reviewerCallBudget: number;
   },
   write: (s: string) => void,
 ): void {
-  const { unverifiedPairs, aspectById, onlyDeterministic, reviewerCallBudget } = params;
+  const { detPairs, llmPairs, aspectById, reviewerCallBudget } = params;
   const byNode = new Map<string, ExpectedPair[]>();
   const filePairs: ExpectedPair[] = [];
-  for (const p of unverifiedPairs) {
+  for (const p of [...detPairs, ...llmPairs]) {
     if (p.nodePath === undefined) { filePairs.push(p); continue; }
     const list = byNode.get(p.nodePath) ?? [];
     list.push(p);
@@ -53,7 +63,7 @@ export function writeDryRunBreakdown(
     const nodePairs = byNode.get(nodePath)!;
     write(`  ${toPosixPath(nodePath)}\n`);
     const det = nodePairs.filter((p) => p.kind === 'deterministic');
-    const llm = onlyDeterministic ? [] : nodePairs.filter((p) => p.kind === 'llm');
+    const llm = nodePairs.filter((p) => p.kind === 'llm');
     for (const p of [...det].sort((a, b) => a.aspectId.localeCompare(b.aspectId, 'en'))) {
       write(`    [det] ${p.aspectId} on ${toPosixPath(p.unitKey)} — free\n`);
     }
@@ -67,7 +77,7 @@ export function writeDryRunBreakdown(
       a.aspectId.localeCompare(b.aspectId, 'en') ||
       toPosixPath(a.subjectFiles[0]).localeCompare(toPosixPath(b.subjectFiles[0]), 'en');
     const det = filePairs.filter((p) => p.kind === 'deterministic').sort(sortByAspectThenFile);
-    const llm = onlyDeterministic ? [] : filePairs.filter((p) => p.kind === 'llm').sort(sortByAspectThenFile);
+    const llm = filePairs.filter((p) => p.kind === 'llm').sort(sortByAspectThenFile);
     for (const p of det) {
       write(`    [det] ${p.aspectId} on ${toPosixPath(p.subjectFiles[0])} — free\n`);
     }

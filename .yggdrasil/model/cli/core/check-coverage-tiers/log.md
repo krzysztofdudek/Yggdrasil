@@ -22,3 +22,5 @@ Reworded the coverage-required-shadowed warning's WHY sentence to plain language
 Reworded a comment naming the live type-to-type relation gate so it stands on its own, dropping a short internal code with no meaning to a reader of this repository.
 ## [2026-07-31T12:04:35.237Z]
 The one-file coverage.excluded predicate needed to be reachable from the persistence layer while expanding a mapping to real files, and a persistence-layer module may not depend on the engine layer this predicate used to live in. It now lives in the shared utility layer both sides may call, re-exported here so nothing importing it from this module needed to change.
+## [2026-08-13T03:35:42.957Z]
+Added a helper that splits the aggregate unmapped-files finding by a given file set into two findings, each rebuilt from scratch off its own file list rather than the original text with a count swapped in, and returns only the non-empty side so a fully one-sided split never produces a hollow second finding naming zero files. It partitions and rebuilds only; deciding what each half means is left to a later step.

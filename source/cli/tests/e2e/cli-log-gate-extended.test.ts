@@ -39,8 +39,9 @@ const distExists = existsSync(BIN_PATH);
 // `yg check --approve` (fill); state lives in `.yggdrasil/yg-lock.json`. The
 // mandatory-log gate now fires at fill time: a node whose type has
 // `log_required: true` and whose source fingerprint changed but has no fresh log
-// entry emits `No fresh log entry for node '<path>' — mandatory before --approve
-// when source changed.` (code log-entry-missing), has its pairs SKIPPED, and the
+// entry emits `No fresh log entry for node '<path>' — mandatory before recording
+// verdicts when its source drifted.` (code log-entry-missing), has its pairs
+// SKIPPED, and the
 // run stays red. The gate keys off the SOURCE fingerprint, never on verdict
 // invalidation: a cascade-only change (aspect check.mjs edited, source untouched)
 // re-runs the check at fill time WITHOUT requiring a new log entry. With
@@ -200,7 +201,7 @@ function buildMergeRepo(label: string, resolvedLog: string): string {
   return repo;
 }
 
-const GATE_FIRED = "No fresh log entry for node 'services/orders' — mandatory before --approve when source changed.";
+const GATE_FIRED = "No fresh log entry for node 'services/orders' — mandatory before recording verdicts when its source drifted.";
 
 describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node-path syntax, merge-resolve paths', () => {
   // =========================================================================

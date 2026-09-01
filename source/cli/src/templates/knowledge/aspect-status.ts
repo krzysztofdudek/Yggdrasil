@@ -20,10 +20,20 @@ Status colors verdicts that exist; it never substitutes for verification.
   is an error, advisory unverified is a warning. Flipping an aspect to advisory
   does NOT make an unverified enforced pair go green; the pair is still
   unverified, just now a warning. \`yg check --approve\` is what fills it.
+- ONE exception to "enforced blocks", and only when progressive mode is on (the
+  project sets \`progressive.reference\`): an enforced finding the current change
+  did not reach renders as a warning, and \`yg check --full\` blocks on it again.
+  Status is not what moved — the pair is still enforced, still verified and cached
+  identically, and blocks the moment a change reaches it. On a project that names
+  no branch, the table above is the whole story.
 - ONE exception to "advisory never blocks": the \`prompt-too-large\` assembly gate
   is emitted at error severity regardless of status. An advisory LLM pair whose
   assembled prompt exceeds the resolved tier's \`max_prompt_chars\` blocks
   \`yg check\` all the same — it can never be verified, so status cannot soften it.
+  STATUS is what cannot soften it, not the change scope: the progressive carve-out
+  above applies to this code too, so an oversized pair the current change did not
+  reach is listed as a warning, with \`yg check --full\` blocking on it again. On a
+  project that names no branch, it blocks on every run whatever its status.
 - Only **\`draft\`** removes a pair from the expected set entirely. Both keyless
   exits from a blocking pair are status flips (relevant in a keyless-CI
   emergency): \`draft\` removes the pair altogether; demoting to \`advisory\`

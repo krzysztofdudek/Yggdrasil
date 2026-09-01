@@ -54,6 +54,7 @@ const MODULES = [
   'dispatch.js',
   'views/overview-view.js',
   'views/coverage-typecovered.js',
+  'views/coverage-worklist.js',
   'views/coverage-view.js',
   'views/tree-view.js',
   'views/relations-matrix.js',

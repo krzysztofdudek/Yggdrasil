@@ -36,6 +36,14 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
 const BASE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
 const NEEDS_NODE_CONTEXT = path.join(BASE_FIXTURE, 'variants', 'needs-node-context');
+// Two independent deterministic aspects (no-todo, no-fixme) on ONE classifying type, no
+// node of its own — src/leaf.ts ships a TODO but no FIXME, so no-todo genuinely refuses it
+// while no-fixme genuinely verifies it: a real multi-pair fold, not a fabricated one.
+const PORTAL_TWO_PAIRS = path.join(CLI_ROOT, 'tests', 'fixtures', 'portal-two-pairs');
+// The one committed fixture with coverage.type_level on that also carries a type (`lib`)
+// with zero aspects at all — its one type-covered file (src/lib/util.ts) is the ABSENT-
+// pairState case: enforced === false, so `pairState` must never be computed for it.
+const PORTAL_TYPE_COVERAGE = path.join(CLI_ROOT, 'tests', 'fixtures', 'portal-type-coverage');
 
 function mergedFixtureCopy(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typecov-'));
@@ -48,6 +56,18 @@ function needsNodeContextCopy(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typecov-unverified-'));
   cpSync(BASE_FIXTURE, dir, { recursive: true });
   cpSync(NEEDS_NODE_CONTEXT, dir, { recursive: true });
+  return dir;
+}
+
+function portalTwoPairsCopy(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-two-pairs-'));
+  cpSync(PORTAL_TWO_PAIRS, dir, { recursive: true });
+  return dir;
+}
+
+function portalTypeCoverageCopy(): string {
+  const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typecov-unenforced-'));
+  cpSync(PORTAL_TYPE_COVERAGE, dir, { recursive: true });
   return dir;
 }
 
@@ -99,7 +119,7 @@ describe('portal extraction — type-level coverage threading', () => {
       const crashy = data.residue.typeCovered.find((f) => f.path === 'src/crashy/a.ts');
       expect(crashy).toBeDefined();
       expect(crashy!.enforced).toBe(true);
-      expect(crashy!.unverified).toBe(true);
+      expect(crashy!.pairState).toBe('unverified');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -112,7 +132,7 @@ describe('portal extraction — type-level coverage threading', () => {
       const leafBefore = before.residue.typeCovered.find((f) => f.path === 'src/leaf/a.ts');
       expect(leafBefore).toBeDefined();
       expect(leafBefore!.enforced).toBe(true);
-      expect(leafBefore!.unverified).toBe(true);
+      expect(leafBefore!.pairState).toBe('unverified');
 
       const binPath = path.join(CLI_ROOT, 'dist', 'bin.js');
       spawnSync('node', [binPath, 'check', '--approve', '--only-deterministic'], { cwd: dir, encoding: 'utf-8' });
@@ -122,11 +142,11 @@ describe('portal extraction — type-level coverage threading', () => {
       // check.mjs reads ctx.node unconditionally) — no verdict is EVER
       // written for it, so it stays unverified after a real fill attempt.
       const crashyAfter = after.residue.typeCovered.find((f) => f.path === 'src/crashy/a.ts');
-      expect(crashyAfter!.unverified).toBe(true);
+      expect(crashyAfter!.pairState).toBe('unverified');
       // src/leaf/a.ts's own-file-rule genuinely fills — the caveat disappears
       // once the lock actually holds a recorded verdict for it.
       const leafAfter = after.residue.typeCovered.find((f) => f.path === 'src/leaf/a.ts');
-      expect(leafAfter!.unverified).toBe(false);
+      expect(leafAfter!.pairState).toBe('verified');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -147,14 +167,67 @@ describe('portal extraction — type-level coverage threading', () => {
 
       const filled = await extractPortalData(dir, { writeEnabled: false });
       const leafFilled = filled.residue.typeCovered.find((f) => f.path === 'src/leaf/a.ts');
-      expect(leafFilled!.unverified).toBe(false);
+      expect(leafFilled!.pairState).toBe('verified');
 
       const leafPath = path.join(dir, 'src', 'leaf', 'a.ts');
       writeFileSync(leafPath, readFileSync(leafPath, 'utf-8') + '\n// a later, unapproved edit\n');
 
       const stale = await extractPortalData(dir, { writeEnabled: false });
       const leafStale = stale.residue.typeCovered.find((f) => f.path === 'src/leaf/a.ts');
-      expect(leafStale!.unverified).toBe(true);
+      expect(leafStale!.pairState).toBe('unverified');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // THE TRAP: `worstPairState`'s reduce seeds at 'verified', so folding an EMPTY pair-state
+  // list for a file would silently return 'verified' — fabricated green. A single type-covered
+  // file with TWO independent pairs (one refused, one verified) is the real-world shape that
+  // exercises the non-empty fold; `pairState` must read the WORST of the two, not the seed and
+  // not whichever pair happened to be indexed last.
+  it('a multi-pair type-covered file folds worst-state-wins and carries reasons', async () => {
+    const dir = portalTwoPairsCopy();
+    try {
+      const binPath = path.join(CLI_ROOT, 'dist', 'bin.js');
+      spawnSync('node', [binPath, 'check', '--approve', '--only-deterministic'], { cwd: dir, encoding: 'utf-8' });
+
+      const data = await extractPortalData(dir, { writeEnabled: false });
+      // `computeExpectedPairs` sorts pairs by (aspectId, unitKey) — 'no-fixme' sorts before
+      // 'no-todo'. For src/leaf.ts that puts its refused pair (no-todo) LAST in iteration
+      // order; for src/leaf2.ts (FIXME, no TODO) it puts its refused pair (no-fixme) FIRST.
+      // Asserting both files pins the fold as genuine worst-state-wins: a naive "last write
+      // wins" implementation would still pass on src/leaf.ts alone (refused happens to be
+      // last there) but would wrongly read 'verified' on src/leaf2.ts (refused is first,
+      // verified is last there).
+      const leaf = data.residue.typeCovered.find((f) => f.path === 'src/leaf.ts');
+      expect(leaf).toBeDefined();
+      expect(leaf!.enforced).toBe(true);
+      expect(leaf!.pairState).toBe('refused'); // refused (no-todo, iterated LAST) beats the sibling verified (no-fixme)
+      expect(leaf!.reasons?.some((r) => r.includes('TODO'))).toBe(true);
+
+      const leaf2 = data.residue.typeCovered.find((f) => f.path === 'src/leaf2.ts');
+      expect(leaf2).toBeDefined();
+      expect(leaf2!.enforced).toBe(true);
+      expect(leaf2!.pairState).toBe('refused'); // refused (no-fixme, iterated FIRST) beats the sibling verified (no-todo)
+      expect(leaf2!.reasons?.some((r) => r.includes('FIXME'))).toBe(true);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // THE GUARD's other half: an UNENFORCED type-covered file (matched a type, but that type's
+  // cascade carries no aspect at all — zero nodeless pairs by construction) must never reach
+  // `worstPairState` at all. `pairState` is ABSENT for it, not a computed 'verified' from an
+  // empty fold and not a stale 'unverified' either — there is no pair to have an opinion about.
+  it('an unenforced type-covered file has NO pairState', async () => {
+    const dir = portalTypeCoverageCopy();
+    try {
+      const data = await extractPortalData(dir, { writeEnabled: false });
+      const util = data.residue.typeCovered.find((f) => f.path === 'src/lib/util.ts');
+      expect(util).toBeDefined();
+      expect(util!.enforced).toBe(false);
+      expect(util!.pairState).toBeUndefined();
+      expect(util!.reasons).toBeUndefined();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

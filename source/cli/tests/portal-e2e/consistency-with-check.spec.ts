@@ -19,7 +19,7 @@ import { mkdtempSync, cpSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test, expect } from './support/fixtures';
-import { runCheck, staticPage, freshFixtureCopy, servedPortal, readInlinedData, approveDeterministic, fixtureRoot } from './support/harness';
+import { runCheck, staticPage, freshFixtureCopy, servedPortal, readInlinedData, approveDeterministic, fixtureRoot, runSuppressions } from './support/harness';
 
 export const COVERS: string[] = [];
 
@@ -59,27 +59,58 @@ function parseCheckZeroEnforcementCount(out: string): number {
 }
 
 /**
- * The rule labels of every GROUP the grouped `yg check` output prints, errors and warnings
- * alike, so the labels come from the CLI's own rendering — the page's worklist is then compared
- * against that set instead of a hardcoded count, which would silently need editing (and could be
- * edited to whatever the page happens to render) the next time a fixture's real state changes.
+ * Every rule GROUP the grouped `yg check` output prints, each carrying the SEVERITY of the
+ * section it was found under — so a page comparison can verify not just that a group exists,
+ * but that it renders under the right severity. The labels/severities come from the CLI's own
+ * rendering, never a hardcoded literal, so the next task cannot silently drift the page from
+ * the command line without this failing.
  *
- * Two header shapes, because there are two kinds of group. A NODE-SCOPED group's header ends
- * `<N> pairs  <M> nodes`. A REPOSITORY-LEVEL group — one whose finding names no component, such
- * as the committed agent-rules digest drifting from the installed CLI — prints its label alone:
- * a pair and node count there would describe a component that does not exist. The bare form is
- * matched narrowly (a lone kebab-case issue code) so the coverage blocks, which are also
- * two-space-indented but carry a parenthesized file count, are never swept in.
+ * Section-aware: `yg check` prints two independent grouped sections, `Errors (N)` then
+ * `Warnings (N)` (each possibly suffixed `in M groups` when M > 1, and possibly prefixed with
+ * an emoji + wrapped in ANSI color codes when `chalk` detects color support in the spawned
+ * child's own environment — real, observed, and NOT the same as the parent shell's own color
+ * support: `spawnSync`'s child inherits enough of Playwright's own test-runner environment
+ * that `chalk.level > 0` there even though the identical spawn from a plain interactive shell
+ * stays uncolored). Each line is ANSI-stripped before every check below, so a leading escape
+ * sequence can neither hide a section header from an ANCHORED match nor get mistaken for
+ * group-header content. Anchored (not a bare substring test) so a line ELSEWHERE in the output
+ * that merely happens to contain the words "Errors (" / "Warnings (" — inside a violation
+ * message, say — can never re-open or mis-attribute a section; `^\S*\s*` allows for the
+ * optional emoji glyph (itself non-whitespace) plus the space before the word, never more.
+ * A line is only ever a candidate group header while inside one of those two sections; the
+ * running `section` state is what makes the SAME issue code (e.g. `unverified`, split by the
+ * pair's enforced/advisory status into two independent `groupIssues` calls upstream) parse as
+ * two DISTINCT groups with different severities, instead of being flattened together the way a
+ * severity-blind regex would.
+ *
+ * Three header shapes, because a group's subjects can be nodes, files, or neither:
+ *   - NODE-scoped:            `<label>  <N> pairs  <M> nodes[  aspect '<id>']`
+ *   - FILE-scoped (nodeless):
+ *     `<label>  <N> pairs  <M> files[  aspect '<id>']`     (fileCount only)
+ *     `<label>  <N> pairs  <M> nodes, <K> files[  aspect '<id>']` (mixed)
+ *   - REPOSITORY-level — a finding that names no component at all (the committed agent-rules
+ *     digest, an unreadable lock): a pair/node/file count there would describe a subject that
+ *     does not exist, so the header prints the label alone. Matched narrowly (a lone
+ *     kebab-case issue code) so the coverage blocks — also two-space-indented, but carrying a
+ *     parenthesized file count (`unmapped (N)`) — are never swept in; those are asserted
+ *     directly against `.cov-covblock`, never through this parser.
  */
-function parseCheckRuleGroups(out: string): string[] {
-  const labels: string[] = [];
-  for (const line of out.split('\n')) {
-    const scoped = line.match(/^ {2}(\S.*?)\s{2,}\d+ pairs\s+\d+ nodes\s*$/);
-    if (scoped) { labels.push(scoped[1]); continue; }
+function parseCheckRuleGroups(out: string): Array<{ label: string; severity: 'error' | 'warning' }> {
+  const groups: Array<{ label: string; severity: 'error' | 'warning' }> = [];
+  let section: 'error' | 'warning' | null = null;
+  // eslint-disable-next-line no-control-regex -- stripping a real ANSI escape sequence requires matching the ESC control byte itself.
+  const ANSI_RE = /\u001b\[[0-9;]*m/g;
+  for (const rawLine of out.split('\n')) {
+    const line = rawLine.replace(ANSI_RE, '');
+    if (/^\S*\s*Errors \(\d+\)/.test(line)) { section = 'error'; continue; }
+    if (/^\S*\s*Warnings \(\d+\)/.test(line)) { section = 'warning'; continue; }
+    if (section === null) continue;
+    const scoped = line.match(/^ {2}(\S.*?)\s{2,}\d+ pairs\s+(?:\d+ nodes(?:, \d+ files)?|\d+ files)(?:\s{2,}aspect '[^']*')?\s*$/);
+    if (scoped) { groups.push({ label: scoped[1], severity: section }); continue; }
     const repoLevel = line.match(/^ {2}([a-z][a-z0-9-]*)\s*$/);
-    if (repoLevel) labels.push(repoLevel[1]);
+    if (repoLevel) groups.push({ label: repoLevel[1], severity: section });
   }
-  return labels;
+  return groups;
 }
 
 test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
@@ -117,12 +148,22 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     // non-blocking agent-rules-digest group (the fixture ships no agent-rules install, and the
     // page must say so exactly as the CLI does — a page that showed only the blocking group would
     // be reading greener than the command line).
-    const cliRules = parseCheckRuleGroups(check.out);
-    expect(cliRules).toContain('unverified (not yet reviewed)');
-    expect(cliRules).toContain('rules-digest-stale');
-    await expect(page.locator('.cov-worow')).toHaveCount(cliRules.length);
-    // The blocking group leads the priority cascade and still covers both unverified nodes.
-    await expect(page.locator('.cov-worow').first().locator('.cov-worow-meta')).toContainText('2 nodes');
+    const cliGroups = parseCheckRuleGroups(check.out);
+    const labels = cliGroups.map((g) => g.label);
+    expect(labels).toContain('unverified (not yet reviewed)');
+    expect(labels).toContain('rules-digest-stale');
+    // The two groups carry DIFFERENT severities — the blocking finding is an error, the
+    // agent-rules gap is a warning — never folded together under one severity.
+    const unverifiedGroup = cliGroups.find((g) => g.label === 'unverified (not yet reviewed)');
+    const digestGroup = cliGroups.find((g) => g.label === 'rules-digest-stale');
+    expect(unverifiedGroup?.severity).toBe('error');
+    expect(digestGroup?.severity).toBe('warning');
+    await expect(page.locator('.cov-worow')).toHaveCount(cliGroups.length);
+    // The blocking group leads the priority cascade and still covers both unverified nodes,
+    // rendered with the 'error' pill.
+    const firstRow = page.locator('.cov-worow').first();
+    await expect(firstRow.locator('.cov-worow-meta')).toContainText('2 nodes');
+    await expect(firstRow.locator('.cov-pill')).toContainText('error');
     await expect(page.locator('.cov-worow')).toContainText(['unverified', 'rules-digest-stale']);
   });
 
@@ -303,6 +344,169 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
       expect(verdict).toMatch(/advisor/i);
     } else {
       expect(verdict).toMatch(/passed/i);
+    }
+
+    // Whole-file waivers: an INVARIANT, never a literal. This repo's own unverified/error
+    // counts above are wiped clean by the round's final `yg check --approve`, so a count
+    // pinned to today's live state would be self-defeating the moment that runs — the CLI's
+    // own `yg suppressions` output is the one source of truth, read fresh at test time. A
+    // whole-file waiver is rendered by the CLI as `file-level(<aspectId>)` (never `single(...)`
+    // / `disable(...)` / `enable(...)`, which are the line/range/closing forms); the portal's
+    // Suppressions view renders the SAME set of markers with the honest 'whole file' form label
+    // (never the blanket "bounded" claim a line/range waiver gets) — as long as none of them
+    // also carries a risk flag (wildcard / typo / inert / errs-under), which would replace the
+    // clean form badge with a risk badge instead. This repo's own file-level markers are all
+    // clean today; a future risky one would rightly break this assertion until fixed.
+    const suppressionsOut = runSuppressions(repoRoot);
+    const fileLevel = (suppressionsOut.out.match(/file-level\(/g) ?? []).length;
+    await page.goto(repoPage + '#/view/suppressions');
+    await expect(page.locator('.sup-flag-ok', { hasText: 'whole file' })).toHaveCount(fileLevel);
+  });
+
+  test('portal-mixed: worklist splits severities and badges match the CLI sections', async ({ page, t }) => {
+    const url = staticPage(t, { fixture: 'portal-mixed' });
+    const check = runCheck(fixtureRoot('portal-mixed'));
+
+    // Sanity-pin the fixture's own known shape (a FIXTURE, not the repo — this state never
+    // gets wiped): the enforced aspect's 2 pairs are errors; the advisory aspect's 2 pairs
+    // PLUS the ever-present rules-digest-stale warning make 3 warnings.
+    const cliErrors = parseCheckErrors(check.out);
+    const cliWarnings = parseCheckWarnings(check.out);
+    expect(cliErrors).toBe(2);
+    expect(cliWarnings).toBe(3);
+
+    const cliGroups = parseCheckRuleGroups(check.out);
+    const errorGroups = cliGroups.filter((g) => g.severity === 'error');
+    const warningGroups = cliGroups.filter((g) => g.severity === 'warning');
+    // The regression this fixture locks: the SAME issue code ('unverified') fires on BOTH
+    // severities at once — one node×aspect pair enforced, one advisory — and must render as
+    // two SEPARATE groups, never folded into one (the round's central defect).
+    expect(errorGroups).toHaveLength(1);
+    expect(errorGroups[0].label).toBe('unverified (not yet reviewed)');
+    expect(warningGroups.map((g) => g.label)).toContain('unverified (not yet reviewed)');
+
+    await page.goto(url + '#/view/coverage');
+    await expect(page.locator('.cov-worow')).toHaveCount(cliGroups.length);
+    // The error group leads (errors always sort before warnings in the worklist).
+    await expect(page.locator('.cov-worow').nth(0).locator('.cov-pill')).toContainText('error');
+    await expect(page.locator('.cov-worow').nth(0).locator('.cov-worow-id')).toContainText('unverified');
+    // The FIRST warning group is the SAME 'unverified' code, now advisory severity — proof the
+    // page renders it as its own distinct row, not merged with the error row above. Checking
+    // the pill alone would not prove this: 'rules-digest-stale' is ALSO a warning-severity
+    // group on this fixture, so a pill-only check would still pass if the two warning rows'
+    // order ever swapped. Asserting the row's own id/label closes that gap.
+    await expect(page.locator('.cov-worow').nth(1).locator('.cov-pill')).toContainText('warning');
+    await expect(page.locator('.cov-worow').nth(1).locator('.cov-worow-id')).toContainText('unverified');
+
+    // The overview's plain-language split sentence agrees with the CLI's own counts.
+    await page.goto(url + '#/view/overview');
+    await expect(page.locator('.ov-verdict')).toContainText(cliErrors + ' blocking item(s)');
+    await expect(page.locator('.ov-verdict')).toContainText(cliWarnings + ' advisory signal(s)');
+  });
+
+  test('portal-coverage-only: a coverage-only red build with an EMPTY worklist never reads "All clear"', async ({ page, t }) => {
+    const url = staticPage(t, { fixture: 'portal-coverage-only' });
+    const check = runCheck(fixtureRoot('portal-coverage-only'));
+    expect(parseCheckErrors(check.out)).toBeGreaterThan(0);
+    // This fixture carries its own agent-rules install (AGENTS.md / CLAUDE.md /
+    // .clinerules/yggdrasil.md — the CLI's own `yg init --upgrade`, excluded from
+    // coverage in the fixture's own config so they never become a SECOND unmapped
+    // finding), so rules-digest-stale never fires here. That makes `data.worklist`
+    // genuinely EMPTY — the coverage gap (unmapped-files) is a `worklistCoverage`
+    // block, never a `worklist` group — while the build stays red on the unmapped
+    // file alone. Sanity-pin: no rule groups, exactly one coverage block, one error.
+    expect(parseCheckWarnings(check.out)).toBe(0);
+    const cliGroups = parseCheckRuleGroups(check.out);
+    expect(cliGroups).toHaveLength(0);
+
+    await page.goto(url + '#/view/coverage');
+    // THE lock: the pre-round calm gate was `worklist.length === 0`, which this exact
+    // shape (empty worklist, real red build) would have satisfied — rendering BOTH the
+    // calm panel AND the jump button's "All clear" copy on a build that is failing. The
+    // round's fix keyed calm off the live error/warning counts instead
+    // (`errors === 0 && warnings === 0`), which stays false here (1 error), so NEITHER
+    // must ever appear — the worst-failure-mode this fixture exists to lock.
+    await expect(page.locator('.cov-calm')).toHaveCount(0);
+    const jump = page.locator('.cov-jump');
+    await expect(jump).not.toContainText('All clear');
+    await expect(jump).not.toHaveClass(/cov-jump-residue/);
+    // No group carries a component to jump to (the worklist is empty), so the honest
+    // button says so — never a dead "clear" claim standing in for "nothing to click".
+    await expect(jump).toContainText('No component to jump to');
+
+    await expect(page.locator('.cov-covblock')).toContainText('src/b.ts');
+    // "Needs attention" counts worklist groups (0, now that rules-digest-stale is gone)
+    // PLUS this one coverage block — (1), not the "(2)" it would have read before the
+    // agent-rules install removed the digest warning, and never "(0)" — a red build can
+    // never show a zero count here.
+    await expect(page.locator('.cov-section-count')).toContainText('(1)');
+  });
+
+  test('portal-type-coverage: a refused nodeless pair is a named file member with its violation detail, and a refused badge with its reason in the coverage listing', async ({ page, typeCoveragePage }) => {
+    await page.goto(typeCoveragePage + '#/view/coverage');
+
+    // The worklist: no node maps src/svc/handler.ts, so its refusal is a NAMED FILE subject,
+    // never silently dropped for lack of a node — with the full multi-line violation detail
+    // (never truncated to a bare count).
+    await expect(page.locator('.cov-member-file')).toContainText('src/svc/handler.ts');
+    const enforcedGroup = page.locator('.cov-worow-wrap', { hasText: 'no-todo-comments' });
+    await expect(enforcedGroup.locator('.cov-member-what')).toHaveCount(1);
+    await expect(enforcedGroup.locator('.cov-member-what')).toContainText('FIXME');
+
+    // The type-covered listing: the SAME file, a REFUSED badge (never the neutral
+    // "satisfied" mark reserved for a checked-but-clean file), with its reason.
+    const listRow = page.locator('.cov-typelist-ok .cov-typerow', { hasText: 'src/svc/handler.ts' });
+    await expect(listRow.locator('.state-refused')).toHaveCount(1);
+    await expect(listRow).toContainText('src/svc/handler.ts:4');
+  });
+
+  test('portal-basic: default-allow matrix renders any-type, module stays organizational', async ({ page, basicPage }) => {
+    await page.goto(basicPage + '#/view/types');
+    // Exact type-id match (not a substring `hasText`) — 'module's own description mentions
+    // "related services", which would otherwise falsely match a 'service' substring filter.
+    const serviceCard = page.locator('.ty-card').filter({ has: page.locator('.ty-name', { hasText: /^service$/ }) });
+    const moduleCard = page.locator('.ty-card').filter({ has: page.locator('.ty-name', { hasText: /^module$/ }) });
+    await expect(serviceCard).toContainText('any component type');
+    await expect(serviceCard).not.toContainText('structural parent only');
+    // 'module' declares no `when:` — no file-classification predicate — so it must still
+    // read organizational, never flip to "classifying" just because the project is permissive.
+    await expect(moduleCard).toContainText('organizational');
+  });
+
+  test('coverage bar renders exactly one segment per non-zero pair state — never a phantom zero-count segment, never a missing non-zero one', async ({ page, basicPage }) => {
+    // A WIDTH-based probe cannot discriminate here: portal-basic (unapproved) has exactly
+    // ONE non-zero pair state (unverified: 2 — verified/refused/advisoryRefused are all 0),
+    // so a single flex child always fills the whole 1500px bar regardless of whether the
+    // renderer is honoring the "zero-count states never paint" rule — no committed fixture
+    // produces a genuinely lopsided multi-segment bar to make width meaningful. Worse: this
+    // round's `views-worklist.css` sets `.cov-seg { min-width: 6px }`, so if the
+    // `flex <= 0 -> return null` guard in `coverage-view.js`'s `barSeg` were ever removed, ALL
+    // FOUR candidate segments (including the three zero-count ones) would render at a real,
+    // on-screen, comfortably-over-5px width — a width-only assertion would keep passing while
+    // actively certifying the exact regression it exists to catch.
+    //
+    // The SHAPE is what actually carries the guarantee: the number of rendered `.cov-seg`
+    // elements must equal the number of NON-ZERO pair states in the page's own data — derived
+    // fresh from the inlined PortalData, never a literal — which locks both halves at once: a
+    // zero-count state never paints (bounds the count from above) and every non-zero state
+    // does (bounds it from below).
+    const portal = readInlinedData(basicPage) as {
+      meta: { counts: { verified: number; refused: number; advisoryRefused: number; unverified: number } };
+    };
+    const c = portal.meta.counts;
+    const nonZeroCount = [c.verified, c.refused, c.advisoryRefused, c.unverified].filter((n) => n > 0).length;
+    expect(nonZeroCount).toBeGreaterThan(0); // sanity: never assert a vacuous "0 == 0" here
+
+    await page.setViewportSize({ width: 1500, height: 1000 });
+    await page.goto(basicPage + '#/view/coverage');
+    const segs = page.locator('.cov-bar .cov-seg');
+    await expect(segs).toHaveCount(nonZeroCount);
+    // Still real, on-screen geometry for each of the (correctly-shaped) segments — not merely
+    // present in the DOM but collapsed to nothing.
+    for (const seg of await segs.all()) {
+      const box = await seg.boundingBox();
+      expect(box).not.toBeNull();
+      expect((box as { width: number }).width).toBeGreaterThan(0);
     }
   });
 });

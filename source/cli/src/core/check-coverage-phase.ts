@@ -31,6 +31,7 @@ import path from 'node:path';
 import type { Graph, CoverageConfig } from '../model/graph.js';
 import type { TypeCoverageResult } from './type-coverage.js';
 import { toPosixPath } from '../utils/posix.js';
+import { fileUnit } from '../model/lock.js';
 import { excludeNestedGraphSubtrees } from '../io/repo-scanner.js';
 import {
   partitionByCoverageTier,
@@ -180,6 +181,7 @@ export async function runCoveragePhase(args: {
             why: `Type-level coverage applies exactly one type's rules per file. Two matching types is a situation the machine refuses to guess — each type carries different rules.`,
             next: `Two exits:\n  1. Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: ${a.typeIds.join(' | ')}>) — its pairs re-key under the owner.\n  2. Narrow one of the overlapping when: predicates in yg-architecture.yaml so exactly one matches — existing verdicts revalidate free.\nEither exit may surface new type-relation-forbidden findings for this file's own imports, now that they join the live gate.`,
           },
+          unitKey: fileUnit(toPosixPath(a.file)),
         });
       }
 
