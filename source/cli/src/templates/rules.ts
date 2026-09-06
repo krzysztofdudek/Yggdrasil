@@ -129,7 +129,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 |---|---|
 | \`yg check\` | By default: writes no verdicts, no LLM calls — re-hash lock verdicts, run the relation check live, validate coverage. Blocks CI. Behavior changes if \`auto_approve\` is set (see below). |
 | \`yg check --approve\` | Fill every unverified pair the run answers for (deterministic first, then LLM), then report. The only writer of verdicts. Overrides \`auto_approve\`. |
-| \`yg check --approve --only-deterministic\` | Fill ONLY deterministic pairs (free, keyless), writing ONLY the gitignored cache; then report. The CI / pre-commit gate. Overrides \`auto_approve\`. |
+| \`yg check --approve --only-deterministic\` | Fill ONLY deterministic pairs (free, keyless), writing the gitignored cache (plus a port's contract baseline when one is missing); then report. The CI / pre-commit gate. Overrides \`auto_approve\`. |
 | \`yg check --approve --dry-run\` | Free cost preview — print the reviewer-call budget (an upper bound) + per-node breakdown, then exit 0 WITHOUT writing or calling the reviewer. |
 | \`yg check --top [N]\` | Read-only: show only the N highest-priority GROUPS (bare \`--top\` = single suggested-next group). True aggregate header always shown. |
 | \`yg check --summary\` | Read-only: per-node counts only (no per-issue blocks). True aggregate header always shown. |

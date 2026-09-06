@@ -361,13 +361,45 @@ function validateVerdictEntry(entry: unknown, at: string, ctx: ParseCtx): void {
   }
 }
 
-/** Validate a single LockNodeEntry (source optional string; log optional {datetime, prefix_hash}). */
+/** Validate a single LockNodeEntry (source optional string; log optional {datetime, prefix_hash}; ports optional port→version→{test,hash}). */
 function validateNodeEntry(entry: unknown, at: string, ctx: ParseCtx): void {
   if (!isPlainObject(entry)) throwMalformed(`"${at}" must be a JSON object (found ${describe(entry)})`, ctx);
 
-  const NODE_KEYS = new Set(['source', 'log']);
+  const NODE_KEYS = new Set(['source', 'log', 'ports']);
   for (const key of Object.keys(entry)) {
-    if (!NODE_KEYS.has(key)) throwMalformed(`"${at}" has unexpected key "${key}" (allowed: source, log)`, ctx);
+    if (!NODE_KEYS.has(key)) throwMalformed(`"${at}" has unexpected key "${key}" (allowed: source, log, ports)`, ctx);
+  }
+
+  if (entry.ports !== undefined) {
+    if (!isPlainObject(entry.ports)) {
+      throwMalformed(`"${at}.ports" must be a JSON object when present (found ${describe(entry.ports)})`, ctx);
+    }
+    for (const [portName, versions] of Object.entries(entry.ports)) {
+      if (!isPlainObject(versions)) {
+        throwMalformed(`"${at}.ports.${portName}" must be a JSON object of version → record (found ${describe(versions)})`, ctx);
+        continue;
+      }
+      for (const [version, record] of Object.entries(versions)) {
+        const where = `${at}.ports.${portName}.${version}`;
+        if (!/^[1-9][0-9]*$/.test(version)) {
+          throwMalformed(`"${where}" is keyed by "${version}", which is not a contract version (a whole number of 1 or more)`, ctx);
+        }
+        if (!isPlainObject(record)) {
+          throwMalformed(`"${where}" must be a JSON object (found ${describe(record)})`, ctx);
+          continue;
+        }
+        const PORT_KEYS = new Set(['test', 'hash']);
+        for (const key of Object.keys(record)) {
+          if (!PORT_KEYS.has(key)) throwMalformed(`"${where}" has unexpected key "${key}" (allowed: test, hash)`, ctx);
+        }
+        if (typeof record.test !== 'string') {
+          throwMalformed(`"${where}.test" must be a string (found ${describe(record.test)})`, ctx);
+        }
+        if (typeof record.hash !== 'string') {
+          throwMalformed(`"${where}.hash" must be a string (found ${describe(record.hash)})`, ctx);
+        }
+      }
+    }
   }
 
   if (entry.source !== undefined && typeof entry.source !== 'string') {
@@ -487,6 +519,22 @@ function serializeNodeEntry(entry: LockNodeEntry): string {
   const obj: Record<string, unknown> = {};
   if (entry.source !== undefined) obj.source = entry.source;
   if (entry.log !== undefined) obj.log = entry.log;
+  // Port contract baselines: rebuilt with every level's keys sorted, because
+  // JSON.stringify below preserves INSERTION order for nested objects — the one
+  // place in this serializer where a nested structure could otherwise make the
+  // canonical bytes depend on the order a run happened to record ports in.
+  if (entry.ports !== undefined) {
+    const ports: Record<string, Record<string, unknown>> = {};
+    for (const portName of Object.keys(entry.ports).sort()) {
+      const versions: Record<string, unknown> = {};
+      for (const version of Object.keys(entry.ports[portName]).sort()) {
+        const record = entry.ports[portName][version];
+        versions[version] = { hash: record.hash, test: record.test };
+      }
+      ports[portName] = versions;
+    }
+    obj.ports = ports;
+  }
 
   const sortedKeys = Object.keys(obj).sort();
   if (sortedKeys.length === 0) return '{}';

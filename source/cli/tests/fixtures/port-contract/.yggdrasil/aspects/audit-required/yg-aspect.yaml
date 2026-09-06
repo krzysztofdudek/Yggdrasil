@@ -1,0 +1,5 @@
+name: AuditRequired
+description: Consumers of the charge port must record an audit trail for every charge.
+reviewer:
+  type: deterministic
+status: enforced

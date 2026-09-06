@@ -424,7 +424,7 @@ repository root only. Review the diff before committing.
 | Value | Behavior |
 | --- | --- |
 | `false` (default) | Read-only: recomputes hashes, validates, reports. Writes nothing, makes no LLM calls, needs no keys. |
-| `deterministic` | Behaves like `yg check --approve --only-deterministic` — fills only deterministic pairs (free, keyless), writes only the gitignored cache. |
+| `deterministic` | Behaves like `yg check --approve --only-deterministic` — fills only deterministic pairs (free, keyless), writes the gitignored cache (and a port's contract baseline when one is missing). |
 | `full` | Behaves like `yg check --approve` — fills the unverified pairs that run answers for, LLM pairs included. |
 
 **Precedence:** explicit CLI flags always override `auto_approve`. Passing

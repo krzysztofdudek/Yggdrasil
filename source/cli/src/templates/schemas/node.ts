@@ -23,6 +23,19 @@ aspects:                      # optional — aspect identifiers applied directly
 ports:                        # optional — named entry points with required aspects
   port-name:                  # consumers of this node reference ports via consumes
     description: "What this port provides"  # required
+    version: 1                # optional — the contract's version, an integer >= 1.
+                              #   Absent is read as 1. Consumers pin to this number, and the
+                              #   contract test below is baselined per version, so raising it
+                              #   is how you say the contract moved.
+    test: tests/contracts/place-order.test.ts
+                              # optional — the test that IS this contract, relative to the
+                              #   repository root. It may sit inside this node's mapping or
+                              #   outside it (a contract test is often shared). The file must
+                              #   exist. A built-in deterministic check records its content
+                              #   once per version and REFUSES the graph (port-contract-changed)
+                              #   when it changes at an unchanged version — bump version:, or
+                              #   restore the file. Free and keyless: the record is written by
+                              #   yg check --approve --only-deterministic.
     aspects:                  # required — aspects consumers must satisfy (channel 6)
       - simple-aspect         #   bare string form
       - id: conditional-aspect

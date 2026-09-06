@@ -1,0 +1,9 @@
+name: Contracts
+description: Contract tests — the executable statement of what each port promises.
+type: contracts
+mapping:
+  - tests/
+relations:
+  - target: services/payments
+    type: uses
+    consumes: [charge]

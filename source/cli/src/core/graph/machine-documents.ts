@@ -27,21 +27,18 @@ import { toPosixPath } from '../../utils/posix.js';
 /**
  * A port's declared contract version, or null when it declares none.
  *
- * A port declaration carries no version today, so this is always null — the
- * field exists in the document from the start so that giving ports a version
- * later adds a value where consumers already look, rather than a new field they
- * must learn about.
+ * The DECLARED value, deliberately — not the version the contract check reads a
+ * versionless port at. A consumer pinning to a version is reading what the port
+ * says about itself, and a number the port never wrote would be a claim it never
+ * made.
  */
-function portVersion(_port: PortDef): number | null {
-  return null;
+function portVersion(port: PortDef): number | null {
+  return port.version ?? null;
 }
 
-/**
- * A port's declared contract test, or null when it declares none. Always null
- * today, for the same reason as `portVersion`.
- */
-function portTest(_port: PortDef): string | null {
-  return null;
+/** A port's declared contract test, repo-relative POSIX, or null when it declares none. */
+function portTest(port: PortDef): string | null {
+  return port.test === undefined ? null : toPosixPath(port.test);
 }
 
 /**

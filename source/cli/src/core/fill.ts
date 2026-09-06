@@ -108,6 +108,8 @@ import { runLlmPhase } from './fill-llm-phase.js';
 import { logGateBlocks } from './fill-log-gate.js';
 import { applyPositiveClosure } from './fill-closure.js';
 import { garbageCollectAndRewrite } from './fill-gc.js';
+import { recordPortContractBaselines } from './checks/port-contracts.js';
+import { writeLock } from '../io/lock-store.js';
 import { countPostUnverified, reportDivergenceIfDetected } from './fill-divergence.js';
 import { ProgressTracker } from './fill-progress.js';
 // ── Relation pass (parse + resolve) — same index runCheck's own pass builds,
@@ -389,6 +391,22 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       graph, projectRoot, lock, blockedNodes, writer.persistLock, typeCoverageInput,
       skippedOutsideLlmPairKeys,
     );
+  }
+
+  // ── Step 7b: Port contract baselines. ─────────────────────────────────────
+  // A port that names the test which IS its contract gets that test's content
+  // recorded, once, per contract version — never overwritten, so a later edit at
+  // the same version is a refusal rather than a fresh baseline. Unlike closure
+  // above, this runs under --only-deterministic too: the check it feeds is
+  // deterministic and free, and a run that could not record would leave a repo
+  // permanently red on a contract it was never allowed to baseline. The record
+  // is COMMITTED state (it must survive a fresh clone to be a baseline at all),
+  // so a deterministic-only run persists exactly the logs section and nothing
+  // else — the verdict cache stays the only other thing such a run writes.
+  const portBaselinesChanged = await recordPortContractBaselines(graph, projectRoot, lock);
+  if (portBaselinesChanged) {
+    if (onlyDeterministic) await writeLock(graph.rootPath, lock, { scope: 'logs' });
+    else await writer.persistLock();
   }
 
   // ── Step 8: GC + canonical rewrite (§3.2). ────────────────────────────────

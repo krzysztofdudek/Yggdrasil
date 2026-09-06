@@ -893,3 +893,77 @@ describe('lock-store — triad partition & scopes', () => {
     expect(next).not.toMatch(/git checkout/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Port contract baselines — the committed record that holds a port's contract
+// test to the version it was recorded at. Stored in the `nodes` section beside
+// the source fingerprint and the log baseline, and read back strictly: a
+// corrupted record must fail loudly rather than read as an absent baseline,
+// which would silently un-enforce the contract it held.
+// ---------------------------------------------------------------------------
+describe('lock store — port contract baselines', () => {
+  const withPorts = (): LockFile => ({
+    version: LOCK_FORMAT_VERSION,
+    verdicts: {},
+    nodes: {
+      'payments/service': {
+        ports: {
+          refund: { '1': { test: 'tests/contracts/refund.test.ts', hash: 'b'.repeat(64) } },
+          charge: {
+            '2': { test: 'tests/contracts/charge.test.ts', hash: 'c'.repeat(64) },
+            '1': { test: 'tests/contracts/charge.test.ts', hash: 'a'.repeat(64) },
+          },
+        },
+      },
+    },
+  });
+
+  it('serializes every level in sorted order, so two runs recording the same facts agree byte for byte', () => {
+    const text = serializeLock(withPorts());
+    // Port names sorted, and versions sorted within a port — neither follows the
+    // insertion order above.
+    expect(text).toContain(
+      '"payments/service": {"ports":{"charge":{"1":{"hash":"' + 'a'.repeat(64) + '","test":"tests/contracts/charge.test.ts"},' +
+        '"2":{"hash":"' + 'c'.repeat(64) + '","test":"tests/contracts/charge.test.ts"}},' +
+        '"refund":{"1":{"hash":"' + 'b'.repeat(64) + '","test":"tests/contracts/refund.test.ts"}}}}',
+    );
+  });
+
+  it('round-trips through the committed logs file', async () => {
+    const dir = path.join(FIXTURES_DIR, 'tmp-lock-ports');
+    await mkdir(path.join(dir, '.yggdrasil'), { recursive: true });
+    const yggRoot = path.join(dir, '.yggdrasil');
+    await writeLock(yggRoot, withPorts(), { scope: 'logs' });
+    expect(existsSync(path.join(yggRoot, LOCK_LOGS_FILE_NAME))).toBe(true);
+    const back = readLock(yggRoot);
+    expect(back.nodes['payments/service'].ports).toEqual({
+      charge: {
+        '1': { test: 'tests/contracts/charge.test.ts', hash: 'a'.repeat(64) },
+        '2': { test: 'tests/contracts/charge.test.ts', hash: 'c'.repeat(64) },
+      },
+      refund: { '1': { test: 'tests/contracts/refund.test.ts', hash: 'b'.repeat(64) } },
+    });
+  });
+
+  it.each([
+    ['a version key that is not a whole number', '{"ports":{"charge":{"1.5":{"hash":"h","test":"t"}}}}', 'not a contract version'],
+    ['a record that is not an object', '{"ports":{"charge":{"1":"h"}}}', 'must be a JSON object'],
+    ['a record missing its hash', '{"ports":{"charge":{"1":{"test":"t"}}}}', '.hash" must be a string'],
+    ['an unexpected key inside a record', '{"ports":{"charge":{"1":{"hash":"h","test":"t","note":"x"}}}}', 'unexpected key "note"'],
+    ['ports that is not an object', '{"ports":[]}', '.ports" must be a JSON object when present'],
+  ])('refuses %s rather than reading it as no baseline at all', async (_label, nodeEntry, expected) => {
+    const dir = path.join(FIXTURES_DIR, 'tmp-lock-ports-bad');
+    const yggRoot = path.join(dir, '.yggdrasil');
+    await mkdir(yggRoot, { recursive: true });
+    await writeFile(
+      path.join(yggRoot, LOCK_LOGS_FILE_NAME),
+      `{"version":${LOCK_FORMAT_VERSION},"verdicts":{},"nodes":{"payments/service":${nodeEntry}}}\n`,
+    );
+    expect(() => readLock(yggRoot)).toThrow(LockInvalidError);
+    try {
+      readLock(yggRoot);
+    } catch (err) {
+      expect((err as LockInvalidError).message).toContain(expected);
+    }
+  });
+});

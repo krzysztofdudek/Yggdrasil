@@ -1,0 +1,22 @@
+name: E2E Tests — Port contract version and test
+type: test-suite
+description: >-
+  Subprocess E2E for the rule that a port's contract test cannot change without
+  its version changing. Drives the whole cycle through the public CLI against a
+  real fixture and no reviewer at all: an unrecorded contract blocks and names
+  the free run as its fix; the free run records it into the COMMITTED lock;
+  editing the test at an unchanged version blocks with the port, the file, the
+  version and both exits, and a further recording run refuses to re-baseline it
+  away; raising the version records afresh and clears it; returning to the old
+  version returns to the contract that version named, because a record is never
+  overwritten; a contract test that cannot be read blocks and baselines nothing;
+  a version that is not a whole number stops the component loading rather than
+  being ignored; and a port declaring neither field is untouched, reporting null
+  for both in the machine documents while a declared pair reaches them as
+  declared.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-port-contract.test.ts

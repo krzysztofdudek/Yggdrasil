@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 28, ahead of cli/core/fill at 25 and cli/core/check at 24', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 28, ahead of cli/core/fill at 26 and cli/core/check at 25', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -46,26 +46,32 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // for — and, at closure, which unbought rule counts as settled — both keyed
     // by the pair identity that engine defines. That took it from 24 to 25, out
     // ahead of cli/core/check (24, which declared the same edge when it began
-    // accepting a change scope).
+    // accepting a change scope). It moved again, 25 to 26, when a port's contract
+    // baseline gained a writer: recording one is something only an approving run
+    // may do, and this node IS the approving run — it is also the only place that
+    // knows whether the run was the free deterministic-only kind, the distinction
+    // that decides how little of the committed record such a run may touch.
     //
-    // The tie has MOVED UP: cli/entry reached 24 when the CLI gained a command
-    // for showing one component's structure. The entry point declares an edge to
-    // every command it registers, so each new command moves this one node's
-    // fan-out by exactly one — 22, then 23 when the accept-a-proposed-graph
-    // command landed, now 24 — which is exactly level with cli/core/check. The
-    // ranking breaks that tie by path, so cli/core/check keeps the earlier index
-    // and cli/entry follows it. cli/portal/engine-api, itself unchanged at 23,
-    // is now alone below them. Only the FIRST half of a tie is pinned by index
-    // here; engine-api is pinned by path for the same reason aspect-test below
-    // is — anchoring the far side of a tie to a fixed slot is the brittle anchor
-    // a past dogfood entry recorded against this very file.
+    // Below the leader the ranking is now strictly descending, with no tie left
+    // to break. Three nodes moved when the port contract check arrived, each by
+    // exactly one and each for an edge onto that check: cli/core/fill 25 to 26
+    // (it records a port's contract baseline, and it is the only place that knows
+    // whether the run was the free deterministic-only kind), cli/core/check 24 to
+    // 25 (it reports the finding, gated on the same readable lock the baseline
+    // lives in). cli/entry reached 24 separately, when the CLI gained a command
+    // for showing one component's structure — the entry point declares an edge to
+    // every command it registers, so each new command moves it by exactly one.
+    // cli/portal/engine-api is unchanged at 23, and is pinned by PATH rather than
+    // by index for the same reason aspect-test below is: anchoring a node to a
+    // fixed slot is the brittle anchor a past dogfood entry recorded against this
+    // very file.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(28);
     expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[1].count).toBe(25);
+    expect(data.hubs.fanOut[1].count).toBe(26);
     expect(data.hubs.fanOut[2].path).toBe('cli/core/check');
-    expect(data.hubs.fanOut[2].count).toBe(24);
+    expect(data.hubs.fanOut[2].count).toBe(25);
     expect(data.hubs.fanOut[3].path).toBe('cli/entry');
     expect(data.hubs.fanOut[3].count).toBe(24);
     const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');

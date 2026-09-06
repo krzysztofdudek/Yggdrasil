@@ -116,6 +116,40 @@ Four blocking errors keep the port contract honest, and none of them has an "acc
 
 Each message names the relation, explains what would go unverified, and tells you what to add.
 
+### A port's version and its contract test
+
+A port can also say which version of the contract it is, and which test *is* that contract:
+
+```yaml
+# payments/payment-service/yg-node.yaml
+ports:
+  charge:
+    description: "Charge a payment method"
+    version: 1
+    test: tests/contracts/charge.test.ts
+    aspects: [correlation-tracking]
+```
+
+Both fields are optional, and a port that declares neither behaves exactly as before.
+
+`version:` is a whole number of 1 or more (leaving it out means 1). It is what consumers pin to when they talk about the contract — "we are on `charge` at 1" — so it only ever rises.
+
+`test:` is a path relative to the repository root. It may live inside the component's own files or outside them; a contract test is often shared, owned by neither side. The file has to exist.
+
+Together they buy you one rule, and it is the reason the pair exists:
+
+> **The contract test cannot change unless the version changes.**
+
+The first approving run — including the free, keyless `yg check --approve --only-deterministic` — records what the test contains at that version. From then on, editing that file while the version stays put is a blocking error that names the port, the file and the version, and gives you both ways out: raise `version:` (recording *why* with `yg log add`), or restore the file. Raising the version records the new contract alongside the old one, so a version you used before keeps pointing at the contract it named.
+
+| Code | When it fires | Fix |
+|---|---|---|
+| `port-contract-unrecorded` | The port names a test that has no recorded contract at this version yet. | `yg check --approve --only-deterministic` — free, no reviewer, no key. |
+| `port-contract-changed` | The test changed (or the port now names a different file) while the version stayed the same. | Raise `version:`, or restore the file. |
+| `port-test-missing` | The `test:` path does not resolve to a readable file. | Point it at the real contract test, or remove the field. |
+
+Like the relation check above, this is built in: there is no rule file to soften, no status to demote it with, and no waiver that reaches it. A contract a consumer could waive is not a contract.
+
 ---
 
 ## Flows

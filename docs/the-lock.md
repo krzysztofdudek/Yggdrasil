@@ -89,7 +89,7 @@ A cosmetic edit to the rule or the source — a reworded comment, a whitespace c
 
 ## The log gate
 
-The third lock file, `yg-lock.logs.json`, exists for one mechanism: the log gate. A node type can opt in with `log_required: true` (see [Nodes](/nodes#node-types-the-architecture-file)), and a node of such a type must carry a fresh entry in its `log.md` — written with `yg log add` — before its work is verified. The entry records **why** a change was made; what changed is already in the diff.
+The third lock file, `yg-lock.logs.json`, holds what the graph records ABOUT a component rather than a verdict on it: the log gate's baseline, and a port's contract baseline (below). A node type can opt in to the log gate with `log_required: true` (see [Nodes](/nodes#node-types-the-architecture-file)), and a node of such a type must carry a fresh entry in its `log.md` — written with `yg log add` — before its work is verified. The entry records **why** a change was made; what changed is already in the diff.
 
 **When an entry is required.** Both of these have to hold: the node's type opts in, *and* the node's mapped source has changed since the node last reached positive closure (or this is its first verification and it owns source files). Notably it does **not** depend on the node's rules: a node that owns source but carries no rules at all still needs an entry when that source changes. A re-verification triggered by something other than the source — a rule was edited, the files untouched — needs no new entry.
 
@@ -99,7 +99,7 @@ Corollaries worth knowing:
 
 - An advisory refusal does not prevent closure. A red *enforced* pair keeps the cycle open — and the same log entry stays valid through every retry, because the intent behind the change did not move, only the execution. Iterate on the code without adding entries.
 - A node with no pairs, or only advisory ones, closes vacuously — but still only once its log requirement is satisfied.
-- Closure is recorded only by a run that writes the committed files. `yg check --approve --only-deterministic` writes only the gitignored cache, so it never closes a cycle at all: a project that records nothing else keeps the node's newest entry answering for every later change to it, as described under that flag above.
+- Closure is recorded only by a run that writes the committed verdict files. `yg check --approve --only-deterministic` records no verdict there, so it never closes a cycle at all: a project that records nothing else keeps the node's newest entry answering for every later change to it, as described under that flag above. (It *can* write one thing into this file — a port's contract baseline, below — which is a record about the component, not a closure of its cycle.)
 
 **The gate is read-only, and it is all-or-nothing.** A missing entry is a blocking `log-entry-missing` error on a plain `yg check`, computed live from the fingerprint at zero cost — not merely something `--approve` refuses. So CI catches an unlogged source change even on a node that produces no pairs to fill. And at `--approve`, if *any* `log_required` node is missing its entry, the run fills **nothing at all** — no pair on any node, related or not. Add the missing entries and re-run.
 
@@ -108,6 +108,26 @@ Corollaries worth knowing:
 **After a merge.** If both branches appended entries to the same node, run `yg log merge-resolve --node <path>` from the merge commit. It validates that the shared history is byte-identical on both sides and that the result is the union of both sets of new entries, then records the node's baseline — it reads your merge resolution, it never rewrites it. Never concatenate two log histories by hand. When a committed lock file conflicted *as well*, the order is: take one side of the lock file, then `merge-resolve` each conflicted log, then `yg check --approve`.
 
 `yg log add` never verifies anything and never invalidates a verdict, so entries can be appended freely between code changes.
+
+## Port contract baselines
+
+A port can name the test that *is* its contract, together with the version consumers pin to (see [Ports](/relations-flows-ports)). `yg-lock.logs.json` is where that contract is pinned down: for each such port it records, per contract version, what the named test contained when that version was first recorded.
+
+```jsonc
+"nodes": {
+  "payments/service": {
+    "ports": { "charge": { "1": { "hash": "<sha256>", "test": "tests/contracts/charge.test.ts" } } }
+  }
+}
+```
+
+Three properties are the whole mechanism:
+
+- **An approving run writes it, including the free one.** `yg check --approve --only-deterministic` records a baseline for a port that has none at its current version. That is deliberate: the check the baseline feeds costs nothing and needs no key, so a project whose only approving runs are the free ones must still be able to record — otherwise it would stay red forever on a contract it was never allowed to pin.
+- **It is committed, not cached.** A baseline a fresh clone rebuilds from whatever it happens to find is not a baseline. This is why it lives here rather than in the gitignored deterministic cache.
+- **A record is never overwritten.** Raising `version:` records afresh *alongside* the old one. So going back to a version you used before goes back to the contract it named, instead of quietly re-pinning it to whatever the file says now.
+
+With the baseline in place, a change to the test file at an unchanged version is a blocking `port-contract-changed` error naming the port, the file and the version, with both exits: raise the version (and say why with `yg log add`), or restore the file. A port whose `test:` path does not resolve is `port-test-missing` — nothing is baselined and nothing is compared, because a green over an unreadable contract would be worse than a red.
 
 ## The relation check is not in the lock
 

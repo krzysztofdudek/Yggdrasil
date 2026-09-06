@@ -1,8 +1,16 @@
 name: Graph Parsers
 type: parser-adapter
-description: Parsers for graph-shape YAML — architecture, nodes, and flows. The
-  aspect parser lives in the sibling node cli/io/parsers/aspect to keep each
-  node within the reviewer character budget.
+description: >-
+  Parsers for graph-shape YAML — architecture, nodes, and flows. The aspect
+  parser lives in the sibling node cli/io/parsers/aspect to keep each node
+  within the reviewer character budget. The node parser also reads a port's
+  optional contract declaration: the version consumers pin to and the test that
+  IS the contract. A malformed version is REFUSED rather than ignored — a
+  version silently dropped would let a contract change ride in behind a number
+  its author believed they had raised, which is the one failure the field
+  exists to prevent — and the test path is held to the same containment rule as
+  every other declared path, so a contract can never point outside the
+  repository it belongs to.
 relations:
   - target: cli/model/graph
     type: uses

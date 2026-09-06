@@ -60,12 +60,40 @@ export interface VerdictEntry {
   promptChars?: number;
 }
 
+/**
+ * One port's contract baseline AT ONE VERSION: the test file that was the
+ * contract, and what it hashed to when that version was recorded.
+ *
+ * Kept per version, and never overwritten once written. That is what makes the
+ * rule enforceable in both directions: at an unchanged version the recorded hash
+ * is the only thing the file may still be, and a version that has been used
+ * before keeps its own record, so returning to it returns to the contract it
+ * named rather than silently re-baselining whatever is on disk now.
+ */
+export interface PortContractRecord {
+  /** Repo-relative POSIX path of the contract test, as declared when recorded. */
+  test: string;
+  /** sha256 of that file's normalized bytes at the moment the version was recorded. */
+  hash: string;
+}
+
 export interface LockNodeEntry {
   /** Source fingerprint: sha256 fold over sorted [path, sha256(bytes)] of ALL mapped files
    *  (child carve-out applied, binaries included). Absent until first positive closure. */
   source?: string;
   /** Append-only log baseline (validateAppendOnly semantics, unchanged). */
   log?: { last_entry_datetime: string; prefix_hash: string };
+  /**
+   * Port contract baselines: port name → version (as a decimal string key) →
+   * the record for that version. Absent on a node whose ports declare no `test`.
+   *
+   * This is COMMITTED state, in the logs file beside the source fingerprint and
+   * the log baseline — deliberately, and for the same reason those are: a
+   * baseline that a fresh clone rebuilds from whatever it finds is not a
+   * baseline. It is written only by an approving run, and only for a (port,
+   * version) pair that has none.
+   */
+  ports?: Record<string, Record<string, PortContractRecord>>;
 }
 
 export interface LockFile {

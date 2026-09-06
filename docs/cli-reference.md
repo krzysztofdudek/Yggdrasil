@@ -18,7 +18,7 @@ This page is for inspecting or debugging your graph and enforcement state.
 | `yg node <path>` | One component's structure — what it owns, what it depends on, the ports it publishes (`--json` for the machine-readable form) |
 | `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)) |
 | `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
-| `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes only the gitignored cache |
+| `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes the gitignored cache, plus a port's contract baseline when one is missing |
 | `yg log add` / `read` / `merge-resolve` | Per-node append-only business log |
 
 ### `yg context`

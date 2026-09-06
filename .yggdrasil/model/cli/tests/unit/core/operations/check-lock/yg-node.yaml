@@ -1,13 +1,23 @@
 name: Check Lock-Verification Unit Tests
 type: test-suite
-description: "Unit tests for the check pipeline's lock-verification stage —
-  rendering valid-approved as pass, valid-refused as a cached aspect violation
-  by effective status, and missing/stale as unverified, plus the prompt-size
-  gate precedence over unverified emission."
+description: >-
+  Unit tests for the check pipeline's lock-verification stage — rendering
+  valid-approved as pass, valid-refused as a cached aspect violation by
+  effective status, and missing/stale as unverified, plus the prompt-size gate
+  precedence over unverified emission. It also covers the port contract check
+  reported alongside them, against a real fixture graph: the three states it
+  reports (unrecorded, changed, unreadable), that a port naming a different
+  file at the same version is a change like any other, and the two properties
+  of the recording half the whole rule rests on — it adds a baseline where
+  there is none, and it never overwrites one, so a raised version is recorded
+  beside the old one rather than over it.
 aspects: []
 relations:
   [
     { target: cli/core/check, type: uses },
+    { target: cli/core/checks/port-contracts, type: uses },
+    { target: cli/core/loader, type: uses },
+    { target: cli/tests/fixtures, type: uses },
     { target: cli/core/check-codes, type: uses },
     { target: cli/io/lock-store, type: uses },
     { target: cli/model/lock, type: uses },
@@ -15,4 +25,5 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/core/check-lock.test.ts
+  - source/cli/tests/unit/core/port-contracts.test.ts
   - source/cli/tests/unit/core/suggested-next-branch-coverage.test.ts

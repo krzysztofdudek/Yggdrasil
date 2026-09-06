@@ -263,7 +263,8 @@ The lock's deterministic verdicts live in a gitignored local cache
 (`.yg-lock.deterministic.json`), so a fresh CI checkout starts without them and
 `yg check` would report those pairs as unverified. Rebuild the cache first — it's
 free and needs no key — with `yg check --approve --only-deterministic`, which fills
-only the deterministic pairs and writes only the gitignored cache. See
+only the deterministic pairs and writes the gitignored cache (plus a port's
+contract baseline when one is missing). See
 [The lock](/the-lock) for the file layout.
 
 **GitHub Actions:**

@@ -1,6 +1,18 @@
 name: IO Lock Store
 type: persistence-adapter
-description: Filesystem persistence for the content-addressed verdict lock — reads, serializes, and writes the single yg-lock.json file, routing every write through the atomic-write port so a crash or signal never leaves a partial lock.
+description: >-
+  Filesystem persistence for the content-addressed verdict lock — reads,
+  validates, serializes and writes it, routing every write through the
+  atomic-write port so a crash or signal never leaves a partial lock. Besides
+  the verdicts and the per-component log/closure baseline, the committed side
+  now carries the port contract baselines: per port, per contract version, the
+  test that was the contract and what it hashed to. Their keys are rebuilt in
+  sorted order at serialization because the entry serializer renders nested
+  values with a plain stringify, which preserves insertion order — the one
+  place a nested structure could otherwise make the canonical bytes depend on
+  the order a run visited ports in. The reader validates the section strictly,
+  like every other one, so a corrupted record fails loudly instead of reading
+  as an absent baseline and silently un-enforcing the contract it held.
 relations:
   - target: cli/model/lock
     type: uses

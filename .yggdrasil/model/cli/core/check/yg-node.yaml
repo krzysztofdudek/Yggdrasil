@@ -1,6 +1,10 @@
 name: Check
 type: engine
-description: "Unified check orchestrator — runs validation, coverage, the
+description: "Unified check orchestrator — it also holds every port that names
+  the test which IS its contract to the baseline recorded for its contract
+  version, reported beside the mandatory-log requirement and gated on the same
+  readable lock, since that is where the baseline it compares against lives.
+  Runs validation, coverage, the
   prompt-size gate, and lock verification (read-only: every expected pair's
   stored verdict is re-hashed against current inputs and rendered as pass,
   cached refusal, or unverified), then log integrity, and computes the suggested
@@ -77,6 +81,8 @@ relations:
   - target: cli/core/check-codes
     type: calls
   - target: cli/core/checks/aspects
+    type: calls
+  - target: cli/core/checks/port-contracts
     type: calls
   - target: cli/core/checks/digest-gate
     type: calls

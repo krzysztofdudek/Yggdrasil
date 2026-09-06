@@ -40,6 +40,7 @@ import { buildTypeVisibility, toAppliedPairs, toRuntimeVisibilityRows, type Type
 import type { CheckIssue } from './check-contract.js';
 import { emitPairIssue } from './check-pair-issues.js';
 import { classifyLogStateFromLock, classifyLogRequirement } from './check-log-state.js';
+import { classifyPortContracts } from './checks/port-contracts.js';
 
 /** What one lock-verification phase produces for the report the orchestrator assembles. */
 export interface LockPhaseResult {
@@ -229,6 +230,12 @@ export async function runLockPhase(args: {
       verification.unreadable.map((u) => u.nodePath).filter((p): p is string => p !== undefined),
     );
     await classifyLogRequirement(graph, projectRoot, lock, unreadableNodes, lockIssues);
+
+    // Port contracts: a port that names the test which IS its contract is held
+    // to that test at the version it was recorded at. Reported here, beside the
+    // log requirement, for the same reason — the baseline it compares against
+    // lives in the lock, so a lock that cannot be read must suppress this too.
+    await classifyPortContracts(graph, projectRoot, lock, lockIssues);
   } catch (err) {
     if (err instanceof LockInvalidError) {
       lockIssues.push({

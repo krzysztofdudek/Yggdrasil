@@ -27,8 +27,11 @@ deterministic regardless of project config. \`yg check --approve\` fills every
 unverified pair it answers for and then reports (the whole project, or — under
 progressive mode — every free check plus the reviewer work your change is
 accountable for). With \`--only-deterministic\` it fills ONLY
-deterministic pairs (free, keyless) and writes ONLY the gitignored cache — never
-the committed files — so it is the CI / pre-commit gate (a fresh checkout has no
+deterministic pairs (free, keyless) and writes the gitignored cache — plus, when
+a port names a contract test that has no baseline at its current version, that
+one baseline in the committed logs file (see \`nodes.<path>.ports\` below); it
+records no verdict in a committed file and closes no cycle — so it is the CI /
+pre-commit gate (a fresh checkout has no
 deterministic cache, so this rematerializes it; it also re-hashes the committed
 LLM verdicts, catching a stale one). These are the only writers of verdicts (with
 \`yg log merge-resolve\` writing the per-node log baseline into
@@ -92,9 +95,12 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
     }
   },
   "nodes": {
-    "billing/cancel": {                       // present ONLY when log_required and/or a log.md exists
+    "billing/cancel": {                       // present ONLY when log_required, a log.md exists, or a port names a contract test
       "source": "<sha256>",                  // source fingerprint — log gate basis; ONLY for log_required nodes
-      "log": { "last_entry_datetime": "<ISO>", "prefix_hash": "<sha256>" }
+      "log": { "last_entry_datetime": "<ISO>", "prefix_hash": "<sha256>" },
+      "ports": {                             // port contract baselines — port name → version → record
+        "charge": { "1": { "hash": "<sha256>", "test": "tests/contracts/charge.test.ts" } }
+      }
     }
   }
 }
@@ -113,6 +119,18 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
   entry carries \`touched\` only when the hook observed files beyond the subject
   set (length > 0); plain LLM entries without \`companion.mjs\` omit the key
   entirely.
+- \`nodes.<path>.ports\` carries the PORT CONTRACT BASELINES: for each port that
+  names a \`test:\`, the content hash of that test at each contract version it
+  has been recorded at. It is written by an approving run — including the free
+  \`--approve --only-deterministic\`, the one thing besides the gitignored cache
+  such a run writes — and only for a (port, version) that has no record yet; an
+  existing record is NEVER overwritten. That is what makes the contract hold in
+  both directions: at an unchanged version the recorded hash is the only thing
+  the file may still be, and returning to a version used before returns to the
+  contract it named. It lives in the COMMITTED logs file, not the throwaway
+  deterministic cache, for the obvious reason — a baseline a fresh clone rebuilds
+  from whatever it finds is not a baseline. See
+  \`yg knowledge read ports-and-relations\`.
 - \`nodes.<path>\` carries the source fingerprint (the log gate's contract,
   \`yg knowledge read log-management\`) and the append-only log integrity baseline.
   The source fingerprint is the log gate's drift basis, so it is recorded ONLY for
@@ -136,7 +154,8 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
 on disk it is partitioned across three files, read back into one and split again
 only at the I/O boundary:
 - \`yg-lock.nondeterministic.json\` (committed) — \`verdicts\` of LLM aspects.
-- \`yg-lock.logs.json\` (committed) — the \`nodes\` section.
+- \`yg-lock.logs.json\` (committed) — the \`nodes\` section, including the port
+  contract baselines.
 - \`.yg-lock.deterministic.json\` (gitignored) — \`verdicts\` of deterministic aspects.
 
 The partition key is the aspect's KIND, NOT the entry's \`touched\` field: a
