@@ -1,4 +1,5 @@
 import { Command } from 'commander';
+import { registerDrillAddCommand } from './drill-add.js';
 import chalk from 'chalk';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
@@ -20,7 +21,7 @@ import {
   type DrillRunContext,
   type DrillDeps,
 } from '../core/drill-runner.js';
-import type { AspectDef, LlmConfig } from '../model/graph.js';
+import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
 
 /**
  * `yg drill` — re-run an aspect's REAL reviewer over its per-aspect corpus of
@@ -36,7 +37,7 @@ import type { AspectDef, LlmConfig } from '../model/graph.js';
  * pass/fail — never the case source.
  */
 export function registerDrillCommand(program: Command): void {
-  program
+  const drill = program
     .command('drill')
     .description(
       "Re-run an aspect's rule over its violates-*/satisfies-* case corpus and report " +
@@ -44,7 +45,7 @@ export function registerDrillCommand(program: Command): void {
       'LLM aspects go through the real reviewer. The lock is never touched. Drills are ' +
       'regression fixtures for sharpening a rule, not a sensitivity/specificity measurement.',
     )
-    .requiredOption('--aspect <id>', 'aspect id whose case corpus to drill')
+    .option('--aspect <id>', 'aspect id whose case corpus to drill')
     .option('--dir <path>', 'external holdout corpus directory (data only — case files, never imported)')
     .option('--case <glob>', 'run only case labels matching this glob (repo-relative POSIX)')
     .option('--corpus <label>', 'label recorded for this run (default: "dev", or the --dir basename)')
@@ -57,6 +58,20 @@ export function registerDrillCommand(program: Command): void {
       const projectRoot = process.cwd();
       try {
         const graph = await loadGraphOrAbort(projectRoot);
+
+        // --aspect is checked here rather than declared required, because this
+        // command also carries subcommands of its own: a required option on the
+        // parent is enforced before a subcommand is even reached, which would
+        // make `yg drill add --aspect x` refuse the very flag it was given.
+        if (typeof opts.aspect !== 'string' || opts.aspect.trim() === '') {
+          process.stderr.write(`Error: ${buildIssueMessage({
+              what: 'yg drill needs the rule whose case corpus to run.',
+              why: 'A drill replays ONE rule over its own cases; without naming the rule there is no corpus to run and no rule to run it with.',
+              next: 'List the rules with yg aspects, then run: yg drill --aspect <id>.',
+            })}\n`);
+          process.exit(1);
+          return;
+        }
 
         const aspect = graph.aspects.find((a) => a.id === opts.aspect);
         if (!aspect) {
@@ -96,81 +111,13 @@ export function registerDrillCommand(program: Command): void {
           return;
         }
 
-        // Resolve the run context. Deterministic aspects never review, so their
-        // consensus/tier/limit are placeholders; LLM aspects resolve the real tier.
-        let ctx: DrillRunContext = { consensus: 1, maxPromptChars: DEFAULT_MAX_PROMPT_CHARS };
-        let provider: ReturnType<typeof createLlmProvider> | undefined;
-        let judge: { provider: string; model: string } | undefined;
-
-        if (aspect.reviewer.type === 'llm') {
-          const setup = await resolveLlmSetup(graph, aspect);
-          if (!setup.ok) {
-            process.stderr.write(`Error: ${buildIssueMessage(setup.error)}\n`);
-            process.exit(1);
-            return;
-          }
-          ctx = {
-            consensus: setup.tier.consensus ?? 1,
-            tierName: setup.tierName,
-            maxPromptChars: setup.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS,
-            nodeless: opts.nodeless === true,
-          };
-          provider = setup.provider;
-          judge = { provider: setup.tier.provider, model: String(setup.tier.model) };
+        const setup = await buildDrillRun(graph, aspect, projectRoot, opts.nodeless === true);
+        if (!setup.ok) {
+          process.stderr.write(`Error: ${buildIssueMessage(setup.error)}\n`);
+          process.exit(1);
+          return;
         }
-
-        const yggRoot = graph.rootPath;
-        const aspectDir = path.join('.yggdrasil', 'aspects', aspect.id);
-
-        const deps: DrillDeps = {
-          runDet: async (caseFiles) => {
-            try {
-              const r = await runAstAspect({
-                aspectDir,
-                aspectId: aspect.id,
-                files: caseFiles.map((f) => ({ path: f })),
-                projectRoot,
-                graphAccessTrap: true,
-              });
-              return r.violations.length > 0 ? 'refused' : 'satisfied';
-            } catch (e) {
-              if (e instanceof AstRunnerError && e.code === 'AST_GRAPH_CTX_UNSUPPORTED') {
-                debugWrite(`[drill] check '${aspect.id}' reads graph context — case recorded as unsupported (not scored): ${e.message}`);
-                return 'unsupported';
-              }
-              debugWrite(`[drill] deterministic check for '${aspect.id}' could not evaluate a case: ${e instanceof Error ? e.message : String(e)}`);
-              return 'unrun';
-            }
-          },
-          reviewUnit: async (prompt, consensus) => {
-            let response;
-            let votes;
-            try {
-              ({ response, votes } = await verifyWithConsensus(provider!, prompt, consensus));
-            } catch (e) {
-              debugWrite(`[drill] reviewer threw for '${aspect.id}': ${e instanceof Error ? e.message : String(e)}`);
-              return 'unrun';
-            }
-            // A provider-sourced failure is infrastructure, not a code verdict.
-            if (!response.satisfied && response.errorSource === 'provider') {
-              debugWrite(`[drill] provider error for '${aspect.id}': ${response.reason}`);
-              return 'unrun';
-            }
-            return {
-              satisfied: response.satisfied,
-              votes: { satisfied: votes.filter((v) => v.satisfied).length, total: votes.length },
-            };
-          },
-          onBudget: (line) => process.stdout.write(line + '\n'),
-          onCaseResult: (result, detail) => {
-            renderCaseResult(result);
-            if (detail !== undefined) process.stdout.write(`    ${detail}\n`);
-            const ts = new Date().toISOString();
-            appendDrillResult(yggRoot, toResultLine(result, ts));
-            const event = toVerdictEvent(result, ts, judge);
-            if (event !== null) appendVerdictEvent(yggRoot, event);
-          },
-        };
+        const { ctx, deps } = setup;
 
         const summary = await runDrills(aspect, projectRoot, cases, ctx, deps);
 
@@ -190,6 +137,10 @@ export function registerDrillCommand(program: Command): void {
         abortOnUnexpectedError(e, 'running drill');
       }
     });
+
+  // The write side of the same corpus, registered here so both halves of
+  // `yg drill` — running the cases, and taking one in — are found in one place.
+  registerDrillAddCommand(drill);
 }
 
 // ============================================================
@@ -331,4 +282,106 @@ function toVerdictEvent(
   // votes accompany a real verdict only; an infra case never cast a countable vote.
   if (result.votes !== undefined && disposition !== 'infra') event.votes = result.votes;
   return event;
+}
+
+// ============================================================
+// Shared run setup — the ONE place a drill run is wired up
+// ============================================================
+
+/** A wired-up drill run: the context every case is dispatched under, and the
+ *  two impure operations the engine calls back into. */
+export type DrillRunSetup =
+  | { ok: true; ctx: DrillRunContext; deps: DrillDeps }
+  | { ok: false; error: { what: string; why: string; next: string } };
+
+/**
+ * Wire a drill run for one aspect.
+ *
+ * Both entry points that run a rule over cases — the whole corpus, and a single
+ * case just taken from history — go through here, so a case added from real
+ * history is measured under EXACTLY the conditions the corpus is measured
+ * under: the same reviewer tier, the same prompt limit, the same graph-access
+ * trap on a deterministic check, and the same sidecar and telemetry lines. A
+ * second wiring would eventually judge the two differently and nobody would know
+ * which run to believe.
+ */
+export async function buildDrillRun(
+  graph: Graph,
+  aspect: AspectDef,
+  projectRoot: string,
+  nodeless: boolean,
+): Promise<DrillRunSetup> {
+  // Deterministic aspects never review, so their consensus/tier/limit are
+  // placeholders; LLM aspects resolve the real tier.
+  let ctx: DrillRunContext = { consensus: 1, maxPromptChars: DEFAULT_MAX_PROMPT_CHARS };
+  let provider: ReturnType<typeof createLlmProvider> | undefined;
+  let judge: { provider: string; model: string } | undefined;
+
+  if (aspect.reviewer.type === 'llm') {
+    const setup = await resolveLlmSetup(graph, aspect);
+    if (!setup.ok) return { ok: false, error: setup.error };
+    ctx = {
+      consensus: setup.tier.consensus ?? 1,
+      tierName: setup.tierName,
+      maxPromptChars: setup.tier.max_prompt_chars ?? DEFAULT_MAX_PROMPT_CHARS,
+      nodeless,
+    };
+    provider = setup.provider;
+    judge = { provider: setup.tier.provider, model: String(setup.tier.model) };
+  }
+
+  const yggRoot = graph.rootPath;
+  const aspectDir = path.join('.yggdrasil', 'aspects', aspect.id);
+
+  const deps: DrillDeps = {
+    runDet: async (caseFiles) => {
+      try {
+        const r = await runAstAspect({
+          aspectDir,
+          aspectId: aspect.id,
+          files: caseFiles.map((f) => ({ path: f })),
+          projectRoot,
+          graphAccessTrap: true,
+        });
+        return r.violations.length > 0 ? 'refused' : 'satisfied';
+      } catch (e) {
+        if (e instanceof AstRunnerError && e.code === 'AST_GRAPH_CTX_UNSUPPORTED') {
+          debugWrite(`[drill] check '${aspect.id}' reads graph context — case recorded as unsupported (not scored): ${e.message}`);
+          return 'unsupported';
+        }
+        debugWrite(`[drill] deterministic check for '${aspect.id}' could not evaluate a case: ${e instanceof Error ? e.message : String(e)}`);
+        return 'unrun';
+      }
+    },
+    reviewUnit: async (prompt, consensus) => {
+      let response;
+      let votes;
+      try {
+        ({ response, votes } = await verifyWithConsensus(provider!, prompt, consensus));
+      } catch (e) {
+        debugWrite(`[drill] reviewer threw for '${aspect.id}': ${e instanceof Error ? e.message : String(e)}`);
+        return 'unrun';
+      }
+      // A provider-sourced failure is infrastructure, not a code verdict.
+      if (!response.satisfied && response.errorSource === 'provider') {
+        debugWrite(`[drill] provider error for '${aspect.id}': ${response.reason}`);
+        return 'unrun';
+      }
+      return {
+        satisfied: response.satisfied,
+        votes: { satisfied: votes.filter((v) => v.satisfied).length, total: votes.length },
+      };
+    },
+    onBudget: (line) => process.stdout.write(line + '\n'),
+    onCaseResult: (result, detail) => {
+      renderCaseResult(result);
+      if (detail !== undefined) process.stdout.write(`    ${detail}\n`);
+      const ts = new Date().toISOString();
+      appendDrillResult(yggRoot, toResultLine(result, ts));
+      const event = toVerdictEvent(result, ts, judge);
+      if (event !== null) appendVerdictEvent(yggRoot, event);
+    },
+  };
+
+  return { ok: true, ctx, deps };
 }

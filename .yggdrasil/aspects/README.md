@@ -29,6 +29,25 @@ The **case directory name encodes the expected verdict**:
 Each case holds one small `.ts` file with exactly one construct under test, so a
 refusal count of `1` maps to a single, obvious cause.
 
+## Taking a case from real history
+
+A case does not have to be written by hand. When code gets past a rule, take that
+exact code into the corpus:
+
+```bash
+node source/cli/dist/bin.js drill add --aspect no-todo-comments \
+  --violates source/cli/src/cli/check.ts@a1b2c3d \
+  --why "shipped on the 3rd; the rule looked for the wrong marker"
+```
+
+It reads the file as it stood at that commit, writes it in under the same
+`violates-*` / `satisfies-*` convention with the file, the day and the short
+commit in the case name, runs the rule over it, and records the reason in a
+`log.md` beside the rule. A rule that does not catch its own escape exits
+non-zero **and the case stays** — that is the point of adding it. Nothing is
+written when the file was not there at that commit, when the same bytes are
+already a case, or when the rule cannot be exercised over case files at all.
+
 ## Hard rules for authoring drills
 
 - **Either reviewer kind.** `yg drill` runs a deterministic aspect's `check.mjs`

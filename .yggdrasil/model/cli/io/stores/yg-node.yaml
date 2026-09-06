@@ -2,9 +2,9 @@ name: IO Stores
 type: persistence-adapter
 description: Filesystem readers and writers for runtime state — find index,
   artifact reading, repository scanning, the committed registers of recorded
-  decisions and of proposals imported from another tool, and low-level fs
-  utilities (verdict-lock persistence lives in the cli/io/lock-store sibling
-  node)
+  decisions and of proposals imported from another tool, the committed case
+  corpus a rule is drilled against, and low-level fs utilities (verdict-lock
+  persistence lives in the cli/io/lock-store sibling node)
 relations:
   - target: cli/model/graph
     type: uses
@@ -19,6 +19,7 @@ mapping:
   - source/cli/src/io/advise-imported-store.ts
   - source/cli/src/io/artifact-reader.ts
   - source/cli/src/io/debug-log-writer.ts
+  - source/cli/src/io/drill-corpus-store.ts
   - source/cli/src/io/drill-results-reader.ts
   - source/cli/src/io/drill-results-store.ts
   - source/cli/src/io/events-reader.ts

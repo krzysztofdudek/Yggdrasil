@@ -489,6 +489,37 @@ results log (\`.yggdrasil/.drill-results.jsonl\`) plus, for LLM cases, one
 telemetry line each; it never touches the verification lock. The doctrine "no
 drill, no enforced" is advisory — a missing corpus never gates \`yg check\`.
 
+### \`yg drill add\` — take a REAL escape into the corpus
+
+The strongest case a rule can hold is the code that actually got past it, so a
+case can be taken straight out of history rather than hand-written.
+
+\`\`\`bash
+yg drill add --aspect <id> --violates <path>@<commit> --why "<why it belongs>"
+yg drill add --aspect <id> --violates <path>@<bad> --satisfies <path>@<fixed>
+\`\`\`
+
+It reads the file as it stood at that commit, writes it into the rule's corpus
+under the SAME \`violates-*\` / \`satisfies-*\` convention with a name carrying its
+origin (file, day, short commit), runs the rule over it under the same wiring
+\`yg drill\` uses, and records \`--why\` in a log kept BESIDE THE RULE
+(\`.yggdrasil/aspects/<id>/log.md\`) so the reason a case exists travels with the
+rule. With no \`--why\` the entry says a reason was not given — it never invents
+one.
+
+**A rule that does not catch its own escape exits NON-ZERO and THE CASE STAYS.**
+That is the point of adding it: the case sits in the corpus, failing, until the
+rule is sharpened enough to catch it. A corpus that only ever accepts cases a
+rule already passes can never tell anybody anything.
+
+NOTHING is written when: the rule is unknown or only bundles others (no rule
+source of its own), the spec is not \`<path>@<commit>\`, the commit is not in the
+repository, the path was not there at that commit, the file is empty there, or
+the same bytes are already a case (a second copy measures nothing and only
+inflates a count people read as coverage). A case that turns out UNMEASURABLE —
+a check that needs the whole graph, or a reviewer that cannot be reached — is
+taken back out, because an unmeasurable fixture is worse than none.
+
 ## yg simulate
 
 Replay a candidate DETERMINISTIC rule over the history it can honestly reach, to

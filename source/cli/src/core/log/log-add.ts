@@ -2,9 +2,9 @@ import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 import type { IssueMessage } from '../../model/validation.js';
 import { validateNodePath } from '../../utils/node-path-validator.js';
-import { parseLog } from '../parsing/log-parser.js';
 import { readLogSafe, statLogFile, writeLogFile } from '../../io/log-store.js';
-import { toPosix } from '../../utils/posix.js';
+import { composeLogEntry } from './log-entry.js';
+import { toPosixPath } from '../../utils/posix.js';
 
 export interface LogAddInput {
   graph: Graph;
@@ -20,7 +20,7 @@ export type LogAddResult =
 export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
   const { graph, reasonText, nowMs } = input;
 
-  const nv = validateNodePath(toPosix(input.nodePath.trim()).replace(/\/$/, ''));
+  const nv = validateNodePath(toPosixPath(input.nodePath.trim()));
   if (!nv.ok) {
     return {
       ok: false,
@@ -40,40 +40,6 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
         what: `Node not found: ${nodePath}`,
         why: 'Node must exist in the graph before log entries can be added.',
         next: 'Create yg-node.yaml first, or fix the --node argument.',
-      },
-    };
-  }
-
-  const trimmed = reasonText.trim();
-  if (trimmed === '') {
-    return {
-      ok: false,
-      error: {
-        what: 'Reason cannot be empty after trim',
-        why: 'A log entry must carry justification text.',
-        next: 'Provide --reason "<non-empty text>" or a non-empty --reason-file.',
-      },
-    };
-  }
-
-  if (reasonHasLevel2HeaderOutsideFence(reasonText)) {
-    return {
-      ok: false,
-      error: {
-        what: 'Reason contains `## ` (level-2 header) outside a code fence',
-        why: 'Level-2 headers are reserved for entry headers and would corrupt log structure.',
-        next: 'Use ### or deeper for sub-headings, or wrap in ``` fences.',
-      },
-    };
-  }
-
-  if (reasonHasUnbalancedFence(reasonText)) {
-    return {
-      ok: false,
-      error: {
-        what: 'Reason contains an unclosed code fence',
-        why: 'An unbalanced ``` fence in one entry silently swallows every following `## [datetime]` header into this entry’s body for later readers (yg log read, yg check) — the entry boundary is lost.',
-        next: 'Close every ``` fence you open inside --reason (add a matching ``` line), or remove the fence.',
       },
     };
   }
@@ -105,71 +71,12 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
   }
 
   const existing = await readLogSafe(logPath);
-  const datetime = monotonicNow(lastEntryDatetime(existing), nowMs);
+  // One composer for every log this tool keeps: entry shape, the guards against a
+  // body that would destroy the entry boundary, and the forward-only timestamp.
+  const composed = composeLogEntry(existing, reasonText, nowMs);
+  if (!composed.ok) return { ok: false, error: composed.error };
 
-  const body = reasonText.endsWith('\n') ? reasonText : reasonText + '\n';
-  const entry = `## [${datetime}]\n${body}`;
-  const newContent =
-    existing === ''
-      ? entry
-      : `${existing.endsWith('\n') ? existing : existing + '\n'}${entry}`;
+  await writeLogFile(logPath, composed.content);
 
-  await writeLogFile(logPath, newContent);
-
-  return { ok: true, datetime, nodePath };
-}
-
-function lastEntryDatetime(content: string): string | null {
-  const entries = parseLog(content);
-  if (entries.length === 0) return null;
-  return entries[entries.length - 1].datetime;
-}
-
-function monotonicNow(lastEntry: string | null, nowMs: number): string {
-  let now = nowMs;
-  if (lastEntry !== null) {
-    const lastMs = Date.parse(lastEntry);
-    if (!Number.isNaN(lastMs) && now <= lastMs) {
-      now = lastMs + 1;
-    }
-  }
-  return new Date(now).toISOString();
-}
-
-function reasonHasLevel2HeaderOutsideFence(reason: string): boolean {
-  const lines = reason.split('\n');
-  let fenceOpen = false;
-  let fenceLen = 0;
-  for (const line of lines) {
-    const m = /^(`{3,})(.*)$/.exec(line);
-    if (fenceOpen) {
-      if (m && m[2].trim() === '' && m[1].length >= fenceLen) fenceOpen = false;
-      continue;
-    }
-    if (m) {
-      fenceOpen = true;
-      fenceLen = m[1].length;
-      continue;
-    }
-    if (line.startsWith('## ')) return true;
-  }
-  return false;
-}
-
-function reasonHasUnbalancedFence(reason: string): boolean {
-  const lines = reason.split('\n');
-  let fenceOpen = false;
-  let fenceLen = 0;
-  for (const line of lines) {
-    const m = /^(`{3,})(.*)$/.exec(line);
-    if (fenceOpen) {
-      if (m && m[2].trim() === '' && m[1].length >= fenceLen) fenceOpen = false;
-      continue;
-    }
-    if (m) {
-      fenceOpen = true;
-      fenceLen = m[1].length;
-    }
-  }
-  return fenceOpen;
+  return { ok: true, datetime: composed.datetime, nodePath };
 }

@@ -77,6 +77,71 @@ export async function getFileAtRef(
 }
 
 /**
+ * What a commit-and-path pair resolved to: the file's content there, or the
+ * reason it could not be read.
+ *
+ * Absence and emptiness are told apart deliberately. `git show` returns the same
+ * empty string for "no such path at that commit" and "the file is there and is
+ * empty", and a caller taking code out of history has to refuse the first
+ * (nothing to take) while being able to say something specific about the second
+ * (a case with no content measures nothing).
+ */
+export type FileAtCommit =
+  | { kind: 'found'; content: string; commitSha: string; commitDay: string }
+  | { kind: 'no-such-commit' }
+  | { kind: 'not-at-commit' };
+
+/**
+ * Read `filePath` as it stood at `ref`, together with the commit it really
+ * resolved to and the day that commit was made.
+ *
+ * The full sha and the day come back with the content because they are what a
+ * caller records as provenance: a short ref or a branch name is ambiguous later,
+ * and the day the code existed is the part a reader dates the evidence by.
+ */
+export async function readFileAtCommit(
+  repoCwd: string,
+  ref: string,
+  filePath: string,
+): Promise<FileAtCommit> {
+  let commitSha: string;
+  let commitDay: string;
+  try {
+    const { stdout } = await execFilep('git', ['show', '-s', '--format=%H %cs', ref], {
+      cwd: repoCwd,
+    });
+    const [sha, day] = stdout.trim().split(/\s+/);
+    if (sha === undefined || day === undefined) return { kind: 'no-such-commit' };
+    commitSha = sha;
+    commitDay = day;
+  } catch {
+    return { kind: 'no-such-commit' };
+  }
+
+  // Presence is decided STRUCTURALLY, by listing the path in the commit's tree,
+  // rather than by classifying `git show`'s failure text — that text is
+  // translated, so matching it would break under any non-English locale.
+  try {
+    const { stdout } = await execFilep('git', ['ls-tree', commitSha, '--', filePath], {
+      cwd: repoCwd,
+    });
+    if (stdout.trim() === '') return { kind: 'not-at-commit' };
+  } catch {
+    return { kind: 'not-at-commit' };
+  }
+
+  try {
+    const { stdout } = await execFilep('git', ['show', `${commitSha}:${filePath}`], {
+      cwd: repoCwd,
+      maxBuffer: 100 * 1024 * 1024,
+    });
+    return { kind: 'found', content: stdout, commitSha, commitDay };
+  } catch {
+    return { kind: 'not-at-commit' };
+  }
+}
+
+/**
  * One rename edge: the old path invalidated and the new path created by it.
  * `from`/`to` are repo-relative POSIX, matching {@link ChangedFiles.files}.
  */

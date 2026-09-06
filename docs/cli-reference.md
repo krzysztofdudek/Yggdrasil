@@ -1134,7 +1134,7 @@ yg schemas read node
 | Command                                                          | Purpose                               |
 |------------------------------------------------------------------|---------------------------------------|
 | `yg aspect-test --aspect <id> --node <path>` / `--file <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
-| `yg drill --aspect <id>`                                         | Replay a rule over its `drills/` case corpus (`violates-*` must refuse, `satisfies-*` must pass); never writes the lock |
+| `yg drill --aspect <id>` / `add`                                 | Replay a rule over its `drills/` case corpus (`violates-*` must refuse, `satisfies-*` must pass); `add` takes a real file at a commit into that corpus. Never writes the lock |
 | `yg simulate <candidate> --node <path>` / `--file <path>`        | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
 
 ### `yg drill`
@@ -1170,6 +1170,41 @@ the case source. `yg drill` writes one thing: a local, gitignored results log
 later that a rule has stopped catching one of its own cases. It never touches the
 verification lock. Keeping a corpus for every enforced rule is a convention, not a
 requirement — a missing corpus never blocks `yg check`.
+
+#### `yg drill add` — a real escape becomes a permanent case
+
+The best case a rule can hold is the code that actually got past it. `yg drill
+add` takes that code straight out of history:
+
+```bash
+yg drill add --aspect no-direct-minimatch \
+  --violates src/search/query.ts@a1b2c3d \
+  --why "shipped in the incident on the 3rd; nothing refused it"
+
+# add the fix alongside it, so the rule is pinned from both sides
+yg drill add --aspect no-direct-minimatch \
+  --violates src/search/query.ts@a1b2c3d --satisfies src/search/query.ts@e4f5g6h
+```
+
+It reads the file as it stood at that commit, writes it into the rule's corpus
+under the usual `violates-*` / `satisfies-*` convention with a name that carries
+where it came from — the file, the day, the short commit — then runs the rule
+over it and tells you what happened. `--why` is recorded in a log kept beside the
+rule itself, so the reason a case exists travels with the rule instead of living
+in one commit message; when you give no reason the log says so rather than
+inventing one.
+
+**A rule that does not catch its own escape exits non-zero and the case stays.**
+That is the point: the case sits in the corpus, failing, until the rule is
+sharpened enough to catch it. A corpus that only ever accepts cases the rule
+already passes can never tell you anything.
+
+Nothing is written when the commit is not in the repository, the file was not
+there at that commit, the file is empty, the same bytes are already a case (a
+second copy measures nothing and only inflates the count), or the rule is one
+that bundles others and has no rule of its own. A case that turns out to be
+unmeasurable — a check that needs the whole graph, a reviewer that cannot be
+reached — is taken back out, because an unmeasurable fixture is worse than none.
 
 ### `yg aspect-test`
 

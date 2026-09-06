@@ -150,6 +150,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg advise\` | Read-only attention layer: aggregates signals and proposes rule changes, each with evidence and a human-action NEXT. Never gates \`yg check\`, never writes a verdict, never appears in \`suggestedNext\`. |
 | \`yg schemas list\` / \`yg schemas read <name>\` | Browse graph-element schemas (node, aspect, architecture, config, flow) |
 | \`yg drill --aspect <id>\` | Replay a rule over its \`drills/\` case corpus (violates-* must refuse, satisfies-* must pass) to sharpen it — a regression fixture, never a verdict write. Deterministic drills are free; LLM drills bill the reviewer. |
+| \`yg drill add --aspect <id> --violates <path>@<commit>\` | Take a file as it stood at a commit into that corpus — the code that really got past the rule — then run the rule over it. A rule that does not catch it exits non-zero AND THE CASE STAYS. Never a verdict write. |
 | \`yg simulate <det-aspect> --node <path>\` | Replay a candidate DETERMINISTIC rule over recent history in an isolated clone ("what would it have caught?"). Read-only, exits 0 whatever it finds. |
 | \`yg structure\` | Read-only structural dashboard — dependency tunnels, per-level module groups (and cycles), change reach. Never gates. |
 | \`yg incident add --tag <cause> --reason <text>\` | Record what escaped enforcement (human-signed, committed ledger) — the only signal from outside the graph. \`yg incident read\` lists them. |

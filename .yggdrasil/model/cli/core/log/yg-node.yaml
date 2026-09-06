@@ -1,7 +1,15 @@
 name: Core Log
 type: engine
-description: Pure log-entry orchestration — logAdd, logRead, logMergeResolve
-  return structured IssueMessage-shaped results with no presentation concerns.
+description: >-
+  Pure log-entry orchestration — logAdd, logRead, logMergeResolve return
+  structured IssueMessage-shaped results with no presentation concerns. One
+  composition step is shared by every log this tool appends to, whichever thing
+  the log belongs to: the same entry shape, the same guards against text that
+  would destroy the entry boundary for later readers, and the same rule that a
+  new entry never carries a timestamp at or before the one before it. A rule can
+  carry a log of its own beside its source, so a change to what a rule is
+  measured against is recorded where the rule lives rather than only in the
+  commit that made it.
 aspects:
   - what-why-next
   - posix-paths-output
@@ -20,7 +28,9 @@ relations:
   - target: cli/utils
     type: calls
 mapping:
+  - source/cli/src/core/log/aspect-log.ts
   - source/cli/src/core/log/log-add.ts
+  - source/cli/src/core/log/log-entry.ts
   - source/cli/src/core/log/log-read.ts
   - source/cli/src/core/log/log-merge-resolve.ts
   - source/cli/src/core/log/log-gate.ts

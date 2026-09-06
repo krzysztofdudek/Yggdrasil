@@ -576,6 +576,14 @@ A rule that has never refused anything is a rule on trust. Four instruments exis
 
 **A drill corpus** — the regression net. Put example files beside the rule in a `drills/` directory of the aspect folder, under directories whose prefix encodes the expected verdict: anything under a `violates-*` directory must be refused, anything under `satisfies-*` must pass. `yg drill --aspect <id>` replays the whole corpus and reports each case as `pass`, `MISS` (a violating case the rule failed to catch — a hole), `FALSE-ALARM` (a clean case it wrongly refused), `unrun` (infrastructure, not scored), or `unsupported` (the rule needs context a drill cannot supply — a check that reads graph topology, or an LLM aspect shipping `companion.mjs`). Script rules drill locally and free; a judgment rule goes through the real reviewer and bills it, with the call budget printed before the first call. `--nodeless` assembles a judgment rule's cases in the shape a file enforced by its architecture type alone (no owning component) receives — no `<node>` in the prompt — instead of the default synthetic node; point it at a separate corpus with `--dir`, since a single run cannot mix both shapes.
 
+A case does not have to be hand-written. `yg drill add` takes a file as it stood
+at a named commit — `--aspect <id> --violates <path>@<commit>` — straight into the
+corpus — the code that actually got past the rule — names the case for where it
+came from, runs the rule over it, and records the reason you give in a log kept
+beside the rule. A rule that does not catch its own escape exits non-zero and the
+case stays, failing, until the rule is sharpened enough to catch it. See
+[`yg drill add`](/cli-reference#yg-drill-add--a-real-escape-becomes-a-permanent-case).
+
 `drills/` is a reserved directory name — it is never scanned as an aspect, so a fixture that happens to contain something resembling a rule file can never register a phantom rule. The corpus is a *regression* net, not a measurement of how good the rule is: you wrote the cases, so the rule passing them says it still behaves, not that it generalizes. Keeping one is a convention rather than a requirement — a missing corpus never blocks `yg check`, though the attention feed will point out a rule whose corpus has started failing.
 
 **`yg simulate`** — the "what would this have caught?" question, for script rules only. It replays a candidate `check.mjs` over recent commits in a throwaway clone, one commit at a time, and reports per commit whether it ran clean, how many files it would have refused, or that the commit could not be honestly compared. Read the result with its own caveat in mind: the rules already in place refused code that never landed, so a tightening replay is a *lower* bound on real catches. A judgment rule cannot be replayed this way — a model's verdict is point-in-time testimony, not a reproducible result — so use a drill corpus there instead.

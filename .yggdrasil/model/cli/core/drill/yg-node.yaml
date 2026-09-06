@@ -8,7 +8,12 @@ description: "yg drill orchestrator — discovers an aspect's per-aspect case co
   byte-identically to the production filler. The run context's nodeless switch
   makes an LLM case's assembled prompt omit the node entirely — the shape a real
   pair with no owning component receives — instead of the default synthetic
-  node every prior case carried. Never touches the lock."
+  node every prior case carried. Never touches the lock. It also plans the ONE
+  way a case enters a corpus from real history: the case's name carries where the
+  code came from (the file, the commit, the day it was written) so a reader can
+  trace a fixture back to the incident that produced it, and a file whose exact
+  bytes are already in the corpus is refused rather than added twice, because a
+  second copy of the same case measures nothing new and only inflates the count."
 relations:
   - target: cli/model/graph
     type: uses
@@ -23,4 +28,5 @@ relations:
   - target: cli/structure
     type: calls
 mapping:
+  - source/cli/src/core/drill-add.ts
   - source/cli/src/core/drill-runner.ts
