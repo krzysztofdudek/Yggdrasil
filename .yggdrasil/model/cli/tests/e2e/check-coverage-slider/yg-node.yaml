@@ -1,0 +1,14 @@
+name: E2E Tests — Check Coverage Slider
+type: test-suite
+description: "Subprocess E2E for the standing line `yg check` prints when
+  nothing at all is required to be covered — the shipped default, whose
+  consequence is invisible because the uncovered files are listed either way and
+  only their severity differs. Proves the line names the count and the setting
+  that changes it, agrees with itself in the singular, adds nothing to the
+  warning total (it is a fact, not a finding), disappears the moment a root is
+  required or nothing is left uncovered, and survives the narrowed views, which
+  trim the issue wall and not the standing facts above it."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-check-coverage-slider.test.ts

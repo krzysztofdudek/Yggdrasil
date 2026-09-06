@@ -134,6 +134,28 @@ export function renderBaselineNoiseNotice(result: CheckResult): string | undefin
   return `${parts.join(' and ')} ${total === 1 ? 'stands' : 'stand'} on code this change did not touch — that is the baseline this repository already had, not a result of your change.`;
 }
 
+/**
+ * The one line that makes an invisible setting visible: with nothing named
+ * under `coverage.required`, a file no component owns can never fail a check,
+ * however many runs list it.
+ *
+ * It is the shipped default — a fresh project and a mined proposal both start
+ * there — and its consequence is invisible precisely because the uncovered
+ * files ARE reported: only their severity differs, and severity is the one
+ * thing a reader cannot see from the list. Said once, as a standing fact about
+ * the configuration rather than as a finding, and it stops appearing the moment
+ * either half stops being true — a required root is named, or nothing is left
+ * uncovered.
+ */
+export function renderCoverageRequiresNothingNotice(result: CheckResult): string | undefined {
+  if (result.coverageRequiresNothing !== true) return undefined;
+  const uncovered = result.issues
+    .filter((i) => i.code === 'uncovered-advisory')
+    .reduce((n, i) => n + (i.uncoveredCount ?? 0), 0);
+  if (uncovered === 0) return undefined;
+  return `Nothing is required to be covered, so the ${uncovered} uncovered file${uncovered === 1 ? '' : 's'} this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.`;
+}
+
 export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji): string {
   let verdict: string;
   if (errorCount > 0) {

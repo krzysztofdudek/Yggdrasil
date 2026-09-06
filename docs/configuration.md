@@ -266,6 +266,14 @@ Controls which coverage-visible files must be mapped to a node in `yg check`.
 
 A file matching ANY excluded root is dropped entirely, before it is ever sorted into the blocking or advisory tier — exclusion is absolute, independent of whether a required root also matches it and independent of how specific either root is. Among the files that match no excluded root, any matching required root puts the file in the blocking tier. A required root fully contained inside an excluded root can therefore never match anything; `yg check` warns (`coverage-required-shadowed`) when both roots are plain (non-glob) paths.
 
+**An empty `required` list means no file can ever fail coverage.** That is the shipped default — `yg init` writes `required: []`, and so does a mined proposal — and it is deliberate: a brownfield repository is green from its first check. But its consequence is invisible from the report alone, because the uncovered files are listed either way and only their severity differs. So whenever nothing is required and something is uncovered, `yg check` prints one standing line saying that those files can never fail, and naming the setting that changes it:
+
+```text
+Nothing is required to be covered, so the 13 uncovered files this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.
+```
+
+Like every other standing line, it is a statement of fact rather than a finding: never counted among the warnings, never blocking, and gone the moment either half stops being true — a root is required, or nothing is left uncovered.
+
 ---
 
 ## Prompt-size gate

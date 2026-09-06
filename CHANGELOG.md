@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`yg check` names your baseline.** When advisory refusals — or findings held outside your change — stand on code your change never touched, one line says so instead of leaving you to work it out: that is the floor the repository already had, not something you caused. Only on projects that measure changes against a branch.
 
+- **`yg check` tells you when nothing is required to be covered.** A project that requires no coverage can never fail on an unmapped file, however many it lists — the files show up either way and only their severity differs. One line now says that, and names the setting that changes it.
+
 - **`yg context --json`.** The same context package as a single JSON document, for anything that reads it programmatically rather than as prose — an orchestrator picking work, a dashboard, a build step. It works with `--file` and `--node`, names the owner and the chain a subject inherits along, and gives every rule its effective status, its kind, where in the cascade it came from, and the files to read. Errors and exit codes are unchanged.
 
 ## [5.8.0] - 2026-08-31

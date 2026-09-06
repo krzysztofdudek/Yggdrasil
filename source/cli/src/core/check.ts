@@ -464,6 +464,11 @@ export async function runCheck(
     nodeTypeCounts.set(t, (nodeTypeCounts.get(t) ?? 0) + 1);
   }
 
+  // Nothing required means an uncovered file can never fail — a standing fact
+  // about the configuration, read straight off it rather than inferred from the
+  // findings, so it stays true on a run that happens to list none.
+  const coverageRequiresNothing = (graph.config.coverage ?? DEFAULT_COVERAGE).required.length === 0;
+
   const suggestedNext = computeSuggestedNext(allIssues);
   const advisoryWarnings = allIssues.filter(i => i.code === 'aspect-violation-advisory').length;
   const draftSkipped = countDraftAspectsAcrossGraph(graph);
@@ -515,6 +520,7 @@ export async function runCheck(
     byteGuardKept,
     byteGuardUnavailable,
     baselineNoise,
+    coverageRequiresNothing,
   };
 }
 

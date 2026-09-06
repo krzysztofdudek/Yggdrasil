@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE, OUTSIDE_CODES } from '../core/check-codes.js';
 import { groupIssues, issuePriorityRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, type IssueGroup } from './group-issues.js';
-import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderChangeScope, renderByteGuardNotice, renderBaselineNoiseNotice } from './check-render-header.js';
+import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderChangeScope, renderByteGuardNotice, renderBaselineNoiseNotice, renderCoverageRequiresNothingNotice } from './check-render-header.js';
 import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup } from './check-render-groups.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -117,13 +117,20 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
     sections.push(chalk.dim(byteGuardNotice));
   }
 
-  // One more standing statement of fact, same posture as the notices above and
+  // Two more standing statements of fact, same posture as the notices above and
   // printed in every view: what this report holds that the change did not
-  // cause. Not an issue, never counted, never blocking.
+  // cause, and the coverage setting whose consequence the report cannot show.
+  // Neither is an issue, neither is counted, neither ever blocks.
   const baselineNotice = renderBaselineNoiseNotice(result);
   if (baselineNotice !== undefined) {
     sections.push('');
     sections.push(chalk.dim(baselineNotice));
+  }
+
+  const coverageNotice = renderCoverageRequiresNothingNotice(result);
+  if (coverageNotice !== undefined) {
+    sections.push('');
+    sections.push(chalk.dim(coverageNotice));
   }
 
   // Type-visibility: a statement of fact about the type tier's own coverage,
