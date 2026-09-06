@@ -46,7 +46,7 @@
   },
   {
    "kind": "aspect",
-   "id": "no-todo-comments",
+   "id": "grain/src/no-todo-comments",
    "enumerator": "lex",
    "identifier": "TODO",
    "expected": false,
@@ -57,7 +57,7 @@
   },
   {
    "kind": "aspect",
-   "id": "named-export",
+   "id": "grain/src/named-export",
    "enumerator": "modexport",
    "identifier": "export",
    "expected": true,

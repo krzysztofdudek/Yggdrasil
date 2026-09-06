@@ -217,7 +217,7 @@ export function registerAdoptCommand(program: Command): void {
         }
 
         const provenance = await readProvenance(proposal);
-        const violations = await readExistingViolations(proposal.graphDir);
+        const violations = await readExistingViolations(proposal.graphDir, proposed.aspects.map((a) => a.id));
 
         // ── A preview writes nothing at all ────────────────────────────────
         if (dryRun) {

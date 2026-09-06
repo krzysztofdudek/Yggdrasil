@@ -46,7 +46,18 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // for — and, at closure, which unbought rule counts as settled — both keyed
     // by the pair identity that engine defines. That took it from 24 to 25, out
     // ahead of cli/core/check (24, which declared the same edge when it began
-    // accepting a change scope). cli/portal/engine-api is unaffected at 23.
+    // accepting a change scope).
+    //
+    // Below those three, 23 is now a TIE. cli/entry joined it when the CLI
+    // gained a command for accepting a proposed graph into a repository: the
+    // entry point declares an edge to every command it registers, so each new
+    // command moves this one node's fan-out by exactly one, and this one took
+    // it from 22 to 23 — level with cli/portal/engine-api, which is itself
+    // unchanged. The ranking breaks the tie by path, so cli/entry takes the
+    // index. Only the FIRST half of a tie is pinned by index here;
+    // engine-api is pinned by path for the same reason aspect-test below is —
+    // anchoring the far side of a tie to a fixed slot is the brittle anchor a
+    // past dogfood entry recorded against this very file.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(28);
@@ -54,8 +65,11 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(data.hubs.fanOut[1].count).toBe(25);
     expect(data.hubs.fanOut[2].path).toBe('cli/core/check');
     expect(data.hubs.fanOut[2].count).toBe(24);
-    expect(data.hubs.fanOut[3].path).toBe('cli/portal/engine-api');
+    expect(data.hubs.fanOut[3].path).toBe('cli/entry');
     expect(data.hubs.fanOut[3].count).toBe(23);
+    const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
+    expect(engineApi).toBeDefined();
+    expect(engineApi!.count).toBe(23);
     // Also pins that aspect-test's own extraction (a prior architectural
     // change) still landed it BELOW the leaders, never re-joining the tie by
     // accident. Found by path, not by a fixed index — the nodes between the

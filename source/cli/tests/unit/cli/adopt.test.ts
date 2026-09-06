@@ -139,7 +139,7 @@ describe('readProvenance', () => {
 describe('readExistingViolations', () => {
   it('sums what each rule measured, and ranks the rules that already refuse something', async () => {
     const dir = makeProposal('staged', { violations: { alpha: 3, beta: 7, gamma: 0 } });
-    const violations = await readExistingViolations(path.join(dir, '.yggdrasil'));
+    const violations = await readExistingViolations(path.join(dir, '.yggdrasil'), ['alpha', 'beta', 'gamma']);
     expect(violations.measured).toBe(3);
     expect(violations.total).toBe(10);
     expect(violations.byAspect).toEqual([
@@ -148,9 +148,42 @@ describe('readExistingViolations', () => {
     ]);
   });
 
+  // A rule id is a path and may nest to any depth, which is what a generator that
+  // groups its output by area emits for every rule it writes. The count has to be
+  // read at the rule's own directory; looking one level down from `aspects/` finds
+  // nothing there and would report a whole proposal as carrying no measurement.
+  it('reads the count of a rule whose id nests, not just a top-level one', async () => {
+    const dir = makeProposal('staged', {
+      violations: { 'mined/src/no-todo-comments': 12, 'mined/src/deep/named-export': 4, flat: 1 },
+    });
+    const violations = await readExistingViolations(path.join(dir, '.yggdrasil'), [
+      'mined/src/no-todo-comments',
+      'mined/src/deep/named-export',
+      'flat',
+    ]);
+    expect(violations.measured).toBe(3);
+    expect(violations.total).toBe(17);
+    expect(violations.byAspect).toEqual([
+      { aspectId: 'mined/src/no-todo-comments', count: 12 },
+      { aspectId: 'mined/src/deep/named-export', count: 4 },
+      { aspectId: 'flat', count: 1 },
+    ]);
+  });
+
+  // A record left beside a directory that is not a rule of this graph is not a
+  // measurement of anything — the rules come from the loaded graph, so a stray
+  // file cannot inflate the total.
+  it('counts only the rules the graph actually declares', async () => {
+    const dir = makeProposal('staged', { violations: { alpha: 3, leftover: 99 } });
+    const violations = await readExistingViolations(path.join(dir, '.yggdrasil'), ['alpha']);
+    expect(violations.measured).toBe(1);
+    expect(violations.total).toBe(3);
+    expect(violations.byAspect).toEqual([{ aspectId: 'alpha', count: 3 }]);
+  });
+
   it('keeps "not measured" apart from "measured as none"', async () => {
     const dir = makeProposal('staged', { violations: { alpha: null, beta: 0 } });
-    const violations = await readExistingViolations(path.join(dir, '.yggdrasil'));
+    const violations = await readExistingViolations(path.join(dir, '.yggdrasil'), ['alpha', 'beta']);
     expect(violations.measured).toBe(1);
     expect(violations.total).toBe(0);
     expect(violations.byAspect).toEqual([]);
@@ -158,7 +191,7 @@ describe('readExistingViolations', () => {
 
   it('reports nothing measured when the graph carries no rules at all', async () => {
     const dir = makeProposal('staged');
-    expect(await readExistingViolations(path.join(dir, '.yggdrasil'))).toEqual({
+    expect(await readExistingViolations(path.join(dir, '.yggdrasil'), [])).toEqual({
       measured: 0,
       total: 0,
       byAspect: [],

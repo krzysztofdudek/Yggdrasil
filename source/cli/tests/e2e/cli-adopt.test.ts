@@ -5,7 +5,8 @@
 // directories on disk, shaped exactly as a generator writes one: a staging
 // directory holding a `.yggdrasil/` tree, a `proposal.json` naming the engine
 // and the commit it was taken at, and a `provenance.json` beside each rule
-// carrying how many sites that rule already refuses.
+// carrying how many sites that rule already refuses. The rules' ids NEST, the
+// way a generator that groups its output by the area it mined writes them.
 //
 //   1. accept into an empty repository  → graph in place, baselined, logged
 //   2. the summary reports what arrived → counts, origin, already-broken, mode
@@ -109,7 +110,9 @@ describe.skipIf(!distExists)('CLI E2E — yg adopt', () => {
       // From the per-rule provenance the fixture ships — and it is the truth:
       // the enforced rule really does refuse src/beta.ts as it stands.
       expect(stdout).toContain('1 site the new rules refuse in the code that is already here');
-      expect(stdout).toContain('no-todo-comments  1');
+      // The rule id nests, exactly as a generator that groups its output by area
+      // writes it. The per-rule count has to be found at the rule's own directory.
+      expect(stdout).toContain('grain/src/no-todo-comments  1');
       expect(stdout).toContain("measured against 'main'");
       expect(stdout).toContain('Baseline');
       expect(stdout).toContain('Next: yg check');
@@ -216,7 +219,7 @@ describe.skipIf(!distExists)('CLI E2E — yg adopt', () => {
       expect(check.stdout).toContain('yg check:');
       // The enforced rule's standing refusal is the very thing the acceptance
       // summary counted, so it must be here rather than a surprise.
-      expect(check.stdout).toContain('no-todo-comments');
+      expect(check.stdout).toContain('grain/src/no-todo-comments');
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

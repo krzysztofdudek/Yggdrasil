@@ -164,28 +164,28 @@ export async function readProvenance(proposal: ResolvedProposal): Promise<Propos
  * is clean today, so a graph can be perfectly well-formed and still refuse
  * hundreds of files the moment it is switched on.
  *
- * Read per rule from the record beside it. A rule with no record contributes
- * nothing and is not counted as a zero — "not measured" and "measured as none"
- * are different claims, and `measured` is what keeps them apart.
+ * Read per rule from the record beside it, at the rule's OWN directory. The
+ * rule ids come from the loaded graph rather than from a directory walk of our
+ * own: a rule id is a path and may nest to any depth (`billing/refunds/no-raw-sql`
+ * is one rule, not a `billing` rule), and a generator that groups its output by
+ * area emits nothing else. Walking one level down from `aspects/` would look for
+ * the record at `aspects/billing/` — where no rule lives — and report every such
+ * proposal as carrying no measurement at all.
+ *
+ * A rule with no record contributes nothing and is not counted as a zero —
+ * "not measured" and "measured as none" are different claims, and `measured` is
+ * what keeps them apart.
  */
-export async function readExistingViolations(graphDir: string): Promise<ExistingViolations> {
+export async function readExistingViolations(
+  graphDir: string,
+  aspectIds: readonly string[],
+): Promise<ExistingViolations> {
   const aspectsDir = path.join(graphDir, 'aspects');
-  let entries: string[];
-  try {
-    entries = (await readdir(aspectsDir, { withFileTypes: true }))
-      .filter((e) => e.isDirectory())
-      .map((e) => e.name)
-      .sort();
-  } catch (err) {
-    debugWrite(`[adopt] no aspects directory in ${graphDir}: ${err instanceof Error ? err.message : String(err)}`);
-    return { measured: 0, total: 0, byAspect: [] };
-  }
-
   let measured = 0;
   let total = 0;
   const byAspect: Array<{ aspectId: string; count: number }> = [];
-  for (const aspectId of entries) {
-    const raw = await readJson(path.join(aspectsDir, aspectId, PROVENANCE_FILE));
+  for (const aspectId of [...aspectIds].sort()) {
+    const raw = await readJson(path.join(aspectsDir, ...aspectId.split('/'), PROVENANCE_FILE));
     if (raw === undefined) continue;
     const count = asNumber(raw.existingViolations);
     if (count === undefined) continue;

@@ -18,8 +18,8 @@ node_types:
     when:
       path: "src/**"
     aspects:
-      - no-todo-comments
-      - named-export
+      - grain/src/no-todo-comments
+      - grain/src/named-export
     parents:
       - project
       - module

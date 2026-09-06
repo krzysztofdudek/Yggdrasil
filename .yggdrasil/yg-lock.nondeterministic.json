@@ -2,7 +2,7 @@
   "version": 1,
   "verdicts": {
     "cli-command-contract": {
-      "file:source/cli/src/cli/adopt.ts": {"hash":"df73b8d56131dcadc89c51a5b2f5e56e21fb8baf94d52720255627e3960bbfd6","promptChars":26172,"verdict":"approved"},
+      "file:source/cli/src/cli/adopt.ts": {"hash":"33923befa76caeafa990e47aa3ac6b96892db730275b425b19d38705b5aeeda6","promptChars":26210,"verdict":"approved"},
       "file:source/cli/src/cli/advise.ts": {"hash":"24d9724a2833b132b5c65f5773c072abd56c3ca17235d4e5be8db5e730f03b07","promptChars":48156,"verdict":"approved"},
       "file:source/cli/src/cli/aspect-test.ts": {"hash":"77b068ae9a1b6fd9e9ede96074bf51203470f5e19b0e9cb4b70fe115de8256c3","promptChars":69761,"verdict":"approved"},
       "file:source/cli/src/cli/aspects.ts": {"hash":"c8c86fe9167d2f8ee9caf8c2522636674b588742bcbff4f2ba4e00b5e602b986","promptChars":42942,"verdict":"approved"},
@@ -236,7 +236,7 @@
       "file:source/cli/src/structure/types.ts": {"hash":"e67bdc12656f555411445a1e9be6e470e9ff01ea8a5133b33c183793f52e5b08","promptChars":8261,"verdict":"approved"}
     },
     "diagnostic-logging": {
-      "file:source/cli/src/cli/adopt.ts": {"hash":"0d6119c5e55d6c13ef111bff93f86d535d3a01d11777b00fef3745ccea455844","promptChars":23271,"verdict":"approved"},
+      "file:source/cli/src/cli/adopt.ts": {"hash":"112dea326aeb45eb6e8d3082b11822d446908745b86e66012e8f3ba553aa6eb8","promptChars":23309,"verdict":"approved"},
       "file:source/cli/src/cli/advise.ts": {"hash":"37a1f88fb724559c233eae102808a72c88b289cc6b5f35712a1604aca15da730","promptChars":45255,"verdict":"approved"},
       "file:source/cli/src/cli/aspect-test.ts": {"hash":"38ec09db87437a783fce99715db7fc00701650d5b37871c376f04a6eeadd0f26","promptChars":66860,"verdict":"approved"},
       "file:source/cli/src/cli/aspects.ts": {"hash":"b038885058a6e8c541ab6142c6d5bf655a1562df60c247eaa0f27417866b4f7b","promptChars":40041,"verdict":"approved"},
@@ -484,7 +484,7 @@
       "file:source/cli/src/io/type-class-cache.ts": {"hash":"afc5ac930fd34444286cc3dd91379cc64473bec1d4735dd5af5034b5bba58377","promptChars":13847,"verdict":"approved"}
     },
     "test-deterministic": {
-      "file:source/cli/tests/e2e/cli-adopt.test.ts": {"hash":"7a5787cf08e0195ab8c6e30986b426cba11bbfb4a723e00eb93ac36dc4a6c0af","promptChars":13909,"verdict":"approved"},
+      "file:source/cli/tests/e2e/cli-adopt.test.ts": {"hash":"9eba13c13338c00167f20213d0ed9d4d7d81154f46fb571a52cee233a0004dfa","promptChars":14196,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-advise-deviation-line.test.ts": {"hash":"8546f3dd116311c28444c66293c29d82dd7f6f59ab861dbfd9f191ddea037afc","promptChars":13192,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-advise-hot-spot.test.ts": {"hash":"f50b929ef98591f908df7718b34881b0fd6ae000e0f5ff0c1b7d19ff7fcb4a52","promptChars":14897,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-advise-type-covered-churn.test.ts": {"hash":"ed3b61846a09efac1e58b59c14e1ecb45ec7ca77b4e4ee60b821033e9ca35804","promptChars":22168,"verdict":"approved"},
@@ -650,7 +650,7 @@
       "file:source/cli/tests/integration/portal-boundary.test.ts": {"hash":"25080a2e5ce000937a8e67688ec1091c498a9d567d9b596e042bcc0e6e03c382","promptChars":10907,"verdict":"approved"},
       "file:source/cli/tests/integration/portal-derive-catalogue.test.ts": {"hash":"3a399a400d11cb3bb0310ce59319c7f1514a8149072535b6e3ef0c7391857180","promptChars":29166,"verdict":"approved"},
       "file:source/cli/tests/integration/portal-derive-nodes.test.ts": {"hash":"fcb060f808977910ec5a775bfbfaea9e5a7ced1c18c42746457ef40f4024b86c","promptChars":33291,"verdict":"approved"},
-      "file:source/cli/tests/integration/portal-derive-rest.test.ts": {"hash":"c099dae985d6cbfe28a63f1a44197697559874d1858d8570eecd751c33ddb14b","promptChars":26559,"verdict":"approved"},
+      "file:source/cli/tests/integration/portal-derive-rest.test.ts": {"hash":"3409cb62c31a2df92e12c244843d6eeddeea8c2cfde9696ef22102d4adf13737","promptChars":27428,"verdict":"approved"},
       "file:source/cli/tests/integration/portal-engine-api-provenance.test.ts": {"hash":"cd76b896a5fb389eaf2c43f880e5edcd966ae8a5538d1418c60a5b177c8faad8","promptChars":20852,"verdict":"approved"},
       "file:source/cli/tests/integration/portal-extract-type-coverage.test.ts": {"hash":"64cd1f87d301dc75487396dee651d8f0127f7a3604a97e6c43b93ace9bd797be","promptChars":16475,"verdict":"approved"},
       "file:source/cli/tests/integration/portal-extract.test.ts": {"hash":"1f05c7384f901ff51246ca5075becd414c5758da905452f40833992e9ff5866f","promptChars":41012,"verdict":"approved"},
@@ -748,7 +748,7 @@
       "file:source/cli/tests/unit/bounty4/suppress-syntax.test.ts": {"hash":"f2c740f7b507e9e41d02c174acb3f15fc1f78a3a944bfe71bd8f37f126bb37bc","promptChars":31010,"verdict":"approved"},
       "file:source/cli/tests/unit/bounty4/working-with-architecture.test.ts": {"hash":"43a89b7b2b4d90d0bfb8f591902d3e771941cceee68dbed76c4506c3ae11f58b","promptChars":38041,"verdict":"approved"},
       "file:source/cli/tests/unit/bounty4/writing-deterministic-aspects.test.ts": {"hash":"4c9222ae50343016aa280078b1eefcc022cffb2e62b23a19d1b0c09727c3659d","promptChars":42473,"verdict":"approved"},
-      "file:source/cli/tests/unit/cli/adopt.test.ts": {"hash":"dbe8242588510c7c733d45f6e7fa320fdcf2a8fb8866c9db105f0f55c1d802f2","promptChars":14062,"verdict":"approved"},
+      "file:source/cli/tests/unit/cli/adopt.test.ts": {"hash":"06989e1549f0a15400b74d27ba40460ea797b41fd9344de6dfc1829a0367f38a","promptChars":15771,"verdict":"approved"},
       "file:source/cli/tests/unit/cli/advise-type-coverage.test.ts": {"hash":"015755a4d4b3ff505795f60e5f29bcad69758cc8f581ff3d9dd855d494a6a411","promptChars":9134,"verdict":"approved"},
       "file:source/cli/tests/unit/cli/advise.test.ts": {"hash":"9645d71f44fb38bcd2b7abd6140891ea6903b1f3192fab95a7288aa1b28305d2","promptChars":51753,"verdict":"approved"},
       "file:source/cli/tests/unit/cli/aspect-test.test.ts": {"hash":"16c1592abf59f1b530f88b81a3cee9b37e875c0e82d0621a69e050d922e4420c","promptChars":51475,"verdict":"approved"},
