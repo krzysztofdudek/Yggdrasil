@@ -3,7 +3,7 @@ import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE, OUTSIDE_CODES } from '../core/check-codes.js';
 import { groupIssues, issuePriorityRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, type IssueGroup } from './group-issues.js';
-import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderChangeScope, renderByteGuardNotice, renderBaselineNoiseNotice, renderCoverageRequiresNothingNotice } from './check-render-header.js';
+import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderChangeScope, renderByteGuardNotice, renderBaselineNoiseNotice, renderCoverageRequiresNothingNotice, renderExternalJudgesNotice } from './check-render-header.js';
 import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup } from './check-render-groups.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -131,6 +131,15 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   if (coverageNotice !== undefined) {
     sections.push('');
     sections.push(chalk.dim(coverageNotice));
+  }
+
+  // Who judged, when the judge was not the configured reviewer — the same
+  // posture as the notices above: a standing statement of fact, printed in every
+  // view, never an issue and never counted.
+  const judgesNotice = renderExternalJudgesNotice(result);
+  if (judgesNotice !== undefined) {
+    sections.push('');
+    sections.push(chalk.dim(judgesNotice));
   }
 
   // Type-visibility: a statement of fact about the type tier's own coverage,

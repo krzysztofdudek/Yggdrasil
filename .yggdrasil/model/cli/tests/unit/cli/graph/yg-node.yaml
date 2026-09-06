@@ -2,9 +2,13 @@ name: CLI Graph Query Command Tests
 type: test-suite
 description: >-
   Unit tests for graph-query commands — aspects, find, flows, impact, node,
-  owner, and which. The node tests cover the component document both views are
-  built from: the structure of a component with children and a parent, the
-  ports it publishes, and the refusal a path naming no component gets.
+  owner, verdict, and which. The node tests cover the component document both
+  views are built from: the structure of a component with children and a
+  parent, the ports it publishes, and the refusal a path naming no component
+  gets. The verdict tests prove the external-judge channel's whole claim from
+  both ends — the package's hashes ARE the ones the fill stage would store,
+  computed here from the shared assembly rather than re-spelled — and that the
+  command refuses everything that would break that binding.
 aspects: []
 relations:
   [
@@ -13,11 +17,14 @@ relations:
     { target: cli/commands/flows, type: uses },
     { target: cli/commands/node, type: uses },
     { target: cli/commands/owner, type: uses },
+    { target: cli/commands/verdict, type: uses },
     { target: cli/impact-handlers, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/preamble, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/graph, type: uses },
+    { target: cli/core/pairs, type: uses },
+    { target: cli/core/review-package, type: uses },
     { target: cli/formatters, type: uses },
     { target: cli/io/lock-store, type: uses },
     { target: cli/tests/fixtures, type: uses }
@@ -29,4 +36,5 @@ mapping:
   - source/cli/tests/unit/cli/impact.test.ts
   - source/cli/tests/unit/cli/node.test.ts
   - source/cli/tests/unit/cli/owner.test.ts
+  - source/cli/tests/unit/cli/verdict.test.ts
   - source/cli/tests/unit/cli/which.test.ts

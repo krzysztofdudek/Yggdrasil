@@ -576,6 +576,50 @@ A path naming no component is refused with what/why/next and exit 1. Fields may
 be added within \`yg-node/1\`; only a change to an existing field's shape takes a
 new schema number.
 
+## yg verdict
+
+The external-judge channel. A judge outside the configured reviewer — a person,
+or another tool already reading the change — takes the exact package a provider
+would have received, decides, and records that decision under its own name,
+bound to the same content hashes any verdict is. Use it where a prose rule has
+to be settled and no provider is configured or reachable.
+
+\`\`\`bash
+yg verdict package --aspect <id> --node <path>   # or --file <path>
+yg verdict record  --aspect <id> --node <path> --by <name> --verdict pass --hash <sha>
+yg verdict record  --aspect <id> --node <path> --by <name> --verdict refused \\
+  --report "<what is wrong and where>" --hash <sha>
+yg verdict read [--by <name>] [--json]
+\`\`\`
+
+\`package\` prints one \`yg-review/1\` document — the rule's own text, the
+subject files, any references and resolved companions, the tier's CONSTRAINTS
+(name, consensus, prompt ceiling and this package's size; never the provider,
+the model or a credential), and \`hashes\` with one entry per verdict token. It
+is the SAME assembly the fill stage sends a provider, so what a judge sees and
+what a filled verdict was judged on cannot drift apart.
+
+\`record\` writes the judgement into the lock exactly as a provider verdict is
+written, plus the judge's name. \`--hash\` is the hash from the package for the
+verdict being recorded; if the working tree moved since, it is REFUSED rather
+than re-bound. A refusal requires \`--report\` (or \`--report-file\`).
+
+Recording is NOT approving. It fills one pending pair; \`yg check --approve\`,
+\`yg-suppress\` and every status rule are untouched. \`yg check\` then treats the
+verdict like any other: re-proved by hashing (no key, no judge), dropped the
+moment the code it judged changes, and attributed — a standing line naming each
+judge and how many pairs are theirs, plus the judge's name on the refusal
+itself.
+
+Four refusals, each with a reason: a rule that runs as a local check is
+machine-only (run it free with \`yg check --approve --only-deterministic\`); a
+pair already holding a verdict for exactly these inputs is not pending; a hash
+that no longer matches means the judgement would attach to code the judge never
+saw; a refusal with no report leaves the author nothing to fix.
+
+\`read\` lists what has been recorded this way and whether each verdict still
+holds — as text, or as a \`yg-verdicts/1\` document under \`--json\`.
+
 ## yg tree
 
 Browse the graph structure.

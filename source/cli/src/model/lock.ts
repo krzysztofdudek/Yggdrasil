@@ -58,6 +58,18 @@ export interface VerdictEntry {
    * CURRENT limit is what makes that happen.
    */
   promptChars?: number;
+  /**
+   * Provenance for a verdict recorded by a judge OUTSIDE the CLI's configured
+   * reviewer — a person, or another tool that read the review package and
+   * decided. Absent on every entry a configured provider produced, and on every
+   * deterministic entry.
+   *
+   * NOT a hash ingredient — it is a RECORD of who decided, never an input of the
+   * decision, so writing or reading it invalidates nothing. The verdict is bound
+   * to the same inputHash a provider's would have been, which is what lets CI
+   * re-prove it by hashing, with no key and no judge present.
+   */
+  judge?: { name: string; provider: 'external' };
 }
 
 /**

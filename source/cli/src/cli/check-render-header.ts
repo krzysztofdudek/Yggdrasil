@@ -135,6 +135,33 @@ export function renderBaselineNoiseNotice(result: CheckResult): string | undefin
 }
 
 /**
+ * Who judged, when the judge was not a configured reviewer.
+ *
+ * A verdict recorded through the external-judge channel is re-proved here by
+ * hash like any other — that is what lets CI stand it up again with no key and
+ * no judge present. But a hash says the judgement still applies, never whose it
+ * was, and an approval reports no issue at all, so without this line a green run
+ * would carry a judgement with no visible author. Said once, as a standing fact
+ * about what this report rests on, naming each judge and how many of the pairs
+ * in force are theirs.
+ *
+ * Absent entirely on the ordinary repository, where nothing was judged this way.
+ */
+export function renderExternalJudgesNotice(result: CheckResult): string | undefined {
+  const counts = new Map<string, number>();
+  for (const vp of result.pairs) {
+    if (vp.judge === undefined) continue;
+    counts.set(vp.judge.name, (counts.get(vp.judge.name) ?? 0) + 1);
+  }
+  if (counts.size === 0) return undefined;
+  const named = [...counts.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([name, n]) => `${name} (${n})`);
+  const total = [...counts.values()].reduce((a, b) => a + b, 0);
+  return `${total} verdict${total === 1 ? '' : 's'} in this report ${total === 1 ? 'was' : 'were'} recorded by a judge outside the configured reviewer: ${named.join(', ')}. Each is bound to the same content hashes any verdict is, and is re-proved here by hashing alone.`;
+}
+
+/**
  * The one line that makes an invisible setting visible: with nothing named
  * under `coverage.required`, a file no component owns can never fail a check,
  * however many runs list it.

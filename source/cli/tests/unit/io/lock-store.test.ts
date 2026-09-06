@@ -535,6 +535,7 @@ describe('lock-store', () => {
       reason: 'a violation at src/a.ts:3',
       touched: [['read:src/b.ts', 'deadbeef']],
       promptChars: 4211,
+      judge: { name: 'a-verifier', provider: 'external' },
     };
     const serialized = serializeLock({
       version: LOCK_FORMAT_VERSION,

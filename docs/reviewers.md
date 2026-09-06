@@ -107,6 +107,48 @@ reviewer:
         model: claude-opus-4-7
 ```
 
+### A judge outside the CLI
+
+A prose rule needs a reviewer. If your project has no key for one — or the natural judge is somebody already reading the change, a person or another tool — a judgement can be recorded from outside the CLI and still be bound the same way any verdict is.
+
+It is two steps, and nothing about the graph's own rules moves.
+
+```bash
+# 1. Take the exact package the configured reviewer would have received.
+yg verdict package --aspect has-doc-comment --node services/orders
+
+# 2. Decide, and record it under your own name against the hash the package gave you.
+yg verdict record --aspect has-doc-comment --node services/orders   --by alice --verdict pass --hash <hashes.pass from step 1>
+```
+
+Step 1 prints one JSON document: the rule's own text, the code under judgement, any reference and companion files, the constraints the tier imposes — and one hash per possible verdict. Nothing about the provider, the model, or any credential is in it; a package is handed to someone outside the repository.
+
+Step 2 writes the judgement into the lock exactly as the configured reviewer's would have been written, with the judge's name beside it. From then on it behaves like any other verdict: `yg check` re-proves it by hashing, with no key and no judge present, and drops it the moment the code it judged moves. `yg check` also says whose judgement the run rests on — a passing rule reports nothing on its own, so a green run would otherwise carry an author nobody can see.
+
+A refusal is recorded the same way and needs a report saying what is wrong:
+
+```bash
+yg verdict record --aspect has-doc-comment --node services/orders   --by alice --verdict refused --report "src/services/orders.ts:1 opens with code, not a comment."   --hash <hashes.refused>
+```
+
+To see what has been judged this way, and whether each judgement still holds:
+
+```bash
+yg verdict read            # or --json, or --by <name>
+```
+
+Five things it will not do, each with a reason you would want it to have:
+
+| It refuses | Because |
+|---|---|
+| A rule that runs as a local check | Its verdict is whatever running it produces. Run it: `yg check --approve --only-deterministic`. |
+| A pair that already holds a verdict for these exact inputs | Nothing is pending; recording again would replace a judgement that still applies. |
+| A hash that no longer matches the working tree | The code moved since the package was printed, so the judgement would attach to code the judge never saw. |
+| A refusal with no report | It would leave the author nothing to fix. |
+| Anything but `pass` or `refused` | A judgement is one of two words. |
+
+**Recording is not approving.** It fills one pending pair. `yg check --approve` is unchanged, and so is every suppression and status rule.
+
 ---
 
 ## Per-unit companion files

@@ -58,13 +58,15 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // (it records a port's contract baseline, and it is the only place that knows
     // whether the run was the free deterministic-only kind), cli/core/check 24 to
     // 25 (it reports the finding, gated on the same readable lock the baseline
-    // lives in). cli/entry reached 24 separately, when the CLI gained a command
-    // for showing one component's structure — the entry point declares an edge to
-    // every command it registers, so each new command moves it by exactly one.
-    // cli/portal/engine-api is unchanged at 23, and is pinned by PATH rather than
-    // by index for the same reason aspect-test below is: anchoring a node to a
-    // fixed slot is the brittle anchor a past dogfood entry recorded against this
-    // very file.
+    // lives in). cli/entry moved twice for a different reason and also reached
+    // 25: the entry point declares an edge to every command it registers, so each
+    // new command moves it by exactly one — once for the component command, once
+    // for the external-judge channel. That leaves it level with cli/core/check,
+    // and the ranking breaks the tie by path, so cli/core/check keeps the earlier
+    // index. cli/portal/engine-api is unchanged at 23, and is pinned by PATH
+    // rather than by index for the same reason aspect-test below is: anchoring a
+    // node to a fixed slot is the brittle anchor a past dogfood entry recorded
+    // against this very file.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(28);
@@ -73,7 +75,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(data.hubs.fanOut[2].path).toBe('cli/core/check');
     expect(data.hubs.fanOut[2].count).toBe(25);
     expect(data.hubs.fanOut[3].path).toBe('cli/entry');
-    expect(data.hubs.fanOut[3].count).toBe(24);
+    expect(data.hubs.fanOut[3].count).toBe(25);
     const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
     expect(engineApi).toBeDefined();
     expect(engineApi!.count).toBe(23);

@@ -108,6 +108,13 @@ export interface VerifiedPair {
    * the pair is not valid (a re-fill will write its own).
    */
   backfillPromptChars?: number;
+  /**
+   * Who judged this pair, when the judge was not a configured provider — read
+   * straight off the stored entry, whatever the pair's state. Present on a
+   * verified pair too (which reports no issue at all), because "who decided
+   * this" is exactly the fact a green run must still be able to show.
+   */
+  judge?: { name: string; provider: 'external' };
 }
 
 export interface LockVerification {
@@ -571,10 +578,14 @@ function classifyWithGate(
       storedEntry.verdict === 'refused'
         ? { kind: 'refused', reason: storedEntry.reason }
         : { kind: 'verified' };
+    // Provenance rides with a verdict that is IN FORCE. An entry whose hash no
+    // longer matches is not this pair's verdict any more, so naming its judge
+    // below would credit them with a decision that no longer holds.
+    const judge = storedEntry.judge;
     if (gate) {
-      return { pair, state: verdictState, oversized: gate };
+      return { pair, state: verdictState, oversized: gate, ...(judge && { judge }) };
     }
-    return { pair, state: verdictState };
+    return { pair, state: verdictState, ...(judge && { judge }) };
   }
 
   // Invalid or missing entry.

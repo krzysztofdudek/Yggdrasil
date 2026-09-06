@@ -91,7 +91,9 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
       "node:billing/notify":    { "hash": "<inputHash>",
                                   "touched": [["read:src/shared/codes.ts", "<sha256>"],
                                               ["list:src/billing", "<sha256>"]],
-                                  "verdict": "approved" }
+                                  "verdict": "approved" },
+      "node:billing/refunds":   { "hash": "<inputHash>", "verdict": "approved",
+                                  "judge": { "name": "alice", "provider": "external" } }
     }
   },
   "nodes": {
@@ -119,6 +121,13 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
   entry carries \`touched\` only when the hook observed files beyond the subject
   set (length > 0); plain LLM entries without \`companion.mjs\` omit the key
   entirely.
+- \`judge\` appears on a verdict recorded through the EXTERNAL-JUDGE channel
+  (\`yg verdict record\`, \`yg knowledge read cli-reference\`): who decided, and
+  that the decision did not come from a configured provider. Absent on every
+  provider-produced and every deterministic entry. NOT a hash ingredient — it
+  records who decided, never an input of the decision — so the verdict is bound
+  to the same inputHash a provider's would have been, which is exactly what lets
+  CI re-prove it by hashing with no key and no judge present.
 - \`nodes.<path>.ports\` carries the PORT CONTRACT BASELINES: for each port that
   names a \`test:\`, the content hash of that test at each contract version it
   has been recorded at. It is written by an approving run — including the free

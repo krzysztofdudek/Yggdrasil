@@ -16,6 +16,7 @@ This page is for inspecting or debugging your graph and enforcement state.
 | `yg context --file <path>` / `--node <path>` | Assemble context package (`--json` for the machine-readable form) |
 | `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis (`--json` for the machine-readable form) |
 | `yg node <path>` | One component's structure — what it owns, what it depends on, the ports it publishes (`--json` for the machine-readable form) |
+| `yg verdict package` / `record` / `read` | Let a judge outside the CLI review one pending rule and record the verdict |
 | `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)) |
 | `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
 | `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes the gitignored cache, plus a port's contract baseline when one is missing |
@@ -227,6 +228,40 @@ part of the component's own structure.
 A path naming no component is refused with what/why/next and exit 1. New fields
 may appear within `yg-node/1`; only a change to an existing field's shape takes a
 new schema number.
+
+### `yg verdict`
+
+Lets a judge outside the configured reviewer — a person, or another tool already
+reading the change — judge one pending prose rule and have Yggdrasil keep the
+verdict as its own. Full walkthrough on [Reviewers](/reviewers).
+
+```bash
+yg verdict package --aspect <id> --node <path>   # or --file <path>
+yg verdict record  --aspect <id> --node <path> --by <name> --verdict pass --hash <sha>
+yg verdict record  --aspect <id> --node <path> --by <name> --verdict refused \
+  --report "<what is wrong and where>" --hash <sha>
+yg verdict read [--by <name>] [--json]
+```
+
+- `package` — prints one `yg-review/1` document: the rule's own text, the subject
+  files, any references and companion files, the tier's constraints (its name,
+  consensus and prompt ceiling — never its provider, model or credentials), and
+  one hash per verdict token. Only for a pair that is pending — unverified, or
+  refused — and only for a rule a reviewer judges; a rule that runs as a local
+  check is machine-only.
+- `record` — writes the judgement into the lock exactly as a provider's verdict
+  is written, with `--by <name>` beside it. `--hash` is the hash from the package
+  for the verdict being recorded; it is refused if the working tree has moved
+  since. A refusal needs `--report` (or `--report-file`). Recording is **not**
+  approving: it fills one pending pair, and `yg check --approve`, suppressions
+  and statuses are all unchanged.
+- `read` — lists every verdict recorded this way and whether each still holds,
+  as text or as a `yg-verdicts/1` document.
+
+`yg check` then treats such a verdict like any other: it is re-proved by hashing
+with no key and no judge present, it falls out of force the moment the code it
+judged changes, and the report names who judged — once as a standing line for
+the run, and on the refusal itself.
 
 ### `yg check`
 

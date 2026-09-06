@@ -319,9 +319,9 @@ function validateLockShape(obj: Record<string, unknown>, ctx: ParseCtx): void {
 function validateVerdictEntry(entry: unknown, at: string, ctx: ParseCtx): void {
   if (!isPlainObject(entry)) throwMalformed(`"${at}" must be a JSON object (found ${describe(entry)})`, ctx);
 
-  const ENTRY_KEYS = new Set(['verdict', 'hash', 'reason', 'touched', 'promptChars']);
+  const ENTRY_KEYS = new Set(['verdict', 'hash', 'reason', 'touched', 'promptChars', 'judge']);
   for (const key of Object.keys(entry)) {
-    if (!ENTRY_KEYS.has(key)) throwMalformed(`"${at}" has unexpected key "${key}" (allowed: verdict, hash, reason, touched, promptChars)`, ctx);
+    if (!ENTRY_KEYS.has(key)) throwMalformed(`"${at}" has unexpected key "${key}" (allowed: verdict, hash, reason, touched, promptChars, judge)`, ctx);
   }
 
   if (entry.verdict !== 'approved' && entry.verdict !== 'refused') {
@@ -357,6 +357,25 @@ function validateVerdictEntry(entry: unknown, at: string, ctx: ParseCtx): void {
   if (entry.promptChars !== undefined) {
     if (typeof entry.promptChars !== 'number' || !Number.isInteger(entry.promptChars) || entry.promptChars < 0) {
       throwMalformed(`"${at}.promptChars" must be a non-negative integer when present (found ${describe(entry.promptChars)})`, ctx);
+    }
+  }
+  // Who judged, when the judge was not the configured provider. Validated as
+  // strictly as every other field: a malformed provenance would let a verdict
+  // claim an origin nothing in the repository can account for.
+  if (entry.judge !== undefined) {
+    if (!isPlainObject(entry.judge)) {
+      throwMalformed(`"${at}.judge" must be a JSON object when present (found ${describe(entry.judge)})`, ctx);
+      return;
+    }
+    const JUDGE_KEYS = new Set(['name', 'provider']);
+    for (const key of Object.keys(entry.judge)) {
+      if (!JUDGE_KEYS.has(key)) throwMalformed(`"${at}.judge" has unexpected key "${key}" (allowed: name, provider)`, ctx);
+    }
+    if (typeof entry.judge.name !== 'string' || entry.judge.name.trim() === '') {
+      throwMalformed(`"${at}.judge.name" must be a non-empty string (found ${describe(entry.judge.name)})`, ctx);
+    }
+    if (entry.judge.provider !== 'external') {
+      throwMalformed(`"${at}.judge.provider" must be "external" (found ${describe(entry.judge.provider)})`, ctx);
     }
   }
 }
@@ -504,6 +523,11 @@ function serializeEntry(entry: VerdictEntry): string {
   // a pass-through — a field the producer sets but this function does not name is
   // silently dropped on write, and the round-trip then loses it without a word.
   if (entry.promptChars !== undefined) obj.promptChars = entry.promptChars;
+  // Who judged, when the judge was not the configured provider. Enumerated here
+  // for the same reason as promptChars: this serializer is an explicit
+  // allow-list, and a field the producer sets but this function does not name is
+  // silently dropped on write.
+  if (entry.judge !== undefined) obj.judge = { name: entry.judge.name, provider: entry.judge.provider };
 
   // Sort keys by code-point
   const sortedKeys = Object.keys(obj).sort();

@@ -109,6 +109,12 @@ Corollaries worth knowing:
 
 `yg log add` never verifies anything and never invalidates a verdict, so entries can be appended freely between code changes.
 
+## A verdict somebody else made
+
+A verdict does not have to come from the configured reviewer. When a judge outside the CLI decides a prose rule (see [Reviewers](/reviewers#a-judge-outside-the-cli)), the entry that lands here is the ordinary one — the same content hash, the same shape — with the judge's name recorded beside it.
+
+The name is provenance, not an input: it is deliberately outside the hash, so the verdict is bound to exactly what a provider's would have been bound to. That is what lets CI stand it back up by hashing alone, with no key and no judge present, and what makes it fall out of force the moment the code it judged changes. `yg check` names the judge in its report, because an approval reports nothing on its own and a green run should never carry a judgement with no visible author.
+
 ## Port contract baselines
 
 A port can name the test that *is* its contract, together with the version consumers pin to (see [Ports](/relations-flows-ports)). `yg-lock.logs.json` is where that contract is pinned down: for each such port it records, per contract version, what the named test contained when that version was first recorded.

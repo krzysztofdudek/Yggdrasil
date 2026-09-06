@@ -7,26 +7,16 @@
  * writes NOTHING (spec §3.2).
  */
 
-import path from 'node:path';
-
 import type { Graph, AspectDef, LlmConfig } from '../model/graph.js';
 import type { VerdictEntry, Verdict } from '../model/lock.js';
 import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
-import { computeLlmInputHash } from './pair-hash.js';
-import { ruleHashFor, contentFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
-import { hashBytes } from '../io/hash.js';
-import { buildPairPrompt, assembledPromptChars, DEFAULT_MAX_PROMPT_CHARS } from '../llm/prompt.js';
-import type { PromptReferenceInput, PromptFileInput, PromptCompanionInput } from '../llm/prompt.js';
+import { buildPairPrompt, DEFAULT_MAX_PROMPT_CHARS } from '../llm/prompt.js';
 import { verifyWithConsensus } from '../llm/aspect-verifier.js';
 import type { LlmProvider } from '../llm/types.js';
-import { readFileBytes } from '../io/graph-fs.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
-import type { IssueMessage } from '../model/validation.js';
-import { resolveCompanionsForPair } from './companion-resolve.js';
-import { readBytesOrEmpty, type LlmFillOutcome } from './fill-shared.js';
-import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
-import type { PromptSuppressedRangesInput } from '../llm/prompt.js';
+import { assembleReviewPackage } from './review-package.js';
+import type { LlmFillOutcome } from './fill-shared.js';
 import type { ParseCache } from '../structure/index.js';
 
 /**
@@ -64,121 +54,23 @@ export async function fillLlmPair(
   // the bucket's owner (fill.ts) destroys it once every pair sharing it settles.
   parseCache?: ParseCache,
 ): Promise<LlmFillOutcome> {
-  // ── Load subject file bytes (sorted by path is the pair's contract). ──
-  const subjects: Array<{ path: string; bytes: Buffer }> = [];
-  for (const rel of pair.subjectFiles) {
-    const bytes = await readBytesOrEmpty(path.resolve(projectRoot, rel));
-    subjects.push({ path: rel, bytes });
+  // ── Assemble the review package: subjects, references, companions,
+  // suppressed ranges, the prompt and its binding hash. The SAME assembly the
+  // external-judge channel prints, so a verdict recorded there and a verdict
+  // filled here are stored under the same hash by construction rather than by
+  // two implementations agreeing. Its two fail-closed dispositions arrive here
+  // unchanged: an unreadable declared reference is infra, a companion that
+  // cannot resolve is its own runtime error — neither costs a reviewer call. ──
+  const assembled = await assembleReviewPackage({
+    graph, projectRoot, pair, aspect, tierName, referencesCache, typeCoverage, reachCache, parseCache,
+  });
+  if (assembled.kind === 'infra') {
+    return { kind: 'infra', why: assembled.why, messageData: assembled.messageData, callsMade: 0 };
   }
-
-  // ── Load references as RAW disk bytes — byte-identical to the verifier
-  // (verify-lock.ts reads each reference via readFileBytes and folds those raw
-  // bytes; the prompt content there is rawBytes.toString('utf8')). Hashing,
-  // prompting, and the §4 size gate must all be measured over the SAME bytes, so
-  // a reference carrying a UTF-8 BOM or an invalid byte cannot make the producer
-  // and verifier disagree (which would pin the verdict to a permanent false-red).
-  // A missing reference stays a LOUD infra failure (#6) — never hashed over
-  // empty-substituted bytes. ──
-  const refInputs = aspect.references ?? [];
-  const referencesForHash: Array<[string, string, string]> = [];
-  const referencesForPrompt: PromptReferenceInput[] = [];
-  for (const ref of refInputs) {
-    const absRef = path.resolve(projectRoot, ref.path);
-    let bytes = referencesCache.get(absRef);
-    if (bytes === undefined) {
-      bytes = await readFileBytes(absRef); // raw disk Buffer, no decode, no BOM strip; null on error
-      if (bytes === null) {
-        debugWrite(`[fill] reference load failed for ${aspect.id} path ${toPosixPath(ref.path)}`);
-      }
-      referencesCache.set(absRef, bytes);
-    }
-    if (bytes === null) {
-      // Never hash over empty-substituted bytes — fail closed.
-      const why = `reference '${toPosixPath(ref.path)}' for aspect '${aspect.id}' could not be read`;
-      return {
-        kind: 'infra',
-        why,
-        messageData: {
-          what: `Reference file '${toPosixPath(ref.path)}' for aspect '${aspect.id}' could not be read.`,
-          why: 'A declared reference is part of the verifier input; reading empty-substituted bytes would desync the producer and verifier and pin a false verdict, so the fill fails closed and writes NOTHING.',
-          next: `Restore the reference file at '${toPosixPath(ref.path)}' or fix its permissions, then re-run: yg check --approve`,
-        },
-        callsMade: 0,
-      };
-    }
-    referencesForHash.push([ref.path, hashBytes(bytes), ref.description ?? '']);
-    referencesForPrompt.push({ path: ref.path, description: ref.description, content: bytes.toString('utf8') });
+  if (assembled.kind === 'companion-runtime-error') {
+    return { kind: 'companion-runtime-error', why: assembled.why, messageData: assembled.messageData, callsMade: 0 };
   }
-
-  // ── Resolve companions BEFORE consensus (spec: a torn observation set must
-  // NEVER cost a reviewer call). The plain path (no companion.mjs) skips this
-  // entirely so its behavior is byte-identical to the pre-companion contract;
-  // companionHash is then undefined and the hash is unchanged. ──
-  let companions: PromptCompanionInput[] = [];
-  let observations: Array<[string, string]> = [];
-  if (aspect.hasCompanion === true) {
-    const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect, typeCoverage, reachCache, parseCache);
-    if (resolved.kind === 'infra') {
-      // Companion hook/resolution runtime failure — fail closed, NOTHING written,
-      // reviewer never called (callsMade: 0). Counted and summarized as
-      // aspect-companion-runtime-error, the mirror of aspect-check-runtime-error.
-      // Pass the original messageData so its why:/next: (e.g. the relation-source/
-      // target guidance from companionOutsideAllowedReads) is preserved in the
-      // per-pair message while the token-bearing what: is injected.
-      debugWrite(`[fill] companion resolution failed for ${aspect.id} on ${toPosixPath(pair.unitKey)}: ${resolved.messageData.what}`);
-      return { kind: 'companion-runtime-error', why: resolved.why, messageData: companionRuntimeNotice(aspect.id, pair.unitKey, resolved.why, resolved.messageData), callsMade: 0 };
-    }
-    companions = resolved.companions.promptCompanions;
-    observations = resolved.companions.observations;
-  }
-
-  // ── Resolve yg-suppress line ranges for THIS aspect over the subjects and
-  // inject them into the prompt, so the LLM honors exactly the same spans the
-  // deterministic matcher waives (no model-side scope re-derivation). Routed
-  // through the structure adapter — the engine may NOT import ast/* directly
-  // (architecture: engine → structure-adapter → ast-adapter is the legal path).
-  // A reasonless marker throws SuppressMarkerError → fail-closed infra (callsMade
-  // 0, NOTHING written), mirroring the deterministic path's disposition. ──
-  let suppressedRanges: PromptSuppressedRangesInput;
-  try {
-    suppressedRanges = await resolveSuppressedRangesForPrompt(subjects, aspect.id);
-  } catch (e) {
-    if (e instanceof SuppressMarkerError) {
-      const where = `${toPosixPath(e.file)}:${e.line}`;
-      debugWrite(`[fill] suppress marker missing reason for ${aspect.id} on ${toPosixPath(pair.unitKey)}: ${where}`);
-      return {
-        kind: 'infra',
-        why: `a yg-suppress marker at ${where} is missing its required reason`,
-        messageData: {
-          what: `A yg-suppress marker at ${where} (subject of aspect '${aspect.id}') is missing its required reason.`,
-          why: 'A reasonless suppress marker cannot be resolved into a line range, so the suppressed-line set is undefined and the pair cannot be verified. Fail-closed: NOTHING was written, the pair stays unverified, and the reviewer was NOT called.',
-          next: `Add a reason after the marker's closing parenthesis at ${where}, then re-run: yg check --approve`,
-        },
-        callsMade: 0,
-      };
-    }
-    throw e;
-  }
-
-  const promptInput = {
-    aspect: { id: aspect.id, description: aspect.description ?? '', content: contentFor(aspect, 'content.md') },
-    references: referencesForPrompt,
-    nodePath: pair.nodePath,
-    files: subjects.map<PromptFileInput>((s) => ({ path: s.path, content: s.bytes.toString('utf8') })),
-    companions,
-    suppressedRanges,
-    scope: aspect.scope,
-  };
-
-  // The gate-canonical (label-free) size of the prompt this fill is about to
-  // send. Measured ONCE here and reused twice: by the first-fill companion gate
-  // just below, and — recorded on the entry — by every later `yg check`, which
-  // reads it back instead of resolving companions and re-assembling the prompt
-  // only to count its characters (see VerdictEntry.promptChars). Deliberately
-  // NOT `prompt.length`: `buildPairPrompt` renders companion labels and the
-  // gate's measurement does not, so the two strings differ by design and only
-  // this one is comparable with what verify-lock computes.
-  const promptChars = assembledPromptChars(promptInput);
+  const { companions, observations, promptInput, promptChars, hashFor } = assembled.pkg;
 
   // ── Fill-time size gate for companion pairs (§4, first-fill). ──
   // verify-lock gates a STORED entry against max_prompt_chars, but on a pair's
@@ -257,22 +149,7 @@ export async function fillLlmPair(
   }
 
   const verdict: Verdict = response.satisfied ? 'approved' : 'refused';
-  const hash = computeLlmInputHash({
-    aspectId: aspect.id,
-    aspectDescription: aspect.description ?? '',
-    scope: aspect.scope,
-    nodePath: pair.nodePath,
-    ruleHash: ruleHashFor(aspect, 'content.md'),
-    files: subjects.map((s) => [s.path, hashBytes(s.bytes)] as [string, string]),
-    references: referencesForHash,
-    tier: tierHashViewFromTier(tierName),
-    // companionHash folds UNCONDITIONALLY (undefined for a plain aspect → not
-    // folded; a []-resolving companion still folds it). touched folds only when
-    // non-empty (the hash guards decide). The two guards are independent.
-    companionHash: companionHashFor(aspect),
-    touched: observations,
-    verdict,
-  });
+  const hash = hashFor(verdict);
 
   const entry: VerdictEntry = { verdict, hash, promptChars };
   // Persist touched ONLY when the companion recorded out-of-subject observations —
@@ -280,35 +157,4 @@ export async function fillLlmPair(
   if (observations.length > 0) entry.touched = observations;
   if (verdict === 'refused') entry.reason = response.reason;
   return { kind: 'verdict', entry, callsMade: consensus, votes };
-}
-
-/**
- * Structured diagnostic for a companion hook/resolution runtime failure — the
- * direct mirror of detRuntimeNotice in fill-det.ts. Used for all hook-resolution
- * failures: hook threw / import or syntax error / bad return shape / tainted-twice /
- * resolved path missing / resolved path outside allowed-reads.
- *
- * The token `aspect-companion-runtime-error` appears in `what:` so callers and
- * tests can assert on it exactly as they do for `aspect-check-runtime-error`.
- * It is a message token, NOT a registered CheckCode — never add it to
- * STRUCTURAL_CODES or APPROVE_GATING_CODES.
- *
- * When the resolution failure produced a detailed `messageData` (e.g. the
- * allowed-reads violation with a relation-source/target NEXT), that detail is
- * preserved: `what:` is replaced with the token-bearing form, but `why:` and
- * `next:` from `originalMessageData` are kept so actionable guidance is not lost.
- */
-function companionRuntimeNotice(aspectId: string, unitKey: string, reason: string, originalMessageData?: IssueMessage): IssueMessage {
-  // why: combines the original what+why so the full diagnostic text (including the
-  // specific failure kind — "companion hook threw", "expected an array of", etc.) is
-  // always surfaced. The original next: is threaded through so actionable guidance
-  // (e.g. "declare a relation from X to Y") is not discarded.
-  const combinedWhy = originalMessageData
-    ? `${originalMessageData.what} ${originalMessageData.why}`
-    : `The companion.mjs crashed, returned an invalid result, or its observations changed mid-run: ${reason}`;
-  return {
-    what: `Companion resolution for '${aspectId}' failed to run on ${toPosixPath(unitKey)} — left unverified (aspect-companion-runtime-error).`,
-    why: combinedWhy,
-    next: originalMessageData?.next ?? `Fix the companion.mjs, then re-run: yg check --approve`,
-  };
 }
