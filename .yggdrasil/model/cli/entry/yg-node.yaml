@@ -20,6 +20,8 @@ max_direct_relations:
 relations:
   - target: cli/commands/init
     type: calls
+  - target: cli/commands/adopt
+    type: calls
   - target: cli/commands/build-context
     type: calls
   - target: cli/commands/owner

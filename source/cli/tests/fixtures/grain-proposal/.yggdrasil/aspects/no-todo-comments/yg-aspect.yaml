@@ -1,0 +1,6 @@
+name: NoTodoComments
+description: Source files must not contain TODO comments — track work in the issue tracker, not the code.
+reviewer:
+  type: deterministic
+errs: under
+status: enforced

@@ -1,0 +1,21 @@
+name: E2E Tests — Adopt
+type: test-suite
+description: "Subprocess E2E for `yg adopt` against a committed proposal fixture
+  shaped exactly as a generator writes one — a staging directory holding a
+  graph, a proposal.json naming the engine and the commit it was taken at, and a
+  provenance.json beside each rule carrying how many sites it already refuses.
+  Proves an acceptance into an empty repository puts the graph in place,
+  baselines every free verdict and records the acceptance in the graph's own
+  log; that the summary reports the counts by status, the origin, the
+  pre-existing sites and what blocks; that a repository already holding a graph
+  is refused by name until --replace, which keeps the previous graph aside; that
+  --dry-run reports the same facts and leaves the directory byte-identical; that
+  a proposal which does not hold together is refused with nothing moved; and
+  that a plain check straight afterwards has nothing unverified and reports
+  exactly the refusal the summary counted."
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-adopt.test.ts

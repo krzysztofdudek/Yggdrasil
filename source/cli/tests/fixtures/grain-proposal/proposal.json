@@ -1,0 +1,70 @@
+{
+ "schema": "grain-proposal/1",
+ "engine": "0.4.0",
+ "extractor": "g33",
+ "instrument": "propose/1",
+ "repo": "<the repository this was mined from>",
+ "asOf": "0aa7c34e04a01f32869f8ec21f93c6da2af97c7f",
+ "files": 2,
+ "counts": {
+  "types": 1,
+  "alternatives": 0,
+  "nodes": 1,
+  "typesByLevel": { "module": 1 },
+  "alternativesByLevel": {},
+  "aspects": 2,
+  "aspectsRenderedAsCheck": 2,
+  "aspectsProse": 0,
+  "aspectsActive": 1,
+  "aspectsAdvisory": 1,
+  "aspectsDraft": 0,
+  "aspectsByDraftReason": {},
+  "aspectsVerified": 2,
+  "nodeCycles": 0,
+  "charters": 1
+ },
+ "schemaNotes": {
+  "evidence": "one row per emitted element (`kind`: `type` | `relations` | `node` | `charter` | `aspect`), `id` names the element, `evidence` is the exact prose a human reads on the file itself; an `aspect` row carries `status` and `draftReason` matching the aspect's own provenance.json."
+ },
+ "evidence": [
+  {
+   "kind": "type",
+   "id": "src",
+   "level": "module",
+   "levels": ["module", "directory"],
+   "evidence": "`src/**` selects 2 of 2 tracked files; exactly the 2 the evidence names (Jaccard 1.00)"
+  },
+  {
+   "kind": "node",
+   "id": "src",
+   "evidence": "2 of them are code grain parsed and grouped as one unit of the dependency graph; maps 2 tracked files; 0 outgoing dependencies from 0 resolved imports"
+  },
+  {
+   "kind": "charter",
+   "id": "src",
+   "evidence": "1 charter written, 12 lines"
+  },
+  {
+   "kind": "aspect",
+   "id": "no-todo-comments",
+   "enumerator": "lex",
+   "identifier": "TODO",
+   "expected": false,
+   "host": "src",
+   "status": "enforced",
+   "draftReason": null,
+   "evidence": "1 of 2 files under `src/` carries a TODO marker; the convention cleared grain's certification bound and a real drill of the rendered check"
+  },
+  {
+   "kind": "aspect",
+   "id": "named-export",
+   "enumerator": "modexport",
+   "identifier": "export",
+   "expected": true,
+   "host": "src",
+   "status": "advisory",
+   "draftReason": null,
+   "evidence": "2 of 2 measured sites declare a named export; sub-gate-lattice origin — below grain's own certification bound, so the same drill earns advisory rather than enforced"
+  }
+ ]
+}

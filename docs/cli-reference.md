@@ -1119,11 +1119,12 @@ non-zero.
 
 ---
 
-## Setup (2)
+## Setup (3)
 
 | Command | Purpose |
 |---------|---------|
 | `yg init` | Initialize or reconfigure |
+| `yg adopt <proposal-dir>` | Accept a proposed graph into this repository |
 | `yg prime` [`--digest`] | Print the full agent operating manual fresh from the installed CLI (`--digest` prints only the committed digest block) |
 
 ### `yg init`
@@ -1219,6 +1220,68 @@ that the root files it maintains (`AGENTS.md`, `CLAUDE.md`,
 `.clinerules/yggdrasil.md`, `.gitattributes`) now count as unmapped errors,
 and prints the `coverage.excluded` stanza that settles it. It reports; it
 never edits your configuration. See [Coverage](/configuration#coverage-config).
+
+### `yg adopt`
+
+Accepts a proposed graph into this repository — the one step that turns a
+proposal somebody generated into the graph that governs your code.
+
+```bash
+yg adopt <proposal-dir>
+yg adopt <proposal-dir> --dry-run
+yg adopt <proposal-dir> --replace
+```
+
+`<proposal-dir>` is the staging directory a generator wrote (Grain writes
+`.yggdrasil-proposal/` at the repository root by default) or the `.yggdrasil/`
+directory inside it. Nothing else is accepted: the command never searches
+upward for a graph, so it can never propose to adopt your own graph over itself.
+
+In one step it:
+
+1. **Refuses to merge.** If this repository already has a graph, the command
+   stops and says what is there — how many components, rules and flows, and
+   whether verdicts have been recorded against it. `--replace` accepts over it;
+   the existing graph is *moved aside*, never deleted, and the summary says
+   where it went.
+2. **Checks that the proposal loads,** with the same reader every `yg check`
+   uses, and that it holds together. If it does not, you get the blocking
+   problems by name and nothing is moved.
+3. **Moves it into place as one transaction.** If anything fails after the move
+   — including problems that can only be seen once the graph sits beside the
+   code it names — everything is put back and the repository is exactly as it
+   was.
+4. **Baselines every rule that runs locally,** free and without a key, so your
+   first `yg check` is not a wall of unverified rules.
+5. **Records the acceptance** as a log entry on the graph's top component, so
+   the graph itself carries who accepted what, from which proposal, and how
+   many rules arrived at each status.
+
+Then it prints what you just accepted:
+
+```text
+yg adopt: accepted  .yggdrasil-proposal → .yggdrasil/
+
+  Graph           14 components · 18 rules (0 enforced, 9 advisory, 9 draft) · 0 flows
+  Origin          mined from this repository by Grain (grain-proposal/1) taken at 0aa7c34e04a0 over 131 files
+  Already broken  44 sites the new rules refuse in the code that is already here
+                  src-main-java/candidate-auto-imp-jakarta-persistence-entity  6
+                  src-main-java/candidate-auto-filenameshape  5
+  Blocks on       only what a change reaches, measured against 'main'; everything else is reported as a warning
+  Baseline        181 verdicts recorded locally, at no cost and with no key
+  Recorded as     an entry in the log of 'repo-root'
+
+Next: yg check
+```
+
+**Already broken** is the number nothing else can tell you. A mined rule earns
+its status from how the code is *usually* written, never from a check that the
+repository is clean today — so a perfectly well-formed graph can refuse hundreds
+of existing files the moment it is switched on. The count comes from the
+proposal's own per-rule measurement; a proposal that does not carry one says so
+rather than showing a zero.
+
+`--dry-run` answers all of the above and writes nothing at all.
 
 ### `yg prime`
 

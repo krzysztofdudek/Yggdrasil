@@ -228,6 +228,58 @@ and writes nothing.) \`--dry-run\` requires
 \`--approve\`; on its own it is a usage error (plain \`yg check\` is already a free,
 no-write read).
 
+## yg adopt
+
+Accept a proposed graph into this repository — the one step that turns a
+proposal into the graph that governs the code.
+
+\`\`\`bash
+yg adopt <proposal-dir>
+yg adopt <proposal-dir> --dry-run
+yg adopt <proposal-dir> --replace
+\`\`\`
+
+\`<proposal-dir>\` is the staging directory a generator wrote (Grain writes
+\`.yggdrasil-proposal/\` at the repository root by default) or the \`.yggdrasil/\`
+directory inside it. Nothing else is accepted, and the command never searches
+upward for a graph — so it can never propose to adopt this repository's own
+graph over itself.
+
+The steps, in order, and the whole thing is a transaction:
+
+1. **Refuses to merge.** With a graph already here it stops and says what is
+   there — components, rules, flows, and whether verdicts have been recorded
+   against it. \`--replace\` accepts over it; the existing graph is MOVED ASIDE to
+   \`.yggdrasil.replaced-<timestamp>/\`, never deleted.
+2. **Checks that the proposal loads** with the same reader every \`yg check\`
+   uses, and validates it. Blocking problems are named by code and nothing is
+   moved. The checks that need the repository's own files (mapping paths,
+   reference files) run again the moment the graph is in place; a failure there
+   rolls the acceptance back and the repository is exactly as it was.
+3. **Moves it into place**, and writes the \`.yggdrasil/.gitignore\` and the
+   repo-root \`.gitattributes\` a fresh setup writes, so the local verdict cache
+   is ignored from the first run.
+4. **Records the acceptance** as a log entry on the graph's top component —
+   what was accepted, from which proposal, at which commit, how many rules
+   arrived at each status, and that it was mined rather than hand-written when
+   the proposal says so.
+5. **Baselines every rule that runs locally** — the same free, keyless fill
+   \`yg check --approve --only-deterministic\` performs — so the first check is
+   not a wall of unverified rules.
+
+Then it prints what was accepted: the component/rule counts split by status, the
+origin, HOW MANY SITES IN THE CODE ALREADY HERE the new rules refuse today
+(\`existingViolations\` from each rule's own \`provenance.json\`, when the proposal
+carries one — a graph can be perfectly well-formed and still refuse hundreds of
+existing files, because a mined rule earns its status from how the code is
+usually written, not from a check that the repository is clean), whether a
+reference branch is configured (so a rule blocks only on what a change reaches),
+where the acceptance was recorded, and where a replaced graph was kept.
+
+\`--dry-run\` reports all of that and writes nothing at all. Exit 0 on acceptance
+(the state of the graph afterwards is \`yg check\`'s business, not this command's),
+1 on any refusal.
+
 ## yg context
 
 Show the graph context for a file or node.

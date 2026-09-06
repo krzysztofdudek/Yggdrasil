@@ -1,0 +1,22 @@
+name: Adopt Transaction
+type: command-support
+description: >-
+  The file-level half of accepting a proposed graph: recognizing a proposal
+  directory in either shape a generator hands one over in (a staging directory
+  containing the graph, or the graph directory itself) without ever searching
+  upward — which would find the repository's own graph and propose adopting it
+  over itself; reading what the generator recorded about its own run and, per
+  rule, how many sites in the code already here that rule refuses; describing a
+  graph that is already present WITHOUT loading it, so a refusal can still name
+  what is there when what is there no longer loads; and moving the accepted
+  graph into place as a transaction that can be undone whole. A previous graph
+  is renamed aside rather than deleted, which is also what makes the undo
+  possible, so replacing one is a decision about which graph governs and never a
+  decision to destroy one. Registers no Commander subcommand.
+relations:
+  - target: cli/model/graph
+    type: uses
+  - target: cli/utils
+    type: calls
+mapping:
+  - source/cli/src/cli/adopt-transaction.ts

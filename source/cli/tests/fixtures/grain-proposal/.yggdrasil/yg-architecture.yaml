@@ -1,0 +1,25 @@
+# PROPOSAL — written by grain from evidence in this repository. Nothing here is verified.
+
+node_types:
+  project:
+    # organizational root; no `when`, classifies nothing
+    description: "Top-level grouping — root of the hierarchy. One per repository."
+    parents: []
+  module:
+    # organizational grouping; no `when`, classifies nothing
+    description: Domain grouping — organizes children under shared domain responsibility.
+    parents:
+      - project
+      - module
+      - src
+  src:
+    # evidence: `src/**` selects 2 of 2 tracked files; exactly the 2 the evidence names (Jaccard 1.00)
+    description: "Put a file under `src/` only if it belongs to this type: a file placed there is classified here with no further step, and every rule attached to this type applies to it from that moment."
+    when:
+      path: "src/**"
+    aspects:
+      - no-todo-comments
+      - named-export
+    parents:
+      - project
+      - module

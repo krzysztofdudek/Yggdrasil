@@ -1,0 +1,16 @@
+name: Adopt Transaction Unit Tests
+type: test-suite
+description: "Unit tests for the file-level half of `yg adopt`, against real
+  directories on disk: which shapes count as a proposal and why searching upward
+  for one is refused, what a generator's own record is read as (and that an
+  absent or garbled one is an ordinary absence rather than a failure), how the
+  per-rule pre-existing-site counts are summed while keeping 'not measured'
+  apart from 'measured as none', how a graph already present is described
+  without loading it, which component an acceptance is recorded against, and
+  that installing a graph keeps any previous one aside and can be undone whole."
+aspects: []
+relations:
+  - target: cli/adopt-transaction
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/adopt.test.ts

@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { registerInitCommand } from './cli/init.js';
+import { registerAdoptCommand } from './cli/adopt.js';
 import { registerBuildCommand } from './cli/build-context.js';
 import { registerTreeCommand } from './cli/tree.js';
 import { registerOwnerCommand } from './cli/owner.js';
@@ -38,6 +39,7 @@ program
   .version(pkg.version);
 
 registerInitCommand(program);
+registerAdoptCommand(program);
 registerBuildCommand(program);
 registerTreeCommand(program);
 registerOwnerCommand(program);
