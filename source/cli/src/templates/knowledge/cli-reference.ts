@@ -154,6 +154,36 @@ structural counts grouped by node and language, marks the outliers "worth a
 closer read", and exits 0. It runs over the warm cache (no new parse), writes
 NOTHING, and makes no reviewer calls.
 
+### \`--json\`: the run as one machine document
+
+\`yg check --json\` prints one \`yg-check/1\` document on stdout instead of the
+report — for a layer above the agent (a build step deciding what to schedule, a
+dashboard, a release gate computing a quality index) that must never learn a
+fact by parsing prose written to be read.
+
+It carries what the report says: the project's counts, the exit code AND the
+reason for it, coverage (files, covered, and whether anything is required to be
+covered at all), totals by severity and by verdict, EVERY expected pair, every
+finding as structured \`what\`/\`why\`/\`next\`, who judged outside the
+configured reviewer, the standing floor when the project measures changes
+against a branch, and \`suggestedNext\`.
+
+Per pair: the rule, the subject (\`unit\`), the effective \`status\` that decides
+whether a finding blocks, what the lock says (\`verdict\`), who answers
+(\`reviewer\`: \`deterministic\` for a local check, the judge's name for a
+verdict recorded outside the configured reviewer, otherwise the reviewer tier),
+and the \`hash\` the verdict is bound to. \`unverified\` and \`stale\` are
+SEPARATE here — never judged, versus judged over code that has since moved. Both
+block; the report spends one word on both, a scheduler wants the difference.
+
+Composes with the fill flags; every exit code is unchanged. Under \`--json\`
+stdout carries the document ALONE — even \`--dry-run\`'s cost preview moves to
+stderr. REFUSED with \`--top\`, \`--summary\`, \`--details\` and \`--aspect\`:
+those narrow the text report, the document always carries the whole run, and a
+trimmed document would read as a smaller problem rather than a smaller
+rendering. Fields may be added within \`yg-check/1\`; only a change to an
+existing field's shape takes a new schema number.
+
 ## yg check --approve
 
 Fill every unverified pair the run answers for, then report. The only writer of verdicts (alongside
@@ -732,6 +762,16 @@ reads \`unknown\` when that history is unavailable (a shallow clone or no
 repository), never a fabricated \`0\`. The age lookup runs only in this view — the
 plain \`yg aspects\` listing is unchanged. Read-only: it makes no changes and never
 calls a reviewer.
+
+### \`yg aspects --json\`
+
+The rule INVENTORY as one \`yg-aspects/1\` document: per rule, its \`id\`,
+\`name\`, \`description\`, reviewer \`kind\` and \`tier\`, \`status\`,
+\`reviewBy\`, \`errs\`, \`implies\`, the \`usage\` it reaches (nodes, and the
+channel each attachment came through, plus type-covered files) and its
+\`drills\` corpus size (violates / satisfies / total — COUNTED, never run).
+\`--health\` is a different and far more expensive projection and is refused
+together with \`--json\` rather than folded into the same schema.
 
 ## yg flows
 

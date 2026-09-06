@@ -16,6 +16,8 @@ import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from 
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, resolveTopValue } from './check-render-views.js';
+import { CHECK_JSON_SCHEMA, formatCheckJson } from '../formatters/check-json.js';
+import { buildCheckJson } from '../core/check-json.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';
 
 /**
@@ -107,11 +109,13 @@ export function registerCheckCommand(program: Command): void {
     // that only ever tightens the gate: it can turn an inherited finding back
     // into a blocking one, never the reverse, so it is safe to hand to anyone.
     .option('--full', 'Answer for the whole project, ignoring any configured reference branch.')
+    .option('--json', `Machine-readable output: one ${CHECK_JSON_SCHEMA} document on stdout instead of the text report. Same work, same exit code, always the TRUE whole-run counts.`)
     // Hidden calibration instrument: print the raw per-file structural measurements grouped by
     // family, with the outliers marked, then exit 0. Writes nothing, makes no LLM calls.
     .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
-    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; quiet?: boolean; full?: boolean; attentionDump?: boolean }) => {
+    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }) => {
       try {
+        const asJson = opts.json === true;
         const cwd = process.cwd();
         const graph = await loadGraphOrAbort(cwd, { tolerateInvalidConfig: true });
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
@@ -143,6 +147,22 @@ export function registerCheckCommand(program: Command): void {
         // --approve (which has its own --dry-run cost preview). Reject the bad
         // combinations with guided errors before any work runs.
         const wantsTop = opts.top !== undefined;
+        // --json is not a narrower view, it is a DIFFERENT one: the document
+        // always carries the whole run. The four text-view selectors exist to
+        // shorten a wall of prose, and there is no wall here to shorten — a
+        // narrowed document would read as a smaller problem rather than a
+        // smaller rendering, which is exactly the false-green the triage views
+        // are themselves written to avoid.
+        if (asJson && (wantsTop || opts.summary || opts.details || opts.aspect !== undefined)) {
+          const viewFlag = wantsTop ? '--top' : opts.summary ? '--summary' : opts.details ? '--details' : '--aspect';
+          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            what: `${viewFlag} cannot be combined with --json.`,
+            why: `${viewFlag} narrows the TEXT report — fewer blocks, same counts. --json emits one machine document that always carries the whole run, so there is nothing for a narrowing flag to narrow, and a document trimmed to a few findings would read as a smaller problem instead of a smaller rendering.`,
+            next: `Run: yg check --json (the whole run as a document), or yg check ${viewFlag}${opts.aspect !== undefined ? ' <id>' : wantsTop ? ' <n>' : ''} (the narrowed text view).`,
+          })}`) + '\n');
+          await exitAfterFlush(1);
+          return;
+        }
         if (wantsTop && opts.summary) {
           process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
             what: '--top and --summary cannot be combined.',
@@ -415,7 +435,10 @@ export function registerCheckCommand(program: Command): void {
               // worker carries its own copy of the graph and its own ASTs. See
               // cli/det-concurrency.ts.
               detConcurrency: detConcurrencyForThisMachine(),
-              write: isDryRun
+              // The dry-run budget preview is the command's RESULT on that path,
+              // so it goes to stdout — except under --json, where stdout carries
+              // the document alone and the preview joins the progress on stderr.
+              write: isDryRun && !asJson
                 ? (s: string) => { process.stdout.write(s); }
                 : isQuiet
                   ? () => {}
@@ -439,7 +462,11 @@ export function registerCheckCommand(program: Command): void {
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
             await applyHonestCoverageSplit(fill.checkResult, graph, repoFiles);
-            process.stdout.write(formatOutput(fill.checkResult, { kind: 'full' }, autoFilled));
+            process.stdout.write(
+              asJson
+                ? formatCheckJson(buildCheckJson(fill.checkResult))
+                : formatOutput(fill.checkResult, { kind: 'full' }, autoFilled),
+            );
             // A dry-run is a cost preview only — it never writes and must never fail
             // the build for unverified/refused pairs it merely previewed. Exit 0 always.
             if (opts.dryRun) {
@@ -490,7 +517,7 @@ export function registerCheckCommand(program: Command): void {
           changeScope: changeScope,
         });
         await applyHonestCoverageSplit(result, graph, repoFiles);
-        process.stdout.write(formatOutput(result, view));
+        process.stdout.write(asJson ? formatCheckJson(buildCheckJson(result)) : formatOutput(result, view));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and
         // independent of the chosen view — a truncated --top/--summary render must

@@ -17,7 +17,7 @@ This page is for inspecting or debugging your graph and enforcement state.
 | `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis (`--json` for the machine-readable form) |
 | `yg node <path>` | One component's structure — what it owns, what it depends on, the ports it publishes (`--json` for the machine-readable form) |
 | `yg verdict package` / `record` / `read` | Let a judge outside the CLI review one pending rule and record the verdict |
-| `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)) |
+| `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)). `--json` for the machine-readable form |
 | `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
 | `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes the gitignored cache, plus a port's contract baseline when one is missing |
 | `yg log add` / `read` / `merge-resolve` | Per-node append-only business log |
@@ -200,6 +200,44 @@ the text report's job, not the document's.
 `--json` is refused for `--aspect`, `--flow` and `--type`: their subject is not a
 component, and a second document shape must not hide behind the same schema tag.
 New fields may appear within `yg-impact/1`; only a change to an existing field's
+shape takes a new schema number.
+
+### `yg check --json`
+
+The same run as one `yg-check/1` document instead of the report, for anything
+that reads it programmatically — a build step deciding what to schedule, a
+dashboard, a release gate computing a quality index. Parsing the text report was
+the alternative, and that report is written to be read: every wording
+improvement in it broke whoever was scraping it.
+
+```bash
+yg check --json
+yg check --approve --only-deterministic --json
+```
+
+The document carries what the report says: the project's counts, the exit code
+with the reason for it, coverage (files, covered, and whether anything is
+required to be covered at all), the totals by severity and by verdict, every
+expected pair, every finding as structured `what` / `why` / `next`, who judged
+outside the configured reviewer, the standing floor when the project measures
+changes against a branch, and the one suggested next step.
+
+Each pair names its rule, its subject, the status that decides whether a finding
+blocks, what the lock currently says, who answers for it — a local check as
+itself, an outside judge under their own name, otherwise the reviewer tier — and
+the hash the verdict is bound to. Two words the report deliberately spends one
+on are separate here: `unverified` is a pair nothing has ever judged, `stale` is
+one that was judged over code that has since moved. Both block; they are
+different facts.
+
+It composes with the fill flags and leaves every exit code exactly as it was.
+Under `--json`, stdout carries the document alone — even the cost preview
+`--dry-run` normally prints moves to stderr. It is refused together with
+`--top`, `--summary`, `--details` and `--aspect`: those narrow the text report,
+and the document always carries the whole run, so a trimmed one would read as a
+smaller problem rather than a smaller rendering.
+
+New fields may appear within `yg-check/1`; only a change to an existing field's
 shape takes a new schema number.
 
 ### `yg node`
@@ -776,6 +814,15 @@ unchecked aspect is never shown as clean; likewise `age` reads `unknown` when th
 unavailable (a shallow clone or no repository), never a fabricated `0`. These lookups run
 only in this view — the plain `yg aspects` listing stays unchanged. The view is read-only and
 never calls a reviewer.
+
+#### `yg aspects --json`
+
+The rule inventory as one `yg-aspects/1` document: each rule's id, name and
+description, its reviewer kind and tier, its status, its standing review date,
+its error direction, what it implies, how many places it reaches (split by the
+channel it arrived through) and how many cases sit in its drill corpus. The
+corpus is counted, never run. `--health` is a different and far more expensive
+projection and is refused together with `--json`.
 
 ### `yg advise`
 

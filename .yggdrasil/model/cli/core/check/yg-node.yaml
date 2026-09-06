@@ -1,6 +1,13 @@
 name: Check
 type: engine
-description: "Unified check orchestrator — it also holds every port that names
+description: "Unified check orchestrator — it also projects its own finished
+  result into one versioned machine document, a pure reshaping that derives
+  nothing and decides nothing, so a count in that document and the count in the
+  header are the same number read twice rather than two computations that have
+  to agree; the document always carries the whole run, since the text view's
+  narrowing flags exist to shorten a wall of prose and a narrowed document
+  would read as a smaller problem instead of a smaller rendering. It also holds
+  every port that names
   the test which IS its contract to the baseline recorded for its contract
   version, reported beside the mandatory-log requirement and gated on the same
   readable lock, since that is where the baseline it compares against lives.
@@ -118,6 +125,7 @@ relations:
 mapping:
   - source/cli/src/core/check.ts
   - source/cli/src/core/check-contract.ts
+  - source/cli/src/core/check-json.ts
   - source/cli/src/core/check-pair-issues.ts
   - source/cli/src/core/check-log-state.ts
   - source/cli/src/core/check-lock-phase.ts

@@ -115,6 +115,33 @@ export interface VerifiedPair {
    * this" is exactly the fact a green run must still be able to show.
    */
   judge?: { name: string; provider: 'external' };
+  /**
+   * The hash recorded for this pair in the lock, whatever its state — present
+   * whenever an entry exists at all, absent when the lock has never seen the
+   * pair. It is what a verdict is BOUND to, so a machine consumer can carry the
+   * binding without reading the lock a second way.
+   */
+  recordedHash?: string;
+  /**
+   * True for the half of `unverified` that is not "never seen": an entry EXISTS
+   * for this pair but its hash no longer matches the current inputs.
+   *
+   * The two are one state as far as the gate is concerned — both block, both are
+   * cleared the same way — but they are different facts about the repository. A
+   * never-seen pair was never judged; a stale one was judged and the code moved
+   * since. The text report deliberately says one word for both; a machine
+   * consumer deciding what to schedule wants the distinction.
+   */
+  stale?: boolean;
+  /**
+   * The reviewer tier this LLM pair resolves to — the ONLY part of a tier a
+   * verdict's identity folds in, and the resolution this file already made to
+   * recompute the hash. Carried rather than re-resolved by a consumer, so
+   * "which reviewer answers for this pair" is decided in exactly one place.
+   * Absent on a deterministic pair and on an LLM pair whose tier cannot be
+   * resolved at all.
+   */
+  tierName?: string;
 }
 
 export interface LockVerification {
@@ -365,6 +392,9 @@ async function verifyLlmPair(
   //    pair take the stored-size path and never pay that. The classification the
   //    two produce together is unchanged — `classifyWithGate` sees the same
   //    (valid, gate) pair it always did, just computed in the other order. ──
+  // The resolved tier NAME, carried on the classified pair below. Absent when no
+  // tier resolves — the same condition that makes the pair unverifiable.
+  const resolvedTierName = tierResult?.ok === true ? tierResult.tierName : undefined;
   let valid = false;
   if (storedEntry !== undefined && tierResult?.ok) {
     const expectedHash = computeLlmInputHash({
@@ -491,11 +521,11 @@ async function verifyLlmPair(
     // record it (see `backfillPromptChars`); the next check then takes the fast
     // path instead of reassembling this prompt forever.
     if (valid) {
-      return { ...classifyWithGate(pair, storedEntry, valid, gate), backfillPromptChars: chars };
+      return { ...classifyWithGate(pair, storedEntry, valid, gate, resolvedTierName), backfillPromptChars: chars };
     }
   }
 
-  return classifyWithGate(pair, storedEntry, valid, gate);
+  return classifyWithGate(pair, storedEntry, valid, gate, resolvedTierName);
 }
 
 // ============================================================
@@ -572,7 +602,10 @@ function classifyWithGate(
   storedEntry: VerdictEntry | undefined,
   valid: boolean,
   gate: { chars: number; limit: number; tierName: string } | undefined,
+  /** The tier an LLM pair resolved to, when one did. Absent for a deterministic pair. */
+  resolvedTierName?: string,
 ): VerifiedPair {
+  const tier = resolvedTierName === undefined ? {} : { tierName: resolvedTierName };
   if (valid && storedEntry !== undefined) {
     const verdictState: PairState =
       storedEntry.verdict === 'refused'
@@ -582,20 +615,27 @@ function classifyWithGate(
     // longer matches is not this pair's verdict any more, so naming its judge
     // below would credit them with a decision that no longer holds.
     const judge = storedEntry.judge;
+    const recordedHash = storedEntry.hash;
     if (gate) {
-      return { pair, state: verdictState, oversized: gate, ...(judge && { judge }) };
+      return { pair, state: verdictState, oversized: gate, recordedHash, ...tier, ...(judge && { judge }) };
     }
-    return { pair, state: verdictState, ...(judge && { judge }) };
+    return { pair, state: verdictState, recordedHash, ...tier, ...(judge && { judge }) };
   }
 
-  // Invalid or missing entry.
+  // Invalid or missing entry. An entry that EXISTS but no longer hashes to its
+  // inputs is stale — judged once, over code that has since moved — as against a
+  // pair the lock has never seen. Both block identically; only the fact differs.
+  const stale = storedEntry !== undefined;
+  const recorded = stale ? { recordedHash: storedEntry.hash, stale: true as const } : {};
   if (gate) {
     return {
       pair,
       state: { kind: 'prompt-too-large', chars: gate.chars, limit: gate.limit, tierName: gate.tierName },
+      ...tier,
+      ...recorded,
     };
   }
-  return { pair, state: { kind: 'unverified' } };
+  return { pair, state: { kind: 'unverified' }, ...tier, ...recorded };
 }
 
 // ============================================================

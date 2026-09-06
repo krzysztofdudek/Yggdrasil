@@ -3,15 +3,21 @@ type: formatter
 description: >-
   Output formatting for the graph's answers, converting structured data to text
   for a person and to versioned JSON documents for a layer above the agent.
-  Three machine forms live here, each owning its own schema constant, its
+  Six machine forms live here, each owning its own schema constant, its
   document types and its serializer: the context package (every rule with its
   effective status, reviewer kind, cascade channel and the node/type chain it
   inherits along), the blast radius of one component (the ports it publishes
   with their consumers, its direct and indirect dependents, and the path each
   indirect one is reached through), and the structure of one component (what it
   is, what it owns, what it depends on, the ports it publishes, and where it
-  sits in the hierarchy). A consumer never has to parse prose to learn what
-  governs a file, who depends on a component, or what a component is.
+  sits in the hierarchy), the whole verdict set of one check run (every
+  expected pair with what the lock says about it, the totals, the coverage
+  terms, the standing floor a measured change stands on, who judged outside the
+  configured reviewer, and the reason for the exit code), the rule inventory
+  (each rule's kind, status, review date, drill-corpus size and reach), and the
+  external judge's package and the verdicts recorded through it. A consumer
+  never has to parse prose to learn what governs a file, who depends on a
+  component, what a component is, or how a build stands.
 relations:
   - target: cli/model/graph
     type: uses
@@ -19,6 +25,8 @@ relations:
     type: calls
 mapping:
   - source/cli/src/formatters/aspect-status-messages.ts
+  - source/cli/src/formatters/aspects-json.ts
+  - source/cli/src/formatters/check-json.ts
   - source/cli/src/formatters/context-file.ts
   - source/cli/src/formatters/context-json.ts
   - source/cli/src/formatters/context-node.ts
