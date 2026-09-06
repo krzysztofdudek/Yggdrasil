@@ -275,3 +275,59 @@ export function countOutside(issues: CheckIssue[]): number {
   }
   return count;
 }
+
+/**
+ * The standing NOISE FLOOR: how much of this run's report stands on code the
+ * current change never touched.
+ *
+ * Two kinds sit there, and they are counted separately because they arrive
+ * differently. An ENFORCED finding the change did not reach was already
+ * re-coded to its outside twin by the classification above, so it is counted by
+ * its code. An ADVISORY finding was never re-coded at all — it is a warning
+ * from the start, so nothing above ever asked whether the change reached it,
+ * and that question has to be asked here, with the SAME per-pair decision every
+ * other scope answer uses ({@link pairIsInScope}) rather than a second rule.
+ *
+ * Why count it at all: a repository that has just switched on a mined graph
+ * starts with a fixed population of advisory refusals standing on code nobody
+ * in the current change wrote. Every run reports them faithfully and nothing
+ * anywhere says what they ARE, so each reader either derives "this is the
+ * floor, not my doing" for themselves or reads the report as a verdict on their
+ * own work.
+ *
+ * A finding this run cannot attribute stays OUT of the count — the same
+ * direction every other rung takes: a finding that cannot be placed is never
+ * claimed to be somebody else's. A GLOBAL scope means the change reached
+ * something no per-pair intersection can bound, so nothing is outside it and
+ * the count is zero by definition.
+ */
+export interface BaselineNoise {
+  /** Advisory refusals whose pair the change did not reach. */
+  advisory: number;
+  /** Enforced findings this run already holds outside the change. */
+  enforcedOutside: number;
+}
+
+export function countBaselineNoise(
+  issues: CheckIssue[],
+  scope: BurnSet,
+  pairs: VerifiedPair[],
+): BaselineNoise {
+  if (scope.global) return { advisory: 0, enforcedOutside: 0 };
+  const known = knownPairKeys(pairs);
+  const enforcedTwin = outsideTwin('aspect-violation-enforced');
+  let advisory = 0;
+  let enforcedOutside = 0;
+  for (const issue of issues) {
+    if (issue.code === enforcedTwin) {
+      enforcedOutside++;
+      continue;
+    }
+    if (issue.code !== 'aspect-violation-advisory') continue;
+    const aspectId = named(issue.aspectId);
+    const unitKey = named(issue.unitKey);
+    if (aspectId === undefined || unitKey === undefined) continue;
+    if (!pairIsInScope(scope, aspectId, unitKey, known)) advisory++;
+  }
+  return { advisory, enforcedOutside };
+}

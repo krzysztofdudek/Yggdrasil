@@ -15,8 +15,12 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   repository holds a pre-existing failure no later change touches. The initial
   commit lands on the reference branch and the builder can cut a branch off it
   and commit an edit, which is what lets a suite exercise anything that measures
-  a change against a committed reference. Both helpers import only Node builtins;
-  nothing from src/**."
+  a change against a committed reference. The rule can be attached as enforced
+  or as advisory: an advisory one warns forever and is never re-coded by the
+  change-scope classification, which is the only way to observe a finding that
+  stands on untouched code while blocking nothing — the state a repository
+  adopting a mined graph actually lives with. Both helpers import only Node
+  builtins; nothing from src/**."
 aspects: []
 relations: []
 mapping:

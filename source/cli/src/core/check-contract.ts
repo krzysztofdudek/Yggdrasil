@@ -16,6 +16,7 @@
 import type { ValidationIssue } from '../model/validation.js';
 import type { TypeVisibilityReport } from './type-visibility.js';
 import type { VerifiedPair } from './verify-lock.js';
+import type { BaselineNoise } from './check-progressive.js';
 
 export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   /** All issues have a code -- override optional from ValidationIssue */
@@ -141,4 +142,13 @@ export interface CheckResult {
    * scope was supplied.
    */
   byteGuardUnavailable?: boolean;
+  /**
+   * How much of this report stands on code the change never touched — the
+   * standing floor the repository already had, split by how each half got
+   * there. Undefined whenever no scope was supplied, which is every run that
+   * does not measure changes against a branch: with nothing to measure
+   * against there is no "untouched code" to speak of, and a zero would claim
+   * one.
+   */
+  baselineNoise?: BaselineNoise;
 }

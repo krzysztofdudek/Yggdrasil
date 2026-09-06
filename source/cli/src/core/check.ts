@@ -87,7 +87,7 @@ import type { LockVerification } from './verify-lock.js';
 import { runCoveragePhase } from './check-coverage-phase.js';
 import { scanUncoveredFiles, scanTrackedButIgnored } from './check-coverage-scan.js';
 import { computeSuggestedNext } from './check-suggested-next.js';
-import { applyChangeScope, countOutside } from './check-progressive.js';
+import { applyChangeScope, countOutside, countBaselineNoise } from './check-progressive.js';
 // ── Silent feature-field deviation index (L3 attention) — the writer lives HERE ONLY,
 //    behind the runCheck fence (G2). cli/check.ts calls runAttentionDump, never the writer. ──
 import {
@@ -448,6 +448,12 @@ export async function runCheck(
   // : list` exactly, and an object return would make the alternative an object
   // literal, leaving the classification unproven and the gate red everywhere.
   const outsideCount = options?.changeScope ? countOutside(allIssues) : undefined;
+  // The standing floor this run reports but did not cause. Reads the SAME
+  // widened scope and the SAME classified list the two lines above do, so the
+  // number it names can never describe a different run than the header does.
+  const baselineNoise = options?.changeScope
+    ? countBaselineNoise(allIssues, guardScope(options.changeScope), pairs)
+    : undefined;
   const progressiveReference = options?.changeScope ? options.changeScope.referenceName : undefined;
   const changedInputCount = options?.changeScope ? guardScope(options.changeScope).changedInputCount : undefined;
 
@@ -508,6 +514,7 @@ export async function runCheck(
     changedInputCount,
     byteGuardKept,
     byteGuardUnavailable,
+    baselineNoise,
   };
 }
 

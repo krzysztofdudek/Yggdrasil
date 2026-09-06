@@ -104,6 +104,36 @@ export function renderByteGuardNotice(result: CheckResult): string | undefined {
   return `Content check: ${kept} finding${kept === 1 ? '' : 's'} kept in scope — the file${kept === 1 ? '' : 's'} behind ${kept === 1 ? 'it' : 'them'} differ${kept === 1 ? 's' : ''} from '${reference}' although git reports no change there. If that happens to everything on every run, something is rewriting files between storage and your working copy (a committed .gitattributes 'text eol='/'filter=', or large-file storage) — nothing is then inherited, so 'yg check --approve' pays to review the whole project.`;
 }
 
+/**
+ * The one line a run owes anyone reading a report that is mostly not about
+ * their change.
+ *
+ * A repository that has just switched on a mined graph starts with a fixed
+ * population of refusals standing on code nobody in the current change wrote —
+ * advisory ones, which warn forever, and, under a measured run, enforced ones
+ * held outside the change. Every run reports them faithfully, and until now
+ * nothing said what they ARE, so each reader either worked it out or read the
+ * report as a verdict on their own work. This states it once and says nothing
+ * at all when nothing is standing there.
+ *
+ * Only ever printed for a run that MEASURED something: with no reference branch
+ * there is no "code this change did not touch" to speak of, and naming one
+ * would be an invention.
+ */
+export function renderBaselineNoiseNotice(result: CheckResult): string | undefined {
+  const noise = result.baselineNoise;
+  if (noise === undefined) return undefined;
+  const { advisory, enforcedOutside } = noise;
+  const total = advisory + enforcedOutside;
+  if (total === 0) return undefined;
+  const parts: string[] = [];
+  if (advisory > 0) parts.push(`${advisory} advisory refusal${advisory === 1 ? '' : 's'}`);
+  if (enforcedOutside > 0) {
+    parts.push(`${enforcedOutside} enforced finding${enforcedOutside === 1 ? '' : 's'} held outside it`);
+  }
+  return `${parts.join(' and ')} ${total === 1 ? 'stands' : 'stand'} on code this change did not touch — that is the baseline this repository already had, not a result of your change.`;
+}
+
 export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji): string {
   let verdict: string;
   if (errorCount > 0) {

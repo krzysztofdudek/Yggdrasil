@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`yg adopt <proposal-dir>`.** One command that accepts a proposed graph into your repository instead of you moving files by hand. It checks the proposal loads, moves it in as a single step that is undone whole if anything fails, records every rule that runs locally — free, no key — writes the acceptance into the graph's own log, and tells you how many places in the code you already have the new rules refuse today. It refuses to overwrite a graph you already have unless you pass `--replace`, and `--replace` moves the old one aside rather than deleting it. `--dry-run` shows all of it and writes nothing.
 
+- **`yg check` names your baseline.** When advisory refusals — or findings held outside your change — stand on code your change never touched, one line says so instead of leaving you to work it out: that is the floor the repository already had, not something you caused. Only on projects that measure changes against a branch.
+
 - **`yg context --json`.** The same context package as a single JSON document, for anything that reads it programmatically rather than as prose — an orchestrator picking work, a dashboard, a build step. It works with `--file` and `--node`, names the owner and the chain a subject inherits along, and gives every rule its effective status, its kind, where in the cascade it came from, and the files to read. Errors and exit codes are unchanged.
 
 ## [5.8.0] - 2026-08-31

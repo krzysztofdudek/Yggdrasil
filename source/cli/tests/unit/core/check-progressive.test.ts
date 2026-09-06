@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   applyChangeScope,
+  countBaselineNoise,
   countOutside,
   issueIsInScope,
   pairIsInScope,
@@ -682,5 +683,69 @@ describe('applyChangeScope — blank identity fields', () => {
     expect(applyChangeScope([issue], burn({ files: new Set(['src/other.ts']) }), [])[0].code).toBe(
       'type-relation-forbidden-outside',
     );
+  });
+});
+
+// ── The noise floor: what this report holds that the change did not cause ────
+//
+// Two kinds of finding sit on untouched code and reach the count by different
+// routes. An enforced one was already re-coded to its outside twin, so it is
+// counted by code. An advisory one was never re-coded at all — it is a warning
+// from the start — so the "did the change reach it?" question is asked here,
+// through the same per-pair decision every other scope answer uses.
+
+describe('countBaselineNoise', () => {
+  const advisory = (aspectId: string, unitKey: string, over: Partial<CheckIssue> = {}): CheckIssue => ({
+    severity: 'warning',
+    code: 'aspect-violation-advisory',
+    rule: 'aspect-violation-advisory',
+    messageData: md(),
+    aspectId,
+    unitKey,
+    ...over,
+  });
+
+  const enforcedOutside = (): CheckIssue => ({
+    severity: 'warning',
+    code: outsideTwin('aspect-violation-enforced'),
+    rule: 'aspect-violation-enforced',
+    messageData: md(),
+    aspectId: 'a',
+    unitKey: 'node:beta',
+  });
+
+  it('counts an advisory refusal on a pair the change did not reach', () => {
+    const pairs = [knownPair('a', 'node:alpha'), knownPair('a', 'node:beta')];
+    const scope = burn({ pairKeys: new Set([progressivePairKey('a', 'node:alpha')]) });
+    const issues = [advisory('a', 'node:alpha'), advisory('a', 'node:beta')];
+    expect(countBaselineNoise(issues, scope, pairs)).toEqual({ advisory: 1, enforcedOutside: 0 });
+  });
+
+  it('counts an enforced finding already held outside the change', () => {
+    expect(countBaselineNoise([enforcedOutside()], burn(), [])).toEqual({ advisory: 0, enforcedOutside: 1 });
+  });
+
+  it('counts both kinds together', () => {
+    const pairs = [knownPair('a', 'node:beta')];
+    const issues = [advisory('a', 'node:beta'), enforcedOutside(), enforcedOutside()];
+    expect(countBaselineNoise(issues, burn(), pairs)).toEqual({ advisory: 1, enforcedOutside: 2 });
+  });
+
+  it('leaves an unattributable advisory finding out — never claimed to be somebody else\'s', () => {
+    const issues = [advisory('', 'node:beta'), advisory('a', ''), { ...advisory('a', 'x'), aspectId: undefined }];
+    expect(countBaselineNoise(issues, burn(), []).advisory).toBe(0);
+  });
+
+  it('ignores every other finding, whatever its severity', () => {
+    const issues: CheckIssue[] = [
+      pairIssue('a', 'node:beta'),
+      { severity: 'warning', code: 'uncovered-advisory', rule: 'uncovered-advisory', messageData: md() },
+    ];
+    expect(countBaselineNoise(issues, burn(), [])).toEqual({ advisory: 0, enforcedOutside: 0 });
+  });
+
+  it('a global scope means nothing is outside it, so the floor is zero by definition', () => {
+    const issues = [advisory('a', 'node:beta'), enforcedOutside()];
+    expect(countBaselineNoise(issues, burn({ global: true }), [])).toEqual({ advisory: 0, enforcedOutside: 0 });
   });
 });
