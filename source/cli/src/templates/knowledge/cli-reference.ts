@@ -261,6 +261,25 @@ It is ON by default; silence it with \`signals: { attention: false }\` in
 \`yg-config.yaml\` (\`signals\` is an optional mapping — its only key today is
 \`attention\`, which must be a boolean).
 
+\`--json\` renders the SAME package as one \`yg-context/1\` document on stdout
+instead of the text view, for a tool rather than a reader — it works with both
+\`--file\` and \`--node\`, and every exit code and every diagnostic (still on
+stderr) is unchanged. The document names the subject, its \`owner\`, the
+\`chain\` it inherits along nearest-first (a component and its type per link;
+\`node: null\` plus a type for a file governed by its architecture type alone),
+and every effective rule with its \`id\`, effective \`status\`, reviewer \`kind\`,
+\`name\`, \`description\`, the \`channels\` it arrived through (numbered cascade
+channel plus a machine origin such as \`type:command\` or \`flow:checkout\`), any
+\`impliedBy\`, and its \`read\` paths. Every outcome answers in that form: a
+type-covered file reports \`owner.kind: "type"\` with the chain-termination
+sentence and a \`dropped\` list, a file no node maps reports
+\`owner.kind: "none"\` with \`reason: "unmapped"\` (exit 1), and a path never
+scanned reports the same shape with \`reason: "excluded"\` (exit 0). Under
+\`--json\` stdout carries that document ALONE — the owner line is suppressed and
+the attention sentence above becomes an \`attention\` field. Fields may be added
+within \`yg-context/1\`; only a change to an existing field's shape takes a new
+schema number.
+
 ## yg aspect-test
 
 Diagnostic — run a check or reviewer LIVE without writing the lock. Works for

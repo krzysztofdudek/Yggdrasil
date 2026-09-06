@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **`yg context --json`.** The same context package as a single JSON document, for anything that reads it programmatically rather than as prose — an orchestrator picking work, a dashboard, a build step. It works with `--file` and `--node`, names the owner and the chain a subject inherits along, and gives every rule its effective status, its kind, where in the cascade it came from, and the files to read. Errors and exit codes are unchanged.
+
 ## [5.8.0] - 2026-08-31
 
 Adopt Yggdrasil on a large codebase that is not clean yet, without fixing everything first.

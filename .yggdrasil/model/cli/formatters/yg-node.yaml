@@ -1,7 +1,10 @@
 name: Formatters
 type: formatter
 description: Output formatting for context packages, converting structured data
-  to YAML and text
+  to text for a person and to one versioned JSON document for a layer above the
+  agent — the machine form carries the same facts, each rule with its effective
+  status, reviewer kind, cascade channel and the node/type chain it inherits
+  along, so a consumer never has to parse prose to learn what governs a file.
 relations:
   - target: cli/model/graph
     type: uses
@@ -10,6 +13,7 @@ relations:
 mapping:
   - source/cli/src/formatters/aspect-status-messages.ts
   - source/cli/src/formatters/context-file.ts
+  - source/cli/src/formatters/context-json.ts
   - source/cli/src/formatters/context-node.ts
   - source/cli/src/formatters/lock-issue-messages.ts
   - source/cli/src/formatters/message-builder.ts

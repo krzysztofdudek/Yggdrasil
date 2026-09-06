@@ -6,7 +6,12 @@ import {
   collectDependencyAncestors,
   buildNodeContextData,
   buildFileContextData,
+  buildNodeContextJson,
+  buildFileContextJson,
+  aspectReadPaths,
+  jsonAspectFrom,
 } from '../../../src/core/context-builder.js';
+import { formatContextJson } from '../../../src/formatters/context-json.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import type {
   Graph,
@@ -664,3 +669,169 @@ describe('companionReadPath', () => {
 });
 
 
+
+// ---------------------------------------------------------------------------
+// The machine-readable context document (`yg context --json`).
+//
+// Asserted against REAL on-disk fixture graphs wherever the fact under test is
+// a property of a graph (the cascade, the chain, the statuses). The one
+// exception is the read-path branch matrix, which is a property of one aspect
+// definition rather than of any project — that reuses the in-memory aspect
+// literals already standing in this file for the identical text-view branch.
+// ---------------------------------------------------------------------------
+
+describe('context-builder — machine-readable document', () => {
+  const LIFECYCLE = path.join(__dirname, '../../fixtures/e2e-lifecycle');
+  const SAMPLE = path.join(__dirname, '../../fixtures/sample-project');
+
+  // One aspect definition per read-path branch. A rule's read set is a property
+  // of the rule's own files, not of any project, so these are definitions rather
+  // than a fixture graph — the same form the text view's identical branch matrix
+  // is already asserted against above.
+  const detAspectDef: AspectDef = {
+    name: 'Det', id: 'det-aspect', reviewer: { type: 'deterministic' as const },
+    artifacts: [{ filename: 'check.mjs', content: 'export function check(){return [];}' }],
+  };
+  const aggAspectDef = {
+    name: 'Agg', id: 'agg-aspect', reviewer: { type: 'aggregate' as const },
+    artifacts: [], implies: ['det-aspect'],
+  } as unknown as AspectDef;
+  const companionAspectDef: AspectDef = {
+    name: 'Companion', id: 'llm-companion-aspect', reviewer: { type: 'llm' as const },
+    artifacts: [{ filename: 'content.md', content: 'rule text' }], hasCompanion: true,
+  };
+  const referenceAspectDef: AspectDef = {
+    name: 'Ref', id: 'ref-aspect', reviewer: { type: 'llm' as const },
+    artifacts: [{ filename: 'content.md', content: 'rule text' }],
+    references: [{ path: 'docs/table.md', description: 'lookup table' }],
+  };
+
+  it('buildNodeContextJson: schema, target, owner and the nearest-first chain', async () => {
+    const graph = await loadGraph(LIFECYCLE);
+    const doc = buildNodeContextJson(graph, 'services/orders');
+    expect(doc.schema).toBe('yg-context/1');
+    expect(doc.target).toEqual({ kind: 'node', path: 'services/orders' });
+    expect(doc.owner).toEqual({ kind: 'node', path: 'services/orders', type: 'service' });
+    expect(doc.chain).toEqual([
+      { node: 'services/orders', type: 'service' },
+      { node: 'services', type: 'module' },
+    ]);
+  });
+
+  it('buildNodeContextJson: every effective rule, id-sorted, with status, kind and read paths', async () => {
+    const graph = await loadGraph(LIFECYCLE);
+    const doc = buildNodeContextJson(graph, 'services/orders');
+    const ids = doc.aspects.map((a) => a.id);
+    expect(ids).toEqual([...ids].sort());
+    expect(ids).toEqual(['has-doc-comment', 'no-todo-comments', 'requires-named-export', 'wip-rule']);
+
+    const llm = doc.aspects.find((a) => a.id === 'has-doc-comment')!;
+    expect(llm.kind).toBe('llm');
+    expect(llm.status).toBe('enforced');
+    expect(llm.read).toEqual(['.yggdrasil/aspects/has-doc-comment/content.md']);
+
+    const det = doc.aspects.find((a) => a.id === 'no-todo-comments')!;
+    expect(det.kind).toBe('deterministic');
+    expect(det.read).toEqual(['.yggdrasil/aspects/no-todo-comments/check.mjs']);
+
+    expect(doc.aspects.find((a) => a.id === 'requires-named-export')!.status).toBe('advisory');
+    expect(doc.aspects.find((a) => a.id === 'wip-rule')!.status).toBe('draft');
+  });
+
+  it('buildNodeContextJson: names every channel a rule arrived through, with its declared status', async () => {
+    const graph = await loadGraph(LIFECYCLE);
+    const doc = buildNodeContextJson(graph, 'services/orders');
+
+    // Own declaration — channel 1.
+    expect(doc.aspects.find((a) => a.id === 'wip-rule')!.channels).toEqual([
+      { number: 1, kind: 'own', origin: 'own:services/orders', declaredStatus: 'draft' },
+    ]);
+
+    // Architecture type default AND a flow — channels 3 and 5 on one rule.
+    const det = doc.aspects.find((a) => a.id === 'no-todo-comments')!;
+    expect(det.channels.map((c) => c.number).sort()).toEqual([3, 5]);
+    expect(det.channels.map((c) => c.origin).sort()).toEqual(['flow:order-processing', 'type:service']);
+    expect(det.channels.map((c) => c.kind).sort()).toEqual(['flow', 'own-type']);
+  });
+
+  it('buildNodeContextJson: an implied rule carries channel 7 and names its implier', async () => {
+    const graph = await loadGraph(SAMPLE);
+    const doc = buildNodeContextJson(graph, 'orders/order-service');
+    const implied = doc.aspects.find((a) => a.id === 'requires-logging')!;
+    expect(implied.impliedBy).toEqual(['requires-audit']);
+    expect(implied.channels).toContainEqual({
+      number: 7,
+      kind: 'implies',
+      origin: 'implies:requires-audit',
+    });
+    // The implier itself arrived by its own declaration and is NOT self-implied.
+    expect(doc.aspects.find((a) => a.id === 'requires-audit')!.impliedBy).toBeUndefined();
+  });
+
+  it('buildNodeContextJson: an inherited rule is attributed to the ancestor component', async () => {
+    const graph = await loadGraph(SAMPLE);
+    const doc = buildNodeContextJson(graph, 'checkout/controller');
+    for (const aspect of doc.aspects) {
+      for (const channel of aspect.channels) {
+        if (channel.kind === 'ancestor-node') expect(channel.origin.startsWith('ancestor:')).toBe(true);
+      }
+    }
+    expect(doc.owner.kind).toBe('node');
+    expect(doc.chain[0].node).toBe('checkout/controller');
+  });
+
+  it('buildFileContextJson: the file is the target, its component the owner, with the owner rules', async () => {
+    const graph = await loadGraph(LIFECYCLE);
+    const doc = buildFileContextJson(graph, 'src/services/orders.ts', 'services/orders');
+    expect(doc.target).toEqual({ kind: 'file', path: 'src/services/orders.ts' });
+    expect(doc.owner).toEqual({ kind: 'node', path: 'services/orders', type: 'service' });
+    expect(doc.aspects.map((a) => a.id)).toEqual(
+      buildNodeContextJson(graph, 'services/orders').aspects.map((a) => a.id),
+    );
+  });
+
+  it('both builders refuse a component the graph does not have', async () => {
+    const graph = await loadGraph(LIFECYCLE);
+    expect(() => buildNodeContextJson(graph, 'services/nope')).toThrow('Node not found: services/nope');
+    expect(() => buildFileContextJson(graph, 'src/x.ts', 'services/nope')).toThrow('Node not found: services/nope');
+  });
+
+  it('aspectReadPaths: one path per rule source, plus references and the companion resolver', () => {
+    expect(aspectReadPaths('det-aspect', detAspectDef)).toEqual(['.yggdrasil/aspects/det-aspect/check.mjs']);
+    expect(aspectReadPaths('agg-aspect', aggAspectDef)).toEqual(['.yggdrasil/aspects/agg-aspect/yg-aspect.yaml']);
+    expect(aspectReadPaths('llm-companion-aspect', companionAspectDef)).toEqual([
+      '.yggdrasil/aspects/llm-companion-aspect/content.md',
+      '.yggdrasil/aspects/llm-companion-aspect/companion.mjs',
+    ]);
+    expect(aspectReadPaths('ref-aspect', referenceAspectDef)).toEqual([
+      '.yggdrasil/aspects/ref-aspect/content.md',
+      'docs/table.md',
+    ]);
+    // An id the graph has no definition for still yields a usable rule-source path.
+    expect(aspectReadPaths('ghost', undefined)).toEqual(['.yggdrasil/aspects/ghost/content.md']);
+  });
+
+  it('jsonAspectFrom: an id the graph does not define falls back to the id itself', async () => {
+    const graph = await loadGraph(LIFECYCLE);
+    const aspect = jsonAspectFrom(graph, 'ghost', 'advisory', []);
+    expect(aspect).toEqual({
+      id: 'ghost',
+      status: 'advisory',
+      kind: 'llm',
+      name: 'ghost',
+      description: '',
+      channels: [],
+      read: ['.yggdrasil/aspects/ghost/content.md'],
+    });
+  });
+});
+
+describe('formatContextJson', () => {
+  it('renders one pretty-printed document with a trailing newline', async () => {
+    const graph = await loadGraph(path.join(__dirname, '../../fixtures/e2e-lifecycle'));
+    const text = formatContextJson(buildNodeContextJson(graph, 'services/orders'));
+    expect(text.endsWith('}\n')).toBe(true);
+    expect(text).toContain('\n  "schema": "yg-context/1"');
+    expect(JSON.parse(text).target.path).toBe('services/orders');
+  });
+});

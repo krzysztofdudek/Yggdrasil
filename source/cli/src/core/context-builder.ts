@@ -1,8 +1,22 @@
-import type { Graph } from '../model/graph.js';
+import type { AspectDef, Graph, GraphNode } from '../model/graph.js';
 import type { NodeContextData } from '../formatters/context-node.js';
 import type { FileContextData } from '../formatters/context-file.js';
+import type {
+  ContextJsonAspect,
+  ContextJsonChainLink,
+  ContextJsonChannel,
+  ContextJsonChannelKind,
+  ContextJsonDocument,
+} from '../formatters/context-json.js';
+import { CONTEXT_JSON_SCHEMA } from '../formatters/context-json.js';
 import { normalizeMappingPaths } from '../io/paths.js';
-import { computeEffectiveAspects, computeEffectiveAspectStatuses, getAspectSource } from './graph/aspects.js';
+import {
+  computeEffectiveAspects,
+  computeEffectiveAspectStatuses,
+  getAspectSource,
+  getAspectStatusSources,
+  inferAspectDisplayKind,
+} from './graph/aspects.js';
 import { toPosixPath } from '../utils/posix.js';
 import {
   collectAncestors,
@@ -172,5 +186,182 @@ export function buildFileContextData(graph: Graph, filePath: string, ownerPath: 
     aspects,
     dependencies,
     dependentCount,
+  };
+}
+
+// ============================================================
+// Machine-readable context (`yg context --json`)
+// ============================================================
+
+/**
+ * The rule-source home for one aspect, by the reviewer kind INFERRED from the
+ * files it ships (`inferAspectDisplayKind`) rather than the declared
+ * `reviewer.type` a mis-authored yaml can contradict. Same three conventions
+ * the text view already prints as its first `read:` line.
+ */
+function ruleSourcePath(aspectId: string, kind: 'llm' | 'deterministic' | 'aggregate'): string {
+  return kind === 'deterministic'
+    ? `.yggdrasil/aspects/${aspectId}/check.mjs`
+    : kind === 'aggregate'
+      ? `.yggdrasil/aspects/${aspectId}/yg-aspect.yaml`
+      : `.yggdrasil/aspects/${aspectId}/content.md`;
+}
+
+/**
+ * Every file an agent must read before editing under one aspect — the same set
+ * the text view lists as `read:` lines, in the same order: the rule source, then
+ * each declared reference, then the companion resolver when the aspect ships one.
+ */
+export function aspectReadPaths(aspectId: string, def: AspectDef | undefined): string[] {
+  const kind = def ? inferAspectDisplayKind(def) : 'llm';
+  const paths = [ruleSourcePath(aspectId, kind)];
+  if (kind === 'llm' && def?.references) {
+    for (const ref of def.references) paths.push(toPosixPath(ref.path));
+  }
+  if (kind === 'llm' && def?.hasCompanion) {
+    paths.push(`.yggdrasil/aspects/${aspectId}/companion.mjs`);
+  }
+  return paths;
+}
+
+/** Channel number → the vocabulary a consumer branches on. Index 0 is unused (channels are 1-based). */
+const CHANNEL_KINDS: readonly ContextJsonChannelKind[] = [
+  'own',
+  'own',
+  'ancestor-node',
+  'own-type',
+  'ancestor-type',
+  'flow',
+  'port',
+  'implies',
+];
+
+/**
+ * The aspects on this node that imply `aspectId` AND are themselves effective
+ * here — channel 7. Restricted to effective impliers on purpose: an aspect
+ * declared elsewhere in the graph that happens to imply this one did not put it
+ * on THIS subject, and naming it would credit an attachment that never happened.
+ */
+function effectiveImpliers(graph: Graph, aspectId: string, effective: ReadonlySet<string>): string[] {
+  return graph.aspects
+    .filter((a) => effective.has(a.id) && a.id !== aspectId && (a.implies ?? []).includes(aspectId))
+    .map((a) => a.id)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
+}
+
+/**
+ * One effective aspect on one node, in the machine form: the effective status,
+ * the inferred reviewer kind, the rule's own words, every channel it arrived
+ * through, and the files to read. Channels 1–6 come from the SAME per-channel
+ * provenance the validator's downgrade detection reads, so the machine view and
+ * the status the reviewer enforces can never be derived two different ways.
+ */
+function toJsonAspect(
+  graph: Graph,
+  node: GraphNode,
+  aspectId: string,
+  status: import('../model/graph.js').AspectStatus,
+  effective: ReadonlySet<string>,
+): ContextJsonAspect {
+  const channels: ContextJsonChannel[] = getAspectStatusSources(node, aspectId, graph).map((s) => ({
+    number: s.channel,
+    kind: CHANNEL_KINDS[s.channel],
+    origin: s.origin,
+    declaredStatus: s.declared,
+  }));
+  const impliedBy = effectiveImpliers(graph, aspectId, effective);
+  if (impliedBy.length > 0) {
+    channels.push({ number: 7, kind: 'implies', origin: `implies:${impliedBy.join(',')}` });
+  }
+  return {
+    ...jsonAspectFrom(graph, aspectId, status, channels),
+    ...(impliedBy.length > 0 && { impliedBy }),
+  };
+}
+
+/**
+ * One effective rule in the machine form, for a caller that already worked out
+ * WHICH channels it arrived by. The rule's own words, its inferred reviewer
+ * kind, and the files to read are resolved here rather than at each call site,
+ * so a component's rules and a type-governed file's rules are described by one
+ * definition instead of two that can drift.
+ */
+export function jsonAspectFrom(
+  graph: Graph,
+  aspectId: string,
+  status: import('../model/graph.js').AspectStatus,
+  channels: ContextJsonChannel[],
+): ContextJsonAspect {
+  const def = graph.aspects.find((a) => a.id === aspectId);
+  return {
+    id: aspectId,
+    status,
+    kind: def ? inferAspectDisplayKind(def) : 'llm',
+    name: def?.name ?? aspectId,
+    description: def?.description ?? '',
+    channels,
+    read: aspectReadPaths(aspectId, def),
+  };
+}
+
+/** The node's own link plus every ancestor's, nearest first — what the subject inherits along. */
+function nodeChain(node: GraphNode): ContextJsonChainLink[] {
+  const ancestors = collectAncestors(node);
+  return [
+    { node: toPosixPath(node.path), type: node.meta.type },
+    ...ancestors
+      .slice()
+      .reverse()
+      .map((a) => ({ node: toPosixPath(a.path), type: a.meta.type })),
+  ];
+}
+
+/**
+ * Every effective aspect on `node`, sorted by id so two runs over the same graph
+ * produce byte-identical documents.
+ */
+function nodeJsonAspects(graph: Graph, node: GraphNode): ContextJsonAspect[] {
+  const effective = computeEffectiveAspects(node, graph);
+  const statuses = computeEffectiveAspectStatuses(node, graph);
+  return Array.from(effective)
+    .sort((a, b) => (a < b ? -1 : a > b ? 1 : 0))
+    .map((id) =>
+      toJsonAspect(
+        graph,
+        node,
+        id,
+        statuses.get(id) ?? graph.aspects.find((a) => a.id === id)?.status ?? 'enforced',
+        effective,
+      ),
+    );
+}
+
+/** The machine-readable context document for one component. */
+export function buildNodeContextJson(graph: Graph, nodePath: string): ContextJsonDocument {
+  const node = graph.nodes.get(nodePath);
+  if (!node) throw new Error(`Node not found: ${nodePath}`);
+  return {
+    schema: CONTEXT_JSON_SCHEMA,
+    target: { kind: 'node', path: toPosixPath(nodePath) },
+    owner: { kind: 'node', path: toPosixPath(nodePath), type: node.meta.type },
+    chain: nodeChain(node),
+    aspects: nodeJsonAspects(graph, node),
+  };
+}
+
+/**
+ * The machine-readable context document for one file that a component owns. The
+ * rules are the OWNER's rules — the same set the text view prints under "Must
+ * satisfy" — because that is what the reviewer checks the file against.
+ */
+export function buildFileContextJson(graph: Graph, filePath: string, ownerPath: string): ContextJsonDocument {
+  const node = graph.nodes.get(ownerPath);
+  if (!node) throw new Error(`Node not found: ${ownerPath}`);
+  return {
+    schema: CONTEXT_JSON_SCHEMA,
+    target: { kind: 'file', path: toPosixPath(filePath) },
+    owner: { kind: 'node', path: toPosixPath(ownerPath), type: node.meta.type },
+    chain: nodeChain(node),
+    aspects: nodeJsonAspects(graph, node),
   };
 }

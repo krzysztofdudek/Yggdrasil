@@ -1,7 +1,12 @@
 name: ContextBuilder
 type: engine
 description: "Assembles context packages via 5-step layer assembly: global,
-  hierarchy, own, aspects, relational"
+  hierarchy, own, aspects, relational. Also assembles the machine form of the
+  same package — one versioned document naming the subject, its owner, the
+  chain it inherits along, and every effective rule with its effective status,
+  inferred reviewer kind, the cascade channels it arrived through and the files
+  to read — derived from the same cascade the text form uses, so the two views
+  can never disagree about what governs a subject."
 aspects: []
 relations:
   - target: cli/model/graph
@@ -9,6 +14,8 @@ relations:
   - target: cli/utils
     type: calls
   - target: cli/core/graph
+    type: calls
+  - target: cli/formatters
     type: calls
   - target: cli/io/stores
     type: calls

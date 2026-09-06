@@ -13,7 +13,7 @@ This page is for inspecting or debugging your graph and enforcement state.
 
 | Command | Purpose |
 |---------|---------|
-| `yg context --file <path>` / `--node <path>` | Assemble context package |
+| `yg context --file <path>` / `--node <path>` | Assemble context package (`--json` for the machine-readable form) |
 | `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis |
 | `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)) |
 | `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
@@ -72,6 +72,65 @@ it more carefully, never a rule and never blocking (the command still exits 0).
 It is on by default; silence it with `signals: { attention: false }` in
 `yg-config.yaml`. See [Structural attention](/feature-field) for what it means
 and its honest limits.
+
+#### `--json` — the same package, for a tool
+
+`--json` replaces the text package with one `yg-context/1` document on stdout.
+It works with `--node` and `--file` alike, carries the same facts, and keeps
+every exit code and every error message exactly as they are (diagnostics stay on
+stderr). Use it when something above the agent — an orchestrator picking work, a
+dashboard, a build step — needs to know what governs a file without reading
+prose. That includes the one fact nothing else in the CLI exposes per rule: its
+effective status.
+
+The document names the subject, what its rules are anchored to (`owner`), the
+chain it inherits along nearest-first (`chain` — a component and its type at each
+link, or `node: null` and a type for a file governed by its architecture type
+alone), and every effective rule. Each rule carries its `id`, effective `status`,
+reviewer `kind` (`llm`, `deterministic` or `aggregate`), `name`, `description`,
+the `channels` it arrived through (the numbered cascade channel, its kind, and a
+machine-readable origin such as `type:command` or `flow:checkout`), any
+`impliedBy` rules, and the `read` paths an agent must open before editing.
+
+```json
+{
+  "schema": "yg-context/1",
+  "target": { "kind": "file", "path": "src/services/orders.ts" },
+  "owner": { "kind": "node", "path": "services/orders", "type": "service" },
+  "chain": [
+    { "node": "services/orders", "type": "service" },
+    { "node": "services", "type": "module" }
+  ],
+  "aspects": [
+    {
+      "id": "no-todo-comments",
+      "status": "enforced",
+      "kind": "deterministic",
+      "name": "NoTodoComments",
+      "description": "Source files must not contain TODO comments.",
+      "channels": [
+        { "number": 3, "kind": "own-type", "origin": "type:service", "declaredStatus": "enforced" },
+        { "number": 5, "kind": "flow", "origin": "flow:order-processing", "declaredStatus": "enforced" }
+      ],
+      "read": [".yggdrasil/aspects/no-todo-comments/check.mjs"]
+    }
+  ]
+}
+```
+
+Every outcome the command has gets a document, not only the ones with rules. A
+file governed by its architecture type alone reports `owner.kind: "type"` with
+the matched type, where the inherited chain stops, and a `dropped` list of the
+type's rules that do not apply here with the reason for each. A file nothing
+governs reports `owner.kind: "none"` with `reason: "unmapped"` (and still exits
+1); a path Yggdrasil never scans reports the same shape with
+`reason: "excluded"` (and still exits 0) — so a consumer can tell an exemption
+from a coverage gap instead of guessing from an empty rule list. With `--json`,
+stdout carries that document and nothing else: the owner line is suppressed and
+the structural-attention sentence becomes an `attention` field.
+
+New fields may appear within `yg-context/1`; only a change to an existing
+field's shape takes a new schema number.
 
 ### `yg impact`
 

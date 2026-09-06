@@ -4,10 +4,19 @@ import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
-import { collectAncestors, buildNodeContextData, buildFileContextData } from '../core/context-builder.js';
+import {
+  collectAncestors,
+  buildNodeContextData,
+  buildFileContextData,
+  buildNodeContextJson,
+  buildFileContextJson,
+  jsonAspectFrom,
+} from '../core/context-builder.js';
 import { formatNodeContext } from '../formatters/context-node.js';
 import { formatFileContext } from '../formatters/context-file.js';
 import type { FileContextData, FileContextAspect } from '../formatters/context-file.js';
+import { CONTEXT_JSON_SCHEMA, formatContextJson } from '../formatters/context-json.js';
+import type { ContextJsonAspect, ContextJsonChannel, ContextJsonDocument } from '../formatters/context-json.js';
 import { validate } from '../core/validator.js';
 import { findOwnerWithinOwnGraph } from './owner.js';
 import { normalizeMappingPaths, projectRootFromGraph, resolveFileArg } from '../io/paths.js';
@@ -23,8 +32,9 @@ import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } f
 import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached, classifySingleFileCached } from '../core/type-coverage.js';
-import { computeTypeAspectCascade, describeCascadeCycle } from '../core/type-effective.js';
+import { computeTypeAspectCascade, describeCascadeCycle, walkTypeParentChain } from '../core/type-effective.js';
 import { buildTypeVisibility, describeTypeVisibilityReason, describeChainTermination, toAppliedPairs } from '../core/type-visibility.js';
+import type { TypeVisibilityReport } from '../core/type-visibility.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyPairs } from '../core/verify-lock.js';
@@ -36,6 +46,9 @@ import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
 
 type CandidateNode = { nodePath: string; fileCount: number };
+
+/** One matched type's visibility block — what a type-covered file's rules were resolved to. */
+type TypeVisibilityBlock = TypeVisibilityReport['byType'][number];
 
 function findCandidateNodes(graph: Graph, unmappedFile: string): CandidateNode[] {
   // Normalize first so the directory derived here compares like-for-like against
@@ -150,7 +163,7 @@ function ruleSourcePathFor(aspectId: string, reviewerType: 'llm' | 'deterministi
  * same real, statically-resolved imports `yg check` enforces against, exactly
  * the contract DERIVED_RELATIONS_NOTE states on the rendered page itself.
  */
-async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeId: string, edges: TypedEdgeIndex): Promise<FileContextData> {
+async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeId: string, edges: TypedEdgeIndex): Promise<{ data: FileContextData; block: TypeVisibilityBlock }> {
   const covered = new Map([[file, typeId]]);
   const typeCoverageInput = { covered, ambiguousPaths: [], edges };
   const { drops, pairs } = await computeExpectedPairs(graph, { typeCoverage: typeCoverageInput });
@@ -203,16 +216,79 @@ async function buildTypeCoveredFileContextData(graph: Graph, file: string, typeI
   }
 
   return {
-    filePath: toPosixPath(file),
-    aspects: [],
-    dependencies: [],
-    dependentCount: 0,
-    typeCoverage: {
-      typeId,
-      chainTerminationText: describeChainTermination(block.chainTermination),
-      applied,
-      dropped: block.dropped.map((d) => ({ aspectId: d.aspectId, reasonText: describeTypeVisibilityReason(d.reason) })),
+    data: {
+      filePath: toPosixPath(file),
+      aspects: [],
+      dependencies: [],
+      dependentCount: 0,
+      typeCoverage: {
+        typeId,
+        chainTerminationText: describeChainTermination(block.chainTermination),
+        applied,
+        dropped: block.dropped.map((d) => ({ aspectId: d.aspectId, reasonText: describeTypeVisibilityReason(d.reason) })),
+      },
     },
+    block,
+  };
+}
+
+/**
+ * The machine form of the same typed view: the matched type, the architecture
+ * types it inherits along, and every rule that applies with the cascade step it
+ * arrived by. Built from the SAME visibility block the text view renders, so the
+ * two can never list a different rule set for one file.
+ *
+ * The chain is types, not components — a file governed by its type alone has no
+ * component at any level, which is precisely the fact `node: null` records.
+ */
+function buildTypeCoveredContextJson(
+  graph: Graph,
+  file: string,
+  typeId: string,
+  block: TypeVisibilityBlock,
+  edges: TypedEdgeIndex,
+): ContextJsonDocument {
+  const { chainTypeIds } = walkTypeParentChain(graph, typeId);
+  const viaByAspect = new Map(
+    computeTypeAspectCascade(graph, file, typeId, edges).effective.map((e) => [e.aspectId, e.via] as const),
+  );
+  const toAspect = (aspectId: string, status: 'enforced' | 'advisory'): ContextJsonAspect => {
+    const via = viaByAspect.get(aspectId);
+    const channel: ContextJsonChannel =
+      via === 'parent-chain'
+        ? { number: 4, kind: 'ancestor-type', origin: `ancestor-type:${chainTypeIds.join('>')}` }
+        : via === 'implies'
+          ? { number: 7, kind: 'implies', origin: `implies:${typeId}` }
+          : { number: 3, kind: 'own-type', origin: `type:${typeId}` };
+    return jsonAspectFrom(graph, aspectId, status, [channel]);
+  };
+  return {
+    schema: CONTEXT_JSON_SCHEMA,
+    target: { kind: 'file', path: toPosixPath(file) },
+    owner: { kind: 'type', typeId, chainTermination: describeChainTermination(block.chainTermination) },
+    chain: [{ node: null, type: typeId }, ...chainTypeIds.map((t) => ({ node: null, type: t }))],
+    aspects: [
+      ...block.enforced.map((id) => toAspect(id, 'enforced')),
+      ...block.advisory.map((id) => toAspect(id, 'advisory')),
+    ].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0)),
+    dropped: block.dropped.map((d) => ({ id: d.aspectId, reason: describeTypeVisibilityReason(d.reason) })),
+  };
+}
+
+/**
+ * The machine form of an answer that is NOT a rule set: this graph will never
+ * enforce anything on this file, and the document says which of the two reasons
+ * it is. A consumer gets the same fact the prose carries without having to
+ * decide from an empty aspect list whether the file is exempt or merely
+ * unmapped — two states with opposite meanings.
+ */
+function buildNoOwnerContextJson(file: string, reason: 'unmapped' | 'excluded', explanation: string): ContextJsonDocument {
+  return {
+    schema: CONTEXT_JSON_SCHEMA,
+    target: { kind: 'file', path: toPosixPath(file) },
+    owner: { kind: 'none', reason, explanation },
+    chain: [],
+    aspects: [],
   };
 }
 
@@ -300,21 +376,26 @@ async function attachLockObservability(
  * When the file being inspected is a recorded structural OUTLIER among its node's
  * other same-language files, AND the local deviation index still describes exactly
  * these bytes (a live content-hash match against the same hashing the relation pass
- * uses), append ONE plain-language line hinting a closer read. It is never a rule
+ * uses), return ONE plain-language line hinting a closer read. It is never a rule
  * and never blocks: `yg context --file` stays exit 0. A stale index (bytes changed
  * since it was written) stays silent — the hash will not match.
  *
+ * Returns the sentence rather than printing it, so the text view can append it
+ * beneath the rendered package while the machine view carries the SAME sentence
+ * as a field — one derivation, two renderings, and no line of prose leaking into
+ * a document a consumer parses.
+ *
  * Entirely best-effort: any failure — an unreadable file, a missing or garbled
- * index — is swallowed to the debug log and NOTHING is printed. The caller gates
+ * index — is swallowed to the debug log and NOTHING is returned. The caller gates
  * this on `signals.attention` (default ON), so an absent `signals` config means the
  * note is shown.
  */
-async function maybeAppendAttentionLine(graph: Graph, repoRelPosixPath: string): Promise<void> {
+async function resolveAttentionLine(graph: Graph, repoRelPosixPath: string): Promise<string | undefined> {
   try {
     const projectRoot = projectRootFromGraph(graph.rootPath);
     const content = await readTextFile(path.join(projectRoot, repoRelPosixPath));
     const entry = readFeatureFieldEntry(graph.rootPath, repoRelPosixPath, hashString(content));
-    if (entry === null) return; // no live outlier record for these exact bytes → say nothing
+    if (entry === null) return undefined; // no live outlier record for these exact bytes → say nothing
     // family = `${owner.kind}\x00${owner.id}\x00${language}` (see
     // core/feature-field-schema.ts's FamilyOwner) — the KIND is always the FIRST
     // segment and the language always the LAST, regardless of how many owner
@@ -330,16 +411,31 @@ async function maybeAppendAttentionLine(graph: Graph, repoRelPosixPath: string):
     // A type-covered file (no owning node) is compared against its matched TYPE's
     // other files, never a node's — the cohort noun must say which.
     const cohort = kind === 'type' ? "this file's matched type" : 'this node';
-    process.stdout.write(
-      `\nThis file is structurally unusual among ${cohort}'s other ${lang} files — worth a closer read; no action required.\n`,
-    );
+    return `This file is structurally unusual among ${cohort}'s other ${lang} files — worth a closer read; no action required.`;
   } catch (err) {
     debugWrite(`[build-context] attention note skipped (best-effort): ${err instanceof Error ? err.message : String(err)}`);
+    return undefined;
   }
 }
 
+/**
+ * The attention sentence for this file, or undefined — resolved only when the
+ * project has not switched the signal off (`signals.attention: false`; an absent
+ * `signals` block means ON). One gate, consulted by both the text and the JSON
+ * view, so the two can never disagree about whether the note is shown.
+ */
+async function attentionLineIfEnabled(graph: Graph, repoRelPosixPath: string): Promise<string | undefined> {
+  if (graph.config.signals?.attention === false) return undefined;
+  return resolveAttentionLine(graph, repoRelPosixPath);
+}
+
 export function registerBuildCommand(program: Command): void {
-  const contextAction = async (options: { node?: string; file?: string }) => {
+  const contextAction = async (options: { node?: string; file?: string; json?: boolean }) => {
+      const asJson = options.json === true;
+      /** Emit one machine document, or nothing at all in the text view. */
+      const emitJson = (doc: ContextJsonDocument): void => {
+        if (asJson) process.stdout.write(formatContextJson(doc));
+      };
       try {
         if (!options.node && !options.file) {
           process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
@@ -392,12 +488,14 @@ export function registerBuildCommand(program: Command): void {
               // config, so it is named on its own rather than folded into the
               // config-driven disjunction below. Same wording `yg owner --file`
               // already uses for the identical path.
+              const why = `This path is never scanned for coverage because it sits inside git internals or the graph's own .yggdrasil/ directory, so it cannot and need not be mapped to a node here.`;
               const excludedMsg = buildIssueMessage({
                 what: `${displayFile} is excluded from graph coverage by design.`,
-                why: `This path is never scanned for coverage because it sits inside git internals or the graph's own .yggdrasil/ directory, so it cannot and need not be mapped to a node here.`,
+                why,
                 next: 'No action needed.',
               });
-              process.stdout.write(`${excludedMsg}\n`);
+              if (asJson) emitJson(buildNoOwnerContextJson(displayFile, 'excluded', why));
+              else process.stdout.write(`${excludedMsg}\n`);
               process.exit(0);
             }
             if (isExcludedFromGraph(result.file, exclusionSet)) {
@@ -409,12 +507,14 @@ export function registerBuildCommand(program: Command): void {
               // isExcludedFromGraph just confirmed this path is excluded by
               // one of exactly the two sources it covers.
               const cause = describeExclusionCause(describeExclusionSource(result.file, exclusionSet)!);
+              const why = `This path is never scanned for coverage because ${cause}, so it cannot and need not be mapped to a node here.`;
               const excludedMsg = buildIssueMessage({
                 what: `${displayFile} is excluded from graph coverage by design.`,
-                why: `This path is never scanned for coverage because ${cause}, so it cannot and need not be mapped to a node here.`,
+                why,
                 next: 'No action needed.',
               });
-              process.stdout.write(`${excludedMsg}\n`);
+              if (asJson) emitJson(buildNoOwnerContextJson(displayFile, 'excluded', why));
+              else process.stdout.write(`${excludedMsg}\n`);
               process.exit(0);
             }
             // A typed answer, not "not covered by any node": classifies ONLY
@@ -456,37 +556,51 @@ export function registerBuildCommand(program: Command): void {
                   process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));
                   process.exit(1);
                 }
-                const data = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId, edges);
-                process.stdout.write(formatFileContext(data));
-                if (graph.config.signals?.attention !== false) {
-                  await maybeAppendAttentionLine(graph, displayFile);
+                const { data, block } = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId, edges);
+                const attention = await attentionLineIfEnabled(graph, displayFile);
+                if (asJson) {
+                  const doc = buildTypeCoveredContextJson(graph, displayFile, typeMatch.typeId, block, edges);
+                  emitJson(attention !== undefined ? { ...doc, attention } : doc);
+                } else {
+                  process.stdout.write(formatFileContext(data));
+                  if (attention !== undefined) process.stdout.write(`\n${attention}\n`);
                 }
                 process.exit(0);
               }
             }
             const candidates = findCandidateNodes(graph, result.file);
+            let uncoveredWhy: string;
             if (candidates.length > 0) {
               let candidatesList = '';
               for (const c of candidates) {
                 candidatesList += `  - ${c.nodePath} (${c.fileCount} file${c.fileCount === 1 ? '' : 's'} in same dir)\n`;
               }
+              uncoveredWhy = `File is not mapped to any node. Other files in the same directory are mapped to these nodes:\n${candidatesList}This suggests the file should be added to one of them.`;
               const msg = buildIssueMessage({
                 what: `${displayFile} has no graph coverage.`,
-                why: `File is not mapped to any node. Other files in the same directory are mapped to these nodes:\n${candidatesList}This suggests the file should be added to one of them.`,
+                why: uncoveredWhy,
                 next: 'Use: yg context --node <node-path>',
               });
               process.stderr.write(chalk.red(`Error: ${msg}\n`));
             } else {
+              uncoveredWhy = 'File is not mapped to any node and no candidate nodes found in the same directory.';
               const noGraphMsg = buildIssueMessage({
                 what: `${displayFile} has no graph coverage.`,
-                why: 'File is not mapped to any node and no candidate nodes found in the same directory.',
+                why: uncoveredWhy,
                 next: 'Add the file to an existing node mapping, or create a new node.',
               });
               process.stderr.write(chalk.red(`Error: ${noGraphMsg}\n`));
             }
+            // The machine view still gets an ANSWER on stdout — "nothing in this
+            // graph governs this file" is a fact a caller must be able to read
+            // without parsing the prose above. The exit code is unchanged.
+            emitJson(buildNoOwnerContextJson(displayFile, 'unmapped', uncoveredWhy));
             process.exit(1);
           }
-          process.stdout.write(`${displayFile} -> ${result.nodePath}\n`);
+          // Suppressed under --json: stdout carries exactly one machine document
+          // there, and a bare owner line ahead of it would make the stream
+          // unparseable for the caller the flag exists for.
+          if (!asJson) process.stdout.write(`${displayFile} -> ${result.nodePath}\n`);
           nodePath = result.nodePath;
           resolvedFilePath = toPosixPath(result.file);
         } else {
@@ -523,14 +637,20 @@ export function registerBuildCommand(program: Command): void {
         }
 
         if (resolvedFilePath) {
-          const data = buildFileContextData(graph, resolvedFilePath, nodePath);
-          process.stdout.write(formatFileContext(data));
           // Advisory structural-attention note. Default ON; the off-switch is
           // signals.attention: false (absent `signals` ⇒ ON). Read-only,
           // best-effort, non-blocking — yg context --file stays exit 0.
-          if (graph.config.signals?.attention !== false) {
-            await maybeAppendAttentionLine(graph, resolvedFilePath);
+          const attention = await attentionLineIfEnabled(graph, resolvedFilePath);
+          if (asJson) {
+            const doc = buildFileContextJson(graph, resolvedFilePath, nodePath);
+            emitJson(attention !== undefined ? { ...doc, attention } : doc);
+          } else {
+            const data = buildFileContextData(graph, resolvedFilePath, nodePath);
+            process.stdout.write(formatFileContext(data));
+            if (attention !== undefined) process.stdout.write(`\n${attention}\n`);
           }
+        } else if (asJson) {
+          emitJson(buildNodeContextJson(graph, nodePath));
         } else {
           const data = buildNodeContextData(graph, nodePath);
           // Show the node's OWNED files — the child-precedence carve-out applied —
@@ -575,6 +695,7 @@ export function registerBuildCommand(program: Command): void {
     .description('Assemble a context package for one node')
     .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
+    .option('--json', `Machine-readable output: one ${CONTEXT_JSON_SCHEMA} document on stdout instead of the text package. Same facts, same exit codes.`)
     .action(contextAction);
 
 }

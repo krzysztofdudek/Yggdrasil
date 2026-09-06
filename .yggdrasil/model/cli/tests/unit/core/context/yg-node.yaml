@@ -1,12 +1,16 @@
 name: Context Core Unit Tests
 type: test-suite
 description: "Unit tests for context assembly and graph loading:
-  context-builder, graph-loader"
+  context-builder (both the text-view data and the machine-readable document,
+  including the read-path branch matrix, the cascade channels each rule
+  arrived through, and the component an acceptance would be recorded
+  against), graph-loader"
 aspects: []
 relations:
   [
     { target: cli/core/context, type: uses },
-    { target: cli/core/loader, type: uses }
+    { target: cli/core/loader, type: uses },
+    { target: cli/formatters, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/context-builder.test.ts
