@@ -305,5 +305,11 @@ describe.skipIf(!distExists)("CLI E2E — the documents on this repository's own
     // This repository's own port contract rule ships a corpus; a real one, not zero.
     const withCorpus = aspects.aspects.filter((a) => a.drills.total > 0);
     expect(withCorpus.length).toBeGreaterThan(0);
-  });
+    // Three whole passes over THIS repository's own graph (two checks and the
+    // rule inventory), each walking every mapped file. On an idle machine that
+    // is well inside the suite default; under the full suite's fork contention
+    // it is not, and the case then fails as a timeout rather than on anything it
+    // asserts. The generous ceiling buys real headroom without relaxing a single
+    // assertion — this is the same per-test override the heavier cases here use.
+  }, 180_000);
 });

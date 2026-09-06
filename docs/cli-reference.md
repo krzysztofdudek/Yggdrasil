@@ -637,7 +637,7 @@ yg log merge-resolve --node <path>
 | `yg structure` | Read-only structural dashboard: tunnels, module groups, change reach |
 | `yg find "<query>"` | Natural-language graph search |
 | `yg aspects` [`--health`] | List aspects; `--health` adds the per-rule health row |
-| `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` | Read-only attention feed; never gates |
+| `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` / `import` | Read-only attention feed; never gates (`--json` for the machine-readable form) |
 | `yg incident add` / `read` | The committed incident ledger — what escaped enforcement |
 | `yg flows` | List flows |
 | `yg owner --file <path>` | Quick ownership lookup |
@@ -871,8 +871,10 @@ class; these two do not add slots of their own.
 yg advise                                              # the two-section feed
 yg advise --all                                        # remove the 10-item cap; also list dismissed / deferred
 yg advise --ids                                        # print each item's stable id
+yg advise --json                                       # the same feed as one machine-readable document
 yg advise dismiss <id> --reason "reviewed, keeping"    # hide until the evidence changes
 yg advise defer <id> --until 2027-01-31 --reason "…"   # hide until a date, then it returns
+yg advise import proposals.json                        # take in another tool's proposals
 ```
 
 `--reason` is mandatory (recorded precedent must carry a human-signed justification). Decisions
@@ -884,6 +886,48 @@ Dismissing or deferring is human-signature territory, the same authorization cla
 `yg check` passes, and never appears in the suggested next step. A read-only, keyless CI job that
 runs `yg advise --all` into a pinned issue on a weekly rhythm is a documented **pattern** to
 copy — not a shipped default.
+
+#### `yg advise --json`
+
+The same feed as one `yg-advise/1` document: the attention aggregates, the ranked
+items, and the ones a recorded decision currently hides, each with its stable id,
+its what / why / next, and the hash of the evidence it rests on. `--json` prints
+every visible item — the ten-item cap is a rendering choice for a reader, not part
+of the data — so `--all` changes nothing about which items appear and is refused
+together with `--json`; `--ids` is likewise refused, because every item carries its
+id already. An item another tool proposed carries a `provenance` object naming that
+tool and the commit it measured at; an item this graph derived itself carries none,
+which is what makes its presence meaningful.
+
+#### `yg advise import`
+
+Takes in proposals another tool measured over this repository and puts them on the
+feed:
+
+```bash
+yg advise import proposals.json    # from a file
+some-tool advise --json | yg advise import -    # from standard input
+```
+
+The document must name a contract this build reads — today that is
+`grain-advice/1` — and each of its items must name a kind this graph has
+vocabulary for (`relation`, `split`, `port`, `rule`), the components it is about,
+and its own one-line statement. Anything else is refused with what happened, why it
+matters and what to do next, and **nothing is recorded**: a half-imported document
+would leave the register claiming things nobody vouched for.
+
+Accepted proposals are appended one per line to `.yggdrasil/advise-imported.jsonl`,
+which is **committed** (a proposal is a fact about this repository at a commit, and
+it must survive a clone) and carries a `merge=union` attribute so branches merge
+cleanly. Each line keeps the producer's own evidence **verbatim** — this tool never
+re-derives or summarizes it — so a reader can always tell what another tool observed
+from what this graph concluded. Importing the same document twice adds nothing; the
+same proposal measured again at a **later commit** is a new one, because the evidence
+behind it was taken again over code that has moved.
+
+**Importing is not accepting.** An imported item appears on the feed as a proposal
+like any other, ranked below every class the graph derives itself, and acting on it —
+or dismissing or deferring it — remains your own recorded decision.
 
 ### `yg incident`
 

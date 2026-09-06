@@ -25,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A port can name its version and the test that is its contract.** Add `version:` and `test:` to a port and Yggdrasil holds them together: once the contract is recorded, changing that test file without raising the version is refused, with both ways out spelled out — raise the version, or restore the file. Recording costs nothing and needs no key. Both fields are optional and change nothing for a port that leaves them out.
 
+- **Another tool's proposals can go onto the attention feed.** `yg advise import` takes in a document of proposals a separate tool measured over your repository — from a file or a pipe — and puts them on the feed alongside the ones Yggdrasil finds itself, ranked below them and clearly marked with which tool measured them and at which commit. Their evidence is kept word for word, so what someone else observed never reads as something Yggdrasil concluded. A document it does not understand is refused with what to do about it, and nothing is recorded. Importing the same document twice adds nothing; the same proposal measured again over changed code is a new one. Importing is not accepting — an imported proposal is still yours to dismiss, defer or act on.
+
+- **`yg advise --json`.** The attention feed as a single document instead of a list to read: the summary lines, every visible item with its id, its what/why/next and the evidence it rests on, and the items a decision of yours currently hides, with that decision. Items that came from another tool carry where they came from.
+
 - **`yg impact --json`.** The blast radius as a single document instead of a report to read: the ports the component publishes and who consumes each of them, everything that depends on it — directly or through something else — and the path each indirect one comes by. Works with `--node` and `--file`, which give the same answer for the same component. Not available for `--aspect`, `--flow` or `--type`, which describe something other than one component.
 
 ## [5.8.0] - 2026-08-31

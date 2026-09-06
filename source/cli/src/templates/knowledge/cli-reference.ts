@@ -867,6 +867,7 @@ no reviewer calls, writes no verdict, changes no exit code, and never appears in
 yg advise            # the two-section feed
 yg advise --all      # remove the 10-item cap; also list dismissed / deferred items
 yg advise --ids      # print each item's stable id (for dismiss / defer)
+yg advise --json     # the same feed as one machine-readable document
 \`\`\`
 
 - **Attention** — one aggregate line per class of signal, with no per-instance
@@ -970,6 +971,49 @@ feed on a fixed rhythm: a weekly CI workflow that runs \`yg advise --all\` and u
 single pinned issue gives you one place to review the attention items. This is a
 **documented pattern to copy, not a shipped default** — \`yg init\` never scaffolds it,
 and the feed never appears in \`yg check\`'s suggested next step.
+
+### \`yg advise --json\`
+
+The SAME feed as one \`yg-advise/1\` document on stdout: \`attention\` (the
+aggregate lines), \`items\` (the ranked, currently-visible nominations) and
+\`suppressed\` (the ones a recorded decision hides, with that decision). Each item
+carries its \`id\`, \`what\`, \`why\`, \`next\` and \`evidenceHash\` — the hash a
+dismiss binds to. An item another tool proposed also carries \`provenance\`
+(\`source\`, and the commit it was measured \`at\`); an item this graph derived
+itself carries none, which is exactly what makes its presence meaningful.
+\`--json\` prints EVERY visible item — the ten-item cap is a rendering choice for a
+reader, not part of the data — so \`--all\` and \`--ids\` are refused together with
+it rather than silently ignored. Fields may be added within \`yg-advise/1\`; only a
+change to an existing field's shape takes a new schema number.
+
+### \`yg advise import\`
+
+Brings proposals another tool measured over this repository onto the feed.
+
+\`\`\`bash
+yg advise import proposals.json                # from a file
+some-tool advise --json | yg advise import -   # from standard input
+\`\`\`
+
+The document must name a contract this build reads (today: \`grain-advice/1\`), and
+every item must name a \`kind\` this graph has vocabulary for — \`relation\`,
+\`split\`, \`port\`, \`rule\` — the components it is about, and its own one-line
+text. Anything else is REFUSED with what / why / next and NOTHING is recorded: a
+half-imported document would leave the register claiming things nobody vouched for.
+
+Accepted proposals append one line each to \`.yggdrasil/advise-imported.jsonl\`,
+which is **committed** (a proposal is a fact about this repository at a commit and
+must survive a clone) and carries a \`merge=union\` attribute so branches merge
+cleanly. Each line keeps the producer's evidence **verbatim** — never re-derived,
+never summarized — so what another tool observed stays visibly apart from what this
+graph concluded. Re-importing the same document adds nothing; the same proposal
+measured again at a LATER commit is a new one, because the evidence behind it was
+taken again over code that has moved.
+
+**Importing is not accepting.** An imported item is a proposal like any other,
+ranked BELOW every class the graph derives itself, and acting on it — or dismissing
+or deferring it — stays the user's own recorded decision, in the same
+human-signature class as a dismiss.
 
 ## yg incident
 

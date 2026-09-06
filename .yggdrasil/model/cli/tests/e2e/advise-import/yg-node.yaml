@@ -1,0 +1,24 @@
+name: E2E Tests — Imported proposals
+type: test-suite
+description: >-
+  Subprocess E2E for bringing another tool's proposals into the attention feed
+  and for the feed's own machine form. The boundary is what these pin: an
+  imported item arrives as a PROPOSAL — naming the producer, the commit it was
+  measured at and that producer's own evidence kept verbatim, never restated as
+  a finding of this graph's own — and dismissing or deferring it stays a
+  separate, recorded act of the user's. Also proves the import is idempotent (the
+  same document twice adds nothing, while the same proposal measured again at a
+  later commit is a new one, because the evidence behind it was taken again),
+  that the machine form carries structured provenance on exactly the items that
+  came from outside and refuses the reader-only selectors rather than ignoring
+  them, that every refusal says what, why and next and records
+  nothing — a document naming another schema, an item whose kind the graph has
+  no vocabulary for, a file that is not JSON, a path that cannot be read — and
+  that a document the REAL producer wrote over this very repository imports
+  as-is, with its evidence surviving the round trip untouched.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-advise-import.test.ts
