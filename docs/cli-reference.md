@@ -14,7 +14,8 @@ This page is for inspecting or debugging your graph and enforcement state.
 | Command | Purpose |
 |---------|---------|
 | `yg context --file <path>` / `--node <path>` | Assemble context package (`--json` for the machine-readable form) |
-| `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis |
+| `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis (`--json` for the machine-readable form) |
+| `yg node <path>` | One component's structure — what it owns, what it depends on, the ports it publishes (`--json` for the machine-readable form) |
 | `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)) |
 | `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
 | `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes only the gitignored cache |
@@ -175,6 +176,57 @@ yg impact --type <id>
   before adding a default aspect to a type — see how many nodes would be affected.
 
 Exactly one of `--node`, `--file`, `--aspect`, `--flow`, or `--type` is required.
+
+`--json` renders the component modes — `--node`, and `--file` once it has
+resolved the owning component — as one `yg-impact/1` document on stdout instead
+of the text report, for a tool rather than a reader. The document names the
+`subject`; every port the component publishes under `ports`, each with its
+`version`, its `test` and the `consumers` that name it in a `consumes:` list;
+every component that depends on it under `dependents`, each marked `direct` (it
+declares a relation onto the subject, and `relations` names each relation's type
+and the ports it consumes) or not (reached through other components, so
+`relations` is empty); and, under `transitive`, each indirect dependent with the
+`via` path it is reached through.
+
+Both target forms produce the same document for the same component, byte for
+byte. Under `--json` stdout carries that document alone: the owner-resolution
+line `--file` normally prints is suppressed, and every redirect that produces no
+document — a graph file, a path excluded from coverage by design, a file no
+component owns — moves to stderr with its exit code unchanged. A `--json` run
+that already has its component also skips the per-pair cost enumeration; cost is
+the text report's job, not the document's.
+
+`--json` is refused for `--aspect`, `--flow` and `--type`: their subject is not a
+component, and a second document shape must not hide behind the same schema tag.
+New fields may appear within `yg-impact/1`; only a change to an existing field's
+shape takes a new schema number.
+
+### `yg node`
+
+Shows one component's structure — what it *is*, not what it must satisfy.
+
+```bash
+yg node orders/order-service
+yg node orders/order-service --json
+```
+
+Both views carry the same facts, from the same document: the component's name,
+type and description; the files it owns (`mapping`); the components it declares
+a dependency on (`relations`, each with the ports it `consumes`); the ports it
+publishes (`ports`, each with its `description`, contract `version`, contract
+`test`, and the `aspects` a consumer of that port must satisfy); and where it
+sits in the hierarchy (`children`, `parent`).
+
+It deliberately carries no rule set. What a subject must satisfy is
+[`yg context`](#yg-context)'s answer — assembled from the full seven-channel
+cascade, with each rule's effective status — and a partial copy here would give
+you two places to learn one fact, and one of them to get wrong. A port's
+`aspects` is not that: it is the contract the port declares onto its consumers,
+part of the component's own structure.
+
+A path naming no component is refused with what/why/next and exit 1. New fields
+may appear within `yg-node/1`; only a change to an existing field's shape takes a
+new schema number.
 
 ### `yg check`
 

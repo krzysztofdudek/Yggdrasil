@@ -1,11 +1,19 @@
 name: Core Graph Queries
 type: engine
-description: Pure graph queries and predicate evaluation — traversal (ancestors,
+description: >-
+  Pure graph queries and predicate evaluation — traversal (ancestors,
   descendants), flow membership, dependency views, blast-radius/reverse-dependency
   algorithms, and the WhenPredicate evaluator that decides whether a predicate
   passes against a (GraphNode, Graph) pair. Helpers take a Graph and/or GraphNode
   and return derived data with no side effects. Canonical home for new
-  graph-query helpers.
+  graph-query helpers. It also assembles the graph's own machine documents — the
+  versioned JSON forms of "what depends on this component" and "what IS this
+  component" — from those same queries: the reverse-dependency closure and the
+  path each indirect dependent is reached through are computed in exactly one
+  place and then either rendered as text chains or carried in the document, so a
+  machine consumer and a reading agent can never be told two different things
+  about one graph. It reaches the formatter layer only for those documents'
+  schema constants, which belong with the document types they tag.
 relations:
   - target: cli/model/graph
     type: uses
@@ -17,6 +25,8 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/formatters
+    type: calls
   - target: cli/relations/core
     type: calls
 mapping:
@@ -26,6 +36,7 @@ mapping:
   - source/cli/src/core/graph/flows.ts
   - source/cli/src/core/graph/impact-graph.ts
   - source/cli/src/core/graph/index.ts
+  - source/cli/src/core/graph/machine-documents.ts
   - source/cli/src/core/graph/traversal.ts
   - source/cli/src/core/graph-metrics.ts
   - source/cli/src/core/when-evaluator.ts

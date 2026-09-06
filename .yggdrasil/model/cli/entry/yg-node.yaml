@@ -30,6 +30,8 @@ relations:
     type: calls
   - target: cli/commands/impact
     type: calls
+  - target: cli/commands/node
+    type: calls
   - target: cli/commands/aspects
     type: calls
   - target: cli/commands/flows

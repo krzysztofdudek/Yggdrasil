@@ -1,6 +1,23 @@
 name: ImpactCommand
 type: command
-description: Blast radius analysis across node, aspect, and flow modes via yg impact
+description: >-
+  Blast radius analysis across node, file, aspect, flow, and type modes via
+  yg impact. A --json flag renders the component modes (--node, and --file once
+  it has resolved the owning component) as one versioned machine document
+  instead of the text report — the ports the component publishes with the
+  consumers of each, its direct and indirect dependents with the relations and
+  ports the direct ones declare onto it, and the path each indirect one is
+  reached through — for a layer above the agent that must not parse prose to
+  learn who depends on what. The document is built from the same reverse-
+  dependency queries the text report renders, so the two can never disagree.
+  Under --json stdout carries that document ALONE: the owner-resolution line is
+  suppressed, and every redirect that produces no document (a graph file, a path
+  excluded from coverage by design, a file no component owns) moves to stderr
+  with its exit code unchanged. --json is refused for --aspect, --flow, and
+  --type, whose subject is not a component, rather than tagging a second
+  document shape with the same schema. A --json run that already knows its
+  component also skips the per-pair cost enumeration the text report needs,
+  since cost is not part of what the document promises.
 aspects: []
 relations:
   - target: cli/core/loader

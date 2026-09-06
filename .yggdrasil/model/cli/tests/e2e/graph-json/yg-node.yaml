@@ -1,0 +1,21 @@
+name: E2E Tests — Graph as machine documents
+type: test-suite
+description: >-
+  Subprocess E2E for the graph's two machine documents — the blast radius of one
+  component (yg impact --json) and the structure of one component (yg node
+  --json). Proves the impact document names the ports a component publishes with
+  the consumers of each, marks a direct dependent apart from one reached through
+  other components, gives every indirect dependent the path it is reached
+  through, and comes out byte-identical whether the component was named directly
+  or resolved from one of its files; that stdout under --json carries the
+  document alone; that the component document names identity, owned files,
+  declared dependencies, ports and hierarchy, and stays free of the rule set the
+  context package owns; and that every refusal — a machine document asked for an
+  aspect, a flow or a type, and a path naming no component — arrives on stderr
+  as what/why/next with the exit code the text view has.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-graph-json.test.ts

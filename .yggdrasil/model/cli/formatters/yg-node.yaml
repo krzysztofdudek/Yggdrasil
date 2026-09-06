@@ -1,10 +1,17 @@
 name: Formatters
 type: formatter
-description: Output formatting for context packages, converting structured data
-  to text for a person and to one versioned JSON document for a layer above the
-  agent — the machine form carries the same facts, each rule with its effective
-  status, reviewer kind, cascade channel and the node/type chain it inherits
-  along, so a consumer never has to parse prose to learn what governs a file.
+description: >-
+  Output formatting for the graph's answers, converting structured data to text
+  for a person and to versioned JSON documents for a layer above the agent.
+  Three machine forms live here, each owning its own schema constant, its
+  document types and its serializer: the context package (every rule with its
+  effective status, reviewer kind, cascade channel and the node/type chain it
+  inherits along), the blast radius of one component (the ports it publishes
+  with their consumers, its direct and indirect dependents, and the path each
+  indirect one is reached through), and the structure of one component (what it
+  is, what it owns, what it depends on, the ports it publishes, and where it
+  sits in the hierarchy). A consumer never has to parse prose to learn what
+  governs a file, who depends on a component, or what a component is.
 relations:
   - target: cli/model/graph
     type: uses
@@ -15,7 +22,9 @@ mapping:
   - source/cli/src/formatters/context-file.ts
   - source/cli/src/formatters/context-json.ts
   - source/cli/src/formatters/context-node.ts
+  - source/cli/src/formatters/impact-json.ts
   - source/cli/src/formatters/lock-issue-messages.ts
   - source/cli/src/formatters/message-builder.ts
+  - source/cli/src/formatters/node-json.ts
   - source/cli/src/formatters/predicate-trace.ts
   - source/cli/src/formatters/truncate.ts

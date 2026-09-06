@@ -48,16 +48,17 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // ahead of cli/core/check (24, which declared the same edge when it began
     // accepting a change scope).
     //
-    // Below those three, 23 is now a TIE. cli/entry joined it when the CLI
-    // gained a command for accepting a proposed graph into a repository: the
-    // entry point declares an edge to every command it registers, so each new
-    // command moves this one node's fan-out by exactly one, and this one took
-    // it from 22 to 23 — level with cli/portal/engine-api, which is itself
-    // unchanged. The ranking breaks the tie by path, so cli/entry takes the
-    // index. Only the FIRST half of a tie is pinned by index here;
-    // engine-api is pinned by path for the same reason aspect-test below is —
-    // anchoring the far side of a tie to a fixed slot is the brittle anchor a
-    // past dogfood entry recorded against this very file.
+    // The tie has MOVED UP: cli/entry reached 24 when the CLI gained a command
+    // for showing one component's structure. The entry point declares an edge to
+    // every command it registers, so each new command moves this one node's
+    // fan-out by exactly one — 22, then 23 when the accept-a-proposed-graph
+    // command landed, now 24 — which is exactly level with cli/core/check. The
+    // ranking breaks that tie by path, so cli/core/check keeps the earlier index
+    // and cli/entry follows it. cli/portal/engine-api, itself unchanged at 23,
+    // is now alone below them. Only the FIRST half of a tie is pinned by index
+    // here; engine-api is pinned by path for the same reason aspect-test below
+    // is — anchoring the far side of a tie to a fixed slot is the brittle anchor
+    // a past dogfood entry recorded against this very file.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(28);
@@ -66,7 +67,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(data.hubs.fanOut[2].path).toBe('cli/core/check');
     expect(data.hubs.fanOut[2].count).toBe(24);
     expect(data.hubs.fanOut[3].path).toBe('cli/entry');
-    expect(data.hubs.fanOut[3].count).toBe(23);
+    expect(data.hubs.fanOut[3].count).toBe(24);
     const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
     expect(engineApi).toBeDefined();
     expect(engineApi!.count).toBe(23);

@@ -3,6 +3,7 @@ description: "Navigational queries to locate nodes, browse hierarchy, trace forw
 aspects:
   - what-why-next
 nodes:
+  - cli/commands/node
   - cli/commands/owner
   - cli/commands/tree
   - cli/commands/find

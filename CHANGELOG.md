@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`yg context --json`.** The same context package as a single JSON document, for anything that reads it programmatically rather than as prose — an orchestrator picking work, a dashboard, a build step. It works with `--file` and `--node`, names the owner and the chain a subject inherits along, and gives every rule its effective status, its kind, where in the cascade it came from, and the files to read. Errors and exit codes are unchanged.
 
+- **`yg node <path>`.** One component at a glance: what it is, the files it owns, what it depends on, the ports it publishes and who its parent and children are. `--json` gives the same answer as a single document for anything reading it programmatically.
+
+- **`yg impact --json`.** The blast radius as a single document instead of a report to read: the ports the component publishes and who consumes each of them, everything that depends on it — directly or through something else — and the path each indirect one comes by. Works with `--node` and `--file`, which give the same answer for the same component. Not available for `--aspect`, `--flow` or `--type`, which describe something other than one component.
+
 ## [5.8.0] - 2026-08-31
 
 Adopt Yggdrasil on a large codebase that is not clean yet, without fixing everything first.
