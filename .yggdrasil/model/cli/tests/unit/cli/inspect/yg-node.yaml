@@ -1,8 +1,11 @@
 name: CLI Inspection Command Tests
 type: test-suite
-description: Unit tests for inspection and aspect-test CLI commands — knowledge,
+description: >-
+  Unit tests for inspection and aspect-test CLI commands — knowledge,
   aspect-test, tree, type-suggest, suppressions, and prime (plus the shared
-  cli-version resolver prime uses to stamp its output).
+  cli-version resolver prime uses to stamp its output), and the registration
+  contract of both halves of the drill command — running a rule's corpus, and
+  taking a case into it.
 aspects: []
 relations:
   [
@@ -32,6 +35,7 @@ mapping:
   - source/cli/tests/unit/cli/schemas.test.ts
   - source/cli/tests/unit/cli/aspect-test.test.ts
   - source/cli/tests/unit/cli/drill.test.ts
+  - source/cli/tests/unit/cli/drill-add.test.ts
   - source/cli/tests/unit/cli/tree.test.ts
   - source/cli/tests/unit/cli/portal.test.ts
   - source/cli/tests/unit/cli/type-suggest.test.ts

@@ -1,0 +1,48 @@
+name: Review Package
+type: engine
+description: >-
+  The review package for one reviewed pair: everything a judge is given — the
+  rule's own text, the subject files, the declared references, the companion
+  files a hook resolved, the suppressed line ranges — and the content hash the
+  judgement will be stored under, one per verdict token. There is exactly ONE
+  assembly of it. The fill stage sends this package to a configured provider;
+  the external-judge channel prints the same package and later records a verdict
+  against the same hash. Assembled separately they would drift, and a verdict
+  recorded against a package nobody else can reproduce is bound to nothing.
+  Assembly only: it reads files, resolves companions and suppressed ranges,
+  builds the prompt and can compute the hash — it calls no reviewer, gates no
+  size and writes nothing. Its two failure dispositions are the fail-closed ones
+  the fill stage already had, an unreadable declared reference and a companion
+  or suppress marker that cannot be resolved, because in each case there is no
+  package at all and hashing over substituted bytes would pin a verdict to
+  inputs nobody ever saw.
+aspects:
+  - posix-paths-output
+  - what-why-next
+relations:
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/core/pair-hash
+    type: calls
+  - target: cli/core/pair-inputs
+    type: calls
+  - target: cli/core/companion-resolve
+    type: calls
+  - target: cli/core/fill-support
+    type: calls
+  - target: cli/llm/shared
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/structure
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/lock
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/core/review-package.ts

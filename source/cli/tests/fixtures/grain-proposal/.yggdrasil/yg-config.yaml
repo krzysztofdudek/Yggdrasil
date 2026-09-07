@@ -1,0 +1,16 @@
+# PROPOSAL — written by grain from evidence in this repository. Nothing here is verified.
+#
+# Every element carries an `# evidence:` line naming the counts, paths and shares behind it. Read the
+# evidence, keep what is true, delete what is not.
+
+version: "5.2.0"
+coverage:
+  required: []
+  excluded: []
+auto_approve: false
+quality:
+  max_direct_relations: 10
+# progressive: measure a change against `main` — an enforced rule this change did not reach is
+# reported as a warning instead of blocking; `yg check --full` blocks on all of it again.
+progressive:
+  reference: main

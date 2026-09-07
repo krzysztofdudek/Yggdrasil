@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.9.0] - 2026-09-07
+
+### Added
+
+- **A rule keeps its own history.** `yg aspects log add` and `yg aspects log read` keep a log beside each rule: why it exists, every change of its standing with the evidence for it, and every real failure taken in as a case. A standing changed by hand is noticed and written down, and the rule list shows the last thing each rule's history recorded.
+
+- **`yg adopt <proposal-dir>`.** Accepts a proposed graph into your repository in one step, records every rule that runs locally, and tells you how many places in your code the new rules already refuse. `--replace` moves an existing graph aside instead of deleting it; `--dry-run` shows everything and writes nothing.
+
+- **`yg check` names your baseline.** When refusals stand on code your change never touched, one line says so: that is the floor the repository already had, not something you caused. Only on projects that measure changes against a branch.
+
+- **`yg check` says when nothing is required to be covered,** and names the setting that changes it.
+
+- **`yg context --json`.** The context package as one document: the owner, the chain it inherits along, every rule with its status and the files to read. Works with `--file` and `--node`; exit codes are unchanged.
+
+- **`yg node <path>`.** One component at a glance: its files, what it depends on, the ports it publishes, its parent and children. `--json` for tools.
+
+- **`yg check --json` and `yg aspects --json`.** The whole run, or the whole rule list, as one document: the counts, the coverage, the exit code and why, every rule-and-subject pair with its verdict and who decided it, and every finding with its what/why/next. A pair never judged and a pair judged over code that has since changed are told apart. Not available with the flags that narrow the text report.
+
+- **Someone other than the configured reviewer can judge a rule.** `yg verdict package` prints what the reviewer would see for one pending rule, `yg verdict record` stores the decision under the name you pass, `yg verdict read` lists them. `yg check` re-proves such a verdict without a key, drops it when the code changes, and says whose judgement the run rests on. Recording is not approving.
+
+- **A port can carry a version and the test that is its contract.** With `version:` and `test:` on a port, changing that test without raising the version is refused. Both fields are optional.
+
+- **`yg drill add`.** Takes a file as it stood at a past commit into a rule's cases and runs the rule over it. If the rule does not catch it, the case stays and the command exits non-zero until the rule does. Your reason is kept next to the rule.
+
+- **`yg advise import`.** Puts another tool's proposals on the attention feed, ranked below Yggdrasil's own and marked with which tool measured them and at which commit. Importing the same document twice adds nothing, and importing is not accepting.
+
+- **`yg advise --json`.** The attention feed as one document: each item's what/why/next, its evidence, and where it came from.
+
+- **`yg impact --json`.** The blast radius as one document: the component's ports and their consumers, everything that depends on it, and the path each indirect dependent comes by. Works with `--node` and `--file`.
+
 ## [5.8.0] - 2026-08-31
 
 Adopt Yggdrasil on a large codebase that is not clean yet, without fixing everything first.

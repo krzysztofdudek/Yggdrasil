@@ -1,0 +1,34 @@
+name: NodeCommand
+type: command
+description: >-
+  Shows one component's STRUCTURE via yg node <path> — its identity and type,
+  the description it declares, the files it owns, the components it declares a
+  dependency on (with the ports each relation consumes), the ports it publishes
+  (each with the contract version, the contract test, and the rules a consumer
+  of that port must satisfy), its direct children and its parent. A --json flag
+  renders exactly the same facts as one versioned machine document instead of
+  the text view, for a layer above the agent that must not parse prose to learn
+  the shape of a component. It deliberately carries NO rule set: what a subject
+  must satisfy is the context package's answer (yg context, and its own
+  machine form), assembled from the full seven-channel cascade, and repeating a
+  subset of it here would give a consumer two places to learn one fact and one
+  of them to get wrong. A path naming no component is refused with what/why/next
+  and exit 1; the text and machine views are built from the same document, so
+  they can never disagree.
+relations:
+  - target: cli/core/loader
+    type: calls
+  - target: cli/core/graph
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/node.ts

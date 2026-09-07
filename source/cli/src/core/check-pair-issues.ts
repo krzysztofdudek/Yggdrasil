@@ -51,7 +51,7 @@ export function emitPairIssue(vp: VerifiedPair, rtRows: TypeVisibilityReport['ro
       const reason = state.reason ?? NO_REASON_FALLBACK;
       const md =
         pair.kind === 'llm'
-          ? llmRefusedMessage({ aspectId: pair.aspectId, unitKey: pair.unitKey, reason })
+          ? llmRefusedMessage({ aspectId: pair.aspectId, unitKey: pair.unitKey, reason, judge: vp.judge?.name })
           : detRefusedMessage({ aspectId: pair.aspectId, unitKey: pair.unitKey, reason });
       issues.push({
         severity: enforced ? 'error' : 'warning',

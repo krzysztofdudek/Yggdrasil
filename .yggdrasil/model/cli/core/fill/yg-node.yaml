@@ -1,7 +1,13 @@
 name: Fill
 type: engine
 description: "Fill stage behind yg check --approve — the single producer of
-  verdict-lock entries. Computes unverified pairs, runs the deterministic-first
+  verdict-lock entries, and the writer of a port's contract baseline. That one
+  record is written on an approving run of EITHER kind, the free
+  deterministic-only one included: the comparison it feeds costs nothing and
+  needs no key, so a project whose only approving runs are free must still be
+  able to record, or stay permanently red on a contract it was never allowed to
+  baseline. It is added only for a (port, version) that has none and never
+  overwrites one that exists. Computes unverified pairs, runs the deterministic-first
   gate (det fills before LLM; a node's enforced det refusal skips its LLM
   fills), hands the surviving LLM pairs to reviewer dispatch, enforces the
   mandatory-log gate, and on positive closure writes the source fingerprint and
@@ -34,7 +40,7 @@ description: "Fill stage behind yg check --approve — the single producer of
   that lock verification can share them without reaching anything that depends
   back on the check report."
 max_direct_relations:
-  limit: 25
+  limit: 26
   reason: >-
     Reviewed architectural seam. This node is the SINGLE producer of verdict-lock
     entries and the fill orchestrator — it fans out to every subsystem a
@@ -86,6 +92,15 @@ max_direct_relations:
     settled — a disagreement there would leave a component's justification cycle
     open forever. Routing it through an already-declared neighbour instead would
     have kept this count down while hiding a dependency that is genuinely made.
+    Raised from 25 to 26 for the port contract check. A port's contract baseline
+    is recorded by an approving run, and this stage is what an approving run IS —
+    it is also the only place that knows whether the run was the free
+    deterministic-only kind, which is exactly the distinction that decides how
+    little of the committed record such a run is allowed to touch. Calling the
+    check that owns the baseline is a real dependency this stage's own code
+    makes; the alternative, teaching some already-declared neighbour to record
+    on its behalf, would have kept this number down by hiding the one edge that
+    explains where a committed baseline comes from.
 aspects:
   - deterministic
   - posix-paths-output
@@ -122,6 +137,8 @@ relations:
     type: uses
   - target: cli/model/lock
     type: uses
+  - target: cli/core/checks/port-contracts
+    type: calls
   - target: cli/core/check-codes
     type: calls
   - target: cli/core/log

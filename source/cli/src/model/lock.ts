@@ -58,6 +58,35 @@ export interface VerdictEntry {
    * CURRENT limit is what makes that happen.
    */
   promptChars?: number;
+  /**
+   * Provenance for a verdict recorded by a judge OUTSIDE the CLI's configured
+   * reviewer — a person, or another tool that read the review package and
+   * decided. Absent on every entry a configured provider produced, and on every
+   * deterministic entry.
+   *
+   * NOT a hash ingredient — it is a RECORD of who decided, never an input of the
+   * decision, so writing or reading it invalidates nothing. The verdict is bound
+   * to the same inputHash a provider's would have been, which is what lets CI
+   * re-prove it by hashing, with no key and no judge present.
+   */
+  judge?: { name: string; provider: 'external' };
+}
+
+/**
+ * One port's contract baseline AT ONE VERSION: the test file that was the
+ * contract, and what it hashed to when that version was recorded.
+ *
+ * Kept per version, and never overwritten once written. That is what makes the
+ * rule enforceable in both directions: at an unchanged version the recorded hash
+ * is the only thing the file may still be, and a version that has been used
+ * before keeps its own record, so returning to it returns to the contract it
+ * named rather than silently re-baselining whatever is on disk now.
+ */
+export interface PortContractRecord {
+  /** Repo-relative POSIX path of the contract test, as declared when recorded. */
+  test: string;
+  /** sha256 of that file's normalized bytes at the moment the version was recorded. */
+  hash: string;
 }
 
 export interface LockNodeEntry {
@@ -66,12 +95,55 @@ export interface LockNodeEntry {
   source?: string;
   /** Append-only log baseline (validateAppendOnly semantics, unchanged). */
   log?: { last_entry_datetime: string; prefix_hash: string };
+  /**
+   * Port contract baselines: port name → version (as a decimal string key) →
+   * the record for that version. Absent on a node whose ports declare no `test`.
+   *
+   * This is COMMITTED state, in the logs file beside the source fingerprint and
+   * the log baseline — deliberately, and for the same reason those are: a
+   * baseline that a fresh clone rebuilds from whatever it finds is not a
+   * baseline. It is written only by an approving run, and only for a (port,
+   * version) pair that has none.
+   */
+  ports?: Record<string, Record<string, PortContractRecord>>;
+}
+
+/**
+ * Per-rule facts the tool remembers between runs.
+ *
+ * Only one so far, and it exists for a single purpose: a rule's STANDING is
+ * carried in the rule's own file, which people edit by hand. Without a memory of
+ * what that standing was last seen to be, a promotion or a demotion made outside
+ * the CLI leaves no trace anywhere — the very gap the rule's own log exists to
+ * close. Remembering it here lets exactly one entry be written into that rule's
+ * history when it moves, instead of none, or one on every run afterwards.
+ *
+ * It is REMEMBERED state, never a verdict ingredient: writing or reading it
+ * invalidates nothing, exactly like a component's source fingerprint beside it.
+ * And it is LOCAL: it records what this checkout has witnessed, so it rides with
+ * the gitignored verdict cache rather than the committed files. A checkout that
+ * has never seen a rule reports no change for it — an honest silence, and the
+ * reason the first sighting of every rule is silent too.
+ */
+export interface LockAspectEntry {
+  /** The rule's status the last time an approving run looked. */
+  status?: string;
 }
 
 export interface LockFile {
   version: number; // LOCK_FORMAT_VERSION
   verdicts: Record<string, Record<string, VerdictEntry>>; // aspectId → unitKey → entry
   nodes: Record<string, LockNodeEntry>; // nodePath → per-node facts
+  /**
+   * aspectId → per-rule facts. Lives in the gitignored verdict cache — local,
+   * rebuildable memory, never committed state.
+   *
+   * Optional for the same reason every per-entry field here is: a lock read from
+   * a file written before rules had a remembered standing has none, and an
+   * in-memory lock assembled for a narrower purpose need not invent one. Absent
+   * reads as "nothing has been seen yet", never as "seen and empty".
+   */
+  aspects?: Record<string, LockAspectEntry>;
 }
 
 /** 'node:<model-relative path>' | 'file:<repo-relative POSIX path>' */

@@ -1,0 +1,26 @@
+name: E2E Tests — Check and rules as machine documents
+type: test-suite
+description: >-
+  Subprocess E2E for the two documents a layer above the agent reads instead of
+  the text report. Pins them AGAINST that report rather than in isolation: the
+  same counts, read back out of the header, and the same exit code, red and
+  green, including on this repository's own graph. Also proves what only the
+  document carries — every expected pair with its rule, subject, effective
+  status, what the lock says, who answers (a local check as itself, a judge
+  recorded outside the configured reviewer under its own name, otherwise the
+  reviewer tier) and the hash it is bound to; the split between a pair judged
+  once over code that has since moved and one never judged at all, which the
+  gate treats alike and the text report spends one word on; that findings arrive
+  as structured what/why/next rather than a rendered block; that it composes
+  with the free deterministic fill; and that the four text-view selectors are
+  refused with it, because a document trimmed to a few findings would read as a
+  smaller problem instead of a smaller rendering. For the rule inventory:
+  status, reviewer kind, tier, review date, reach by channel and drill-corpus
+  size, with the health projection refused rather than folded into the same
+  schema.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-check-json.test.ts

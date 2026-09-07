@@ -8,7 +8,19 @@ description: "Pure advise engine — turns the graph's live attention signals in
   boundary and handed in as parsed touch sets. No I/O and no clock of its own: the
   UTC date is injected and every non-graph signal (suppress-marker anomalies, churn)
   is passed in from the CLI boundary, so output is deterministic given the graph and
-  inputs."
+  inputs. It also reads proposals another tool measured and handed over: a document
+  is accepted only under a schema this build knows, only its documented fields are
+  read, each item's evidence is kept VERBATIM under the producer's name, and an
+  item whose kind the graph has no vocabulary for is refused rather than stored as
+  a suggestion nobody can act on. Those items become nominations that rank below
+  everything the graph derives itself and carry their producer and the commit it
+  measured at, so what another tool observed stays visibly apart from what this
+  graph concluded — and importing is never accepting: dismissing, deferring or
+  acting on one remains the user's own recorded act. Two self-contained
+  nomination sources live in files of their own beside the engine — the imported
+  class, and the architecture-cut class moved out for room: the engine file is the
+  one this repository's own reviewer prompt runs closest to its ceiling on, and a
+  source with a single entry point is the cheapest thing to move."
 relations:
   - target: cli/core/checks/aspects
     type: calls
@@ -28,5 +40,8 @@ relations:
     type: uses
 mapping:
   - source/cli/src/core/advise-nominations.ts
+  - source/cli/src/core/advise-architecture-cut.ts
   - source/cli/src/core/advise-feed.ts
+  - source/cli/src/core/advise-import.ts
+  - source/cli/src/core/advise-imported-nominations.ts
   - source/cli/src/core/node-churn.ts

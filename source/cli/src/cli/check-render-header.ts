@@ -104,6 +104,85 @@ export function renderByteGuardNotice(result: CheckResult): string | undefined {
   return `Content check: ${kept} finding${kept === 1 ? '' : 's'} kept in scope — the file${kept === 1 ? '' : 's'} behind ${kept === 1 ? 'it' : 'them'} differ${kept === 1 ? 's' : ''} from '${reference}' although git reports no change there. If that happens to everything on every run, something is rewriting files between storage and your working copy (a committed .gitattributes 'text eol='/'filter=', or large-file storage) — nothing is then inherited, so 'yg check --approve' pays to review the whole project.`;
 }
 
+/**
+ * The one line a run owes anyone reading a report that is mostly not about
+ * their change.
+ *
+ * A repository that has just switched on a mined graph starts with a fixed
+ * population of refusals standing on code nobody in the current change wrote —
+ * advisory ones, which warn forever, and, under a measured run, enforced ones
+ * held outside the change. Every run reports them faithfully, and until now
+ * nothing said what they ARE, so each reader either worked it out or read the
+ * report as a verdict on their own work. This states it once and says nothing
+ * at all when nothing is standing there.
+ *
+ * Only ever printed for a run that MEASURED something: with no reference branch
+ * there is no "code this change did not touch" to speak of, and naming one
+ * would be an invention.
+ */
+export function renderBaselineNoiseNotice(result: CheckResult): string | undefined {
+  const noise = result.baselineNoise;
+  if (noise === undefined) return undefined;
+  const { advisory, enforcedOutside } = noise;
+  const total = advisory + enforcedOutside;
+  if (total === 0) return undefined;
+  const parts: string[] = [];
+  if (advisory > 0) parts.push(`${advisory} advisory refusal${advisory === 1 ? '' : 's'}`);
+  if (enforcedOutside > 0) {
+    parts.push(`${enforcedOutside} enforced finding${enforcedOutside === 1 ? '' : 's'} held outside it`);
+  }
+  return `${parts.join(' and ')} ${total === 1 ? 'stands' : 'stand'} on code this change did not touch — that is the baseline this repository already had, not a result of your change.`;
+}
+
+/**
+ * Who judged, when the judge was not a configured reviewer.
+ *
+ * A verdict recorded through the external-judge channel is re-proved here by
+ * hash like any other — that is what lets CI stand it up again with no key and
+ * no judge present. But a hash says the judgement still applies, never whose it
+ * was, and an approval reports no issue at all, so without this line a green run
+ * would carry a judgement with no visible author. Said once, as a standing fact
+ * about what this report rests on, naming each judge and how many of the pairs
+ * in force are theirs.
+ *
+ * Absent entirely on the ordinary repository, where nothing was judged this way.
+ */
+export function renderExternalJudgesNotice(result: CheckResult): string | undefined {
+  const counts = new Map<string, number>();
+  for (const vp of result.pairs) {
+    if (vp.judge === undefined) continue;
+    counts.set(vp.judge.name, (counts.get(vp.judge.name) ?? 0) + 1);
+  }
+  if (counts.size === 0) return undefined;
+  const named = [...counts.entries()]
+    .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
+    .map(([name, n]) => `${name} (${n})`);
+  const total = [...counts.values()].reduce((a, b) => a + b, 0);
+  return `${total} verdict${total === 1 ? '' : 's'} in this report ${total === 1 ? 'was' : 'were'} recorded by a judge outside the configured reviewer: ${named.join(', ')}. Each is bound to the same content hashes any verdict is, and is re-proved here by hashing alone.`;
+}
+
+/**
+ * The one line that makes an invisible setting visible: with nothing named
+ * under `coverage.required`, a file no component owns can never fail a check,
+ * however many runs list it.
+ *
+ * It is the shipped default — a fresh project and a mined proposal both start
+ * there — and its consequence is invisible precisely because the uncovered
+ * files ARE reported: only their severity differs, and severity is the one
+ * thing a reader cannot see from the list. Said once, as a standing fact about
+ * the configuration rather than as a finding, and it stops appearing the moment
+ * either half stops being true — a required root is named, or nothing is left
+ * uncovered.
+ */
+export function renderCoverageRequiresNothingNotice(result: CheckResult): string | undefined {
+  if (result.coverageRequiresNothing !== true) return undefined;
+  const uncovered = result.issues
+    .filter((i) => i.code === 'uncovered-advisory')
+    .reduce((n, i) => n + (i.uncoveredCount ?? 0), 0);
+  if (uncovered === 0) return undefined;
+  return `Nothing is required to be covered, so the ${uncovered} uncovered file${uncovered === 1 ? '' : 's'} this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.`;
+}
+
 export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji): string {
   let verdict: string;
   if (errorCount > 0) {

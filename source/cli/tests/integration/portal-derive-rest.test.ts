@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 28, ahead of cli/core/fill at 25 and cli/core/check at 24', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 28, ahead of cli/core/fill at 26 and cli/core/check at 25', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -46,16 +46,39 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // for — and, at closure, which unbought rule counts as settled — both keyed
     // by the pair identity that engine defines. That took it from 24 to 25, out
     // ahead of cli/core/check (24, which declared the same edge when it began
-    // accepting a change scope). cli/portal/engine-api is unaffected at 23.
+    // accepting a change scope). It moved again, 25 to 26, when a port's contract
+    // baseline gained a writer: recording one is something only an approving run
+    // may do, and this node IS the approving run — it is also the only place that
+    // knows whether the run was the free deterministic-only kind, the distinction
+    // that decides how little of the committed record such a run may touch.
+    //
+    // Below the leader the ranking is now strictly descending, with no tie left
+    // to break. Three nodes moved when the port contract check arrived, each by
+    // exactly one and each for an edge onto that check: cli/core/fill 25 to 26
+    // (it records a port's contract baseline, and it is the only place that knows
+    // whether the run was the free deterministic-only kind), cli/core/check 24 to
+    // 25 (it reports the finding, gated on the same readable lock the baseline
+    // lives in). cli/entry moved twice for a different reason and also reached
+    // 25: the entry point declares an edge to every command it registers, so each
+    // new command moves it by exactly one — once for the component command, once
+    // for the external-judge channel. That leaves it level with cli/core/check,
+    // and the ranking breaks the tie by path, so cli/core/check keeps the earlier
+    // index. cli/portal/engine-api is unchanged at 23, and is pinned by PATH
+    // rather than by index for the same reason aspect-test below is: anchoring a
+    // node to a fixed slot is the brittle anchor a past dogfood entry recorded
+    // against this very file.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(28);
     expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[1].count).toBe(25);
+    expect(data.hubs.fanOut[1].count).toBe(26);
     expect(data.hubs.fanOut[2].path).toBe('cli/core/check');
-    expect(data.hubs.fanOut[2].count).toBe(24);
-    expect(data.hubs.fanOut[3].path).toBe('cli/portal/engine-api');
-    expect(data.hubs.fanOut[3].count).toBe(23);
+    expect(data.hubs.fanOut[2].count).toBe(25);
+    expect(data.hubs.fanOut[3].path).toBe('cli/entry');
+    expect(data.hubs.fanOut[3].count).toBe(25);
+    const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
+    expect(engineApi).toBeDefined();
+    expect(engineApi!.count).toBe(23);
     // Also pins that aspect-test's own extraction (a prior architectural
     // change) still landed it BELOW the leaders, never re-joining the tie by
     // accident. Found by path, not by a fixed index — the nodes between the

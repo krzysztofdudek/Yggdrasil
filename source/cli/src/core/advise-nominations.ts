@@ -64,6 +64,9 @@ import { hashString } from '../io/hash.js';
 import { computeAspectHealthSignals } from './aspect-health-signals.js';
 import type { DrillResultLine } from '../io/drill-results-store.js';
 import type { VerdictEvent } from '../io/events-store.js';
+import type { ImportedAdvice } from '../io/advise-imported-store.js';
+import { importedNominations } from './advise-imported-nominations.js';
+import { architectureCutNominations } from './advise-architecture-cut.js';
 
 /** One advisable attention item, bound to the exact evidence it rests on. */
 export interface Nomination {
@@ -91,6 +94,15 @@ export interface Nomination {
    * every other class shares by default — see typeCoveredChurnNominations.
    */
   rankWithinClass?: number;
+  /**
+   * Where the item came from, when it did not come from this graph's own
+   * signals — the producer that measured it and the commit it measured at.
+   *
+   * It exists so a reader can always tell what another tool observed from what
+   * this graph concluded. Absent on every nomination the graph derives itself,
+   * which is what makes its presence meaningful rather than decorative.
+   */
+  provenance?: { source: string; at: string | null };
 }
 
 /**
@@ -226,6 +238,14 @@ export interface NominationSources {
    */
   typeCoverage?: TypeCoverageInput;
   /**
+   * Proposals another tool measured and handed over, read from the committed
+   * register at the CLI boundary. Absent → none, and the class is silent.
+   * Importing is not accepting: these arrive in the feed as proposals with the
+   * same standing as one the graph nominated itself, and every decision about
+   * them stays the user's.
+   */
+  importedAdvice?: ImportedAdvice[];
+  /**
    * Per-type-covered-file churn (window commit count + the file's matched
    * classifying type), assembled at the CLI boundary from the SAME git history
    * `churnByNode` uses, keyed by file path directly — a type-covered file has no
@@ -266,7 +286,7 @@ export interface NominationSources {
  * with EVERY T1 class (promotion, sharpen, decorative-rule, uncovered-hot-spot)
  * below EVERY T0 class.
  */
-const CLASS_RANK = {
+export const CLASS_RANK = {
   drillMiss: 10,
   suppressAnomaly: 20,
   deadAttach: 30,
@@ -282,6 +302,11 @@ const CLASS_RANK = {
   //     stream (λ) and the joint cap; family ranks above architecture-cut. ---
   familyWithoutLaw: 100,
   architectureCut: 110,
+  // --- Imported: a proposal another tool measured. Ranked BELOW everything this
+  //     graph derives itself, deliberately — an outside proposal is a suggestion
+  //     to weigh, never something that should push the graph's own findings down
+  //     the feed.
+  imported: 200,
 } as const;
 
 /** Promotion needs at least this many recorded clean approvals to be nominated. */
@@ -342,7 +367,7 @@ function canonicalJson(snapshot: Record<string, string | number>): string {
 }
 
 /** sha256 hex of a flat evidence snapshot's canonical JSON. */
-function hashEvidence(snapshot: Record<string, string | number>): string {
+export function hashEvidence(snapshot: Record<string, string | number>): string {
   return hashString(canonicalJson(snapshot));
 }
 
@@ -359,7 +384,7 @@ function aspectIdFromIssue(issue: ValidationIssue): string | undefined {
  * check's own `next` plus an explicit note that acting requires the user's
  * approval (no advise decision is ever taken silently).
  */
-function asApprovalNext(next: string): string {
+export function asApprovalNext(next: string): string {
   return `${next} This requires your approval.`;
 }
 
@@ -1056,48 +1081,6 @@ function familyNominations(data: FamilyCandidatesData): Nomination[] {
 }
 
 // ---------------------------------------------------------------------------
-// T2 — architecture-cut (live, reproducible): a group of module blocks that
-// mutually depend, found in the structural quotient's cycles (declared-only).
-// ---------------------------------------------------------------------------
-
-/**
- * Turn each non-trivial quotient cycle into ONE T2 nomination. WHAT names the
- * module GROUPS plainly (quoted block ids), WHY states they depend on each other
- * in a loop with the quotient depth as provenance, NEXT proposes a cut or a port
- * contract and ends with the literal consent suffix. Derives from the committed
- * graph ⇒ reproducible (no `local analysis` label, no timestamp). Plain language
- * only — never "SCC" / "strongly connected component". Ranks below family.
- */
-function architectureCutNominations(cycles: ArchitectureCutCycle[]): Nomination[] {
-  const out: Nomination[] = [];
-  for (const cycle of cycles) {
-    const blockList = cycle.blocks.map((b) => `'${quoteData(b)}'`).join(', ');
-    const provenance = `structure quotient depth ${cycle.depth}`;
-    out.push({
-      id: `architecture-cut:depth${cycle.depth}:${cycle.blocks.join('|')}`,
-      classRank: CLASS_RANK.architectureCut,
-      what: `Module groups ${blockList} depend on each other in a loop.`,
-      why:
-        `at ${provenance}, these module groups each reach the other by following declared ` +
-        `dependencies — a dependency loop, not a one-way layering. Provenance: ${provenance}.`,
-      next: `Consider a cut between these module groups, or declare a contract (a port) across the boundary — requires your consent.`,
-      // Bind to the depth + the exact block set: a changed loop (blocks added or a
-      // cut declared) moves the hash, so a dismissed item returns when the
-      // structure moves; a resolved loop stops being emitted entirely.
-      evidenceHash: hashEvidence({
-        source: 'architecture-cut',
-        depth: cycle.depth,
-        blocks: cycle.blocks.join('|'),
-      }),
-      // Reproducible from the committed graph — no meaningful recency key, so all
-      // architecture-cut items tie on freshness and break to stable id order.
-      evidenceTs: '',
-    });
-  }
-  return out;
-}
-
-// ---------------------------------------------------------------------------
 // buildNominations
 // ---------------------------------------------------------------------------
 
@@ -1255,6 +1238,10 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   // --- T2: architecture-cut (below family) — one item per non-trivial quotient
   //     cycle (declared-only, reproducible); absent / acyclic ⇒ nothing ---
   nominations.push(...architectureCutNominations(sources.architectureCutCycles ?? []));
+
+  // --- Imported: proposals another tool measured, below everything the graph
+  //     derives itself. Absent ⇒ silent. ---
+  nominations.push(...importedNominations(sources.importedAdvice ?? []));
 
   nominations.sort((a, b) => {
     if (a.classRank !== b.classRank) return a.classRank - b.classRank;

@@ -1,0 +1,33 @@
+name: Port Contract Check
+type: engine
+description: >-
+  The built-in port contract check. A port may name the test that IS its
+  contract together with the version consumers pin to; this holds the two
+  together — at an unchanged version, the contract test may only be what it was
+  when that version was recorded. It reports three states through the ordinary
+  check issue set: no baseline recorded at this version (an approving run fills
+  it), a baseline that disagrees with the file on disk or names a different
+  file (the refusal the whole thing exists for, with the version bump and the
+  restore both spelled out), and a contract test that cannot be read at all
+  (fail closed — nothing is baselined and nothing is compared). It also owns the
+  recording half: an approving run, including the free deterministic-only one,
+  ADDS a baseline for a (port, version) that has none and never overwrites one
+  that exists, which is what keeps a version that was used before bound to the
+  contract it named. Deterministic and free — a content hash against a recorded
+  one, no reviewer and no key — and built in rather than an aspect: there is no
+  rule source to sharpen, no status to demote, and no suppression that reaches
+  it.
+aspects:
+  - what-why-next
+  - posix-paths-output
+relations:
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/lock
+    type: uses
+  - target: cli/io/stores
+    type: calls
+  - target: cli/utils
+    type: calls
+mapping:
+  - source/cli/src/core/checks/port-contracts.ts

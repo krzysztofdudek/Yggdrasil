@@ -1,0 +1,65 @@
+name: AdoptCommand
+type: command
+description: >-
+  `yg adopt <proposal-dir>` — the acceptance transaction, and the signature a
+  repository had no way to make before it. A proposed graph was moved into place
+  by hand: nothing checked that it would load, nothing baselined the verdicts
+  that cost nothing, nothing said how much of the code already there the new
+  rules refuse, and nothing anywhere recorded who accepted what.
+
+  This command refuses to merge over a graph that is already present (naming its
+  components, rules, flows and whether verdicts stand against it) unless
+  --replace is given, and even then the existing graph is moved aside rather
+  than deleted. It proves the proposal LOADS with the same reader every check
+  uses and holds together, deferring only the findings that are about where the
+  source files are — those run again the moment the graph is in place, and a
+  failure there rolls the whole acceptance back so the repository is exactly as
+  it was. Then it installs the local-state ignore rules a fresh setup writes,
+  records the acceptance as a log entry on the graph's own top component, and
+  baselines every rule that runs locally, free and keyless.
+
+  The summary reports what arrived: components and rules split by status, the
+  proposal's own account of its origin, how many sites in the existing code the
+  new rules already refuse (each rule's recorded measurement, which is the one
+  number nothing else can supply — a mined rule earns its status from how the
+  code is usually written, never from a check that the repository is clean
+  today), whether a reference branch narrows what blocks, and where a replaced
+  graph was kept. --dry-run answers all of it and writes nothing.
+
+  It is the second command, after init, that must run before a graph exists, so
+  it does not open one first; every error it can reach before that is its own
+  and carries what/why/next.
+aspects: []
+relations:
+  - target: cli/adopt-transaction
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/exit-after-flush
+    type: calls
+  - target: cli/det-concurrency
+    type: calls
+  - target: cli/init-scaffold
+    type: calls
+  - target: cli/rules-artifacts
+    type: calls
+  - target: cli/core/loader
+    type: calls
+  - target: cli/core/validator
+    type: calls
+  - target: cli/core/fill
+    type: calls
+  - target: cli/core/log
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/adopt.ts

@@ -1,0 +1,18 @@
+name: E2E Tests — Context as JSON
+type: test-suite
+description: "Subprocess E2E for `yg context --json`: the machine-readable
+  context document for a component and for a file, proving it names the owner,
+  the chain it inherits along, and every effective rule with its effective
+  status, inferred reviewer kind, cascade-channel provenance and read paths;
+  that the status word matches the text view's own for the same subject; that a
+  file governed by its architecture type alone reports the type, the type chain
+  and the dropped rules; that a file nothing governs and a path excluded by
+  design each answer with the reason while keeping their exit codes; and that
+  stdout carries the document alone, with the owner line and every guided error
+  unchanged on stderr."
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-context-json.test.ts

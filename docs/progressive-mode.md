@@ -148,6 +148,22 @@ That "nothing in scope" wording appears only when nothing is blocking; a run wit
 errors gets the plain shape, so the header can never contradict the list beneath
 it.
 
+### The noise floor, named
+
+A repository that has just switched a mined graph on starts with a fixed
+population of refusals standing on code nobody in the current change wrote —
+advisory ones, which warn forever, and enforced ones this run is holding outside
+your change. When any are present, one line says so:
+
+```text
+44 advisory refusals stand on code this change did not touch — that is the baseline this repository already had, not a result of your change.
+```
+
+It is a statement of fact, not a finding: never counted, never blocking, and
+absent entirely when nothing is standing there. It appears only under a
+measurement — with no reference branch there is no "code this change did not
+touch" for a run to speak of.
+
 ## What decides whether a finding is yours
 
 Your change is everything that differs from the named branch: every commit since

@@ -1,0 +1,302 @@
+{
+ "schema": "grain-advice/1",
+ "repo": ".",
+ "at": "b36f24e36e6f1b761078de4276c978717cd65a86",
+ "graph": ".yggdrasil",
+ "items": [
+  {
+   "kind": "relation",
+   "nodes": [
+    "cli/io/parsers/config",
+    "cli/tests/unit/support/io/config-parser"
+   ],
+   "confidence": 0.652,
+   "evidence": {
+    "coChanged": 15,
+    "ofA": 0.682,
+    "ofB": 0.652,
+    "declared": true,
+    "declaredVia": "relation",
+    "witnessA": "source/cli/src/io/config-parser.ts#method#parseConfig",
+    "witnessB": "source/cli/tests/unit/io/config-parser.test.ts#case#config-parser",
+    "commitsA": 22,
+    "commitsB": 23,
+    "witnessPairs": 1,
+    "witnessFilePairs": 1
+   },
+   "text": "Config Parsers and Config Parser Tests change together: `parseConfig` (source/cli/src/io/config-parser.ts) and `config-parser` (source/cli/tests/unit/io/config-parser.test.ts) were touched in the same commit 15 times \u2014 15 of 22 for one, 15 of 23 for the other. The architecture already connects them."
+  },
+  {
+   "kind": "relation",
+   "nodes": [
+    "cli/commands/build-context",
+    "cli/commands/owner"
+   ],
+   "confidence": 0.5,
+   "evidence": {
+    "coChanged": 10,
+    "ofA": 0.5,
+    "ofB": 0.526,
+    "declared": true,
+    "declaredVia": "relation",
+    "witnessA": "source/cli/src/cli/build-context.ts#method#contextAction",
+    "witnessB": "source/cli/src/cli/owner.ts#method#registerOwnerCommand",
+    "commitsA": 20,
+    "commitsB": 19,
+    "witnessPairs": 2,
+    "witnessFilePairs": 1
+   },
+   "text": "BuildContextCommand and OwnerCommand change together: `contextAction` (source/cli/src/cli/build-context.ts) and `registerOwnerCommand` (source/cli/src/cli/owner.ts) were touched in the same commit 10 times \u2014 10 of 20 for one, 10 of 19 for the other. The architecture already connects them. 1 other pair of declarations move with them; the strongest one is quoted here, and the rest are not counted as extra evidence."
+  },
+  {
+   "kind": "split",
+   "nodes": [
+    "cli/tests/fixtures"
+   ],
+   "candidates": [
+    "source/cli/tests/fixtures/family-planted-mono",
+    "source/cli/tests/fixtures/java-ancestor-root-shadow",
+    "source/cli/tests/fixtures/port-contract",
+    "source/cli/tests/fixtures/portal-basic",
+    "source/cli/tests/fixtures/portal-fresh",
+    "source/cli/tests/fixtures/portal-mixed",
+    "source/cli/tests/fixtures/python-modpkg-shadow",
+    "source/cli/tests/fixtures/runcheck-parity",
+    "source/cli/tests/fixtures/runcheck-parity-drift",
+    "source/cli/tests/fixtures/runcheck-parity-return-shapes",
+    "source/cli/tests/fixtures/runcheck-parity-unrecognized",
+    "source/cli/tests/fixtures/sample-project-ports",
+    "source/cli/tests/fixtures/type-relation-gate",
+    "source/cli/tests/fixtures/e2e-companion/references"
+   ],
+   "evidence": {
+    "node": {
+     "files": 602,
+     "importsInside": 29,
+     "importsCrossing": 12,
+     "mined": 522,
+     "purity": 0.707,
+     "cochangeInside": 0,
+     "cochangeCrossing": 0
+    },
+    "candidates": [
+     {
+      "path": "source/cli/tests/fixtures/family-planted-mono",
+      "reason": "tighter",
+      "files": 18,
+      "importsInside": 2,
+      "importsCrossing": 0,
+      "mined": 16,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/java-ancestor-root-shadow",
+      "reason": "tighter",
+      "files": 10,
+      "importsInside": 2,
+      "importsCrossing": 0,
+      "mined": 10,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/port-contract",
+      "reason": "tighter",
+      "files": 12,
+      "importsInside": 2,
+      "importsCrossing": 0,
+      "mined": 11,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/portal-basic",
+      "reason": "tighter",
+      "files": 10,
+      "importsInside": 1,
+      "importsCrossing": 0,
+      "mined": 9,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/portal-fresh",
+      "reason": "tighter",
+      "files": 12,
+      "importsInside": 1,
+      "importsCrossing": 0,
+      "mined": 9,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/portal-mixed",
+      "reason": "tighter",
+      "files": 12,
+      "importsInside": 1,
+      "importsCrossing": 0,
+      "mined": 11,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/python-modpkg-shadow",
+      "reason": "tighter",
+      "files": 14,
+      "importsInside": 2,
+      "importsCrossing": 0,
+      "mined": 14,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/runcheck-parity",
+      "reason": "tighter",
+      "files": 16,
+      "importsInside": 9,
+      "importsCrossing": 0,
+      "mined": 16,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/runcheck-parity-drift",
+      "reason": "tighter",
+      "files": 8,
+      "importsInside": 1,
+      "importsCrossing": 0,
+      "mined": 8,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/runcheck-parity-return-shapes",
+      "reason": "tighter",
+      "files": 9,
+      "importsInside": 2,
+      "importsCrossing": 0,
+      "mined": 9,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/runcheck-parity-unrecognized",
+      "reason": "tighter",
+      "files": 8,
+      "importsInside": 1,
+      "importsCrossing": 0,
+      "mined": 8,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/sample-project-ports",
+      "reason": "tighter",
+      "files": 9,
+      "importsInside": 1,
+      "importsCrossing": 0,
+      "mined": 9,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/type-relation-gate",
+      "reason": "tighter",
+      "files": 7,
+      "importsInside": 4,
+      "importsCrossing": 0,
+      "mined": 7,
+      "purity": 1,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     },
+     {
+      "path": "source/cli/tests/fixtures/e2e-companion/references",
+      "reason": "unread",
+      "files": 3,
+      "importsInside": 0,
+      "importsCrossing": 0,
+      "mined": 0,
+      "purity": null,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     }
+    ]
+   },
+   "text": "Test Fixtures owns 602 files, and a finer cut beats it on its own evidence: `source/cli/tests/fixtures/family-planted-mono` holds 18 of them and keeps 2 of the 2 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/java-ancestor-root-shadow` holds 10 of them and keeps 2 of the 2 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/port-contract` holds 12 of them and keeps 2 of the 2 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/portal-basic` holds 10 of them and keeps 1 of the 1 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/portal-fresh` holds 12 of them and keeps 1 of the 1 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/portal-mixed` holds 12 of them and keeps 1 of the 1 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/python-modpkg-shadow` holds 14 of them and keeps 2 of the 2 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/runcheck-parity` holds 16 of them and keeps 9 of the 9 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/runcheck-parity-drift` holds 8 of them and keeps 1 of the 1 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/runcheck-parity-return-shapes` holds 9 of them and keeps 2 of the 2 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/runcheck-parity-unrecognized` holds 8 of them and keeps 1 of the 1 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/sample-project-ports` holds 9 of them and keeps 1 of the 1 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/type-relation-gate` holds 7 of them and keeps 4 of the 4 imports that touch it inside, a tighter boundary than the node's own 29 of 41; `source/cli/tests/fixtures/e2e-companion/references` holds 3 of them and grain could read none \u2014 a different kind of place from the rest of the node, which it could read. It may have outgrown one context."
+  },
+  {
+   "kind": "split",
+   "nodes": [
+    "docs/site"
+   ],
+   "candidates": [
+    "docs/public"
+   ],
+   "evidence": {
+    "node": {
+     "files": 12,
+     "importsInside": 0,
+     "importsCrossing": 0,
+     "mined": 4,
+     "purity": null,
+     "cochangeInside": 0,
+     "cochangeCrossing": 1
+    },
+    "candidates": [
+     {
+      "path": "docs/public",
+      "reason": "unread",
+      "files": 7,
+      "importsInside": 0,
+      "importsCrossing": 0,
+      "mined": 0,
+      "purity": null,
+      "cochangeInside": 0,
+      "cochangeCrossing": 0
+     }
+    ]
+   },
+   "text": "Docs Site Config owns 12 files, and a finer cut beats it on its own evidence: `docs/public` holds 7 of them and grain could read none \u2014 a different kind of place from the rest of the node, which it could read. It may have outgrown one context."
+  }
+ ],
+ "survey": {
+  "nodes": 442,
+  "nodesWithFiles": 408,
+  "files": 3089,
+  "filesWithAnOwningNode": 2137,
+  "scopePairs": 5,
+  "pairs": 2,
+  "declared": 2,
+  "undeclared": 0,
+  "declaredBy": {
+   "relation": 2,
+   "ancestor-relation": 0,
+   "containment": 0
+  },
+  "hottestNode": {
+   "node": "cli/commands/build-context",
+   "pairs": 1,
+   "share": 0.5
+  },
+  "control": {
+   "nodePairs": 83028,
+   "declared": 1838,
+   "rate": 0.0221
+  },
+  "splits": 2
+ }
+}

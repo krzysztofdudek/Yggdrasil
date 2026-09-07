@@ -16,6 +16,7 @@
 import type { ValidationIssue } from '../model/validation.js';
 import type { TypeVisibilityReport } from './type-visibility.js';
 import type { VerifiedPair } from './verify-lock.js';
+import type { BaselineNoise } from './check-progressive.js';
 
 export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   /** All issues have a code -- override optional from ValidationIssue */
@@ -141,4 +142,24 @@ export interface CheckResult {
    * scope was supplied.
    */
   byteGuardUnavailable?: boolean;
+  /**
+   * How much of this report stands on code the change never touched — the
+   * standing floor the repository already had, split by how each half got
+   * there. Undefined whenever no scope was supplied, which is every run that
+   * does not measure changes against a branch: with nothing to measure
+   * against there is no "untouched code" to speak of, and a zero would claim
+   * one.
+   */
+  baselineNoise?: BaselineNoise;
+  /**
+   * True when NOTHING is required to be covered, so a file no component owns
+   * can never fail a check however long it stays that way.
+   *
+   * Reported because that consequence is invisible: the uncovered files ARE
+   * listed either way and only their severity differs, and severity is the one
+   * thing a reader cannot see from a list. It is also the shipped default — a
+   * fresh project and a mined proposal both start there — so the state is
+   * common rather than exotic.
+   */
+  coverageRequiresNothing?: boolean;
 }

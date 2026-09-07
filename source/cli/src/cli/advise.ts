@@ -26,6 +26,11 @@ import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { appendDecision, readDecisions, type AdviseDecision } from '../io/advise-decisions-store.js';
+import { readImported, appendImported } from '../io/advise-imported-store.js';
+import { parseGrainAdvice, partitionNewImports, GRAIN_ADVICE_SCHEMA } from '../core/advise-import.js';
+import { ADVISE_JSON_SCHEMA, formatAdviseJson } from '../formatters/advise-json.js';
+import type { AdviseJsonDocument, AdviseJsonItem } from '../formatters/advise-json.js';
+import { readFile } from 'node:fs/promises';
 import { readDrillResults } from '../io/drill-results-reader.js';
 import { filterInCorpusDevDrills } from '../core/drill-runner.js';
 import type { DrillResultLine } from '../io/drill-results-store.js';
@@ -646,6 +651,13 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (architectureCutCycles.length > 0) {
     sources.architectureCutCycles = architectureCutCycles;
   }
+  // Proposals another tool measured and handed over, read from the committed
+  // register. Empty ⇒ left unset ⇒ the class is silent. A line this build cannot
+  // read is dropped by the tolerant reader rather than blocking the feed.
+  const importedAdvice = readImported(graph.rootPath).imported;
+  if (importedAdvice.length > 0) {
+    sources.importedAdvice = importedAdvice;
+  }
   return { sources, tunnelCount };
 }
 
@@ -723,6 +735,40 @@ function renderNominations(
   return parts.join('\n');
 }
 
+/**
+ * The same feed as one machine document — the identical `visible` / `hidden`
+ * split the text view renders, projected rather than recomputed.
+ *
+ * The item cap is deliberately NOT applied here: it is a rendering choice about
+ * a wall of prose, and a document that quietly dropped items would understate
+ * what the graph is holding. Provenance travels with each item, so a consumer
+ * can always tell a proposal another tool measured from a finding this graph
+ * made itself.
+ */
+function buildAdviseJson(
+  attention: string[],
+  visible: VisibleNomination[],
+  hidden: Nomination[],
+): AdviseJsonDocument {
+  const project = (nom: Nomination): AdviseJsonItem => {
+    const item: AdviseJsonItem = {
+      id: nom.id,
+      what: nom.what,
+      why: nom.why,
+      next: nom.next,
+      evidenceHash: nom.evidenceHash,
+    };
+    if (nom.provenance !== undefined) item.provenance = nom.provenance;
+    return item;
+  };
+  return {
+    schema: ADVISE_JSON_SCHEMA,
+    attention,
+    items: visible.map(project),
+    suppressed: hidden.map(project),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // dismiss / defer helpers (resolve against the SAME live nominations the feed
 // renders, so every rendered item is dismissable / deferrable)
@@ -756,6 +802,29 @@ function resolveNominationOrFail(noms: Nomination[], id: string): Nomination {
   return nomination;
 }
 
+/**
+ * Read the proposal document: a file, or standard input when the caller passes
+ * `-`. Standard input is how a producer's own `--json` output is piped straight
+ * in without a temporary file ever existing.
+ */
+async function readImportSource(source: string): Promise<string> {
+  if (source === '-') {
+    const chunks: Buffer[] = [];
+    for await (const chunk of process.stdin) chunks.push(Buffer.from(chunk));
+    return Buffer.concat(chunks).toString('utf-8');
+  }
+  try {
+    return await readFile(path.resolve(process.cwd(), source), 'utf-8');
+  } catch (err) {
+    debugWrite(`[advise] import source unreadable: ${err instanceof Error ? err.message : String(err)}`);
+    failWith({
+      what: `The proposal document '${quoteData(source)}' could not be read.`,
+      why: 'An import reads one whole document; without it there is nothing to bring into the feed.',
+      next: `Check the path, or pipe the producer's own output in with: yg advise import -`,
+    });
+  }
+}
+
 /** Reject an empty (or whitespace-only) reason before anything is written. */
 function requireNonEmptyReason(reason: string, action: 'dismiss' | 'defer'): void {
   if (reason.trim() !== '') return;
@@ -784,9 +853,24 @@ export function registerAdviseCommand(program: Command): void {
     )
     .option('--all', 'Show every nomination (remove the cap) and list dismissed / deferred items')
     .option('--ids', 'Print the stable id under each nomination (for dismiss / defer)')
-    .action(async (opts: { all?: boolean; ids?: boolean }) => {
+    .option('--json', `Machine-readable output: one ${ADVISE_JSON_SCHEMA} document on stdout instead of the feed — every item, uncapped, each with its provenance.`)
+    .action(async (opts: { all?: boolean; ids?: boolean; json?: boolean }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
+        // The two rendering selectors are refused rather than ignored: the document
+        // already carries EVERY visible item and every item's id, so a caller that
+        // passed one asked for something the machine form cannot vary — and silently
+        // accepting it would let them believe the output was narrowed or widened.
+        if (opts.json === true && (opts.all === true || opts.ids === true)) {
+          const passed = [opts.all === true ? '--all' : null, opts.ids === true ? '--ids' : null]
+            .filter((f): f is string => f !== null)
+            .join(' and ');
+          failWith({
+            what: `${passed} cannot be combined with --json.`,
+            why: 'Both shape the feed for a reader: --all lifts the ten-item display cap and --ids prints an id under each item. The machine document already carries every visible item, uncapped, each with its id — so neither flag could change it, and accepting one would suggest it had.',
+            next: 'Run: yg advise --json (the whole feed as one document), or drop --json for the reader view.',
+          });
+        }
         // Injected UTC clock at the boundary (Task 1 pattern) — the engine keeps
         // no Date.now of its own.
         const now = new Date();
@@ -815,6 +899,11 @@ export function registerAdviseCommand(program: Command): void {
           wrongRuleIncidentCount,
         });
 
+        if (opts.json === true) {
+          process.stdout.write(formatAdviseJson(buildAdviseJson(attention, visible, hidden)));
+          return;
+        }
+
         const output = [
           renderAttention(attention),
           '',
@@ -824,6 +913,38 @@ export function registerAdviseCommand(program: Command): void {
         process.stdout.write(output);
         // Always exit 0 when the graph loads — this is a read-only attention layer,
         // never a gate (G4).
+      } catch (error) {
+        handleError(error);
+      }
+    });
+
+  advise
+    .command('import')
+    .description(`Bring another tool's proposals into the feed from a ${GRAIN_ADVICE_SCHEMA} document (a path, or - for standard input)`)
+    .argument('<path>', `Path to the ${GRAIN_ADVICE_SCHEMA} document, or - to read it from standard input`)
+    .action(async (source: string) => {
+      try {
+        const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
+        const text = await readImportSource(source);
+        // The importing command's own clock, read once at the boundary — the
+        // parser keeps none of its own.
+        const nowIso = new Date().toISOString();
+        const parsed = parseGrainAdvice(text, nowIso);
+        if (!parsed.ok) failWith(parsed.error);
+
+        const existing = readImported(graph.rootPath).imported;
+        const { fresh, alreadyHeld } = partitionNewImports(parsed.records, existing);
+        for (const record of fresh) await appendImported(graph.rootPath, record);
+
+        const held = alreadyHeld.length > 0
+          ? ` ${alreadyHeld.length} ${alreadyHeld.length === 1 ? 'was' : 'were'} already recorded and ${alreadyHeld.length === 1 ? 'was' : 'were'} not added again.`
+          : '';
+        process.stdout.write(
+          chalk.green(
+            `Recorded ${fresh.length} proposal${fresh.length === 1 ? '' : 's'} from '${quoteData(parsed.records[0]?.source ?? 'the document')}'.${held}\n`,
+          ) +
+            'They are proposals, not decisions: each appears in yg advise for you to weigh, dismiss or defer.\n',
+        );
       } catch (error) {
         handleError(error);
       }

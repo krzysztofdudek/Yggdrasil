@@ -1,0 +1,10 @@
+# PROPOSAL — written by grain from evidence in this repository. Nothing here is verified.
+
+# evidence: 2 of them are code grain parsed and grouped as one unit of the dependency graph; maps 2 tracked files; 0 outgoing dependencies from 0 resolved imports
+name: src
+type: src
+description: "Proposed node for `src`."
+aspects: []
+mapping:
+  - src/
+relations: []

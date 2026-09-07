@@ -7,7 +7,14 @@ description: "Lock verification consumed by yg check — pure recomputation, no
   keys' current values) and classifies each as valid-approved, valid-refused
   (cached), or missing/stale (unverified). Missing reference/subject bytes fold
   as empty so a disappeared input surfaces as unverified rather than silently
-  passing. verifyPairs exposes the same per-pair classification over a
+  passing. It carries three facts ABOUT a classified pair alongside it, none of
+  which decides validity: the hash the lock recorded, whether an entry existed
+  at all (the half of unverified that was judged once over code that has since
+  moved, as against one never judged), and who judged when the judge was not a
+  configured reviewer. The gate treats both halves of unverified identically —
+  both block, both clear the same way — but they are different facts about the
+  repository, and a machine consumer deciding what to schedule wants the
+  difference the text report deliberately spends one word on. verifyPairs exposes the same per-pair classification over a
   CALLER-SUPPLIED pairs slice, skipping verifyLock's own whole-project
   computeExpectedPairs call — yg owner --file and yg context --file each use
   it to re-verify only the one file they were asked about (missing or stale,

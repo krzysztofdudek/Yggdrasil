@@ -1,0 +1,26 @@
+name: E2E Tests — External judge channel
+type: test-suite
+description: >-
+  Subprocess E2E for yg verdict, driven end to end against a real fixture whose
+  configured provider is never reachable and never called — the state an adopter
+  with no key is actually in. Proves the review package names the rule, the code
+  and the tier's constraints while carrying no provider, model or credential
+  into a document handed outside the repository; that it carries one hash per
+  verdict token; that a recorded pass turns the pair green with no reviewer
+  involved, lands in the committed lock shaped like any other verdict with the
+  judge beside it, and is named in yg check's own report and in the
+  machine-readable inventory; that touching the judged file drops the verdict
+  out of force, which is how CI re-proves it; that a refusal is recorded with
+  its report and rendered by yg check crediting its judge in both the grouped
+  and the ungrouped view; that every refusal path says what, why and next — a
+  rule that runs as a local check, a unit the rule does not have, a hash that no
+  longer matches the tree, a refusal with no report, a word that is not a
+  verdict — and writes nothing; and that recording is not approving: a pair
+  already holding a verdict is not pending, and everything else the project owes
+  is still owed.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-verdict-external-judge.test.ts

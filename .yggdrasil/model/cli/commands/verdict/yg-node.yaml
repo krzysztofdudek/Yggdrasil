@@ -1,0 +1,53 @@
+name: VerdictCommand
+type: command
+description: >-
+  The external-judge channel, via yg verdict. A judge outside the configured
+  reviewer — a person, or another tool already reading the change — asks for the
+  exact review package a provider would have received (one versioned machine
+  document naming the rule text, the subject files, the companions, the tier's
+  constraints, and the content hash the judgement will bind to, one per verdict
+  token), decides, and records that decision under its own name against the hash
+  it was given. The verdict lands in the lock exactly as a provider's would, so
+  CI re-proves it by hashing with no key and no judge present, and it carries
+  the judge's name so a green run never rests on a judgement with no visible
+  author. It refuses what it must not accept: a rule that runs as a local check
+  is machine-only and never judged here; a pair that already holds a verdict for
+  exactly these inputs is not pending; a hash that no longer matches the working
+  tree means the code moved since the package was printed and the judgement
+  would attach to code the judge never saw; and a refusal with no violation
+  report leaves the author nothing to fix. A third form lists what has been
+  recorded this way and whether each verdict still holds, as text or as a
+  versioned document. Recording is NOT approving: it fills one pending pair and
+  leaves every suppression and status rule untouched.
+aspects: []
+relations:
+  - target: cli/core/loader
+    type: calls
+  - target: cli/core/pairs
+    type: calls
+  - target: cli/core/verify-lock
+    type: calls
+  - target: cli/core/review-package
+    type: calls
+  - target: cli/core/reviewer-tiers
+    type: calls
+  - target: cli/llm/shared
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/io/lock-store
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/lock
+    type: uses
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/verdict.ts

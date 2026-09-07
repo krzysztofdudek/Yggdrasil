@@ -13,11 +13,13 @@ This page is for inspecting or debugging your graph and enforcement state.
 
 | Command | Purpose |
 |---------|---------|
-| `yg context --file <path>` / `--node <path>` | Assemble context package |
-| `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis |
-| `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)) |
+| `yg context --file <path>` / `--node <path>` | Assemble context package (`--json` for the machine-readable form) |
+| `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis (`--json` for the machine-readable form) |
+| `yg node <path>` | One component's structure — what it owns, what it depends on, the ports it publishes (`--json` for the machine-readable form) |
+| `yg verdict package` / `record` / `read` | Let a judge outside the CLI review one pending rule and record the verdict |
+| `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)). `--json` for the machine-readable form |
 | `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
-| `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes only the gitignored cache |
+| `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes the gitignored cache, plus a port's contract baseline when one is missing |
 | `yg log add` / `read` / `merge-resolve` | Per-node append-only business log |
 
 ### `yg context`
@@ -73,6 +75,65 @@ It is on by default; silence it with `signals: { attention: false }` in
 `yg-config.yaml`. See [Structural attention](/feature-field) for what it means
 and its honest limits.
 
+#### `--json` — the same package, for a tool
+
+`--json` replaces the text package with one `yg-context/1` document on stdout.
+It works with `--node` and `--file` alike, carries the same facts, and keeps
+every exit code and every error message exactly as they are (diagnostics stay on
+stderr). Use it when something above the agent — an orchestrator picking work, a
+dashboard, a build step — needs to know what governs a file without reading
+prose. That includes the one fact nothing else in the CLI exposes per rule: its
+effective status.
+
+The document names the subject, what its rules are anchored to (`owner`), the
+chain it inherits along nearest-first (`chain` — a component and its type at each
+link, or `node: null` and a type for a file governed by its architecture type
+alone), and every effective rule. Each rule carries its `id`, effective `status`,
+reviewer `kind` (`llm`, `deterministic` or `aggregate`), `name`, `description`,
+the `channels` it arrived through (the numbered cascade channel, its kind, and a
+machine-readable origin such as `type:command` or `flow:checkout`), any
+`impliedBy` rules, and the `read` paths an agent must open before editing.
+
+```json
+{
+  "schema": "yg-context/1",
+  "target": { "kind": "file", "path": "src/services/orders.ts" },
+  "owner": { "kind": "node", "path": "services/orders", "type": "service" },
+  "chain": [
+    { "node": "services/orders", "type": "service" },
+    { "node": "services", "type": "module" }
+  ],
+  "aspects": [
+    {
+      "id": "no-todo-comments",
+      "status": "enforced",
+      "kind": "deterministic",
+      "name": "NoTodoComments",
+      "description": "Source files must not contain TODO comments.",
+      "channels": [
+        { "number": 3, "kind": "own-type", "origin": "type:service", "declaredStatus": "enforced" },
+        { "number": 5, "kind": "flow", "origin": "flow:order-processing", "declaredStatus": "enforced" }
+      ],
+      "read": [".yggdrasil/aspects/no-todo-comments/check.mjs"]
+    }
+  ]
+}
+```
+
+Every outcome the command has gets a document, not only the ones with rules. A
+file governed by its architecture type alone reports `owner.kind: "type"` with
+the matched type, where the inherited chain stops, and a `dropped` list of the
+type's rules that do not apply here with the reason for each. A file nothing
+governs reports `owner.kind: "none"` with `reason: "unmapped"` (and still exits
+1); a path Yggdrasil never scans reports the same shape with
+`reason: "excluded"` (and still exits 0) — so a consumer can tell an exemption
+from a coverage gap instead of guessing from an empty rule list. With `--json`,
+stdout carries that document and nothing else: the owner line is suppressed and
+the structural-attention sentence becomes an `attention` field.
+
+New fields may appear within `yg-context/1`; only a change to an existing
+field's shape takes a new schema number.
+
 ### `yg impact`
 
 Predicts which pairs an edit to a node, aspect, flow, or type would invalidate —
@@ -116,6 +177,129 @@ yg impact --type <id>
   before adding a default aspect to a type — see how many nodes would be affected.
 
 Exactly one of `--node`, `--file`, `--aspect`, `--flow`, or `--type` is required.
+
+`--json` renders the component modes — `--node`, and `--file` once it has
+resolved the owning component — as one `yg-impact/1` document on stdout instead
+of the text report, for a tool rather than a reader. The document names the
+`subject`; every port the component publishes under `ports`, each with its
+`version`, its `test` and the `consumers` that name it in a `consumes:` list;
+every component that depends on it under `dependents`, each marked `direct` (it
+declares a relation onto the subject, and `relations` names each relation's type
+and the ports it consumes) or not (reached through other components, so
+`relations` is empty); and, under `transitive`, each indirect dependent with the
+`via` path it is reached through.
+
+Both target forms produce the same document for the same component, byte for
+byte. Under `--json` stdout carries that document alone: the owner-resolution
+line `--file` normally prints is suppressed, and every redirect that produces no
+document — a graph file, a path excluded from coverage by design, a file no
+component owns — moves to stderr with its exit code unchanged. A `--json` run
+that already has its component also skips the per-pair cost enumeration; cost is
+the text report's job, not the document's.
+
+`--json` is refused for `--aspect`, `--flow` and `--type`: their subject is not a
+component, and a second document shape must not hide behind the same schema tag.
+New fields may appear within `yg-impact/1`; only a change to an existing field's
+shape takes a new schema number.
+
+### `yg check --json`
+
+The same run as one `yg-check/1` document instead of the report, for anything
+that reads it programmatically — a build step deciding what to schedule, a
+dashboard, a release gate computing a quality index. Parsing the text report was
+the alternative, and that report is written to be read: every wording
+improvement in it broke whoever was scraping it.
+
+```bash
+yg check --json
+yg check --approve --only-deterministic --json
+```
+
+The document carries what the report says: the project's counts, the exit code
+with the reason for it, coverage (files, covered, and whether anything is
+required to be covered at all), the totals by severity and by verdict, every
+expected pair, every finding as structured `what` / `why` / `next`, who judged
+outside the configured reviewer, the standing floor when the project measures
+changes against a branch, and the one suggested next step.
+
+Each pair names its rule, its subject, the status that decides whether a finding
+blocks, what the lock currently says, who answers for it — a local check as
+itself, an outside judge under their own name, otherwise the reviewer tier — and
+the hash the verdict is bound to. Two words the report deliberately spends one
+on are separate here: `unverified` is a pair nothing has ever judged, `stale` is
+one that was judged over code that has since moved. Both block; they are
+different facts.
+
+It composes with the fill flags and leaves every exit code exactly as it was.
+Under `--json`, stdout carries the document alone — even the cost preview
+`--dry-run` normally prints moves to stderr. It is refused together with
+`--top`, `--summary`, `--details` and `--aspect`: those narrow the text report,
+and the document always carries the whole run, so a trimmed one would read as a
+smaller problem rather than a smaller rendering.
+
+New fields may appear within `yg-check/1`; only a change to an existing field's
+shape takes a new schema number.
+
+### `yg node`
+
+Shows one component's structure — what it *is*, not what it must satisfy.
+
+```bash
+yg node orders/order-service
+yg node orders/order-service --json
+```
+
+Both views carry the same facts, from the same document: the component's name,
+type and description; the files it owns (`mapping`); the components it declares
+a dependency on (`relations`, each with the ports it `consumes`); the ports it
+publishes (`ports`, each with its `description`, contract `version`, contract
+`test`, and the `aspects` a consumer of that port must satisfy); and where it
+sits in the hierarchy (`children`, `parent`).
+
+It deliberately carries no rule set. What a subject must satisfy is
+[`yg context`](#yg-context)'s answer — assembled from the full seven-channel
+cascade, with each rule's effective status — and a partial copy here would give
+you two places to learn one fact, and one of them to get wrong. A port's
+`aspects` is not that: it is the contract the port declares onto its consumers,
+part of the component's own structure.
+
+A path naming no component is refused with what/why/next and exit 1. New fields
+may appear within `yg-node/1`; only a change to an existing field's shape takes a
+new schema number.
+
+### `yg verdict`
+
+Lets a judge outside the configured reviewer — a person, or another tool already
+reading the change — judge one pending prose rule and have Yggdrasil keep the
+verdict as its own. Full walkthrough on [Reviewers](/reviewers).
+
+```bash
+yg verdict package --aspect <id> --node <path>   # or --file <path>
+yg verdict record  --aspect <id> --node <path> --by <name> --verdict pass --hash <sha>
+yg verdict record  --aspect <id> --node <path> --by <name> --verdict refused \
+  --report "<what is wrong and where>" --hash <sha>
+yg verdict read [--by <name>] [--json]
+```
+
+- `package` — prints one `yg-review/1` document: the rule's own text, the subject
+  files, any references and companion files, the tier's constraints (its name,
+  consensus and prompt ceiling — never its provider, model or credentials), and
+  one hash per verdict token. Only for a pair that is pending — unverified, or
+  refused — and only for a rule a reviewer judges; a rule that runs as a local
+  check is machine-only.
+- `record` — writes the judgement into the lock exactly as a provider's verdict
+  is written, with `--by <name>` beside it. `--hash` is the hash from the package
+  for the verdict being recorded; it is refused if the working tree has moved
+  since. A refusal needs `--report` (or `--report-file`). Recording is **not**
+  approving: it fills one pending pair, and `yg check --approve`, suppressions
+  and statuses are all unchanged.
+- `read` — lists every verdict recorded this way and whether each still holds,
+  as text or as a `yg-verdicts/1` document.
+
+`yg check` then treats such a verdict like any other: it is re-proved by hashing
+with no key and no judge present, it falls out of force the moment the code it
+judged changes, and the report names who judged — once as a standing line for
+the run, and on the refusal itself.
 
 ### `yg check`
 
@@ -452,8 +636,8 @@ yg log merge-resolve --node <path>
 | `yg tree [--root <path>] [--depth <n>]` | Graph structure |
 | `yg structure` | Read-only structural dashboard: tunnels, module groups, change reach |
 | `yg find "<query>"` | Natural-language graph search |
-| `yg aspects` [`--health`] | List aspects; `--health` adds the per-rule health row |
-| `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` | Read-only attention feed; never gates |
+| `yg aspects` [`--health`] / `log add` / `log read` | List aspects (`--health` adds the per-rule health row); `log` is a rule's own history |
+| `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` / `import` | Read-only attention feed; never gates (`--json` for the machine-readable form) |
 | `yg incident add` / `read` | The committed incident ledger — what escaped enforcement |
 | `yg flows` | List flows |
 | `yg owner --file <path>` | Quick ownership lookup |
@@ -631,6 +815,47 @@ unavailable (a shallow clone or no repository), never a fabricated `0`. These lo
 only in this view — the plain `yg aspects` listing stays unchanged. The view is read-only and
 never calls a reviewer.
 
+#### `yg aspects --json`
+
+The rule inventory as one `yg-aspects/1` document: each rule's id, name and
+description, its reviewer kind and tier, its status, its standing review date,
+its error direction, what it implies, how many places it reaches (split by the
+channel it arrived through) and how many cases sit in its drill corpus. The
+corpus is counted, never run. `--health` is a different and far more expensive
+projection and is refused together with `--json`. Each rule also carries the last
+thing its own log recorded — when, and what it said about where the rule stands —
+so a reader of the document does not have to open files.
+
+#### `yg aspects log` — a rule's own history
+
+A component has always had a log beside it saying why it is the way it is. A rule
+has one too, in `.yggdrasil/aspects/<id>/log.md`, and these are its two commands —
+the exact counterparts of [`yg log add` / `yg log read`](#yg-log), on the same
+entry rules:
+
+```bash
+yg aspects log add --aspect no-raw-sql --reason "Written after the outage on the 3rd: a hand-built query shipped and nothing refused it."
+yg aspects log add --aspect no-raw-sql --status enforced \
+  --evidence "a month advisory, no false alarms" --by "the architect" \
+  --reason "Promoted once it had run clean long enough to trust."
+yg aspects log read --aspect no-raw-sql --limit 5
+yg aspects log read --aspect no-raw-sql --json   # one yg-aspect-log/1 document
+```
+
+`--status` **records** a change of standing; it does not make one. The rule's own
+file stays yours to edit, so the command refuses a standing the file does not
+already carry — a history that claimed a change nobody made would be worse than
+none. Recording one requires `--evidence`: what justified the move is the part
+nobody can reconstruct a year later. Where it moved *from* is taken from the
+rule's own history, or failing that from the standing the tool last saw; when
+neither knows, the entry says so rather than guessing.
+
+**A standing changed by hand is noticed.** `yg check` reports a rule standing
+somewhere other than where the tool last saw it — a warning, never a failure,
+because moving a rule is not a violation of anything — and the next
+`yg check --approve` writes the bare fact into that rule's log and stops
+mentioning it. A change you recorded yourself is never written a second time.
+
 ### `yg advise`
 
 A read-only attention layer over the graph. With no subcommand it prints two sections:
@@ -678,8 +903,10 @@ class; these two do not add slots of their own.
 yg advise                                              # the two-section feed
 yg advise --all                                        # remove the 10-item cap; also list dismissed / deferred
 yg advise --ids                                        # print each item's stable id
+yg advise --json                                       # the same feed as one machine-readable document
 yg advise dismiss <id> --reason "reviewed, keeping"    # hide until the evidence changes
 yg advise defer <id> --until 2027-01-31 --reason "…"   # hide until a date, then it returns
+yg advise import proposals.json                        # take in another tool's proposals
 ```
 
 `--reason` is mandatory (recorded precedent must carry a human-signed justification). Decisions
@@ -691,6 +918,48 @@ Dismissing or deferring is human-signature territory, the same authorization cla
 `yg check` passes, and never appears in the suggested next step. A read-only, keyless CI job that
 runs `yg advise --all` into a pinned issue on a weekly rhythm is a documented **pattern** to
 copy — not a shipped default.
+
+#### `yg advise --json`
+
+The same feed as one `yg-advise/1` document: the attention aggregates, the ranked
+items, and the ones a recorded decision currently hides, each with its stable id,
+its what / why / next, and the hash of the evidence it rests on. `--json` prints
+every visible item — the ten-item cap is a rendering choice for a reader, not part
+of the data — so `--all` changes nothing about which items appear and is refused
+together with `--json`; `--ids` is likewise refused, because every item carries its
+id already. An item another tool proposed carries a `provenance` object naming that
+tool and the commit it measured at; an item this graph derived itself carries none,
+which is what makes its presence meaningful.
+
+#### `yg advise import`
+
+Takes in proposals another tool measured over this repository and puts them on the
+feed:
+
+```bash
+yg advise import proposals.json    # from a file
+some-tool advise --json | yg advise import -    # from standard input
+```
+
+The document must name a contract this build reads — today that is
+`grain-advice/1` — and each of its items must name a kind this graph has
+vocabulary for (`relation`, `split`, `port`, `rule`), the components it is about,
+and its own one-line statement. Anything else is refused with what happened, why it
+matters and what to do next, and **nothing is recorded**: a half-imported document
+would leave the register claiming things nobody vouched for.
+
+Accepted proposals are appended one per line to `.yggdrasil/advise-imported.jsonl`,
+which is **committed** (a proposal is a fact about this repository at a commit, and
+it must survive a clone) and carries a `merge=union` attribute so branches merge
+cleanly. Each line keeps the producer's own evidence **verbatim** — this tool never
+re-derives or summarizes it — so a reader can always tell what another tool observed
+from what this graph concluded. Importing the same document twice adds nothing; the
+same proposal measured again at a **later commit** is a new one, because the evidence
+behind it was taken again over code that has moved.
+
+**Importing is not accepting.** An imported item appears on the feed as a proposal
+like any other, ranked below every class the graph derives itself, and acting on it —
+or dismissing or deferring it — remains your own recorded decision.
 
 ### `yg incident`
 
@@ -897,7 +1166,7 @@ yg schemas read node
 | Command                                                          | Purpose                               |
 |------------------------------------------------------------------|---------------------------------------|
 | `yg aspect-test --aspect <id> --node <path>` / `--file <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
-| `yg drill --aspect <id>`                                         | Replay a rule over its `drills/` case corpus (`violates-*` must refuse, `satisfies-*` must pass); never writes the lock |
+| `yg drill --aspect <id>` / `add`                                 | Replay a rule over its `drills/` case corpus (`violates-*` must refuse, `satisfies-*` must pass); `add` takes a real file at a commit into that corpus. Never writes the lock |
 | `yg simulate <candidate> --node <path>` / `--file <path>`        | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
 
 ### `yg drill`
@@ -933,6 +1202,41 @@ the case source. `yg drill` writes one thing: a local, gitignored results log
 later that a rule has stopped catching one of its own cases. It never touches the
 verification lock. Keeping a corpus for every enforced rule is a convention, not a
 requirement — a missing corpus never blocks `yg check`.
+
+#### `yg drill add` — a real escape becomes a permanent case
+
+The best case a rule can hold is the code that actually got past it. `yg drill
+add` takes that code straight out of history:
+
+```bash
+yg drill add --aspect no-direct-minimatch \
+  --violates src/search/query.ts@a1b2c3d \
+  --why "shipped in the incident on the 3rd; nothing refused it"
+
+# add the fix alongside it, so the rule is pinned from both sides
+yg drill add --aspect no-direct-minimatch \
+  --violates src/search/query.ts@a1b2c3d --satisfies src/search/query.ts@e4f5g6h
+```
+
+It reads the file as it stood at that commit, writes it into the rule's corpus
+under the usual `violates-*` / `satisfies-*` convention with a name that carries
+where it came from — the file, the day, the short commit — then runs the rule
+over it and tells you what happened. `--why` is recorded in a log kept beside the
+rule itself, so the reason a case exists travels with the rule instead of living
+in one commit message; when you give no reason the log says so rather than
+inventing one.
+
+**A rule that does not catch its own escape exits non-zero and the case stays.**
+That is the point: the case sits in the corpus, failing, until the rule is
+sharpened enough to catch it. A corpus that only ever accepts cases the rule
+already passes can never tell you anything.
+
+Nothing is written when the commit is not in the repository, the file was not
+there at that commit, the file is empty, the same bytes are already a case (a
+second copy measures nothing and only inflates the count), or the rule is one
+that bundles others and has no rule of its own. A case that turns out to be
+unmeasurable — a check that needs the whole graph, a reviewer that cannot be
+reached — is taken back out, because an unmeasurable fixture is worse than none.
 
 ### `yg aspect-test`
 
@@ -1060,11 +1364,12 @@ non-zero.
 
 ---
 
-## Setup (2)
+## Setup (3)
 
 | Command | Purpose |
 |---------|---------|
 | `yg init` | Initialize or reconfigure |
+| `yg adopt <proposal-dir>` | Accept a proposed graph into this repository |
 | `yg prime` [`--digest`] | Print the full agent operating manual fresh from the installed CLI (`--digest` prints only the committed digest block) |
 
 ### `yg init`
@@ -1160,6 +1465,68 @@ that the root files it maintains (`AGENTS.md`, `CLAUDE.md`,
 `.clinerules/yggdrasil.md`, `.gitattributes`) now count as unmapped errors,
 and prints the `coverage.excluded` stanza that settles it. It reports; it
 never edits your configuration. See [Coverage](/configuration#coverage-config).
+
+### `yg adopt`
+
+Accepts a proposed graph into this repository — the one step that turns a
+proposal somebody generated into the graph that governs your code.
+
+```bash
+yg adopt <proposal-dir>
+yg adopt <proposal-dir> --dry-run
+yg adopt <proposal-dir> --replace
+```
+
+`<proposal-dir>` is the staging directory a generator wrote (Grain writes
+`.yggdrasil-proposal/` at the repository root by default) or the `.yggdrasil/`
+directory inside it. Nothing else is accepted: the command never searches
+upward for a graph, so it can never propose to adopt your own graph over itself.
+
+In one step it:
+
+1. **Refuses to merge.** If this repository already has a graph, the command
+   stops and says what is there — how many components, rules and flows, and
+   whether verdicts have been recorded against it. `--replace` accepts over it;
+   the existing graph is *moved aside*, never deleted, and the summary says
+   where it went.
+2. **Checks that the proposal loads,** with the same reader every `yg check`
+   uses, and that it holds together. If it does not, you get the blocking
+   problems by name and nothing is moved.
+3. **Moves it into place as one transaction.** If anything fails after the move
+   — including problems that can only be seen once the graph sits beside the
+   code it names — everything is put back and the repository is exactly as it
+   was.
+4. **Baselines every rule that runs locally,** free and without a key, so your
+   first `yg check` is not a wall of unverified rules.
+5. **Records the acceptance** as a log entry on the graph's top component, so
+   the graph itself carries who accepted what, from which proposal, and how
+   many rules arrived at each status.
+
+Then it prints what you just accepted:
+
+```text
+yg adopt: accepted  .yggdrasil-proposal → .yggdrasil/
+
+  Graph           14 components · 18 rules (0 enforced, 9 advisory, 9 draft) · 0 flows
+  Origin          mined from this repository by Grain (grain-proposal/1) taken at 0aa7c34e04a0 over 131 files
+  Already broken  44 sites the new rules refuse in the code that is already here
+                  src-main-java/candidate-auto-imp-jakarta-persistence-entity  6
+                  src-main-java/candidate-auto-filenameshape  5
+  Blocks on       only what a change reaches, measured against 'main'; everything else is reported as a warning
+  Baseline        181 verdicts recorded locally, at no cost and with no key
+  Recorded as     an entry in the log of 'repo-root'
+
+Next: yg check
+```
+
+**Already broken** is the number nothing else can tell you. A mined rule earns
+its status from how the code is *usually* written, never from a check that the
+repository is clean today — so a perfectly well-formed graph can refuse hundreds
+of existing files the moment it is switched on. The count comes from the
+proposal's own per-rule measurement; a proposal that does not carry one says so
+rather than showing a zero.
+
+`--dry-run` answers all of the above and writes nothing at all.
 
 ### `yg prime`
 

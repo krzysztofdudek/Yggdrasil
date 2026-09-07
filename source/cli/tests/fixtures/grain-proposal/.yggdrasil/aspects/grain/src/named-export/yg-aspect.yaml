@@ -1,0 +1,6 @@
+name: NamedExport
+description: Files here should declare at least one named export so they can be consumed as a module.
+reviewer:
+  type: deterministic
+errs: under
+status: advisory

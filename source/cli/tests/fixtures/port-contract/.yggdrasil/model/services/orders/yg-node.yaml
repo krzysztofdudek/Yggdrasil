@@ -1,0 +1,9 @@
+name: OrdersService
+description: Creates orders and charges the customer via the payments charge port.
+type: consumer
+relations:
+  - target: services/payments
+    type: uses
+    consumes: [charge]
+mapping:
+  - src/services/orders.ts

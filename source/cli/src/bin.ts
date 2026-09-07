@@ -1,10 +1,13 @@
 #!/usr/bin/env node
 import { Command } from 'commander';
 import { registerInitCommand } from './cli/init.js';
+import { registerAdoptCommand } from './cli/adopt.js';
 import { registerBuildCommand } from './cli/build-context.js';
 import { registerTreeCommand } from './cli/tree.js';
 import { registerOwnerCommand } from './cli/owner.js';
 import { registerImpactCommand } from './cli/impact.js';
+import { registerNodeCommand } from './cli/node.js';
+import { registerVerdictCommand } from './cli/verdict.js';
 import { registerAspectsCommand } from './cli/aspects.js';
 import { registerFlowsCommand } from './cli/flows.js';
 import { registerCheckCommand } from './cli/check.js';
@@ -35,13 +38,23 @@ const program = new Command();
 program
   .name('yg')
   .description('Yggdrasil — architectural knowledge infrastructure for AI agents')
+  // Options belong to the command they follow. Without this, a command that has
+  // subcommands of its own swallows a flag of the same name before the
+  // subcommand is ever reached — so `yg drill add --aspect <id>` would be told
+  // the flag it just supplied is missing. Every command's own options still come
+  // after its name, exactly as before; what changes is only that a flag written
+  // after a SUBcommand name is that subcommand's.
+  .enablePositionalOptions()
   .version(pkg.version);
 
 registerInitCommand(program);
+registerAdoptCommand(program);
 registerBuildCommand(program);
 registerTreeCommand(program);
 registerOwnerCommand(program);
 registerImpactCommand(program);
+registerNodeCommand(program);
+registerVerdictCommand(program);
 registerAspectsCommand(program);
 registerFlowsCommand(program);
 registerCheckCommand(program);

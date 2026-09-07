@@ -1,0 +1,17 @@
+name: E2E Tests — Check Noise Floor
+type: test-suite
+description: "Subprocess E2E for the standing line `yg check` prints when part
+  of its report stands on code the current change never touched: that an
+  advisory refusal on an untouched component is named as the baseline the
+  repository already had, that an enforced finding held outside the change is
+  counted the same way, that a change reaching the refusing code itself leaves
+  nothing to name, and that a project measuring nothing says nothing — with no
+  reference branch there is no untouched code to speak of. Driven over throwaway
+  git repositories through the real binary; the line never blocks and never
+  changes an exit code."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-check-noise-floor.test.ts

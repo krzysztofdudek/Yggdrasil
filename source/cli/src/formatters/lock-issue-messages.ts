@@ -36,9 +36,21 @@ export function llmRefusedMessage(params: {
   aspectId: string;
   unitKey: string;
   reason: string;
+  /** Name of the judge, when the verdict was recorded outside the configured reviewer. */
+  judge?: string;
 }): IssueMessage {
+  // A verdict recorded by someone other than the configured reviewer names them
+  // in the same breath as the refusal. A reader deciding what to do about a
+  // refusal needs to know whose judgement it is; a hash re-proves that the
+  // judgement still applies, never who made it.
+  //
+  // On its OWN line, deliberately: the grouped view collapses line 0 into the
+  // shared block header and renders every later line per member, so a name
+  // folded into line 0 would be visible only in the ungrouped view. With no
+  // judge the message is byte-identical to what it always was.
+  const by = params.judge === undefined ? '' : `Judged by '${params.judge}' (external).\n`;
   return {
-    what: `Aspect '${params.aspectId}' is refused on ${params.unitKey}. cached verdict — the reviewer did NOT re-run; inputs are identical to the refused review.\nReviewer reason: ${params.reason}`,
+    what: `Aspect '${params.aspectId}' is refused on ${params.unitKey}. cached verdict — the reviewer did NOT re-run; inputs are identical to the refused review.\n${by}Reviewer reason: ${params.reason}`,
     why: 'A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.',
     next:
       `Three exits:\n` +

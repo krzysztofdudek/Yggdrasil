@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
+import { buildIssueMessage } from '../formatters/message-builder.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { computeEffectiveAspects, inferAspectDisplayKind } from '../core/graph/aspects.js';
@@ -11,6 +12,11 @@ import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import type { Graph, AspectStatus, AspectDef } from '../model/graph.js';
+import { ASPECTS_JSON_SCHEMA, formatAspectsJson } from '../formatters/aspects-json.js';
+import { registerAspectsLogCommand } from './aspects-log.js';
+import { readAspectLog } from '../core/log/aspect-log.js';
+import { parseStatusEntry } from '../core/log/aspect-status.js';
+import type { AspectsJsonAspect, AspectsJsonDocument, AspectsJsonDrills, AspectsJsonLog } from '../formatters/aspects-json.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyLock } from '../core/verify-lock.js';
 import type { VerifiedPair } from '../core/verify-lock.js';
@@ -22,7 +28,7 @@ import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/su
 import { getFirstCommitTimestamp } from '../utils/git.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
-import { filterInCorpusDevDrills } from '../core/drill-runner.js';
+import { filterInCorpusDevDrills, discoverDrillCases } from '../core/drill-runner.js';
 import type { DrillResultLine } from '../io/drill-results-store.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { countWrongRuleIncidentsByAspect } from '../io/incidents-store.js';
@@ -125,6 +131,71 @@ export function computeAspectUsage(graph: Graph, typeCoverage?: TypeCoverageInpu
   }
 
   return usage;
+}
+
+/**
+ * The rule inventory as one machine document — the same facts the listing
+ * prints, plus each rule's drill-corpus size and its standing review date.
+ *
+ * The corpus is COUNTED, never run: `discoverDrillCases` lists the cases on
+ * disk, so this stays a read with no reviewer, no check execution and no lock
+ * access, exactly like the text listing beside it.
+ */
+export async function buildAspectsJson(
+  graph: Graph,
+  projectRoot: string,
+  typeCoverage?: TypeCoverageInput,
+): Promise<AspectsJsonDocument> {
+  const usage = computeAspectUsage(graph, typeCoverage);
+  const sorted = [...graph.aspects].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const aspects: AspectsJsonAspect[] = [];
+  for (const aspect of sorted) {
+    const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 };
+    const cases = await discoverDrillCases({ aspectId: aspect.id, projectRoot });
+    const drills: AspectsJsonDrills = {
+      violates: cases.filter((c) => c.expect === 'refused').length,
+      satisfies: cases.filter((c) => c.expect === 'satisfied').length,
+      total: cases.length,
+    };
+    aspects.push({
+      id: aspect.id,
+      name: aspect.name,
+      description: aspect.description ?? '',
+      kind: aspect.reviewer.type,
+      tier: aspect.reviewer.type === 'llm' ? (aspect.reviewer.tier ?? null) : null,
+      status: aspect.status ?? 'enforced',
+      reviewBy: aspect.reviewBy ?? null,
+      errs: aspect.errs ?? null,
+      implies: [...(aspect.implies ?? [])],
+      usage: {
+        nodes: u.total,
+        architecture: u.architecture,
+        own: u.own,
+        implied: u.implied,
+        flow: u.flow,
+        typeCovered: u.typeCovered,
+      },
+      drills,
+      log: await lastLogFacts(graph, aspect),
+    });
+  }
+  return { schema: ASPECTS_JSON_SCHEMA, aspects };
+}
+
+/**
+ * The last thing a rule's own history recorded, for the document.
+ *
+ * Read from the rule's log rather than derived from anything else: the log IS
+ * the history, and a summary computed from a different source could disagree
+ * with what a reader sees when they open it. A log that cannot be parsed reports
+ * no facts rather than guessed ones — the read command is where that gets
+ * explained, and the inventory must not fail because one rule's file is untidy.
+ */
+async function lastLogFacts(graph: Graph, aspect: AspectDef): Promise<AspectsJsonLog> {
+  const log = await readAspectLog(graph.rootPath, aspect.id, 1);
+  if (!log.ok || log.entries.length === 0) return { at: null, statusChange: null };
+  const newest = log.entries[0];
+  return { at: newest.datetime, statusChange: parseStatusEntry(newest.body) };
 }
 
 export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInput): string {
@@ -833,18 +904,31 @@ async function computeTypeCoverageForAspects(graph: Graph, projectRoot: string):
 }
 
 export function registerAspectsCommand(program: Command): void {
-  program
+  const aspects = program
     .command('aspects')
     .description('List aspects with usage stats')
     .option(
       '--health',
       'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age, catch/exposure counts and reading, false-block (fp) count, and wrong-rule incidents attributed to the rule',
     )
-    .action(async (options: { health?: boolean }) => {
+    .option('--json', `Machine-readable output: one ${ASPECTS_JSON_SCHEMA} document on stdout instead of the listing.`)
+    .action(async (options: { health?: boolean; json?: boolean }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
-        if (options.health) {
+        if (options.json === true && options.health === true) {
+          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            what: '--health cannot be combined with --json.',
+            why: '--health is a separate projection with its own columns — signals, rule age, suppress coverage, attributed incidents — and it costs a whole verification pass to compute. The machine document is the rule INVENTORY; folding a different, far more expensive report into it under the same schema would make one name mean two things.',
+            next: 'Run: yg aspects --json (the inventory), or yg aspects --health (the health projection).',
+          })}`) + '\n');
+          process.exit(1);
+        }
+        if (options.json === true) {
+          const projectRoot = path.dirname(graph.rootPath);
+          const typeCoverage = await computeTypeCoverageForAspects(graph, projectRoot);
+          process.stdout.write(formatAspectsJson(await buildAspectsJson(graph, projectRoot, typeCoverage)));
+        } else if (options.health) {
           // Injected reference instant for the coarse rule-age column. Read once
           // here at the command boundary (an observability timestamp — it records
           // how long ago each rule was created, not what any verdict is) and
@@ -858,4 +942,8 @@ export function registerAspectsCommand(program: Command): void {
         abortOnUnexpectedError(error, 'listing aspects');
       }
     });
+
+  // A rule's own history, written and read through the command that lists the
+  // rules — the same place a reader already goes to ask about them.
+  registerAspectsLogCommand(aspects);
 }

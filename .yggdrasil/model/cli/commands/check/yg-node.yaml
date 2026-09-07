@@ -1,8 +1,18 @@
 name: CheckCommand
 type: command
-description: Unified graph gate CLI command — combines drift, validation,
-  coverage, and completeness into a single yg check entry point with grouped
-  output and exit code
+description: >-
+  Unified graph gate CLI command — combines drift, validation, coverage, and
+  completeness into a single yg check entry point with grouped output and exit
+  code. A --json flag emits the same run as one versioned machine document
+  instead of that report, for a layer above the agent — a wave close computing a
+  quality index, a dashboard, a build step deciding what to schedule — that must
+  never learn a fact by parsing prose written to be read. It composes with the
+  fill flags and leaves every exit code exactly what it was; under it stdout
+  carries the document alone, so even the cost preview a dry run prints joins
+  the progress on stderr. It is REFUSED together with the four text-view
+  selectors: those narrow a wall of prose, the document always carries the whole
+  run, and a document trimmed to a few findings would read as a smaller problem
+  rather than a smaller rendering.
 aspects:
   - runcheck-injected-input-parity
 relations:

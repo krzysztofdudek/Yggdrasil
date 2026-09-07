@@ -1,0 +1,20 @@
+name: E2E Tests — A real case enters a rule's corpus
+type: test-suite
+description: >-
+  Subprocess E2E for taking a file as it stood at a named commit into a rule's
+  case corpus. What these pin is the doctrine, not the plumbing: a rule that does
+  not catch the very code that got past it is reported as failing and the case is
+  KEPT, because a corpus exists to hold what the rule missed; a rule that does
+  catch it says so and exits clean. The case's name carries where it came from —
+  the file, the day, the commit — so a reader can trace a fixture back to the
+  incident behind it. Every refusal says what, why and next and leaves the corpus
+  untouched: a rule nobody has, a rule that only bundles others, a spec that is
+  not path-at-commit, a file that is not there at that commit, an empty file, and
+  the same bytes already sitting in the corpus. What stays is recorded in the
+  rule's own log beside its source, and nothing is recorded when nothing stayed.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-drill-add.test.ts

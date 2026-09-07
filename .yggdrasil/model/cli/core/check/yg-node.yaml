@@ -1,6 +1,17 @@
 name: Check
 type: engine
-description: "Unified check orchestrator — runs validation, coverage, the
+description: "Unified check orchestrator — it also projects its own finished
+  result into one versioned machine document, a pure reshaping that derives
+  nothing and decides nothing, so a count in that document and the count in the
+  header are the same number read twice rather than two computations that have
+  to agree; the document always carries the whole run, since the text view's
+  narrowing flags exist to shorten a wall of prose and a narrowed document
+  would read as a smaller problem instead of a smaller rendering. It also holds
+  every port that names
+  the test which IS its contract to the baseline recorded for its contract
+  version, reported beside the mandatory-log requirement and gated on the same
+  readable lock, since that is where the baseline it compares against lives.
+  Runs validation, coverage, the
   prompt-size gate, and lock verification (read-only: every expected pair's
   stored verdict is re-hashed against current inputs and rendered as pass,
   cached refusal, or unverified), then log integrity, and computes the suggested
@@ -78,6 +89,8 @@ relations:
     type: calls
   - target: cli/core/checks/aspects
     type: calls
+  - target: cli/core/checks/port-contracts
+    type: calls
   - target: cli/core/checks/digest-gate
     type: calls
   - target: cli/core/check-coverage-tiers
@@ -112,9 +125,11 @@ relations:
 mapping:
   - source/cli/src/core/check.ts
   - source/cli/src/core/check-contract.ts
+  - source/cli/src/core/check-json.ts
   - source/cli/src/core/check-pair-issues.ts
   - source/cli/src/core/check-log-state.ts
   - source/cli/src/core/check-lock-phase.ts
+  - source/cli/src/core/check-aspect-status.ts
   - source/cli/src/core/check-coverage-scan.ts
   - source/cli/src/core/check-coverage-phase.ts
   - source/cli/src/core/check-suggested-next.ts

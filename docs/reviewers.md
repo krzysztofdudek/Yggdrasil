@@ -107,6 +107,48 @@ reviewer:
         model: claude-opus-4-7
 ```
 
+### A judge outside the CLI
+
+A prose rule needs a reviewer. If your project has no key for one — or the natural judge is somebody already reading the change, a person or another tool — a judgement can be recorded from outside the CLI and still be bound the same way any verdict is.
+
+It is two steps, and nothing about the graph's own rules moves.
+
+```bash
+# 1. Take the exact package the configured reviewer would have received.
+yg verdict package --aspect has-doc-comment --node services/orders
+
+# 2. Decide, and record it under your own name against the hash the package gave you.
+yg verdict record --aspect has-doc-comment --node services/orders   --by alice --verdict pass --hash <hashes.pass from step 1>
+```
+
+Step 1 prints one JSON document: the rule's own text, the code under judgement, any reference and companion files, the constraints the tier imposes — and one hash per possible verdict. Nothing about the provider, the model, or any credential is in it; a package is handed to someone outside the repository.
+
+Step 2 writes the judgement into the lock exactly as the configured reviewer's would have been written, with the judge's name beside it. From then on it behaves like any other verdict: `yg check` re-proves it by hashing, with no key and no judge present, and drops it the moment the code it judged moves. `yg check` also says whose judgement the run rests on — a passing rule reports nothing on its own, so a green run would otherwise carry an author nobody can see.
+
+A refusal is recorded the same way and needs a report saying what is wrong:
+
+```bash
+yg verdict record --aspect has-doc-comment --node services/orders   --by alice --verdict refused --report "src/services/orders.ts:1 opens with code, not a comment."   --hash <hashes.refused>
+```
+
+To see what has been judged this way, and whether each judgement still holds:
+
+```bash
+yg verdict read            # or --json, or --by <name>
+```
+
+Five things it will not do, each with a reason you would want it to have:
+
+| It refuses | Because |
+|---|---|
+| A rule that runs as a local check | Its verdict is whatever running it produces. Run it: `yg check --approve --only-deterministic`. |
+| A pair that already holds a verdict for these exact inputs | Nothing is pending; recording again would replace a judgement that still applies. |
+| A hash that no longer matches the working tree | The code moved since the package was printed, so the judgement would attach to code the judge never saw. |
+| A refusal with no report | It would leave the author nothing to fix. |
+| Anything but `pass` or `refused` | A judgement is one of two words. |
+
+**Recording is not approving.** It fills one pending pair. `yg check --approve` is unchanged, and so is every suppression and status rule.
+
 ---
 
 ## Per-unit companion files
@@ -533,6 +575,14 @@ A rule that has never refused anything is a rule on trust. Four instruments exis
 **`yg aspect-test`** — run the rule live, right now, against a node or an explicit file list. The everyday loop while writing a rule: try it on code that should pass and code that should fail, and confirm it says so. Covered above for both kinds.
 
 **A drill corpus** — the regression net. Put example files beside the rule in a `drills/` directory of the aspect folder, under directories whose prefix encodes the expected verdict: anything under a `violates-*` directory must be refused, anything under `satisfies-*` must pass. `yg drill --aspect <id>` replays the whole corpus and reports each case as `pass`, `MISS` (a violating case the rule failed to catch — a hole), `FALSE-ALARM` (a clean case it wrongly refused), `unrun` (infrastructure, not scored), or `unsupported` (the rule needs context a drill cannot supply — a check that reads graph topology, or an LLM aspect shipping `companion.mjs`). Script rules drill locally and free; a judgment rule goes through the real reviewer and bills it, with the call budget printed before the first call. `--nodeless` assembles a judgment rule's cases in the shape a file enforced by its architecture type alone (no owning component) receives — no `<node>` in the prompt — instead of the default synthetic node; point it at a separate corpus with `--dir`, since a single run cannot mix both shapes.
+
+A case does not have to be hand-written. `yg drill add` takes a file as it stood
+at a named commit — `--aspect <id> --violates <path>@<commit>` — straight into the
+corpus — the code that actually got past the rule — names the case for where it
+came from, runs the rule over it, and records the reason you give in a log kept
+beside the rule. A rule that does not catch its own escape exits non-zero and the
+case stays, failing, until the rule is sharpened enough to catch it. See
+[`yg drill add`](/cli-reference#yg-drill-add--a-real-escape-becomes-a-permanent-case).
 
 `drills/` is a reserved directory name — it is never scanned as an aspect, so a fixture that happens to contain something resembling a rule file can never register a phantom rule. The corpus is a *regression* net, not a measurement of how good the rule is: you wrote the cases, so the rule passing them says it still behaves, not that it generalizes. Keeping one is a convention rather than a requirement — a missing corpus never blocks `yg check`, though the attention feed will point out a rule whose corpus has started failing.
 

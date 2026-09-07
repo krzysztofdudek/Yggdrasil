@@ -17,7 +17,7 @@ const SYSTEM = `## SYSTEM
 
 Yggdrasil is continuous architecture enforcement. A graph in \`.yggdrasil/\` describes the architecture. A reviewer verifies source code against it. If code violates a rule, the reviewer refuses it. Every verdict — an LLM reviewer's judgment and a deterministic check's result alike — is stored as a content-addressed entry in the lock; a verdict holds exactly while the inputs that produced it are unchanged. (The lock is a committed/gitignored triad — see Graph Elements.)
 
-The CLI (\`yg\`) never modifies your source or graph files. You create and edit graph files manually. The lock is written only by \`yg check --approve\` and \`yg log merge-resolve\`; logs only by \`yg log add\`. The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run. \`suggestedNext\` at the end of \`yg check\` gives one concrete step. Follow it.
+The CLI (\`yg\`) never modifies your source or graph files. You create and edit graph files manually. The lock is written only by \`yg check --approve\` and \`yg log merge-resolve\`. Logs are written by \`yg log add\` (a component's) and \`yg aspects log add\` (a rule's) — plus one entry an approving run writes by itself, into a rule's log, when that rule's status was changed by hand and nobody recorded why. The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run. \`suggestedNext\` at the end of \`yg check\` gives one concrete step. Follow it.
 
 ### Graph Elements
 
@@ -129,7 +129,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 |---|---|
 | \`yg check\` | By default: writes no verdicts, no LLM calls — re-hash lock verdicts, run the relation check live, validate coverage. Blocks CI. Behavior changes if \`auto_approve\` is set (see below). |
 | \`yg check --approve\` | Fill every unverified pair the run answers for (deterministic first, then LLM), then report. The only writer of verdicts. Overrides \`auto_approve\`. |
-| \`yg check --approve --only-deterministic\` | Fill ONLY deterministic pairs (free, keyless), writing ONLY the gitignored cache; then report. The CI / pre-commit gate. Overrides \`auto_approve\`. |
+| \`yg check --approve --only-deterministic\` | Fill ONLY deterministic pairs (free, keyless), writing the gitignored cache (plus a port's contract baseline when one is missing); then report. The CI / pre-commit gate. Overrides \`auto_approve\`. |
 | \`yg check --approve --dry-run\` | Free cost preview — print the reviewer-call budget (an upper bound) + per-node breakdown, then exit 0 WITHOUT writing or calling the reviewer. |
 | \`yg check --top [N]\` | Read-only: show only the N highest-priority GROUPS (bare \`--top\` = single suggested-next group). True aggregate header always shown. |
 | \`yg check --summary\` | Read-only: per-node counts only (no per-issue blocks). True aggregate header always shown. |
@@ -143,6 +143,8 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg tree [--root <path>] [--depth <n>]\` | Browse graph structure |
 | \`yg find "<query>"\` | Locate entry-point nodes/aspects by natural-language query |
 | \`yg log add --node <path> --reason <text>\` | Append per-node business-context entry (multi-line via \`--reason-file <path>\`) |
+| \`yg aspects log add --aspect <id> --reason <text>\` | Append an entry to a RULE's own history. Add \`--status <draft\\|advisory\\|enforced> --evidence "<what justified it>"\` to record a change of standing — it RECORDS the change, never makes it, and is refused unless the rule's file already carries that status. |
+| \`yg aspects log read --aspect <id>\` [\`--limit <n>\`] [\`--json\`] | Read that history, newest first. |
 | \`yg log read --node <path> [--top N \\| --all]\` | Read log entries (default top 10, newest first) |
 | \`yg log merge-resolve --node <path>\` | Reconcile log.md after a git merge (validates byte-exact ancestor + union of new entries) |
 | \`yg suppressions\` | Read-only inventory of active \`yg-suppress\` markers; warns on unknown aspect-id, wildcard, unbounded range, or a waiver aimed at an \`errs: under\` check (one that cannot false-positive, so there is nothing to waive). Exit 0. |
@@ -150,6 +152,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg advise\` | Read-only attention layer: aggregates signals and proposes rule changes, each with evidence and a human-action NEXT. Never gates \`yg check\`, never writes a verdict, never appears in \`suggestedNext\`. |
 | \`yg schemas list\` / \`yg schemas read <name>\` | Browse graph-element schemas (node, aspect, architecture, config, flow) |
 | \`yg drill --aspect <id>\` | Replay a rule over its \`drills/\` case corpus (violates-* must refuse, satisfies-* must pass) to sharpen it — a regression fixture, never a verdict write. Deterministic drills are free; LLM drills bill the reviewer. |
+| \`yg drill add --aspect <id> --violates <path>@<commit>\` | Take a file as it stood at a commit into that corpus — the code that really got past the rule — then run the rule over it. A rule that does not catch it exits non-zero AND THE CASE STAYS. Never a verdict write. |
 | \`yg simulate <det-aspect> --node <path>\` | Replay a candidate DETERMINISTIC rule over recent history in an isolated clone ("what would it have caught?"). Read-only, exits 0 whatever it finds. |
 | \`yg structure\` | Read-only structural dashboard — dependency tunnels, per-level module groups (and cycles), change reach. Never gates. |
 | \`yg incident add --tag <cause> --reason <text>\` | Record what escaped enforcement (human-signed, committed ledger) — the only signal from outside the graph. \`yg incident read\` lists them. |

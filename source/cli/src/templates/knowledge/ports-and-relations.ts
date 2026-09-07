@@ -153,6 +153,55 @@ channel 6. The consumer must now satisfy \`correlation-tracking\` and
 \`idempotency-key\` for its own source files, in addition to its other
 aspects.
 
+## A port's version and its contract test
+
+A port may also declare the VERSION consumers pin to and the TEST that IS the
+contract:
+
+\`\`\`yaml
+ports:
+  charge:
+    description: Capture a payment from the user
+    version: 1
+    test: tests/contracts/charge.test.ts
+    aspects: [correlation-tracking, idempotency-key]
+\`\`\`
+
+Both are optional and additive: a port that declares neither behaves exactly as
+before, and an existing graph loads unchanged.
+
+- \`version:\` — an integer >= 1; absent is read as 1. A non-integer, or a
+  number below 1, is REFUSED at load rather than ignored: a version silently
+  dropped would let a contract change ride in behind a number its author
+  believed they had raised.
+- \`test:\` — a path relative to the REPOSITORY ROOT. It may sit inside this
+  node's mapping or outside it; a contract test is often shared, owned by
+  neither side of the port. The file must exist (\`port-test-missing\`
+  otherwise).
+
+**The rule they buy you.** A built-in deterministic check records the contract
+test's content ONCE per (node, port, version) in the committed lock, and then
+holds the file to it:
+
+- No record yet at this version → \`port-contract-unrecorded\`. Fill it with
+  \`yg check --approve --only-deterministic\` — free, no reviewer, no key.
+- The file changed (or the port now names a different file) at an UNCHANGED
+  version → \`port-contract-changed\`, a blocking error. Either raise
+  \`version:\` (and say why with \`yg log add\`), or restore the file.
+- A record is never overwritten. Raising the version records afresh alongside
+  the old one, so going back to a version you used before goes back to the
+  contract it named, rather than re-baselining whatever is on disk now.
+
+This is a BUILT-IN check, not an aspect: there is no \`content.md\` or
+\`check.mjs\` to sharpen, no \`status:\` to demote it with, and no
+\`yg-suppress\` that reaches it — the same posture as the relation-conformance
+check above. A contract a consumer could waive is not a contract.
+
+Ports also carry their \`version\` and \`test\` into the machine documents
+(\`yg node <path> --json\`, \`yg impact --node <path> --json\`), as the port
+DECLARED them — a versionless port reports \`null\` there, never the 1 the check
+reads it at, because that would put a claim in the port's mouth it never made.
+
 ## Why ports exist — defending against cross-file evasion
 
 A critical aspect attached to a parent node propagates to all children via

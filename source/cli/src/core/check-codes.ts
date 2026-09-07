@@ -105,6 +105,13 @@ export const STRUCTURAL_CODES = new Set<string>([
   // apply — always blocking, independent of whether the file sits under a
   // required or advisory coverage root.
   'ambiguous-node-type',
+  // Port-contract baseline codes — the built-in check that holds a port's
+  // declared contract test to the version it was recorded at. Blocking and not
+  // waivable, like relation-undeclared-dependency: a port is a contract, and a
+  // contract that can move unannounced is not one.
+  'port-contract-changed',
+  'port-contract-unrecorded',
+  'port-test-missing',
 ]);
 
 /**

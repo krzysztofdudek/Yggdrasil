@@ -31,6 +31,8 @@ import { readLock, LockInvalidError } from '../io/lock-store.js';
 import type { LockFile } from '../model/lock.js';
 import { toPosixPath } from '../utils/posix.js';
 import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import { IMPACT_JSON_SCHEMA, formatImpactJson } from '../formatters/impact-json.js';
+import { buildImpactDocument } from '../core/graph/machine-documents.js';
 
 export function registerImpactCommand(program: Command): void {
   program
@@ -41,9 +43,11 @@ export function registerImpactCommand(program: Command): void {
     .option('--aspect <id>', 'Aspect id (directory path under aspects/)')
     .option('--flow <name>', 'Flow name (directory name under flows/)')
     .option('--type <id>', 'Architecture type id')
+    .option('--json', `Machine-readable output: one ${IMPACT_JSON_SCHEMA} document on stdout instead of the text report. --node and --file only.`)
     .action(
-      async (options: { node?: string; file?: string; aspect?: string; flow?: string; type?: string }) => {
+      async (options: { node?: string; file?: string; aspect?: string; flow?: string; type?: string; json?: boolean }) => {
         try {
+          const asJson = options.json === true;
           if (options.node && options.file) {
             process.stderr.write(
               chalk.red(
@@ -83,6 +87,19 @@ export function registerImpactCommand(program: Command): void {
             process.exit(1);
           }
 
+          if (asJson && (options.aspect || options.flow || options.type)) {
+            process.stderr.write(
+              chalk.red(
+                `Error: ${buildIssueMessage({
+                  what: `--json is not available for --aspect, --flow, or --type.`,
+                  why: `A ${IMPACT_JSON_SCHEMA} document describes the blast radius of ONE component — its subject is a component path, and an aspect, a flow, or a type has no such subject. Emitting one for them would mean a second document shape hiding behind the same schema tag.`,
+                  next: `Run yg impact --node <path> --json (or --file <path> --json) for the machine document, or drop --json for the aspect/flow/type report.`,
+                })}\n`,
+              ),
+            );
+            process.exit(1);
+          }
+
           const graph = await loadGraphOrAbort(process.cwd());
           initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
 
@@ -113,13 +130,16 @@ export function registerImpactCommand(program: Command): void {
 
             // Graph-file redirect — graph files are not subject-file edits.
             if (repoRelative.startsWith('.yggdrasil/')) {
-              process.stdout.write(
-                buildIssueMessage({
-                  what: `${repoRelative} is a graph file — its cost is not a per-pair subject edit.`,
-                  why: 'The per-pair cost model tracks subject-file edits; rule and companion hash changes are not modeled as per-pair subjects.',
-                  next: 'To estimate the cost of editing an aspect rule or companion, run yg impact --aspect <id>.',
-                }) + '\n',
-              );
+              // Under --json stdout carries the document ALONE, so a redirect
+              // that produces no document is a diagnostic and belongs on
+              // stderr. The exit code is the text view's, unchanged.
+              const redirect = buildIssueMessage({
+                what: `${repoRelative} is a graph file — its cost is not a per-pair subject edit.`,
+                why: 'The per-pair cost model tracks subject-file edits; rule and companion hash changes are not modeled as per-pair subjects.',
+                next: 'To estimate the cost of editing an aspect rule or companion, run yg impact --aspect <id>.',
+              }) + '\n';
+              if (asJson) process.stderr.write(redirect);
+              else process.stdout.write(redirect);
               await exitAfterFlush(0);
               return;
             }
@@ -137,22 +157,32 @@ export function registerImpactCommand(program: Command): void {
             // confirmation) would otherwise admit a pair nothing can really touch.
             const exclusion = await resolveGraphExclusionSet(repoRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
             if (isExcludedFromGraph(repoRelative, exclusion)) {
-              process.stdout.write(
-                buildIssueMessage({
-                  what: `${repoRelative} is excluded from graph coverage by design.`,
-                  why: 'This path sits inside a separate project\'s own boundary, or matches a coverage.excluded root — no node enforces it and no aspect can read it, so editing it invalidates nothing.',
-                  next: 'No action needed.',
-                }) + '\n',
-              );
+              const excluded = buildIssueMessage({
+                what: `${repoRelative} is excluded from graph coverage by design.`,
+                why: 'This path sits inside a separate project\'s own boundary, or matches a coverage.excluded root — no node enforces it and no aspect can read it, so editing it invalidates nothing.',
+                next: 'No action needed.',
+              }) + '\n';
+              if (asJson) process.stderr.write(excluded);
+              else process.stdout.write(excluded);
               await exitAfterFlush(0);
               return;
             }
 
             const ownerResult = await findOwnerWithinOwnGraph(graph, repoRoot, repoRelative);
-            const set = await collectInvalidatedPairs(graph, repoRelative, lock, repoRoot);
+            // The invalidated-pair set is what the per-pair COST report is built
+            // from, and it enumerates every expected pair in the project. A
+            // --json run that already has an owner never renders that report, so
+            // it does not pay for the enumeration; with no owner it still does,
+            // because distinguishing "no coverage at all" (exit 1) from a
+            // file some rule reaches without owning it is exactly what the set
+            // answers, and --json keeps the text view's exit codes.
+            const set =
+              asJson && ownerResult.nodePath
+                ? undefined
+                : await collectInvalidatedPairs(graph, repoRelative, lock, repoRoot);
 
             // No coverage at all — not mapped, not referenced, not observed.
-            if (!ownerResult.nodePath && set.pairs.length === 0 && set.unresolved.length === 0) {
+            if (!ownerResult.nodePath && set!.pairs.length === 0 && set!.unresolved.length === 0) {
               process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
                 what: `${repoRelative} -> no graph coverage`,
                 why: 'file is not mapped to any node, is not referenced by any aspect, and is not observed by any deterministic or companion-backed aspect in the graph.',
@@ -162,7 +192,20 @@ export function registerImpactCommand(program: Command): void {
               return;
             }
 
-            const summary = summarizeImpact(set, graph, lock);
+            if (!ownerResult.nodePath && asJson) {
+              // No component owns the file, so there is no subject a
+              // yg-impact/1 document could name — that document's subject is a
+              // component, always. Say so, and keep the text view's exit code.
+              process.stderr.write(
+                buildIssueMessage({
+                  what: `No component owns ${repoRelative}.`,
+                  why: `A ${IMPACT_JSON_SCHEMA} document describes the blast radius of one COMPONENT, so a file with no owning component has no subject to report on. Its rules, if its architecture type governs it, are still real.`,
+                  next: `Run yg impact --file ${repoRelative} without --json for the per-pair cost view, or yg context --file ${repoRelative} --json for what governs it.`,
+                }) + '\n',
+              );
+              await exitAfterFlush(0);
+              return;
+            }
 
             if (!ownerResult.nodePath) {
               // No structural owner. When the file is ITSELF enforced by its
@@ -172,8 +215,13 @@ export function registerImpactCommand(program: Command): void {
               // invocation's pair universe (set.allPairs / set.typeCoverage)
               // rather than paying a second, full computeExpectedPairs
               // enumeration just to answer this one extra question.
-              if (set.typeCoverage?.covered.has(repoRelative)) {
-                const preview = await computeGraduationPreview(graph, repoRelative, set.typeCoverage, set.allPairs);
+              // `set` is always present here: the only run that skips the
+              // enumeration is a --json run WITH an owner, and that one has
+              // already left this branch.
+              const ownerlessSet = set!;
+              const summary = summarizeImpact(ownerlessSet, graph, lock);
+              if (ownerlessSet.typeCoverage?.covered.has(repoRelative)) {
+                const preview = await computeGraduationPreview(graph, repoRelative, ownerlessSet.typeCoverage, ownerlessSet.allPairs);
                 process.stdout.write(renderGraduationPreview(preview));
               }
               // Render the Total and exit. This is an ADD over the old
@@ -186,8 +234,10 @@ export function registerImpactCommand(program: Command): void {
             // Structural owner found — capture for the cost-render site below,
             // print the owner resolution line, then fall through to the shared
             // node block for relationship detail.
-            fileImpact = { summary, repoRelative };
-            process.stdout.write(`${ownerResult.file} -> ${ownerResult.nodePath}\n`);
+            if (set) fileImpact = { summary: summarizeImpact(set, graph, lock), repoRelative };
+            // Under --json the owner resolution is already carried by the
+            // document's own subject, and stdout must hold the document alone.
+            if (!asJson) process.stdout.write(`${ownerResult.file} -> ${ownerResult.nodePath}\n`);
             options.node = ownerResult.nodePath;
           }
 
@@ -213,6 +263,16 @@ export function registerImpactCommand(program: Command): void {
               next: 'Run: yg tree — to list all nodes.',
             })}\n`));
             process.exit(1);
+          }
+
+          if (asJson) {
+            // The machine form answers the same question from the same graph
+            // queries; it does not pay for the lock-backed cost report the text
+            // view ends with, because a cost estimate is not part of the
+            // contract a consumer reads.
+            process.stdout.write(formatImpactJson(buildImpactDocument(graph, nodePath)));
+            await exitAfterFlush(0);
+            return;
           }
 
           const { direct, allDependents, reverse, relationFrom } = collectReverseDependents(

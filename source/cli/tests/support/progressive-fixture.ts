@@ -120,6 +120,17 @@ export interface ProgressiveFixtureOptions {
    * ordinary project, not a contrivance.
    */
   deterministicAspect?: boolean;
+  /**
+   * The status the script-judged rule is attached at. `enforced` (the default)
+   * gives `beta` a standing blocking refusal; `advisory` gives it a standing
+   * WARNING instead — a refusal that never blocks and is never re-coded by the
+   * change-scope classification, because it was a warning from the start.
+   *
+   * That second shape is the one a repository adopting a mined graph actually
+   * lives with, and it is the only way to observe a finding that stands on
+   * untouched code while blocking nothing.
+   */
+  deterministicAspectStatus?: 'enforced' | 'advisory';
   reviewedAspect?: {
     endpoint: string;
     /**
@@ -223,11 +234,11 @@ const CHECK_MJS = `export function check(ctx) {
 }
 `;
 
-const ASPECT_YAML = `name: NoTodoComments
+const aspectYaml = (status: 'enforced' | 'advisory'): string => `name: NoTodoComments
 description: Source files must not contain TODO comments — track work in the issue tracker, not the code.
 reviewer:
   type: deterministic
-status: enforced
+status: ${status}
 `;
 
 /** The reviewer-judged rule `reviewedAspect` installs, and the prose it judges by. */
@@ -346,7 +357,7 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
   writeFileSync(path.join(ygg, 'yg-config.yaml'), configYaml(opts), 'utf-8');
   writeFileSync(path.join(ygg, '.gitignore'), YGG_GITIGNORE, 'utf-8');
   if (withDeterministic) {
-    writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'yg-aspect.yaml'), ASPECT_YAML, 'utf-8');
+    writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'yg-aspect.yaml'), aspectYaml(opts.deterministicAspectStatus ?? 'enforced'), 'utf-8');
     writeFileSync(path.join(ygg, 'aspects', 'no-todo-comments', 'check.mjs'), CHECK_MJS, 'utf-8');
   }
   if (opts.reviewedAspect !== undefined) {

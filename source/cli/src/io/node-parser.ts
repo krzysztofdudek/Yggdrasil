@@ -291,11 +291,39 @@ function parsePorts(rawPorts: unknown, filePath: string): Record<string, PortDef
         (portAspectStatus ??= {})[parsed.id] = parsed.status;
       }
     }
+    // The contract's version: an integer >= 1. A malformed one is REFUSED rather
+    // than ignored — a version silently dropped would let a contract change ride
+    // in behind a number the author believed they had raised, which is the one
+    // failure this field exists to prevent.
+    let portVersion: number | undefined;
+    if (obj.version !== undefined && obj.version !== null) {
+      if (typeof obj.version !== 'number' || !Number.isInteger(obj.version) || obj.version < 1) {
+        throw new Error(
+          `yg-node.yaml at ${filePath}: ports.${name}.version must be an integer of 1 or more when present — a contract version is a whole number that only ever rises`,
+        );
+      }
+      portVersion = obj.version;
+    }
+
+    // The test that IS the contract, repo-relative and contained, validated for
+    // existence later by the check that baselines it.
+    let portTest: string | undefined;
+    if (obj.test !== undefined && obj.test !== null) {
+      if (typeof obj.test !== 'string') {
+        throw new Error(
+          `yg-node.yaml at ${filePath}: ports.${name}.test must be a path string relative to the repository root`,
+        );
+      }
+      portTest = validateRelativePath(obj.test, filePath, `ports.${name}.test`);
+    }
+
     ports[name] = {
       description: obj.description.trim(),
       aspects: portAspects,
       ...(portAspectWhens && { aspectWhens: portAspectWhens }),
       ...(portAspectStatus && { aspectStatus: portAspectStatus }),
+      ...(portVersion !== undefined && { version: portVersion }),
+      ...(portTest !== undefined && { test: portTest }),
     };
   }
 

@@ -1,9 +1,17 @@
 name: Advise Commands
 type: command
-description: "CLI commands for acting on attention items — yg advise dismiss and
-  yg advise defer. Each resolves an item id against the live nominations, captures
-  its current evidence snapshot, and appends one committed decision line with a
-  mandatory human-signed reason. The bare feed-rendering command is added later."
+description: "CLI commands for the attention feed and for acting on its items —
+  the feed itself (rendered for a reader, or as one versioned machine document),
+  yg advise dismiss and yg advise defer, and yg advise import. Dismiss and defer
+  each resolve an item id against the live nominations, capture its current
+  evidence snapshot, and append one committed decision line with a mandatory
+  human-signed reason. Import reads one proposal document another tool produced —
+  from a file or from standard input — refuses anything whose schema this build
+  does not know, and appends the proposals it accepts to the committed register
+  once each, so re-importing the same document adds nothing. Importing is not
+  accepting: an imported proposal enters the feed as a proposal like any other,
+  carrying its producer and the commit it was measured at, and acting on it stays
+  the user's own recorded act."
 aspects: []
 relations:
   - target: cli/core/advise

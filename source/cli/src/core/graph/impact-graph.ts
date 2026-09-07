@@ -120,12 +120,36 @@ export function collectReverseDependents(
   };
 }
 
-export function buildTransitiveChains(
+/** One indirect dependent and the components the dependency travels through. */
+export interface TransitivePath {
+  /** The indirect dependent. */
+  node: string;
+  /**
+   * Intermediate components on the shortest reverse path, subject-first —
+   * never the subject itself and never `node`.
+   */
+  via: string[];
+}
+
+/**
+ * The indirect dependents of `targetNode`, each with the components the
+ * dependency travels through.
+ *
+ * One BFS over the reverse edges, shortest path wins. A dependent reached with
+ * no intermediary at all is a DIRECT dependent by another name and is left out
+ * here (`direct` already lists it) — so every entry has a non-empty `via`.
+ *
+ * This is the single computation behind both the text chains and the machine
+ * document: `buildTransitiveChains` renders these same paths as `<- a <- b`
+ * strings, so the two views can never disagree about who is reached through
+ * whom.
+ */
+export function buildTransitivePaths(
   targetNode: string,
   direct: string[],
   allDependents: string[],
   reverse: Map<string, Set<string>>,
-): string[] {
+): TransitivePath[] {
   const directSet = new Set(direct);
   const transitiveOnly = allDependents.filter((t) => !directSet.has(t));
   if (transitiveOnly.length === 0) return [];
@@ -143,7 +167,7 @@ export function buildTransitiveChains(
     }
   }
 
-  const chains: string[] = [];
+  const paths: TransitivePath[] = [];
   for (const node of transitiveOnly) {
     const path: string[] = [];
     let current: string | undefined = node;
@@ -151,11 +175,24 @@ export function buildTransitiveChains(
       path.unshift(current);
       current = parent.get(current);
     }
+    // [targetNode, ...intermediaries, node] — a length below 3 means no
+    // intermediary, i.e. not actually transitive.
     if (path.length >= 3) {
-      chains.push(path.slice(1).map((p) => `<- ${p}`).join(' '));
+      paths.push({ node, via: path.slice(1, -1) });
     }
   }
-  return chains.sort();
+  return paths;
+}
+
+export function buildTransitiveChains(
+  targetNode: string,
+  direct: string[],
+  allDependents: string[],
+  reverse: Map<string, Set<string>>,
+): string[] {
+  return buildTransitivePaths(targetNode, direct, allDependents, reverse)
+    .map(({ node, via }) => [...via, node].map((p) => `<- ${p}`).join(' '))
+    .sort();
 }
 
 export function collectIndirectDependents(

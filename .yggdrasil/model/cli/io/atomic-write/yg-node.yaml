@@ -9,5 +9,7 @@ mapping:
 ports:
   write-atomic:
     description: "Atomic file write — consumers must route all fs writes through atomicWriteFile() to prevent partial writes on crash or signal."
+    version: 1
+    test: source/cli/tests/unit/utils/atomic-write.test.ts
     aspects:
       - atomic-write-contract

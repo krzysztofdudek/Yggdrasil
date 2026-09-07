@@ -148,6 +148,28 @@ export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits'
 export interface PortDef {
   description: string;
   aspects: string[];
+  /**
+   * The contract's version. An integer >= 1, absent when the port declares
+   * none — and then read as version 1 wherever a version is needed, so a port
+   * that names a `test` is protected from the first day whether or not its
+   * author has started numbering.
+   *
+   * A version is what makes a contract change SAYABLE: consumers pin what they
+   * consume to a number, and the port's recorded contract baseline is kept per
+   * version, so the number rising is the declaration that the contract moved.
+   */
+  version?: number;
+  /**
+   * Repo-relative POSIX path of the test that IS this contract — the executable
+   * statement of what a consumer may rely on. Absent when the port declares
+   * none.
+   *
+   * It may sit inside the node's own mapping or outside it: a contract test is
+   * often shared, owned by neither side of the port. The path is validated to
+   * exist and its content is baselined per version, so it cannot change without
+   * the version changing.
+   */
+  test?: string;
   /** Per-aspect applicability filters for aspects listed in `aspects` */
   aspectWhens?: Record<string, WhenPredicate>;
   /** Per-aspect explicit status override for aspects listed in `aspects` (channel 6) */

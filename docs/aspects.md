@@ -55,6 +55,26 @@ Every aspect has a status that controls how its results show up. You move a rule
 
 Status defaults to `enforced`. See [Aspect Status](/aspect-status) for the full lifecycle.
 
+## A rule keeps its own history
+
+Beside the rule's files sits `log.md` — the same log a component has, for the same
+reason. It holds why the rule exists, every change of its standing, and every real
+failure taken into its corpus:
+
+```bash
+yg aspects log add --aspect no-raw-sql --reason "Written after the outage on the 3rd."
+yg aspects log add --aspect no-raw-sql --status enforced --evidence "a month advisory, no false alarms" --reason "Promoted."
+yg aspects log read --aspect no-raw-sql
+```
+
+Recording a change of standing does not make one: you edit `status:` in the rule's
+own file, and the command refuses to record a standing the file does not carry.
+What justified the move is required, because it is the part nobody can reconstruct
+later. If you move a rule and record nothing, `yg check` says so, and the next
+approving run writes the bare fact into that rule's log so the change is not lost.
+
+See [`yg aspects log`](/cli-reference#yg-aspects-log--a-rules-own-history).
+
 ## Two more fields worth knowing
 
 Both are optional, both live in `yg-aspect.yaml`, and neither is part of a verdict's identity — adding or changing either one re-verifies nothing.

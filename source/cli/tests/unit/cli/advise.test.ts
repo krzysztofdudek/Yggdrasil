@@ -64,13 +64,15 @@ function readRegister(projectRoot: string): string[] {
 }
 
 describe('registerAdviseCommand', () => {
-  it('registers `yg advise` with dismiss and defer subcommands', () => {
+  it('registers `yg advise` with its dismiss, defer and import subcommands', () => {
     const program = new Command();
     registerAdviseCommand(program);
     const advise = program.commands.find((c) => c.name() === 'advise');
     expect(advise).toBeDefined();
     const subs = (advise!.commands ?? []).map((c) => c.name()).sort();
-    expect(subs).toEqual(['defer', 'dismiss']);
+    // The two acts a user records against an item, plus the one that brings
+    // another tool's proposals in for them to act on.
+    expect(subs).toEqual(['defer', 'dismiss', 'import']);
   });
 });
 
