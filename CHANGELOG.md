@@ -7,13 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Added
-
-- **A rule keeps its own history.** `yg aspects log add` and `yg aspects log read` keep a log beside each rule: why it exists, every change of its standing with the evidence for it, and every real failure taken in as a case. A standing changed by hand is noticed and written down, and the rule list shows the last thing each rule's history recorded.
-
 ## [5.9.0] - 2026-09-07
 
 ### Added
+
+- **A rule keeps its own history.** `yg aspects log add` and `yg aspects log read` keep a log beside each rule: why it exists, every change of its standing with the evidence for it, and every real failure taken in as a case. A standing changed by hand is noticed and written down, and the rule list shows the last thing each rule's history recorded.
 
 - **`yg adopt <proposal-dir>`.** Accepts a proposed graph into your repository in one step, records every rule that runs locally, and tells you how many places in your code the new rules already refuse. `--replace` moves an existing graph aside instead of deleting it; `--dry-run` shows everything and writes nothing.
 
