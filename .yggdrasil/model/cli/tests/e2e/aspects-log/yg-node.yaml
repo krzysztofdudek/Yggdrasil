@@ -1,0 +1,22 @@
+name: E2E Tests — A rule's own history
+type: test-suite
+description: >-
+  Subprocess E2E for the log a rule keeps beside its source: writing an entry,
+  reading it back as prose and as a document, and the standing of a rule being
+  written down. What these pin is that a rule's history is complete and honest.
+  A change of standing recorded through the CLI names what it moved from, what
+  to, who decided and on what evidence — and is refused outright when the rule's
+  file does not actually carry the standing being claimed, because a record of a
+  change that never happened is worse than no record. A standing changed by hand
+  is noticed and written into that rule's history exactly once: the run that
+  records it says so, and no later run repeats it. The same guards a component's
+  log has hold here — an empty reason, text that would destroy the entry
+  boundary for later readers, and a timestamp that never moves backwards — and
+  the rule inventory document carries the last entry's time and what it said, so
+  a reader of the document does not open files.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-aspects-log.test.ts

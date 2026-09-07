@@ -11,7 +11,11 @@ description: >-
   under yg check's own full-project pass for yg tree; already-held for the
   portal, which runs that verification anyway for its other counts), so this
   module now holds only the lock's data shapes, no cheaper presence-only
-  approximation of its own.
+  approximation of its own. Beside the per-component facts it also carries the
+  per-rule ones: the standing the tool last saw a rule at, so a change made by
+  hand is noticed exactly once. That is remembered LOCAL state, never a verdict
+  ingredient — recording it invalidates nothing, and it is absent rather than
+  empty until something has been seen.
 aspects: []
 relations: []
 mapping:

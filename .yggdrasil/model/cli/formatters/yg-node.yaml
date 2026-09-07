@@ -25,6 +25,7 @@ relations:
     type: calls
 mapping:
   - source/cli/src/formatters/advise-json.ts
+  - source/cli/src/formatters/aspect-log-json.ts
   - source/cli/src/formatters/aspect-status-messages.ts
   - source/cli/src/formatters/aspects-json.ts
   - source/cli/src/formatters/check-json.ts

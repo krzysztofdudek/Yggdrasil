@@ -41,6 +41,7 @@ import type { CheckIssue } from './check-contract.js';
 import { emitPairIssue } from './check-pair-issues.js';
 import { classifyLogStateFromLock, classifyLogRequirement } from './check-log-state.js';
 import { classifyPortContracts } from './checks/port-contracts.js';
+import { classifyAspectStatusDrift } from './check-aspect-status.js';
 
 /** What one lock-verification phase produces for the report the orchestrator assembles. */
 export interface LockPhaseResult {
@@ -236,6 +237,13 @@ export async function runLockPhase(args: {
     // log requirement, for the same reason — the baseline it compares against
     // lives in the lock, so a lock that cannot be read must suppress this too.
     await classifyPortContracts(graph, projectRoot, lock, lockIssues);
+
+    // A rule's STANDING, compared against the one the tool last saw. Also here,
+    // and for the third time the same reason: the memory it compares against is
+    // in the lock. Reported, never written — a read-only run keeps its promise,
+    // and the next approving run is what writes the change into the rule's own
+    // history and clears this.
+    classifyAspectStatusDrift(graph, lock, lockIssues);
   } catch (err) {
     if (err instanceof LockInvalidError) {
       lockIssues.push({

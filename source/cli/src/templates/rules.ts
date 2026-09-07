@@ -17,7 +17,7 @@ const SYSTEM = `## SYSTEM
 
 Yggdrasil is continuous architecture enforcement. A graph in \`.yggdrasil/\` describes the architecture. A reviewer verifies source code against it. If code violates a rule, the reviewer refuses it. Every verdict — an LLM reviewer's judgment and a deterministic check's result alike — is stored as a content-addressed entry in the lock; a verdict holds exactly while the inputs that produced it are unchanged. (The lock is a committed/gitignored triad — see Graph Elements.)
 
-The CLI (\`yg\`) never modifies your source or graph files. You create and edit graph files manually. The lock is written only by \`yg check --approve\` and \`yg log merge-resolve\`; logs only by \`yg log add\`. The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run. \`suggestedNext\` at the end of \`yg check\` gives one concrete step. Follow it.
+The CLI (\`yg\`) never modifies your source or graph files. You create and edit graph files manually. The lock is written only by \`yg check --approve\` and \`yg log merge-resolve\`. Logs are written by \`yg log add\` (a component's) and \`yg aspects log add\` (a rule's) — plus one entry an approving run writes by itself, into a rule's log, when that rule's status was changed by hand and nobody recorded why. The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run. \`suggestedNext\` at the end of \`yg check\` gives one concrete step. Follow it.
 
 ### Graph Elements
 
@@ -143,6 +143,8 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg tree [--root <path>] [--depth <n>]\` | Browse graph structure |
 | \`yg find "<query>"\` | Locate entry-point nodes/aspects by natural-language query |
 | \`yg log add --node <path> --reason <text>\` | Append per-node business-context entry (multi-line via \`--reason-file <path>\`) |
+| \`yg aspects log add --aspect <id> --reason <text>\` | Append an entry to a RULE's own history. Add \`--status <draft\\|advisory\\|enforced> --evidence "<what justified it>"\` to record a change of standing — it RECORDS the change, never makes it, and is refused unless the rule's file already carries that status. |
+| \`yg aspects log read --aspect <id>\` [\`--limit <n>\`] [\`--json\`] | Read that history, newest first. |
 | \`yg log read --node <path> [--top N \\| --all]\` | Read log entries (default top 10, newest first) |
 | \`yg log merge-resolve --node <path>\` | Reconcile log.md after a git merge (validates byte-exact ancestor + union of new entries) |
 | \`yg suppressions\` | Read-only inventory of active \`yg-suppress\` markers; warns on unknown aspect-id, wildcard, unbounded range, or a waiver aimed at an \`errs: under\` check (one that cannot false-positive, so there is nothing to waive). Exit 0. |

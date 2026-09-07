@@ -1,9 +1,21 @@
 name: AspectsCommand
 type: command
-description: Lists all aspects with usage statistics in human-readable format via yg aspects. Usage also counts files enforced by an architecture type alone (no owning component), classified once per invocation, so a rule live only through type coverage is never reported as unused.
+description: >-
+  Lists all aspects with usage statistics in human-readable format via yg
+  aspects. Usage also counts files enforced by an architecture type alone (no
+  owning component), classified once per invocation, so a rule live only through
+  type coverage is never reported as unused. It also carries the two commands a
+  rule's own history is written and read through — the counterparts of what a
+  component has had all along — so the reason a rule exists, and every change of
+  its standing, live with the rule instead of being scattered across the
+  components it happens to reach. Recording a change of standing is a RECORD, not
+  the change: the rule's own file stays the user's to edit, so the command
+  refuses to record a standing the file does not actually carry.
 aspects: []
 relations:
   - target: cli/core/loader
+    type: calls
+  - target: cli/core/log
     type: calls
   - target: cli/core/context
     type: calls
@@ -40,4 +52,5 @@ relations:
   - target: cli/io/file-content-cache
     type: calls
 mapping:
+  - source/cli/src/cli/aspects-log.ts
   - source/cli/src/cli/aspects.ts

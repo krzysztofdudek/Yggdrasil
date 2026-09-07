@@ -31,6 +31,7 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/cli/aspects.test.ts
+  - source/cli/tests/unit/cli/aspects-log.test.ts
   - source/cli/tests/unit/cli/find.test.ts
   - source/cli/tests/unit/cli/flows.test.ts
   - source/cli/tests/unit/cli/impact.test.ts

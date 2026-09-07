@@ -636,7 +636,7 @@ yg log merge-resolve --node <path>
 | `yg tree [--root <path>] [--depth <n>]` | Graph structure |
 | `yg structure` | Read-only structural dashboard: tunnels, module groups, change reach |
 | `yg find "<query>"` | Natural-language graph search |
-| `yg aspects` [`--health`] | List aspects; `--health` adds the per-rule health row |
+| `yg aspects` [`--health`] / `log add` / `log read` | List aspects (`--health` adds the per-rule health row); `log` is a rule's own history |
 | `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` / `import` | Read-only attention feed; never gates (`--json` for the machine-readable form) |
 | `yg incident add` / `read` | The committed incident ledger — what escaped enforcement |
 | `yg flows` | List flows |
@@ -822,7 +822,39 @@ description, its reviewer kind and tier, its status, its standing review date,
 its error direction, what it implies, how many places it reaches (split by the
 channel it arrived through) and how many cases sit in its drill corpus. The
 corpus is counted, never run. `--health` is a different and far more expensive
-projection and is refused together with `--json`.
+projection and is refused together with `--json`. Each rule also carries the last
+thing its own log recorded — when, and what it said about where the rule stands —
+so a reader of the document does not have to open files.
+
+#### `yg aspects log` — a rule's own history
+
+A component has always had a log beside it saying why it is the way it is. A rule
+has one too, in `.yggdrasil/aspects/<id>/log.md`, and these are its two commands —
+the exact counterparts of [`yg log add` / `yg log read`](#yg-log), on the same
+entry rules:
+
+```bash
+yg aspects log add --aspect no-raw-sql --reason "Written after the outage on the 3rd: a hand-built query shipped and nothing refused it."
+yg aspects log add --aspect no-raw-sql --status enforced \
+  --evidence "a month advisory, no false alarms" --by "the architect" \
+  --reason "Promoted once it had run clean long enough to trust."
+yg aspects log read --aspect no-raw-sql --limit 5
+yg aspects log read --aspect no-raw-sql --json   # one yg-aspect-log/1 document
+```
+
+`--status` **records** a change of standing; it does not make one. The rule's own
+file stays yours to edit, so the command refuses a standing the file does not
+already carry — a history that claimed a change nobody made would be worse than
+none. Recording one requires `--evidence`: what justified the move is the part
+nobody can reconstruct a year later. Where it moved *from* is taken from the
+rule's own history, or failing that from the standing the tool last saw; when
+neither knows, the entry says so rather than guessing.
+
+**A standing changed by hand is noticed.** `yg check` reports a rule standing
+somewhere other than where the tool last saw it — a warning, never a failure,
+because moving a rule is not a violation of anything — and the next
+`yg check --approve` writes the bare fact into that rule's log and stops
+mentioning it. A change you recorded yourself is never written a second time.
 
 ### `yg advise`
 

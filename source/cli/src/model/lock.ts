@@ -108,10 +108,42 @@ export interface LockNodeEntry {
   ports?: Record<string, Record<string, PortContractRecord>>;
 }
 
+/**
+ * Per-rule facts the tool remembers between runs.
+ *
+ * Only one so far, and it exists for a single purpose: a rule's STANDING is
+ * carried in the rule's own file, which people edit by hand. Without a memory of
+ * what that standing was last seen to be, a promotion or a demotion made outside
+ * the CLI leaves no trace anywhere — the very gap the rule's own log exists to
+ * close. Remembering it here lets exactly one entry be written into that rule's
+ * history when it moves, instead of none, or one on every run afterwards.
+ *
+ * It is REMEMBERED state, never a verdict ingredient: writing or reading it
+ * invalidates nothing, exactly like a component's source fingerprint beside it.
+ * And it is LOCAL: it records what this checkout has witnessed, so it rides with
+ * the gitignored verdict cache rather than the committed files. A checkout that
+ * has never seen a rule reports no change for it — an honest silence, and the
+ * reason the first sighting of every rule is silent too.
+ */
+export interface LockAspectEntry {
+  /** The rule's status the last time an approving run looked. */
+  status?: string;
+}
+
 export interface LockFile {
   version: number; // LOCK_FORMAT_VERSION
   verdicts: Record<string, Record<string, VerdictEntry>>; // aspectId → unitKey → entry
   nodes: Record<string, LockNodeEntry>; // nodePath → per-node facts
+  /**
+   * aspectId → per-rule facts. Lives in the gitignored verdict cache — local,
+   * rebuildable memory, never committed state.
+   *
+   * Optional for the same reason every per-entry field here is: a lock read from
+   * a file written before rules had a remembered standing has none, and an
+   * in-memory lock assembled for a narrower purpose need not invent one. Absent
+   * reads as "nothing has been seen yet", never as "seen and empty".
+   */
+  aspects?: Record<string, LockAspectEntry>;
 }
 
 /** 'node:<model-relative path>' | 'file:<repo-relative POSIX path>' */

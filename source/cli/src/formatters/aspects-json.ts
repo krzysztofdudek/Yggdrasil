@@ -61,6 +61,28 @@ export interface AspectsJsonAspect {
   implies: string[];
   usage: AspectsJsonUsage;
   drills: AspectsJsonDrills;
+  /**
+   * The last thing the rule's own history recorded — so a reader of this
+   * document does not have to open files to know whether a rule has been
+   * touched, when, and whether its standing moved.
+   */
+  log: AspectsJsonLog;
+}
+
+/**
+ * A rule's history in one line: when it was last written to, and what the last
+ * entry said about where the rule stands.
+ *
+ * `at` is null for a rule nothing has been recorded about yet — the normal state
+ * of a rule nobody has had anything to say about, not an error. `statusChange`
+ * is null when the last entry said something other than "this rule moved", which
+ * is what makes its presence meaningful.
+ */
+export interface AspectsJsonLog {
+  /** ISO 8601 UTC timestamp of the newest entry, or null when there is none. */
+  at: string | null;
+  /** The standing the newest entry recorded, when it recorded one. */
+  statusChange: { from: string; to: string } | null;
 }
 
 export interface AspectsJsonDocument {

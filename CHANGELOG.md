@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **A rule keeps its own history.** Every rule now has a log beside it, the way a component always has: why it exists, why it was promoted or demoted and on what evidence, and every real failure taken in as a case. `yg aspects log add` writes an entry, `yg aspects log read` reads it back (as text or as one document). Recording a change of standing is a record, not the change — the rule's own file stays yours to edit, and the tool refuses to record a standing the file does not carry, or one with no evidence behind it. If you move a rule and write nothing, `yg check` says so, and the next approving run writes the bare fact into that rule's log rather than letting the change vanish. The rule list also carries the last thing each rule's history recorded, so you can see what moved without opening anything.
+
 ## [5.9.0] - 2026-09-07
 
 ### Added

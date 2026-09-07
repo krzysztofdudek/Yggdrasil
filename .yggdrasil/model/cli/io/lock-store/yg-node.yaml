@@ -12,7 +12,13 @@ description: >-
   place a nested structure could otherwise make the canonical bytes depend on
   the order a run visited ports in. The reader validates the section strictly,
   like every other one, so a corrupted record fails loudly instead of reading
-  as an absent baseline and silently un-enforcing the contract it held.
+  as an absent baseline and silently un-enforcing the contract it held. The
+  gitignored side carries one more section: the standing the tool last saw each
+  rule at, which is what lets a status changed by hand be written into that
+  rule's own history once instead of never or endlessly. That memory is local
+  and rebuildable, not committed state — it records what this checkout has
+  witnessed — so it rides with the verdict cache, keeps the committed files free
+  of churn, and is written only once something has actually been seen.
 relations:
   - target: cli/model/lock
     type: uses

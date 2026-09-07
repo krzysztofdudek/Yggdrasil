@@ -13,7 +13,10 @@ import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import type { Graph, AspectStatus, AspectDef } from '../model/graph.js';
 import { ASPECTS_JSON_SCHEMA, formatAspectsJson } from '../formatters/aspects-json.js';
-import type { AspectsJsonAspect, AspectsJsonDocument, AspectsJsonDrills } from '../formatters/aspects-json.js';
+import { registerAspectsLogCommand } from './aspects-log.js';
+import { readAspectLog } from '../core/log/aspect-log.js';
+import { parseStatusEntry } from '../core/log/aspect-status.js';
+import type { AspectsJsonAspect, AspectsJsonDocument, AspectsJsonDrills, AspectsJsonLog } from '../formatters/aspects-json.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyLock } from '../core/verify-lock.js';
 import type { VerifiedPair } from '../core/verify-lock.js';
@@ -173,9 +176,26 @@ export async function buildAspectsJson(
         typeCovered: u.typeCovered,
       },
       drills,
+      log: await lastLogFacts(graph, aspect),
     });
   }
   return { schema: ASPECTS_JSON_SCHEMA, aspects };
+}
+
+/**
+ * The last thing a rule's own history recorded, for the document.
+ *
+ * Read from the rule's log rather than derived from anything else: the log IS
+ * the history, and a summary computed from a different source could disagree
+ * with what a reader sees when they open it. A log that cannot be parsed reports
+ * no facts rather than guessed ones — the read command is where that gets
+ * explained, and the inventory must not fail because one rule's file is untidy.
+ */
+async function lastLogFacts(graph: Graph, aspect: AspectDef): Promise<AspectsJsonLog> {
+  const log = await readAspectLog(graph.rootPath, aspect.id, 1);
+  if (!log.ok || log.entries.length === 0) return { at: null, statusChange: null };
+  const newest = log.entries[0];
+  return { at: newest.datetime, statusChange: parseStatusEntry(newest.body) };
 }
 
 export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInput): string {
@@ -884,7 +904,7 @@ async function computeTypeCoverageForAspects(graph: Graph, projectRoot: string):
 }
 
 export function registerAspectsCommand(program: Command): void {
-  program
+  const aspects = program
     .command('aspects')
     .description('List aspects with usage stats')
     .option(
@@ -922,4 +942,8 @@ export function registerAspectsCommand(program: Command): void {
         abortOnUnexpectedError(error, 'listing aspects');
       }
     });
+
+  // A rule's own history, written and read through the command that lists the
+  // rules — the same place a reader already goes to ask about them.
+  registerAspectsLogCommand(aspects);
 }

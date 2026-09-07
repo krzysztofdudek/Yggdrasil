@@ -24,6 +24,8 @@ import path from 'node:path';
 import type { IssueMessage } from '../../model/validation.js';
 import { readLogSafe, statLogFile, writeLogFile } from '../../io/log-store.js';
 import { composeLogEntry } from './log-entry.js';
+import { parseLog } from '../parsing/log-parser.js';
+import { validateFormat } from '../log-format.js';
 import { toPosixPath } from '../../utils/posix.js';
 
 export interface AspectLogAddInput {
@@ -95,4 +97,53 @@ export async function appendAspectLogEntry(
 
   await writeLogFile(logPath, composed.content);
   return { ok: true, datetime: composed.datetime, logPath };
+}
+
+/** One entry read back from a rule's log. */
+export interface AspectLogEntry {
+  /** ISO 8601 UTC timestamp from the entry header. */
+  datetime: string;
+  /** Everything under that header, verbatim. */
+  body: string;
+}
+
+export type AspectLogReadResult =
+  | { ok: true; entries: AspectLogEntry[] }
+  | { ok: false; error: IssueMessage };
+
+/**
+ * Read a rule's log, newest entry first.
+ *
+ * A rule with no log yet reads as no entries — not an error. That is the normal
+ * state of a rule nobody has had anything to say about, and refusing it would
+ * make the read command useless exactly when a reader is asking "has anything
+ * ever happened here?".
+ *
+ * A log whose FORMAT is broken is refused rather than half-read: the entry
+ * boundary is what every reader splits on, so a file that has lost it cannot be
+ * reported entry by entry without inventing where one ends.
+ */
+export async function readAspectLog(
+  yggRootPath: string,
+  aspectId: string,
+  limit?: number,
+): Promise<AspectLogReadResult> {
+  const content = await readLogSafe(aspectLogPath(yggRootPath, aspectId));
+  if (content === '') return { ok: true, entries: [] };
+
+  const violations = validateFormat(content);
+  if (violations.length > 0) {
+    return {
+      ok: false,
+      error: {
+        what: `The log for rule '${aspectId}' is malformed at line ${violations[0].line}: ${violations[0].reason}.`,
+        why: `${violations[0].detail} Entries are separated by their headers, so a file that has lost that structure cannot be reported entry by entry without guessing where one ends.`,
+        next: `Fix the log beside the rule, then read it again.`,
+      },
+    };
+  }
+
+  const entries = parseLog(content).map((e) => ({ datetime: e.datetime, body: e.body }));
+  const newestFirst = [...entries].reverse();
+  return { ok: true, entries: limit === undefined ? newestFirst : newestFirst.slice(0, limit) };
 }

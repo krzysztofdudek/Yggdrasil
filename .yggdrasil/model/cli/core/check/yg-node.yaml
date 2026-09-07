@@ -129,6 +129,7 @@ mapping:
   - source/cli/src/core/check-pair-issues.ts
   - source/cli/src/core/check-log-state.ts
   - source/cli/src/core/check-lock-phase.ts
+  - source/cli/src/core/check-aspect-status.ts
   - source/cli/src/core/check-coverage-scan.ts
   - source/cli/src/core/check-coverage-phase.ts
   - source/cli/src/core/check-suggested-next.ts

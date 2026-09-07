@@ -802,7 +802,40 @@ The rule INVENTORY as one \`yg-aspects/1\` document: per rule, its \`id\`,
 channel each attachment came through, plus type-covered files) and its
 \`drills\` corpus size (violates / satisfies / total — COUNTED, never run).
 \`--health\` is a different and far more expensive projection and is refused
-together with \`--json\` rather than folded into the same schema.
+together with \`--json\` rather than folded into the same schema. Each rule also
+carries \`log\`: the timestamp of the newest entry in its own history and, when
+that entry recorded one, the \`statusChange\` it recorded — so a reader of the
+document never opens a file to know whether a rule has moved.
+
+### \`yg aspects log\` — a rule's OWN history
+
+A component has always had a log beside it. So does a rule, in
+\`.yggdrasil/aspects/<id>/log.md\`, and these are its two commands — the exact
+counterparts of \`yg log add\` / \`yg log read\`, on the SAME entry composer and
+the same guards (an empty reason refused, a body carrying its own \`## \` header
+or an unclosed fence refused, timestamps that only move forward).
+
+\`\`\`bash
+yg aspects log add --aspect <id> --reason "<why the rule exists / what changed>"
+yg aspects log add --aspect <id> --status <draft|advisory|enforced> \\
+  --evidence "<what justified it>" --by "<who decided>" --reason "<why>"
+yg aspects log read --aspect <id> [--limit <n>] [--json]
+\`\`\`
+
+\`--status\` RECORDS a change of standing; it does NOT make one. The rule's file
+stays the user's to edit, so a standing the file does not already carry is
+REFUSED — a history claiming a change nobody made is worse than no history.
+\`--evidence\` is required with it: what justified the move is the part nobody can
+reconstruct later. The \`from\` is taken from the rule's own history, else from
+the standing the tool last saw; when neither knows, the entry SAYS so rather than
+assuming the default.
+
+A standing changed BY HAND (the only way a status changes today) is noticed:
+\`yg check\` reports it as a WARNING — moving a rule is not a violation — and the
+next \`yg check --approve\` writes the bare fact into that rule's log and stops
+mentioning it. A change already recorded by the caller is never written twice.
+This is why a rule's promotion belongs here rather than in \`yg log add --node\`
+on every component the rule reaches: one rule, one history.
 
 ## yg flows
 
