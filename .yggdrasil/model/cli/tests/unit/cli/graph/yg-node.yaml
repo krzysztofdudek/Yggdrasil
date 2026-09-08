@@ -8,7 +8,13 @@ description: >-
   gets. The verdict tests prove the external-judge channel's whole claim from
   both ends — the package's hashes ARE the ones the fill stage would store,
   computed here from the shared assembly rather than re-spelled — and that the
-  command refuses everything that would break that binding.
+  command refuses everything that would break that binding. The machine
+  documents both the impact and the node views are assembled from are covered
+  directly against in-memory graphs: which dependents are direct and which are
+  reached through somebody else, the path each indirect one travels, who
+  consumes a published port — including through an event relation, which the
+  dependency algorithms deliberately ignore — and a port's DECLARED contract
+  version rather than the one a versionless port is read at.
 aspects: []
 relations:
   [
@@ -36,6 +42,7 @@ mapping:
   - source/cli/tests/unit/cli/flows.test.ts
   - source/cli/tests/unit/cli/impact.test.ts
   - source/cli/tests/unit/cli/node.test.ts
+  - source/cli/tests/unit/cli/machine-documents.test.ts
   - source/cli/tests/unit/cli/owner.test.ts
   - source/cli/tests/unit/cli/verdict.test.ts
   - source/cli/tests/unit/cli/which.test.ts

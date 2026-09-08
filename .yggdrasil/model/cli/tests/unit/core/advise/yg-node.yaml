@@ -3,7 +3,15 @@ type: test-suite
 description: "Unit tests for the advise engine — buildNominations over a real
   fixture graph (overdue review_by and suppress-anomaly sources, evidence-hash
   determinism, classRank ordering) and the pure applyDecisions feed matrix
-  (dismiss/defer/done, stale-hash return, deferral elapse, latest-decision-wins)."
+  (dismiss/defer/done, stale-hash return, deferral elapse, latest-decision-wins).
+  It also covers the one nomination source that carries somebody else's evidence
+  rather than this graph's: reading a proposal document another tool produced
+  (only a schema this build names is accepted, only documented fields are read,
+  the producer's evidence is kept verbatim, and the same document handed over
+  twice adds nothing while the same proposal measured at a later commit is a new
+  one), and the items it becomes — ranked below everything the graph derives for
+  itself, rendered as quoted data under the producer's name, and every next step
+  an act for the user to approve, because importing was never accepting."
 aspects: []
 relations:
   [
@@ -15,4 +23,6 @@ relations:
 mapping:
   - source/cli/tests/unit/core/advise-feed.test.ts
   - source/cli/tests/unit/core/advise-nominations.test.ts
+  - source/cli/tests/unit/core/advise-import.test.ts
+  - source/cli/tests/unit/core/advise-imported-nominations.test.ts
   - source/cli/tests/unit/core/node-churn.test.ts

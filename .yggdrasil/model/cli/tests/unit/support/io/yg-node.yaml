@@ -7,7 +7,15 @@ description: "Unit tests for I/O adapters that read/write runtime state —
   (feature-field reader/writer import boundary), and the
   rules-artifact-names single-source guard (installed-artifact-name
   literal boundary), and the sweep that clears a half-finished atomic write
-  left behind by a process killed between writing its temp and renaming it
+  left behind by a process killed between writing its temp and renaming it.
+  It also covers the two registers an import and a drill write through: the
+  committed, union-merged register of proposals another tool handed this graph
+  (a writer that does not swallow a failed write, and a reader tolerant of a
+  line this build cannot understand), and a rule's case corpus on disk, whose
+  directory layout is the reader's contract — only the two verdict-carrying
+  prefixes are read back, a rule with no cases yet is an empty corpus rather
+  than an error, and a case's exact bytes survive the round trip so the byte
+  comparison a writer makes means what it says
   (config-parser and lock-store tests live in child nodes)"
 aspects: []
 relations:
@@ -27,6 +35,8 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/io/advise-decisions-store.test.ts
+  - source/cli/tests/unit/io/advise-imported-store.test.ts
+  - source/cli/tests/unit/io/drill-corpus-store.test.ts
   - source/cli/tests/unit/io/artifact-reader.test.ts
   - source/cli/tests/unit/io/drill-results-reader.test.ts
   - source/cli/tests/unit/io/drill-results-store.test.ts

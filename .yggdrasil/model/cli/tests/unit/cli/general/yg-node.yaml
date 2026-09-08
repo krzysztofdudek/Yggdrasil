@@ -18,7 +18,14 @@ description: "Unit tests for build and check CLI commands — build-command,
   fall-back names both its own cause and its own remedy; the one collapsing
   decision in the change-scope resolver built on it; and how a finding the
   change is not accountable for is labelled, derived from the label of the
-  finding it mirrors so no such finding can render as a raw internal code."
+  finding it mirrors so no such finding can render as a raw internal code.
+  Beside the three text views it also covers the fourth view over the same
+  finished run, the yg-check/1 machine document: that it is a projection and
+  nothing more — every count in it is a count the text header already reports,
+  read a second time rather than computed a second way — plus the two facts it
+  adds for a machine that the prose deliberately blurs, a pair never judged told
+  apart from one judged over code that has since moved, and who answered for
+  each pair."
 aspects: []
 max_direct_relations:
   limit: 30
@@ -70,6 +77,7 @@ mapping:
   - source/cli/tests/unit/cli/check-render-header.test.ts
   - source/cli/tests/unit/cli/check-render-groups.test.ts
   - source/cli/tests/unit/cli/check-render-views.test.ts
+  - source/cli/tests/unit/cli/check-json.test.ts
   - source/cli/tests/unit/cli/check-type-visibility.test.ts
   - source/cli/tests/unit/cli/context-file-type-coverage.test.ts
   - source/cli/tests/unit/cli/init.test.ts

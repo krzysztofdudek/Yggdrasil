@@ -98,7 +98,7 @@
 // fails the whole run instead, since an unresolved tier could have been the tightest one.
 
 import { execFile } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, rmSync, readdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { createRequire } from 'node:module';
@@ -573,7 +573,10 @@ async function main() {
 // Only run the side-effecting measurement when invoked directly (`node
 // scripts/prompt-headroom.mjs`) — not when a test imports resolveTierLimits
 // for its own pure, offline exercise. Same convention as scripts/spectral-headroom.mjs.
-if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
+// Compared through the real path on both sides: Node resolves import.meta.url through
+// symlinks, while process.argv[1] is whatever was typed — on macOS a script run from
+// under /var (a symlink to /private/var) would otherwise never match its own URL.
+if (process.argv[1] && existsSync(process.argv[1]) && pathToFileURL(realpathSync(process.argv[1])).href === import.meta.url) {
   main().catch((err) => {
     fail(err instanceof Error ? err.message : String(err));
   });

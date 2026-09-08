@@ -11,7 +11,13 @@ description: "Unit tests for the yg drill runner — corpus discovery (verdict-p
   asserted BYTE-IDENTICAL to calling the production prompt builder directly with
   an equivalent nodeless input (no owning component) — proving the drill
   instrument can reproduce the same prompt shape a real component-less pair
-  receives, not just an approximation of it."
+  receives, not just an approximation of it. Beside the runner it covers how a
+  real escape becomes a case: the file-at-a-commit spec and everything it
+  refuses, the case name that carries its own origin (the file, the day the code
+  existed and the commit), the byte equality that keeps the same code from
+  entering the corpus twice under a second name, and the entry the rule's own
+  history records — including that it says no reason was given rather than
+  inventing one."
 aspects: []
 relations:
   [
@@ -22,3 +28,4 @@ relations:
   ]
 mapping:
   - source/cli/tests/unit/core/drill-runner.test.ts
+  - source/cli/tests/unit/core/drill-add.test.ts

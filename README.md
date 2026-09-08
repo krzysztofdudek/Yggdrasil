@@ -181,6 +181,24 @@ Delete `.yggdrasil/` and the rules file. No runtime dependencies, no build hooks
 
 [`examples/`](examples/) has seven runnable projects, five of them keyless. This repository uses Yggdrasil on itself, so [`.yggdrasil/`](.yggdrasil/) is a live graph you can read. Full docs at [krzysztofdudek.github.io/Yggdrasil](https://krzysztofdudek.github.io/Yggdrasil/).
 
+## The Yggdrasil family
+
+Three tools, one core: **Yggdrasil** holds the architecture a repository declares and the rails that keep its code to it; **[Grain](https://github.com/krzysztofdudek/Grain)** plants that graph for a repository that has none, mined from its own code and history with the evidence for every rule; **[Horde](https://github.com/krzysztofdudek/Horde)** works the graph when a mission outgrows one agent, holding every agent it raises to the same rules. Each layer runs without the ones above it, and adoption goes bottom-up: Yggdrasil first, Grain when there is no graph yet, Horde when one agent is no longer enough.
+
+| Core | What it holds |
+|---|---|
+| **Yggdrasil** (this one) | The graph and the rails. Every change satisfies the rules that govern it, checked before the agent moves on, re-proved in CI without a key. |
+| **[Grain](https://github.com/krzysztofdudek/Grain)** | The first graph, from evidence. Point it at a repository nobody annotated and it writes the components, the dependencies and the rules the code already keeps, each with the count of places that break it today; Yggdrasil accepts it with one command. |
+| **[Horde](https://github.com/krzysztofdudek/Horde)** | The loop past one agent's context. A steward, an owner per node, an architect with veto, workers and verifiers who never verify their own work, all held to the graph; nothing merges without two keys and an approval. |
+
+Three add-ons attach to the agent rather than to the graph, and each works alone:
+
+| Add-on | Stage | What it makes the agent prove |
+|---|---|---|
+| **[Ratatoskr](https://github.com/krzysztofdudek/RatatoskrSkill)** | request → intent | Keeps the agent talking to you in plain words, not code, so you can follow what it's doing. |
+| **[Urd](https://github.com/krzysztofdudek/UrdSkill)** | intent → code | When the spec is ambiguous, it consults the source of truth and asks, it doesn't guess. |
+| **[Researcher](https://github.com/krzysztofdudek/ResearcherSkill)** | code → measured result | Point it at a metric and it runs experiments, hypotheses kept and discarded. |
+
 ## License
 
 MIT

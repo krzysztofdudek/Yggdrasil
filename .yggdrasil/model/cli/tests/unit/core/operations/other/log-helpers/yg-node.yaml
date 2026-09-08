@@ -1,7 +1,17 @@
 name: Log Format and Integrity Helper Unit Tests
 type: test-suite
 description: "Unit tests for log helper functions — log entry format parsing,
-  integrity-hash verification, and lock-backed merge resolution."
+  integrity-hash verification, and lock-backed merge resolution. It also covers
+  a rule's own history: the log written beside the rule and nowhere else (a
+  symlinked or hard-linked file is refused before anything is written, a rule
+  nobody has said anything about reads as no entries, and a log whose entry
+  boundary is broken is refused rather than half-read), and a rule's standing as
+  part of that history — a change made by hand is noticed once and written down
+  once, decided by reading the rule's own log so the recording run and the
+  reporting run agree days apart; a rule this checkout has never seen is
+  remembered silently because there is no change to narrate; and a log that
+  cannot be written never advances the memory, which would leave the change
+  neither recorded nor ever noticeable again."
 aspects: []
 relations:
   [
@@ -17,3 +27,4 @@ mapping:
   - source/cli/tests/unit/core/log-format.test.ts
   - source/cli/tests/unit/core/log-integrity.test.ts
   - source/cli/tests/unit/core/log-merge-resolve.test.ts
+  - source/cli/tests/unit/core/aspect-history.test.ts

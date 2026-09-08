@@ -165,7 +165,7 @@ function configureFilterDriver(dir: string): void {
   // `%` as sed's address delimiter, not `/`: the marker is a `//` comment, and
   // the default delimiter would end the address inside it.
   git(dir, ['config', 'filter.fakelfs.clean', `sed '\\%^${FILTER_MARKER}$%d'`]);
-  git(dir, ['config', 'filter.fakelfs.smudge', `sed '1i ${FILTER_MARKER}'`]);
+  git(dir, ['config', 'filter.fakelfs.smudge', `awk 'NR==1{print "${FILTER_MARKER}"}1'`]);
 }
 
 describe.skipIf(!distExists)('yg check — a project whose files are rewritten on checkout', () => {
