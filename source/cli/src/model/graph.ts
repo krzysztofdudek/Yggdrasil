@@ -147,7 +147,8 @@ export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits'
 /** Port on a target node — consumers must satisfy port's aspects */
 export interface PortDef {
   description: string;
-  aspects: string[];
+  /** Required aspects a consumer must satisfy. Absent means the port carries none. */
+  aspects?: string[];
   /**
    * The contract's version. An integer >= 1, absent when the port declares
    * none — and then read as version 1 wherever a version is needed, so a port

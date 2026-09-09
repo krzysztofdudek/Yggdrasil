@@ -35,7 +35,7 @@ export function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
     // Check port aspects
     if (node.meta.ports) {
       for (const [portName, port] of Object.entries(node.meta.ports)) {
-        for (const aspectId of port.aspects) {
+        for (const aspectId of port.aspects ?? []) {
           if (!definedAspects.has(aspectId)) {
             issues.push({
               severity: 'error',
@@ -220,7 +220,7 @@ export function checkOrphanedAspects(graph: Graph): ValidationIssue[] {
     for (const a of node.meta.aspects ?? []) referenced.add(a);
     if (node.meta.ports) {
       for (const port of Object.values(node.meta.ports)) {
-        for (const a of port.aspects) referenced.add(a);
+        for (const a of port.aspects ?? []) referenced.add(a);
       }
     }
   }

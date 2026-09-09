@@ -1,0 +1,9 @@
+name: E2E Tests — Ports with optional aspects
+type: test-suite
+description: "Subprocess E2E proving a port's aspects list is optional — an absent key loads as aspects: [] (byte-identical to an explicit empty list), a present-but-malformed value still refuses naming the node and the field exactly once even under the known parent/child cascade, unicode and space-named ports survive, the yg-node/1 JSON contract keeps aspects as [] never null nor missing, and an unreadable yg-node.yaml is a named refusal, never an uncaught exception."
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-ports-optional-aspects.test.ts

@@ -266,17 +266,20 @@ function parsePorts(rawPorts: unknown, filePath: string): Record<string, PortDef
       throw new Error(`yg-node.yaml at ${filePath}: ports.${name}.description must be a non-empty string`);
     }
 
-    if (!Array.isArray(obj.aspects)) {
+    if (obj.aspects !== undefined && !Array.isArray(obj.aspects)) {
       throw new Error(`yg-node.yaml at ${filePath}: ports.${name}.aspects must be an array`);
     }
 
+    // Absent key ⇒ a port that carries no requirement, not a malformed port —
+    // only a PRESENT-but-not-array value (guarded above) is a rejection.
+    const rawPortAspects = Array.isArray(obj.aspects) ? obj.aspects : [];
     const portAspects: string[] = [];
     let portAspectWhens: Record<string, WhenPredicate> | undefined;
     let portAspectStatus: Record<string, AspectStatus> | undefined;
     const seenPortAspects = new Set<string>();
-    for (let i = 0; i < (obj.aspects as unknown[]).length; i++) {
+    for (let i = 0; i < rawPortAspects.length; i++) {
       const parsed = parseAspectAttachment(
-        (obj.aspects as unknown[])[i],
+        rawPortAspects[i],
         `yg-node.yaml at ${filePath}: ports.${name}.aspects[${i}]`,
       );
       if (seenPortAspects.has(parsed.id)) {

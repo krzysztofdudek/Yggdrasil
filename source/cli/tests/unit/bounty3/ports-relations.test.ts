@@ -541,6 +541,22 @@ describe('checkPortAspectsDefined — port-required aspect must exist', () => {
     ]);
     expect(checkPortAspectsDefined(makeGraph({ nodes }))).toEqual([]);
   });
+
+  it('a port literal with the aspects key entirely omitted (as a parser default would produce) is a no-op, not a crash', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['p', makeNode('p', { ports: { charge: { description: '' } } })],
+      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', consumes: ['charge'] }] })],
+    ]);
+    expect(checkPortAspectsDefined(makeGraph({ nodes }))).toEqual([]);
+  });
+
+  it('a port with aspects: [] behaves identically to the aspects key being omitted', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['p', makeNode('p', { ports: { charge: { description: '', aspects: [] } } })],
+      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', consumes: ['charge'] }] })],
+    ]);
+    expect(checkPortAspectsDefined(makeGraph({ nodes }))).toEqual([]);
+  });
 });
 
 // ============================================================================

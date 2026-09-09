@@ -829,6 +829,234 @@ ports:
 
       await rm(tmpDir, { recursive: true, force: true });
     });
+
+    it('loads a port with no aspects key at all as aspects: []', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-absent');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: PaymentService
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+`,
+        'utf-8',
+      );
+
+      const meta = await parseNodeYaml(nodePath);
+      expect(meta.ports).toEqual({
+        charge: { description: 'Synchronous payment charge', aspects: [] },
+      });
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects a port with neither description nor aspects (description stays required)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-and-description-absent');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge: {}
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.description must be a non-empty string');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects ports.<name>.aspects given as a scalar string', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-scalar-string');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects: "audit-required"
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.aspects must be an array');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects ports.<name>.aspects given as an object', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-object');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects: {}
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.aspects must be an array');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects ports.<name>.aspects given as a number', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-number');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects: 3
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.aspects must be an array');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects ports.<name>.aspects given as null (distinct from the key being absent)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-null');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects: null
+`,
+        'utf-8',
+      );
+
+      // An explicit `null` still takes the !Array.isArray rejection path — only
+      // an ABSENT key defaults to []. Pinned so the two are never conflated.
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.aspects must be an array');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects an empty string entry inside ports.<name>.aspects', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-empty-entry');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects:
+      - ""
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('aspect id must be a non-empty string');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects a duplicate aspect id inside ports.<name>.aspects', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-duplicate');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects:
+      - audit-required
+      - audit-required
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow("ports.charge.aspects has duplicate 'audit-required'");
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('loads port names with unicode and spaces unchanged as map keys, defaulting their aspects to []', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-unicode-names');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: PaymentService
+type: service
+ports:
+  "płatność":
+    description: "Zwrot środków w PLN"
+  "bulk write":
+    description: "Batch settlement write"
+`,
+        'utf-8',
+      );
+
+      const meta = await parseNodeYaml(nodePath);
+      expect(meta.ports).toEqual({
+        płatność: { description: 'Zwrot środków w PLN', aspects: [] },
+        'bulk write': { description: 'Batch settlement write', aspects: [] },
+      });
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('treats an empty ports map the same as an absent ports key (undefined)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-empty-ports-map');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: PaymentService
+type: service
+ports: {}
+`,
+        'utf-8',
+      );
+
+      const meta = await parseNodeYaml(nodePath);
+      expect(meta.ports).toBeUndefined();
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
   });
 
   describe('node-parser — when filter', () => {

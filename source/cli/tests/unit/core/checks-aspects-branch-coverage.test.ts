@@ -183,6 +183,35 @@ describe('checkOrphanedAspects', () => {
   });
 });
 
+describe('port aspects — optional field branch coverage', () => {
+  it('a port missing aspects, one with [], and one with a real list — no exceptions, only the real one can dangle', () => {
+    const g = mkGraph({
+      nodes: new Map([
+        node('x/y', {
+          ports: {
+            noKey: { description: 'd' },
+            empty: { description: 'd', aspects: [] },
+            real: { description: 'd', aspects: ['ghost'] },
+          },
+        }),
+      ] as [string, unknown][]) as unknown as Graph['nodes'],
+    });
+
+    expect(() => checkDanglingAspectRefs(g)).not.toThrow();
+    const dangling = checkDanglingAspectRefs(g);
+    expect(dangling).toHaveLength(1);
+    expect(dangling[0].code).toBe('aspect-undefined');
+    expect(dangling[0].messageData.what).toContain("'ghost'");
+    expect(dangling[0].messageData.what).toContain("'real'");
+
+    // graph.aspects is empty here, so there is nothing for checkOrphanedAspects
+    // to report either way — the point is that it does not throw on the same
+    // missing/empty ports that dangling-ref just walked.
+    expect(() => checkOrphanedAspects(g)).not.toThrow();
+    expect(checkOrphanedAspects(g)).toEqual([]);
+  });
+});
+
 describe('aspect-contract validators', () => {
   it('checkReviewerPresence short-circuits when the config failed to parse', async () => {
     expect(await checkReviewerPresence(mkGraph({ configError: 'boom' } as Partial<Graph>))).toEqual([]);

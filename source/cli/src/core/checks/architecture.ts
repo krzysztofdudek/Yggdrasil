@@ -366,7 +366,7 @@ export function checkPortAspectsDefined(graph: Graph): ValidationIssue[] {
       for (const portName of rel.consumes ?? []) {
         const port = target.meta.ports[portName];
         if (!port) continue; // unknown-port catches this
-        for (const aspectId of port.aspects) {
+        for (const aspectId of port.aspects ?? []) {
           if (!definedAspects.has(aspectId)) {
             const msgData: IssueMessage = {
               what: `Port '${portName}' on '${rel.target}' requires aspect '${aspectId}', which is not defined in aspects/.`,
