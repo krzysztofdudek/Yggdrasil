@@ -43,7 +43,7 @@ describe('node-parser — aspects shape rejection', () => {
   });
 });
 
-describe('node-parser — relations.consumes shape rejection', () => {
+describe('node-parser — relations.consumes shape rejection (the portNames alias)', () => {
   it('rejects a SINGLE non-string consumes entry (singular wording)', async () => {
     const yaml = `${BASE}relations:\n  - target: a/b\n    type: uses\n    consumes: [42]\n`;
     await expect(parse(yaml)).rejects.toThrow(/consumes contains non-string entry/);
@@ -59,10 +59,11 @@ describe('node-parser — relations.consumes shape rejection', () => {
     await expect(parse(yaml)).rejects.toThrow(/consumes must be an array of string port names/);
   });
 
-  it('accepts a valid string-array consumes', async () => {
+  it('accepts a valid string-array consumes, normalized onto portNames', async () => {
     const yaml = `${BASE}relations:\n  - target: a/b\n    type: uses\n    consumes: [charge]\n`;
     const meta = await parse(yaml);
-    expect(meta.relations?.[0].consumes).toEqual(['charge']);
+    expect(meta.relations?.[0].portNames).toEqual(['charge']);
+    expect(meta.relations?.[0]).not.toHaveProperty('consumes');
   });
 });
 

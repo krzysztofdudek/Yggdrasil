@@ -189,6 +189,9 @@ and the ports it consumes) or not (reached through other components, so
 `relations` is empty); and, under `transitive`, each indirect dependent with the
 `via` path it is reached through.
 
+A relation's port list is never empty: one that names no port reports
+`default`, the port every component carries whether or not it declares one.
+
 Both target forms produce the same document for the same component, byte for
 byte. Under `--json` stdout carries that document alone: the owner-resolution
 line `--file` normally prints is suppressed, and every redirect that produces no
@@ -261,7 +264,9 @@ It deliberately carries no rule set. What a subject must satisfy is
 cascade, with each rule's effective status — and a partial copy here would give
 you two places to learn one fact, and one of them to get wrong. A port's
 `aspects` is not that: it is the contract the port declares onto its consumers,
-part of the component's own structure.
+part of the component's own structure. A relation's port list is never empty
+the same way: naming none reports `default`, the port every component carries
+implicitly.
 
 A path naming no component is refused with what/why/next and exit 1. New fields
 may appear within `yg-node/1`; only a change to an existing field's shape takes a

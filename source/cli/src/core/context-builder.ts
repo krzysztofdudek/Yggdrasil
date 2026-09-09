@@ -107,7 +107,7 @@ export function buildNodeContextData(graph: Graph, nodePath: string): NodeContex
         relation: r.type,
         description: target?.meta.description,
         readPath: `model/${normPath(r.target)}/yg-node.yaml`,
-        consumes: r.consumes,
+        consumes: r.portNames,
       };
     });
 
@@ -174,7 +174,7 @@ export function buildFileContextData(graph: Graph, filePath: string, ownerPath: 
     .filter(r => !ancestorPathsSet.has(r.target) && STRUCTURAL_RELATION_TYPES.has(r.type))
     .map(r => ({
       path: normPath(r.target),
-      consumed: r.consumes ?? [],
+      consumed: r.portNames,
     }));
 
   const { count: dependentCount } = countDependents(graph, ownerPath);

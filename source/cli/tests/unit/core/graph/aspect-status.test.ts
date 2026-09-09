@@ -120,7 +120,7 @@ describe('computeEffectiveAspectStatuses — channels 1–6', () => {
       path: 'c',
       meta: {
         name: 'c', type: 'service',
-        relations: [{ target: 'svc', type: 'calls', consumes: ['p'] }],
+        relations: [{ target: 'svc', type: 'calls', portNames: ['p'] }],
       },
       children: [], parent: null,
     } as GraphNode;
@@ -140,7 +140,7 @@ describe('computeEffectiveAspectStatuses — channels 1–6', () => {
     } as GraphNode;
     const consumer: GraphNode = {
       path: 'c',
-      meta: { name: 'c', type: 'service', relations: [{ target: 'svc', type: 'calls' }] },
+      meta: { name: 'c', type: 'service', relations: [{ portNames: ['default'], target: 'svc', type: 'calls' }] },
       children: [], parent: null,
     } as GraphNode;
     const result = computeEffectiveAspectStatuses(consumer, makeGraph([aspect], [target, consumer]));
@@ -151,7 +151,7 @@ describe('computeEffectiveAspectStatuses — channels 1–6', () => {
     const aspect = makeAspect('a', 'advisory');
     const consumer: GraphNode = {
       path: 'c',
-      meta: { name: 'c', type: 'service', relations: [{ target: 'missing', type: 'calls', consumes: ['p'] }] },
+      meta: { name: 'c', type: 'service', relations: [{ target: 'missing', type: 'calls', portNames: ['p'] }] },
       children: [], parent: null,
     } as GraphNode;
     const result = computeEffectiveAspectStatuses(consumer, makeGraph([aspect], [consumer]));
@@ -259,7 +259,7 @@ describe('getAspectStatusSources', () => {
       path: 'c',
       meta: {
         name: 'c', type: 'service',
-        relations: [{ target: 'svc', type: 'calls', consumes: ['p'] }],
+        relations: [{ target: 'svc', type: 'calls', portNames: ['p'] }],
       },
       children: [], parent: null,
     } as GraphNode;
@@ -285,9 +285,9 @@ describe('getAspectStatusSources', () => {
       meta: {
         name: 'c', type: 'service',
         relations: [
-          { target: 'svc', type: 'calls' },
-          { target: 'svc', type: 'calls', consumes: ['p'] },
-          { target: 'missing', type: 'calls', consumes: ['p'] },
+          { portNames: ['default'], target: 'svc', type: 'calls' },
+          { target: 'svc', type: 'calls', portNames: ['p'] },
+          { target: 'missing', type: 'calls', portNames: ['p'] },
         ],
       },
       children: [], parent: null,

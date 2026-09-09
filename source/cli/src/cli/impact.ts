@@ -34,6 +34,11 @@ import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } f
 import { IMPACT_JSON_SCHEMA, formatImpactJson } from '../formatters/impact-json.js';
 import { buildImpactDocument } from '../core/graph/machine-documents.js';
 
+// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
+// a value import, to avoid an undeclared new dependency edge onto
+// cli/model/graph for one reserved string.
+const DEFAULT_PORT_NAME = 'default';
+
 export function registerImpactCommand(program: Command): void {
   program
     .command('impact')
@@ -341,8 +346,12 @@ export function registerImpactCommand(program: Command): void {
           } else {
             for (const dep of direct) {
               const rel = relationFrom.get(`${dep}->${nodePath}`);
-              const annot = rel?.consumes?.length
-                ? ` (${rel.type}, consumes: ${rel.consumes.join(', ')})`
+              // 'default' is never absent any more (an undeclared relation
+              // normalizes to it) — only a port named BEYOND the implicit one
+              // is worth annotating.
+              const namedPorts = rel?.consumes.filter((p) => p !== DEFAULT_PORT_NAME) ?? [];
+              const annot = namedPorts.length > 0
+                ? ` (${rel!.type}, consumes: ${namedPorts.join(', ')})`
                 : rel
                   ? ` (${rel.type})`
                   : '';

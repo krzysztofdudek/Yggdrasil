@@ -79,7 +79,7 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'a',
-      createNode('a', { relations: [{ target: 'missing/target', type: 'uses' }] }),
+      createNode('a', { relations: [{ portNames: ['default'], target: 'missing/target', type: 'uses' }] }),
     );
 
     const result = await validate(graph);
@@ -317,7 +317,7 @@ describe('validator', () => {
       'strange/node',
       createNode('strange/node', {
         type: 'totally-custom-type',
-        relations: [{ target: 'strange/target', type: 'uses' }],
+        relations: [{ portNames: ['default'], target: 'strange/target', type: 'uses' }],
       }),
     );
     graph.nodes.set(
@@ -374,7 +374,7 @@ describe('validator', () => {
 
   it('relation-targets no suggestion when no similar candidates', async () => {
     const graph = createGraph();
-    graph.nodes.set('a', createNode('a', { relations: [{ target: 'xyz/unknown', type: 'uses' }] }));
+    graph.nodes.set('a', createNode('a', { relations: [{ portNames: ['default'], target: 'xyz/unknown', type: 'uses' }] }));
     graph.nodes.set('b', createNode('b'));
 
     const result = await validate(graph);
@@ -387,7 +387,7 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'a',
-      createNode('a', { relations: [{ target: 'orders/ordr-servce', type: 'uses' }] }),
+      createNode('a', { relations: [{ portNames: ['default'], target: 'orders/ordr-servce', type: 'uses' }] }),
     );
     graph.nodes.set('orders/order-service', createNode('orders/order-service'));
 
@@ -453,6 +453,7 @@ describe('validator', () => {
     const relations = Array.from({ length: 5 }, (_, i) => ({
       target: `target/${i}`,
       type: 'uses' as const,
+      portNames: ['default'],
     }));
     graph.nodes.set('a', createNode('a', { relations }));
     for (let i = 0; i < 5; i++) {
@@ -480,6 +481,7 @@ describe('validator', () => {
     const relations = Array.from({ length: relationCount }, (_, i) => ({
       target: `target/${i}`,
       type: 'uses' as const,
+      portNames: ['default'],
     }));
     graph.nodes.set('seam', createNode('seam', { relations, ...(override && { maxDirectRelations: override }) }));
     for (let i = 0; i < relationCount; i++) {
@@ -519,7 +521,7 @@ describe('validator', () => {
     const graph = createGraph();
     graph.nodes.set(
       'emitter',
-      createNode('emitter', { relations: [{ target: 'listener', type: 'emits' }] }),
+      createNode('emitter', { relations: [{ portNames: ['default'], target: 'listener', type: 'emits' }] }),
     );
     graph.nodes.set('listener', createNode('listener'));
 
@@ -533,7 +535,7 @@ describe('validator', () => {
     graph.nodes.set('emitter', createNode('emitter'));
     graph.nodes.set(
       'listener',
-      createNode('listener', { relations: [{ target: 'emitter', type: 'listens' }] }),
+      createNode('listener', { relations: [{ portNames: ['default'], target: 'emitter', type: 'listens' }] }),
     );
 
     const result = await validate(graph);
@@ -543,8 +545,8 @@ describe('validator', () => {
 
   it('structural-cycle detects circular dependency', async () => {
     const graph = createGraph();
-    graph.nodes.set('a', createNode('a', { relations: [{ target: 'b', type: 'uses' }] }));
-    graph.nodes.set('b', createNode('b', { relations: [{ target: 'a', type: 'uses' }] }));
+    graph.nodes.set('a', createNode('a', { relations: [{ portNames: ['default'], target: 'b', type: 'uses' }] }));
+    graph.nodes.set('b', createNode('b', { relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] }));
 
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'structural-cycle');
@@ -554,7 +556,7 @@ describe('validator', () => {
 
   it('validate with scope filters issues to that node only', async () => {
     const graph = createGraph();
-    graph.nodes.set('a', createNode('a', { relations: [{ target: 'missing', type: 'uses' }] }));
+    graph.nodes.set('a', createNode('a', { relations: [{ portNames: ['default'], target: 'missing', type: 'uses' }] }));
     graph.nodes.set('b', createNode('b'));
 
     const result = await validate(graph, 'b');

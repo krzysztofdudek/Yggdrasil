@@ -547,6 +547,7 @@ relations:
       target: 'events/handler',
       type: 'emits',
       event_name: 'OrderCreated',
+      portNames: ['default'],
     });
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -576,11 +577,12 @@ relations:
     expect(meta.relations![0]).toEqual({
       target: 'auth/auth-api',
       type: 'uses',
-      consumes: ['login', 'logout'],
+      portNames: ['login', 'logout'],
     });
     expect(meta.relations![1]).toEqual({
       target: 'users/user-repo',
       type: 'calls',
+      portNames: ['default'],
     });
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -1056,6 +1058,109 @@ ports: {}
       expect(meta.ports).toBeUndefined();
 
       await rm(tmpDir, { recursive: true, force: true });
+    });
+  });
+
+  describe('node-parser — default port and portNames', () => {
+    let counter = 0;
+    /** Write one relation (plus optional ports) into a fresh temp yg-node.yaml and parse it. */
+    async function parseRelation(relationYaml: string, portsYaml = ''): Promise<Awaited<ReturnType<typeof parseNodeYaml>>> {
+      const tmpDir = path.join(FIXTURES_DIR, `tmp-port-default-${counter++}`);
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `name: N\ntype: service\nrelations:\n  - ${relationYaml}\n${portsYaml}`,
+        'utf-8',
+      );
+      return parseNodeYaml(nodePath);
+    }
+
+    it('a relation with neither key normalizes to portNames: [default]', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses`);
+      expect(meta.relations).toEqual([{ target: 'a/b', type: 'uses', portNames: ['default'] }]);
+    });
+
+    it('portNames: [charge] is carried through unchanged', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    portNames: [charge]`);
+      expect(meta.relations![0].portNames).toEqual(['charge']);
+    });
+
+    it('consumes: [charge] (the alias) normalizes onto portNames, and consumes is not on the result', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    consumes: [charge]`);
+      expect(meta.relations![0].portNames).toEqual(['charge']);
+      expect(meta.relations![0]).not.toHaveProperty('consumes');
+    });
+
+    it('portNames: [default, charge] keeps both, in the order they were written', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    portNames: [default, charge]`);
+      expect(meta.relations![0].portNames).toEqual(['default', 'charge']);
+    });
+
+    it('portNames: [] is rejected — port-names-empty, naming the relation index', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: []`))
+        .rejects.toThrow(/port-names-empty/);
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: []`))
+        .rejects.toThrow(/relations\[0\]/);
+    });
+
+    it('consumes: [] (the alias) is rejected the same way — the alias gets identical validation', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    consumes: []`))
+        .rejects.toThrow(/port-names-empty/);
+    });
+
+    it('declaring both portNames and consumes on one relation is rejected, naming the index and both keys', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: [charge]\n    consumes: [charge]`))
+        .rejects.toThrow(/relations\[0\].*portNames.*consumes|relations\[0\].*consumes.*portNames/s);
+    });
+
+    it('a scalar portNames value is rejected: must be an array of string port names', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: charge`))
+        .rejects.toThrow(/must be an array of string port names/);
+    });
+
+    it('a non-string entry in portNames is rejected: contains non-string', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: [1]`))
+        .rejects.toThrow(/contains non-string/);
+    });
+
+    it('a duplicate port name in portNames is tolerated, not rejected (documented choice — see node-parser.ts)', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    portNames: [a, a]`);
+      expect(meta.relations![0].portNames).toEqual(['a', 'a']);
+    });
+
+    it('a port name with unicode and one with a space both pass validation', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    portNames: ["ładowanie", "with space"]`);
+      expect(meta.relations![0].portNames).toEqual(['ładowanie', 'with space']);
+    });
+
+    it('an emits/listens relation with no portNames also normalizes to [default] — channel 6 does not skip event relations', async () => {
+      const emits = await parseRelation(`target: a/b\n    type: emits\n    event_name: E`);
+      expect(emits.relations![0].portNames).toEqual(['default']);
+      const listens = await parseRelation(`target: a/b\n    type: listens\n    event_name: E`);
+      expect(listens.relations![0].portNames).toEqual(['default']);
+    });
+
+    it('ports.default with no description parses fine — the implicit port needs none of its own', async () => {
+      const meta = await parseRelation(
+        `target: a/b\n    type: uses`,
+        `ports:\n  default:\n    aspects: []\n`,
+      );
+      expect(meta.ports!.default).toEqual({ description: '', aspects: [] });
+    });
+
+    it('ports.charge with no description still rejects — the exemption is default-only', async () => {
+      await expect(
+        parseRelation(`target: a/b\n    type: uses`, `ports:\n  charge:\n    aspects: []\n`),
+      ).rejects.toThrow('ports.charge.description must be a non-empty string');
+    });
+
+    it('ports.default WITH a description also parses — an explicit declaration is legal', async () => {
+      const meta = await parseRelation(
+        `target: a/b\n    type: uses`,
+        `ports:\n  default:\n    description: "Explicit default"\n    aspects: []\n`,
+      );
+      expect(meta.ports!.default).toEqual({ description: 'Explicit default', aspects: [] });
     });
   });
 

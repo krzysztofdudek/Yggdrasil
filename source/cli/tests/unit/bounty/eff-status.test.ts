@@ -201,7 +201,7 @@ describe('strictest is order-independent (the headline case)', () => {
       children: [], parent: null,
     } as GraphNode;
     const consumer = makeNode('c', 'service', ['a'], { a: 'advisory' });
-    consumer.meta.relations = [{ target: 'svc', type: 'calls', consumes: ['p'] }];
+    consumer.meta.relations = [{ target: 'svc', type: 'calls', portNames: ['p'] }];
     const r = computeEffectiveAspectStatuses(consumer, makeGraph([aspect], [target, consumer]));
     expect(r.get('a')).toBe('enforced');
   });
@@ -584,7 +584,7 @@ describe('all channels combined', () => {
     } as GraphNode;
     const parent = makeNode('p', 'module', ['a'], { a: 'draft' }); // ch 2
     const child = makeNode('p/c', 'service', ['a'], { a: 'advisory' }); // ch 1
-    child.meta.relations = [{ target: 'svc', type: 'calls', consumes: ['p'] }]; // ch 6 enforced
+    child.meta.relations = [{ target: 'svc', type: 'calls', portNames: ['p'] }]; // ch 6 enforced
     link(parent, child);
     const flow: FlowDef = { path: 'f', name: 'f', nodes: ['p'], aspects: ['a'], aspectStatus: { a: 'advisory' } } as FlowDef; // ch 5
     const r = computeEffectiveAspectStatuses(

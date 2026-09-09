@@ -190,7 +190,7 @@ describe('global aspect.when — channel 6 (port)', () => {
     const consumer = makeNode('orders', {
       meta: {
         name: 'orders', type: consumerType,
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }],
       },
     });
     const graph = makeGraph({
@@ -335,7 +335,7 @@ describe('attach-site aspectWhens — channel 6 (port)', () => {
     const consumer = makeNode('orders', {
       meta: {
         name: 'orders', type: consumerType,
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }],
       },
     });
     const graph = makeGraph({

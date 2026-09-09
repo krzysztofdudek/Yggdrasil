@@ -83,10 +83,10 @@ export function collectReverseDependents(
   direct: string[];
   allDependents: string[];
   reverse: Map<string, Set<string>>;
-  relationFrom: Map<string, { type: string; consumes?: string[] }>;
+  relationFrom: Map<string, { type: string; consumes: string[] }>;
 } {
   const reverse = new Map<string, Set<string>>();
-  const relationFrom = new Map<string, { type: string; consumes?: string[] }>();
+  const relationFrom = new Map<string, { type: string; consumes: string[] }>();
   for (const [nodePath, node] of graph.nodes) {
     for (const rel of node.meta.relations ?? []) {
       if (!STRUCTURAL_TYPES.has(rel.type)) continue;
@@ -95,7 +95,7 @@ export function collectReverseDependents(
       reverse.set(rel.target, deps);
       relationFrom.set(`${nodePath}->${rel.target}`, {
         type: rel.type,
-        consumes: rel.consumes,
+        consumes: rel.portNames,
       });
     }
   }

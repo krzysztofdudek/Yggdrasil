@@ -598,7 +598,9 @@ every component that depends on it under \`dependents\`, each marked \`direct\`
 (it declares a relation onto the subject, and \`relations\` names each relation's
 type and the ports it consumes) or not (reached through other components, so
 \`relations\` is empty); and, under \`transitive\`, each indirect dependent with
-the \`via\` path it is reached through. Both target forms produce the SAME
+the \`via\` path it is reached through. A relation's port list is never empty:
+one that names no port reports \`default\`, the port every component carries
+whether or not it declares one. Both target forms produce the SAME
 document for the same component, byte for byte: stdout carries it alone, so the
 owner-resolution line \`--file\` normally prints is suppressed and every redirect
 that produces no document (a graph file, a path excluded by design, a file no
@@ -631,7 +633,8 @@ It carries NO rule set on purpose. What a subject must satisfy is
 each rule's effective status -- and a partial copy here would give you two
 places to learn one fact and one of them to get wrong. A port's \`aspects\` is
 not that: it is the contract the port declares onto its consumers, part of the
-component's own structure.
+component's own structure. A relation's port list is never empty the same way:
+naming none reports \`default\`, the port every component carries implicitly.
 
 A path naming no component is refused with what/why/next and exit 1. Fields may
 be added within \`yg-node/1\`; only a change to an existing field's shape takes a

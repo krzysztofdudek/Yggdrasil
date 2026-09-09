@@ -73,6 +73,11 @@ export interface NodeContextDep {
 import { truncateDescription } from './truncate.js';
 import { toPosixPath } from '../utils/posix.js';
 
+// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
+// a value import, to avoid an undeclared new dependency edge onto
+// cli/model/graph for one reserved string.
+const DEFAULT_PORT_NAME = 'default';
+
 function posixPath(p: string): string {
   return toPosixPath(p);
 }
@@ -159,7 +164,10 @@ export function formatNodeContext(data: NodeContextData): string {
     lines.push(`Dependencies (${data.dependencies.length}):`);
     for (const dep of data.dependencies) {
       const depDesc = dep.description ? ` — ${dep.description}` : '';
-      const consumes = dep.consumes ? ` — consumes: ${dep.consumes.join(', ')}` : '';
+      // 'default' is never absent any more (an undeclared relation normalizes to
+      // it) — only a port named BEYOND the implicit one is worth a line.
+      const namedPorts = dep.consumes?.filter((p) => p !== DEFAULT_PORT_NAME) ?? [];
+      const consumes = namedPorts.length > 0 ? ` — consumes: ${namedPorts.join(', ')}` : '';
       lines.push(`  ${posixPath(dep.path)} (${dep.relation})${depDesc}${consumes}`);
       if (dep.portAspects && dep.portAspects.length > 0) {
         for (const pa of dep.portAspects) {

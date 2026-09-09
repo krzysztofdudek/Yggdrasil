@@ -367,7 +367,7 @@ describe('buildFileContextData', () => {
       meta: {
         name: 'MySvc',
         type: 'service',
-        relations: [{ target: 'dep/svc', type: 'uses', consumes: ['api'] }],
+        relations: [{ target: 'dep/svc', type: 'uses', portNames: ['api'] }],
       },
       children: [],
       parent: null,

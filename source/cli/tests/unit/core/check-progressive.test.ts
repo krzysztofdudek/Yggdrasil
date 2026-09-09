@@ -533,7 +533,7 @@ describe('applyChangeScope — against the real burn engine', () => {
   /** `consumer` declares a relation to `provider`; only provider's declaration moves. */
   function scopeAfterTouchingProviderDeclaration(): BurnSet {
     const provider = node('provider');
-    const consumer = node('consumer', { relations: [{ target: 'provider', type: 'uses' }] });
+    const consumer = node('consumer', { relations: [{ portNames: ['default'], target: 'provider', type: 'uses' }] });
     return computeBurnSet({
       touched: new Set(['.yggdrasil/model/provider/yg-node.yaml']),
       graph: graphOf([provider, consumer]),
@@ -579,7 +579,7 @@ describe('applyChangeScope — against the real burn engine', () => {
   it('still downgrades a finding on a component the change reaches by no route at all', () => {
     // The completeness fix must not collapse into "everything is in scope".
     const provider = node('provider');
-    const consumer = node('consumer', { relations: [{ target: 'provider', type: 'uses' }] });
+    const consumer = node('consumer', { relations: [{ portNames: ['default'], target: 'provider', type: 'uses' }] });
     const bystander = node('bystander');
     const scope = computeBurnSet({
       touched: new Set(['.yggdrasil/model/provider/yg-node.yaml']),

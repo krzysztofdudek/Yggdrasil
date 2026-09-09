@@ -80,7 +80,11 @@ function matchesRelation(r: Relation, match: RelationMatch, graph: Graph, overri
     if (targetType !== match.target_type) return false;
   }
   if (match.consumes_port !== undefined) {
-    if (!r.consumes || !r.consumes.includes(match.consumes_port)) return false;
+    // A relation naming none normalizes to ['default'] at parse time, so
+    // `consumes_port: default` now matches a relation that never declared
+    // anything — a deliberate behavior change (the port itself is no longer
+    // opt-in), pinned by a test rather than left as an incidental side effect.
+    if (!r.portNames.includes(match.consumes_port)) return false;
   }
   return true;
 }

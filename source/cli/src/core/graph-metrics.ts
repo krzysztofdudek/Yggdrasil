@@ -32,7 +32,12 @@ export type EdgeOrigin = 'declared' | 'detected' | 'both';
 export interface StructEdge {
   from: string;
   to: string;
-  /** True iff some declared relation for this pair carries a non-empty `consumes`. */
+  /**
+   * True iff some declared relation for this pair names a port other than the
+   * implicit `default` one. `consumes` is never empty any more — every relation
+   * carries at least `['default']` — so "non-empty" no longer distinguishes
+   * anything; naming a REAL port is the signal now.
+   */
   viaContract: boolean;
   origin: EdgeOrigin;
 }
@@ -42,6 +47,7 @@ export interface DeclaredRelation {
   from: string;
   to: string;
   type: string;
+  /** The relation's portNames, never empty — ['default'] when it named none. */
   consumes: string[];
 }
 
@@ -108,7 +114,8 @@ interface PairAccumulator {
  * The structural edge universe: structural declared relations ∪ detected edges,
  * deduped per node pair. Event relation types are excluded. `origin` reflects
  * whether the pair is declared-only, detected-only, or both; `viaContract` is
- * true iff any declared relation for the pair carries a non-empty `consumes`.
+ * true iff any declared relation for the pair names a port other than the
+ * implicit `default` one.
  * Result is sorted by (from, to).
  */
 export function edgeUniverse(
@@ -133,8 +140,15 @@ export function edgeUniverse(
   // origin of 'declared'/'both'.
   for (const rel of declared) {
     const structural = STRUCTURAL_TYPES.has(rel.type);
-    const hasConsumes = rel.consumes.length > 0;
-    if (!structural && !hasConsumes) continue; // event with no port — irrelevant
+    // DECISION (delegated by the task, documented here per its own instruction):
+    // `consumes` is never empty any more — a relation naming none normalizes to
+    // ['default'] — so "non-empty" would make hasConsumes true for EVERY
+    // relation, collapsing the very distinction this metric exists to draw.
+    // hasConsumes instead means "names a port OTHER than the implicit default":
+    // a relation that never opted into a real contract still doesn't count,
+    // preserving today's numbers for every graph that doesn't use ports.
+    const hasConsumes = rel.consumes.some((p) => p !== 'default'); // model/graph.ts DEFAULT_PORT_NAME — this module takes no imports
+    if (!structural && !hasConsumes) continue; // event with no real port — irrelevant
     const acc = ensure(rel.from, rel.to);
     if (structural) acc.declaredStructural = true;
     if (hasConsumes) acc.viaContract = true;

@@ -1,5 +1,11 @@
 import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
+
+// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
+// a value import: importing the value would add several nodes' first real
+// dependency edge onto cli/model/graph, undeclared in the graph — not worth
+// it for one reserved string.
+const DEFAULT_PORT_NAME = 'default';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';
@@ -363,7 +369,7 @@ export function checkPortAspectsDefined(graph: Graph): ValidationIssue[] {
       const target = graph.nodes.get(rel.target);
       if (!target?.meta.ports) continue;
 
-      for (const portName of rel.consumes ?? []) {
+      for (const portName of rel.portNames) {
         const port = target.meta.ports[portName];
         if (!port) continue; // unknown-port catches this
         for (const aspectId of port.aspects ?? []) {
@@ -490,9 +496,21 @@ export function checkArchitectureParents(graph: Graph): ValidationIssue[] {
 /**
  * missing-consumes
  * When a relation target has non-empty ports, the consumer must declare which port(s) it consumes.
+ * Unreachable now that the parser normalizes an undeclared relation to
+ * `portNames: ['default']` — `portNames` is never empty, so this can no longer
+ * fire. Left in place rather than deleted: retiring the code itself, and
+ * merging consumes-without-ports into unknown-port, is a separate change.
+ *
+ * consumes-without-ports
+ * When a consumer names a port other than the implicit `default` one on a
+ * relation to a target that declares no ports at all. Naming ONLY `default`
+ * is never an error here — every node carries it whether or not it declares
+ * a `ports:` block, so there is nothing missing to complain about.
  *
  * unknown-port
- * When a consumer's consumes list references a port name that does not exist on the target.
+ * When a consumer's portNames list references a port name that does not exist
+ * on the target. `default` is exempt from this check — it exists implicitly
+ * on every node, declared or not.
  */
 export function checkPortConsumes(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -504,11 +522,13 @@ export function checkPortConsumes(graph: Graph): ValidationIssue[] {
       // consumes contract must be enforced uniformly for consistency.
       const target = graph.nodes.get(rel.target);
       const hasPorts = target?.meta.ports && Object.keys(target.meta.ports).length > 0;
+      const namedNonDefault = rel.portNames.filter((p) => p !== DEFAULT_PORT_NAME);
 
-      // consumes-without-ports: consumes on a relation to a target without ports
-      if (!hasPorts && rel.consumes && rel.consumes.length > 0) {
+      // consumes-without-ports: a real port named on a relation to a target
+      // without ports. default-only never reaches here (namedNonDefault is empty).
+      if (!hasPorts && namedNonDefault.length > 0) {
         const msgData: IssueMessage = {
-          what: `Relation '${rel.type}' to '${rel.target}' declares consumes [${rel.consumes.join(', ')}], but the target has no ports.`,
+          what: `Relation '${rel.type}' to '${rel.target}' declares consumes [${rel.portNames.join(', ')}], but the target has no ports.`,
           why: `consumes is only meaningful when the target declares ports with required aspects.`,
           next: `Remove consumes from this relation in yg-node.yaml.`,
         };
@@ -526,8 +546,8 @@ export function checkPortConsumes(graph: Graph): ValidationIssue[] {
       if (!hasPorts) continue;
       const ports = target!.meta.ports!;
 
-      // missing-consumes: target has ports but consumer has no consumes
-      if (!rel.consumes || rel.consumes.length === 0) {
+      // missing-consumes: unreachable — see the doc comment above.
+      if (rel.portNames.length === 0) {
         const portNames = Object.keys(ports);
         const msgData: IssueMessage = {
           what: `Node '${nodePath}' relates (${rel.type}) to '${rel.target}', which declares ports, but the relation has no consumes.`,
@@ -545,8 +565,11 @@ export function checkPortConsumes(graph: Graph): ValidationIssue[] {
         continue;
       }
 
-      // unknown-port: consumes references non-existent port
-      for (const portName of rel.consumes) {
+      // unknown-port: portNames references a non-existent port. 'default' is
+      // implicit on every node, so it is never "unknown" even when the target
+      // declares no ports.default of its own.
+      for (const portName of rel.portNames) {
+        if (portName === DEFAULT_PORT_NAME) continue;
         if (!(portName in ports)) {
           const available = Object.keys(ports);
           const msgData: IssueMessage = {
@@ -567,5 +590,38 @@ export function checkPortConsumes(graph: Graph): ValidationIssue[] {
     }
   }
 
+  return issues;
+}
+
+/**
+ * Migration advisory: a node that declares `ports.default` explicitly.
+ *
+ * `default` became a reserved port name that every node carries implicitly —
+ * declaring it is legal (it is how a node hangs aspects on the implicit port),
+ * but a graph written before the reservation may have used the name for an
+ * ordinary, unrelated port whose meaning has now silently changed underneath
+ * it. A warning, not an error: the declaration is valid either way, so this
+ * never blocks `yg check`. Stateless by design — it fires on every run, not
+ * once ever, so nobody has to hunt for a suppression or a state file to make
+ * it go away once they've looked.
+ */
+export function checkReservedDefaultPortName(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const [nodePath, node] of graph.nodes) {
+    if (!node.meta.ports || !(DEFAULT_PORT_NAME in node.meta.ports)) continue;
+    const msgData: IssueMessage = {
+      what: `Node '${nodePath}' declares a port literally named '${DEFAULT_PORT_NAME}'.`,
+      why: `'default' is a reserved port name — every node carries it implicitly, and a relation naming no port now enters through it. Declaring it explicitly is legal (it is how a node hangs aspects on the implicit port), but if this port predates the reservation, its meaning has changed under it.`,
+      next: `Confirm the port's aspects are meant to apply to every consumer that names no port, or rename it if it was an ordinary port.`,
+    };
+    issues.push({
+      severity: 'warning',
+      code: 'port-default-reserved',
+      rule: 'reserved-port-name',
+      nodePath,
+      ...issueMsg(msgData),
+      messageData: msgData,
+    });
+  }
   return issues;
 }

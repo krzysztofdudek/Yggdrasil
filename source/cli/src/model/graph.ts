@@ -144,6 +144,13 @@ export interface QualityConfig {
 
 export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens';
 
+/**
+ * The reserved port name every node carries implicitly, whether or not it
+ * declares one — a relation naming no port normalizes to this at parse time.
+ * A node declares `ports.default` explicitly only to hang aspects on it.
+ */
+export const DEFAULT_PORT_NAME = 'default';
+
 /** Port on a target node — consumers must satisfy port's aspects */
 export interface PortDef {
   description: string;
@@ -234,7 +241,14 @@ export interface NodeMeta {
 export interface Relation {
   target: string;
   type: RelationType;
-  consumes?: string[];
+  /**
+   * Named ports this relation enters through. Never empty — the parser
+   * normalizes a relation naming none to `[DEFAULT_PORT_NAME]`, the port every
+   * node carries implicitly. `portNames:` is the field in yg-node.yaml;
+   * `consumes:` is accepted there too, as an alias, but never appears on this
+   * parsed shape.
+   */
+  portNames: string[];
   /** For event relations (emits, listens): display name of the event, e.g. OrderPlaced */
   event_name?: string;
 }

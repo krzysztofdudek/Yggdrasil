@@ -6,4 +6,4 @@ mapping:
 relations:
   - target: services/payments
     type: uses
-    consumes: [charge]
+    portNames: [charge]

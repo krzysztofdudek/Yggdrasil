@@ -51,7 +51,7 @@ describe('collectReverseDependents', () => {
   it('finds direct dependents via structural relations', () => {
     const target = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const graph = makeGraph([target, b]);
     const result = collectReverseDependents(graph, 'a');
@@ -62,7 +62,7 @@ describe('collectReverseDependents', () => {
   it('ignores event relations for structural reverse dependents', () => {
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'emits' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'emits' }] },
     });
     const graph = makeGraph([a, b]);
     const result = collectReverseDependents(graph, 'a');
@@ -74,18 +74,18 @@ describe('collectReverseDependents', () => {
     // on an already-seen node so the `seen.has(next)` continue arm is exercised.
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const c = makeNode('c', {
-      meta: { name: 'c', type: 'service', relations: [{ target: 'b', type: 'uses' }] },
+      meta: { name: 'c', type: 'service', relations: [{ portNames: ['default'], target: 'b', type: 'uses' }] },
     });
     const d = makeNode('d', {
       meta: {
         name: 'd',
         type: 'service',
         relations: [
-          { target: 'c', type: 'uses' },
-          { target: 'b', type: 'uses' }, // re-converges on b (already seen during BFS)
+          { portNames: ['default'], target: 'c', type: 'uses' },
+          { portNames: ['default'], target: 'b', type: 'uses' }, // re-converges on b (already seen during BFS)
         ],
       },
     });
@@ -100,10 +100,10 @@ describe('buildTransitiveChains', () => {
   it('chains do NOT include the target node', () => {
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const c = makeNode('c', {
-      meta: { name: 'c', type: 'service', relations: [{ target: 'b', type: 'uses' }] },
+      meta: { name: 'c', type: 'service', relations: [{ portNames: ['default'], target: 'b', type: 'uses' }] },
     });
     const graph = makeGraph([a, b, c]);
     const { direct, allDependents, reverse } = collectReverseDependents(graph, 'a');
@@ -116,7 +116,7 @@ describe('buildTransitiveChains', () => {
   it('returns empty when no transitive-only deps', () => {
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const graph = makeGraph([a, b]);
     const { direct, allDependents, reverse } = collectReverseDependents(graph, 'a');
@@ -129,18 +129,18 @@ describe('buildTransitiveChains', () => {
     // the d->b edge revisits b (already visited) → the visited.has(next) continue arm.
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const c = makeNode('c', {
-      meta: { name: 'c', type: 'service', relations: [{ target: 'b', type: 'uses' }] },
+      meta: { name: 'c', type: 'service', relations: [{ portNames: ['default'], target: 'b', type: 'uses' }] },
     });
     const d = makeNode('d', {
       meta: {
         name: 'd',
         type: 'service',
         relations: [
-          { target: 'c', type: 'uses' },
-          { target: 'b', type: 'uses' }, // re-converges on b
+          { portNames: ['default'], target: 'c', type: 'uses' },
+          { portNames: ['default'], target: 'b', type: 'uses' }, // re-converges on b
         ],
       },
     });
@@ -251,7 +251,7 @@ describe('collectIndirectDependents', () => {
   it('finds reverse dependents of affected nodes', () => {
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const graph = makeGraph([a, b]);
     const result = collectIndirectDependents(graph, ['a']);
@@ -265,10 +265,10 @@ describe('collectIndirectDependents', () => {
     //  - x -bogus-> a   (neither structural nor emits/listens: the continue arm)
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'emits' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'emits' }] },
     });
     const c = makeNode('c', {
-      meta: { name: 'c', type: 'service', relations: [{ target: 'a', type: 'listens' }] },
+      meta: { name: 'c', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'listens' }] },
     });
     const x = makeNode('x', {
       meta: {
@@ -276,7 +276,7 @@ describe('collectIndirectDependents', () => {
         type: 'service',
         // intentionally invalid relation type to drive the skip arm (graph data could
         // be hand-edited; the algorithm must defensively ignore unknown relation types).
-        relations: [{ target: 'a', type: 'bogus' as unknown as 'uses' }],
+        relations: [{ target: 'a', type: 'bogus' as unknown as 'uses', portNames: ['default'] }],
       },
     });
     const graph = makeGraph([a, b, c, x]);
@@ -295,18 +295,18 @@ describe('collectIndirectDependents', () => {
     // existing-shorter entry exercises its else.
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const c = makeNode('c', {
-      meta: { name: 'c', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'c', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const d = makeNode('d', {
       meta: {
         name: 'd',
         type: 'service',
         relations: [
-          { target: 'b', type: 'uses' },
-          { target: 'c', type: 'uses' },
+          { portNames: ['default'], target: 'b', type: 'uses' },
+          { portNames: ['default'], target: 'c', type: 'uses' },
         ],
       },
     });
@@ -328,18 +328,18 @@ describe('collectIndirectDependents', () => {
     // `depth < existing.depth` is FALSE → the existing shorter chain is kept (else arm).
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const c = makeNode('c', {
-      meta: { name: 'c', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'c', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const d = makeNode('d', {
       meta: {
         name: 'd',
         type: 'service',
         relations: [
-          { target: 'b', type: 'uses' },
-          { target: 'c', type: 'uses' },
+          { portNames: ['default'], target: 'b', type: 'uses' },
+          { portNames: ['default'], target: 'c', type: 'uses' },
         ],
       },
     });
@@ -356,7 +356,7 @@ describe('collectIndirectDependents', () => {
     // but since b is in directSet it must be skipped as an INDIRECT result.
     const a = makeNode('a');
     const b = makeNode('b', {
-      meta: { name: 'b', type: 'service', relations: [{ target: 'a', type: 'uses' }] },
+      meta: { name: 'b', type: 'service', relations: [{ portNames: ['default'], target: 'a', type: 'uses' }] },
     });
     const graph = makeGraph([a, b]);
     const result = collectIndirectDependents(graph, ['a', 'b']);

@@ -104,3 +104,5 @@ Threads the same type-coverage classification already used for the reviewer-pres
 A parameter's doc comment claimed the shared enforcement classification was threaded into only one check, but it has also fed two dead-attach warnings for some time, letting them tell a rule reachable through an architecture type apart from one that is genuinely never enforced. The comment was stale; it now names all three consumers.
 ## [2026-07-30T21:02:13.136Z]
 Reworded two comments describing the threaded type-coverage classification parameter so each explains, in its own words, that it is computed once by the caller and passed through to the dead-attach checks rather than recomputed, instead of leaning on a short internal code with no meaning to a reader of this repository.
+## [2026-09-09T19:51:13.711Z]
+Registered the new advisory check that flags a node explicitly declaring a port literally named default.

@@ -1,4 +1,9 @@
 import type { AspectStatus, Graph, GraphNode, Relation, RelationType } from '../model/graph.js';
+
+// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
+// a value import, to avoid an undeclared new dependency edge onto
+// cli/model/graph for one reserved string.
+const DEFAULT_PORT_NAME = 'default';
 import type { WhenEvalOverrides } from './when-evaluator.js';
 import { computeEffectiveAspects, computeEffectiveAspectStatuses, ImpliesCycleError } from './graph/aspects.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
@@ -283,9 +288,9 @@ export function computeTypeAspectCascade(
   for (const edge of edges?.edgesFrom(file) ?? []) {
     for (const kind of DERIVED_RELATION_TYPES) {
       if (edge.toOwner.kind === 'node') {
-        relations.push({ target: edge.toOwner.path, type: kind });
+        relations.push({ target: edge.toOwner.path, type: kind, portNames: [DEFAULT_PORT_NAME] });
       } else {
-        const relation: Relation = { target: '', type: kind };
+        const relation: Relation = { target: '', type: kind, portNames: [DEFAULT_PORT_NAME] };
         targetTypeByRelation.set(relation, edge.toOwner.type);
         relations.push(relation);
       }
@@ -295,8 +300,8 @@ export function computeTypeAspectCascade(
   // 4. The transient subject view. `meta.mapping = [file]` makes
   // `node.has_mapping` read true; the absence of `meta.ports` makes
   // `node.has_port` read false and starves channel 6 (no derived relation
-  // ever carries `consumes`, so port matching would starve either way).
-  // `children: []` makes `descendants:` read false. `meta.aspects` /
+  // ever names a port beyond the implicit `default`, so port matching would
+  // starve either way). `children: []` makes `descendants:` read false. `meta.aspects` /
   // `aspectWhens` / `aspectStatus` are absent, so channel 1 delivers nothing.
   const subject: GraphNode = {
     path: file,

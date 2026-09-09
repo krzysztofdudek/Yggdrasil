@@ -29,7 +29,7 @@ describe('evaluateWhen', () => {
   it('relations.calls.target_type matches', () => {
     const target = makeNode('payments', { meta: { name: 'p', type: 'service-client' } });
     const node = makeNode('orders', {
-      meta: { name: 'o', type: 'command', relations: [{ target: 'payments', type: 'calls' }] },
+      meta: { name: 'o', type: 'command', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] },
     });
     const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', node]]) });
     const p: WhenPredicate = { relations: { calls: { target_type: 'service-client' } } };
@@ -45,7 +45,7 @@ describe('evaluateWhen', () => {
 
   it('relations.calls.target exact path', () => {
     const node = makeNode('orders', {
-      meta: { name: 'o', type: 'command', relations: [{ target: 'payments/service', type: 'calls' }] },
+      meta: { name: 'o', type: 'command', relations: [{ portNames: ['default'], target: 'payments/service', type: 'calls' }] },
     });
     const graph = makeGraph({
       nodes: new Map([
@@ -65,16 +65,34 @@ describe('evaluateWhen', () => {
       },
     });
     const node = makeNode('orders', {
-      meta: { name: 'o', type: 'command', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'o', type: 'command', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', node]]) });
     expect(evaluateWhen({ relations: { calls: { consumes_port: 'charge' } } }, node, graph)).toBe(true);
     expect(evaluateWhen({ relations: { calls: { consumes_port: 'refund' } } }, node, graph)).toBe(false);
   });
 
+  it('consumes_port: default matches a relation that named nothing at all — a DELIBERATE behavior change: the parser normalizes an undeclared relation to portNames: [default], so the implicit port is now a real match target, not just a name that happens to never appear', () => {
+    const target = makeNode('payments', {
+      meta: {
+        name: 'p', type: 'service',
+        ports: { charge: { description: 'charge', aspects: [] } },
+      },
+    });
+    const bare = makeNode('orders', {
+      meta: { name: 'o', type: 'command', relations: [{ target: 'payments', type: 'calls', portNames: ['default'] }] },
+    });
+    const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', bare]]) });
+    expect(evaluateWhen({ relations: { calls: { consumes_port: 'default' } } }, bare, graph)).toBe(true);
+    // Naming only the implicit port never satisfies a REAL port name — a
+    // relation is named-in-full, not partially: it enters through exactly
+    // what it named.
+    expect(evaluateWhen({ relations: { calls: { consumes_port: 'charge' } } }, bare, graph)).toBe(false);
+  });
+
   it('descendants.relations matches when a child has the relation', () => {
     const child = makeNode('orders/handler', {
-      meta: { name: 'h', type: 'handler', relations: [{ target: 'payments', type: 'calls' }] },
+      meta: { name: 'h', type: 'handler', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] },
     });
     const target = makeNode('payments', { meta: { name: 'p', type: 'service-client' } });
     const parent = makeNode('orders', { meta: { name: 'o', type: 'module' }, children: [child] });

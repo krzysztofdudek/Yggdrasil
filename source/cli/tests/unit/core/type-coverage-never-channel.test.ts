@@ -95,7 +95,7 @@ describe('the never-channel family for type-covered files', () => {
       meta: {
         name: 'Probe',
         type: 'svc',
-        relations: Array.from({ length: 11 }, (_, i) => ({ target: `probe/dep-${i}`, type: 'uses' as const })),
+        relations: Array.from({ length: 11 }, (_, i) => ({ target: `probe/dep-${i}`, type: 'uses' as const, portNames: ['default'] })),
       },
       children: [],
       parent: null,

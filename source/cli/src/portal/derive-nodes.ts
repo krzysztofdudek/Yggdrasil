@@ -261,10 +261,13 @@ function buildOne(
     fresh,
   );
 
+  // model/graph.ts's DEFAULT_PORT_NAME, as a literal (a value import would
+  // cross this node's facade-only engine boundary — see its yg-node.yaml).
+  const namedPortsOf = (r: { portNames: string[] }) => r.portNames.filter((p) => p !== 'default');
   const relationsOut: PortalRelationOut[] = (node.meta.relations ?? []).map((r) => ({
     target: r.target,
     type: r.type,
-    ...(r.consumes ? { consumes: r.consumes } : {}),
+    ...(namedPortsOf(r).length > 0 ? { consumes: namedPortsOf(r) } : {}),
   }));
 
   const log: PortalLogEntry[] = parseLog(logContents.get(path) ?? '').map((e) => ({

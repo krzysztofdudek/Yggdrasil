@@ -4,6 +4,6 @@ type: consumer
 relations:
   - target: services/payments
     type: uses
-    consumes: [charge]
+    portNames: [charge]
 mapping:
   - src/services/orders.ts
