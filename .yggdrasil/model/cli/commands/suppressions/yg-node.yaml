@@ -11,7 +11,14 @@ description: >-
   the type-level lattice itself (uncovered-file scan, type classification, its own
   content-read cache) so a live waiver on a file enforced by its architecture type
   alone — no owning node — is exempted from the scan's noise filter the same way a
-  mapped node source already is, and the inventory can never miss it.
+  mapped node source already is, and the inventory can never miss it. `--json` renders
+  the SAME scan report as one `yg-suppressions/1` document instead of the text listing
+  — no second scan. `buildSuppressionsJson`, the pure function that turns the report
+  into that document, lives in this command's own module rather than beside the
+  document's schema in cli/formatters: a `formatter`-type node may only `uses` a plain
+  data type and `calls` a utility, never reach into the portal facade that owns
+  `SuppressionsReport` — the same reason `yg aspects --json`'s builder lives in
+  cli/aspects.ts rather than in cli/formatters.
 aspects: []
 relations:
   - target: cli/portal/engine-api
@@ -29,6 +36,8 @@ relations:
   - target: cli/core/type-coverage
     type: calls
   - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/formatters
     type: calls
 mapping:
   - source/cli/src/cli/suppressions.ts

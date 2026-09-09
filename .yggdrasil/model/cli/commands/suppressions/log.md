@@ -30,3 +30,5 @@ Threads the adopter's coverage.excluded config into the audit-universe scan alon
 Now calls computeTypeCoverageCached instead of computeTypeCoverage, so yg suppressions benefits from the persistent on-disk type-classification cache instead of paying full classification cost every invocation.
 ## [2026-08-03T00:22:38.394Z]
 This command's own repo walk, and the parameter of its type-coverage helper that receives it, were both named gitFiles. Renamed both to repoFiles -- the walk this command runs is a plain, gitignore-aware disk scan, never a git-tracked-file list.
+## [2026-09-09T21:35:45.085Z]
+Added a --json flag that renders the same scan report as one yg-suppressions/1 document instead of the prose listing, so a machine consumer such as Horde's land-time guard can compare the waiver sets of two branches without scraping rendered text. The pure document builder lives in this command's own module rather than beside the schema in cli/formatters, because it needs the portal facade's SuppressionsReport type, which a formatter-type node is not allowed to reach into.

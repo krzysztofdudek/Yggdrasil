@@ -45,6 +45,32 @@ export interface SuppressionsReport {
    * always populates it (possibly empty).
    */
   fileLevelKeys?: Set<string>;
+  /**
+   * Per-`disable`-marker span, one entry per `disable` (never per `single` or
+   * `enable`). A CLOSED pair carries the matching `yg-suppress-enable`'s line as
+   * `to`; an UNCLOSED (open, including file-level) disable carries `to: null`.
+   * Nested same-aspect disables pair LIFO — closing binds to the most recently
+   * opened one, exactly like the unbounded-detection stack below already
+   * assumes, so this adds no new pairing rule. Optional for the same reason
+   * `fileLevelKeys` is: legacy literal report constructions (tests) keep
+   * compiling; the real scan always populates it (possibly empty).
+   */
+  ranges?: Array<{ file: string; aspect: string; from: number; to: number | null }>;
+  /**
+   * One entry per warning pushed to `warnings`, in the same order, carrying the
+   * same rendered `message` plus the structured facts a machine consumer needs
+   * (`warnings` itself stays prose-only, unchanged). `aspect` is the specific
+   * aspect id the warning is about, except for `wildcard`: that warning is about
+   * the marker silencing every aspect, not any one of them, so its `aspect` is
+   * `null`. Optional for the same reason `fileLevelKeys` is.
+   */
+  warningRecords?: Array<{
+    code: 'unknown-aspect' | 'wildcard' | 'unbounded-range' | 'waives-under';
+    file: string;
+    line: number;
+    aspect: string | null;
+    message: string;
+  }>;
 }
 
 // ── Binary detection ───────────────────────────────────────
@@ -119,6 +145,8 @@ export async function runSuppressionsScan(
 ): Promise<SuppressionsReport> {
   const fileEntries: FileMarkers[] = [];
   const warnings: string[] = [];
+  const ranges: NonNullable<SuppressionsReport['ranges']> = [];
+  const warningRecords: NonNullable<SuppressionsReport['warningRecords']> = [];
   let totalMarkers = 0;
 
   // Track unbounded disable markers per file (for open-range detection)
@@ -169,7 +197,8 @@ export async function runSuppressionsScan(
     fileEntries.push({ file: toPosixPath(relFile), markers });
     totalMarkers += markers.length;
 
-    // Collect disable/enable pairs to detect unbounded ranges
+    // Collect disable/enable pairs to detect unbounded ranges, and record
+    // every disable's own span into `ranges` (closed now, or open below).
     const disableStack = new Map<string, number[]>();
     for (const m of markers) {
       if (m.kind === 'disable') {
@@ -179,13 +208,21 @@ export async function runSuppressionsScan(
       } else if (m.kind === 'enable') {
         const stack = disableStack.get(m.aspectId);
         if (stack && stack.length > 0) {
-          stack.pop();
+          const from = stack.pop() as number;
+          ranges.push({ file: toPosixPath(relFile), aspect: m.aspectId, from, to: m.line });
           if (stack.length === 0) disableStack.delete(m.aspectId);
         }
       }
     }
-    // Any aspects still in disableStack have unbounded ranges
+    // Any aspects still in disableStack have unbounded ranges — record each as
+    // an open span (`to: null`) before the stack is (possibly) carried forward
+    // into openDisables for the unbounded-warning / file-level pass below.
     if (disableStack.size > 0) {
+      for (const [aspectId, lines] of disableStack) {
+        for (const line of lines) {
+          ranges.push({ file: toPosixPath(relFile), aspect: aspectId, from: line, to: null });
+        }
+      }
       openDisables.set(toPosixPath(relFile), disableStack);
     }
   }
@@ -223,6 +260,7 @@ export async function runSuppressionsScan(
           next: `Run \`yg aspects\` to list defined aspect ids, then update or remove this marker.`,
         });
         warnings.push(msg);
+        warningRecords.push({ code: 'unknown-aspect', file, line: m.line, aspect: m.aspectId, message: msg });
       }
 
       // (b) Wildcard '*' usage
@@ -234,6 +272,9 @@ export async function runSuppressionsScan(
           next: `Replace "*" with the specific aspect id(s) you intend to suppress.`,
         });
         warnings.push(msg);
+        // No single aspect this warning is "about" — it is about the marker
+        // silencing every aspect, present and future — so `aspect` is null.
+        warningRecords.push({ code: 'wildcard', file, line: m.line, aspect: null, message: msg });
       }
 
       // (d) Waiver on an under-approximating check (errs: under). Such a check
@@ -247,6 +288,7 @@ export async function runSuppressionsScan(
           next: `Remove the waiver and re-examine the flagged code, or correct the aspect's errs label if 'under' is inaccurate.`,
         });
         warnings.push(msg);
+        warningRecords.push({ code: 'waives-under', file, line: m.line, aspect: m.aspectId, message: msg });
       }
     }
   }
@@ -264,11 +306,12 @@ export async function runSuppressionsScan(
           next: `Add \`yg-suppress-enable(${aspectId})\` at the end of the suppressed block, or convert to a single-line \`yg-suppress(${aspectId}) <reason>\` if only one line needs suppression.`,
         });
         warnings.push(msg);
+        warningRecords.push({ code: 'unbounded-range', file, line: lineNum, aspect: aspectId, message: msg });
       }
     }
   }
 
-  return { fileEntries, totalMarkers, warnings, fileLevelKeys };
+  return { fileEntries, totalMarkers, warnings, fileLevelKeys, ranges, warningRecords };
 }
 
 // ── Output formatting ─────────────────────────────────────

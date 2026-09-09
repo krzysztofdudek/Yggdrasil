@@ -646,7 +646,7 @@ yg log merge-resolve --node <path>
 | `yg incident add` / `read` | The committed incident ledger — what escaped enforcement |
 | `yg flows` | List flows |
 | `yg owner --file <path>` | Quick ownership lookup |
-| `yg suppressions` | Inventory of active `yg-suppress` markers |
+| `yg suppressions` | Inventory of active `yg-suppress` markers (`--json` for the machine-readable form) |
 | `yg type-suggest --file <path>` | Suggest architecture type for a file |
 | `yg portal` [`--static`] | Read-only web view of the graph and its verification state |
 
@@ -1082,6 +1082,32 @@ distinction only — what each reviewer actually waives (the resolved suppressed
 line ranges) is identical either way.
 
 Use it to review accumulated waivers before a release or a new rule rollout.
+
+#### `yg suppressions --json`
+
+The waiver inventory as one `yg-suppressions/1` document: every marker with its
+kind, its resolved range, and its reason, every warning with a stable code, and
+the totals — so a tool can compare two branches' waivers without reading the
+report.
+
+Each entry in `markers` carries the aspect id (or `*` for a wildcard), the file
+and line, its `kind` — `single`, `disable`, `enable`, or the sanctioned
+whole-file form `file-level` — and whether it is a wildcard. `reason` is `null`
+when the marker carries none, never an empty string. `range` is populated only
+on a `disable` (including one classified `file-level`): `{from, to}` for a
+closed `disable`/`enable` pair, `{from, to: null}` for one still open at the end
+of the file; `single` and `enable` always carry `range: null`.
+
+Each entry in `warnings` mirrors one line of the prose warnings — same rendered
+`message` — plus a stable `code`: `unknown-aspect`, `wildcard`,
+`unbounded-range`, or `waives-under`. `aspect` names the aspect the warning is
+about, except on `wildcard`: that warning is about the marker silencing every
+aspect, not any one of them, so its `aspect` is `null`.
+
+`totals` counts `markers` (every marker on disk, including an `enable`
+terminator), `files` (files carrying at least one marker), and `fileLevel`
+(markers classified `file-level`). Exit code is always 0, exactly like the text
+form — `yg suppressions` has no `--health` equivalent to refuse against `--json`.
 
 ### `yg type-suggest`
 

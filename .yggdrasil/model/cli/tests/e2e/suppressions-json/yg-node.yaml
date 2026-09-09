@@ -1,0 +1,19 @@
+name: E2E Tests — Suppressions as a Machine Document
+type: test-suite
+description: >-
+  Subprocess E2E for `yg suppressions --json`, pinned AGAINST the unchanged
+  text report (same fixture, byte-identical text output) rather than in
+  isolation. Covers the document's own shape (kind incl. file-level, range,
+  reason, the four warning codes, totals) and the scan edge cases it has to
+  survive on real disk content: no markers anywhere, an unbounded disable
+  mid-file vs. the sanctioned file-head form, an unknown aspect id, an
+  errs:-under waiver, a binary file, a zero-size file, an unreadable file, a
+  non-grammar extension raw-scanned, TypeScript that fails to parse, a unicode
+  + space path, a symlinked directory, a thousand generated markers under a
+  timeout, and a repeated `--json` flag.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-suppressions-json.test.ts

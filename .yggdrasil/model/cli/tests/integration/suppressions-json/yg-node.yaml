@@ -1,0 +1,24 @@
+name: Suppressions JSON Scan Integration Tests
+type: test-suite
+description: >-
+  Integration tests for the suppressions scan's `ranges` and `warningRecords`
+  report fields, and the `yg-suppressions/1` document built from them, off the
+  real `portal-suppress-forms` fixture (real `.yggdrasil/` graph + real
+  source, loaded and scanned exactly like the CLI command would — never a
+  hand-built report literal). Pins `report.ranges` against the fixture's real
+  disable/enable pairs, that `warningRecords` carries exactly as many entries
+  as the unchanged `warnings` strings with identical messages (one source of
+  classification, not two that could drift), that `buildSuppressionsJson`'s
+  (cli/commands/suppressions) totals equal the report's own counts, and that
+  `formatSuppressionsOutput`'s text rendering is byte-identical to its
+  pre-change golden — the new fields never reach the text formatter.
+aspects: []
+relations:
+  - target: cli/portal/engine-api
+    type: uses
+  - target: cli/commands/suppressions
+    type: uses
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/integration/suppressions-json-scan.test.ts

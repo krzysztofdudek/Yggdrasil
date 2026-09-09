@@ -1,0 +1,25 @@
+name: Suppressions JSON Formatter Unit Tests
+type: test-suite
+description: >-
+  Unit tests for the `yg-suppressions/1` machine document (`yg suppressions
+  --json`): `buildSuppressionsJson` (cli/commands/suppressions — a
+  `formatter`-type node cannot reach the portal facade's report type, so the
+  builder lives in the command module, not beside the schema) and
+  `formatSuppressionsJson` (cli/formatters). Pure — no disk, no scan — literal
+  `SuppressionsReport` inputs pin: marker kind and the file-level
+  classification, a disable's resolved `range` (closed, open, and LIFO-paired
+  when nested), reason normalization (empty string to null, unicode passes
+  through), the four warning codes with `aspect: null` on wildcard, totals
+  arithmetic, and POSIX path normalization at the output boundary.
+aspects: []
+relations:
+  - target: cli/formatters
+    type: uses
+  - target: cli/commands/suppressions
+    type: uses
+  - target: cli/portal/engine-api
+    type: uses
+  - target: cli/ast/runtime
+    type: uses
+mapping:
+  - source/cli/tests/unit/formatters/suppressions-json.test.ts
