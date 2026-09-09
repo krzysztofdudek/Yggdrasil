@@ -26,7 +26,7 @@ const work = mkdtempSync(path.join(tmpdir(), 'yg-pack-smoke-'));
 try {
   // 1. Pack
   log('npm pack…');
-  const tgzName = execFileSync('npm', ['pack', '--silent', '--pack-destination', work], {
+  const tgzName = execFileSync('npm', ['pack', '--pack-destination', work], {
     cwd: CLI_ROOT,
     encoding: 'utf-8',
   }).trim().split('\n').pop().trim();
@@ -83,9 +83,14 @@ try {
   }
   log(`portal assets OK — shell.html + ${portalCss.length} css file(s) + vendor lib present`);
 
-  // 4. Install PROD deps only (no devDeps → no tree-sitter-* fallback)
+  // 4. Install PROD deps only (no devDeps → no tree-sitter-* fallback).
+  // --legacy-peer-deps: the tarball excludes source/cli/.npmrc, so the repo-wide
+  // legacy-peer-deps=true doesn't reach this install. Without it, some npm versions crash here
+  // ("Cannot read properties of null (reading 'edgesOut')") building peer sets across the full
+  // graph — devDependencies included, since --omit=dev only limits what gets reified, not what
+  // the ideal tree walks for peer conflicts.
   log('npm install --omit=dev…');
-  execSync('npm install --omit=dev --no-audit --no-fund --silent', { cwd: pkgDir, stdio: 'inherit' });
+  execSync('npm install --omit=dev --no-audit --no-fund --legacy-peer-deps', { cwd: pkgDir, stdio: 'inherit' });
   if (existsSync(path.join(pkgDir, 'node_modules/tree-sitter-typescript'))) {
     fail('tree-sitter-typescript present in prod install — smoke would not exercise dist/grammars');
   }
