@@ -21,6 +21,7 @@ import {
   computeEffectiveAspectStatuses,
   getAspectStatusSources,
 } from '../../../src/core/graph/aspects.js';
+import { STRUCTURAL_CODES } from '../../../src/core/check-codes.js';
 import type {
   Graph,
   GraphNode,
@@ -55,8 +56,9 @@ import type {
 //     relation whose TARGET is missing (those are other checks' jobs) — no
 //     double-reporting.
 //   * checkPortConsumes precedence on mixed valid/invalid consumes; event
-//     relations (emits/listens) carry the consumes contract too; consumes on a
-//     ports:{} (empty map) target is consumes-without-ports.
+//     relations (emits/listens) carry the port contract too; naming a real
+//     port on a ports:{} (empty map) target is port-undefined, the same as on
+//     a target with no ports key at all.
 //   * checkPortAspectsDefined does NOT dedup across ports/consumers, and never
 //     fires for a port that is declared-but-not-consumed.
 //   * CROSS-CONSISTENCY invariants that, if broken, mean false-green / lost
@@ -378,12 +380,15 @@ describe('checkArchitectureParents — parent-type gating', () => {
 });
 
 // ============================================================================
-// 4. checkPortConsumes — the consumes contract (missing-consumes / unknown-port
-//    / consumes-without-ports), including event relations and mixed lists.
+// 4. checkPortConsumes — the unified port-name contract (unknown-port /
+//    port-undefined), including event relations and mixed lists. The former
+//    missing-consumes and consumes-without-ports codes are gone — naming no
+//    port is never an error; naming a real port the target lacks is, even
+//    when the target has no ports at all.
 // ============================================================================
 
 describe('checkPortConsumes — consumes contract', () => {
-  it('target has ports but consumer omits consumes → no issue (default is exempt; the former port-missing-consumes is now unreachable)', () => {
+  it('target has ports but consumer names none → no issue (default is exempt)', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: { charge: { description: '', aspects: ['ct'] } } })],
       ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
@@ -429,23 +434,35 @@ describe('checkPortConsumes — consumes contract', () => {
     expect(checkPortConsumes(makeGraph({ nodes }))).toEqual([]);
   });
 
-  it('consumes on a target with NO ports → consumes-without-ports', () => {
+  it('naming a real port on a target with NO ports at all → port-undefined, listing zero available ports', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p')],
-      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['anything'] }] })],
+      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['charge'] }] })],
     ]);
-    expect(codesOf(checkPortConsumes(makeGraph({ nodes })))).toEqual(['consumes-without-ports']);
+    const issues = checkPortConsumes(makeGraph({ nodes }));
+    expect(codesOf(issues)).toEqual(['port-undefined']);
+    expect(issues[0].nodePath).toBe('c');
+    expect(issues[0].messageData.what).toContain("port 'charge' not found");
+    expect(issues[0].messageData.why).toContain('Available ports: []');
   });
 
-  it('consumes on a target with an EMPTY ports map {} → consumes-without-ports (empty map == no ports)', () => {
+  it('naming a real port on a target with an EMPTY ports map {} → port-undefined (empty map behaves like no ports key at all)', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: {} })],
       ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['anything'] }] })],
     ]);
-    expect(codesOf(checkPortConsumes(makeGraph({ nodes })))).toEqual(['consumes-without-ports']);
+    expect(codesOf(checkPortConsumes(makeGraph({ nodes })))).toEqual(['port-undefined']);
   });
 
-  it('an empty ports map {} with a BARE relation does NOT fire missing-consumes', () => {
+  it('naming only default on a target with NO ports at all → no issue', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['p', makeNode('p')],
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
+    ]);
+    expect(checkPortConsumes(makeGraph({ nodes }))).toEqual([]);
+  });
+
+  it('an empty ports map {} with a BARE relation does NOT fire (default is exempt there too)', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: {} })],
       ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
@@ -463,16 +480,16 @@ describe('checkPortConsumes — consumes contract', () => {
     expect(issues).toEqual([]);
   });
 
-  it('a relation to a MISSING target WITH consumes is treated as a target with no ports → consumes-without-ports', () => {
-    // A missing target resolves to `undefined`, so hasPorts is false; with a
-    // consumes list present, checkPortConsumes reports consumes-without-ports.
-    // (The broken target itself is separately reported by checkRelationTargets;
-    // see suspectedBugs: consumes-without-ports-on-broken-target for the quality
-    // note that this double-reports a confusing reason on a non-existent target.)
+  it('a relation to a MISSING target WITH a named port is treated as a target with no ports → port-undefined', () => {
+    // A missing target resolves to `undefined`, so its port map is the empty
+    // default — naming a real port against it is port-undefined, same as any
+    // other portless target. (The broken target itself is separately reported
+    // by checkRelationTargets — this double-reports a confusing reason on a
+    // non-existent target, a pre-existing quality note, not new here.)
     const nodes = new Map<string, GraphNode>([
       ['c', makeNode('c', { relations: [{ target: 'ghost', type: 'calls', portNames: ['charge'] }] })],
     ]);
-    expect(codesOf(checkPortConsumes(makeGraph({ nodes })))).toEqual(['consumes-without-ports']);
+    expect(codesOf(checkPortConsumes(makeGraph({ nodes })))).toEqual(['port-undefined']);
   });
 
   it('a relation to a MISSING target WITHOUT consumes contributes nothing in this check', () => {
@@ -555,6 +572,45 @@ describe('checkPortAspectsDefined — port-required aspect must exist', () => {
       ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['charge'] }] })],
     ]);
     expect(checkPortAspectsDefined(makeGraph({ nodes }))).toEqual([]);
+  });
+
+  // D1c: port-missing-aspect now covers `default` like any other port — a
+  // node that declares ONLY ports.default is not skipped by the `!target?.meta.ports`
+  // guard, since a map holding just `default` is still truthy.
+  it('a target declaring ONLY ports.default with an undefined aspect → port-missing-aspect names default', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['p', makeNode('p', { ports: { default: { description: '', aspects: ['ghost'] } } })],
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
+    ]);
+    const issues = checkPortAspectsDefined(makeGraph({ nodes }));
+    expect(codesOf(issues)).toEqual(['port-missing-aspect']);
+    expect(issues[0].messageData.what).toContain("Port 'default'");
+  });
+
+  it('a target declaring ONLY ports.default with a defined aspect → no issue', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['p', makeNode('p', { ports: { default: { description: '', aspects: ['ct'] } } })],
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
+    ]);
+    expect(checkPortAspectsDefined(makeGraph({ nodes, aspects: [aspect('ct')] }))).toEqual([]);
+  });
+});
+
+// ============================================================================
+// 5b. STRUCTURAL_CODES — the retired port codes must not linger in the
+//    single-source registry (a listed code that nothing emits is a lie to
+//    the reader of that list).
+// ============================================================================
+
+describe('STRUCTURAL_CODES — the two retired port codes are gone from the registry', () => {
+  it('does not contain port-missing-consumes or consumes-without-ports', () => {
+    expect(STRUCTURAL_CODES.has('port-missing-consumes')).toBe(false);
+    expect(STRUCTURAL_CODES.has('consumes-without-ports')).toBe(false);
+  });
+
+  it('still contains the two surviving port codes', () => {
+    expect(STRUCTURAL_CODES.has('port-undefined')).toBe(true);
+    expect(STRUCTURAL_CODES.has('port-missing-aspect')).toBe(true);
   });
 });
 
@@ -648,8 +704,9 @@ describe('cross-consistency — contract codes agree with channel-6 propagation'
     // Propagation side: nothing reaches the consumer — 'ct' hangs on 'charge', not 'default'.
     expect(computeEffectiveAspects(consumer, graph).size).toBe(0);
     // Contract side: naming only the implicit 'default' is not an error either —
-    // the former port-missing-consumes is unreachable now. Opting out of a port
-    // is legal; the old asymmetry (silent propagation, blocking check) is gone.
+    // the former one-sided mandate (port-missing-consumes) is gone. Opting out
+    // of a port is legal; the old asymmetry (silent propagation, blocking check)
+    // is gone with it.
     expect(checkPortConsumes(graph)).toEqual([]);
   });
 

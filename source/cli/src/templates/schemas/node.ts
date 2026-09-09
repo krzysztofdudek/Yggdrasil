@@ -53,11 +53,13 @@ relations:                    # optional — outgoing dependencies to other node
                               # \`yg knowledge read ports-and-relations\`.
   - target: other/module-path # required — node path relative to model/
     type: calls               # required — calls | uses | extends | implements | emits | listens
-    consumes: [port-name]     # optional — port names consumed from target
-                              # required when target declares ports — otherwise yg check emits a
-                              # BLOCKING ERROR (port-missing-consumes) that fails the architecture gate.
-                              # There is no waiver; resolve by adding consumes or removing the ports.
-                              # Naming a target that declares no ports raises consumes-without-ports.
+    consumes: [port-name]     # optional — port names consumed from target.
+                              # Naming none is fine — the relation enters through the implicit
+                              # default port, which carries no requirement unless declared. Naming
+                              # a port the target does not publish — including when the target
+                              # publishes no ports at all — is a BLOCKING ERROR (port-undefined)
+                              # that fails the architecture gate. There is no waiver; fix the port
+                              # name, or add the port to the target.
     event_name: order.placed  # optional — ONLY for the event relation types (emits / listens):
                               # a descriptive label for the channel. emits and listens must be
                               # PAIRED BY NODE PATH — every emits A->B needs some listens B->A (and

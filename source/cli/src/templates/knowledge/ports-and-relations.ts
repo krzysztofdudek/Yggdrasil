@@ -202,48 +202,42 @@ Ports also carry their \`version\` and \`test\` into the machine documents
 DECLARED them — a versionless port reports \`null\` there, never the 1 the check
 reads it at, because that would put a claim in the port's mouth it never made.
 
-## Why ports exist — defending against cross-file evasion
+## Why ports exist — the boundary channel 2 cannot cross
 
 A critical aspect attached to a parent node propagates to all children via
 channel 2 (ancestor). But it does NOT cross relation boundaries: a helper
 node living outside the audit-logging parent but invoked from inside it
 escapes the audit-logging aspect.
 
-Ports restore the boundary:
+Ports restore the boundary — but only for a consumer that actually names
+the port:
 
 1. Define a port on the owner node carrying the critical aspect.
-2. The helper node declares \`consumes: [<port-name>]\` on its inbound
+2. The consumer names it: \`consumes: [<port-name>]\` on its inbound
    relation.
-3. The helper inherits the port's aspects (channel 6 propagation).
+3. The consumer inherits the port's aspects (channel 6 propagation).
 
-An attacker who routes calls through an intermediary without declaring
-\`consumes\` will not inherit the port's aspects — but \`yg check\` fails with
-a blocking error on the missing port contract, surfacing the gap.
+Naming no port at all is not a gap in this chain — it is the normal path.
+A relation that names nothing enters through the implicit \`default\` port,
+and \`default\` carries whatever the owner put on it (nothing, unless
+declared). So a consumer is free to stay outside a port's aspects simply by
+not naming that port; \`yg check\` does not force a declaration. A node that
+needs an aspect to hold on EVERY consumer, regardless of what they name,
+gets that only by putting the aspect on its own \`ports.default\` — the one
+port every undeclared relation enters through — and, if it has other named
+ports too, repeating the aspect on each of them (a relation that names a
+specific port enters ONLY through that port, not through \`default\` as
+well).
 
-## Missing port contracts
+## Naming a port the target does not have
 
-If a target node declares ports and the consumer's relation does NOT
-declare \`consumes\`, \`yg check\` emits a blocking error (code
-\`port-missing-consumes\`) that fails the architecture gate. Like every
-diagnostic, it is rendered in the what/why/next form: it names the
-relation, explains that the target's port-required aspects won't be
-verified without a \`consumes\` declaration, and tells you to add
-\`consumes: [<port-names>]\` to the relation.
-
-There is no "accept the gap" mechanism. Resolve it one of two ways:
-declare which port(s) you consume on the relation, or remove the ports
-from the target node.
-
-## Consuming a target with no ports
-
-The inverse is also an error. If a relation declares \`consumes\` naming a
-target that declares NO ports, \`yg check\` emits a blocking error (code
-\`consumes-without-ports\`). Resolve it by removing the \`consumes\` from the
-relation, or by adding the named port(s) to the target node.
-
-A target that DOES have ports but whose \`consumes\` names a port that does not
-exist on that target emits a blocking error (code \`port-undefined\`). Fix the
-port name in \`consumes\`, or add the missing port to the target node.
+If a relation's \`consumes\` names a port that the target does not publish —
+\`default\` excepted, since it always exists — \`yg check\` emits a blocking
+error (code \`port-undefined\`). This holds the same way whether the target
+declares other ports and simply lacks this one, or declares no ports at
+all: either way there is no contract to check the named port against.
+Resolve it by fixing the port name, or by adding the missing port to the
+target node.
 
 ## When to use ports
 

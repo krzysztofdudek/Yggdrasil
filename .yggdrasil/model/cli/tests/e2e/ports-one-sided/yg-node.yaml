@@ -1,0 +1,7 @@
+name: E2E Tests — One-Sided Port Mandate Removed
+type: test-suite
+description: "Subprocess E2E proving D1c's removal of the one-sided port mandate — a bare relation to a ported target passes and mentions no consumes, including for emits/listens; naming a real port on a target with NO ports at all still fails with port-undefined (never a separate consumes-without-ports); naming only default on a portless target passes; ports.default carrying an undefined aspect still fails with port-missing-aspect; a small-scale replay of the graph's own pre-D1c shape (one ported target, several bare relations) passes; and yg check --json reports exactly one port-undefined issue with none of the two retired codes."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-ports-one-sided.test.ts

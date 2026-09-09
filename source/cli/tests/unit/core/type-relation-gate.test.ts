@@ -119,7 +119,7 @@ describe('live type-relation gate — fixture rows', () => {
     expect(result.issues.some((i) => i.code === 'type-relation-forbidden')).toBe(false);
   });
 
-  it('derived edges never trip port machinery — a ported target reached only via a DERIVED edge triggers no port-missing-consumes and no port-aspect delivery', async () => {
+  it('derived edges never trip port machinery — a ported target reached only via a DERIVED edge triggers no port-undefined and no port-aspect delivery', async () => {
     const dir = copyFixture();
     const graph = await loadGraph(dir);
     const files = await walkRepoFiles(dir);
@@ -135,7 +135,6 @@ describe('live type-relation gate — fixture rows', () => {
     // (graph.nodes[*].meta.relations); this fixture declares none against the owner
     // node's port, so a derived (never-declared) edge is invisible to it by
     // construction — not a special case the gate's own code had to add.
-    expect(result.issues.some((i) => i.code === 'port-missing-consumes')).toBe(false);
     expect(result.issues.some((i) => i.code === 'port-undefined')).toBe(false);
     expect(result.issues.some((i) => i.code === 'port-missing-aspect')).toBe(false);
   });

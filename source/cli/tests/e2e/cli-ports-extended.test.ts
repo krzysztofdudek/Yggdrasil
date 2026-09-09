@@ -99,7 +99,7 @@ function writeDetAspect(
 
 // ---------------------------------------------------------------------------
 // PORTS — every remaining mechanic not covered by cli-ports (basic propagation
-// + the four port error codes) or cli-ports-enforcement (channel-6 refusal,
+// + the two port error codes) or cli-ports-enforcement (channel-6 refusal,
 // bare-relation non-propagation, relation-target-forbidden, when-over-relation):
 //
 //   - multiple ports on one provider; a consumer consuming a multi-port LIST
@@ -646,8 +646,8 @@ mapping:
     const dir = copyFixture('f14-remove-port');
     try {
       // Provider keeps a DIFFERENT port (refund) but drops the consumed `charge`.
-      // Because the provider STILL declares ports, this is port-undefined (not
-      // consumes-without-ports, which fires only when the provider has NO ports).
+      // port-undefined covers this the same way it would a provider with NO
+      // ports at all — there is no separate code for the empty-map case.
       // The committed consumer still declares consumes: [charge].
       writeFile(
         dir,

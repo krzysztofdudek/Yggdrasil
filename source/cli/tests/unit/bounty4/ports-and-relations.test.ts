@@ -42,13 +42,16 @@ import type {
 // Distinct from bounty3 (which exhaustively drove branch coverage of the same
 // check functions): this suite is organized invariant-by-invariant against the
 // VERBATIM spec text, and specifically hunts code↔doc divergences:
-//   * the documented `port-missing-consumes` MESSAGE FORMAT is not produced.
 //   * "Every aspect id listed in a port's aspects must be defined" is gated on
 //     CONSUMPTION for the documented `port-missing-aspect` code; the unconditional
 //     enforcement actually comes from a different code (`aspect-undefined`).
-//   * the four documented port-contract codes are NOT in STRUCTURAL_CODES (the
+//   * the two documented port-contract codes ARE in STRUCTURAL_CODES (the
 //     "single source of truth" set the engine uses for the structural tally /
-//     suggestedNext priority).
+//     suggestedNext priority) — a historical divergence, now fixed.
+//   * D1c (6.0.0) retired the one-sided mandate: port-missing-consumes and
+//     consumes-without-ports are gone, and port-undefined now covers naming a
+//     real port on a portless target too. INVARIANTS 6-8 below were rewritten
+//     against that decision rather than the original spec text they quote.
 // ============================================================================
 
 // --- In-memory graph builders (no FS, no clock, no RNG) ---
@@ -296,20 +299,20 @@ describe('spec §mental-model — a BARE relation does not propagate the port as
 });
 
 // ============================================================================
-// INVARIANT 6 — Missing port contract, RETIRED by D1c (6.0.0). The old spec
-// required `yg check` to block a relation that named no port when its target
-// declared ports (code port-missing-consumes), and this suite used to pin the
-// exact (divergent) message against that requirement. D1c introduced the
-// implicit `default` port: a relation that names nothing now names `default`,
-// and naming only the implicit port is never an error, so the requirement
-// itself — not just its message — is gone. port-missing-consumes is
-// permanently unreachable now (see checkPortConsumes's own doc comment); kept
-// as dead code pending its formal removal. This section is kept only to
-// record that the invariant was retired on purpose, not silently dropped.
+// INVARIANT 6 — "Missing port contracts", RETIRED by D1c (6.0.0) and removed.
+// The old spec required `yg check` to block a relation that named no port
+// when its target declared ports (code port-missing-consumes). D1c introduced
+// the implicit `default` port: a relation that names nothing now names
+// `default`, and naming only the implicit port is never an error, so the
+// requirement itself is gone, not just its message — the knowledge topic's
+// old "Missing port contracts" section is replaced by "Naming no port is
+// fine". port-missing-consumes no longer exists anywhere in the codebase.
+// This section is kept only to record that the invariant was retired on
+// purpose, not silently dropped.
 // ============================================================================
 
-describe('spec §"Missing port contracts" — port-missing-consumes (retired by D1c)', () => {
-  it('target has ports, consumer omits consumes → no error any more (default is exempt)', () => {
+describe('spec §"Naming no port is fine" — the old port-missing-consumes mandate is gone', () => {
+  it('target has ports, consumer names none → no error (default is exempt)', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ct'] } } })],
       ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
@@ -320,18 +323,20 @@ describe('spec §"Missing port contracts" — port-missing-consumes (retired by 
 });
 
 // ============================================================================
-// INVARIANT 7 — "If a relation declares `consumes` naming a target that declares
-// NO ports, `yg check` emits a blocking error (code consumes-without-ports)."
+// INVARIANT 7 — "Naming a port the target does not have", RETIRED-AND-MERGED
+// by D1c (6.0.0). The old spec gave a portless target its own code
+// (consumes-without-ports); D1c folds it into port-undefined — a portless
+// target is just the empty-ports-map case of the same check.
 // ============================================================================
 
-describe('spec §"Consuming a target with no ports" — consumes-without-ports', () => {
-  it('consumes on a port-less target → consumes-without-ports', () => {
+describe('spec §"Naming a port the target does not have" — folded into port-undefined', () => {
+  it('naming a real port on a port-less target → port-undefined (not a separate code)', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p')], // NO ports
       ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['charge'] }] })],
     ]);
     const issues = checkPortConsumes(makeGraph({ nodes }));
-    expect(codesOf(issues)).toEqual(['consumes-without-ports']);
+    expect(codesOf(issues)).toEqual(['port-undefined']);
     expect(issues[0].severity).toBe('error');
   });
 });
@@ -341,7 +346,7 @@ describe('spec §"Consuming a target with no ports" — consumes-without-ports',
 // that does not exist on that target emits a blocking error (code port-undefined)."
 // ============================================================================
 
-describe('spec §"Consuming a target with no ports" — port-undefined for a bad name', () => {
+describe('spec §"Naming a port the target does not have" — port-undefined for a bad name', () => {
   it('consumes a non-existent port on a target that DOES have ports → port-undefined', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ct'] } } })],
@@ -408,34 +413,46 @@ describe('spec §"Ports" — every port aspect must be defined (port-missing-asp
     expect(issues[0].messageData.what).toContain('ghost');
     expect(issues[0].messageData.what).toContain('charge');
   });
+
+  // D1c (6.0.0): "port-missing-aspect covers default" — a node that declares
+  // ONLY ports.default is not exempt from this check just because `default`
+  // is also the implicit port every node carries undeclared.
+  it('a CONSUMED ports.default with an undefined aspect → port-missing-aspect names default', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['p', makeNode('p', { ports: { default: { description: 'd', aspects: ['ghost'] } } })],
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
+    ]);
+    const issues = checkPortAspectsDefined(makeGraph({ nodes }));
+    expect(codesOf(issues)).toEqual(['port-missing-aspect']);
+    expect(issues[0].messageData.what).toContain("Port 'default'");
+  });
+
+  it('a CONSUMED ports.default with a defined aspect → no issue', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['p', makeNode('p', { ports: { default: { description: 'd', aspects: ['ct'] } } })],
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
+    ]);
+    expect(checkPortAspectsDefined(makeGraph({ nodes, aspects: [aspect('ct')] }))).toEqual([]);
+  });
 });
 
 // ============================================================================
-// INVARIANT 10 — the four documented port-contract codes + the documented
+// INVARIANT 10 — the two SURVIVING documented port-contract codes (D1c retired
+// port-missing-consumes and consumes-without-ports) + the documented
 // relation-target code are all spelled exactly as the spec says, and each is a
-// blocking error. (Code-name conformance.)
-//
-// DIVERGENCE: the spec calls these "blocking error(s)". The engine's documented
-// "single source of truth" set STRUCTURAL_CODES — which drives the structural
-// tally and suggestedNext priority — does NOT contain ANY of the four port codes
-// nor relation-target-forbidden.
+// blocking error present in STRUCTURAL_CODES, the single-source set the engine
+// uses for the structural tally and suggestedNext priority.
 // ============================================================================
 
-describe('spec §"Missing port contracts" — documented blocking codes', () => {
-  const DOCUMENTED_PORT_CODES = [
-    'port-missing-aspect',
-    'port-missing-consumes',
-    'consumes-without-ports',
-    'port-undefined',
-  ] as const;
+describe('spec §"Naming a port the target does not have" — documented blocking codes', () => {
+  const DOCUMENTED_PORT_CODES = ['port-missing-aspect', 'port-undefined'] as const;
 
-  it('every documented port code is emitted with severity error by the real checks (except the retired one)', () => {
-    // port-missing-aspect + port-undefined + consumes-without-ports + missing-consumes
+  it('every documented port code is emitted with severity error by the real checks', () => {
     const everyCode = new Set<string>();
-    // port-undefined / consumes-without-ports. 'miss' and 'empty' name only the
-    // implicit default port — D1c made that legal, so neither raises
-    // port-missing-consumes any more (see the retired describe block above);
-    // they stay in the fixture as a live regression guard that they STILL don't.
+    // 'miss' and 'empty' name only the implicit default port — D1c made that
+    // legal, so neither raises anything. 'bad' names a real port the target
+    // lacks; 'cwp' names a real port on a target with NO ports at all — both
+    // are port-undefined now, not two different codes.
     {
       const nodes = new Map<string, GraphNode>([
         ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ct'] } } })],
@@ -443,14 +460,12 @@ describe('spec §"Missing port contracts" — documented blocking codes', () => 
         ['bad', makeNode('bad', { relations: [{ target: 'p', type: 'calls', portNames: ['nope'] }] })],
         ['empty', makeNode('empty', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
       ]);
-      // separate target with no ports for consumes-without-ports
       nodes.set('np', makeNode('np'));
       nodes.set('cwp', makeNode('cwp', { relations: [{ target: 'np', type: 'calls', portNames: ['x'] }] }));
       for (const i of checkPortConsumes(makeGraph({ nodes }))) {
         expect(i.severity).toBe('error');
         everyCode.add(i.code ?? '');
       }
-      expect(everyCode.has('port-missing-consumes')).toBe(false);
     }
     {
       const nodes = new Map<string, GraphNode>([
@@ -463,22 +478,19 @@ describe('spec §"Missing port contracts" — documented blocking codes', () => 
       }
     }
     for (const c of DOCUMENTED_PORT_CODES) {
-      if (c === 'port-missing-consumes') continue; // retired by D1c — permanently unreachable
       expect(everyCode.has(c), `code ${c} should be emitted`).toBe(true);
     }
+    expect(everyCode.has('port-missing-consumes')).toBe(false);
+    expect(everyCode.has('consumes-without-ports')).toBe(false);
   });
 
-  // DIVERGENCE: none of the documented port codes are in STRUCTURAL_CODES, the
-  // "single source of truth" set the engine uses for the structural tally and
-  // suggestedNext priority. They block only via severity:'error' and a separate
-  // renderer-local ARCHITECTURE_CODES set, not via the documented structural set.
-  it('the documented blocking port-contract codes are present in STRUCTURAL_CODES', () => {
-    // FIXED: these blocking architecture-gate codes are now in the single-source
-    // structural set, so suggestedNext prioritizes them like other structural errors.
+  it('the documented blocking port-contract codes are present in STRUCTURAL_CODES, and the two retired ones are not', () => {
     for (const c of DOCUMENTED_PORT_CODES) {
       expect(STRUCTURAL_CODES.has(c), `STRUCTURAL_CODES.has(${c})`).toBe(true);
     }
     expect(STRUCTURAL_CODES.has('relation-target-forbidden')).toBe(true);
+    expect(STRUCTURAL_CODES.has('port-missing-consumes')).toBe(false);
+    expect(STRUCTURAL_CODES.has('consumes-without-ports')).toBe(false);
   });
 });
 
@@ -526,11 +538,13 @@ function run(args: string[], cwd: string): { status: number | null; all: string 
 }
 
 describe.skipIf(!distExists)('E2E — documented CLI-observable port behaviors', () => {
-  // RETIRED by D1c (6.0.0): omitting portNames used to fail check with
+  // D1c (6.0.0): omitting portNames used to fail check with the now-removed
   // port-missing-consumes. It no longer does — the relation normalizes to the
   // implicit 'default' port, and naming only 'default' is not an error — so
-  // this now asserts the opposite of what it used to (a real-binary companion
-  // to the retired unit-level describe block above).
+  // this asserts the opposite of the pre-D1c behavior (a real-binary companion
+  // to the unit-level describe block above), and the string assertion below
+  // stands as a live guard that the retired code's name never resurfaces in
+  // rendered output.
   it('omitting consumes against a port target no longer fails check (default is exempt)', () => {
     const dir = copyFixture('missing-consumes');
     const consumerYaml = path.join(dir, '.yggdrasil', 'model', 'services', 'orders', 'yg-node.yaml');

@@ -494,23 +494,17 @@ export function checkArchitectureParents(graph: Graph): ValidationIssue[] {
 }
 
 /**
- * missing-consumes
- * When a relation target has non-empty ports, the consumer must declare which port(s) it consumes.
- * Unreachable now that the parser normalizes an undeclared relation to
- * `portNames: ['default']` — `portNames` is never empty, so this can no longer
- * fire. Left in place rather than deleted: retiring the code itself, and
- * merging consumes-without-ports into unknown-port, is a separate change.
- *
- * consumes-without-ports
- * When a consumer names a port other than the implicit `default` one on a
- * relation to a target that declares no ports at all. Naming ONLY `default`
- * is never an error here — every node carries it whether or not it declares
- * a `ports:` block, so there is nothing missing to complain about.
- *
  * unknown-port
- * When a consumer's portNames list references a port name that does not exist
- * on the target. `default` is exempt from this check — it exists implicitly
- * on every node, declared or not.
+ * When a relation names a port — other than the implicit `default`, which
+ * always exists — that the target does not publish. This applies the same
+ * way whether the target declares other ports and simply lacks this one, or
+ * declares no ports at all: an absent `ports:` block is just an empty map,
+ * not a special case. A relation that names no port at all is never an
+ * error — it enters through `default`, so there is nothing to enforce
+ * against a portless target either. This function used to carry two more
+ * branches enforcing the reverse (a caller had to name something), both
+ * retired: a component with ports no longer forces every caller to declare
+ * one.
  */
 export function checkPortConsumes(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
@@ -519,55 +513,10 @@ export function checkPortConsumes(graph: Graph): ValidationIssue[] {
     for (const rel of node.meta.relations ?? []) {
       // Port contracts apply to EVERY relation type, including event relations
       // (emits/listens): channel-6 aspect propagation does not skip them, so the
-      // consumes contract must be enforced uniformly for consistency.
+      // contract must be enforced uniformly for consistency.
       const target = graph.nodes.get(rel.target);
-      const hasPorts = target?.meta.ports && Object.keys(target.meta.ports).length > 0;
-      const namedNonDefault = rel.portNames.filter((p) => p !== DEFAULT_PORT_NAME);
+      const ports = target?.meta.ports ?? {};
 
-      // consumes-without-ports: a real port named on a relation to a target
-      // without ports. default-only never reaches here (namedNonDefault is empty).
-      if (!hasPorts && namedNonDefault.length > 0) {
-        const msgData: IssueMessage = {
-          what: `Relation '${rel.type}' to '${rel.target}' declares consumes [${rel.portNames.join(', ')}], but the target has no ports.`,
-          why: `consumes is only meaningful when the target declares ports with required aspects.`,
-          next: `Remove consumes from this relation in yg-node.yaml.`,
-        };
-        issues.push({
-          severity: 'error',
-          code: 'consumes-without-ports',
-          rule: 'consumes-without-ports',
-          nodePath,
-          ...issueMsg(msgData),
-          messageData: msgData,
-        });
-        continue;
-      }
-
-      if (!hasPorts) continue;
-      const ports = target!.meta.ports!;
-
-      // missing-consumes: unreachable — see the doc comment above.
-      if (rel.portNames.length === 0) {
-        const portNames = Object.keys(ports);
-        const msgData: IssueMessage = {
-          what: `Node '${nodePath}' relates (${rel.type}) to '${rel.target}', which declares ports, but the relation has no consumes.`,
-          why: `Target has ports: [${portNames.join(', ')}] — port-required aspects won't be verified without a consumes declaration.`,
-          next: `Add consumes: [<port-names>] to this relation in yg-node.yaml.`,
-        };
-        issues.push({
-          severity: 'error',
-          code: 'port-missing-consumes',
-          rule: 'missing-consumes',
-          nodePath,
-          ...issueMsg(msgData),
-          messageData: msgData,
-        });
-        continue;
-      }
-
-      // unknown-port: portNames references a non-existent port. 'default' is
-      // implicit on every node, so it is never "unknown" even when the target
-      // declares no ports.default of its own.
       for (const portName of rel.portNames) {
         if (portName === DEFAULT_PORT_NAME) continue;
         if (!(portName in ports)) {
@@ -575,7 +524,9 @@ export function checkPortConsumes(graph: Graph): ValidationIssue[] {
           const msgData: IssueMessage = {
             what: `Relation: ${rel.type} -> ${rel.target}, port '${portName}' not found.`,
             why: `Port contract cannot be enforced for an undefined port. Available ports: [${available.join(', ')}]`,
-            next: `Fix the port name in consumes, or add the port definition to the target node.`,
+            next: available.length > 0
+              ? `Fix the port name in consumes, or add the port definition to the target node.`
+              : `Add a port definition to the target node, or remove this port name from the relation.`,
           };
           issues.push({
             severity: 'error',

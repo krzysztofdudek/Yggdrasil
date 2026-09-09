@@ -115,7 +115,7 @@ describe('KNOWLEDGE_TOPICS', () => {
     'ports-and-relations': [
       '## Relation types',
       '## Why ports exist',
-      '## Missing port contracts',
+      '## Naming a port the target does not have',
       '## When to use ports',
     ],
     flows: [

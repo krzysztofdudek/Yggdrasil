@@ -6,7 +6,8 @@ relations:
   [
     { target: cli/core/checks/architecture, type: uses },
     { target: cli/core/checks/relations, type: uses },
-    { target: cli/core/graph, type: uses }
+    { target: cli/core/graph, type: uses },
+    { target: cli/core/check-codes, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/bounty3/ports-relations.test.ts
