@@ -369,9 +369,9 @@ function validateAspectEntry(entry: unknown, at: string, ctx: ParseCtx): void {
 function validateVerdictEntry(entry: unknown, at: string, ctx: ParseCtx): void {
   if (!isPlainObject(entry)) throwMalformed(`"${at}" must be a JSON object (found ${describe(entry)})`, ctx);
 
-  const ENTRY_KEYS = new Set(['verdict', 'hash', 'reason', 'touched', 'promptChars', 'judge']);
+  const ENTRY_KEYS = new Set(['verdict', 'hash', 'reason', 'touched', 'promptChars', 'judge', 'filledAt', 'filledSha']);
   for (const key of Object.keys(entry)) {
-    if (!ENTRY_KEYS.has(key)) throwMalformed(`"${at}" has unexpected key "${key}" (allowed: verdict, hash, reason, touched, promptChars, judge)`, ctx);
+    if (!ENTRY_KEYS.has(key)) throwMalformed(`"${at}" has unexpected key "${key}" (allowed: verdict, hash, reason, touched, promptChars, judge, filledAt, filledSha)`, ctx);
   }
 
   if (entry.verdict !== 'approved' && entry.verdict !== 'refused') {
@@ -427,6 +427,15 @@ function validateVerdictEntry(entry: unknown, at: string, ctx: ParseCtx): void {
     if (entry.judge.provider !== 'external') {
       throwMalformed(`"${at}.judge.provider" must be "external" (found ${describe(entry.judge.provider)})`, ctx);
     }
+  }
+  // WHEN and at which commit --approve wrote this verdict. Validated as plain
+  // strings, like `reason` above — neither is a hash ingredient, so a malformed
+  // value cannot misgate a verdict, only misreport who/when filled it.
+  if (entry.filledAt !== undefined && typeof entry.filledAt !== 'string') {
+    throwMalformed(`"${at}.filledAt" must be a string when present (found ${describe(entry.filledAt)})`, ctx);
+  }
+  if (entry.filledSha !== undefined && typeof entry.filledSha !== 'string') {
+    throwMalformed(`"${at}.filledSha" must be a string when present (found ${describe(entry.filledSha)})`, ctx);
   }
 }
 
@@ -600,6 +609,12 @@ function serializeEntry(entry: VerdictEntry): string {
   // allow-list, and a field the producer sets but this function does not name is
   // silently dropped on write.
   if (entry.judge !== undefined) obj.judge = { name: entry.judge.name, provider: entry.judge.provider };
+  // WHEN and at which commit --approve wrote this verdict. Enumerated here for
+  // the same reason as promptChars and judge: this serializer is an explicit
+  // allow-list, and a field the producer sets but this function does not name
+  // is silently dropped on write, with the round-trip losing it without a word.
+  if (entry.filledAt !== undefined) obj.filledAt = entry.filledAt;
+  if (entry.filledSha !== undefined) obj.filledSha = entry.filledSha;
 
   // Sort keys by code-point
   const sortedKeys = Object.keys(obj).sort();

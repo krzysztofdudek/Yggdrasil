@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **A recorded verdict says when and at which commit it was filled.** `yg check --json` reports it as `filled`, and the shared event stream carries the same commit — so a tool can attribute reviewer cost to the branch that caused it. Older locks and older event lines keep working untouched.
 - **`yg suppressions --json` prints the waiver inventory as one `yg-suppressions/1` document.** Every marker with its kind, its range and its reason, every warning with a stable code, and the totals — so a tool can compare two branches' waivers without reading the report.
 - **A port may declare no rules.** A port with no `aspects:` now loads as a named entry that carries nothing, instead of refusing the whole component.
 - **A relation always enters through a named port.** A relation that names none now enters through `default`, a port every component has without declaring it; declare `default` only to hang rules on it. The field is `portNames:`; `consumes:` still works. The component and blast-radius documents keep their schema number; their port lists are never empty now and report `default` for an undeclared relation.

@@ -55,6 +55,8 @@ That leaves the hash covering every ingredient a prompt is built from, which is 
 
 Entries written by an older version carry no size and are measured the old way; the first `yg check --approve` after upgrading records what it measured, at no reviewer cost.
 
+Two more fields ride the same way, on every reviewer kind this time: `filledAt` (when `--approve` wrote the verdict) and `filledSha` (the commit it ran at, when one was resolvable — absent without a git repository, before the first commit, or with git missing from `PATH`). Neither is an input — they record who and when filled a verdict, never what was judged — so writing or reading them invalidates nothing, and they ride along even once the verdict has gone stale or been refused: "who and when filled this" does not depend on the verdict still holding. Deterministic verdicts never carry them: filling one costs nothing, so there is nothing to attribute. Entries written before these fields existed simply have neither, and read back unchanged.
+
 ## `yg check` vs `yg check --approve`
 
 These are two different jobs.

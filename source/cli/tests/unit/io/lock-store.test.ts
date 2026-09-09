@@ -536,6 +536,8 @@ describe('lock-store', () => {
       touched: [['read:src/b.ts', 'deadbeef']],
       promptChars: 4211,
       judge: { name: 'a-verifier', provider: 'external' },
+      filledAt: '2026-09-09T00:00:00.000Z',
+      filledSha: 'f'.repeat(40),
     };
     const serialized = serializeLock({
       version: LOCK_FORMAT_VERSION,
@@ -591,6 +593,101 @@ describe('lock-store', () => {
         /promptChars.*non-negative integer/,
       );
     }
+  });
+
+  it('readLock accepts a verdict entry carrying filledAt/filledSha, and one without either', async () => {
+    // filledAt/filledSha are written on a real fill; a deterministic entry, and
+    // any entry written before the fields existed, simply has neither.
+    const tmpDir = await writeRawLock(
+      'tmp-lock-entry-filled',
+      JSON.stringify({
+        version: LOCK_FORMAT_VERSION,
+        verdicts: {
+          'my-aspect': {
+            'node:with-filled': {
+              verdict: 'approved', hash: 'h', filledAt: '2026-09-09T00:00:00.000Z', filledSha: 'a'.repeat(40),
+            },
+            'node:without-filled': { verdict: 'approved', hash: 'h' },
+          },
+        },
+        nodes: {},
+      }),
+    );
+    const lock = readLock(tmpDir);
+    expect(lock.verdicts['my-aspect']['node:with-filled'].filledAt).toBe('2026-09-09T00:00:00.000Z');
+    expect(lock.verdicts['my-aspect']['node:with-filled'].filledSha).toBe('a'.repeat(40));
+    expect(lock.verdicts['my-aspect']['node:without-filled'].filledAt).toBeUndefined();
+    expect(lock.verdicts['my-aspect']['node:without-filled'].filledSha).toBeUndefined();
+  });
+
+  it('readLock throws LockInvalidError when filledAt or filledSha is not a string', async () => {
+    for (const [field, bad] of [['filledAt', 7], ['filledSha', 7]] as const) {
+      const tmpDir = await writeRawLock(
+        `tmp-lock-entry-${field}-bad-type`,
+        JSON.stringify({
+          version: LOCK_FORMAT_VERSION,
+          verdicts: { 'my-aspect': { 'node:x': { verdict: 'approved', hash: 'h', [field]: bad } } },
+          nodes: {},
+        }),
+      );
+      let thrown: unknown;
+      try {
+        readLock(tmpDir);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown, field).toBeInstanceOf(LockInvalidError);
+      expect((thrown as InstanceType<typeof LockInvalidError>).messageData.what).toContain(field);
+    }
+  });
+
+  it('serializeEntry: an entry without filledAt/filledSha serializes byte-for-byte as before the fields existed', () => {
+    // Regression guard for the biggest risk of this change: serializeEntry is
+    // an explicit allow-list, and a fresh key added to it must never appear on
+    // an entry that never set it. This is the same golden shape the top-level
+    // "serializeLock emits code-point-sorted keys" test pins, isolated to one
+    // entry so the byte-identity claim cannot hide behind unrelated fields.
+    const serialized = serializeLock({
+      version: LOCK_FORMAT_VERSION,
+      verdicts: { asp: { 'node:svc': { verdict: 'refused', hash: 'h', reason: 'r' } } },
+      nodes: {},
+    });
+    expect(serialized).toContain('"node:svc": {"hash":"h","reason":"r","verdict":"refused"}');
+    expect(serialized).not.toContain('filledAt');
+    expect(serialized).not.toContain('filledSha');
+  });
+
+  it('serializeEntry: an entry WITH filledAt/filledSha orders every key code-point, filledAt/filledSha ahead of hash', () => {
+    const entry: import('../../../src/model/lock.js').VerdictEntry = {
+      verdict: 'refused',
+      hash: 'h',
+      reason: 'r',
+      touched: [['read:a', 'x']],
+      promptChars: 10,
+      judge: { name: 'j', provider: 'external' },
+      filledAt: '2026-09-09T00:00:00.000Z',
+      filledSha: 'a'.repeat(40),
+    };
+    const serialized = serializeLock({
+      version: LOCK_FORMAT_VERSION,
+      verdicts: { asp: { 'node:svc': entry } },
+      nodes: {},
+    });
+    const line = serialized.split('\n').find((l) => l.includes('node:svc'))!;
+    // Actual code-point order of every key this entry carries. Six-space
+    // indent, no trailing comma: this is the only unit of the only aspect.
+    expect(line).toBe(
+      '      "node:svc": {' +
+        '"filledAt":"2026-09-09T00:00:00.000Z",' +
+        '"filledSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",' +
+        '"hash":"h",' +
+        '"judge":{"name":"j","provider":"external"},' +
+        '"promptChars":10,' +
+        '"reason":"r",' +
+        '"touched":[["read:a","x"]],' +
+        '"verdict":"refused"' +
+        '}',
+    );
   });
 
   it('readLock throws LockInvalidError when a verdict entry reason is a non-string', async () => {

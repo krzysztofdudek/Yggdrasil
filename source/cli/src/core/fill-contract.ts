@@ -80,6 +80,15 @@ export interface RunFillOptions {
   columns?: number;
   /** Clock function for progress/heartbeat (injectable for tests). Defaults to Date.now. */
   now?: () => number;
+  /** INJECTED commit sha, resolved by the CLI boundary from git output it read
+   *  itself (`git rev-parse HEAD`) — mirrors trackedFiles/changeScope above;
+   *  core calls no git here either. Stamped onto every verdict this run WRITES
+   *  (VerdictEntry.filledSha) and onto its telemetry line (VerdictEvent.sha),
+   *  except on a deterministic entry, which records neither field at all (zero
+   *  cost, nothing to attribute). Absent when unresolvable (no repository, no
+   *  commit yet, git missing from PATH) or when the caller passes none; never
+   *  fabricated, and never a hash ingredient. */
+  sha?: string;
   /** Milestone threshold for non-TTY progress (emit every N pairs). Default: 25% of total, min 1. */
   milestoneInterval?: number;
   /** Still-working interval in ms for non-TTY (emit if no completion for this long). Default: 30000. */

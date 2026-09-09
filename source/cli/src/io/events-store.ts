@@ -37,6 +37,11 @@ export interface VerdictEvent {
   v: 1;
   /** ISO 8601 UTC timestamp — from the fill's injected clock, never Date.now() in core/. */
   ts: string;
+  /** Commit the fill ran at (`git rev-parse HEAD`), resolved by the CLI before
+   *  entering fill — never computed in core/. Absent without a git repository,
+   *  before the first commit, or with git missing from PATH. NEVER a hash
+   *  ingredient. */
+  sha?: string;
   /** Discriminator for the emitting subsystem. 'fill' = yg check --approve (core);
    *  'drill' = yg drill (LLM case runs); 'diag' = yg aspect-test (--repeat / --tier).
    *  NEVER a hash ingredient. Every reader MUST filter by this field before

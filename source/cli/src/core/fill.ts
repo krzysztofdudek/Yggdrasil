@@ -268,7 +268,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   }
 
   // ── Serialized lock writer (interruption-safe, §7) + verdict telemetry. ────
-  const writer = createVerdictWriter({ graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds });
+  const writer = createVerdictWriter({ graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha: opts.sha });
 
   // Record the assembled prompt's size on any still-valid verdict that predates
   // the field. Placed BEFORE the log gate below on purpose: this writes no

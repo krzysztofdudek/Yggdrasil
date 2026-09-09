@@ -70,6 +70,27 @@ export interface VerdictEntry {
    * re-prove it by hashing, with no key and no judge present.
    */
   judge?: { name: string; provider: 'external' };
+  /**
+   * WHEN `--approve` wrote this verdict (ISO 8601, from the fill's injected
+   * clock — never Date.now() in core/). Absent on every deterministic entry
+   * (filling one costs nothing, so there is nothing to attribute) and on any
+   * entry written before this field existed.
+   *
+   * NOT a hash ingredient — a RECORD of when a verdict was filled, never an
+   * input of the decision, so writing or reading it invalidates nothing. It
+   * exists so a consumer above the agent can attribute reviewer cost to the
+   * branch that caused it.
+   */
+  filledAt?: string;
+  /**
+   * The commit (`git rev-parse HEAD`) `--approve` ran at when it wrote this
+   * verdict. Independently optional: a repository the fill ran in without a
+   * resolvable commit (no repository, no commit yet, git missing from PATH)
+   * still gets `filledAt` but never a fabricated `filledSha`.
+   *
+   * NOT a hash ingredient, for the same reason `filledAt` is not.
+   */
+  filledSha?: string;
 }
 
 /**

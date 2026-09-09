@@ -93,8 +93,15 @@ export function createVerdictWriter(params: {
   onlyDeterministic: boolean;
   committedLlm: boolean;
   deterministicAspectIds: Set<string>;
+  /** Commit this run's fill executes at (`git rev-parse HEAD`), resolved by the
+   *  CLI boundary before entering fill — core never calls git. Stamped onto
+   *  every verdict this writer records (VerdictEntry.filledSha) and onto its
+   *  telemetry line (VerdictEvent.sha), except on a deterministic entry, which
+   *  records neither. Absent when unresolvable (no repository, no commit yet,
+   *  git missing from PATH); never fabricated, never a hash ingredient. */
+  sha?: string;
 }): VerdictWriter {
-  const { graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds } = params;
+  const { graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha } = params;
 
   // ── Verdict-events telemetry sidecar (write-only; nothing in the engine ever
   // reads it back). One line per (aspect, unit) disposition — a real verdict
@@ -116,6 +123,7 @@ export function createVerdictWriter(params: {
       kind,
       disposition,
     };
+    if (sha !== undefined) event.sha = sha;
     if (extra?.hash !== undefined) event.hash = extra.hash;
     if (extra?.reason !== undefined) event.reason = extra.reason;
     if (extra?.tier !== undefined) {
@@ -148,6 +156,14 @@ export function createVerdictWriter(params: {
     votes?: { satisfied: number; total: number },
     judge?: { provider: string; model: string },
   ): Promise<void> => {
+    // WHEN this verdict was filled, and at which commit — so a consumer above
+    // the agent can attribute reviewer cost to the branch that caused it.
+    // Never on a deterministic entry: filling one costs nothing, so there is
+    // nothing to attribute (see CheckJsonPair.filled / VerifiedPair.filled).
+    if (pair.kind !== 'deterministic') {
+      entry.filledAt = new Date(now()).toISOString();
+      if (sha !== undefined) entry.filledSha = sha;
+    }
     // Normalize the storage key to POSIX — the committed lock is shared across
     // platforms, and every read/compare/display of a unitKey already normalizes,
     // so a raw OS-native key (backslashes on Windows) would be stored under a key

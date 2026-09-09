@@ -11,6 +11,7 @@ import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
 import { detConcurrencyForThisMachine } from './det-concurrency.js';
+import { getHeadSha } from '../utils/git.js';
 import { sweepStaleTempFiles } from '../io/atomic-write.js';
 import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from '../io/repo-scanner.js';
 import type { YggConfig, Graph } from '../model/graph.js';
@@ -129,6 +130,11 @@ export function registerCheckCommand(program: Command): void {
         const repoFiles = await walkRepoFiles(projectRoot);
         // Tracked-file list for the anomaly check below; null (no git) skips it.
         const tracked = listGitTrackedFiles(projectRoot);
+        // Commit this run executes at, resolved here (CLI boundary) so the fill's
+        // verdict writer can stamp it on what it fills without core ever calling
+        // git itself — mirrors trackedFiles/changeScope below. Undefined when
+        // unresolvable (no repository, no commit yet, git missing from PATH).
+        const sha = getHeadSha(projectRoot);
 
         // Hidden calibration instrument. Bypasses the normal report entirely: run the
         // read-only attention dump over warm shards, print it, exit 0. Writes nothing. It is
@@ -412,6 +418,7 @@ export function registerCheckCommand(program: Command): void {
             const fill = await runFill(graph, {
               coverageVisibleFiles: repoFiles,
               trackedFiles: tracked, // mirrors reviewNowUtc/rulesArtifacts below
+              sha, // resolved above, alongside trackedFiles — core calls no git of its own
               onlyDeterministic: mode.onlyDeterministic,
               dryRun: isDryRun,
               // Maintain the silent feature-field index on the REAL post-fill report (the

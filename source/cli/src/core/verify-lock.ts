@@ -123,6 +123,18 @@ export interface VerifiedPair {
    */
   recordedHash?: string;
   /**
+   * WHEN `--approve` wrote this pair's stored verdict, and at which commit —
+   * independent of whether that verdict is still in force. Unlike `judge`
+   * above, a stale or refused pair still reports it: "who filled this and
+   * when" does not depend on the verdict currently holding.
+   *
+   * Absent when the lock has never filled this pair, or filled it with a CLI
+   * from before this field existed. `sha` inside is independently absent when
+   * no commit was resolvable at fill time (no repository, no commit yet, git
+   * missing from PATH) — never fabricated.
+   */
+  filled?: { ts: string; sha?: string };
+  /**
    * True for the half of `unverified` that is not "never seen": an entry EXISTS
    * for this pair but its hash no longer matches the current inputs.
    *
@@ -606,6 +618,14 @@ function classifyWithGate(
   resolvedTierName?: string,
 ): VerifiedPair {
   const tier = resolvedTierName === undefined ? {} : { tierName: resolvedTierName };
+  // WHO filled this pair rides only with a verdict IN FORCE (below, like
+  // `judge`); WHEN and at which commit do not — read straight off the stored
+  // entry, whatever the pair's state, so a stale or refused pair still reports
+  // who and when it was last filled.
+  const filled: { filled?: { ts: string; sha?: string } } =
+    storedEntry?.filledAt === undefined
+      ? {}
+      : { filled: { ts: storedEntry.filledAt, ...(storedEntry.filledSha !== undefined && { sha: storedEntry.filledSha }) } };
   if (valid && storedEntry !== undefined) {
     const verdictState: PairState =
       storedEntry.verdict === 'refused'
@@ -617,9 +637,9 @@ function classifyWithGate(
     const judge = storedEntry.judge;
     const recordedHash = storedEntry.hash;
     if (gate) {
-      return { pair, state: verdictState, oversized: gate, recordedHash, ...tier, ...(judge && { judge }) };
+      return { pair, state: verdictState, oversized: gate, recordedHash, ...tier, ...(judge && { judge }), ...filled };
     }
-    return { pair, state: verdictState, recordedHash, ...tier, ...(judge && { judge }) };
+    return { pair, state: verdictState, recordedHash, ...tier, ...(judge && { judge }), ...filled };
   }
 
   // Invalid or missing entry. An entry that EXISTS but no longer hashes to its
@@ -633,9 +653,10 @@ function classifyWithGate(
       state: { kind: 'prompt-too-large', chars: gate.chars, limit: gate.limit, tierName: gate.tierName },
       ...tier,
       ...recorded,
+      ...filled,
     };
   }
-  return { pair, state: { kind: 'unverified' }, ...tier, ...recorded };
+  return { pair, state: { kind: 'unverified' }, ...tier, ...recorded, ...filled };
 }
 
 // ============================================================

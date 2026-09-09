@@ -233,6 +233,64 @@ describe('events-reader', () => {
     expect(result.events).toHaveLength(1);
   });
 
+  // ── sha (cost-attribution commit). The reader validates only `v` and
+  //    `unitKey`; every other field — hash, reason, tier, judge, and now sha —
+  //    rides through unvalidated, whatever its type. A malformed sha does NOT
+  //    drop the line: it is not one of the two fields this reader gates on. ──
+
+  it('a line with no sha reads without error and is not counted as skipped', () => {
+    write(EVENTS_FILENAME, [
+      JSON.stringify({
+        v: 1, ts: '2026-07-03T00:00:00.000Z', source: 'fill', aspectId: 'a',
+        unitKey: 'node:x', kind: 'deterministic', disposition: 'approved',
+      }),
+    ]);
+    const result = readVerdictEvents(tmpDir);
+    expect(result.skipped).toBe(0);
+    expect(result.events[0].sha).toBeUndefined();
+  });
+
+  it('a line with sha reads it back, visible on the event', () => {
+    write(EVENTS_FILENAME, [
+      JSON.stringify({
+        v: 1, ts: '2026-07-03T00:00:00.000Z', source: 'fill', aspectId: 'a',
+        unitKey: 'node:x', kind: 'deterministic', disposition: 'approved', sha: 'a'.repeat(40),
+      }),
+    ]);
+    const result = readVerdictEvents(tmpDir);
+    expect(result.events[0].sha).toBe('a'.repeat(40));
+  });
+
+  it('a line with a non-string sha is NOT skipped — it rides through unvalidated, like any other field of the wrong type', () => {
+    // The reader gates acceptance on `v` and `unitKey` alone; a malformed `sha`
+    // is no more special than a malformed `hash` or `judge` would be — neither
+    // of those is type-checked either, so this line is accepted as-is.
+    write(EVENTS_FILENAME, [
+      JSON.stringify({
+        v: 1, ts: '2026-07-03T00:00:00.000Z', source: 'fill', aspectId: 'a',
+        unitKey: 'node:x', kind: 'deterministic', disposition: 'approved', sha: 7,
+      }),
+    ]);
+    const result = readVerdictEvents(tmpDir);
+    expect(result.skipped).toBe(0);
+    expect(result.events).toHaveLength(1);
+    expect((result.events[0] as unknown as { sha: number }).sha).toBe(7);
+  });
+
+  it('dedupe by full line still treats two lines differing only by sha as distinct (not a duplicate)', () => {
+    const base = {
+      v: 1, ts: '2026-07-12T00:00:00.000Z', source: 'fill', aspectId: 'a',
+      unitKey: 'node:x', kind: 'deterministic', disposition: 'approved',
+    };
+    write(EVENTS_FILENAME, [
+      JSON.stringify({ ...base, sha: 'a'.repeat(40) }),
+      JSON.stringify({ ...base, sha: 'b'.repeat(40) }),
+    ]);
+    const result = readVerdictEvents(tmpDir);
+    expect(result.events).toHaveLength(2);
+    expect(result.skipped).toBe(0);
+  });
+
   it('reports gitTracked=false for an untracked sidecar in a non-repo directory', () => {
     write(EVENTS_FILENAME, [
       JSON.stringify({

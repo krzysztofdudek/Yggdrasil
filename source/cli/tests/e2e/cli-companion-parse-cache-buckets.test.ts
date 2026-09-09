@@ -91,7 +91,7 @@ function copyFixture(label: string): string {
   cpSync(FIXTURE, dir, { recursive: true });
   return dir;
 }
-type Verdicts = Record<string, Record<string, { hash: string; touched?: Array<[string, string]>; verdict: string; reason?: string }>>;
+type Verdicts = Record<string, Record<string, { hash: string; touched?: Array<[string, string]>; verdict: string; reason?: string; filledAt?: string; filledSha?: string }>>;
 const verdicts = (d: string, aspectId: string): Verdicts[string] => (readLock(d).verdicts as Verdicts)[aspectId] ?? {};
 const touchedKeys = (entry: { touched?: Array<[string, string]> }): string[] => (entry.touched ?? []).map(([k]) => k);
 
@@ -184,8 +184,16 @@ describe.skipIf(!distExists)('CLI E2E — shared parse-cache buckets across a co
       expect(Object.keys(parV).sort()).toEqual(Object.keys(seqV).sort());
       for (const s of ALPHA_SUBJECTS) {
         // Byte-identical per-unit entry (hash, touched, verdict) regardless of
-        // whether its bucket was consumed by one worker at a time or five at once.
-        expect(JSON.stringify(parV[UNIT_ALPHA(s)])).toBe(JSON.stringify(seqV[UNIT_ALPHA(s)]));
+        // whether its bucket was consumed by one worker at a time or five at
+        // once. filledAt is excluded on purpose: it is a real wall-clock
+        // timestamp from two SEPARATE CLI processes, so it legitimately
+        // differs between them — that is not the concurrency invariant this
+        // test pins.
+        const parRest = { ...parV[UNIT_ALPHA(s)] };
+        const seqRest = { ...seqV[UNIT_ALPHA(s)] };
+        delete parRest.filledAt;
+        delete seqRest.filledAt;
+        expect(JSON.stringify(parRest)).toBe(JSON.stringify(seqRest));
       }
 
       // The parallel run also re-verifies clean on a second, plain check.

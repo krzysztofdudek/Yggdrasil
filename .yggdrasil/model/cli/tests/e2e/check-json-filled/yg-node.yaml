@@ -1,0 +1,32 @@
+name: E2E Tests — When a verdict was filled
+type: test-suite
+description: >-
+  Subprocess E2E for `yg check --json`'s `filled` field and the matching `sha`
+  on the verdict-events telemetry line: a deterministic pair always reports
+  filled: null (filling one costs nothing); an LLM pair filled through the
+  in-process mock reviewer reports the commit it was filled at, which survives
+  a later unrelated commit unchanged and rides along even once the pair goes
+  stale; a directory with no git repository still records when a verdict was
+  filled with a null commit and no git error reaching stderr; an old-shaped
+  lock entry from before these fields existed reads back as filled: null and
+  is left byte-identical by both a plain check and a no-op --approve; the
+  committed events stream carries the same commit with no reason and stays
+  single-line; two parallel free approvals never leave the lock unparseable;
+  a truncated or unknown-keyed lock is refused by name rather than silently
+  accepted; line-ending normalization under core.autocrlf never invalidates a
+  filled verdict; a repository path with a space and unicode still resolves
+  correctly; and two edge configurations neither this ticket nor the CLI
+  design for — a read-only lock file, and a symlinked .yggdrasil — have their
+  actual current behavior pinned rather than assumed.
+aspects: []
+relations:
+  [
+    { target: cli/commands/check, type: uses },
+    { target: cli/core/fill, type: uses },
+    { target: cli/io/lock-store, type: uses },
+    { target: cli/tests/fixtures, type: uses },
+    { target: cli/tests/e2e/support, type: uses },
+    { target: cli/tests/support, type: uses }
+  ]
+mapping:
+  - source/cli/tests/e2e/cli-check-json-filled.test.ts

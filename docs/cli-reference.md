@@ -233,6 +233,17 @@ on are separate here: `unverified` is a pair nothing has ever judged, `stale` is
 one that was judged over code that has since moved. Both block; they are
 different facts.
 
+Each pair also names when and at which commit it was filled: `filled: { ts,
+sha }`, or `filled: null` for a pair the lock has never filled (always `null`
+for a deterministic pair — filling one costs nothing, so there is nothing to
+attribute). `sha` is `null` when the commit was not resolvable at fill time (no
+repository, no commit yet, git missing from `PATH`) — the key is present
+regardless, so a consumer always finds it. `filled` rides with a pair
+regardless of its verdict, so a stale or refused pair still reports who and
+when last filled it. This is what lets a tool above the agent attribute
+reviewer cost to the branch that caused it, without re-deriving it from git
+history.
+
 It composes with the fill flags and leaves every exit code exactly as it was.
 Under `--json`, stdout carries the document alone — even the cost preview
 `--dry-run` normally prints moves to stderr. It is refused together with

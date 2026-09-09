@@ -88,6 +88,13 @@ function pairOf(vp: VerifiedPair): CheckJsonPair {
     verdict: verdictOf(vp),
     reviewer: reviewerOf(vp),
     hash: vp.recordedHash ?? null,
+    // A deterministic pair never carries filled data — enforced here rather
+    // than trusted from the input, since the writer never records one for a
+    // deterministic entry to begin with (see fill-writer's setEntry).
+    filled:
+      vp.pair.kind === 'deterministic' || vp.filled === undefined
+        ? null
+        : { ts: vp.filled.ts, sha: vp.filled.sha ?? null },
   };
   if (vp.state.kind === 'refused' && vp.state.reason !== undefined) row.report = vp.state.reason;
   return row;

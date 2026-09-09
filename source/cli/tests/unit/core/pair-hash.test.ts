@@ -3,6 +3,12 @@
  *
  * Golden values pin the serialization format. Changing them is a deliberate
  * breaking decision — see pair-hash-golden.json for the canonical fixture.
+ *
+ * No test here covers VerdictEntry.filledAt/filledSha: this module takes only
+ * the explicit, individually-named CommonHashInput/LlmHashInput/DetHashInput
+ * shapes above and never sees a lock entry at all, so there is nothing for
+ * either field to leak into — unlike promptChars/judge, which share that same
+ * property and are likewise untested here.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
