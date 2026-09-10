@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # The one committed fixture proving the suppression inventory's `form` field and the
 # 'errs-under' risk resolution off a REAL scan (not a synthetic report literal): four

@@ -74,3 +74,5 @@ The map from an outside-changes code back to the code it stands for is now deriv
 The three port-contract findings join the set of structural codes because they are graph-shape facts rather than reviewed judgements: nothing about them is sharpenable, demotable or waivable, and each blocks unconditionally. Grouping them with the relation-conformance family keeps one place deciding how a finding of this kind is tallied and rendered, instead of each emitter teaching the renderer its own category.
 ## [2026-09-09T20:44:47.144Z]
 The single-source structural-code registry drops two port-contract codes that no longer exist: naming no port on a relation is no longer required, so the checks that used to enforce that are gone, and their codes cannot keep standing in a list that claims every entry is actually emitted somewhere.
+## [2026-09-10T09:18:40.256Z]
+The three codes for a port's recorded contract baseline are removed from the structural code set. The check that could emit them no longer exists, so nothing in a run's report can produce them again.

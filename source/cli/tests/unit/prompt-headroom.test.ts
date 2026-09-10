@@ -27,7 +27,7 @@ describe('prompt-headroom — resolveTierLimits reads the real committed ceiling
     // `max_prompt_chars:` match in the block, without stripping comments,
     // reads the commented-out 200000 as if it were live.
     const configText = [
-      'version: "5.2.0"',
+      'version: "6.0.0"',
       'reviewer:',
       '  default: standard',
       '  tiers:',
@@ -48,7 +48,7 @@ describe('prompt-headroom — resolveTierLimits reads the real committed ceiling
     // anchored on `reviewer:\s*\n\s*tiers:\s*\n` — real YAML parsing has no
     // such positional assumption.
     const configText = [
-      'version: "5.2.0"',
+      'version: "6.0.0"',
       'reviewer:',
       '  default: standard',
       '  tiers:',
@@ -99,7 +99,7 @@ describe('prompt-headroom — resolveTierLimits reads the real committed ceiling
   });
 
   it('throws when reviewer.tiers is missing entirely, rather than reporting "nothing to measure"', () => {
-    const configText = 'version: "5.2.0"\ncoverage:\n  required: [src/]\n';
+    const configText = 'version: "6.0.0"\ncoverage:\n  required: [src/]\n';
     expect(() => resolveTierLimits(configText, 'yg-config.yaml')).toThrow(/reviewer\.tiers/);
   });
 

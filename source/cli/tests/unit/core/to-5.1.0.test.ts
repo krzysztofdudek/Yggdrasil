@@ -23,16 +23,16 @@ describe('to-5.1.0 migration', () => {
     expect(migration.to).toBe('5.1.0');
   });
 
-  it('now targets a version strictly below the CLI-supported schema — the gap is covered by the version-lift fallback, not a migration', () => {
-    // Every earlier schema bump shipped a migration whose `to` matched
-    // CLI_SUPPORTED_SCHEMA exactly — the registered chain always reached the
-    // declared-supported version on its own. The 5.2.0 bump deliberately
-    // breaks that pairing: it adds no transforming migration, so a project
-    // left at this migration's target (5.1.0) is carried the rest of the way
-    // by the upgrade runner's version-lift fallback (a plain version bump,
-    // since there is nothing to transform), not by a registered migration
-    // step. Pinned here (where importing the constant is legitimate) so the
-    // e2e upgrade test can stay a pure black box.
+  it('targets a version strictly below the CLI-supported schema — the gap is now covered by the to-6.0.0 migration, not a version-lift', () => {
+    // The 5.2.0 bump (this migration's target) deliberately left a gap with
+    // no transforming migration of its own — a project landing here was
+    // carried the rest of the way to 5.2.0 by the upgrade runner's
+    // version-lift fallback. The 6.0.0 bump closes that gap: the registered
+    // to-6.0.0 migration targets CLI_SUPPORTED_SCHEMA directly and applies to
+    // any project below it, this one included, so the fallback is no longer
+    // reached for a project starting here. Pinned here (where importing the
+    // constant is legitimate) so the e2e upgrade test can stay a pure black
+    // box.
     expect(migration.to).toBe('5.1.0');
     expect(CLI_SUPPORTED_SCHEMA).not.toBe(migration.to);
   });

@@ -66,7 +66,7 @@ function run(
 }
 
 const CONFIG = [
-  'version: "5.2.0"',
+  'version: "6.0.0"',
   'quality:',
   '  max_direct_relations: 20',
   'reviewer:',

@@ -1,0 +1,22 @@
+name: E2E Tests — a port's version and contract test are removed, not tolerated
+type: test-suite
+description: >-
+  Subprocess E2E for the 6.0.0 removal of a port's `version` and `test`
+  fields. Drives the whole cycle through the public CLI against a real
+  fixture and no reviewer at all: a port declaring either field, at any
+  value, refuses the whole graph, naming the node, the port and the field,
+  and saying it was removed in 6.0.0; a graph cleaned of both fields loads
+  and the machine documents carry neither key; an approving run never writes
+  a `ports` section into the lock; a lock that still carries the retired
+  `ports` section is refused with `unexpected key "ports"` under a plain
+  `yg check`, and the refusal repeats identically on a second run and under
+  `--approve` — nothing self-heals it outside migration; an old schema
+  version is refused citing the upgrade command, and `yg init --upgrade`
+  strips the lock's `ports` section and lands the graph clean; a config
+  version newer than the CLI still refuses as a version from the future.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-port-fields-removed.test.ts

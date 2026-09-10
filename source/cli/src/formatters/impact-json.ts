@@ -25,14 +25,9 @@ export interface ImpactJsonPortConsumer {
   relation: string;
 }
 
-/**
- * One port the subject publishes. `version` and `test` are `null` when the port
- * declares neither — the contract is then a description with nothing behind it.
- */
+/** One port the subject publishes. */
 export interface ImpactJsonPort {
   name: string;
-  version: number | null;
-  test: string | null;
   consumers: ImpactJsonPortConsumer[];
 }
 

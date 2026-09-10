@@ -6,9 +6,8 @@
 // SAME graph queries those views use. These tests pin the properties a machine
 // consumer relies on and the text view cannot show it: which dependents are
 // direct and which are reached through somebody else, the path each indirect one
-// travels, who consumes a published port (including through an event relation,
-// which the dependency algorithms deliberately ignore), and a port's DECLARED
-// contract version rather than the one a versionless port is read at.
+// travels, and who consumes a published port (including through an event
+// relation, which the dependency algorithms deliberately ignore).
 //
 // The graphs are built in memory rather than loaded from a fixture: every case
 // below turns on one edge or one declared field, and a fixture project would
@@ -65,8 +64,6 @@ function paymentsGraph(): Graph {
         charge: {
           description: 'Take a payment.',
           aspects: ['audit-required'],
-          version: 3,
-          test: 'tests\\contracts\\charge.test.ts',
         },
         refund: { description: 'Give it back.', aspects: [] },
         dispute: { description: 'Contest it.', aspects: [] },
@@ -152,23 +149,10 @@ describe('the impact document — who depends on a component', () => {
 });
 
 describe('the impact document — the ports a component publishes', () => {
-  it('lists ports by name, with the declared version and contract test', () => {
+  it('lists ports by name', () => {
     const doc = buildImpactDocument(paymentsGraph(), 'services/payments');
 
     expect(doc.ports.map((p) => p.name)).toEqual(['charge', 'dispute', 'refund']);
-    expect(doc.ports[0].version).toBe(3);
-    // Repo-relative POSIX, whatever separator the graph was read with.
-    expect(doc.ports[0].test).toBe('tests/contracts/charge.test.ts');
-  });
-
-  it('says a versionless port declares no version rather than the one it is read at', () => {
-    // The contract check reads a versionless port at version 1; the document
-    // reports what the port SAYS about itself, and a number it never wrote
-    // would be a claim it never made.
-    const doc = buildImpactDocument(paymentsGraph(), 'services/payments');
-    const refund = doc.ports.find((p) => p.name === 'refund');
-    expect(refund?.version).toBeNull();
-    expect(refund?.test).toBeNull();
   });
 
   it('counts a consumer that reaches the port through an event relation', () => {
@@ -227,8 +211,6 @@ describe('the component document — structure the text view leaves implicit', (
     const doc = buildNodeDocument(paymentsGraph(), 'services/payments');
     expect(doc.ports.charge).toEqual({
       description: 'Take a payment.',
-      version: 3,
-      test: 'tests/contracts/charge.test.ts',
       aspects: ['audit-required'],
     });
     expect(Object.keys(doc.ports)).toEqual(['charge', 'dispute', 'refund']);

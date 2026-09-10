@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # Deliberately minimal — a fresh, self-contained fixture (not an overlay on
 # tests/fixtures/type-level-engine/, whose architecture carries a cycle and a

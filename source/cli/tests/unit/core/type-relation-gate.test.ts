@@ -165,7 +165,7 @@ describe('live type-relation gate — fixture rows', () => {
     // subtree placed somewhere the fixture's types don't reach would prove nothing.
     const nestedYggDir = path.join(dir, 'src', 'svc', 'vendored', '.yggdrasil');
     mkdirSync(nestedYggDir, { recursive: true });
-    writeFileSync(path.join(nestedYggDir, 'yg-config.yaml'), 'version: "5.2.0"\n');
+    writeFileSync(path.join(nestedYggDir, 'yg-config.yaml'), 'version: "6.0.0"\n');
     const nestedFile = path.join(dir, 'src', 'svc', 'vendored', 'nested-handler.ts');
     writeFileSync(nestedFile, "import { ownerThing } from '../../owner/target.ts';\n");
 

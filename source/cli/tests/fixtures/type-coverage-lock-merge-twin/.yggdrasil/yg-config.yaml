@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # Lock-merge twin: a two-file sibling of the graduation-twin fixture.
 # src/svc/svc-a.ts and src/svc/svc-b.ts are both committed and filled BEFORE

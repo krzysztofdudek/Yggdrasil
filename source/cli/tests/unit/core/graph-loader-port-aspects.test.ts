@@ -21,7 +21,7 @@ describe('loadGraph — a port without aspects does not cascade-drop its subtree
     const modelDir = path.join(yggRoot, 'model');
     await mkdir(path.join(modelDir, 'parent', 'child'), { recursive: true });
     await mkdir(path.join(modelDir, 'third'), { recursive: true });
-    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"', 'utf-8');
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "6.0.0"', 'utf-8');
     await writeFile(
       path.join(modelDir, 'parent', 'yg-node.yaml'),
       'name: Parent\ntype: service\nports:\n  charge:\n    description: "Charge port"\n',
@@ -61,7 +61,7 @@ describe('loadGraph — a port without aspects does not cascade-drop its subtree
     const modelDir = path.join(yggRoot, 'model');
     await mkdir(path.join(modelDir, 'parent', 'child'), { recursive: true });
     await mkdir(path.join(modelDir, 'third'), { recursive: true });
-    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"', 'utf-8');
+    await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "6.0.0"', 'utf-8');
     await writeFile(
       path.join(modelDir, 'parent', 'yg-node.yaml'),
       'name: Parent\ntype: service\nports:\n  charge:\n    description: "Charge port"\n    aspects: "x"\n',

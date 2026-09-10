@@ -54,7 +54,7 @@ function buildMinimalProject(): string {
   mkdirSync(path.join(dir, '.yggdrasil', 'model'), { recursive: true });
   writeFileSync(
     path.join(dir, '.yggdrasil', 'yg-config.yaml'),
-    'version: "5.2.0"\ncoverage: { required: [src/], excluded: [], type_level: true }\n',
+    'version: "6.0.0"\ncoverage: { required: [src/], excluded: [], type_level: true }\n',
   );
   return dir;
 }
@@ -255,7 +255,7 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
 function buildFlagOffProject(coverageBlock: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-cache-identity-e2e-'));
   mkdirSync(path.join(dir, '.yggdrasil', 'model'), { recursive: true });
-  writeFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), `version: "5.2.0"\n${coverageBlock}`);
+  writeFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\n${coverageBlock}`);
   writeFileSync(
     path.join(dir, '.yggdrasil', 'yg-architecture.yaml'),
     'node_types:\n' +

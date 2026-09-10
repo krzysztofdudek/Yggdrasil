@@ -39,7 +39,7 @@ function scaffoldSupremeExclusionProject(): string {
 
   writeFileSync(
     path.join(yggRoot, 'yg-config.yaml'),
-    ['version: "5.2.0"', 'coverage:', '  excluded:', '    - src/legacy/', ''].join('\n'),
+    ['version: "6.0.0"', 'coverage:', '  excluded:', '    - src/legacy/', ''].join('\n'),
     'utf-8',
   );
   writeFileSync(

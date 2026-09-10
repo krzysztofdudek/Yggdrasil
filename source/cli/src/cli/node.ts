@@ -54,7 +54,6 @@ function renderNodeText(doc: NodeJsonDocument): string {
   for (const name of portNames) {
     const port = doc.ports[name];
     lines.push(`  ${name} — ${port.description}`);
-    lines.push(`    version: ${port.version ?? NONE}   test: ${port.test ?? NONE}`);
     lines.push(`    consumers must satisfy: ${port.aspects.length > 0 ? port.aspects.join(', ') : NONE}`);
   }
   lines.push('');

@@ -351,46 +351,46 @@ describe('migration runner — real registered migrations', () => {
     return yggRoot;
   }
 
-  it('seed 4.0.0 → runs the registered chain, lands at 5.1.0', async () => {
+  it('seed 4.0.0 → runs the registered chain, lands at 6.0.0', async () => {
     const yggRoot = seedWithSchemas('4.0.0');
     const { MIGRATIONS } = await import('../../src/migrations/index.js');
 
     const result = await runVersionUpgrade({ yggRoot, migrations: MIGRATIONS });
 
     expect(result.fromVersion).toBe('4.0.0');
-    expect(result.landedVersion).toBe('5.1.0');
-    expect(readVersion(yggRoot)).toBe('5.1.0');
+    expect(result.landedVersion).toBe('6.0.0');
+    expect(readVersion(yggRoot)).toBe('6.0.0');
   });
 
-  it('seed 4.2.0 → the 5.1.0 migration applies, lands at 5.1.0', async () => {
+  it('seed 4.2.0 → the 5.1.0 and 6.0.0 migrations apply, lands at 6.0.0', async () => {
     const yggRoot = seedWithSchemas('4.2.0');
     const { MIGRATIONS } = await import('../../src/migrations/index.js');
 
     const result = await runVersionUpgrade({ yggRoot, migrations: MIGRATIONS });
 
     expect(result.fromVersion).toBe('4.2.0');
-    expect(result.landedVersion).toBe('5.1.0');
+    expect(result.landedVersion).toBe('6.0.0');
   });
 
-  it('seed 4.3.0 → only the 5.1.0 migration applies, lands at 5.1.0', async () => {
+  it('seed 4.3.0 → the 5.1.0 and 6.0.0 migrations apply, lands at 6.0.0', async () => {
     const yggRoot = seedWithSchemas('4.3.0');
     const { MIGRATIONS } = await import('../../src/migrations/index.js');
 
     const result = await runVersionUpgrade({ yggRoot, migrations: MIGRATIONS });
 
     expect(result.fromVersion).toBe('4.3.0');
-    expect(result.landedVersion).toBe('5.1.0');
+    expect(result.landedVersion).toBe('6.0.0');
   });
 
-  it('seed 5.0.0 → the 5.1.0 migration applies, removes schemas/, lands at 5.1.0', async () => {
+  it('seed 5.0.0 → the 5.1.0 migration applies, removes schemas/, then 6.0.0 lands', async () => {
     const yggRoot = seedWithSchemas('5.0.0');
     const { MIGRATIONS } = await import('../../src/migrations/index.js');
 
     const result = await runVersionUpgrade({ yggRoot, migrations: MIGRATIONS });
 
     expect(result.migrationActions.join(' ')).toMatch(/schemas/);
-    expect(result.landedVersion).toBe('5.1.0');
-    expect(readVersion(yggRoot)).toBe('5.1.0');
+    expect(result.landedVersion).toBe('6.0.0');
+    expect(readVersion(yggRoot)).toBe('6.0.0');
   });
 
   // DELETED: 'seed 4.3.0 with a broken multi-provider reviewer config → chain

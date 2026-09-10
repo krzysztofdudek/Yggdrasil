@@ -71,7 +71,7 @@ const IDENTITY = {
 };
 
 /** The schema version this CLI build actually supports (mirrors CLI_SUPPORTED_SCHEMA). */
-const SUPPORTED_SCHEMA = '5.2.0';
+const SUPPORTED_SCHEMA = '6.0.0';
 
 function writeFile(dir: string, rel: string, content: string): void {
   const abs = path.join(dir, rel);

@@ -25,23 +25,6 @@ import { toPosixPath } from '../../utils/posix.js';
  */
 
 /**
- * A port's declared contract version, or null when it declares none.
- *
- * The DECLARED value, deliberately — not the version the contract check reads a
- * versionless port at. A consumer pinning to a version is reading what the port
- * says about itself, and a number the port never wrote would be a claim it never
- * made.
- */
-function portVersion(port: PortDef): number | null {
-  return port.version ?? null;
-}
-
-/** A port's declared contract test, repo-relative POSIX, or null when it declares none. */
-function portTest(port: PortDef): string | null {
-  return port.test === undefined ? null : toPosixPath(port.test);
-}
-
-/**
  * Every component that consumes `portName` from `nodePath`, in graph order.
  *
  * A port is consumed through the `portNames` list on a relation (`consumes:` is
@@ -96,10 +79,8 @@ export function buildImpactDocument(graph: Graph, nodePath: string): ImpactJsonD
 
   const ports: ImpactJsonPort[] = Object.entries(node.meta.ports ?? {})
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, port]) => ({
+    .map(([name]) => ({
       name,
-      version: portVersion(port),
-      test: portTest(port),
       consumers: collectPortConsumers(graph, nodePath, name),
     }));
 
@@ -127,8 +108,6 @@ export function buildImpactDocument(graph: Graph, nodePath: string): ImpactJsonD
 function nodeJsonPort(port: PortDef): NodeJsonPort {
   return {
     description: port.description,
-    version: portVersion(port),
-    test: portTest(port),
     aspects: [...(port.aspects ?? [])],
   };
 }

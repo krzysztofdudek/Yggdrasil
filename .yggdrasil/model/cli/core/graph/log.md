@@ -143,3 +143,5 @@ The reverse-dependency closure, and the path by which each indirect dependent is
 A port's declared contract version and contract test now reach the machine documents as the port DECLARED them, not as the contract check reads them. A versionless port is checked at version one, but saying so in the document would put a claim in the port's mouth that it never made; a consumer pinning to a version is reading what the port says about itself.
 ## [2026-09-09T19:51:13.263Z]
 The port-consumption predicate, the graph's own machine documents, and the reverse-dependency index all now read a relation's named ports from the model's renamed field. The component and blast-radius documents keep their existing schema numbers and field names, but their port lists are never empty any more: an undeclared relation reports the implicit default port instead of an empty list.
+## [2026-09-10T09:18:41.146Z]
+The impact and component documents no longer report a port's version or contract-test path — the two helpers that read those fields off a port's declaration are removed, and the port entries both documents build simply carry one fewer pair of keys than before.

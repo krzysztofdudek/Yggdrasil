@@ -338,30 +338,22 @@ function parsePorts(rawPorts: unknown, filePath: string): Record<string, PortDef
         (portAspectStatus ??= {})[parsed.id] = parsed.status;
       }
     }
-    // The contract's version: an integer >= 1. A malformed one is REFUSED rather
-    // than ignored — a version silently dropped would let a contract change ride
-    // in behind a number the author believed they had raised, which is the one
-    // failure this field exists to prevent.
-    let portVersion: number | undefined;
-    if (obj.version !== undefined && obj.version !== null) {
-      if (typeof obj.version !== 'number' || !Number.isInteger(obj.version) || obj.version < 1) {
-        throw new Error(
-          `yg-node.yaml at ${filePath}: ports.${name}.version must be an integer of 1 or more when present — a contract version is a whole number that only ever rises`,
-        );
-      }
-      portVersion = obj.version;
+    // `version` and `test` carried a port's contract version and the test that
+    // was its contract. Removed in 6.0.0 — the check that held a test's content
+    // to a recorded baseline is gone, and contract versions and mirrored
+    // contract tests are Horde's job now. Presence alone is refused, for either
+    // key at any value, exactly like any other retired key: a field silently
+    // dropped would let an author believe a contract is still being checked
+    // when it no longer is.
+    if (obj.version !== undefined) {
+      throw new Error(
+        `yg-node.yaml at ${filePath}: ports.${name}.version was removed in 6.0.0 — delete this field from the YAML. Contract versions are Horde's job now.`,
+      );
     }
-
-    // The test that IS the contract, repo-relative and contained, validated for
-    // existence later by the check that baselines it.
-    let portTest: string | undefined;
-    if (obj.test !== undefined && obj.test !== null) {
-      if (typeof obj.test !== 'string') {
-        throw new Error(
-          `yg-node.yaml at ${filePath}: ports.${name}.test must be a path string relative to the repository root`,
-        );
-      }
-      portTest = validateRelativePath(obj.test, filePath, `ports.${name}.test`);
+    if (obj.test !== undefined) {
+      throw new Error(
+        `yg-node.yaml at ${filePath}: ports.${name}.test was removed in 6.0.0 — delete this field from the YAML. Contract tests are Horde's job now.`,
+      );
     }
 
     ports[name] = {
@@ -369,8 +361,6 @@ function parsePorts(rawPorts: unknown, filePath: string): Record<string, PortDef
       aspects: portAspects,
       ...(portAspectWhens && { aspectWhens: portAspectWhens }),
       ...(portAspectStatus && { aspectStatus: portAspectStatus }),
-      ...(portVersion !== undefined && { version: portVersion }),
-      ...(portTest !== undefined && { test: portTest }),
     };
   }
 

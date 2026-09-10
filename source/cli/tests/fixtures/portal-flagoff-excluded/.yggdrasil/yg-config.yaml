@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # coverage.type_level stays OFF (the default) while coverage.excluded still names a
 # root. An excluded file is excluded rather than unguarded regardless of whether the

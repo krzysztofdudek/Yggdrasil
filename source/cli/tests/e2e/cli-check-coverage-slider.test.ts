@@ -59,7 +59,7 @@ function makeProject(label: string, opts: { required: string[]; looseFiles?: num
   const required = opts.required.length === 0
     ? ' []'
     : `\n${opts.required.map((r) => `    - ${r}`).join('\n')}`;
-  w('.yggdrasil/yg-config.yaml', `version: "5.2.0"\ncoverage:\n  required:${required}\n  excluded: []\n`);
+  w('.yggdrasil/yg-config.yaml', `version: "6.0.0"\ncoverage:\n  required:${required}\n  excluded: []\n`);
   w(
     '.yggdrasil/model/owned/yg-node.yaml',
     "name: Owned\ntype: service\ndescription: 'the one mapped component'\naspects: []\nmapping:\n  - src/owned.ts\n",

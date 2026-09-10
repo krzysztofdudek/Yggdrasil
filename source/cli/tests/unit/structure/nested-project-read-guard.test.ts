@@ -33,7 +33,7 @@ describe('a nested project inside a mapped directory is refused on every read su
     mkdirSync(path.join(projectRoot, 'services', 'vendorlib', '.yggdrasil'), { recursive: true });
     writeFileSync(
       path.join(projectRoot, 'services', 'vendorlib', '.yggdrasil', 'yg-config.yaml'),
-      'version: "5.2.0"\n',
+      'version: "6.0.0"\n',
     );
     writeFileSync(
       path.join(projectRoot, 'services', 'vendorlib', 'other.py'),
@@ -229,7 +229,7 @@ describe('a symlink cannot smuggle a foreign read past the nested-project guard'
     mkdirSync(path.join(projectRoot, 'services', 'vendorlib', '.yggdrasil'), { recursive: true });
     writeFileSync(
       path.join(projectRoot, 'services', 'vendorlib', '.yggdrasil', 'yg-config.yaml'),
-      'version: "5.2.0"\n',
+      'version: "6.0.0"\n',
     );
     writeFileSync(
       path.join(projectRoot, 'services', 'vendorlib', 'other.py'),

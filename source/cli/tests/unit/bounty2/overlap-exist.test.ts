@@ -611,7 +611,7 @@ describe('checkMappingPathsExist — mapping fully swallowed by a nested project
     const { projectRoot, yggRoot } = await makeProject();
     await writeFileEnsuringDir(
       path.join(projectRoot, 'services/vendorlib/.yggdrasil/yg-config.yaml'),
-      'version: "5.2.0"\n',
+      'version: "6.0.0"\n',
     );
     await writeFileEnsuringDir(path.join(projectRoot, 'services/vendorlib/lib.py'), 'def lib(): return 1\n');
     const graph = buildGraph(yggRoot, [{ path: 'svc', mapping: ['services'] }]);
@@ -627,7 +627,7 @@ describe('checkMappingPathsExist — mapping fully swallowed by a nested project
     await writeFileEnsuringDir(path.join(projectRoot, 'services/alpha.py'), 'def alpha(): return 1\n');
     await writeFileEnsuringDir(
       path.join(projectRoot, 'services/vendorlib/.yggdrasil/yg-config.yaml'),
-      'version: "5.2.0"\n',
+      'version: "6.0.0"\n',
     );
     await writeFileEnsuringDir(path.join(projectRoot, 'services/vendorlib/lib.py'), 'def lib(): return 1\n');
     const graph = buildGraph(yggRoot, [{ path: 'svc', mapping: ['services'] }]);
@@ -689,7 +689,7 @@ describe('checkMappingPathsExist — mapping fully swallowed by a nested project
     const { projectRoot, yggRoot } = await makeProject();
     await writeFileEnsuringDir(
       path.join(projectRoot, 'services/vendorlib/.yggdrasil/yg-config.yaml'),
-      'version: "5.2.0"\n',
+      'version: "6.0.0"\n',
     );
     await writeFileEnsuringDir(path.join(projectRoot, 'services/vendorlib/named.py'), 'def named(): return 1\n');
     const graph = buildGraph(yggRoot, [{ path: 'svc', mapping: ['services/vendorlib/named.py'] }]);

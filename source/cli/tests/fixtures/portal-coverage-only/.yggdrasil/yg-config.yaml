@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # The one committed fixture whose ONLY failure is a coverage gap: one node maps
 # src/a.ts (zero aspects — zero pairs, so it can never itself produce an

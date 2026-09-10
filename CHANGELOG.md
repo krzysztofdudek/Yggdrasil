@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **A port no longer carries a version or a contract test.** Both fields are refused, naming the node and port — remove them from `yg-node.yaml`. A lock still carrying the retired `ports` section is refused the same way until `yg init --upgrade` migrates it. Contract versions and mirrored contract tests are Horde's job now.
 - **Reading a graph at another commit is a detached worktree.** The tool reads the tree it stands in; the docs now say how to ask about another commit, and what two worktrees of one repository do and do not share.
 - **A recorded verdict says when and at which commit it was filled.** `yg check --json` reports it as `filled`, and the shared event stream carries the same commit — so a tool can attribute reviewer cost to the branch that caused it. Older locks and older event lines keep working untouched.
 - **`yg suppressions --json` prints the waiver inventory as one `yg-suppressions/1` document.** Every marker with its kind, its range and its reason, every warning with a stable code, and the totals — so a tool can compare two branches' waivers without reading the report.

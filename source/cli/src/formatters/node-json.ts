@@ -27,14 +27,9 @@ export interface NodeJsonRelation {
   event_name?: string;
 }
 
-/**
- * One published port. `version` and `test` are `null` when the port declares
- * neither — the contract is then a description with nothing behind it.
- */
+/** One published port. */
 export interface NodeJsonPort {
   description: string;
-  version: number | null;
-  test: string | null;
   /** Rule ids a consumer of this port must satisfy. */
   aspects: string[];
 }

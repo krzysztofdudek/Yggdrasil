@@ -344,7 +344,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
     // ever see it. The filesystem-derived guard must still catch it.
     const root = await tmpTree({
       'services/alpha.py': 'def alpha(): return 1\n',
-      'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "5.2.0"\n',
+      'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "6.0.0"\n',
       'services/vendorlib/other.py': 'SECRET = 1\n',
     });
     const out = await expandMappingPathsWithinOwnGraph(root, ['services/**/*.py'], NO_EXCLUDED);
@@ -354,7 +354,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
   it('a `.gitignore` line hiding only the nested `.yggdrasil/` marker does not blind the guard', async () => {
     const root = await tmpTree({
       'services/alpha.py': 'def alpha(): return 1\n',
-      'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "5.2.0"\n',
+      'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "6.0.0"\n',
       'services/vendorlib/other.py': 'SECRET = 1\n',
       '.gitignore': 'services/vendorlib/.yggdrasil/\n',
     });
@@ -439,7 +439,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
     // filesystem, never of which candidates a particular call happened to expand.
     const root = await tmpTree({
       'services/alpha.py': 'def alpha(): return 1\n',
-      'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "5.2.0"\n',
+      'services/vendorlib/.yggdrasil/yg-config.yaml': 'version: "6.0.0"\n',
       'services/vendorlib/other.py': 'SECRET = 1\n',
       'services/config.yaml': 'k: v\n',
     });

@@ -1061,6 +1061,75 @@ ports: {}
     });
   });
 
+  describe('node-parser ports — version and test are removed (6.0.0), refused not ignored', () => {
+    async function writePortYaml(tmpDir: string, portsBlock: string): Promise<string> {
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: PaymentService
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+${portsBlock}
+    aspects:
+      - correlation-tracking
+`,
+        'utf-8',
+      );
+      return nodePath;
+    }
+
+    it('rejects ports.charge.version: 1, naming the field and 6.0.0', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-version-removed');
+      const nodePath = await writePortYaml(tmpDir, '    version: 1');
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.version was removed in 6\.0\.0/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("rejects version: 'abc' the same way — the key's presence is refused, not its shape (the old integer validation is gone)", async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-version-abc');
+      const nodePath = await writePortYaml(tmpDir, "    version: 'abc'");
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.version was removed in 6\.0\.0/);
+      await expect(parseNodeYaml(nodePath)).rejects.not.toThrow(/must be an integer of 1 or more/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects test: pointing at a real repo-relative path, naming the field and 6.0.0', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-test-removed');
+      const nodePath = await writePortYaml(tmpDir, '    test: tests/contracts/charge.test.ts');
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.test was removed in 6\.0\.0/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("rejects test: '../poza/repo.ts' the same way — the retired path-containment validator never runs, because the key is refused first", async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-test-outside-repo');
+      const nodePath = await writePortYaml(tmpDir, '    test: ../poza/repo.ts');
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.test was removed in 6\.0\.0/);
+      await expect(parseNodeYaml(nodePath)).rejects.not.toThrow(/must not escape/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects a port declaring both version and test — the first offending field found (version) is named', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-both-removed-fields');
+      const nodePath = await writePortYaml(tmpDir, '    version: 1\n    test: tests/contracts/charge.test.ts');
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.version was removed in 6\.0\.0/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('a port with neither field, only description and aspects, still parses exactly as before (no regression)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-no-removed-fields');
+      const nodePath = await writePortYaml(tmpDir, '');
+      const meta = await parseNodeYaml(nodePath);
+      expect(meta.ports).toEqual({
+        charge: { description: 'Synchronous payment charge', aspects: ['correlation-tracking'] },
+      });
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+  });
+
   describe('node-parser — default port and portNames', () => {
     let counter = 0;
     /** Write one relation (plus optional ports) into a fresh temp yg-node.yaml and parse it. */

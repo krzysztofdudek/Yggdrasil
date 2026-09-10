@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # type_level: true turns on the classification lattice this fixture exists to
 # exercise. Tests that need the pre-type-level ("flag off") behavior clone this
