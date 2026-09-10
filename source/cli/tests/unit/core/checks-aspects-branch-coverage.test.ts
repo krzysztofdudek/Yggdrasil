@@ -154,6 +154,90 @@ describe('checkWhenReferences — predicate containers and unknown references', 
     const issues = checkWhenReferences(g);
     expect(issues.some((i) => i.code === 'when-unknown-type')).toBe(true);
   });
+
+  it('flags a `node.id` unknown to the graph, with the aspect when in the message', () => {
+    const issues = checkWhenReferences(mkGraph(aspectWithWhen({ node: { id: 'nie/ma' } })));
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe('when-unknown-node');
+    expect(issues[0].messageData.what).toMatch(/aspect 'a' when/);
+    expect(issues[0].messageData.what).toContain('nie/ma');
+  });
+
+  it('flags an unknown `node.id` inside `implies[...] when`, with implies in the message', () => {
+    const g = mkGraph({
+      aspects: [
+        { id: 'a', name: 'a', reviewer: { type: 'llm' }, artifacts: [], implies: ['b'], impliesWhens: { b: { node: { id: 'nie/ma' } } } },
+        { id: 'b', name: 'b', reviewer: { type: 'llm' }, artifacts: [] },
+      ] as unknown as Graph['aspects'],
+    });
+    const issues = checkWhenReferences(g);
+    expect(issues.some((i) => i.code === 'when-unknown-node')).toBe(true);
+    expect(issues.find((i) => i.code === 'when-unknown-node')!.messageData.what).toMatch(/implies/);
+  });
+
+  it('flags an unknown `node.id` inside a node `aspectWhens`, naming the node path', () => {
+    const g = mkGraph({
+      nodes: new Map([node('x/y', { aspectWhens: { a: { node: { id: 'nie/ma' } } } })] as [string, unknown][]) as unknown as Graph['nodes'],
+    });
+    const issues = checkWhenReferences(g);
+    expect(issues.some((i) => i.code === 'when-unknown-node')).toBe(true);
+    expect(issues.find((i) => i.code === 'when-unknown-node')!.messageData.what).toContain('x/y');
+  });
+
+  it('flags an unknown `node.id` inside a port `aspectWhens`, naming the port', () => {
+    const g = mkGraph({
+      nodes: new Map([
+        node('x/y', { ports: { charge: { description: 'd', aspects: [], aspectWhens: { a: { node: { id: 'nie/ma' } } } } } }),
+      ] as [string, unknown][]) as unknown as Graph['nodes'],
+    });
+    const issues = checkWhenReferences(g);
+    expect(issues.some((i) => i.code === 'when-unknown-node')).toBe(true);
+    expect(issues.find((i) => i.code === 'when-unknown-node')!.messageData.what).toContain('charge');
+  });
+
+  it('flags an unknown `node.id` inside a flow `aspectWhens`, naming the flow', () => {
+    const g = mkGraph({
+      flows: [{ path: 'f', name: 'f', nodes: [], aspectWhens: { a: { node: { id: 'nie/ma' } } } }] as unknown as Graph['flows'],
+    });
+    const issues = checkWhenReferences(g);
+    expect(issues.some((i) => i.code === 'when-unknown-node')).toBe(true);
+    expect(issues.find((i) => i.code === 'when-unknown-node')!.messageData.what).toContain('f');
+  });
+
+  it('flags an unknown `node.id` inside `node_types.<t>.aspectWhens`, naming the type', () => {
+    const g = mkGraph({
+      architecture: { node_types: { service: { description: 'svc', aspectWhens: { a: { node: { id: 'nie/ma' } } } } } } as unknown as Graph['architecture'],
+    });
+    const issues = checkWhenReferences(g);
+    expect(issues.some((i) => i.code === 'when-unknown-node')).toBe(true);
+    expect(issues.find((i) => i.code === 'when-unknown-node')!.messageData.what).toContain('service');
+  });
+
+  it('flags one issue per unknown entry in a `node.id` list, and none for the known one', () => {
+    const g = mkGraph({
+      nodes: new Map([node('x/y', {})] as [string, unknown][]) as unknown as Graph['nodes'],
+      ...aspectWithWhen({ node: { id: ['x/y', 'nie/ma1', 'nie/ma2'] } }),
+    });
+    const issues = checkWhenReferences(g);
+    const nodeIssues = issues.filter((i) => i.code === 'when-unknown-node');
+    expect(nodeIssues).toHaveLength(2);
+    expect(nodeIssues.some((i) => i.messageData.what.includes('nie/ma1'))).toBe(true);
+    expect(nodeIssues.some((i) => i.messageData.what.includes('nie/ma2'))).toBe(true);
+  });
+
+  it('raises no issue when `node.id` names a node that exists in the graph', () => {
+    const g = mkGraph({
+      nodes: new Map([node('x/y', {})] as [string, unknown][]) as unknown as Graph['nodes'],
+      ...aspectWithWhen({ node: { id: 'x/y' } }),
+    });
+    const issues = checkWhenReferences(g);
+    expect(issues).toHaveLength(0);
+  });
+
+  it('validates an unknown `node.id` even under `not:`', () => {
+    const issues = checkWhenReferences(mkGraph(aspectWithWhen({ not: { node: { id: 'nie/ma' } } })));
+    expect(issues.some((i) => i.code === 'when-unknown-node')).toBe(true);
+  });
 });
 
 describe('checkOrphanedAspects', () => {

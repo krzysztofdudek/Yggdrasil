@@ -145,3 +145,5 @@ A port's declared contract version and contract test now reach the machine docum
 The port-consumption predicate, the graph's own machine documents, and the reverse-dependency index all now read a relation's named ports from the model's renamed field. The component and blast-radius documents keep their existing schema numbers and field names, but their port lists are never empty any more: an undeclared relation reports the implicit default port instead of an empty list.
 ## [2026-09-10T09:18:41.146Z]
 The impact and component documents no longer report a port's version or contract-test path — the two helpers that read those fields off a port's declaration are removed, and the port entries both documents build simply carry one fewer pair of keys than before.
+## [2026-09-10T14:14:09.279Z]
+evaluateNodeClause gained an id field: node.id matches a node's path exactly (string or list-of-strings, list meaning any-of), giving when: { not: { node: { id } } } a way to exclude one named child from a parent-attached aspect without removing it from the parent.

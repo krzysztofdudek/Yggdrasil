@@ -388,6 +388,23 @@ export function checkWhenReferences(graph: Graph): ValidationIssue[] {
         }),
       });
     }
+    if (nc.id !== undefined) {
+      const ids = Array.isArray(nc.id) ? nc.id : [nc.id];
+      for (const id of ids) {
+        if (!graph.nodes.has(id)) {
+          issues.push({
+            severity: 'error',
+            code: 'when-unknown-node',
+            rule: 'when-unknown-node',
+            ...issueMsg({
+              what: `Referenced node '${id}' in when at ${ctx}/id does not exist.`,
+              why: 'The predicate targets a node that is not in the graph.',
+              next: `Fix the node path or add the node under .yggdrasil/model/.`,
+            }),
+          });
+        }
+      }
+    }
   };
 
   // 1. Aspect global and impliesWhens

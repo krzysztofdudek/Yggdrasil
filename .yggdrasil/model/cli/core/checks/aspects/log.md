@@ -46,3 +46,5 @@ Both dead-attach warnings assumed that whenever a declared type had no real comp
 Reworded three docstrings describing the threaded type-coverage classification parameter so each explains, in its own words, that the classification is computed once by the caller and passed through rather than recomputed, instead of leaning on a short internal code with no meaning to a reader of this repository.
 ## [2026-09-09T18:32:27.017Z]
 The dangling-reference and orphaned-aspect checks now treat a port with no aspects list as declaring nothing, instead of assuming the list is always present, when they walk a node's ports.
+## [2026-09-10T14:14:08.710Z]
+The when-unknown-node reference check for node.id, part of adding node: { id } to the when grammar (id: <path> | [<path>, ...], exact match against node.path), so a when clause naming a node that does not exist in the graph is caught the same way an unknown relation target already is.

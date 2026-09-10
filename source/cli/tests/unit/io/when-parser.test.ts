@@ -149,7 +149,7 @@ describe('parseNodeClause — error paths', () => {
 
   it('rejects empty node clause object', () => {
     expect(() => parseWhen({ node: {} }, 'ctx'))
-      .toThrow(/at least one of type, has_port, has_mapping must be present/);
+      .toThrow(/at least one of type, has_port, has_mapping, id must be present/);
   });
 
   it('rejects non-string type in node clause', () => {
@@ -175,6 +175,41 @@ describe('parseNodeClause — error paths', () => {
   it('rejects non-boolean has_mapping in node clause', () => {
     expect(() => parseWhen({ node: { has_mapping: 'yes' } }, 'ctx'))
       .toThrow(/has_mapping must be a boolean/);
+  });
+
+  it('lists id among allowed fields for an unknown field', () => {
+    expect(() => parseWhen({ node: { qqq: 1 } }, 'ctx'))
+      .toThrow(/allowed: type, has_port, has_mapping, id/);
+  });
+
+  it('rejects empty string id', () => {
+    expect(() => parseWhen({ node: { id: '' } }, 'ctx'))
+      .toThrow(/id must be a non-empty string/);
+  });
+
+  it('rejects empty array id', () => {
+    expect(() => parseWhen({ node: { id: [] } }, 'ctx'))
+      .toThrow(/id array must not be empty/);
+  });
+
+  it('rejects an empty entry inside an id array, naming its index', () => {
+    expect(() => parseWhen({ node: { id: ['a', ''] } }, 'ctx'))
+      .toThrow(/id\[1\] must be a non-empty string/);
+  });
+
+  it('rejects a duplicate entry inside an id array', () => {
+    expect(() => parseWhen({ node: { id: ['a', 'a'] } }, 'ctx'))
+      .toThrow(/id contains duplicate 'a'/);
+  });
+
+  it('rejects a numeric id', () => {
+    expect(() => parseWhen({ node: { id: 7 } }, 'ctx'))
+      .toThrow(/id must be a non-empty string/);
+  });
+
+  it('rejects an object id', () => {
+    expect(() => parseWhen({ node: { id: {} } }, 'ctx'))
+      .toThrow(/id must be a non-empty string/);
   });
 });
 
@@ -245,6 +280,43 @@ describe('parseWhen', () => {
   it('throws on unknown atomic clause key', () => {
     expect(() => parseWhen({ banana: {} }, 'ctx'))
       .toThrow(/unknown when operator 'banana'/);
+  });
+
+  it('parses node.id as a single string', () => {
+    const result = parseWhen({ node: { id: 'a/b' } }, 'ctx');
+    expect(result).toEqual({ node: { id: 'a/b' } });
+  });
+
+  it('parses node.id as a list of strings', () => {
+    const result = parseWhen({ node: { id: ['a/b', 'c/d'] } }, 'ctx');
+    expect(result).toEqual({ node: { id: ['a/b', 'c/d'] } });
+  });
+
+  it('trims a node.id string', () => {
+    const result = parseWhen({ node: { id: '  a/b  ' } }, 'ctx');
+    expect(result).toEqual({ node: { id: 'a/b' } });
+  });
+
+  it('parses node.id together with type as an implicit AND within the clause', () => {
+    const result = parseWhen({ node: { id: 'a', type: 'x' } }, 'ctx');
+    expect(result).toEqual({ node: { id: 'a', type: 'x' } });
+  });
+
+  it('parses not: around node.id (negation regression)', () => {
+    const raw = { not: { node: { id: 'a/b' } } };
+    const result = parseWhen(raw, 'ctx');
+    expect(result).toEqual(raw);
+  });
+
+  it('parses not: nested inside all_of alongside a plain node clause', () => {
+    const raw = {
+      all_of: [
+        { not: { node: { id: 'a' } } },
+        { node: { type: 't' } },
+      ],
+    };
+    const result = parseWhen(raw, 'ctx');
+    expect(result).toEqual(raw);
   });
 });
 

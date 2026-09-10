@@ -46,4 +46,6 @@ export interface NodeClause {
   type?: string;
   has_port?: string;
   has_mapping?: boolean;
+  /** Exact node path(s) relative to model/. A list matches any of its entries. */
+  id?: string | string[];
 }

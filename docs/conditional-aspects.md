@@ -56,7 +56,13 @@ when:
     type: <type-id>
     has_port: <port-name>
     has_mapping: true | false
+    id: <node-path> | [<node-path>, ...]   # exact match against the node's path, relative to model/
 ```
+
+`node.id` matches a node's path **exactly** — never a subtree. A list means
+"any of these paths." Wrapped in `not:`, it turns into an exclusion: a rule
+attached to a parent can exclude one named child without removing the child
+from the parent, e.g. `when: { not: { node: { id: services/legacy } } }`.
 
 `consumes_port` matches a relation's **normalized** port list, not only what it wrote
 explicitly — a relation that named no port at all normalizes to `[default]`, so
@@ -70,8 +76,9 @@ uses actually exist — a silent typo in a predicate would make it quietly never
 match, which is the worst possible failure for something whose whole job is to
 decide applicability. Three blocking errors cover it: `when-unknown-type` (an
 unknown `node.type`, `descendants.type`, or `target_type`), `when-unknown-node`
-(a relation `target` naming a component path that does not exist), and
-`when-unknown-port` (an unknown `consumes_port`). A malformed predicate itself is
+(a relation `target` or a `node.id` — string or any entry of a list — naming a
+component path that does not exist), and `when-unknown-port` (an unknown
+`consumes_port`). A malformed predicate itself is
 `when-predicate-invalid`; a malformed one on a rule or an `implies` edge is
 `aspect-when-invalid`. Writing a file atom (`path`/`content`) where node atoms
 belong is an error too, and the message points you at `scope.files` instead.
@@ -152,6 +159,19 @@ reports it as unverified and prompts `yg check --approve`.
   CI. Use `when` for applicability (this rule only applies to nodes that
   call an external service); use `status` for rule maturity. See
   [Aspect Status](/aspect-status).
+- **Not part of the verdict hash.** `when`, `implies`, and ports are excluded
+  from the pair's input hash by design — they decide *which* pairs are
+  expected, applied live on every run, not what a recorded verdict answers
+  for. So editing a `when` clause never invalidates a verdict already on
+  file: it can only add pairs (fresh, `unverified`) or drop pairs (removed
+  from the lock, no reviewer call) — a pair that stays expected keeps its
+  exact hash. Contrast this with filtering the *same* condition inside a
+  rule's own `content.md` (e.g. "only applies when status is X") — that
+  changes the rule's bytes, which **is** hashed, so it invalidates every
+  verdict for that rule everywhere it is attached. A status filter belongs
+  in `when`, never in the rule's prose: in `when` it is free; in the rule
+  text it costs a re-fill of every pair. See
+  [The Lock](/the-lock#what-makes-a-verdict-valid).
 
 ## Visibility
 

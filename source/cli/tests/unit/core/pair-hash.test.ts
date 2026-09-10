@@ -9,6 +9,12 @@
  * shapes above and never sees a lock entry at all, so there is nothing for
  * either field to leak into — unlike promptChars/judge, which share that same
  * property and are likewise untested here.
+ *
+ * No test here covers `when` (including `node: { id }`) either: this module's
+ * hash inputs never carry a `when` predicate at all — it is deliberately
+ * excluded from the pair hash (pair-hash.ts:18) and recomputed live through
+ * the expected-pair set instead, so there is nothing to hash and nothing to
+ * pin here.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';

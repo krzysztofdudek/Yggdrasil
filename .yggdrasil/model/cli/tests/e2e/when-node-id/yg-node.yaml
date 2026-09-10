@@ -1,0 +1,7 @@
+name: E2E Tests — When Node Id
+type: test-suite
+description: "Subprocess E2E proving the `node: { id }` when clause: exact-path (not subtree) matching, string and list forms, `not:` exclusion of one named child from a parent-attached deterministic aspect, unknown-id and empty-list refusals, unicode ids, broken-YAML refusal, and the pair-hash-exclusion claim (Y3) shown by execution — editing only a `when` clause never changes a surviving pair's hash, while editing the rule's own content does."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-when-node-id.test.ts

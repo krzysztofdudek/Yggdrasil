@@ -119,6 +119,10 @@ function evaluateNodeClause(nc: NodeClause, node: GraphNode): boolean {
     const has = (node.meta.mapping?.length ?? 0) > 0;
     if (has !== nc.has_mapping) return false;
   }
+  if (nc.id !== undefined) {
+    const ids = Array.isArray(nc.id) ? nc.id : [nc.id];
+    if (!ids.includes(node.path)) return false;
+  }
   return true;
 }
 

@@ -180,10 +180,10 @@ function parseNodeClause(raw: unknown, ctx: string): NodeClause {
     throw new Error(`${ctx}: node must be a YAML mapping`);
   }
   const obj = raw as Record<string, unknown>;
-  const allowed = new Set(['type', 'has_port', 'has_mapping']);
+  const allowed = new Set(['type', 'has_port', 'has_mapping', 'id']);
   for (const k of Object.keys(obj)) {
     if (!allowed.has(k)) {
-      throw new Error(`${ctx}: unknown field '${k}' (allowed: type, has_port, has_mapping)`);
+      throw new Error(`${ctx}: unknown field '${k}' (allowed: type, has_port, has_mapping, id)`);
     }
   }
   const out: NodeClause = {};
@@ -205,10 +205,43 @@ function parseNodeClause(raw: unknown, ctx: string): NodeClause {
     }
     out.has_mapping = obj.has_mapping;
   }
+  if ('id' in obj) {
+    out.id = parseNodeIdField(obj.id, ctx);
+  }
   if (Object.keys(out).length === 0) {
-    throw new Error(`${ctx}: at least one of type, has_port, has_mapping must be present`);
+    throw new Error(`${ctx}: at least one of type, has_port, has_mapping, id must be present`);
   }
   return out;
+}
+
+function parseNodeIdField(raw: unknown, ctx: string): string | string[] {
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (trimmed === '') {
+      throw new Error(`${ctx}: id must be a non-empty string or a non-empty array of non-empty strings`);
+    }
+    return trimmed;
+  }
+  if (Array.isArray(raw)) {
+    if (raw.length === 0) {
+      throw new Error(`${ctx}: id array must not be empty`);
+    }
+    const seen = new Set<string>();
+    const out: string[] = [];
+    raw.forEach((v, i) => {
+      if (typeof v !== 'string' || v.trim() === '') {
+        throw new Error(`${ctx}: id[${i}] must be a non-empty string`);
+      }
+      const trimmed = v.trim();
+      if (seen.has(trimmed)) {
+        throw new Error(`${ctx}: id contains duplicate '${trimmed}'`);
+      }
+      seen.add(trimmed);
+      out.push(trimmed);
+    });
+    return out;
+  }
+  throw new Error(`${ctx}: id must be a non-empty string or a non-empty array of non-empty strings`);
 }
 
 /**

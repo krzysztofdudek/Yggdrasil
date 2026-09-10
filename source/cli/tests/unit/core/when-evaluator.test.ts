@@ -150,6 +150,58 @@ describe('evaluateWhen', () => {
     expect(evaluateWhen({ node: { has_mapping: false } }, unmapped, graph)).toBe(true);
   });
 
+  it('node.id matches the exact path and only the exact path', () => {
+    const a = makeNode('a/b', { meta: { name: 'a/b', type: 'service' } });
+    const graph = makeGraph({
+      nodes: new Map([
+        ['a/b', a],
+        ['a/c', makeNode('a/c', { meta: { name: 'a/c', type: 'service' } })],
+        ['a/b/c', makeNode('a/b/c', { meta: { name: 'a/b/c', type: 'service' } })],
+      ]),
+    });
+    expect(evaluateWhen({ node: { id: 'a/b' } }, a, graph)).toBe(true);
+    expect(evaluateWhen({ node: { id: 'a/b' } }, graph.nodes.get('a/c')!, graph)).toBe(false);
+    expect(evaluateWhen({ node: { id: 'a/b' } }, graph.nodes.get('a/b/c')!, graph)).toBe(false);
+  });
+
+  it('node.id list matches any of its entries, and only those', () => {
+    const a = makeNode('a', { meta: { name: 'a', type: 'service' } });
+    const b = makeNode('b', { meta: { name: 'b', type: 'service' } });
+    const c = makeNode('c', { meta: { name: 'c', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['a', a], ['b', b], ['c', c]]) });
+    const p: WhenPredicate = { node: { id: ['a', 'b'] } };
+    expect(evaluateWhen(p, a, graph)).toBe(true);
+    expect(evaluateWhen(p, b, graph)).toBe(true);
+    expect(evaluateWhen(p, c, graph)).toBe(false);
+  });
+
+  it('not: around node.id inverts the match', () => {
+    const a = makeNode('a/b', { meta: { name: 'a/b', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['a/b', a]]) });
+    expect(evaluateWhen({ not: { node: { id: 'a/b' } } }, a, graph)).toBe(false);
+    expect(evaluateWhen({ not: { node: { id: 'a/c' } } }, a, graph)).toBe(true);
+  });
+
+  it('node.id combined with type is an AND within the clause', () => {
+    const a = makeNode('a/b', { meta: { name: 'a/b', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['a/b', a]]) });
+    expect(evaluateWhen({ node: { id: 'a/b', type: 'service' } }, a, graph)).toBe(true);
+    expect(evaluateWhen({ node: { id: 'a/b', type: 'inny' } }, a, graph)).toBe(false);
+  });
+
+  it('node.id matches unicode and space characters literally', () => {
+    const node = makeNode('usługi/płatności moduł', { meta: { name: 'x', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['usługi/płatności moduł', node]]) });
+    expect(evaluateWhen({ node: { id: 'usługi/płatności moduł' } }, node, graph)).toBe(true);
+    expect(evaluateWhen({ node: { id: 'uslugi/platnosci modul' } }, node, graph)).toBe(false);
+  });
+
+  it('node.id does not normalize backslashes to forward slashes', () => {
+    const node = makeNode('a/b', { meta: { name: 'a/b', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['a/b', node]]) });
+    expect(evaluateWhen({ node: { id: 'a\\b' } }, node, graph)).toBe(false);
+  });
+
   it('all_of requires every clause true', () => {
     const node = makeNode('x', { meta: { name: 'x', type: 'command' } });
     const graph = makeGraph({ nodes: new Map([['x', node]]) });
