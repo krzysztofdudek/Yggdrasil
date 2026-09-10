@@ -1409,13 +1409,14 @@ non-zero.
 
 ---
 
-## Setup (4)
+## Setup (5)
 
 | Command | Purpose |
 |---------|---------|
 | `yg init` | Initialize or reconfigure |
 | `yg adopt <proposal-dir>` | Accept a proposed graph into this repository |
-| `yg pack add` / `update` / `list` / `remove` | Install rules published by another repository, and adapt them beside the copy |
+| `yg pack add` / `update` / `list` / `remove` / `new` | Install rules published by another repository and adapt them beside the copy; `new` scaffolds a package to publish |
+| `yg marketplace init` / `check` | Turn this repository into one that publishes rules, and check it before anyone installs from it |
 | `yg prime` [`--digest`] | Print the full agent operating manual fresh from the installed CLI (`--digest` prints only the committed digest block) |
 
 ### `yg init`
@@ -1604,6 +1605,7 @@ yg pack add <url-or-path>#<package>[@<version>] [--as <owner>/<repo>]
 yg pack update [<package>] [--to <version>]
 yg pack list
 yg pack remove <package>
+yg pack new <name>
 ```
 
 - `add` — copies the package into `.yggdrasil/aspects/packages/<owner>/<repo>/<package>/`,
@@ -1624,12 +1626,18 @@ yg pack remove <package>
   talking to the source.
 - `remove` — deletes the rules and the record. Refuses while anything in the
   graph still attaches one of them, listing what does.
+- `new` — the publishing side. Scaffolds `packages/<name>/` in the marketplace
+  this repository is (see `yg marketplace` below): a package manifest, one
+  example rule that reads one setting, and the two drill cases that rule needs.
+  Adds the package to `yg-marketplace.yaml`, editing that file rather than
+  regenerating it, so the comments in it survive. Refuses a name carrying a
+  separator, and refuses to scaffold over a directory that already exists.
 
 **Installing a package runs its author's code.** A rule's script runs in your
 process on every `yg check`. What is sandboxed is what a rule may READ through
 the context it is handed, not the module itself.
 
-Machine-readable documents this command reads and writes:
+Machine-readable documents `yg pack` and `yg marketplace` read and write:
 
 | Document | Schema | Where |
 |---|---|---|
@@ -1638,3 +1646,33 @@ Machine-readable documents this command reads and writes:
 | Installed-package record | `yg-packages/1` | `.yggdrasil/yg-packages.yaml` |
 | Per-rule adaptation | (no schema key) | `.yggdrasil/aspects/packages/<owner>/<repo>/<package>/<rule>/yg-aspect.adapt.yaml` |
 | Last-seen published versions | `yg-package-versions/1` | `.yggdrasil/.yg-packages-versions.json` (local, never committed) |
+
+### `yg marketplace`
+
+Publishes rules from this repository. A marketplace is an ordinary git repository
+with `yg-marketplace.yaml` at its root — it needs no `.yggdrasil/` of its own,
+because it publishes law rather than enforcing any, and neither subcommand loads
+a graph or asks you to create one. Full guide: [Packages](/packages).
+
+```bash
+yg marketplace init
+yg marketplace check
+```
+
+- `init` — writes `yg-marketplace.yaml` publishing nothing yet, creates
+  `packages/`, and — only when `.github/workflows/` already exists — writes
+  `.github/workflows/yg-marketplace.yml`, which runs the check on every push.
+  Refuses rather than overwrite a manifest that is already there; leaves a
+  workflow of its own that is already there alone, without refusing.
+- `check` — the pre-publish check. Deterministic, free, no key, non-zero on any
+  refusal. Five questions: the manifests against the directories that exist,
+  every rule loading under the loader a consumer will use, every `implies` inside
+  its own package, every setting read declared and every setting declared read,
+  and portability — no review date, no reference path, no folder-anchored file
+  filter, and a pair of drill cases on every deterministic rule. Each finding
+  carries its own code; `yg knowledge read packages-and-marketplaces` lists what
+  each one means.
+
+One limit it states rather than implies: it does not RUN your drill cases —
+running one needs the context a rule is handed, and a marketplace has no graph to
+build that from. Install the package somewhere with a graph and run `yg drill`.

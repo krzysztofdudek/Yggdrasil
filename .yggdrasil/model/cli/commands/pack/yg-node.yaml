@@ -29,6 +29,10 @@ aspects:
 relations:
   - target: cli/cli-version
     type: calls
+  - target: cli/commands/marketplace
+    type: calls
+  - target: cli/io/atomic-write
+    type: calls
   - target: cli/core/advise
     type: calls
   - target: cli/core/checks/packages

@@ -44,7 +44,7 @@ describe('listKnowledge', () => {
     expect(stdout).toMatch(/Available knowledge topics:/);
   });
 
-  it('shows all 13 topic names', () => {
+  it('shows every topic name', () => {
     const { stdout } = captureOutput(() => listKnowledge());
     expect(stdout).toContain('working-with-architecture');
     expect(stdout).toContain('aspects-overview');
@@ -59,6 +59,7 @@ describe('listKnowledge', () => {
     expect(stdout).toContain('log-management');
     expect(stdout).toContain('ports-and-relations');
     expect(stdout).toContain('flows');
+    expect(stdout).toContain('packages-and-marketplaces');
   });
 
   it('shows summaries alongside topic names', () => {
@@ -105,4 +106,34 @@ describe('readKnowledge', () => {
       expect(stderr).toContain('Available:');
     },
   );
+});
+
+describe('the packages-and-marketplaces topic', () => {
+  it('is registered like every other topic, with both halves filled in', () => {
+    // Asserted through the command's own output rather than by reaching into the
+    // registry: a topic that is registered and prints nothing is registered in
+    // name only, and only one of those two is visible from the map.
+    const { stdout: listed } = captureOutput(() => listKnowledge());
+    const line = listed.split('\n').find((l) => l.includes('packages-and-marketplaces'));
+    expect(line).toBeDefined();
+    expect(line!.replace('packages-and-marketplaces', '').trim().length).toBeGreaterThan(0);
+    const { stdout: content, exitCode } = captureOutput(() => readKnowledge('packages-and-marketplaces'));
+    expect(exitCode).toBeNull();
+    expect(content.trim().length).toBeGreaterThan(0);
+  });
+
+  it('says the three things an agent authoring a package has to know', () => {
+    const { stdout } = captureOutput(() => readKnowledge('packages-and-marketplaces'));
+    // You adapt beside a copy — you never edit one.
+    expect(stdout).toContain('never edit one');
+    expect(stdout).toContain('yg-aspect.adapt.yaml');
+    // Inside a package, a bundling rule names its siblings relatively.
+    expect(stdout).toContain('implies: [naming]');
+  });
+
+  it('names the check it is written to explain', () => {
+    const { stdout } = captureOutput(() => readKnowledge('packages-and-marketplaces'));
+    expect(stdout).toContain('yg marketplace check');
+    expect(stdout).toContain('package-config-undeclared');
+  });
 });

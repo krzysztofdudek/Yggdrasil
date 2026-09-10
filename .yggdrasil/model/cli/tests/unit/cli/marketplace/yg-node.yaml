@@ -1,0 +1,14 @@
+name: Marketplace Command Unit Tests
+type: test-suite
+description: "Unit tests for the `yg marketplace` command surface and the three
+  pure pieces it is made of: how the repository a user means is located by
+  walking up for the manifest the way git walks up for a repository, what a fresh
+  manifest declares, and that the CI file it writes is a valid workflow whose one
+  job runs the check. Nothing here writes to a repository; starting one, refusing
+  to overwrite one, and the whole of the check itself are the e2e suite's."
+aspects: []
+relations:
+  - target: cli/commands/marketplace
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/marketplace.test.ts

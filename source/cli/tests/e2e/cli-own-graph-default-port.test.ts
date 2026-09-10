@@ -107,6 +107,14 @@ const FORMER_CONSUMERS = [
   'cli/commands/check',
 ];
 
+/**
+ * Consumers that reach the same port but never declared `consumes:` — they were
+ * written after the field was retired, so they are not "former" anything and
+ * kept out of the list above, which is a record of what that migration moved.
+ * Scenario 4 is about REACH through the port, which is both sets.
+ */
+const LATER_CONSUMERS = ['cli/commands/pack', 'cli/commands/marketplace'];
+
 // The two expensive full-graph reads (each a `check --json` walk over all 445
 // nodes) run exactly once each, in `beforeAll`, with their results held here —
 // one before the free deterministic fill, one after — rather than re-run per
@@ -116,6 +124,17 @@ const FORMER_CONSUMERS = [
 let beforeFill: CheckDoc;
 let afterFill: CheckDoc;
 
+// The fill below writes nothing this suite has to undo, and nothing a later run
+// of it can inherit. `--only-deterministic` touches exactly one file — the
+// deterministic-verdict cache at `.yggdrasil/.yg-lock.deterministic.json`, which
+// is gitignored (`.yggdrasil/.gitignore`) precisely because it is rebuildable
+// derived state; no tracked file changes, verified by diffing `git status` across
+// the command. Its entries are keyed by input hash, so a stale one cannot be read
+// as a current verdict. And the repository's own gate runs the identical command
+// as a PREREQUISITE step before this suite ever starts, so the state these tests
+// meet is the state the gate put there either way. A temp-directory copy would
+// not do instead: this suite exists to measure THIS repository's graph, which is
+// what the migration it guards actually changed.
 beforeAll(() => {
   beforeFill = JSON.parse(run(['check', '--json']).stdout) as CheckDoc;
   run(['check', '--approve', '--only-deterministic']);
@@ -149,12 +168,12 @@ describe.skipIf(!distExists)('CLI E2E — own-graph atomic-write-contract port m
     expect(doc.ports.default.aspects).toEqual(['atomic-write-contract']);
   });
 
-  it('4: impact on the default port lists all nine former consumers — reach through the port, not eligibility under the rule', () => {
+  it('4: impact on the default port lists every node that reaches it — reach through the port, not eligibility under the rule', () => {
     const doc = JSON.parse(run(['impact', '--node', 'cli/io/atomic-write', '--json']).stdout) as ImpactDoc;
     const defaultPort = doc.ports.find((p) => p.name === 'default');
     expect(defaultPort).toBeDefined();
     const consumers = defaultPort!.consumers.map((c) => c.node).sort();
-    expect(consumers).toEqual([...FORMER_CONSUMERS].sort());
+    expect(consumers).toEqual([...FORMER_CONSUMERS, ...LATER_CONSUMERS].sort());
   });
 
   it('5: lock-store gets atomic-write-contract through two channels at once — its own type, and the default port', () => {

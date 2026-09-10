@@ -67,7 +67,11 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(28);
     expect(data.hubs.fanOut[1].path).toBe('cli/entry');
-    expect(data.hubs.fanOut[1].count).toBe(26);
+    // 27 since the marketplace command joined: the dispatcher necessarily
+    // references one node per command, so this number moves by one with every
+    // command the CLI gains — that growth is the dispatcher working, and its own
+    // node carries a reviewed allowance saying so.
+    expect(data.hubs.fanOut[1].count).toBe(27);
     expect(data.hubs.fanOut[2].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[2].count).toBe(25);
     expect(data.hubs.fanOut[3].path).toBe('cli/core/check');

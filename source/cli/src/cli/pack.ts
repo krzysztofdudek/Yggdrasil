@@ -1,9 +1,14 @@
 import type { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
-import { statSync } from 'node:fs';
+import { statSync, existsSync } from 'node:fs';
+import { parseDocument, isSeq } from 'yaml';
 
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
+import { findUpwards } from './marketplace.js';
+import { atomicWriteFile } from '../io/atomic-write.js';
+import { readTextFile } from '../io/graph-fs.js';
+import { toPosixPath } from '../utils/posix.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
@@ -319,6 +324,201 @@ function attachmentsOf(graph: Graph, idPrefix: string): { nodes: string[]; types
 }
 
 // ============================================================
+// new — scaffolding a package to publish
+// ============================================================
+
+/** The one aspect directory a scaffolded package starts with. */
+const SCAFFOLD_ASPECT = 'example';
+
+/** The setting that aspect reads — deliberately the same word, so the pairing is obvious. */
+const SCAFFOLD_CONFIG_KEY = 'example';
+
+/**
+ * The package manifest a new package starts from.
+ *
+ * `requires.yg` is pinned to the running MAJOR rather than to this exact build:
+ * a package written today against 6.1 works on 6.4, and a range naming the patch
+ * would refuse consumers for no reason. The version starts at 0.1.0 — publishing
+ * is tagging, and the author decides when the first real number is.
+ */
+export function scaffoldPackageManifest(name: string, version: string): string {
+  const major = version.split('.')[0];
+  return [
+    `schema: yg-package/1`,
+    `name: ${name}`,
+    `version: 0.1.0`,
+    `requires:`,
+    `  yg: ">=${major}.0.0"`,
+    `aspects:`,
+    `  - ${SCAFFOLD_ASPECT}`,
+    `config:`,
+    `  # Settings the rules in this package read through ctx.config. A consumer`,
+    `  # overrides them in the yg-aspect.adapt.yaml beside their copy, and a setting`,
+    `  # a rule READS enters that rule's verdict — so changing it re-opens exactly`,
+    `  # the rules that consult it, and nothing else.`,
+    `  ${SCAFFOLD_ASPECT}:`,
+    `    ${SCAFFOLD_CONFIG_KEY}:`,
+    `      type: string`,
+    `      default: "TODO"`,
+    ``,
+  ].join('\n');
+}
+
+/** The rule definition of the scaffolded example aspect. */
+export function scaffoldAspectYaml(): string {
+  return [
+    `# An ordinary Yggdrasil rule. Two things differ inside a package:`,
+    `#   - a rule that bundles another names it by directory alone (implies: [other]),`,
+    `#     because the package does not know where it will be installed;`,
+    `#   - review_by: and references: belong to the repository that INSTALLS a rule,`,
+    `#     not to the one that publishes it.`,
+    `name: NoUnfinishedMarker`,
+    `description: A source line must not carry the marker this repository uses for unfinished work.`,
+    `reviewer:`,
+    `  type: deterministic`,
+    `status: draft`,
+    ``,
+  ].join('\n');
+}
+
+/** The scaffolded example rule — the smallest one that reads a setting. */
+export function scaffoldCheckScript(): string {
+  return [
+    `// The marker is NOT written into this rule: it is read from ctx.config, which`,
+    `// the installing repository sets beside its copy. Reading it here is what puts`,
+    `// the value into this rule's verdicts, so changing it sends this rule's`,
+    `// verdicts back for judging and leaves every other rule's alone.`,
+    `export function check(ctx) {`,
+    `  const marker = ctx.config.${SCAFFOLD_CONFIG_KEY};`,
+    `  const violations = [];`,
+    `  for (const file of ctx.subject) {`,
+    `    const lines = file.content.split('\\n');`,
+    `    for (let i = 0; i < lines.length; i++) {`,
+    `      if (lines[i].includes(marker)) {`,
+    `        violations.push({`,
+    `          file: file.path,`,
+    `          line: i + 1,`,
+    `          message: \`This line still carries the \${marker} marker.\`,`,
+    `        });`,
+    `      }`,
+    `    }`,
+    `  }`,
+    `  return violations;`,
+    `}`,
+    ``,
+  ].join('\n');
+}
+
+/**
+ * Add one package entry to a marketplace manifest, keeping everything else.
+ *
+ * Edited as a YAML DOCUMENT rather than as text: the manifest is the author's
+ * file and carries their comments, and re-serialising it from plain data would
+ * silently delete them. The one adjustment is style — a manifest that starts life
+ * as `packages: []` would otherwise grow its first entry inline, and every entry
+ * after that too.
+ */
+export function withPackageEntry(manifestText: string, name: string, version: string): string {
+  const doc = parseDocument(manifestText);
+  const seq = doc.getIn(['packages'], true);
+  if (!isSeq(seq)) {
+    failWith({
+      what: `${MARKETPLACE_FILENAME} has no packages: list to add to.`,
+      why: 'packages: is the list of what this marketplace publishes. Without it there is nowhere to record the new package, and it would be published by nothing.',
+      next: `Add \`packages: []\` to ${MARKETPLACE_FILENAME}, or run \`yg marketplace init\` in a repository that has no manifest yet.`,
+    });
+  }
+  seq.flow = false;
+  doc.addIn(['packages'], doc.createNode({ name, path: `${PACKAGES_DIR}/${name}`, version }));
+  return doc.toString();
+}
+
+/** True when `name` is one path segment — no separators, no traversal, not empty. */
+function isPackageName(name: string): boolean {
+  return (
+    name.trim() !== '' &&
+    !name.includes('/') &&
+    !name.includes('\\') &&
+    name !== '.' &&
+    name !== '..'
+  );
+}
+
+async function runNew(rawName: string): Promise<void> {
+  const name = rawName.trim();
+  if (!isPackageName(name)) {
+    failWith({
+      what: `'${rawName}' is not a package name.`,
+      why: 'A package name becomes one directory here and one directory under aspects/packages/<owner>/<repo>/ in every repository that installs it, so it is a single path segment and never a path.',
+      next: 'Choose a name with no / and no \\, such as `house-style`.',
+    });
+  }
+
+  const cwd = process.cwd();
+  const root = findUpwards(cwd, MARKETPLACE_FILENAME);
+  if (root === null) {
+    failWith({
+      what: `There is no ${MARKETPLACE_FILENAME} at ${toPosixPath(cwd)} or above it.`,
+      why: 'A package is published BY a marketplace — the manifest at the repository root is what names it and what a consumer reads to find it. Without one there is nothing for a new package to belong to.',
+      next: 'Run `yg marketplace init` in the repository that should publish this package, then run this again.',
+    });
+  }
+
+  const packageDir = path.join(root, PACKAGES_DIR, name);
+  if (existsSync(packageDir)) {
+    failWith({
+      what: `${PACKAGES_DIR}/${name} already exists in ${toPosixPath(root)}.`,
+      why: 'Scaffolding over it would overwrite the rule files that are there, and there is no way to tell a half-written package from a finished one from the outside.',
+      next: `Choose another name, or delete ${PACKAGES_DIR}/${name} if it is not wanted.`,
+    });
+  }
+
+  // The manifest is read and rewritten FIRST: it is the one file that could
+  // legitimately be malformed already, and refusing before anything is scaffolded
+  // is what keeps a failure from leaving a package directory nothing publishes.
+  const manifestPath = path.join(root, MARKETPLACE_FILENAME);
+  const existing = await parseMarketplaceManifest(manifestPath);
+  if (!existing.ok) failWith(existing.errors[0].messageData);
+  if (existing.value.packages.some((entry) => entry.name === name)) {
+    failWith({
+      what: `${MARKETPLACE_FILENAME} already publishes a package called '${name}'.`,
+      why: 'Two entries under one name make the name ambiguous — a consumer asking for it could get either.',
+      next: `Choose another name, or remove the existing '${name}' entry from ${MARKETPLACE_FILENAME}.`,
+    });
+  }
+
+  const aspectDir = path.join(packageDir, SCAFFOLD_ASPECT);
+  await atomicWriteFile(path.join(packageDir, PACKAGE_FILENAME), scaffoldPackageManifest(name, cliVersion()));
+  await atomicWriteFile(path.join(aspectDir, 'yg-aspect.yaml'), scaffoldAspectYaml());
+  await atomicWriteFile(path.join(aspectDir, 'check.mjs'), scaffoldCheckScript());
+  // The directory name is `drills`, and the FIRST path segment of a case is what
+  // says whether it must be refused or must pass — so the prefix is exactly
+  // `violates-` or `satisfies-`, and a case file sits under it at any depth.
+  await atomicWriteFile(
+    path.join(aspectDir, 'drills', 'violates-marker-left-behind', 'src', 'thing.ts'),
+    '// TODO: this line is what the rule must refuse.\nexport const a = 1;\n',
+  );
+  await atomicWriteFile(
+    path.join(aspectDir, 'drills', 'satisfies-clean', 'src', 'thing.ts'),
+    'export const a = 1;\n',
+  );
+
+  const manifestText = await readTextFile(manifestPath);
+  await atomicWriteFile(manifestPath, withPackageEntry(manifestText, name, '0.1.0'));
+
+  process.stdout.write(
+    `\n${chalk.green('Package scaffolded')}: ${PACKAGES_DIR}/${name}\n\n` +
+      `  ${PACKAGE_FILENAME.padEnd(36)}version, the Yggdrasil it needs, its rules and their settings\n` +
+      `  ${`${SCAFFOLD_ASPECT}/yg-aspect.yaml`.padEnd(36)}one rule\n` +
+      `  ${`${SCAFFOLD_ASPECT}/check.mjs`.padEnd(36)}what it refuses, reading ctx.config.${SCAFFOLD_CONFIG_KEY}\n` +
+      `  ${`${SCAFFOLD_ASPECT}/drills/violates-…`.padEnd(36)}a case it must refuse\n` +
+      `  ${`${SCAFFOLD_ASPECT}/drills/satisfies-…`.padEnd(36)}a case it must let through\n` +
+      `\n${MARKETPLACE_FILENAME} now publishes '${name}' at 0.1.0.\n` +
+      `Next: write the rule, run \`yg marketplace check\`, then tag it \`pack/${name}@0.1.0\`.\n\n`,
+  );
+}
+
+// ============================================================
 // The command
 // ============================================================
 
@@ -330,6 +530,18 @@ export function registerPackCommand(program: Command): void {
         'in a file beside each copy. Installing a package runs its author\'s code on every check — ' +
         'install only from a source you trust that far.',
     );
+
+  pack
+    .command('new')
+    .argument('<name>', 'the package to create, as one path segment')
+    .description('Scaffold a package in this marketplace: a manifest, one rule, and the cases that prove it')
+    .action(async (name: string) => {
+      try {
+        await runNew(name);
+      } catch (error) {
+        handleError(error);
+      }
+    });
 
   pack
     .command('add')

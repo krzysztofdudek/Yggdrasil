@@ -1,0 +1,18 @@
+name: Marketplace Check Unit Tests
+type: test-suite
+description: "Unit tests for the five questions a repository publishing rules is
+  asked. Each failure mode gets its own marketplace, built in a temporary
+  directory with exactly one thing wrong, and each assertion is on the CODE
+  rather than on the sentence, so the wording stays free to improve. Beyond one
+  case per refusal it pins the judgement calls the design turns on: that a
+  setting read and never declared is a refusal while a setting declared and never
+  read is only a warning, that a name computed at run time is a warning too and
+  silences the declared-but-unread direction rather than guessing, that a key
+  named only in a comment or a string is not a read at all, and that the context
+  parameter's name is taken from the rule rather than assumed."
+aspects: []
+relations:
+  - target: cli/core/marketplace-check
+    type: uses
+mapping:
+  - source/cli/tests/unit/core/marketplace-check.test.ts

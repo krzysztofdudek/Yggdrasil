@@ -12,7 +12,14 @@ import { Command } from 'commander';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { registerPackCommand } from '../../../src/cli/pack.js';
+import {
+  registerPackCommand,
+  scaffoldAspectYaml,
+  scaffoldCheckScript,
+  scaffoldPackageManifest,
+  withPackageEntry,
+} from '../../../src/cli/pack.js';
+import { parse as parseYaml } from 'yaml';
 import {
   aspectsRoot,
   createFetchStagingDir,
@@ -64,12 +71,12 @@ const LOCK: PackagesLock = {
 };
 
 describe('yg pack — what the command exposes', () => {
-  it('registers the four subcommands', () => {
+  it('registers the five subcommands', () => {
     const program = new Command();
     registerPackCommand(program);
     const pack = program.commands.find((c) => c.name() === 'pack');
     expect(pack).toBeDefined();
-    expect(pack!.commands.map((c) => c.name()).sort()).toEqual(['add', 'list', 'remove', 'update']);
+    expect(pack!.commands.map((c) => c.name()).sort()).toEqual(['add', 'list', 'new', 'remove', 'update']);
   });
 
   it('says in its own description that installing runs someone else\'s code', () => {
@@ -371,5 +378,72 @@ describe('installing a package', () => {
 
   it('reads a file that is not there as nothing, not as a throw', async () => {
     expect(await hashAspectsRelativeFile(newRepo(), 'packages/a/b/c/none.mjs')).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// `pack new` — scaffolding a package to publish.
+//
+// The command writes files; what is testable without touching a disk is the
+// text it writes and the one edit it makes to somebody else's document. The
+// scaffold landing on disk, and the refusals around it, are the e2e suite's.
+// ---------------------------------------------------------------------------
+
+describe('scaffolding a package', () => {
+  it('starts a package at 0.1.0, needing the running MAJOR rather than this exact build', () => {
+    const parsed = parseYaml(scaffoldPackageManifest('house-style', '6.4.2')) as PackageManifest;
+    expect(parsed.schema).toBe('yg-package/1');
+    expect(parsed.name).toBe('house-style');
+    expect(parsed.version).toBe('0.1.0');
+    // A package written against 6.4 works on 6.7; a range naming the patch would
+    // refuse consumers for no reason.
+    expect(parsed.requires.yg).toBe('>=6.0.0');
+    expect(parsed.aspects).toEqual(['example']);
+  });
+
+  it('declares the one setting the example rule reads, so the pair is visible at a glance', () => {
+    const parsed = parseYaml(scaffoldPackageManifest('demo', '6.0.0')) as PackageManifest;
+    const keys = parsed.config?.example ?? {};
+    expect(Object.keys(keys)).toEqual(['example']);
+    expect(keys.example.type).toBe('string');
+    expect(scaffoldCheckScript()).toContain('ctx.config.example');
+  });
+
+  it('scaffolds a rule carrying none of the things a package may not publish', () => {
+    // Read as a document, not as text: the file's header comment NAMES the very
+    // fields a package must not carry, which is the point of the comment.
+    const rule = parseYaml(scaffoldAspectYaml()) as Record<string, unknown>;
+    expect(rule.review_by).toBeUndefined();
+    expect(rule.references).toBeUndefined();
+    expect((rule.reviewer as { tier?: string }).tier).toBeUndefined();
+    // Draft, so it refuses nothing until the author decides it has earned it.
+    expect(rule.status).toBe('draft');
+  });
+
+  it('adds an entry to a manifest that publishes nothing yet, in block style', () => {
+    const next = withPackageEntry('schema: yg-marketplace/1\npackages: []\n', 'house-style', '0.1.0');
+    expect(parseYaml(next)).toEqual({
+      schema: 'yg-marketplace/1',
+      packages: [{ name: 'house-style', path: 'packages/house-style', version: '0.1.0' }],
+    });
+    // A manifest that started as `packages: []` must not grow its entries inline.
+    expect(next).toContain('  - name: house-style');
+  });
+
+  it('keeps every comment in the author\'s manifest, because it is theirs', () => {
+    const original = [
+      '# What this repository publishes.',
+      'schema: yg-marketplace/1',
+      'packages:',
+      '  # The first one.',
+      '  - name: first',
+      '    path: packages/first',
+      '    version: 1.0.0',
+      '',
+    ].join('\n');
+    const next = withPackageEntry(original, 'second', '0.1.0');
+    expect(next).toContain('# What this repository publishes.');
+    expect(next).toContain('# The first one.');
+    expect((parseYaml(next) as { packages: unknown[] }).packages).toHaveLength(2);
   });
 });

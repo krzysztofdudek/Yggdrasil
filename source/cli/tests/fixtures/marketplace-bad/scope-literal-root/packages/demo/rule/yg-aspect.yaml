@@ -1,0 +1,8 @@
+name: NamesSayWhatTheyAre
+description: An exported name must say what the thing is, not what it is made of.
+reviewer:
+  type: llm
+scope:
+  per: file
+  files:
+    path: "src/**/*.ts"

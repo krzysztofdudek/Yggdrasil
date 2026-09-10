@@ -1,0 +1,7 @@
+schema: yg-package/1
+name: demo
+version: 1.0.0
+requires:
+  yg: ">=6.0.0"
+aspects:
+  - rule

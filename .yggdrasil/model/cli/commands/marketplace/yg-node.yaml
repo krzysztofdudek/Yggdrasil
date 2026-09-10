@@ -1,0 +1,45 @@
+name: MarketplaceCommand
+type: command
+description: "Starts a repository that publishes rules for other repositories to
+  install, and asks it whether it is fit to publish. init writes the manifest
+  that IS the record of what this repository publishes, creates the directory
+  packages live in, and — only when the repository already keeps GitHub workflows
+  — adds a workflow of its own that runs the check on every push; it refuses
+  rather than overwrite a manifest that is already there, because rewriting that
+  file would silently drop every package named in it, and it leaves an existing
+  workflow of its own alone rather than refusing, because a workflow that is
+  already correct is the state init wanted. It writes a dedicated workflow file
+  rather than appending a step to somebody else's, deliberately: editing a
+  document whose job names, matrix and indentation must be inferred breaks their
+  build rather than this one when the inference is wrong. check runs five
+  deterministic questions over every package published here and exits non-zero on
+  any refusal, free and without a key. The binding constraint on both is that a
+  marketplace is NOT a Yggdrasil project: it publishes law rather than enforcing
+  any, so it need not carry a graph at all, and neither subcommand may load one
+  or send its author to create one. A marketplace is located by walking up for
+  the manifest, the way git locates a repository, so somebody standing in a
+  package directory means the repository they are standing in; when there is no
+  manifest anywhere above, the refusal names the directory they are actually in
+  rather than a root they never mentioned."
+aspects: []
+relations:
+  - target: cli/core/marketplace-check
+    type: calls
+  - target: cli/io/atomic-write
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/exit-after-flush
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/packages
+    type: uses
+  - target: cli/model/validation
+    type: uses
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/marketplace.ts

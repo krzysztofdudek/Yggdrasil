@@ -22,6 +22,8 @@ max_direct_relations:
 relations:
   - target: cli/commands/pack
     type: calls
+  - target: cli/commands/marketplace
+    type: calls
   - target: cli/commands/init
     type: calls
   - target: cli/commands/adopt

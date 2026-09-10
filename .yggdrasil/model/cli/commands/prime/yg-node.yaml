@@ -8,6 +8,10 @@ aspects: []
 relations:
   - target: cli/templates
     type: calls
+  - target: cli/knowledge-authoring
+    type: calls
+  - target: cli/model/packages
+    type: uses
   - target: cli/tests/unit/cli
     type: uses
   - target: cli/cli-version

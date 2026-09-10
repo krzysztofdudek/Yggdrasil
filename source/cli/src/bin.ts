@@ -25,6 +25,7 @@ import { registerSimulateCommand } from './cli/simulate.js';
 import { registerPortalCommand } from './cli/portal.js';
 import { registerStructureCommand } from './cli/structure.js';
 import { registerPackCommand } from './cli/pack.js';
+import { registerMarketplaceCommand } from './cli/marketplace.js';
 import { registerPrimeCommand } from './cli/prime.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -73,6 +74,7 @@ registerSimulateCommand(program);
 registerPortalCommand(program);
 registerStructureCommand(program);
 registerPackCommand(program);
+registerMarketplaceCommand(program);
 registerPrimeCommand(program);
 
 process.on('unhandledRejection', (reason) => {

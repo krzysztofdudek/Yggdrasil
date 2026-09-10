@@ -214,6 +214,23 @@ then remove.
 
 ## Publishing a package
 
+Start one with two commands:
+
+```bash
+yg marketplace init          # yg-marketplace.yaml, packages/, and a CI check
+yg pack new house-style      # one package, one example rule, and its drills
+```
+
+`marketplace init` refuses rather than overwrite a manifest that is already there
+— that file is the whole record of what the repository publishes. If
+`.github/workflows/` exists it also writes `.github/workflows/yg-marketplace.yml`,
+which runs the check below on every push, and leaves it alone if it is already
+there.
+
+`pack new` scaffolds the package, adds it to the manifest, and writes one rule
+that reads one setting along with the two drill cases that rule needs — the
+smallest complete thing you can then edit into what you meant.
+
 A marketplace is a git repository with `yg-marketplace.yaml` at its root:
 
 ```yaml
@@ -269,6 +286,66 @@ Every directory in a package must be declared in `aspects:`, and every declared
 one must exist. An undeclared rule directory would arrive in someone's repository
 as law nobody announced; a declared one that is missing would install as a rule
 they can attach and that can never run.
+
+## Authoring a package
+
+::: tip This section is the short version
+The full account — including how to extract a rule you already have — is the
+knowledge topic your agent reads: `yg knowledge read packages-and-marketplaces`.
+That topic is the canonical text; this page follows it.
+:::
+
+### Extracting a rule you already have
+
+Copy `.yggdrasil/aspects/<id>/` to `packages/<package>/<rule>/` and then make four
+decisions. There is no extractor, because these are the whole of the work.
+
+**What is the rule, and what is a setting.** A constant in `check.mjs` another
+repository would reasonably want different is a setting: read it as
+`ctx.config.<name>` and declare it with a default. A constant another repository
+changing would make it a different rule stays written into the rule.
+
+**What names a path only you have.** Four things stop meaning what you meant the
+moment the rule lands somewhere else:
+
+| Remove | Why |
+|---|---|
+| `review_by` | your repository asking *itself* to re-examine a rule — published, it fires in everyone else's, on a date they did not pick |
+| `references` | a repository-relative path read at review time; the package cannot know their layout |
+| a literal root in `scope.files.path` | `src/**` matches a repository laid out that way and silently nothing everywhere else — write `**/src/**` |
+| `reviewer.tier` | tiers are named per repository; yours may mean a different model at a different price in theirs |
+
+**How a bundle names its siblings.** Inside a package, `implies: [naming]` — a
+bare directory name, never a full path. A package may not imply anything outside
+itself.
+
+**The proof it ships with.** A deterministic rule needs at least one
+`drills/violates-…/` case and one `drills/satisfies-…/` case. Those two are the
+only thing that shows a consumer what the rule refuses and what it allows, before
+they trust it.
+
+### Checking before you publish
+
+```bash
+yg marketplace check
+```
+
+Free, deterministic, no key, and non-zero on any refusal — it is what the CI file
+`marketplace init` writes runs for you. It asks five things: that the two
+manifests agree with the directories that exist, that every rule loads under the
+same loader a consumer will use, that every `implies` stays inside its package,
+that every setting read is declared and every setting declared is read, and that
+nothing in the package is anchored to your own repository.
+
+Every finding names a code — `package-config-undeclared`, `package-drills-missing`,
+`package-scope-literal-root` and so on — and the knowledge topic lists what each
+one means.
+
+One limit, stated rather than implied: **it does not run your drills.** Running a
+case needs the graph context a rule is handed, and a marketplace has none — which
+is why this command never asks for one. It checks the cases are there and shaped
+the way the runner recognises. To watch them pass, install the package somewhere
+with a graph and run `yg drill`.
 
 ## What the tool refuses
 

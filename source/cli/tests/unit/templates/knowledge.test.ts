@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { KNOWLEDGE_TOPICS } from '../../../src/templates/knowledge/index.js';
 
 describe('KNOWLEDGE_TOPICS', () => {
-  it('exports exactly 15 topics', () => {
-    expect(Object.keys(KNOWLEDGE_TOPICS).length).toBe(15);
+  it('exports exactly 16 topics', () => {
+    expect(Object.keys(KNOWLEDGE_TOPICS).length).toBe(16);
   });
 
   it('has expected topic names', () => {
@@ -18,6 +18,7 @@ describe('KNOWLEDGE_TOPICS', () => {
       'log-management',
       'meta-modeling',
       'onboarding',
+      'packages-and-marketplaces',
       'ports-and-relations',
       'suppress-syntax',
       'verification-and-lock',

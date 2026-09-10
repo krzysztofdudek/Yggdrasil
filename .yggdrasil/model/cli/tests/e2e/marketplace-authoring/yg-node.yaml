@@ -1,0 +1,26 @@
+name: E2E Tests — Authoring A Marketplace
+type: test-suite
+description: "Subprocess E2E for the publishing side of packages: starting a
+  marketplace, scaffolding a package into it, and checking it before anyone can
+  install from it. Twenty-two scenarios drive the real binary against
+  repositories built at test time, touching no network at all. Two of them carry
+  the constraint the whole design rests on — that a marketplace need not have a
+  graph — by proving the check names the missing manifest without ever mentioning
+  a graph or telling anyone to create one, and that a graph which happens to be
+  sitting there, broken at that, changes nothing about the outcome. The rest pin
+  that a fresh marketplace publishes nothing and still passes, that the manifest
+  is refused rather than overwritten and comes through a scaffold with its
+  comments intact, that a workflow already written is left alone rather than
+  doubled or refused, that a package name is one path segment and may be outside
+  ASCII, and that each committed negative fixture is refused with its own code.
+  It also pins the two agent-facing surfaces: the knowledge topic prints and says the
+  three things an author has to know, and the operating manual gains exactly one
+  sentence in a repository that publishes packages and none anywhere else."
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-marketplace-authoring.test.ts
