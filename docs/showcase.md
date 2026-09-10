@@ -168,19 +168,19 @@ inherit its implier's level.
 
 **Used as:** Not currently used in this repo. `descendants:` is a `when:` grammar feature that filters on a node's **hierarchical** descendants — its child nodes in the model tree — **not** the transitive call graph.
 
-**Earn-rate: situational.** Because it walks the model hierarchy and not the call graph, it does not express "any node whose call chain eventually reaches X". To enforce a property along a **call chain** — e.g. every node that leads to an LLM provider must redact provider data before logging it — attach the aspect explicitly to the chain nodes, or use ports + `consumes` (channel 6) to carry the requirement across the specific boundary that matters.
+**Earn-rate: situational.** Because it walks the model hierarchy and not the call graph, it does not express "any node whose call chain eventually reaches X". To enforce a property along a **call chain** — e.g. every node that leads to an LLM provider must redact provider data before logging it — attach the aspect explicitly to the chain nodes, or use a port (channel 6) to carry the requirement across the specific boundary that matters.
 
 **Recommendation:** Reach for `descendants:` only when the property genuinely follows the parent/child model hierarchy (e.g. "every child node of this subsystem inherits this rule"). It is the most complex filter in the grammar; do not use it to approximate call-chain propagation, which it cannot see — use explicit attachment or a port instead.
 
 ---
 
-### Ports + `consumes:` (channel 6)
+### Ports (channel 6)
 
-**Used as:** `cli/io/atomic-write` carries `atomic-write-contract` on `default` — the graph's only port, and the one every node already has implicitly. Nine nodes hold a `calls`/`uses` relation onto it and none declares `consumes` or `portNames` any more: a relation naming no port has always entered through `default`, so the contract reaches all nine without a single explicit annotation. It used to be a named port (`write-atomic`) that six of those nine declared `consumes: [write-atomic]` on; the rename to `default` proved the name was carrying no weight beyond what `atomic-write-contract`'s own `when: node.type: persistence-adapter` already carried alone — of the nine, only the three that are `persistence-adapter` (`cli/io/lock-store`, `cli/io/stores`, `cli/io/type-class-cache`) are actually bound by the rule, and those three get it from their type regardless of the port. Channel 6 still fires on all nine — reach through a port and eligibility under a `when` filter are separate questions — it just no longer needs a name or a declaration to do it.
+**Used as:** `cli/io/atomic-write` publishes port `default` carrying `atomic-write-contract` — the graph's only port, and the one every node already has implicitly. Nine nodes hold a `calls`/`uses` relation onto it, and every one of them gets the contract without declaring anything on its own side at all: a relation naming no port has always entered through `default`. It used to be a named port (`write-atomic`) that six of those nine opted into explicitly through their relation; the rename to `default` proved the name was carrying no weight beyond what `atomic-write-contract`'s own `when: node.type: persistence-adapter` already carried alone — of the nine, only the three that are `persistence-adapter` (`cli/io/lock-store`, `cli/io/stores`, `cli/io/type-class-cache`) are actually bound by the rule, and those three get it from their type regardless of the port. Channel 6 still fires on all nine — reach through a port and eligibility under a `when` filter are separate questions — it just no longer needs a name or an explicit relation entry to do it.
 
-**Earn-rate: medium, but this repo's own instance turned out to earn nothing.** The mechanism closes a real gap in general: a consumer could otherwise route raw `fs.writeFile` through a helper module and evade a target's requirement, and a *named* port lets a maintainer see, from the target's own file, exactly which consumers opted in. This repo's one instance never needed that: every consumer it reached that mattered was already `persistence-adapter`, already bound by the aspect's own type default. The port was pure ceremony — six `consumes:` declarations maintained for an enforcement effect the type default already produced.
+**Earn-rate: medium, but this repo's own instance turned out to earn nothing.** The mechanism closes a real gap in general: a caller could otherwise route raw `fs.writeFile` through a helper module and evade a target's requirement, and a *named* port lets a maintainer see, from the target's own file, exactly which relations opted in. This repo's one instance never needed that: every caller it reached that mattered was already `persistence-adapter`, already bound by the aspect's own type default. The port was pure ceremony — six explicit relation entries maintained for an enforcement effect the type default already produced.
 
-**Recommendation:** Declare ports sparingly — only when a critical aspect must be verifiable on the consumer's own source files, not just the target's. A bare `calls` relation is sufficient when you only need to document the dependency. Three questions to ask before creating a port: (1) Is there an aspect that must hold on the consumer? (2) Could the consumer evade the aspect without the port? (3) Are there multiple consumers you would otherwise have to annotate individually?
+**Recommendation:** Declare a named port sparingly — only when a critical aspect must be verifiable on the consumer's own source files, not just the target's. A bare relation into `default` is sufficient when you only need to document the dependency, or when every caller should be bound uniformly. Three questions to ask before naming a port: (1) Is there an aspect that must hold on the consumer? (2) Would the aspect reach that consumer anyway through another channel — its type default, a flow, an ancestor — making a named port redundant? (3) Are there multiple consumers you would otherwise have to annotate individually?
 
 ---
 
@@ -202,10 +202,10 @@ The following features exist in the schema but were not exercised because no gen
 |---|---|---|
 | `implies:` object form (conditional gate) | Deferred | No implies chain needed a conditional filter |
 | `when: has_mapping:` | Deferred | No aspect needs file-mapping path filter |
-| `when: has_port:` | Deferred | Only one port; no aspect needs port-existence predicate |
+| `when: has_port:` | Deferred | Every node already carries `default` implicitly; a predicate testing port existence would be trivially true almost everywhere |
 | `when: target:` (exact node path) | Deferred | No aspect needs to pin to one specific node |
-| `when: consumes_port:` | Deferred | Single consumer set; predicate not needed |
-| Multi-port `consumes:` | Deferred | Only one port in catalog |
+| `when: consumes_port:` | Deferred | No relation in the graph names a port explicitly any more; nothing to match against |
+| Multi-port `portNames:` | Deferred | Only one port in the catalog |
 | Paired `emits` / `listens` | Deferred | No event bus in the codebase |
 | `extends` relation | Used | `cli/llm/registry` → `cli/llm/shared` (the registry barrel extends the shared provider interface) |
 | `implements` relation | Deferred | No interface-conformance relation declared across a node boundary |
@@ -220,7 +220,7 @@ Deferred does not mean unsupported — these features are tested and documented.
 |---|---|
 | **Use from day one** | `path:` when, combinators (`all_of`/`not`), `parents:`, `log_required`, type-level `aspects:`, `when:` on aspects |
 | **Introduce when you have 5+ nodes** | `enforce: strict`, node-level aspects, `implies:`, flow-level aspects |
-| **Introduce when a specific problem arises** | `content:` when, ports + `consumes:`, `when: descendants:` |
+| **Introduce when a specific problem arises** | `content:` when, named ports, `when: descendants:` |
 | **Defer until the schema demands it** | Event relations, `implements`, multi-port, conditional implies |
 
 The biggest ROI in our dogfood came from three things: type-level aspect defaults (one YAML line covers all current and future nodes of a type), flow-level aspects (one YAML block covers all participants in a business process), and `enforce: strict` (zero uncovered files at merge time). Everything else is additive.

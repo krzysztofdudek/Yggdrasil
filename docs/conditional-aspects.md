@@ -58,6 +58,11 @@ when:
     has_mapping: true | false
 ```
 
+`consumes_port` matches a relation's **normalized** port list, not only what it wrote
+explicitly — a relation that named no port at all normalizes to `[default]`, so
+`consumes_port: default` matches it too. Without that, the predicate would silently
+miss every relation that reaches a node through the implicit `default` port.
+
 Full grammar reference: `yg schemas read aspect`.
 
 Beyond the structural shape, `yg check` also checks that the names a predicate

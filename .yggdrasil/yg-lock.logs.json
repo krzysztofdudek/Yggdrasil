@@ -108,7 +108,7 @@
     "cli/relations/core": {"log":{"last_entry_datetime":"2026-08-06T13:56:24.639Z","prefix_hash":"a95feea7a971aeaf564ec1f52dc36688d10da1dd568d22f337c9ba07a0df6d81"},"source":"6be3eb78394cc597f71f3e750978dd13ecc9fd7d3ae10de2ae6d61bb863c1719"},
     "cli/relations/extractors": {"log":{"last_entry_datetime":"2026-08-01T02:33:04.357Z","prefix_hash":"7dbff47837929bfdcab8397fc7b2c8cbacd064fe82c3e130d6a704b907012675"},"source":"c9b120538412f08d185ec7899a31274b547d69343655f599c5c052e7205d7582"},
     "cli/structure": {"log":{"last_entry_datetime":"2026-08-07T11:02:41.484Z","prefix_hash":"5ccceb2b5641503fc40a7ed73e4802c4daead02df0d2d2f1a5d8d427debb798c"}},
-    "cli/templates": {"log":{"last_entry_datetime":"2026-09-07T08:02:14.771Z","prefix_hash":"a989835a2457109b243a4f02040e27175e9e61b221f152ab4435221184e21401"},"source":"fc479a3f196cbf7b3787ee651088a92afd2a2f775cf63c776d91dbf346c2bbd9"},
+    "cli/templates": {"log":{"last_entry_datetime":"2026-09-10T13:46:28.051Z","prefix_hash":"43a493b30946e5b4ed1020c6562dfe0b64919b41f289808b7b2d2c8991141c8c"},"source":"5350f32d61735adf2ab3b24acaa3ab0a913ed0037eae4387b6489d83bc215326"},
     "cli/templates-platform": {"log":{"last_entry_datetime":"2026-09-10T09:18:41.823Z","prefix_hash":"afb9a26c8123849ff7b5701aa1dc45a1c51aa56f1979f4ef7a533a44009cd719"},"source":"1c1ac6067d97d1cb992ead602e826d02e12dfc71a884bc6185702a964b2ff3fa"},
     "cli/tests/e2e": {"log":{"last_entry_datetime":"2026-05-29T10:07:14.145Z","prefix_hash":"3430d92d98ab483edd4b7634b4cc7ab0206fd50357790981561c2c7f961f11bc"}},
     "cli/tests/e2e/architecture-classification": {"log":{"last_entry_datetime":"2026-05-31T08:36:51.917Z","prefix_hash":"f74cf86bba384d5a7beb84899f073b94b1621ffcb28148bcd75b0b2d16eaa8ae"}},

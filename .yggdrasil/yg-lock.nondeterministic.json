@@ -436,7 +436,7 @@
       "file:source/cli/src/migrations/to-6.0.0.ts": {"filledAt":"2026-09-10T09:31:05.533Z","filledSha":"97459635c20b37b8daf480dc0d1b98dae971ba97","hash":"9c87081aef18879902ff16f89ab9bcb0ac03a6d8a52cf1cf88396f86db454bd7","promptChars":10042,"verdict":"approved"},
       "file:source/cli/src/portal/serializer.ts": {"hash":"235fb78d38c835b05519216f9d7026af3ee68f9165d383346fa893a2c240cb4f","promptChars":37904,"verdict":"approved"},
       "file:source/cli/src/templates/digest.ts": {"hash":"dd9064eb465cb9d9ad7d4c310f0d1504b22249a0799c771f891047c20256d17a","promptChars":8109,"verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"hash":"5735ebdf9606159de7ac2ad5c3ff2e0c684965b2c74955b555a7487e5b66ea18","promptChars":67791,"verdict":"approved"},
+      "file:source/cli/src/templates/rules.ts": {"filledAt":"2026-09-10T13:46:44.598Z","filledSha":"3a816e7fcf2c3085d5c7b0366ef1d3ea3398c2b0","hash":"9170301a0b72098049ca976b45399a61e1c3ab7db27206fce69675ddf70acb26","promptChars":67922,"verdict":"approved"},
       "file:source/cli/src/utils/binary-check.ts": {"hash":"9a901d564b54bfb64faf222f3d4a0df67bfc1e0198c7eed7c01bba1dbb2b49c7","promptChars":5739,"verdict":"approved"},
       "file:source/cli/src/utils/binary-extensions.ts": {"hash":"e7db4d4c5ccbeeb221b6a2af9f5ff921c8b947f83afadc0f247428386025ab1b","promptChars":5343,"verdict":"approved"},
       "file:source/cli/src/utils/coverage-exclusion.ts": {"hash":"30f0f6dcd252d4a80fbc5a6652e8a7b8b4f30cf6c575f7283c0112bd2c4a955f","promptChars":6885,"verdict":"approved"},
@@ -672,6 +672,7 @@
       "file:source/cli/tests/e2e/cli-validation-codes.test.ts": {"hash":"20a06c32f1553280750e4cd1e02ee6772682bbcad5653a3557247258a876c2c5","promptChars":30180,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-verdict-external-judge.test.ts": {"hash":"34706ac21c50661e63bd813cda9978d73e795b85eeaba5b01f16d456051fd7a7","promptChars":17353,"verdict":"approved"},
       "file:source/cli/tests/e2e/docs-internal-links.test.ts": {"hash":"6b27d7c81348e499c8b2b975a6e57520d82316b8b914d137c8d1b1001c4094a0","promptChars":9215,"verdict":"approved"},
+      "file:source/cli/tests/e2e/docs-ports-vocabulary.test.ts": {"filledAt":"2026-09-10T10:38:33.562Z","filledSha":"3a816e7fcf2c3085d5c7b0366ef1d3ea3398c2b0","hash":"a6b96df74579a19e8ec9ebcc0021dd5f36a284771f532428198806321a67a97d","promptChars":10205,"verdict":"approved"},
       "file:source/cli/tests/e2e/dogfood-scripts-smoke.test.ts": {"hash":"26a243a40cb159486dc6c43e11b05d75610b5a159d9de112fe52b57dd307d5f7","promptChars":33070,"verdict":"approved"},
       "file:source/cli/tests/e2e/relation-c.test.ts": {"filledAt":"2026-09-10T09:31:40.571Z","filledSha":"97459635c20b37b8daf480dc0d1b98dae971ba97","hash":"6bc197fbbff5339780f6e47da9885c4ff62ab2b9d8a02ed2382717098d8bd764","promptChars":11159,"verdict":"approved"},
       "file:source/cli/tests/e2e/relation-crosslang.test.ts": {"filledAt":"2026-09-10T09:31:34.451Z","filledSha":"97459635c20b37b8daf480dc0d1b98dae971ba97","hash":"14d4bfb91c152cfd0c98332f4ed56f78c594698aa8582d491b9a9f0ffef46643","promptChars":9283,"verdict":"approved"},
@@ -1263,7 +1264,7 @@
       "file:source/cli/src/templates/default-config.ts": {"filledAt":"2026-09-10T09:32:57.828Z","filledSha":"97459635c20b37b8daf480dc0d1b98dae971ba97","hash":"c2ee8c11b9960e8fa702cc77ed94170a0980391411d5d38f2b91d191dc0e35d4","promptChars":7558,"verdict":"approved"},
       "file:source/cli/src/templates/digest.ts": {"hash":"70e163116b1e84a998b3a7d2417d571a552dae7f1e236deb690940a6ecf1dcbe","promptChars":9065,"verdict":"approved"},
       "file:source/cli/src/templates/platform.ts": {"hash":"c15b8a75688a7af3cfb5f826ef50847535050f33df05771ac6cad0b27af2bba5","promptChars":24329,"verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"hash":"02aac8671d2b2a562dcd0b8c67c2401ea42a4cd62032f29f4e18eddd9824a572","promptChars":68747,"verdict":"approved"}
+      "file:source/cli/src/templates/rules.ts": {"filledAt":"2026-09-10T13:46:45.604Z","filledSha":"3a816e7fcf2c3085d5c7b0366ef1d3ea3398c2b0","hash":"095d9d5636a00ca32607506559baf018d8674d0e181ff46b555dbe29f8cdd213","promptChars":68878,"verdict":"approved"}
     }
   },
   "nodes": {

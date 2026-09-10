@@ -67,6 +67,12 @@ when:
     relations: { <relation-type>: { target_type: <type-id> } }
 \`\`\`
 
+\`consumes_port\` matches a relation's NORMALIZED port list, not only what it
+wrote explicitly — a relation that named no port at all normalizes to
+\`[default]\`, so \`consumes_port: default\` matches it too. Without that, the
+predicate would silently miss every relation that reaches a node through the
+implicit \`default\` port.
+
 Rules the parser enforces:
 - A relation-type entry must carry a match. \`relations: { emits: {} }\` is
   rejected — give at least one of \`target_type\`, \`target\`, or

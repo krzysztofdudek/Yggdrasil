@@ -184,12 +184,13 @@ Exactly one of `--node`, `--file`, `--aspect`, `--flow`, or `--type` is required
 resolved the owning component — as one `yg-impact/1` document on stdout instead
 of the text report, for a tool rather than a reader. The document names the
 `subject`; every port the component publishes under `ports`, each with its
-`version`, its `test` and the `consumers` that name it in a `consumes:` list;
-every component that depends on it under `dependents`, each marked `direct` (it
-declares a relation onto the subject, and `relations` names each relation's type
-and the ports it consumes) or not (reached through other components, so
-`relations` is empty); and, under `transitive`, each indirect dependent with the
-`via` path it is reached through.
+`name` and the `consumers` that name it — each one the consuming node's path
+and the relation type it names the port through; every component that depends
+on it under `dependents`, each marked `direct` (it declares a relation onto the
+subject, and `relations` names each relation's type and the ports it names) or
+not (reached through other components, so `relations` is empty); and, under
+`transitive`, each indirect dependent with the `via` path it is reached
+through.
 
 A relation's port list is never empty: one that names no port reports
 `default`, the port every component carries whether or not it declares one.
@@ -268,9 +269,9 @@ yg node orders/order-service --json
 Both views carry the same facts, from the same document: the component's name,
 type and description; the files it owns (`mapping`); the components it declares
 a dependency on (`relations`, each with the ports it `consumes`); the ports it
-publishes (`ports`, each with its `description`, contract `version`, contract
-`test`, and the `aspects` a consumer of that port must satisfy); and where it
-sits in the hierarchy (`children`, `parent`).
+publishes (`ports`, each with its `description` and the `aspects` a consumer of
+that port must satisfy); and where it sits in the hierarchy (`children`,
+`parent`).
 
 It deliberately carries no rule set. What a subject must satisfy is
 [`yg context`](#yg-context)'s answer — assembled from the full seven-channel

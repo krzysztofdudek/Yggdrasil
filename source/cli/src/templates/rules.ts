@@ -45,7 +45,7 @@ Aggregating aspects ship neither \`content.md\` nor \`check.mjs\` but declare \`
 
 **Relations** — typed dependencies between nodes. Six types: \`calls\`, \`uses\`, \`extends\`, \`implements\` (structural) and \`emits\`, \`listens\` (event-based). Event relations must be paired. Architecture controls which relation types are allowed between which node types. A built-in check enforces that every code dependency you actually have is declared as a relation — see "Built-in relation-conformance check" below.
 
-**Ports** — named entry points on a node with required aspects. A consumer references a port via \`consumes\` on its relation; the port's aspects then become effective on the consumer (channel 6 below). Ports are how a critical aspect crosses node boundaries — bare relations do NOT propagate aspects. Deep dive (port contracts, channel 6 defense, missing-contract errors): \`yg knowledge read ports-and-relations\`.
+**Ports** — named entry points on a node with required aspects. Every node has one implicitly — \`default\` — and a relation that names no port enters through it. A relation names a port via \`portNames\` (\`consumes\` still works, as a deprecated alias); the named port's aspects then become effective on the caller (channel 6 below). Ports are how a critical aspect crosses node boundaries — bare relations do NOT propagate aspects. Deep dive (default port, channel 6 defense, reference-integrity errors): \`yg knowledge read ports-and-relations\`.
 
 **Architecture** — \`yg-architecture.yaml\` defines the vocabulary: node types, default aspects per type, allowed parent types, allowed relation targets per type. This is the foundation — read it when starting work on a new repo. Changes require user confirmation. Structure details in \`yg schemas read architecture\`.
 
@@ -61,7 +61,7 @@ Channel 2: ANCESTOR    — parent "orders" has aspects: [audit-logging]
 Channel 3: OWN TYPE    — architecture says type "command" → [command-contract]
 Channel 4: ANCESTOR TYPE — parent "orders" type "module" → [] (no defaults here)
 Channel 5: FLOWS       — flow "order-processing" includes "orders" → flow aspects: [idempotent-processing]
-Channel 6: PORTS       — relation to "payments/service" consumes port "charge" → [correlation-tracking]
+Channel 6: PORTS       — relation to "payments/service" names port "charge" → [correlation-tracking]
 Channel 7: IMPLIED     — aspect "audit-logging" implies: [diagnostic-logging]
 
 EFFECTIVE ASPECTS for "orders/handler":
