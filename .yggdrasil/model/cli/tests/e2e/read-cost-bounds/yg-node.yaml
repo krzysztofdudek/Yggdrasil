@@ -1,0 +1,18 @@
+name: E2E Tests — Read-Command Cost Bounds
+type: test-suite
+description: "A separate, slower file from cli-other-worktree.test.ts on
+  purpose: it runs yg aspects --json, yg context --node --json and yg check
+  --json against this repository's own graph — the largest available, and the
+  same one docs/concurrency.md measures its cost table against — and asserts
+  BOUNDS (exit 0, under a generous time and output-size ceiling), never a
+  median. This is a hard, always-on regression gate against an order-of-
+  magnitude blowup (a read that used to return in seconds hanging, or an
+  output that used to be megabytes going unbounded); the actual measured
+  median and output size that inform the documentation table are produced by
+  hand, outside this suite, precisely so the gate never has to be loosened to
+  keep the docs honest and the docs number never has to chase this gate's
+  tolerance."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-read-cost-bounds.test.ts

@@ -7,6 +7,8 @@ Your AI agent runs them automatically.
 
 This page is for inspecting or debugging your graph and enforcement state.
 
+Every command here reads the graph of the directory it runs in, never a commit named on the command line. To inspect a different commit, run the command from a [detached worktree](/concurrency#reading-the-graph-at-another-commit) checked out at that commit instead.
+
 ---
 
 ## Core workflow (4)

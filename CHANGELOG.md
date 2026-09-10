@@ -7,6 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+- **Reading a graph at another commit is a detached worktree.** The tool reads the tree it stands in; the docs now say how to ask about another commit, and what two worktrees of one repository do and do not share.
 - **A recorded verdict says when and at which commit it was filled.** `yg check --json` reports it as `filled`, and the shared event stream carries the same commit — so a tool can attribute reviewer cost to the branch that caused it. Older locks and older event lines keep working untouched.
 - **`yg suppressions --json` prints the waiver inventory as one `yg-suppressions/1` document.** Every marker with its kind, its range and its reason, every warning with a stable code, and the totals — so a tool can compare two branches' waivers without reading the report.
 - **A port may declare no rules.** A port with no `aspects:` now loads as a named entry that carries nothing, instead of refusing the whole component.

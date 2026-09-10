@@ -33,6 +33,27 @@ The local activity record is safe too: Yggdrasil keeps a small note of what each
 
 In practice: let one tree-touching session land before you start the next, and keep any parallel work read-only.
 
+## Reading the graph at another commit
+
+**Rule.** `yg` reads the graph of the directory it runs in — always the current working directory, never a commit named on the command line. To ask about a different commit, create a detached worktree checked out at that commit and run `yg` with that worktree as its working directory:
+
+```bash
+git worktree add --detach ../at-that-commit <sha>
+cd ../at-that-commit && yg check --json
+```
+
+**Why.** Two worktrees of the same repository share their commits, objects and refs — nothing else. Nothing under `.yggdrasil/` is shared: the verdict lock, the event log and the deterministic cache each live inside their own worktree's own copy. Running `yg check --approve --only-deterministic` inside the temporary worktree writes to that worktree's `.yggdrasil/` alone; the tree you started from keeps its own lock and history exactly as they were. This is also why there is no `--root` or `-C` flag for pointing a command at another commit: a worktree already gives every command the working directory it needs, the same way a tool that spawns `yg` as a child process sets its `cwd` today.
+
+Measured on this repository's own graph — the largest available today, at 453 nodes, 1,432 mapped files and 5,439 rule-and-subject pairs (all three read from `yg check --json`, not hand-counted). Three runs of each command, median taken, one warm-up run discarded first; `yg context` targets `cli/core/fill`, the node with the most pairs in that same run.
+
+| Command | Median time | Output size | Measured | CLI version |
+|---|---|---|---|---|
+| `yg aspects --json` | 250 ms | 88,298 bytes (88.3 KB) | 2026-09-10 | 5.9.0 |
+| `yg context --node cli/core/fill --json` | 2,221 ms | 30,921 bytes (30.9 KB) | 2026-09-10 | 5.9.0 |
+| `yg check --json` | 3,845 ms | 2,315,841 bytes (2.32 MB) | 2026-09-10 | 5.9.0 |
+
+Re-measure before trusting these numbers on a graph much larger than this one.
+
 ## When another tool changes a file mid-check
 
 **Rule.** If a background tool rewrites a tracked file while a check is running, that single run can disagree with itself — flag a problem that a plain re-run then clears. Re-run once and it settles.

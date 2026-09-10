@@ -1,0 +1,31 @@
+name: E2E Tests — Reading a Graph from Another Worktree
+type: test-suite
+description: "Subprocess E2E proving the documented (docs/concurrency.md) way to
+  read the graph at a commit other than HEAD — a detached `git worktree add`
+  with the child process's cwd set to it, since every command loads its graph
+  from process.cwd() alone and there is no --root or -C flag. Thirteen
+  scenarios: a worktree at an older commit sees fewer aspects than the main
+  tree; yg context --file agrees on owner and chain while its aspect list
+  differs by exactly the commits' own delta; yg check --json's project.aspects
+  and pairs differ the same way; --approve --only-deterministic run inside the
+  worktree writes only that worktree's own deterministic cache and events
+  sidecar, in both directions; a worktree cut before .yggdrasil/ ever existed
+  refuses by name without naming the main tree's path; a worktree whose graph
+  declares a different schema version refuses naming the version, with no
+  side effect in the main tree; a worktree path carrying a space and a unicode
+  character still works; a worktree directory deleted without `git worktree
+  remove` does not break a later command in the main tree; two worktrees run
+  two `yg check --json` in parallel with neither blocking the other; and a
+  shallow clone accepts `git worktree add --detach` on the one commit it has
+  and refuses one outside its shallow history. Scenario 7 is the load-bearing
+  one: after every read, and after the one write (--approve
+  --only-deterministic), a full recursive (path, size, sha256) snapshot of the
+  main tree is asserted byte-for-byte unchanged — the leak-proofing guarantee
+  a later Horde `land` gate rests on entirely. Every git operation here goes
+  through the shared git-fixture helper, never a raw spawned git call."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-other-worktree.test.ts
