@@ -1,0 +1,20 @@
+node_types:
+  module:
+    description: 'Organizational grouping of service units. Parent-only — no file mapping.'
+    log_required: false
+
+  provider:
+    description: 'A service that exposes ports consumed by other services.'
+    log_required: false
+    when:
+      path: "src/services/payments*"
+    parents: [module]
+
+  consumer:
+    description: 'A service that consumes another service via a port.'
+    log_required: false
+    when:
+      path: "src/services/orders*"
+    parents: [module]
+    relations:
+      uses: [provider]

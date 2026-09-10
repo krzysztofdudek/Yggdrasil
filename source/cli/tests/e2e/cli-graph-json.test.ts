@@ -92,8 +92,6 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --json and yg node --json', 
       expect(doc.ports).toEqual([
         {
           name: 'charge',
-          version: null,
-          test: null,
           consumers: [{ node: 'services/orders', relation: 'uses' }],
         },
       ]);
@@ -175,8 +173,6 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --json and yg node --json', 
         ports: {
           charge: {
             description: 'Capture a payment from the user.',
-            version: null,
-            test: null,
             aspects: ['audit-required'],
           },
         },
@@ -248,14 +244,15 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --json and yg node --json', 
     expect(impactDoc.schema).toBe('yg-impact/1');
     expect(impactDoc.subject).toEqual({ kind: 'node', path: 'cli/io/atomic-write' });
 
-    const port = impactDoc.ports.find((p) => p.name === 'write-atomic');
+    const port = impactDoc.ports.find((p) => p.name === 'default');
     expect(port).toBeDefined();
     expect(port!.consumers.map((c) => c.node)).toContain('cli/io/lock-store');
     // A consumer of the port declares the relation, so it is a direct dependent
-    // that names the port it consumes.
+    // that names the port it consumes — implicitly, through `default`, since
+    // this port carries no other name for a relation to declare any more.
     const lockStore = impactDoc.dependents.find((d) => d.node === 'cli/io/lock-store');
     expect(lockStore?.direct).toBe(true);
-    expect(lockStore?.relations.some((r) => r.ports.includes('write-atomic'))).toBe(true);
+    expect(lockStore?.relations.some((r) => r.ports.includes('default'))).toBe(true);
     // Everything reached behind a direct dependent carries the path it came by.
     expect(impactDoc.transitive.length).toBeGreaterThan(0);
     for (const t of impactDoc.transitive) {
@@ -270,6 +267,6 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --json and yg node --json', 
     expect(nodeDoc.type).toBe('persistence-adapter');
     expect(nodeDoc.mapping).toEqual(['source/cli/src/io/atomic-write.ts']);
     expect(nodeDoc.parent).toBe('cli/io');
-    expect(nodeDoc.ports['write-atomic'].aspects).toEqual(['atomic-write-contract']);
+    expect(nodeDoc.ports['default'].aspects).toEqual(['atomic-write-contract']);
   });
 });

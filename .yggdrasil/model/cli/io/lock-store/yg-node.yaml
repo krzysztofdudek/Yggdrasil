@@ -24,7 +24,5 @@ relations:
     type: uses
   - target: cli/io/atomic-write
     type: calls
-    consumes:
-      - write-atomic
 mapping:
   - source/cli/src/io/lock-store.ts

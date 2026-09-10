@@ -89,8 +89,6 @@ relations:
     type: calls
   - target: cli/core/checks/aspects
     type: calls
-  - target: cli/core/checks/port-contracts
-    type: calls
   - target: cli/core/checks/digest-gate
     type: calls
   - target: cli/core/check-coverage-tiers
@@ -111,7 +109,6 @@ relations:
     type: calls
   - target: cli/io/atomic-write
     type: calls
-    consumes: [write-atomic]
   - target: cli/utils
     type: calls
   - target: cli/io/file-content-cache

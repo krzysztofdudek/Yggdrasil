@@ -13,7 +13,6 @@ description: >-
 relations:
   - target: cli/io/atomic-write
     type: calls
-    consumes: [write-atomic]
   - target: cli/portal/contract
     type: uses
 mapping:

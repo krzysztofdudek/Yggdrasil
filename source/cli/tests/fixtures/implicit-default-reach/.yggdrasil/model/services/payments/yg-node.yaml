@@ -1,0 +1,10 @@
+name: PaymentsService
+description: Captures payments and exposes its contract on the default port — a consumer naming no port reaches it without declaring anything.
+type: provider
+ports:
+  default:
+    description: Capture a payment from the user.
+    aspects:
+      - audit-required
+mapping:
+  - src/services/payments.ts

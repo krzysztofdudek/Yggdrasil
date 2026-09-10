@@ -10,8 +10,6 @@ relations:
     type: uses
   - target: cli/io/atomic-write
     type: calls
-    consumes:
-      - write-atomic
   - target: cli/utils
     type: calls
 mapping:

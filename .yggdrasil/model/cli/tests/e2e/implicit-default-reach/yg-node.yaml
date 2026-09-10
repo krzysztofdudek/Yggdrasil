@@ -1,0 +1,19 @@
+name: E2E Tests — implicit default-port reach with no declaration on either side
+type: test-suite
+description: >-
+  Subprocess E2E, on a dedicated fixture, for the general case behind the
+  own-graph port migration: a provider publishes its contract on the reserved
+  `default` port and a consumer relation names no port at all — no
+  `consumes`/`portNames`, nothing. Proves the aspect still reaches the
+  consumer, through a `port` channel whose origin names the provider's
+  `default` port, that the free deterministic fill records a real verdict for
+  it, and that `yg check` is green with nothing declared on the consuming
+  side. Isolated from the own-graph test on purpose — adding a node to this
+  repository's own graph just to prove a general mechanism would be a fixture
+  masquerading as production architecture.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-implicit-default-reach.test.ts
