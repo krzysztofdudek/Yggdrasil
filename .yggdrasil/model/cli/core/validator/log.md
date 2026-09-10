@@ -106,3 +106,5 @@ A parameter's doc comment claimed the shared enforcement classification was thre
 Reworded two comments describing the threaded type-coverage classification parameter so each explains, in its own words, that it is computed once by the caller and passed through to the dead-attach checks rather than recomputed, instead of leaning on a short internal code with no meaning to a reader of this repository.
 ## [2026-09-09T19:51:13.711Z]
 Registered the new advisory check that flags a node explicitly declaring a port literally named default.
+## [2026-09-10T15:24:54.954Z]
+The gate now also verifies that every rule installed from another repository still matches what that repository published. It runs as a global check rather than a per-component one because a copied rule belongs to no component — there is no node to attribute the finding to.

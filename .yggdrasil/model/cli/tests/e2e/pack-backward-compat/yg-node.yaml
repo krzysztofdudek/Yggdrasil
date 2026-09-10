@@ -1,0 +1,19 @@
+name: E2E Tests — A Repository With No Packages
+type: test-suite
+description: "Subprocess E2E proving that a repository which installs nothing
+  behaves exactly as it did before packages existed. Almost every adopter is in
+  that position, so the promise that the largest new surface of this release
+  costs them nothing is proven rather than asserted: the gate, the rule list, the
+  context package and the attention feed each keep their exit code and never
+  utter a word this release introduced; a recorded verdict still holds with no
+  refill and no reviewer call; and two runs produce the same report, so nothing
+  about reading packages introduced an order-dependence or a filesystem-walk
+  artefact into a repository that has none. It runs over the same committed
+  consumer fixture the lifecycle suite installs INTO, so the two answer the same
+  question from both sides."
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-pack-backward-compat.test.ts

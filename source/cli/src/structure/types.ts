@@ -53,6 +53,18 @@ export interface FsEntry {
 export interface Ctx {
   node: GraphNode;
   /**
+   * The rule's settings for THIS repository: the values its package declared,
+   * with whatever the repository's `yg-aspect.adapt.yaml` set on top. Empty for a
+   * rule that declares no configuration.
+   *
+   * Reading a key is part of the verdict. The value of every key the rule actually
+   * touches is folded into the pair's identity, so changing a setting the rule
+   * reads sends its verdicts back for re-judging, and changing one it ignores
+   * changes nothing. A key the package never declared reads as `undefined` — and
+   * that, too, is recorded, so the key later appearing is itself a change.
+   */
+  config: Record<string, string | number | boolean>;
+  /**
    * the unit's SUBJECT files — the scope-driven view, NOT an alias for
    * node.files: a per:file unit narrows it to the single file, and a
    * scope.files filter narrows it further. It equals node.files (same array

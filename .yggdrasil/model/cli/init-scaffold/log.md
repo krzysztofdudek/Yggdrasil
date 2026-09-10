@@ -1,0 +1,2 @@
+## [2026-09-10T16:19:47.407Z]
+The installed gitignore gains the local cache of what package sources were last seen to publish. It is knowledge about somebody else's repository rather than this one, it is rewritten on every listing, and two machines would legitimately hold different versions of it, so it is never committed. The writer self-ensures the same line as a backstop, so a repository set up by an older build never commits the file either.

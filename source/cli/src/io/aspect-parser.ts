@@ -7,6 +7,9 @@ import { ASPECT_STATUS_VALUES, ERRS_DIRECTION_VALUES } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { WhenPredicate } from '../model/when.js';
 import { readArtifacts } from './artifact-reader.js';
+import { mergeAdaptOverAspect, parseAspectAdapt, resolveAspectConfig } from './aspect-adapt-parser.js';
+import { ADAPT_FILENAME } from '../model/packages.js';
+import type { PackageConfigKeyDef } from '../model/packages.js';
 import { parseWhen, parseAspectAttachment } from '../utils/when-parser.js';
 import { parseFileWhen, WhenPredicateInvalidError } from '../utils/file-when-parser.js';
 import { aspectStatusInvalidMessage, aspectReviewByMalformedMessage, impliesStatusInheritInvalidMessage } from '../formatters/aspect-status-messages.js';
@@ -47,6 +50,53 @@ export type ParseAspectResult =
   | { ok: true; aspect: AspectDef }
   | { ok: false; aspectId: string; errors: Array<{ code: string; messageData: IssueMessage }> };
 
+/**
+ * What a caller knows about an aspect that arrived inside a package, and that the
+ * aspect's own directory cannot tell you.
+ *
+ * Ids and `implies` inside a package are RELATIVE — a package is written without
+ * knowing where a consumer will put it, so `implies: [rule-a]` has to mean "the
+ * rule-a in this package" and nothing else. The loader knows the install path and
+ * supplies it here; every relative id is prefixed with it, which is also what
+ * makes the existing implies-cycle check operate on real, installed ids rather
+ * than on names that could collide across two packages.
+ */
+export interface AspectPackageContext {
+  /** The package's own name, quoted in refusals so the reader knows whose rule this is. */
+  packageName: string;
+  /** Install prefix for every id in this package, e.g. `packages/acme/law/style`. */
+  idPrefix: string;
+  /** Aspect directory names the package declares — the set a relative `implies` may name. */
+  aspectDirs: string[];
+  /** This aspect's own directory name inside the package. */
+  relativeId: string;
+  /** Configuration keys this package declares for THIS aspect. Absent block ⇒ empty. */
+  configSchema: Record<string, PackageConfigKeyDef>;
+}
+
+export interface ParseAspectOptions {
+  /** Present when this aspect was installed from a package. */
+  package?: AspectPackageContext;
+  /**
+   * Repository root, used to resolve an adapt's `companion:` path and to check it
+   * is really there. Derived from the aspect directory when the caller omits it,
+   * which is exact for the real `.yggdrasil/aspects/<id>` layout.
+   */
+  projectRoot?: string;
+}
+
+/**
+ * The repository root, worked back from an aspect directory and its id.
+ *
+ * An aspect always lives at `<root>/.yggdrasil/aspects/<id>`, so climbing one
+ * level per id segment and then two more lands on the root. Used only when a
+ * caller does not supply the root explicitly.
+ */
+function deriveProjectRoot(aspectDir: string, id: string): string {
+  const upFromId = id.split('/').map(() => '..');
+  return path.resolve(aspectDir, ...upFromId, '..', '..');
+}
+
 /** Pure helper: returns true if path p would escape the repository root. */
 function escapesRepo(p: string): boolean {
   if (p.startsWith('/')) return true;
@@ -68,6 +118,7 @@ export async function parseAspect(
   aspectDir: string,
   aspectYamlPath: string,
   id: string,
+  options: ParseAspectOptions = {},
 ): Promise<ParseAspectResult> {
   const idTrimmed = id?.trim() ?? '';
   if (!idTrimmed) {
@@ -86,9 +137,9 @@ export async function parseAspect(
   }
 
   const content = await readFile(aspectYamlPath, 'utf-8');
-  const raw = parseYaml(content) as Record<string, unknown>;
+  const rawBase = parseYaml(content) as Record<string, unknown>;
 
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) {
+  if (!rawBase || typeof rawBase !== 'object' || Array.isArray(rawBase)) {
     return {
       ok: false,
       aspectId: idTrimmed,
@@ -102,6 +153,23 @@ export async function parseAspect(
       }],
     };
   }
+
+  // The consumer's adaptation, merged over the rule's own definition BEFORE any
+  // of it is validated. Doing it here — rather than patching an AspectDef
+  // afterwards — is what makes an adapted value indistinguishable from one the
+  // rule declared itself: every check below, and every message it can produce,
+  // sees exactly one definition.
+  const adaptFilePath = path.join(aspectDir, ADAPT_FILENAME);
+  const adaptResult = await parseAspectAdapt(aspectDir, idTrimmed);
+  if (!adaptResult.ok) {
+    return {
+      ok: false,
+      aspectId: idTrimmed,
+      errors: [{ code: adaptResult.code, messageData: adaptResult.messageData }],
+    };
+  }
+  const adapt = adaptResult.value;
+  const raw = adapt.present ? mergeAdaptOverAspect(rawBase, adapt.keys) : rawBase;
 
   if (!raw.name || typeof raw.name !== 'string' || raw.name.trim() === '') {
     return {
@@ -136,7 +204,12 @@ export async function parseAspect(
   }
   const reviewer: AspectReviewerSpec = reviewerResult.value;
 
-  const artifacts = await readArtifacts(aspectDir, ['yg-aspect.yaml']);
+  // The adapt file is excluded from artifacts alongside yg-aspect.yaml. Artifacts
+  // ARE the rule's content — content.md / check.mjs / companion.mjs are read from
+  // here and hashed into the verdict — and the consumer's own adaptation is not
+  // part of what the package published. Left in, it would ride into the rule hash
+  // and make every adapted rule look like a different rule.
+  const artifacts = await readArtifacts(aspectDir, ['yg-aspect.yaml', ADAPT_FILENAME]);
 
   let status: AspectStatus | undefined;
   if (raw.status !== undefined) {
@@ -298,12 +371,50 @@ export async function parseAspect(
           }],
         };
       }
-      implies.push(parsed.id);
+      // Inside a package, an implies target is written RELATIVE — the package
+      // author cannot know the install path, and an id they hard-coded would break
+      // the moment a consumer installed under a different identity. The install
+      // prefix is applied here, so everything downstream (the implied-aspect
+      // existence check, the implies-cycle check) works on real installed ids.
+      let targetId = parsed.id;
+      if (options.package !== undefined) {
+        const pkg = options.package;
+        if (parsed.id.includes('/')) {
+          return {
+            ok: false,
+            aspectId: idTrimmed,
+            errors: [{
+              code: 'package-implies-not-relative',
+              messageData: {
+                what: `Rule '${pkg.relativeId}' in package '${pkg.packageName}' implies '${parsed.id}', which is a full path.`,
+                why: 'A package is written without knowing where it will be installed, so it names its own rules by their directory name alone. A full path would bind the package to one install location.',
+                next: `Change implies[${i}] to just the directory name of the rule inside the package.`,
+              },
+            }],
+          };
+        }
+        if (!pkg.aspectDirs.includes(parsed.id)) {
+          return {
+            ok: false,
+            aspectId: idTrimmed,
+            errors: [{
+              code: 'package-implies-outside-package',
+              messageData: {
+                what: `Rule '${pkg.relativeId}' in package '${pkg.packageName}' implies '${parsed.id}', which is not a rule of that package.`,
+                why: 'A package stands on its own: it may bundle its own rules, but it may not depend on a rule from your repository or from another package, which could be absent, renamed, or something else entirely.',
+                next: `Remove '${parsed.id}' from the implies: of '${pkg.relativeId}', or ask the package author to ship it inside the package.`,
+              },
+            }],
+          };
+        }
+        targetId = `${pkg.idPrefix}/${parsed.id}`;
+      }
+      implies.push(targetId);
       if (parsed.when) {
-        (impliesWhens ??= {})[parsed.id] = parsed.when;
+        (impliesWhens ??= {})[targetId] = parsed.when;
       }
       if (parsed.statusInherit) {
-        (impliesStatusInherit ??= {})[parsed.id] = parsed.statusInherit;
+        (impliesStatusInherit ??= {})[targetId] = parsed.statusInherit;
       }
     }
   }
@@ -509,6 +620,97 @@ export async function parseAspect(
     scope = scopeResult.value;
   }
 
+  // companion: — an aspect may name its companion module instead of shipping one
+  // beside its rule. This is what an adapt uses to point a package's rule at a
+  // resolver written HERE: the package cannot know your repository's layout, so
+  // the hook that decides which of your files the reviewer should also see has to
+  // be yours. The path is repo-relative and must exist NOW, at load time — a
+  // companion discovered missing on the first run of the rule would surface as an
+  // infrastructure failure in the middle of a review instead of as a graph error.
+  let companionPath: string | undefined;
+  let companionSource: string | undefined;
+  if (raw.companion !== undefined) {
+    if (typeof raw.companion !== 'string' || raw.companion.trim() === '') {
+      return {
+        ok: false,
+        aspectId: idTrimmed,
+        errors: [{
+          code: 'aspect-companion-invalid',
+          messageData: {
+            what: `Aspect '${idTrimmed}' declares companion: '${String(raw.companion)}', which is not a path.`,
+            why: 'companion: names one repository-relative module file that resolves the extra files a reviewer should see.',
+            next: `Set companion: to a repo-relative path such as 'tools/my-companion.mjs', or remove the key.`,
+          },
+        }],
+      };
+    }
+    const normalized = toPosixPath(raw.companion.trim());
+    if (escapesRepo(normalized)) {
+      return {
+        ok: false,
+        aspectId: idTrimmed,
+        errors: [{
+          code: 'aspect-companion-escape',
+          messageData: {
+            what: `Aspect '${idTrimmed}' declares companion: '${raw.companion}', which leaves the repository root.`,
+            why: 'A companion runs on every check; one living outside the repository would make the result depend on a file no clone and no CI runner has.',
+            next: `Move the module inside the repository and give companion: a repo-relative path.`,
+          },
+        }],
+      };
+    }
+    const root = options.projectRoot ?? deriveProjectRoot(aspectDir, idTrimmed);
+    try {
+      companionSource = await readFile(path.resolve(root, normalized), 'utf-8');
+    } catch {
+      return {
+        ok: false,
+        aspectId: idTrimmed,
+        errors: [{
+          code: 'aspect-companion-missing',
+          messageData: {
+            what: `Aspect '${idTrimmed}' declares companion: '${normalized}', but there is no readable file there.`,
+            why: 'The companion is loaded on every review this rule produces; a missing one would stop the rule mid-run rather than at load.',
+            next: `Create ${normalized}, or correct the companion: path${adapt.present ? ` in ${adaptFilePath}` : ''}.`,
+          },
+        }],
+      };
+    }
+    companionPath = normalized;
+  }
+
+  // config: — the values this rule's check.mjs / companion.mjs will read through
+  // ctx.config. The package declares the keys and their defaults; the adapt
+  // overrides the ones this repository wants different. Resolved here so the rest
+  // of the system sees one settled record and never has to consult two sources.
+  const configResult = resolveAspectConfig(
+    options.package?.configSchema ?? {},
+    (raw as Record<string, unknown>).config,
+    {
+      aspectId: options.package?.relativeId ?? idTrimmed,
+      packageName: options.package?.packageName ?? '(this repository)',
+      adaptFilePath: adapt.present ? adaptFilePath : aspectYamlPath,
+    },
+  );
+  if (!configResult.ok) {
+    return {
+      ok: false,
+      aspectId: idTrimmed,
+      errors: [{ code: configResult.code, messageData: configResult.messageData }],
+    };
+  }
+  const config = configResult.value;
+
+  // An externally-named companion joins the aspect's artifacts under the name the
+  // rest of the system already looks for. That is what keeps the verdict honest:
+  // the companion hash is taken from the artifacts, so an edit to YOUR module
+  // invalidates the verdicts it helped produce, exactly as an edit to a packaged
+  // companion.mjs would.
+  const allArtifacts = companionSource === undefined
+    ? artifacts
+    : [...artifacts.filter((a) => a.filename !== 'companion.mjs'), { filename: 'companion.mjs', content: companionSource }]
+        .sort((a, b) => a.filename.localeCompare(b.filename));
+
   return {
     ok: true,
     aspect: {
@@ -520,13 +722,15 @@ export async function parseAspect(
       ...(impliesWhens && { impliesWhens }),
       ...(impliesStatusInherit && { impliesStatusInherit }),
       ...(when && { when }),
-      artifacts,
+      artifacts: allArtifacts,
       ...(references && { references }),
+      ...(Object.keys(config).length > 0 && { config }),
+      ...(companionPath !== undefined && { companionPath }),
       ...(status !== undefined && { status }),
       ...(reviewBy !== undefined && { reviewBy }),
       ...(errs !== undefined && { errs }),
       ...(scope !== undefined && { scope }),
-      ...(hasCompanionMjs && { hasCompanion: true }),
+      ...((hasCompanionMjs || companionPath !== undefined) && { hasCompanion: true }),
     },
   };
 }

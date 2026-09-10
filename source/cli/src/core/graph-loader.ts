@@ -12,6 +12,9 @@ import type {
 import { parseConfig, ConfigParseError } from '../io/config-parser.js';
 import { parseNodeYaml } from '../io/node-parser.js';
 import { parseAspect } from '../io/aspect-parser.js';
+import { parsePackageManifest } from '../io/package-manifest-parser.js';
+import { isIgnoredPackageEntry } from '../io/package-store.js';
+import { PACKAGE_FILENAME, PACKAGES_DIR } from '../model/packages.js';
 import { parseFlow } from '../io/flow-parser.js';
 import { parseArchitecture } from '../io/architecture-parser.js';
 import { WhenPredicateInvalidError } from '../utils/file-when-parser.js';
@@ -183,7 +186,7 @@ export async function loadGraph(
     throw err;
   }
 
-  const aspectsLoad = await loadAspects(path.join(yggRoot, 'aspects'));
+  const aspectsLoad = await loadAspects(path.join(yggRoot, 'aspects'), path.dirname(yggRoot));
   const flows = await loadFlows(path.join(yggRoot, 'flows'));
 
   return {
@@ -314,11 +317,18 @@ async function scanModelDirectory(
 
 async function loadAspects(
   aspectsDir: string,
+  projectRoot: string,
 ): Promise<{ aspects: AspectDef[]; parseErrors: Array<{ aspectId: string; code: string; messageData: IssueMessage }> }> {
   const aspects: AspectDef[] = [];
   const parseErrors: Array<{ aspectId: string; code: string; messageData: IssueMessage }> = [];
   try {
     await scanAspectsDirectory(aspectsDir, aspectsDir, aspects, parseErrors);
+    // Installed packages are scanned separately, because a rule that arrived
+    // inside one is read differently: its ids and its implies are relative to the
+    // package, and its configuration comes from the package's own manifest. The
+    // general walker above skips the `packages` directory entirely, so a
+    // repository with no packages takes byte-identical paths through this loader.
+    await scanInstalledPackages(aspectsDir, projectRoot, aspects, parseErrors);
   } catch (err) {
     // Only a filesystem "no usable aspects/ directory" condition is benign
     // empty-state: the directory is absent (ENOENT) or the path is not a
@@ -357,6 +367,12 @@ async function scanAspectsDirectory(
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     if (entry.name.startsWith('.')) continue;
+    // `packages` directly under aspects/ is where installed packages live. It is
+    // NOT a nesting of ordinary aspect directories — every rule under it is read
+    // with its package's manifest in hand — so the general walk stops here and
+    // scanInstalledPackages takes over. Reserved at the aspects root only: a
+    // `packages` directory deeper inside someone's own aspect tree is untouched.
+    if (dirPath === aspectsRoot && entry.name === PACKAGES_DIR) continue;
     // A directory named `drills` holds an aspect's hand-authored regression
     // fixtures (synthetic sources run manually via `yg aspect-test`), NOT nested
     // aspects. Hard-skip it so a fixture that happens to contain a `yg-aspect.yaml`
@@ -364,6 +380,81 @@ async function scanAspectsDirectory(
     // phantom aspect. `drills` is a reserved directory name inside an aspect dir.
     if (entry.name === 'drills') continue;
     await scanAspectsDirectory(path.join(dirPath, entry.name), aspectsRoot, aspects, parseErrors);
+  }
+}
+
+/**
+ * Load every rule installed from a package.
+ *
+ * The layout under `aspects/packages/` is fixed at three levels — owner, repo,
+ * package — because that is what gives a package an identity nobody else can
+ * claim: two forks of the same marketplace install side by side, and neither can
+ * shadow the other's rules. Each package directory is read with its own manifest
+ * in hand, so its rules get their install prefix, their relative implies resolved,
+ * and their configuration defaults.
+ *
+ * A malformed package produces ONE parse error against the package's own id and
+ * contributes no rules, rather than aborting the load: a graph that refuses to
+ * open is a graph nobody can run `yg pack remove` against.
+ */
+async function scanInstalledPackages(
+  aspectsDir: string,
+  projectRoot: string,
+  aspects: AspectDef[],
+  parseErrors: Array<{ aspectId: string; code: string; messageData: IssueMessage }>,
+): Promise<void> {
+  const packagesRoot = path.join(aspectsDir, PACKAGES_DIR);
+  const owners = await readSortedDirOrEmpty(packagesRoot);
+  for (const owner of owners) {
+    if (!owner.isDirectory() || owner.name.startsWith('.')) continue;
+    const repos = await readSortedDirOrEmpty(path.join(packagesRoot, owner.name));
+    for (const repo of repos) {
+      if (!repo.isDirectory() || repo.name.startsWith('.')) continue;
+      const packages = await readSortedDirOrEmpty(path.join(packagesRoot, owner.name, repo.name));
+      for (const pkgDir of packages) {
+        if (!pkgDir.isDirectory() || pkgDir.name.startsWith('.')) continue;
+        const installId = `${owner.name}/${repo.name}/${pkgDir.name}`;
+        const idPrefix = `${PACKAGES_DIR}/${installId}`;
+        const packageRootAbs = path.join(packagesRoot, owner.name, repo.name, pkgDir.name);
+        const manifestPath = path.join(packageRootAbs, PACKAGE_FILENAME);
+
+        const presentDirs = (await readSortedDirOrEmpty(packageRootAbs))
+          .filter((e) => e.isDirectory() && !isIgnoredPackageEntry(e.name))
+          .map((e) => e.name);
+
+        const manifestResult = await parsePackageManifest(manifestPath, presentDirs);
+        if (!manifestResult.ok) {
+          for (const err of manifestResult.errors) {
+            parseErrors.push({ aspectId: idPrefix, code: err.code, messageData: err.messageData });
+          }
+          continue;
+        }
+        const manifest = manifestResult.value;
+
+        for (const aspectDirName of manifest.aspects) {
+          const aspectDir = path.join(packageRootAbs, aspectDirName);
+          const aspectYamlPath = path.join(aspectDir, 'yg-aspect.yaml');
+          const id = `${idPrefix}/${aspectDirName}`;
+          const result = await parseAspect(aspectDir, aspectYamlPath, id, {
+            projectRoot,
+            package: {
+              packageName: manifest.name,
+              idPrefix,
+              aspectDirs: manifest.aspects,
+              relativeId: aspectDirName,
+              configSchema: manifest.config?.[aspectDirName] ?? {},
+            },
+          });
+          if (result.ok) {
+            aspects.push(result.aspect);
+          } else {
+            for (const err of result.errors) {
+              parseErrors.push({ aspectId: result.aspectId, code: err.code, messageData: err.messageData });
+            }
+          }
+        }
+      }
+    }
   }
 }
 

@@ -1,0 +1,11 @@
+name: NoTodoComments
+description: A source file must not carry a TODO — track the work where work is tracked.
+reviewer:
+  type: deterministic
+# Advisory, so a fresh copy of this fixture is green before anything has been
+# filled, while still producing a real pair that takes a real recorded verdict.
+# That is what makes the backward-compatibility proof mean something: the
+# repository has law of its own, not an empty graph that would pass every
+# assertion by having nothing in it.
+status: advisory
+errs: exact

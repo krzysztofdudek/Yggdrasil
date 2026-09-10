@@ -1,0 +1,25 @@
+name: Package Manifest Parser
+type: parser-adapter
+description: "Reads and validates the three documents of package consumption: a
+  marketplace's root manifest, a package's own manifest, and the consuming
+  repository's lock. The two manifests are expected files — the caller named the
+  directory they must be in — so their absence is a refusal that names the
+  missing file; the lock is optional state, and its absence reads as an empty
+  lock, because almost every repository has no packages and making them all
+  carry an empty file would be ceremony. A lock that IS present but malformed is
+  refused loudly rather than read as 'nothing installed', which would silently
+  stop checking every copied rule. Whether the running build satisfies a
+  package's requires.yg is asked separately, at install time only: judging it
+  while loading a graph would strand an installed package as unloadable — and
+  therefore un-removable — after an upgrade."
+relations:
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/packages
+    type: uses
+  - target: cli/utils
+    type: calls
+  - target: cli/io/stores
+    type: calls
+mapping:
+  - source/cli/src/io/package-manifest-parser.ts

@@ -56,6 +56,12 @@ export const STRUCTURAL_CODES = new Set<string>([
   'when-unknown-port',
   // Port-contract codes — blocking architecture-gate errors (documented in the
   // ports-and-relations knowledge topic); belong in the single-source structural set.
+  // A file installed from a package no longer matches what that package
+  // published — edited, missing, or never installed at all. Blocking and
+  // built in: an installed rule's whole value is that it is the rule its
+  // author published, and a check that could be sharpened or suppressed
+  // would not carry that.
+  'package-file-modified',
   'port-undefined',
   'port-missing-aspect',
   'relation-target-forbidden',

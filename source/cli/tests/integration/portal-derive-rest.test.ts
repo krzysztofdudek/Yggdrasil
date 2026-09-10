@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 28, ahead of cli/core/fill at 25', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 28, ahead of cli/entry at 26', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -53,24 +53,22 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // back down to 25. cli/core/check lost the matching edge for the same
     // reason and settled back at 24, not 25.
     //
-    // Below the leader the ranking is now strictly descending, with one tie:
-    // cli/entry is unaffected by the port contract check's removal — the entry
-    // point declares an edge to every command it registers, which is orthogonal
-    // to that check — so it holds steady at 25, level with cli/core/fill's new
-    // value. The ranking breaks the tie by path, and 'cli/core/fill' sorts
-    // before 'cli/entry', so fill keeps the earlier index; cli/entry takes the
-    // slot cli/core/check used to hold, and cli/core/check — now the only one of
-    // the four with no tie to win — drops to the index below it at 24.
-    // cli/portal/engine-api is unchanged at 23, and is pinned by PATH rather
-    // than by index for the same reason aspect-test below is: anchoring a node
-    // to a fixed slot is the brittle anchor a past dogfood entry recorded
-    // against this very file.
+    // Below the leader the ranking is strictly descending. cli/entry moved from
+    // 25 to 26 when the package command was added: the entry point declares an
+    // edge to every command it registers, so it gains exactly one with each new
+    // command — which is the routine growth its own recorded fan-out allowance
+    // exists to absorb. That broke the tie it previously held with cli/core/fill
+    // at 25 and put it above, level with nothing. cli/core/fill is unchanged at
+    // 25 and cli/core/check at 24. cli/portal/engine-api is unchanged at 23, and
+    // is pinned by PATH rather than by index for the same reason aspect-test
+    // below is: anchoring a node to a fixed slot is the brittle anchor a past
+    // dogfood entry recorded against this very file.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
     expect(data.hubs.fanOut[0].count).toBe(28);
-    expect(data.hubs.fanOut[1].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[1].count).toBe(25);
-    expect(data.hubs.fanOut[2].path).toBe('cli/entry');
+    expect(data.hubs.fanOut[1].path).toBe('cli/entry');
+    expect(data.hubs.fanOut[1].count).toBe(26);
+    expect(data.hubs.fanOut[2].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[2].count).toBe(25);
     expect(data.hubs.fanOut[3].path).toBe('cli/core/check');
     expect(data.hubs.fanOut[3].count).toBe(24);

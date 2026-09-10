@@ -3,6 +3,7 @@
 
 import {
   observationKey,
+  hashConfigObservation,
   hashReadObservation,
   hashListObservation,
   hashExistsObservation,
@@ -95,6 +96,20 @@ export class ObservationRecorder {
    */
   recordFlowParticipants(flowName: string, participantIds: string[]): void {
     this._record(observationKey('graph-flow', flowName), hashNodeSetObservation(participantIds));
+  }
+
+  /**
+   * Record a configuration-value observation: the rule read `ctx.config.<key>`
+   * and got `value`.
+   *
+   * Recorded on the READ, never on the declaration, so a repository that adapts a
+   * key no rule consults changes no verdict — and a repository that adapts one a
+   * rule does consult sends exactly that rule's verdicts back for re-judging. A
+   * key the rule asks for that the package never declared folds `undefined`, so
+   * the key later appearing in a package is itself a change.
+   */
+  recordConfig(key: string, value: unknown): void {
+    this._record(observationKey('config', key), hashConfigObservation(value));
   }
 
   /**

@@ -1,0 +1,34 @@
+name: Package File Rail
+type: engine
+description: "The check that keeps a copied rule a copy. It compares every file
+  an installed package recorded against what is on disk and refuses three
+  things: a copied file whose content moved, a copied file that is gone, and a
+  file sitting among the copies that no installed package accounts for. The
+  third is the one with teeth — dropping your own check.mjs beside someone
+  else's is how a rule nobody agreed to would wear a package's name. It is built
+  into the gate rather than written as an aspect on purpose: an aspect has a
+  rule script a repository can sharpen and a marker a repository can suppress,
+  and the whole value of installing law from elsewhere is that what runs is what
+  was published. The consuming repository's own adaptation file is never
+  recorded and never judged here — it is the place a repository is meant to
+  write. The same comparison backs the update and list commands, so what the
+  gate calls tampering and what an update refuses to overwrite can never become
+  two different questions."
+aspects:
+  - posix-paths-output
+  - what-why-next
+relations:
+  - target: cli/core/checks/architecture
+    type: calls
+  - target: cli/io/parsers/packages
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/packages
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/core/checks/packages.ts

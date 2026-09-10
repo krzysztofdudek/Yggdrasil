@@ -1,0 +1,57 @@
+name: PackCommand
+type: command
+description: "Installs rules published by another repository, keeps them exactly
+  as published, and adapts them in a file beside each copy. There is no registry
+  and no resolver: a marketplace is an ordinary git repository with a manifest at
+  its root, a package inside it is a directory of ordinary rules, and identity
+  comes from the URL the user typed — so the same package published from two
+  forks installs side by side and neither can claim the other's name. add copies
+  a package in and records what every file hashed to, writing an adaptation stub
+  beside each rule; update replaces the copy with a newer version and carries the
+  adaptations across byte for byte, refusing outright when the copy has been
+  edited rather than discarding the edit; list says what is installed and whether
+  each copy is still untouched, and names a newer version only when the source
+  can actually be reached; remove deletes the rules and the record, refusing
+  while anything in the graph still attaches one of them, because removing law
+  something still names would fail every check on dangling names rather than on
+  anything real. Adding the same package twice is refused rather than quietly
+  reinstalled: a second install would overwrite the copy, and someone typing it
+  usually means the newer version — which is the other command, the one that
+  checks first and keeps the adaptations. Every fetch runs git through an
+  argument array, never a shell, because a URL and a tag are attacker-chosen
+  text; and a failure quotes at most one line of git's own output inside a
+  sentence this command wrote, never a raw stream or a stack. Installing a
+  package means running its author's code in this process on every check — only
+  what a rule READS is fenced, not the module itself — so the install output says
+  so plainly rather than leaving it to documentation."
+aspects:
+  - provider-redaction-cascade
+relations:
+  - target: cli/cli-version
+    type: calls
+  - target: cli/core/advise
+    type: calls
+  - target: cli/core/checks/packages
+    type: calls
+  - target: cli/io/parsers/packages
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/formatters
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/exit-after-flush
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/packages
+    type: uses
+  - target: cli/model/validation
+    type: uses
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/pack.ts

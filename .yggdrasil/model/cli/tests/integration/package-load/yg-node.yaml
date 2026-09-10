@@ -1,0 +1,22 @@
+name: Integration Tests — Loading An Installed Package
+type: test-suite
+description: "Loads a real directory holding an installed package through the
+  real loader and runs its rule through the real runner. It pins that installed
+  rules carry the install path in their names and have their relative implies
+  resolved, that an adaptation is applied while the keys it does not name stay at
+  the package's defaults, and — the point of the whole design — that a rule's
+  answer follows the setting it reads, that READING the setting is what puts its
+  value into the pair's identity, and that a setting the rule ignores leaves the
+  pair byte for byte as it was."
+aspects: []
+relations:
+  - target: cli/core/loader
+    type: uses
+  - target: cli/core/pair-hash
+    type: uses
+  - target: cli/structure
+    type: uses
+  - target: cli/io/stores
+    type: uses
+mapping:
+  - source/cli/tests/integration/package-load.test.ts

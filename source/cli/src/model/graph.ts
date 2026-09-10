@@ -361,11 +361,31 @@ export interface AspectDef {
    */
   errs?: ErrsDirection;
   /**
-   * True when companion.mjs is present beside the aspect's rule sources.
-   * Valid only when reviewer.type === 'llm'. Set by the loader when companion.mjs
-   * is detected in the aspect directory.
+   * True when the aspect has a companion resolver: a companion.mjs beside its rule
+   * sources, or a `companion:` key naming one elsewhere in the repository.
+   * Valid only when reviewer.type === 'llm'.
    */
   hasCompanion?: boolean;
+  /**
+   * Repository-relative POSIX path of a companion module named by `companion:`
+   * instead of shipped beside the rule. Set only when the key is present — an
+   * aspect with its own companion.mjs leaves this undefined. Its bytes are ALSO
+   * carried in `artifacts` under the name `companion.mjs`, so the companion hash
+   * (and therefore every verdict the resolver contributed to) tracks edits to it
+   * exactly as it tracks edits to a packaged one.
+   */
+  companionPath?: string;
+  /**
+   * Settled configuration this aspect's check.mjs / companion.mjs reads through
+   * `ctx.config`: the declaring package's defaults with the consumer's adapt
+   * applied over them. Absent when the aspect declares no configuration.
+   *
+   * A value here is NOT hashed on its own. It enters a verdict only through the
+   * `config:` observation the runner records when the rule actually READS the key
+   * — so changing a key nothing reads invalidates nothing, and changing one a rule
+   * does read sends exactly that rule's verdicts back to unverified.
+   */
+  config?: Record<string, string | number | boolean>;
 }
 
 // ============================================================

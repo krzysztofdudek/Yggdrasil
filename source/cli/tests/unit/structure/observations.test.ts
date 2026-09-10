@@ -14,6 +14,7 @@ import {
   hashReadObservation,
   hashExistsObservation,
   hashNodeSetObservation,
+  hashConfigObservation,
   MISSING_OBSERVATION,
 } from '../../../src/core/pair-hash.js';
 import { ObservationRecorder } from '../../../src/structure/observations.js';
@@ -738,5 +739,48 @@ describe('runStructureAspect — observation recording', () => {
     });
     const reads = r.observations.filter(([k]) => k.startsWith('read:'));
     expect(reads).toHaveLength(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// config: — a setting the repository chose, recorded when the rule READS it
+// ---------------------------------------------------------------------------
+
+describe('ObservationRecorder — settings a rule read', () => {
+  it('records under the config: prefix', () => {
+    const rec = new ObservationRecorder();
+    rec.recordConfig('threshold', 40);
+    expect(rec.snapshot()).toEqual([[observationKey('config', 'threshold'), hashConfigObservation(40)]]);
+  });
+
+  it('the same setting read twice with the same value is one observation, and clean', () => {
+    const rec = new ObservationRecorder();
+    rec.recordConfig('threshold', 40);
+    rec.recordConfig('threshold', 40);
+    expect(rec.snapshot()).toHaveLength(1);
+    expect(rec.tainted).toBe(false);
+  });
+
+  it('the same setting seen with two values taints the run, and the FIRST value stands', () => {
+    // Same contract as a file that changed mid-run: a torn read is never cached.
+    const rec = new ObservationRecorder();
+    rec.recordConfig('threshold', 40);
+    rec.recordConfig('threshold', 3);
+    expect(rec.tainted).toBe(true);
+    expect(rec.snapshot()).toEqual([[observationKey('config', 'threshold'), hashConfigObservation(40)]]);
+  });
+
+  it('a setting the rule never reads is not recorded at all', () => {
+    // The property the whole design rests on: changing a setting nothing consults
+    // invalidates nothing.
+    const rec = new ObservationRecorder();
+    rec.recordConfig('threshold', 40);
+    expect(rec.snapshot().map(([k]) => k)).not.toContain('config:label');
+  });
+
+  it('a setting the package never declared records as MISSING, not as absent', () => {
+    const rec = new ObservationRecorder();
+    rec.recordConfig('typo', undefined);
+    expect(rec.snapshot()).toEqual([['config:typo', MISSING_OBSERVATION]]);
   });
 });

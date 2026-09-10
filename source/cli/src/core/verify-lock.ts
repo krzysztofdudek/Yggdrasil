@@ -45,6 +45,7 @@ import {
   hashListObservation,
   hashExistsObservation,
   hashNodeSetObservation,
+  hashConfigObservation,
   MISSING_OBSERVATION,
 } from './pair-hash.js';
 import { computeAllowedNodePaths } from '../structure/ctx-graph.js';
@@ -390,7 +391,7 @@ async function verifyLlmPair(
   const stored = storedEntry?.touched ?? [];
   const touchedNow: Array<[string, string]> = [];
   for (const [key] of stored) {
-    touchedNow.push([key, await reObserve(key, graph, pair.nodePath ?? '', projectRoot, readBytes)]);
+    touchedNow.push([key, await reObserve(key, graph, aspect, pair.nodePath ?? '', projectRoot, readBytes)]);
   }
 
   // ── Validity recompute. Requires a resolvable tier; if the tier cannot be
@@ -563,7 +564,7 @@ async function verifyDetPair(
     const touchedNow: Array<[string, string]> = [];
     for (const [key] of stored) {
       // Empty component context for a nodeless unit — see verifyLlmPair's twin comment.
-      const nowHash = await reObserve(key, graph, pair.nodePath ?? '', projectRoot, readBytes);
+      const nowHash = await reObserve(key, graph, aspect, pair.nodePath ?? '', projectRoot, readBytes);
       touchedNow.push([key, nowHash]);
     }
 
@@ -678,6 +679,7 @@ function classifyWithGate(
 async function reObserve(
   key: string,
   graph: Graph,
+  aspect: AspectDef,
   currentNodePath: string,
   projectRoot: string,
   readBytes: (absPath: string) => Promise<Buffer | null>,
@@ -730,6 +732,20 @@ async function reObserve(
       // target = flow name. Fold the SET of the flow's declared participant ids.
       const flow = graph.flows.find((f) => f.name === target || f.path === target);
       return hashNodeSetObservation(flow ? [...flow.nodes] : []);
+    }
+    case 'config': {
+      // target = the configuration key the rule read. The CURRENT value comes off
+      // the aspect as loaded — package defaults with this repository's adapt over
+      // them — so a threshold changed in an adapt reproduces a different hash and
+      // the verdict is unverified. A key that has since vanished from the package
+      // folds MISSING_OBSERVATION, byte-identical to what the recorder folded for
+      // a key that was never declared.
+      const config = aspect.config;
+      const value =
+        config !== undefined && Object.prototype.hasOwnProperty.call(config, target)
+          ? config[target]
+          : undefined;
+      return hashConfigObservation(value);
     }
     /* v8 ignore next 2 -- unknown kind never produced by observationKey() */
     default:

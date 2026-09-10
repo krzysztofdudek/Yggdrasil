@@ -1,0 +1,12 @@
+name: Packages Model
+type: types
+description: "Type declarations for consuming law published by another
+  repository: a marketplace's root manifest, a package's own manifest (its
+  version, the CLI it needs, which directories are rules, and the configuration
+  keys those rules read), and the consuming repository's lock — what was copied
+  in, from where, and what every copied file hashed to. Also the four fixed
+  filenames the feature addresses by name, kept here so the parser, the store,
+  the loader and the rail can never disagree about what a file is called."
+relations: []
+mapping:
+  - source/cli/src/model/packages.ts

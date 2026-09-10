@@ -16,7 +16,12 @@ import {
   type SuppressAnomaly,
   type ArchitectureCutCycle,
   type FamilyCandidatesData,
+  type PackageUpdateSignal,
 } from '../core/advise-nominations.js';
+import { newerThanInstalled } from '../core/advise-package-nominations.js';
+import { parsePackagesLock } from '../io/package-manifest-parser.js';
+import { packagesLockPath } from '../io/package-store.js';
+import { readPackageVersionsCache } from '../io/package-versions-cache.js';
 import { countChurnByNode, countChurnByTypeCoveredFile, ownerOfForGraph, type OwnerOf } from '../core/node-churn.js';
 import { applyDecisions, type VisibleNomination } from '../core/advise-feed.js';
 import { groupUnitsByAspect } from '../core/aspect-health-signals.js';
@@ -658,7 +663,50 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (importedAdvice.length > 0) {
     sources.importedAdvice = importedAdvice;
   }
+  const packageUpdates = await gatherPackageUpdates(graph, projectRoot);
+  if (packageUpdates.length > 0) {
+    sources.packageUpdates = packageUpdates;
+  }
   return { sources, tunnelCount };
+}
+
+/**
+ * What each installed package's source was last seen to publish — read from two
+ * files on disk, NEVER by reaching out.
+ *
+ * This feed is run by an agent every session, and every other signal in it is
+ * derived from the graph, from this repository's git history, or from its own
+ * files, so two runs over an unchanged repository agree with each other. A
+ * question put to another repository does not have that property: its answer can
+ * move under an unchanged repository for reasons that have nothing to do with
+ * it. So the asking happens where a person asks about packages — `yg pack list`
+ * and `yg pack update` write down what a reachable source told them — and this
+ * reads what they wrote, which is a filesystem read like every other one here.
+ *
+ * The two files answer different questions and are read as such: the
+ * installation record says what is installed and at which version, the local
+ * cache says what the source was last seen to publish. A package the cache has
+ * never heard of contributes NOTHING, not an entry with an empty list — the
+ * engine would render an empty list as a finding this run made, and "there is
+ * nothing newer" is not something an unasked source has said.
+ */
+async function gatherPackageUpdates(graph: Graph, projectRoot: string): Promise<PackageUpdateSignal[]> {
+  const lock = await parsePackagesLock(packagesLockPath(projectRoot));
+  if (!lock.ok) return [];
+  const installed = Object.entries(lock.value.packages);
+  if (installed.length === 0) return [];
+
+  const cache = await readPackageVersionsCache(graph.rootPath);
+  const signals: PackageUpdateSignal[] = [];
+  for (const [name, entry] of installed) {
+    const seen = cache.packages[name];
+    if (seen === undefined) continue;
+    const newer = newerThanInstalled(seen.published, entry.version);
+    if (newer.length > 0) {
+      signals.push({ name, installedVersion: entry.version, newerVersions: newer, source: entry.source });
+    }
+  }
+  return signals;
 }
 
 // ---------------------------------------------------------------------------

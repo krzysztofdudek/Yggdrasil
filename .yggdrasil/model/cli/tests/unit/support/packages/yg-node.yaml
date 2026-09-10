@@ -1,0 +1,35 @@
+name: Package Consumption Unit Tests
+type: test-suite
+description: "Unit tests for the three documents a repository needs in order to
+  run law published elsewhere, and for what is done with them: reading and
+  judging a marketplace manifest, a package manifest and the consuming
+  repository's record; merging an adaptation over a rule and refusing what an
+  adaptation may not touch; resolving a package's relative implies to installed
+  names; the rail that compares every recorded file against the copy on
+  disk; and the local cache of what each source was last seen to publish, kept
+  apart from the installation record because the two answer different questions
+  and only one of them is allowed to churn. Each pins the DECISION as much as the parsing — that an absent record is
+  the empty state while a malformed one is refused loudly, that a list in an
+  adaptation replaces rather than combines, that an adaptation refuses an
+  unrecognised key even though a rule's own file tolerates one, and that the
+  adaptation itself is never recorded and never judged."
+aspects: []
+relations:
+  - target: cli/io/parsers/packages
+    type: uses
+  - target: cli/io/parsers/aspect
+    type: uses
+  - target: cli/io/stores
+    type: uses
+  - target: cli/core/checks/packages
+    type: uses
+  - target: cli/core/loader
+    type: uses
+  - target: cli/core/checks/aspects
+    type: uses
+mapping:
+  - source/cli/tests/unit/io/package-manifests.test.ts
+  - source/cli/tests/unit/io/aspect-adapt-merge.test.ts
+  - source/cli/tests/unit/core/package-implies-prefix.test.ts
+  - source/cli/tests/unit/core/package-file-modified.test.ts
+  - source/cli/tests/unit/io/package-versions-cache.test.ts

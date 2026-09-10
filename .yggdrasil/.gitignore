@@ -10,3 +10,4 @@ yg-secrets.yaml
 .yg-fill-divergence.log*
 .type-class-cache/
 *.tmp
+.yg-packages-versions.json

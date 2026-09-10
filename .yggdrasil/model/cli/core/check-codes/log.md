@@ -76,3 +76,5 @@ The three port-contract findings join the set of structural codes because they a
 The single-source structural-code registry drops two port-contract codes that no longer exist: naming no port on a relation is no longer required, so the checks that used to enforce that are gone, and their codes cannot keep standing in a list that claims every entry is actually emitted somewhere.
 ## [2026-09-10T09:18:40.256Z]
 The three codes for a port's recorded contract baseline are removed from the structural code set. The check that could emit them no longer exists, so nothing in a run's report can produce them again.
+## [2026-09-10T15:24:55.223Z]
+Registers the blocking code for a rule installed from another repository that no longer matches what was published. It blocks rather than warns because the value of installing law from elsewhere is entirely that what runs is what its author wrote: a warning would let a quietly edited copy keep passing while claiming someone else's name.

@@ -656,7 +656,7 @@ yg log merge-resolve --node <path>
 | `yg structure` | Read-only structural dashboard: tunnels, module groups, change reach |
 | `yg find "<query>"` | Natural-language graph search |
 | `yg aspects` [`--health`] / `log add` / `log read` | List aspects (`--health` adds the per-rule health row); `log` is a rule's own history |
-| `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` / `import` | Read-only attention feed; never gates (`--json` for the machine-readable form) |
+| `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` / `import` | Read-only attention feed; never gates (`--json` for the machine-readable form). Never reaches outside the repository — a newer package version is reported from what `yg pack list` last recorded |
 | `yg incident add` / `read` | The committed incident ledger — what escaped enforcement |
 | `yg flows` | List flows |
 | `yg owner --file <path>` | Quick ownership lookup |
@@ -1409,12 +1409,13 @@ non-zero.
 
 ---
 
-## Setup (3)
+## Setup (4)
 
 | Command | Purpose |
 |---------|---------|
 | `yg init` | Initialize or reconfigure |
 | `yg adopt <proposal-dir>` | Accept a proposed graph into this repository |
+| `yg pack add` / `update` / `list` / `remove` | Install rules published by another repository, and adapt them beside the copy |
 | `yg prime` [`--digest`] | Print the full agent operating manual fresh from the installed CLI (`--digest` prints only the committed digest block) |
 
 ### `yg init`
@@ -1590,3 +1591,50 @@ warning compares against the installed CLI.
 
 Like `yg schemas`, it works without a `.yggdrasil/` present — an agent can read
 the manual before the project has a graph at all.
+
+### `yg pack`
+
+Installs rules published by another repository. There is no registry: a
+marketplace is an ordinary git repository with `yg-marketplace.yaml` at its root,
+and the identity a package is filed under comes from the URL you type. Full
+guide: [Packages](/packages).
+
+```bash
+yg pack add <url-or-path>#<package>[@<version>] [--as <owner>/<repo>]
+yg pack update [<package>] [--to <version>]
+yg pack list
+yg pack remove <package>
+```
+
+- `add` — copies the package into `.yggdrasil/aspects/packages/<owner>/<repo>/<package>/`,
+  records what every copied file hashed to in `.yggdrasil/yg-packages.yaml`, and
+  writes a `yg-aspect.adapt.yaml` beside each installed rule. `--as` supplies the
+  publishing identity when the source cannot say for itself (a local directory
+  with no git origin). Installing a package that is already installed is refused
+  — use `update`.
+- `update` — replaces the copy with a newer version and carries your adaptations
+  across byte for byte. Refuses, naming files, while a copied file has been
+  edited. Rules whose content changed go back to unverified.
+- `list` — what is installed, which version, from where, and whether each copy is
+  still untouched. Names newer versions only when the source answers; an
+  unreachable source produces silence, never a claim that you are current. What a
+  reachable source says is also recorded in a local, never-committed cache, which
+  is what lets `yg advise` mention a newer version without reaching outside the
+  repository itself. `update` refreshes the same cache while it is already
+  talking to the source.
+- `remove` — deletes the rules and the record. Refuses while anything in the
+  graph still attaches one of them, listing what does.
+
+**Installing a package runs its author's code.** A rule's script runs in your
+process on every `yg check`. What is sandboxed is what a rule may READ through
+the context it is handed, not the module itself.
+
+Machine-readable documents this command reads and writes:
+
+| Document | Schema | Where |
+|---|---|---|
+| Marketplace manifest | `yg-marketplace/1` | the source repository's root |
+| Package manifest | `yg-package/1` | each package directory in the source |
+| Installed-package record | `yg-packages/1` | `.yggdrasil/yg-packages.yaml` |
+| Per-rule adaptation | (no schema key) | `.yggdrasil/aspects/packages/<owner>/<repo>/<package>/<rule>/yg-aspect.adapt.yaml` |
+| Last-seen published versions | `yg-package-versions/1` | `.yggdrasil/.yg-packages-versions.json` (local, never committed) |

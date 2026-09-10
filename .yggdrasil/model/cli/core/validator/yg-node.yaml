@@ -6,6 +6,8 @@ aspects:
   - posix-paths-output
   - what-why-next
 relations:
+  - target: cli/core/checks/packages
+    type: calls
   - target: cli/core/context
     type: calls
   - target: cli/model/graph

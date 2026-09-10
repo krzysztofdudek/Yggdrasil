@@ -3,9 +3,18 @@ type: parser-adapter
 description: "Parses yg-aspect.yaml files — reads the aspect definition from
   disk and returns a typed AspectDef. Includes scope: block parsing (per
   node|file, files filter via file-when grammar, aggregate restriction) and
-  cross-hint validation for wrong-family predicate atoms."
+  cross-hint validation for wrong-family predicate atoms. It also applies a
+  consuming repository's adaptation: a rule installed from a package is copied in
+  verbatim and never edited, so everything the repository wants different is
+  written in a yg-aspect.adapt.yaml beside the copy and merged over the rule's own
+  definition BEFORE any of it is validated — which is what makes an adapted value
+  indistinguishable from one the rule declared itself. The adapt reader sits in
+  this node rather than beside the package manifests because it is read on every
+  aspect, package or not, and because merging it is part of parsing an aspect."
 relations:
   - target: cli/model/graph
+    type: uses
+  - target: cli/model/packages
     type: uses
   - target: cli/utils
     type: calls
@@ -15,3 +24,4 @@ relations:
     type: calls
 mapping:
   - source/cli/src/io/aspect-parser.ts
+  - source/cli/src/io/aspect-adapt-parser.ts

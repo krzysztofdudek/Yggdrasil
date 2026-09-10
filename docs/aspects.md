@@ -141,6 +141,16 @@ An LLM rule has two ways to bring in supporting material:
 
 The two mechanisms are independent. Static references are identical for every unit; companion files vary per unit. Both count toward the tier's `max_prompt_chars` prompt-size limit. See [Reviewers](/reviewers) for authoring depth on both.
 
+Both are for LLM rules only. A rule with a `check.mjs` has no reviewer to put supporting material in front of, so `references:` on one is refused. A deterministic rule that needs a value from outside itself takes it through `ctx.config` — see [Packages](/packages#settings-a-rule-reads-ctx-config), where a rule's settings are declared by its package and set by the repository installing it, and where reading one makes it part of that rule's verdict.
+
+A rule can also **name** its companion instead of shipping one beside itself, with a repo-relative `companion:` path in `yg-aspect.yaml`:
+
+```yaml
+companion: tools/pair-scenario-with-spec.mjs
+```
+
+The named module is loaded exactly as a sibling `companion.mjs` would be, and its content is folded into the verdict the same way — editing it re-opens the verdicts it helped produce. This exists for a rule you did not write: a rule [installed from a package](/packages) cannot know your repository's layout, so `companion:` in that rule's `yg-aspect.adapt.yaml` is how you point it at a resolver that does. The path must exist when the graph loads; a missing one is a graph error, not a surprise in the middle of a review.
+
 ## Organizing rules in directories
 
 A rule's id is its folder path under the rules directory, so ids can nest: `logging/audit` lives at `logging/audit/`. A folder with no rule file of its own is just a grouper. Use nesting to keep a growing rule set legible — group related rules under a shared prefix instead of a flat list. Nesting is naming only; it does not make one rule inherit another. What a rule applies to comes from where it's attached (see [How a rule reaches your code](#how-a-rule-reaches-your-code)), never from where its files sit.

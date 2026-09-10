@@ -4,6 +4,7 @@ import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE } from '../templates/default-confi
 import { installRules } from '../templates/platform.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { FILL_DIVERGENCE_GITIGNORE_LINE } from '../io/debug-log-writer.js';
+import { PACKAGE_VERSIONS_CACHE_FILENAME } from '../io/package-versions-cache.js';
 
 // ---------------------------------------------------------------------------
 // .gitattributes — mark the committed lock as generated
@@ -88,6 +89,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
  *    - `.yg-events.jsonl` — the fill stage's append-only verdict-events telemetry sidecar
  *    - `.yg-fill-divergence.log` — the fill stage's convergence-sentinel evidence dump
  *    - `.feature-field.json` — `yg check`'s silent structural-deviation attention index
+ *    - `.yg-packages-versions.json` — what each installed package's source was last seen to publish
  *    - `*.tmp`            — an atomic write's half-finished temp file, orphaned by a hard kill
  *  This is the single source of truth for what init writes into the local
  *  gitignore (both fresh init and every --upgrade). Paths are relative to the
@@ -120,6 +122,14 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // maintains (files structurally unusual among their node's same-language peers); never
   // committed. The writer (core/feature-index-write) self-ensures this same line as a backstop.
   '.feature-field.json',
+  // What each installed package's source was last seen to publish: a local,
+  // rebuildable cache the package commands write while they are already talking
+  // to a source, so the attention feed can mention a newer version without
+  // reaching outside the repository itself. Knowledge about somebody else's
+  // repository rather than this one — it would churn on every listing and two
+  // machines would legitimately disagree — so it is never committed. The writer
+  // (io/package-versions-cache) self-ensures this same line as a backstop.
+  PACKAGE_VERSIONS_CACHE_FILENAME,
   // Half-finished atomic write (io/atomic-write.ts writes `<target>.<pid>-<n>-<hex>.tmp`
   // then renames). Its own cleanup covers a thrown error, but nothing can run on a hard
   // kill — a SIGKILL, an out-of-memory abort, a machine losing power — so a temp can

@@ -37,6 +37,8 @@ import {
   hashReadObservation,
   hashListObservation,
   hashExistsObservation,
+  hashConfigObservation,
+  MISSING_OBSERVATION,
   tierHashView,
 } from '../../../src/core/pair-hash.js';
 
@@ -573,5 +575,93 @@ describe('companionHashFor', () => {
 describe('tierHashViewFromTier', () => {
   it('folds ONLY the tier name — the resolved provider/model config is not a verdict input', () => {
     expect(tierHashViewFromTier('standard')).toEqual({ name: 'standard' });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// config: — the value a rule read from its repository's settings
+// ---------------------------------------------------------------------------
+
+describe('a setting a rule read, as part of its verdict', () => {
+  const BASE: DetHashInput = {
+    aspectId: 'packages/acme/law/demo/rule-a',
+    scope: undefined,
+    nodePath: 'billing/cancel',
+    ruleHash: 'e'.repeat(64),
+    files: [['src/billing/cancel.ts', 'f'.repeat(64)]],
+    touched: [],
+    verdict: 'approved',
+  };
+
+  it('encodes like the seven kinds that came before it', () => {
+    expect(observationKey('config', 'threshold')).toBe('config:threshold');
+  });
+
+  it('a recorded setting changes the hash', () => {
+    const withConfig = computeDetInputHash({
+      ...BASE,
+      touched: [['config:threshold', hashConfigObservation(3)]],
+    });
+    expect(withConfig).not.toBe(computeDetInputHash(BASE));
+  });
+
+  it('a different VALUE of the same setting is a different hash', () => {
+    const three = computeDetInputHash({ ...BASE, touched: [['config:threshold', hashConfigObservation(3)]] });
+    const forty = computeDetInputHash({ ...BASE, touched: [['config:threshold', hashConfigObservation(40)]] });
+    expect(three).not.toBe(forty);
+  });
+
+  it('tells a number apart from the same digits as a string', () => {
+    // Canonical JSON, not String(value): a threshold retyped is a real change to
+    // what the rule was handed, and folding them together would let it pass as
+    // the same verdict.
+    expect(hashConfigObservation(1)).not.toBe(hashConfigObservation('1'));
+  });
+
+  it('a setting nothing declares folds the same MISSING token a vanished file does', () => {
+    // So the setting later APPEARING in a package is itself a change, and can
+    // never be confused with a real value.
+    expect(hashConfigObservation(undefined)).toBe(MISSING_OBSERVATION);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The backward-compatibility assertion for the config: prefix.
+//
+// BREAKING-CHANGE GUARD. Adding an observation kind must not move a single
+// stored verdict, and the reason it cannot is structural rather than incidental:
+// no entry written before the kind existed can carry a key with its prefix, so
+// every such entry's `touched` set — and therefore its hash — is byte for byte
+// what it was. Deliberately a test of its own so the reason survives with it.
+// ---------------------------------------------------------------------------
+
+describe('adding the config: kind moved no stored verdict', () => {
+  it('a deterministic hash with no config: key is unchanged from the pinned golden', () => {
+    // The SAME input the pin above uses, recomputed here after the config: kind
+    // exists — which is the whole assertion: nothing about it moved.
+    const virtualDet = computeDetInputHash({
+      aspectId: 'own-file-rule',
+      scope: { per: 'file' },
+      ruleHash: 'r'.repeat(64),
+      files: [['src/leaf/a.ts', 'f'.repeat(64)]],
+      touched: [],
+      verdict: 'approved',
+    });
+    expect(virtualDet).toBe(golden.virtualDeterministic);
+  });
+
+  it('the golden fixture itself still carries exactly the four pinned values', () => {
+    // If this fails, the fixture was edited — which is the thing this whole
+    // change promised not to require.
+    expect(Object.keys(golden).filter((k) => !k.startsWith('_')).sort()).toEqual([
+      'hashListObservationGolden',
+      'llmInputHash',
+      'virtualDeterministic',
+      'virtualLlm',
+    ]);
+  });
+
+  it('an LLM hash is likewise untouched', () => {
+    expect(computeLlmInputHash(BASE_LLM_INPUT)).toBe(golden.llmInputHash);
   });
 });

@@ -24,6 +24,7 @@ import { registerSuppressionsCommand } from './cli/suppressions.js';
 import { registerSimulateCommand } from './cli/simulate.js';
 import { registerPortalCommand } from './cli/portal.js';
 import { registerStructureCommand } from './cli/structure.js';
+import { registerPackCommand } from './cli/pack.js';
 import { registerPrimeCommand } from './cli/prime.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -71,6 +72,7 @@ registerSuppressionsCommand(program);
 registerSimulateCommand(program);
 registerPortalCommand(program);
 registerStructureCommand(program);
+registerPackCommand(program);
 registerPrimeCommand(program);
 
 process.on('unhandledRejection', (reason) => {

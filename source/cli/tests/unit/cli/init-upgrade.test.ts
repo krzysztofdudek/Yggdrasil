@@ -9,7 +9,7 @@ const LOCK_LINE = '/.yggdrasil/yg-lock.*.json linguist-generated=true';
 const ADVISE_LINE = '/.yggdrasil/advise-decisions.jsonl merge=union';
 const IMPORTED_LINE = '/.yggdrasil/advise-imported.jsonl merge=union';
 const EVENTS_LINE = '/.yggdrasil/yg-events.llm.jsonl merge=union';
-const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '*.tmp'];
+const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '.yg-packages-versions.json', '*.tmp'];
 
 async function scaffoldExistingYgg(projectRoot: string, version: string): Promise<string> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
@@ -473,8 +473,12 @@ describe('ensureYggdrasilGitignore', () => {
     await ensureYggdrasilGitignore(yggRoot);
 
     const gi = await readFile(path.join(yggRoot, '.gitignore'), 'utf-8');
-    // The missing lines (.ast-cache/, .type-class-cache/, .debug.log, .yg-lock.deterministic.json, .yg-events.jsonl*, .yg-fill-divergence.log*, .feature-field.json, *.tmp) were appended once; existing content preserved.
-    expect(gi).toBe('custom-local-state\nyg-secrets.yaml\n.symbols-cache/\n.ast-cache/\n.type-class-cache/\n.debug.log\n.yg-lock.deterministic.json\n.yg-events.jsonl*\n.yg-fill-divergence.log*\n.feature-field.json\n*.tmp\n');
+    // Every line the file lacked was appended once, in order, and the unrelated
+    // content it already had is untouched. Built from the same list the installer
+    // reads, so adding a line to that list does not silently make this assertion
+    // describe a file the installer no longer writes.
+    const appended = GITIGNORE_LINES.filter((l) => l !== 'yg-secrets.yaml' && l !== '.symbols-cache/');
+    expect(gi).toBe(`custom-local-state\nyg-secrets.yaml\n.symbols-cache/\n${appended.join('\n')}\n`);
     for (const line of GITIGNORE_LINES) {
       const occurrences = gi.split('\n').filter((l) => l.trim() === line).length;
       expect(occurrences).toBe(1);
