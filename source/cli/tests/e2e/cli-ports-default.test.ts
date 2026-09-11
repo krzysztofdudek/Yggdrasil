@@ -2,7 +2,7 @@
 // CLI E2E — the default port (D1c: every relation enters through a named
 // port; `default` exists implicitly on every node, declared or not).
 //
-// Numbered scenarios (task 002):
+// Numbered scenarios:
 //   1.  a relation with no portNames, to a node declaring port `charge`
 //       -> yg check exit 0 (the former port-missing-consumes no longer exists)
 //   2.  a relation `portNames: [default]`, to a node with NO port at all
