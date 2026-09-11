@@ -18,6 +18,8 @@ On disk the lock is a **triad** of files under `.yggdrasil/`, partitioned by the
 
 Every one of the three follows the same rule: **when a file's section is empty, the file is not written at all** (and an existing empty one is removed). An absent file reads back as empty state, so a repo only ever carries the lock files it actually needs.
 
+All three are written by rename, which is why `chmod 444` on a lock file does not stop Yggdrasil rewriting it — see [A read-only file does not stop a write](/concurrency#a-read-only-file-does-not-stop-a-write).
+
 The split is purely on disk, and purely by reviewer kind — there is no per-entry flag that decides which file an entry lands in. In memory the lock is a single object, `{ version, verdicts, nodes }`, exactly as before; loading reads the triad back into that one shape, and writing partitions it back out.
 
 Because the deterministic verdicts live only in a gitignored cache, a fresh checkout starts with no deterministic cache. Plain `yg check` then reports those pairs as **unverified** until something rematerializes them — `yg check --approve --only-deterministic` (described below) rebuilds the cache for free, no key required.
