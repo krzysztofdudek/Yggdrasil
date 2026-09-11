@@ -43,6 +43,46 @@ export interface CoverageConfig {
   typeLevel: boolean;
 }
 
+/**
+ * Which of the three agent-rules artifacts this repository wants Yggdrasil to
+ * write and to keep in sync (`AGENTS.md`'s digest block, the `@AGENTS.md`
+ * import line in `CLAUDE.md`, and the standalone `.clinerules/yggdrasil.md`
+ * copy). Every field defaults to TRUE — absent config, an absent block, or an
+ * absent key all mean "as today": the artifact is installed by `yg init` and
+ * its drift is reported by `yg check`. This is an OPT-OUT, never a change of
+ * default: an existing adopter who never touches the key sees byte-identical
+ * behavior.
+ *
+ * `false` means the artifact is not this repository's business at all —
+ * `yg init` does not write it and the committed-digest gate does not look at
+ * it, so a repo that deliberately carries no Cline copy stops being told its
+ * `.clinerules/yggdrasil.md` is missing. An artifact already on disk is left
+ * exactly where it is (deleting a committed file on an unrelated `--upgrade`
+ * run is the one irreversible move here); `yg init` names it instead, so the
+ * user can remove it themselves.
+ */
+export interface RulesArtifactsConfig {
+  /** Write and check the `AGENTS.md` digest block. */
+  agentsMd: boolean;
+  /** Write and check the `@AGENTS.md` import line in `CLAUDE.md`. */
+  claudeMd: boolean;
+  /** Write and check the standalone `.clinerules/yggdrasil.md` copy. */
+  clinerules: boolean;
+}
+
+/**
+ * Today's behavior, and what every key absent from a repo's `rules_artifacts`
+ * block resolves to: all three artifacts installed and checked. Lives beside
+ * the interface (like DEFAULT_PORT_NAME) rather than in the parser, because
+ * the pure check engine falls back to it too and may not reach the io layer
+ * for a constant.
+ */
+export const DEFAULT_RULES_ARTIFACTS: RulesArtifactsConfig = {
+  agentsMd: true,
+  claudeMd: true,
+  clinerules: true,
+};
+
 export interface YggConfig {
   version?: string;
   quality?: QualityConfig;
@@ -73,6 +113,18 @@ export interface YggConfig {
   events?: { committed_llm?: boolean };
   /** Coverage scope. Absent ⇒ DEFAULT_COVERAGE (whole repo required = today's behavior). */
   coverage?: CoverageConfig;
+  /**
+   * Which agent-rules artifacts this repo carries. Absent ⇒
+   * DEFAULT_RULES_ARTIFACTS (all three written and checked = today's
+   * behavior).
+   *
+   * COMMITTED-ONLY, like `coverage.typeLevel` and `progressive`: read from the
+   * committed `yg-config.yaml` before the gitignored `yg-secrets.yaml` overlay
+   * is merged. Which files the repository carries is a decision the whole team
+   * shares — a local, unshared file must never stop `yg init` from writing a
+   * teammate's artifact, nor silence a drift warning only on one machine.
+   */
+  rulesArtifacts?: RulesArtifactsConfig;
   /**
    * Progressive-mode settings. Absent ⇒ progressive mode is OFF and every run
    * behaves exactly as it always has. `reference` names the committed branch or

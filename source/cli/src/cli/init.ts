@@ -8,7 +8,9 @@ import { DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRules, DEPRECATED_PLATFORMS, type InstallReport } from '../templates/platform.js';
 import { loadGraph, CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
 import { blockingUnmappedPaths } from '../core/check-coverage-tiers.js';
-import { DEFAULT_COVERAGE } from '../io/config-parser.js';
+import { DEFAULT_COVERAGE, readRulesArtifactsConfig } from '../io/config-parser.js';
+import type { RulesArtifactsConfig } from '../model/graph.js';
+import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check-codes.js';
 import { cliVersion } from './cli-version.js';
 import type { ReviewerProvider } from '../model/graph.js';
@@ -18,6 +20,7 @@ import { abortOnUnexpectedError, abortUnlessYggdrasilExists } from './preamble.j
 import { MIGRATIONS } from '../migrations/index.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { debugWrite } from '../utils/debug-log.js';
+import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_DIR } from '../utils/rules-artifact-names.js';
 import {
   assertNotCancelled,
   ALL_PROVIDERS,
@@ -31,6 +34,7 @@ import {
   createYggdrasilStructure,
   ensureGitattributes,
   ensureYggdrasilGitignore,
+  writeRulesArtifactsConfig,
 } from './init-scaffold.js';
 
 // The .gitattributes / .gitignore maintenance helpers now live in the scaffold
@@ -81,6 +85,110 @@ function noticeDeprecatedPlatform(platform: string | undefined): void {
   })}\n`));
 }
 
+// ---------------------------------------------------------------------------
+// Which agent-rules artifacts this project wants
+// ---------------------------------------------------------------------------
+
+/**
+ * The three opt-out flags as Commander delivers them. A `--no-x` option is
+ * modelled as the negation of a boolean that defaults to TRUE, so the only
+ * value that carries information is `false` ("the user passed --no-x on this
+ * invocation"); `true` is indistinguishable from "not passed" and must never
+ * be read as a request to switch an artifact back ON — that would let a bare
+ * `yg init --upgrade` silently undo a choice recorded in the config. Turning
+ * one back on is done in the config file, where the choice lives.
+ */
+interface RulesArtifactFlags {
+  agentsMd?: boolean;
+  claudeMd?: boolean;
+  clinerules?: boolean;
+}
+
+/** The artifacts these flags switch OFF; a flag that was not passed says nothing. */
+function flagDisables(flags: RulesArtifactFlags): Partial<RulesArtifactsConfig> {
+  const off: Partial<RulesArtifactsConfig> = {};
+  if (flags.agentsMd === false) off.agentsMd = false;
+  if (flags.claudeMd === false) off.claudeMd = false;
+  if (flags.clinerules === false) off.clinerules = false;
+  return off;
+}
+
+/** Were any of the three opt-out flags passed on this invocation? */
+function hasArtifactFlags(flags: RulesArtifactFlags): boolean {
+  return Object.keys(flagDisables(flags)).length > 0;
+}
+
+/**
+ * Apply the one cross-artifact invariant the config parser also enforces: the
+ * CLAUDE.md artifact is nothing but an `@AGENTS.md` import line, so it cannot
+ * stay on once AGENTS.md is off — that would write a pointer to a file
+ * Yggdrasil no longer maintains, and would record a configuration the parser
+ * refuses, turning the very next `yg check` red over a flag this command
+ * accepted.
+ */
+function normalizeRulesArtifacts(c: RulesArtifactsConfig): RulesArtifactsConfig {
+  return c.agentsMd ? c : { ...c, claudeMd: false };
+}
+
+/**
+ * The artifact choice in force for a FRESH bootstrap: the defaults (all three)
+ * with this invocation's opt-out flags applied. There is no config to consult
+ * yet — the scaffold writes the first one — so flags are the only possible
+ * input, and the scaffold records what they chose.
+ */
+function freshRulesArtifacts(flags: RulesArtifactFlags): RulesArtifactsConfig {
+  return normalizeRulesArtifacts({ ...DEFAULT_RULES_ARTIFACTS, ...flagDisables(flags) });
+}
+
+/**
+ * The artifact choice in force for an EXISTING project: what its committed
+ * `.yggdrasil/yg-config.yaml` already says, with this invocation's opt-out
+ * flags applied on top and written straight back into that file.
+ *
+ * This is how `yg init` learns about a choice made before it ran — the answer
+ * comes from the committed config, the same file `yg check` reads, so the
+ * installer and the gate can never disagree about which artifacts this
+ * repository carries. Persisting a flag immediately is what keeps them in
+ * agreement on every LATER run too: a choice that lived only in one
+ * invocation's argv would be undone by the next `yg init --upgrade`.
+ */
+async function existingRulesArtifacts(
+  yggRoot: string,
+  flags: RulesArtifactFlags,
+): Promise<RulesArtifactsConfig> {
+  const committed = await readRulesArtifactsConfig(yggRoot);
+  const effective = normalizeRulesArtifacts({ ...committed, ...flagDisables(flags) });
+  const changed = (Object.keys(effective) as Array<keyof RulesArtifactsConfig>)
+    .some((k) => effective[k] !== committed[k]);
+  if (changed) await writeRulesArtifactsConfig(yggRoot, effective);
+  return effective;
+}
+
+/**
+ * What this run is about to install, for the interactive bootstrap's opening
+ * note. The rules themselves are identical for every agent — the only choice
+ * is which of the three files carry them, so the note names the files rather
+ * than pretending there is a platform decision to make, and says where an
+ * opt-out is recorded so it can be undone in the same place.
+ */
+function renderPlannedArtifacts(artifacts: RulesArtifactsConfig): string {
+  const on: string[] = [];
+  const off: string[] = [];
+  // Names come from the shared artifact-name module, never retyped here: the
+  // installer and the drift check once disagreed about a filename that each
+  // spelled out for itself, and a repo whose rules were silently unreadable
+  // was the result.
+  (artifacts.agentsMd ? on : off).push(`${AGENTS_FILENAME} digest`);
+  (artifacts.claudeMd ? on : off).push(`${CLAUDE_FILENAME} import`);
+  (artifacts.clinerules ? on : off).push(CLINERULES_DIR);
+  const installed = on.length > 0
+    ? `Universal agent rules will be installed (${on.join(' + ')}) — every agent reads the same files, so there is nothing to choose here beyond which files to carry.`
+    : 'No agent-rules files will be installed — this project switched all three off.';
+  return off.length === 0
+    ? installed
+    : `${installed}\n  Left out at your request: ${off.join(', ')}. Recorded in .yggdrasil/yg-config.yaml under rules_artifacts — edit it there to change your mind.`;
+}
+
 /**
  * Render a plain, user-facing summary of what installRules() did this run —
  * the paths it wrote/updated, any legacy per-platform artifacts it cleaned
@@ -90,7 +198,9 @@ function noticeDeprecatedPlatform(platform: string | undefined): void {
  * menu, and the existing-repo reconfigure path. `written` is empty on a
  * no-op re-run — rendered as "already up to date", never as a failure.
  */
-function renderArtifactSummary(report: Pick<InstallReport, 'written' | 'removed'>): string {
+function renderArtifactSummary(
+  report: Pick<InstallReport, 'written' | 'removed'> & Partial<Pick<InstallReport, 'skipped' | 'leftover'>>,
+): string {
   const lines: string[] = [];
   if (report.written.length > 0) {
     lines.push(`Agent rules installed/updated: ${report.written.join(', ')}`);
@@ -101,6 +211,16 @@ function renderArtifactSummary(report: Pick<InstallReport, 'written' | 'removed'
   if (lines.length === 0) {
     lines.push('Agent rules already up to date — nothing changed.');
   }
+  // The opt-out is stated on every run that honors it, not only the run that
+  // set it: an artifact silently absent is exactly the confusion the config
+  // key exists to end, and this is the one place that says which file the
+  // project chose not to have and where that choice is written down.
+  if (report.skipped && report.skipped.length > 0) {
+    lines.push(`Not installed — switched off in .yggdrasil/yg-config.yaml (rules_artifacts): ${report.skipped.join(', ')}`);
+  }
+  if (report.leftover && report.leftover.length > 0) {
+    lines.push(`Still on disk from an earlier install, now maintained by nobody: ${report.leftover.join(', ')} — delete by hand if you no longer want it.`);
+  }
   lines.push('All changes are plain files — review them with git diff before committing.');
   return lines.join('\n');
 }
@@ -109,7 +229,10 @@ function renderArtifactSummary(report: Pick<InstallReport, 'written' | 'removed'
 // Fresh init
 // ---------------------------------------------------------------------------
 
-async function freshInit(projectRoot: string): Promise<void> {
+async function freshInit(
+  projectRoot: string,
+  artifacts: RulesArtifactsConfig = DEFAULT_RULES_ARTIFACTS,
+): Promise<void> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
 
   p.intro(chalk.bold('Yggdrasil Setup'));
@@ -120,7 +243,7 @@ async function freshInit(projectRoot: string): Promise<void> {
     '  and a reviewer verifies compliance after every change.',
   );
 
-  p.log.info('Universal agent rules will be installed (AGENTS.md digest + CLAUDE.md import + .clinerules) — every agent reads the same files, so there is nothing to choose here.');
+  p.log.info(renderPlannedArtifacts(artifacts));
 
   // Reviewer — the LLM that verifies aspects against source code
   p.log.step('Reviewer provider');
@@ -135,7 +258,7 @@ async function freshInit(projectRoot: string): Promise<void> {
   const reviewerConfig = await runReviewerConfigFlow();
 
   // Create structure + write config
-  await createYggdrasilStructure(projectRoot, yggRoot, cliVersion());
+  await createYggdrasilStructure(projectRoot, yggRoot, cliVersion(), artifacts);
 
   if (reviewerConfig) {
     await writeReviewerConfig(yggRoot, reviewerConfig);
@@ -224,13 +347,13 @@ async function persistReviewerConfig(
 export async function freshInitNonInteractive(
   projectRoot: string,
   yggRoot: string,
-  opts: { provider: ReviewerProvider; model?: string; endpoint?: string },
+  opts: { provider: ReviewerProvider; model?: string; endpoint?: string; rulesArtifacts?: RulesArtifactsConfig },
 ): Promise<void> {
   // Validate the reviewer flags BEFORE scaffolding, so a bad flag combo exits
   // without leaving a partial .yggdrasil/ behind; scaffold, then write the tier
   // (writeReviewerConfig merges into the yg-config.yaml the scaffold just wrote).
   const resolved = resolveReviewerOrExit(opts);
-  await createYggdrasilStructure(projectRoot, yggRoot, cliVersion());
+  await createYggdrasilStructure(projectRoot, yggRoot, cliVersion(), opts.rulesArtifacts);
   await persistReviewerConfig(yggRoot, resolved);
   await ensureGitattributes(projectRoot);
 
@@ -269,8 +392,9 @@ const KEYLESS_WORKING_NOW =
 export async function freshInitKeyless(
   projectRoot: string,
   yggRoot: string,
+  artifacts: RulesArtifactsConfig = DEFAULT_RULES_ARTIFACTS,
 ): Promise<void> {
-  await createYggdrasilStructure(projectRoot, yggRoot, cliVersion());
+  await createYggdrasilStructure(projectRoot, yggRoot, cliVersion(), artifacts);
   await ensureGitattributes(projectRoot);
   process.stdout.write(chalk.green(
     `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n` +
@@ -289,6 +413,10 @@ export interface VersionUpgradeResult {
   rulesPaths: string[];
   /** Legacy per-platform artifacts cleaned up this run (prose labels for partial edits). */
   rulesRemoved: string[];
+  /** Artifacts this project's `rules_artifacts` config switches off, so this run did not write them. */
+  rulesSkipped: string[];
+  /** Switched-off artifacts nonetheless still on disk from an earlier install. */
+  rulesLeftover: string[];
   migrationActions: string[];
   migrationWarnings: string[];
   /** True when a migration withheld the version bump (incomplete upgrade). */
@@ -409,6 +537,7 @@ async function currentExcludedCount(projectRoot: string): Promise<number> {
 export async function runVersionUpgrade(
   projectRoot: string,
   yggRoot: string,
+  artifacts?: RulesArtifactsConfig,
 ): Promise<VersionUpgradeResult> {
   // Captured BEFORE the migration runs — the exclusion-boundary check needs
   // the version this project started this run at, not the one it lands on.
@@ -425,7 +554,14 @@ export async function runVersionUpgrade(
     await writeFile(architecturePath, DEFAULT_ARCHITECTURE, 'utf-8');
   }
 
-  const report = await installRules(projectRoot, cliVersion());
+  // An upgrade refreshes what this project HAS, so the artifacts it carries are
+  // read from its own committed config whenever the caller did not already
+  // resolve them from flags. Reading it here — rather than only where a flag is
+  // parsed — is what makes the choice stick: every later `yg init --upgrade`,
+  // from any path and with no flags at all, honors the file instead of
+  // reinstating an artifact the project opted out of.
+  const rulesArtifacts = artifacts ?? await readRulesArtifactsConfig(yggRoot);
+  const report = await installRules(projectRoot, cliVersion(), rulesArtifacts);
 
   // Maintain the lock's .gitattributes line on every upgrade so existing
   // adopters pick it up (both the interactive and non-interactive --upgrade
@@ -441,6 +577,8 @@ export async function runVersionUpgrade(
   return {
     rulesPaths: report.written,
     rulesRemoved: report.removed,
+    rulesSkipped: report.skipped,
+    rulesLeftover: report.leftover,
     migrationActions,
     migrationWarnings,
     withheld,
@@ -466,7 +604,14 @@ export async function runVersionUpgrade(
 export async function existingInitNonInteractive(
   projectRoot: string,
   yggRoot: string,
-  opts: { platform?: string; provider?: ReviewerProvider; model?: string; endpoint?: string },
+  opts: {
+    platform?: string;
+    provider?: ReviewerProvider;
+    model?: string;
+    endpoint?: string;
+    /** Already-resolved artifact choice (committed config + this run's flags). Absent ⇒ read the committed config. */
+    rulesArtifacts?: RulesArtifactsConfig;
+  },
 ): Promise<void> {
   if (opts.provider) {
     const resolved = resolveReviewerOrExit({
@@ -480,7 +625,11 @@ export async function existingInitNonInteractive(
 
   if (opts.platform) {
     noticeDeprecatedPlatform(opts.platform);
-    const report = await installRules(projectRoot, cliVersion());
+    const report = await installRules(
+      projectRoot,
+      cliVersion(),
+      opts.rulesArtifacts ?? await readRulesArtifactsConfig(yggRoot),
+    );
     process.stdout.write(chalk.green(`${renderArtifactSummary(report)}\n`));
     const blocked = await predictCoverageBlockers(projectRoot, managedRootFiles(report));
     if (blocked.length > 0) {
@@ -532,7 +681,7 @@ async function existingInit(projectRoot: string): Promise<void> {
     p.outro(
       chalk.green(
         `Migrated from ${currentVersion} to ${landedVersion}.\n` +
-        renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved }),
+        renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover }),
       ),
     );
     return;
@@ -556,7 +705,7 @@ async function existingInit(projectRoot: string): Promise<void> {
       if (result.exclusionNotice) {
         p.log.warning(result.exclusionNotice);
       }
-      p.outro(chalk.green(renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved })));
+      p.outro(chalk.green(renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover })));
       break;
     }
     case 'reviewer': {
@@ -593,7 +742,20 @@ export function registerInitCommand(program: Command): void {
     .option('--model <name>', 'Reviewer model (defaults to sonnet for claude-code; required otherwise)')
     .option('--endpoint <url>', 'Reviewer endpoint (ollama defaults localhost; required for openai-compatible)')
     .option('--no-reviewer', 'Bootstrap a fresh project without a reviewer — script rules, dependency control and the CI gate work with no key; add a judge later with --provider')
-    .action(async (options: { upgrade?: boolean; platform?: string; provider?: string; model?: string; endpoint?: string; reviewer?: boolean }) => {
+    .option('--no-agents-md', 'Do not install or check the AGENTS.md digest block (also switches off the CLAUDE.md import, which is an import OF that file). Recorded in .yggdrasil/yg-config.yaml under rules_artifacts')
+    .option('--no-claude-md', 'Do not install or check the @AGENTS.md import line in CLAUDE.md. Recorded in .yggdrasil/yg-config.yaml under rules_artifacts')
+    .option('--no-clinerules', 'Do not install or check .clinerules/yggdrasil.md. Recorded in .yggdrasil/yg-config.yaml under rules_artifacts')
+    .action(async (options: {
+      upgrade?: boolean;
+      platform?: string;
+      provider?: string;
+      model?: string;
+      endpoint?: string;
+      reviewer?: boolean;
+      agentsMd?: boolean;
+      claudeMd?: boolean;
+      clinerules?: boolean;
+    }) => {
       try {
         const projectRoot = process.cwd();
         const yggRoot = path.join(projectRoot, '.yggdrasil');
@@ -647,7 +809,15 @@ export function registerInitCommand(program: Command): void {
             })}\n`));
             process.exit(1);
           }
-          const result = await runVersionUpgrade(projectRoot, yggRoot);
+          // Flags are resolved against — and written back into — the committed
+          // config BEFORE the upgrade installs anything, so `--upgrade
+          // --no-clinerules` is a durable choice rather than a one-run effect
+          // the next upgrade would undo.
+          const result = await runVersionUpgrade(
+            projectRoot,
+            yggRoot,
+            await existingRulesArtifacts(yggRoot, options),
+          );
 
           // A migration that WITHHELD the version bump (bumpVersion: false)
           // leaves yg-config.yaml at its prior version — an INCOMPLETE upgrade.
@@ -681,7 +851,7 @@ export function registerInitCommand(program: Command): void {
           }
 
           process.stdout.write(
-            `${renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved })}\n`,
+            `${renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover })}\n`,
           );
           // An upgrading project that requires its whole tree gets these files
           // as new blocking errors on its very next check. Say so here, where
@@ -741,6 +911,21 @@ export function registerInitCommand(program: Command): void {
         }
 
         if (exists) {
+          // An artifact opt-out is its own reason to act on an existing
+          // project, independent of every other flag and of whether there is a
+          // terminal: record the choice, then reinstall so the artifacts on
+          // disk match it from this moment on (the run also reports which file
+          // it skipped, and whether an earlier install left one behind). Done
+          // BEFORE the dispatch below so it composes with --provider, and so a
+          // bare `yg init --no-clinerules` is never answered with "nothing to
+          // do".
+          const artifactOptOut = hasArtifactFlags(options);
+          if (artifactOptOut) {
+            const artifacts = await existingRulesArtifacts(yggRoot, options);
+            const report = await installRules(projectRoot, cliVersion(), artifacts);
+            process.stdout.write(chalk.green(`${renderArtifactSummary(report)}\n`));
+          }
+
           // --platform alone must NOT change whether the interactive menu
           // appears — it carries no operational meaning anymore (mirrors the
           // fresh-repo branch below). Only an explicit --provider forces the
@@ -758,6 +943,12 @@ export function registerInitCommand(program: Command): void {
               model: options.model,
               endpoint: options.endpoint,
             });
+          } else if (artifactOptOut) {
+            // The opt-out above WAS this run's reconfiguration, and it already
+            // reported what it did. Opening the menu on top of it would ask
+            // again for a decision just made, and the no-TTY notice below would
+            // claim nothing happened on a run that rewrote the config.
+            noticeDeprecatedPlatform(options.platform);
           } else if (isTTY()) {
             noticeDeprecatedPlatform(options.platform);
             await existingInit(projectRoot);
@@ -776,6 +967,11 @@ export function registerInitCommand(program: Command): void {
           // which of the three bootstrap paths runs next.
           noticeDeprecatedPlatform(options.platform);
 
+          // Nothing exists to read a choice from yet, so the flags on THIS
+          // invocation are the whole of it; the scaffold records them in the
+          // config it writes, and every later run reads them from there.
+          const artifacts = freshRulesArtifacts(options);
+
           if (options.provider) {
             // Non-interactive fresh bootstrap WITH a judge (Docker / devcontainer / CI).
             ensureKnownProvider(options.provider);
@@ -783,20 +979,21 @@ export function registerInitCommand(program: Command): void {
               provider: options.provider as ReviewerProvider,
               model: options.model,
               endpoint: options.endpoint,
+              rulesArtifacts: artifacts,
             });
           } else if (noReviewer) {
             // Explicitly asked for no reviewer — honored in a terminal exactly
             // as it is without one, so starting keyless never depends on
             // detaching stdin or on any deprecated flag.
-            await freshInitKeyless(projectRoot, yggRoot);
+            await freshInitKeyless(projectRoot, yggRoot, artifacts);
           } else if (isTTY()) {
-            await freshInit(projectRoot);
+            await freshInit(projectRoot, artifacts);
           } else {
             // Bare non-interactive fresh init: keyless universal bootstrap —
             // no prompt is possible (no TTY) and no reviewer flag was given,
             // so scaffold the graph and install the agent rules with no judge
             // configured. A judge can be added any time: yg init --provider <name>.
-            await freshInitKeyless(projectRoot, yggRoot);
+            await freshInitKeyless(projectRoot, yggRoot, artifacts);
           }
         }
       } catch (err) {

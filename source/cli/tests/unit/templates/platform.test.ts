@@ -517,6 +517,86 @@ describe('installRules — InstallReport', () => {
   });
 });
 
+/**
+ * Per-artifact opt-out (`rules_artifacts` in the project's config): an artifact
+ * switched off is not written, not created, and not touched — and the report
+ * says so, including when an earlier install left the file behind. The default
+ * (no third argument) is all three, so every existing adopter's install is
+ * byte-identical to what it was.
+ */
+describe('installRules — rules_artifacts opt-out', () => {
+  const ALL_ON = { agentsMd: true, claudeMd: true, clinerules: true };
+  const exists = (p: string) => existsSync(path.join(root, p));
+
+  it('an explicit all-on config writes exactly what the default does', async () => {
+    await installRules(root, V, ALL_ON);
+    expect(read('AGENTS.md')).toContain(YGGDRASIL_START);
+    expect(read('CLAUDE.md')).toBe('@AGENTS.md\n');
+    expect(read('.clinerules/yggdrasil.md')).toBe(digestBlockBody(V));
+  });
+
+  it('a disabled .clinerules is never created, and the other two are untouched by the change', async () => {
+    const report = await installRules(root, V, { ...ALL_ON, clinerules: false });
+    expect(exists('.clinerules/yggdrasil.md')).toBe(false);
+    expect(exists('.clinerules')).toBe(false);
+    expect(read('AGENTS.md')).toContain(YGGDRASIL_START);
+    expect(read('CLAUDE.md')).toBe('@AGENTS.md\n');
+    expect(report.written).toEqual(['AGENTS.md', 'CLAUDE.md']);
+    expect(report.skipped).toEqual(['.clinerules/yggdrasil.md']);
+    expect(report.leftover).toEqual([]);
+    // The install does not own a file it does not write.
+    expect(report.managed).toEqual(['AGENTS.md', 'CLAUDE.md']);
+  });
+
+  it('a disabled AGENTS.md/CLAUDE.md leaves both files exactly as the user left them', async () => {
+    write('AGENTS.md', '# Mine\n\nHand-written only.\n');
+    write('CLAUDE.md', '# Notes\n');
+    const report = await installRules(root, V, { agentsMd: false, claudeMd: false, clinerules: true });
+    expect(read('AGENTS.md')).toBe('# Mine\n\nHand-written only.\n');
+    expect(read('CLAUDE.md')).toBe('# Notes\n');
+    expect(read('.clinerules/yggdrasil.md')).toBe(digestBlockBody(V));
+    expect(report.written).toEqual(['.clinerules/yggdrasil.md']);
+    expect(report.skipped).toEqual(['AGENTS.md', 'CLAUDE.md']);
+    // Both were already there, so both are reported as no longer maintained.
+    expect(report.leftover).toEqual(['AGENTS.md', 'CLAUDE.md']);
+  });
+
+  it('a switched-off artifact already on disk is reported, never deleted or rewritten', async () => {
+    await installRules(root, V);
+    const before = read('.clinerules/yggdrasil.md');
+    const report = await installRules(root, V, { ...ALL_ON, clinerules: false });
+    expect(exists('.clinerules/yggdrasil.md')).toBe(true);
+    expect(read('.clinerules/yggdrasil.md')).toBe(before);
+    expect(report.leftover).toEqual(['.clinerules/yggdrasil.md']);
+  });
+
+  it('a switched-off artifact that was never there is skipped without being called a leftover', async () => {
+    const report = await installRules(root, V, { agentsMd: false, claudeMd: false, clinerules: false });
+    expect(report.written).toEqual([]);
+    expect(report.managed).toEqual([]);
+    expect(report.skipped).toEqual(['AGENTS.md', 'CLAUDE.md', '.clinerules/yggdrasil.md']);
+    expect(report.leftover).toEqual([]);
+    expect(exists('AGENTS.md')).toBe(false);
+    expect(exists('CLAUDE.md')).toBe(false);
+  });
+
+  // The legacy sweep is about files RETIRED installers wrote — no artifact
+  // choice asks to keep those, so opting out of all three must not strand them.
+  it('still sweeps every legacy per-platform artifact with all three switched off', async () => {
+    write('.cursor/rules/yggdrasil.mdc', 'old');
+    const report = await installRules(root, V, { agentsMd: false, claudeMd: false, clinerules: false });
+    expect(exists('.cursor/rules/yggdrasil.mdc')).toBe(false);
+    expect(report.removed).toEqual(['.cursor/rules/yggdrasil.mdc']);
+  });
+
+  it('reports a skipped artifact in the repo\'s own case spelling', async () => {
+    write('Agents.md', 'user stuff\n');
+    const report = await installRules(root, V, { agentsMd: false, claudeMd: false, clinerules: true });
+    expect(report.skipped).toEqual(['Agents.md', 'CLAUDE.md']);
+    expect(report.leftover).toEqual(['Agents.md']);
+  });
+});
+
 describe('DEPRECATED_PLATFORMS', () => {
   it('lists exactly the thirteen retired platform names, without duplicates', () => {
     expect([...DEPRECATED_PLATFORMS].sort()).toEqual([

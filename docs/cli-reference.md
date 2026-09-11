@@ -599,7 +599,7 @@ is not governed by aspect status — it is an error whatever a rule's
 | `implies-status-inherit-invalid` | error | `status_inherit:` is not `strictest` or `own-default`. |
 | `aspect-review-by-malformed` | error | A rule's `review_by:` is present but not a calendar-valid bare `YYYY-MM-DD` date (`2027-13-01`, `2027-02-30`). Fired only on the rule that carries the field. |
 | `aspect-review-overdue` | warning | A rule's standing `review_by:` date has passed — it is running unreviewed. Status-independent; never writes a verdict and never blocks. Renew or retire the rule; never change the date without the owner's approval. |
-| `rules-digest-stale` | warning | The committed agent-rules digest (the `AGENTS.md` block, `.clinerules/yggdrasil.md`, or the `CLAUDE.md` `@AGENTS.md` import) is missing, hand-edited, from an older CLI, or duplicated. Never cached, never suppressible — recomputed live on every check. Fix: `yg init --upgrade`. |
+| `rules-digest-stale` | warning | The committed agent-rules digest (the `AGENTS.md` block, `.clinerules/yggdrasil.md`, or the `CLAUDE.md` `@AGENTS.md` import) is missing, hand-edited, from an older CLI, or duplicated. Never cached, never suppressible — recomputed live on every check. Only artifacts this project carries are compared: an artifact switched off under `rules_artifacts` in `yg-config.yaml` is never mentioned. Fix: `yg init --upgrade`. |
 | `coverage-required-shadowed` | warning | A plain (non-glob) `coverage.required` root sits entirely inside a plain `coverage.excluded` root — exclusion is absolute, so every file under that required root is silenced before the required/advisory split ever runs, and the required line can never make anything block. Fix: remove the required line, or narrow the excluded root so it no longer contains it. |
 | `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components, OR — under `coverage.type_level` — while it could actually run (a `per: file` rule, not a whole-unit one) on at least one file enforced by its architecture type alone; a whole-unit rule stays reported dead even once a file matches its type, since it can never produce a verdict there. Usually fixed by correcting the attach sites / `when`, or setting `status: draft` until the component or type it targets exists — but when the rule is whole-unit and the type's only instances are such type-covered files, there is no `when` at fault: give a matching file a component of its own, or make the rule file-level. When the type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`, and points at `yg check` and the aspect files. |
 | `architecture-default-aspect-unreachable` | warning | An architecture type's own default rule is effective on zero instances OF THAT TYPE, even though the rule may be live on other types — its own `when` (or the attach-site `when`) filters it back off the exact type that declares it. Silent while the type has no instances at all; under `coverage.type_level`, a file enforced by the type alone counts as an instance, but only lets a `per: file` default count as reached there — a whole-unit default stays reported unreachable. Usually fixed by widening/removing the `when` so it reaches the type, or dropping the default if it should not apply there — but when the type's only instances are such type-covered files and the default is whole-unit, there is no `when` at fault: give a matching file a component of its own, or make the default file-level. When that type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`. |
@@ -1433,9 +1433,11 @@ combination below also runs non-interactively (Docker, devcontainer, CI) —
 flags are authoritative, so a fully-specified command never opens the wizard,
 even from a terminal.
 
-A fresh `yg init` (no `.yggdrasil/` yet) always installs the same universal
+A fresh `yg init` (no `.yggdrasil/` yet) installs the same universal
 agent-rules artifacts: a summary block inside markers in `AGENTS.md`, a
-`@AGENTS.md` import line added to `CLAUDE.md`, and `.clinerules/yggdrasil.md`.
+`@AGENTS.md` import line added to `CLAUDE.md`, and `.clinerules/yggdrasil.md` —
+unless the project says otherwise (see "Choosing which rules files to carry"
+below).
 On an already-adopted repo those artifacts are refreshed only when you ask for
 it — `yg init --upgrade` is the documented way; the interactive menu's
 "Refresh agent rules" option does the same thing. Running
@@ -1474,6 +1476,27 @@ yg init --upgrade                                             # refresh agent ru
 With neither flag and a TTY, the interactive reconfiguration menu opens;
 with neither flag and no TTY, the command reports there is nothing to do
 rather than guessing.
+
+**Choosing which rules files to carry:**
+
+```bash
+yg init --no-clinerules             # fresh or existing project
+yg init --upgrade --no-clinerules   # refresh the rules and record the opt-out
+```
+
+The three artifacts carry identical rules; the only question is which files an
+agent will find them in, and that is the project's call. `--no-agents-md`,
+`--no-claude-md` and `--no-clinerules` each switch one off: `yg init` stops
+writing it and `yg check`'s `rules-digest-stale` warning stops asking for it.
+Every flag records the choice in `.yggdrasil/yg-config.yaml` under
+`rules_artifacts`, so it holds on every later run and reaches the team through
+the commit — on an existing project the flag is applied to the committed config
+and the rules are reinstalled in the same run, with or without a TTY. There is
+no flag that switches one back on: that is an edit to `rules_artifacts`, where
+the decision lives. `--no-agents-md` switches the CLAUDE.md import off too (it
+is an import *of* AGENTS.md). A file already on disk is never deleted — the run
+names it and leaves removing it to you. Full reference:
+`yg knowledge read configuration`.
 
 `--platform <name>` no longer selects anything, but it is still accepted
 anywhere it used to be, purely for backward compatibility, and always prints

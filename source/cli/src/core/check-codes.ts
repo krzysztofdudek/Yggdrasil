@@ -332,7 +332,10 @@ export function baseCodeOfOutsideTwin(code: string): string | undefined {
  *     matches its own sha256 anchor), duplicated, or older than the installed
  *     CLI's canonical digest. Computed ONLY from injected
  *     RunCheckOptions.rulesArtifacts (the CLI boundary reads the three files and
- *     supplies the canonical hash; core does no fs of its own). Pure read-only
+ *     supplies the canonical hash; core does no fs of its own), and only for the
+ *     artifacts the project's own `rules_artifacts` config keeps ON — an
+ *     artifact a repository switched off is never compared, since no
+ *     `yg init --upgrade` would ever bring it into sync. Pure read-only
  *     warning, deliberately outside every blocking set — it never writes the
  *     lock, changes a verdict, or gates `--approve`. Emitted by checkDigestGate.
  *

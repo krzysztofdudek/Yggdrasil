@@ -1217,8 +1217,9 @@ regardless of which agent CLI or IDE is in use: a hash-anchored digest block
 inside markers in \`AGENTS.md\`, a \`@AGENTS.md\` import line added to
 \`CLAUDE.md\` (Claude Code does not read \`AGENTS.md\` natively), and
 \`.clinerules/yggdrasil.md\` (Cline's native rules location). There is no
-platform question anymore — a fresh init always writes all three artifacts;
-on an existing repo they are refreshed only on request (see below).
+platform question anymore — a fresh init writes all three artifacts unless the
+project opts one out (see "Choosing which rules files to carry" below); on an
+existing repo they are refreshed only on request.
 
 \`\`\`bash
 yg init                        # interactive wizard (TTY only) — asks only for the reviewer
@@ -1249,6 +1250,26 @@ judgment (LLM) rule exists.
 already has a \`.yggdrasil/\` — it chooses how to bootstrap a NEW project and
 never removes a reviewer an existing one configured.
 
+**Choosing which rules files to carry:**
+
+\`\`\`bash
+yg init --no-clinerules             # fresh or existing project
+yg init --upgrade --no-clinerules   # refresh the rules and record the opt-out
+\`\`\`
+
+\`--no-agents-md\`, \`--no-claude-md\` and \`--no-clinerules\` each switch one
+artifact off: \`yg init\` stops writing it, and \`yg check\`'s
+\`rules-digest-stale\` warning stops asking for it. All three carry identical
+rules, so this only decides which files an agent finds them in. The choice is
+recorded in \`.yggdrasil/yg-config.yaml\` under \`rules_artifacts\` and holds on
+every later run, for everyone who has the commit — on an existing project the
+flag is applied to the committed config and the rules reinstalled in the same
+run, TTY or not. No flag turns one back ON; that is an edit to
+\`rules_artifacts\` (see \`yg knowledge read configuration\`).
+\`--no-agents-md\` switches the CLAUDE.md import off with it, since that
+artifact is an import OF AGENTS.md. A file already on disk is never deleted:
+the run names it and leaves the removal to you.
+
 **Existing repo (\`.yggdrasil/\` already present):**
 
 \`\`\`bash
@@ -1256,7 +1277,8 @@ yg init --provider <name> [--model <m>] [--endpoint <url>]   # configure/replace
 yg init --upgrade                                             # refresh agent rules + .gitattributes; lift version bookkeeping
 \`\`\`
 
-\`--upgrade\` always refreshes the three agent-rules artifacts to the
+\`--upgrade\` always refreshes the agent-rules artifacts this project carries
+(every one whose \`rules_artifacts\` key is on — by default all three) to the
 installed CLI's current content and sweeps away every artifact a retired
 per-platform installer used to write — the CLI used to install a different
 rules file per agent (13 installers in total); \`--upgrade\` removes all of

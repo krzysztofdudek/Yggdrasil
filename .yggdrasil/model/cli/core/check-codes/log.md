@@ -78,3 +78,5 @@ The single-source structural-code registry drops two port-contract codes that no
 The three codes for a port's recorded contract baseline are removed from the structural code set. The check that could emit them no longer exists, so nothing in a run's report can produce them again.
 ## [2026-09-10T15:24:55.223Z]
 Registers the blocking code for a rule installed from another repository that no longer matches what was published. It blocks rather than warns because the value of installing law from elsewhere is entirely that what runs is what its author wrote: a warning would let a quietly edited copy keep passing while claiming someone else's name.
+## [2026-09-11T14:51:17.393Z]
+The catalogue entry for the committed-digest warning now records that the comparison covers only the agent-rules artifacts a project keeps switched on, since an artifact a repository has opted out of is never compared and therefore never reported.

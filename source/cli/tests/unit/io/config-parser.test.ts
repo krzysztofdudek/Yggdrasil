@@ -3,7 +3,7 @@ import { writeFile, mkdir, rm, readdir, mkdtemp } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
-import { parseConfig, ConfigParseError, DEFAULT_COVERAGE } from '../../../src/io/config-parser.js';
+import { parseConfig, ConfigParseError, DEFAULT_COVERAGE, readRulesArtifactsConfig } from '../../../src/io/config-parser.js';
 import type { YggConfig, LlmConfig } from '../../../src/model/graph.js';
 
 /** Bridge: extract the first (and typically only) tier from the new ReviewerConfig structure */
@@ -1203,6 +1203,151 @@ quality:
       } finally {
         await rm(dir, { recursive: true, force: true });
       }
+    });
+  });
+
+  // rules_artifacts — which of the three agent-rules files the project carries.
+  // Absent block, and every absent key inside it, means TRUE: the artifact is
+  // installed and checked, which is what every project did before the key
+  // existed. Strict when present (a typo must not silently leave an artifact
+  // switched on) and committed-only (which files a repository carries is a
+  // team-wide decision a gitignored overlay must not change).
+  describe('rules_artifacts', () => {
+    /** Write a config body (already including a version) to a fresh tmp dir and parse it. */
+    async function parseWith(body: string): Promise<YggConfig> {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-rules-artifacts-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      await writeFile(filePath, `version: "5.1.0"\n${body}`, 'utf-8');
+      try {
+        return await parseConfig(filePath, { skipSecretsOverlay: true });
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('an absent block means all three artifacts (unchanged behavior)', async () => {
+      const cfg = await parseWith('');
+      expect(cfg.rulesArtifacts).toEqual({ agentsMd: true, claudeMd: true, clinerules: true });
+    });
+
+    it('a partial block defaults every key it omits to true', async () => {
+      const cfg = await parseWith('rules_artifacts:\n  clinerules: false\n');
+      expect(cfg.rulesArtifacts).toEqual({ agentsMd: true, claudeMd: true, clinerules: false });
+    });
+
+    it('an empty block is the same as no block at all', async () => {
+      const cfg = await parseWith('rules_artifacts: {}\n');
+      expect(cfg.rulesArtifacts).toEqual({ agentsMd: true, claudeMd: true, clinerules: true });
+    });
+
+    it('reads every key explicitly set', async () => {
+      const cfg = await parseWith(
+        'rules_artifacts:\n  agents_md: false\n  claude_md: false\n  clinerules: true\n',
+      );
+      expect(cfg.rulesArtifacts).toEqual({ agentsMd: false, claudeMd: false, clinerules: true });
+    });
+
+    it('rejects an unknown key (a typo must not silently leave the artifact on)', async () => {
+      await expect(parseWith('rules_artifacts:\n  clinrules: false\n'))
+        .rejects.toMatchObject({ code: 'config-rules-artifacts-unknown-key' });
+      await expect(parseWith('rules_artifacts:\n  clinrules: false\n'))
+        .rejects.toThrow(/clinrules/);
+    });
+
+    it('rejects a non-boolean value', async () => {
+      await expect(parseWith('rules_artifacts:\n  clinerules: "no"\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
+      await expect(parseWith('rules_artifacts:\n  clinerules: "no"\n'))
+        .rejects.toThrow(/rules_artifacts\.clinerules must be a boolean/);
+    });
+
+    it('rejects a non-mapping block', async () => {
+      await expect(parseWith('rules_artifacts: false\n'))
+        .rejects.toMatchObject({ code: 'config-invalid' });
+      await expect(parseWith('rules_artifacts:\n  - clinerules\n'))
+        .rejects.toThrow(/must be a mapping/);
+    });
+
+    // CLAUDE.md's entire content is an `@AGENTS.md` import, so keeping it on
+    // while AGENTS.md is off asks for a pointer to a file nothing maintains.
+    it('refuses claude_md on while agents_md is off', async () => {
+      await expect(parseWith('rules_artifacts:\n  agents_md: false\n'))
+        .rejects.toMatchObject({ code: 'config-rules-artifacts-orphan-import' });
+      await expect(parseWith('rules_artifacts:\n  agents_md: false\n  claude_md: true\n'))
+        .rejects.toThrow(/claude_md on while agents_md is off/);
+      // Both off together is the legal way to say it.
+      const cfg = await parseWith('rules_artifacts:\n  agents_md: false\n  claude_md: false\n');
+      expect(cfg.rulesArtifacts).toEqual({ agentsMd: false, claudeMd: false, clinerules: true });
+    });
+
+    it('cannot be switched off by the secrets overlay (committed value wins)', async () => {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-rules-artifacts-'));
+      const filePath = path.join(dir, 'yg-config.yaml');
+      try {
+        await writeFile(filePath, 'version: "5.1.0"\n', 'utf-8');
+        await writeFile(path.join(dir, 'yg-secrets.yaml'), 'rules_artifacts:\n  clinerules: false\n', 'utf-8');
+        const cfg = await parseConfig(filePath);
+        expect(cfg.rulesArtifacts?.clinerules).toBe(true);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  // readRulesArtifactsConfig — the one-block read `yg init` does before it
+  // installs anything, in a project whose full config may not be loadable yet.
+  describe('readRulesArtifactsConfig', () => {
+    async function inTmp(fn: (dir: string) => Promise<void>): Promise<void> {
+      const dir = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-read-artifacts-'));
+      try {
+        await fn(dir);
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    }
+
+    it('a directory with no config at all reads as all three on', async () => {
+      await inTmp(async (dir) => {
+        expect(await readRulesArtifactsConfig(dir)).toEqual({ agentsMd: true, claudeMd: true, clinerules: true });
+      });
+    });
+
+    it('reads the committed block, defaulting the keys it omits', async () => {
+      await inTmp(async (dir) => {
+        await writeFile(path.join(dir, 'yg-config.yaml'), 'version: "5.1.0"\nrules_artifacts:\n  clinerules: false\n', 'utf-8');
+        expect(await readRulesArtifactsConfig(dir)).toEqual({ agentsMd: true, claudeMd: true, clinerules: false });
+      });
+    });
+
+    // The point of the helper: an unrelated configuration problem must not stop
+    // the command whose job is to repair the project.
+    it('a config too broken to parse still yields the defaults rather than throwing', async () => {
+      await inTmp(async (dir) => {
+        await writeFile(path.join(dir, 'yg-config.yaml'), 'reviewer: [this is: not, valid: yaml\n', 'utf-8');
+        expect(await readRulesArtifactsConfig(dir)).toEqual({ agentsMd: true, claudeMd: true, clinerules: true });
+      });
+      await inTmp(async (dir) => {
+        await writeFile(path.join(dir, 'yg-config.yaml'), '', 'utf-8');
+        expect(await readRulesArtifactsConfig(dir)).toEqual({ agentsMd: true, claudeMd: true, clinerules: true });
+      });
+    });
+
+    // ... but a malformed rules_artifacts block is the one case where guessing
+    // would write files the user explicitly asked not to have.
+    it('a malformed rules_artifacts block still throws', async () => {
+      await inTmp(async (dir) => {
+        await writeFile(path.join(dir, 'yg-config.yaml'), 'rules_artifacts:\n  clinrules: false\n', 'utf-8');
+        await expect(readRulesArtifactsConfig(dir))
+          .rejects.toMatchObject({ code: 'config-rules-artifacts-unknown-key' });
+      });
+    });
+
+    it('ignores a gitignored overlay entirely — it reads the committed file only', async () => {
+      await inTmp(async (dir) => {
+        await writeFile(path.join(dir, 'yg-config.yaml'), 'version: "5.1.0"\n', 'utf-8');
+        await writeFile(path.join(dir, 'yg-secrets.yaml'), 'rules_artifacts:\n  clinerules: false\n', 'utf-8');
+        expect((await readRulesArtifactsConfig(dir)).clinerules).toBe(true);
+      });
     });
   });
 

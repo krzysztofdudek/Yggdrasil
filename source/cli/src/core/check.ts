@@ -312,9 +312,11 @@ export async function runCheck(
   // committed rules-distribution artifacts against the installed CLI's
   // canonical digest. INJECTED snapshot, same seam as nowUtc — core reads no
   // files itself, so an absent snapshot skips the gate entirely. Never blocks,
-  // never touches the lock.
+  // never touches the lock. The project's own `rules_artifacts` settings ride
+  // along: an artifact this repository switched off is not compared at all
+  // (absent settings ⇒ all three compared, unchanged).
   const digestGateIssues: CheckIssue[] = options?.rulesArtifacts
-    ? checkDigestGate(options.rulesArtifacts)
+    ? checkDigestGate(options.rulesArtifacts, graph.config.rulesArtifacts)
         .filter(vi => vi.code)
         .map(vi => ({ ...vi, code: vi.code! }))
     : [];

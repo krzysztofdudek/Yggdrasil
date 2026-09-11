@@ -26,6 +26,16 @@ debug: false
 
 auto_approve: false
 
+# Which agent-rules files this project carries — all three unless you say
+# otherwise, and the rules are identical in each: the AGENTS.md digest block
+# (agents_md), the @AGENTS.md import line in CLAUDE.md (claude_md, needs
+# agents_md), and the standalone .clinerules/yggdrasil.md copy (clinerules).
+# Run \`yg init --no-clinerules\` (or --no-agents-md / --no-claude-md) and the
+# choice is written here as a \`rules_artifacts:\` block: yg init stops writing
+# that file and yg check stops asking for it. A file already on disk is left
+# alone when you switch it off — delete it yourself.
+# Full reference: yg knowledge read configuration
+
 # Committed, shared record of LLM verification events (opt-in; default OFF).
 # When enabled, each time the reviewer verifies a rule the event is appended to a
 # committed, union-merged file (.yggdrasil/yg-events.llm.jsonl) shared across the
