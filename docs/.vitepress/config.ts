@@ -59,6 +59,7 @@ export default defineConfig({
         text: "Reference & deep dives",
         items: [
           { text: "The Lock", link: "/the-lock" },
+          { text: "Family Contracts", link: "/family-contracts" },
           { text: "Meta-modeling", link: "/meta-modeling" },
           { text: "Dogfood Showcase", link: "/showcase" },
         ],

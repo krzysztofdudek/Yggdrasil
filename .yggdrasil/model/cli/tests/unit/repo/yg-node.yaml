@@ -8,7 +8,13 @@ description: "Repo-wide meta-tests (in-process, no spawned binary) that guard
   every covered, readable, git-tracked file is in at least one expected
   verification pair OR legitimately accounted for (no rule applies, binary
   excluded from an LLM-only subject set, or scope-excluded), so no mapped file
-  silently leaves the review set and passes a rule vacuously."
+  silently leaves the review set and passes a rule vacuously. A third holds the
+  family-contracts register to the code both ways: every schema constant
+  declared under src/formatters/ appears on docs/family-contracts.md, and every
+  schema id on that page is either such a constant or a whitelisted document
+  produced elsewhere — so neither a new machine document nor a retired one can
+  leave the page saying something a consumer in another repository would
+  believe."
 aspects: []
 relations:
   [
@@ -26,3 +32,4 @@ mapping:
   - source/cli/tests/unit/repo/no-removed-commands.test.ts
   - source/cli/tests/unit/repo/false-green-invariant.test.ts
   - source/cli/tests/unit/repo/git-fixture-isolation-invariant.test.ts
+  - source/cli/tests/unit/repo/family-contracts-invariant.test.ts

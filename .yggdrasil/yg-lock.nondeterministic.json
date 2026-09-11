@@ -1128,6 +1128,7 @@
       "file:source/cli/tests/unit/relations/type-gate.test.ts": {"hash":"95a113a6bfb242e9203a9d6d869ef2977aee7e1193a3f39dc8ff8db47e53c6de","promptChars":7832,"verdict":"approved"},
       "file:source/cli/tests/unit/relations/verifier.test.ts": {"hash":"5b64835d936cea3652cda76d678e556ec189c7ae16dd6473d4d63bd05f675c72","promptChars":5451,"verdict":"approved"},
       "file:source/cli/tests/unit/repo/false-green-invariant.test.ts": {"hash":"eac94e591eab0c4507b631e86f7469722fc932153c20bc68fc0e4bdff707daf9","promptChars":15111,"verdict":"approved"},
+      "file:source/cli/tests/unit/repo/family-contracts-invariant.test.ts": {"filledAt":"2026-09-11T12:58:45.315Z","filledSha":"9744a393b8b12d2d89a252278bbe59756e7c5dce","hash":"5ca3d4f242fca3ebbc712ab1a6c8597ea2027bbb7ef4f2409f7a6d75a1368b79","promptChars":22688,"verdict":"approved"},
       "file:source/cli/tests/unit/repo/git-fixture-isolation-invariant.test.ts": {"hash":"d96854caddcc15861e254cf47aa9513654a49b3e6fab30045d0e8e284ddb41e1","promptChars":14664,"verdict":"approved"},
       "file:source/cli/tests/unit/repo/no-removed-commands.test.ts": {"hash":"75b3d4cd44ad85ea3233cc988ed71366a157b64a4f6c84eb6e668f7ca98f35c0","promptChars":17351,"verdict":"approved"},
       "file:source/cli/tests/unit/spectral-headroom.test.ts": {"hash":"0d1192beb9dad8731e408fdb55869a9f0bb2ba9ca6100d09d6d3c74f8c00e049","promptChars":8695,"verdict":"approved"},
