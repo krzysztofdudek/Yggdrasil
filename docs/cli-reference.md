@@ -11,7 +11,7 @@ Every command here reads the graph of the directory it runs in, never a commit n
 
 ---
 
-## Core workflow (4)
+## Core workflow (6)
 
 | Command | Purpose |
 |---------|---------|
@@ -1629,6 +1629,23 @@ With neither flag and a TTY, the interactive reconfiguration menu opens;
 with neither flag and no TTY, the command reports there is nothing to do
 rather than guessing.
 
+::: warning `--provider` replaces the whole `reviewer:` section
+On an existing repo, `--provider` does not merge into what is already there: it
+writes a single `standard` tier built from the flags you passed, replacing the
+entire `reviewer:` block — `reviewer.default` and every other named tier with
+it. If the repo carries a hand-authored multi-tier setup (a cheap bulk tier
+alongside a stronger one for hard aspects), running `yg init --provider …`
+discards it. Edit `yg-config.yaml`'s `reviewer.tiers` by hand instead when you
+want to keep more than one tier.
+
+Configuring a reviewer at all — by flag or through the interactive menu —
+also round-trips `yg-config.yaml` through a YAML parse and re-serialize, which
+**drops every comment in the file**, including the explanatory ones a fresh
+`yg init` scaffolds around `coverage`, `type_level` and `rules_artifacts`. The
+three `--no-*` rules-artifact flags do not: they edit the YAML document in
+place. Review the diff after configuring a reviewer.
+:::
+
 **Choosing which rules files to carry:**
 
 ```bash
@@ -1685,7 +1702,9 @@ cache. See [The lock](/the-lock) for the file layout.
 If the project requires its whole tree to be mapped, `--upgrade` also warns
 that the root files it maintains (`AGENTS.md`, `CLAUDE.md`,
 `.clinerules/yggdrasil.md`, `.gitattributes`) now count as unmapped errors,
-and prints the `coverage.excluded` stanza that settles it. It reports; it
+and prints the `coverage.excluded` stanza that settles it. The stanza is built
+from the artifacts this project actually carries, so one that has switched an
+artifact off under `rules_artifacts` is shown a shorter list. It reports; it
 never edits your configuration. See [Coverage](/configuration#coverage-config).
 
 ### `yg adopt`

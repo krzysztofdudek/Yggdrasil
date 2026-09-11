@@ -34,18 +34,23 @@ refreshes the agent-rules files.
 - **signals** — Attention-layer switches (optional). Its only key today is `attention` (default `true`): the advisory "structurally unusual" note in `yg context --file`. Set `false` to silence it. See [Signals](#signals) below and [Structural attention](/feature-field).
 - **events** — Committed-events opt-in (optional). Its only key today is `committed_llm` (default `false`): opt into a committed, team-shared record of LLM verification events. See [Events](#events) below.
 - **progressive** — Names the branch your changes are measured against (optional; absent means off). Its only key today is `reference`. With it set, a plain `yg check` blocks only on what your change reaches, and everything inherited from that branch is listed as a non-blocking warning. See [Progressive mode](#progressive-mode) below and the [Progressive mode](/progressive-mode) page.
+- **rules_artifacts** — Which of the three agent-rules artifacts (`agents_md`, `claude_md`, `clinerules`) this repository wants written and kept in sync (optional; each defaults to `true`, so an absent block — or an absent key inside one — means all three are on). The block only ever turns an artifact off. See [Rules artifacts](#rules-artifacts) below.
 
-Those ten are the whole of it — `version`, `reviewer`, `coverage`, `quality`,
-`parallel`, `debug`, `auto_approve`, `signals`, `events`, `progressive`.
+Those eleven are the whole of it — `version`, `reviewer`, `coverage`, `quality`,
+`parallel`, `debug`, `auto_approve`, `signals`, `events`, `progressive`,
+`rules_artifacts`.
 
 ::: warning A typo at the top level is silent
-The parser reads the ten keys above and ignores anything else it finds at the top
-level, with no error and no warning. So `auto_aprove: full` does not enable
+The parser reads the eleven keys above and ignores anything else it finds at the
+top level, with no error and no warning. So `auto_aprove: full` does not enable
 auto-approval — it does nothing at all, and the check that would tell you so does
 not exist. Several nested places *are* guarded: a misspelled key directly under
 `reviewer:` or inside a tier is a hard `config-reviewer-unknown-key` /
-`config-tier-unknown-key` error, and `signals:`, `events:`, `coverage:` and
-`progressive:` all reject unknown keys too. Copy the names from this page rather
+`config-tier-unknown-key` error, and `signals:`, `events:`, `coverage:`,
+`progressive:` and `rules_artifacts:` all reject unknown keys too
+(`rules_artifacts` also refuses a non-boolean value, and refuses `claude_md: true`
+alongside `agents_md: false` — `config-rules-artifacts-unknown-key` /
+`config-rules-artifacts-orphan-import`). Copy the names from this page rather
 than typing them from memory, and confirm a setting took effect by watching the
 behaviour change.
 :::
@@ -58,7 +63,7 @@ not in `yg-config.yaml`.
 ## Full annotated example
 
 ```yaml
-version: "5.2.0"
+version: "6.0.0"
 
 reviewer:
   default: standard                 # Required when more than one tier; optional with one
@@ -76,6 +81,7 @@ coverage:                             # Optional — controls which files must b
   required:                           # Unmapped files under these roots are a blocking error
     - "/"                             # Default: whole repo
   excluded: []                        # Files under these roots are silently ignored
+  type_level: true                    # Type-level coverage; `yg init` writes true (see below)
 
 quality:
   max_direct_relations: 10
@@ -92,7 +98,30 @@ events:                               # Optional — committed-events opt-in (de
 
 # progressive:                        # Optional — absent means off (every run answers for the whole project)
 #   reference: origin/main            # Branch your changes are measured against
+
+# rules_artifacts:                    # Optional — absent means all three agent-rules files are carried
+#   agents_md: true                   # The AGENTS.md digest block
+#   claude_md: true                   # The @AGENTS.md import line in CLAUDE.md (needs agents_md)
+#   clinerules: true                  # The standalone .clinerules/yggdrasil.md copy
 ```
+
+A fresh `yg init` writes a subset of this: `version`, `quality`, `coverage`
+(with `required: []`, `excluded: []` and `type_level: true`), `debug` and
+`auto_approve`, plus the `reviewer:` block once you configure a judge. It writes
+a `rules_artifacts:` block only when you switch an artifact off — the absent
+block already means all three are on.
+
+::: warning Configuring a reviewer strips the file's comments
+The scaffolded config is comment-heavy on purpose — it is meant to be read and
+hand-edited. But writing the `reviewer:` section round-trips the whole file
+through a YAML parse and re-serialize, so **every comment in `yg-config.yaml`
+is dropped**, not only the ones near the reviewer block. That is
+`yg init --provider …` and the interactive "Configure reviewer" menu entry;
+`--no-agents-md` / `--no-claude-md` / `--no-clinerules` edit the YAML document
+in place instead and leave comments alone. Review the diff after configuring a
+reviewer, and keep anything you care about somewhere other than a comment in
+this file.
+:::
 
 ---
 
@@ -203,6 +232,16 @@ reviewer:
         api_key: sk-ant-...
 ```
 
+Three keys are the exception to "any field wins". `coverage.type_level` (see
+[Coverage config](#coverage-config)), `progressive` (see [Progressive
+mode](#progressive-mode)) and `rules_artifacts` (see [Rules
+artifacts](#rules-artifacts)) are read off the committed `yg-config.yaml` before
+the overlay is merged, so an overlay can never introduce one, re-point one, or
+switch one off. Each decides something the whole branch has to agree on — what
+counts as covered, how much of the project a run answers for, and which files
+Yggdrasil maintains — so a gitignored local file must not be able to move it for
+one developer alone.
+
 Because only the tier **name** is folded into a verdict's hash, a local override
 never invalidates recorded baselines: the committed config names a canonical
 reviewer, and each machine points the same named tier at its own provider, model,
@@ -246,7 +285,7 @@ Controls which coverage-visible files must be mapped to a node in `yg check`.
   Being type-covered satisfies coverage; it does not by itself mean a rule actually runs. A rule attached to the matched type can be whole-unit (scoped to the whole component, so there is nothing to run it against on a file with no component of its own), filtered off by its own `when:`, still draft, unreadable, excluded by its own `scope.files` filter, an id the architecture attaches with no matching rule definition, or — for an LLM rule — matched to a binary file it can never review as prose. `yg check --coverage` reports both halves per matched type: which rules actually enforce, and which are attached but do not, each with the reason and how many files it affects (plain `yg check` leaves that listing out — it is the answer to a question asked when the type map changes, not on every run). A rule can be enforced (a real pair exists) and still never produce a verdict on a component-free file, when its check.mjs itself needs `ctx.node`/`ctx.graph` or reads beyond what the architecture lets the type reach — that failure is only ever observable by actually running the check, so only `yg check --approve` can ever name the SPECIFIC reason, in its own post-fill report ("cannot run — …" beside the enforced count, in place of the plain "unverified" every other not-yet-approved pair gets); none of plain `yg check`, `yg context --file`, `yg owner --file`, `yg tree`, or the portal ever run the check themselves, so none of them can ever say *why* — but each still says *whether*, from a real re-verification of the lock, not merely whether an entry happens to exist, and all five agree exactly: none reads a stale entry as clean just because the lock holds some entry for it. Plain `yg check` already recomputes every pair's input hash, so its own qualified "unverified" count already covers both a pair the lock has never recorded and one whose recorded verdict has gone stale since a source edit (the file, the aspect, or the rule itself changed since the verdict was written). `yg owner --file` and `yg context --file` perform that identical re-verification too, scoped to just the one file asked about — cheap on top of the whole-project pair walk both already run to classify that file, never a second one — so a stale entry reads there exactly the way it does in `yg check`'s own count: "(N of M rules unverified — no valid verdict is currently on record for it)" for `yg owner --file`, `[enforced, unverified]` per rule for `yg context --file`. `yg tree` and the portal answer for every type-covered file in the project rather than one, so the identical re-verification is a different cost each absorbs its own way: the portal already runs a full lock verification for its other counts and reads the nodeless-pair result straight out of it, at no added cost; `yg tree` pays a bounded, dedicated re-verification of the project's nodeless pairs (comfortably under `yg check`'s own full-project pass) rather than settle for a cheaper presence check that could call a stale pair clean. Both append the identical "with no recorded verdict" wording for the same fact the two file-scoped commands report — on both the chip and the per-file row for the portal, and on `yg tree`'s own summary line — whether that pair's verdict is missing entirely or present but stale. A rule whose effective status is `advisory` (it runs, but only warns) is named under its own heading, never folded in with the rules that actually block — a heading that says "enforced" never covers one that merely warns. When a rule is grouped (a bundle whose implied rules split across a file-level and a whole-unit half), the block names the split explicitly rather than letting the whole-unit half look silently absent. It also names, once, where a type's implicit parent chain stops (a fork between two parents, a cycle, or nothing above it — an omitted `parents:` and an explicit `parents: []` are indistinguishable by the time a file reaches this report, so the wording never claims to know which one the author wrote). Because none of this stops a file from satisfying coverage, a repo can have files that are green with genuinely nothing checking them; `yg check --coverage` names every one of them plainly, with samples, rather than leaving that discoverable only by accident. `yg context --file <path>` and `yg owner --file <path>` give the same honest answer for one such file directly, in place of a plain "not covered" — the matched type, the chain, both the rules that apply (with their real status) and the ones that do not, and — when literally nothing applies — say so plainly rather than staying silent or claiming enforcement that isn't there. All five surfaces — `yg check`, `yg context --file`, `yg owner --file`, `yg tree`, and the portal — also agree on the one case "no rule applies" cannot cover: when the matched type's rules could not be worked out at all because an aspect `implies` cycle reaches it, each says so and names the cycle, instead of reporting the file as satisfying coverage with zero enforcement. `yg context --file` and `yg owner --file` report it as an error for the one file asked about; `yg check --coverage`'s per-type block and its repo-wide zero-enforcement line both keep such a file out of "nothing applies" and name the cycle in their own section instead — the same structural fault `yg check` also reports, and blocks on, separately, as its usual `aspect-implies-cycle` error. The portal keeps such a file out of both its "satisfied" and "no rule applies" residue lines and lists it under its own "could not be worked out" line, naming the cycle, in the Coverage & Audit ledger and the Overview residue.
 - **The navigation surfaces know about type-covered files too, not only `yg check`.** `yg tree` prints a summary line, after the node listing, splitting the type-level lattice's total the same three ways the portal's own residue lines do: how many files are checked by at least one applicable rule, how many matched a type with nothing that applies, and — only when it occurs — how many had their matched type's rules blocked from ever being worked out by an aspect `implies` cycle (never a synthetic tree entry — the node listing above it stays nodes-only); the count is repo-wide even under `--root`, since a type-covered file has no place in the hierarchy for that flag to scope it to. `yg find` indexes a type-covered file with its matched type's own description as searchable text; when that file is the top-ranked result, `yg find`'s one terminal `Next:` line points at `yg context --file`, never a phantom `--node` target — when a node or an aspect outranks it instead, that higher-ranked entry's own next step is shown there instead. `yg structure` widens its dependency universe with every statically-resolved import touching a type-covered file (named by the file's own path) and says "component or type-covered file" rather than misnaming a file a component. The portal's Overview and Coverage & audit views never call a type-covered file "unmapped" — one with an applicable rule is accounted for on its own line, distinct from the residue of files nothing checks at all; one whose matched type enforces nothing is not folded into that same line either — it gets its own, honestly-labeled line naming the file by path and type, using the same treatment as any other file nothing checks; and one whose matched type's rules an aspect `implies` cycle stopped from ever being resolved gets a third line of its own, reported as unknown rather than folded into either. The portal's Dependency-structure panel widens the same way `yg structure` does. Three of these stay exactly as they are today when the flag is off: `yg tree`'s summary line disappears entirely, and `yg find`, `yg structure`, and the portal's type-covered accounting lines behave as they do for any file the type-level lattice never touches. The one exception is the portal's excluded-file handling: `coverage.excluded` was never conditioned on `type_level`, so a file under an excluded root is listed under its own "deliberately excluded from coverage, never enforced" block whether or not the tier is on — but that file was already outside the "source files unmapped (unguarded)" count before this change, so a project that sets `coverage.excluded` without ever turning the tier on does not see that count move. What it does see: the residue CSV export's row for that file changes kind from `uncovered-file` to `excluded-file`, and the JSON export moves the file's path out of `uncoveredFiles` and into its own `excludedFiles` list.
 - **Roots accept the same forms as a node `mapping:` entry** — an exact file, a directory prefix (e.g. `src/`), or a [minimatch](https://github.com/isaacs/minimatch) glob (`*` within a path segment, `**` across segments). So `excluded: ["**/*.generated.ts"]` ignores generated files anywhere, and `required: ["services/*/api/**"]` scopes the blocking tier to a pattern. `/` still means the whole repo.
-- **The files Yggdrasil maintains at your repo root count like any other.** `yg init` writes and keeps up to date `AGENTS.md`, `CLAUDE.md`, `.clinerules/yggdrasil.md` and a `.gitattributes` entry. Under a whole-repo `required` (including the absent-block default) they are unmapped files like any other, so they become blocking errors the moment `yg init --upgrade` adds them to an existing project. They are repository plumbing rather than project source — the usual answer is to exclude them (`yg init --upgrade` prints this stanza whenever it applies to your project, and never edits the file itself), though mapping them to a node works equally well:
+- **The files Yggdrasil maintains at your repo root count like any other.** `yg init` writes and keeps up to date whichever of `AGENTS.md`, `CLAUDE.md` and `.clinerules/yggdrasil.md` your [`rules_artifacts`](#rules-artifacts) block leaves switched on — all three by default — plus a `.gitattributes` entry. Under a whole-repo `required` (including the absent-block default) they are unmapped files like any other, so they become blocking errors the moment `yg init --upgrade` adds them to an existing project. They are repository plumbing rather than project source — the usual answer is to exclude them (`yg init --upgrade` prints this stanza whenever it applies to your project, built from the artifacts your project actually carries, and never edits the file itself), though mapping them to a node works equally well:
 
   ```yaml
   coverage:
@@ -256,6 +295,8 @@ Controls which coverage-visible files must be mapped to a node in `yg check`.
       - .clinerules/
       - .gitattributes
   ```
+
+  A project that has switched an artifact off (`rules_artifacts: { clinerules: false }`, say) never gets that file written, so leave its line out — the stanza should name only the artifacts your project actually has.
 
 - Files that match neither a required nor an excluded root produce a non-blocking `uncovered-advisory` warning.
 - **`excluded` is a supreme, global filter — one rule, no seam between how a mapping reaches a file.** A path it matches is gone everywhere Yggdrasil looks: the repo-walking coverage checks, expected review pairs, a node's source fingerprint, the dependency-conformance pass (both its per-node file enumeration AND its resolution of an import's target file back to an owner — an import reaching *into* an excluded subtree is as silent as one reaching *out of* it), type-`when` classification (including the strict backward scan a type's `enforce: strict` runs), the mapping-overlap check, the suppression/audit universe (`yg suppressions`, `yg advise`), the portal, and the files/allowances a rule's review actually runs against — `ctx.fs`, the parsers, and companion resolution all refuse a path there too, including one reached through a symlink that resolves into an excluded location. `yg context --file`, `yg owner --file`, `yg impact --file`, `yg aspect-test --file`, and `yg type-suggest --file` agree: an excluded file is never reported as owned by, or bound to satisfy the rules of, any node, and editing it never carries a re-verification cost. This applies identically whether a directory or glob mapping entry merely swept the file in, or a node's own `mapping:` entry names that exact path — an explicit claim does not outrank an exclusion. It is unaffected by whether `.gitignore` hides anything: exclusion is read off the adopter's `coverage.excluded` config and the filesystem, not off any particular mapping's own file listing.
@@ -368,9 +409,11 @@ separately.
 | `.type-class-cache/` | The type-level classification lattice's per-file cache, keyed by a file's own path together with its raw byte content and the architecture's classifying types — skips re-evaluating a file's classifying-type predicates when none of its path, its content, or the architecture's classifying types have changed. |
 | `.debug.log` | The opt-in command log written when `debug: true`. |
 | `.yg-lock.deterministic.json` | The script-rule verdict cache — rebuilt free and keyless by `yg check --approve --only-deterministic`. |
-| `.yg-events.jsonl` | The verdict-events telemetry sidecar (see [Verdict-events sidecar](/reviewers#verdict-events-sidecar)). |
-| `.yg-fill-divergence.log` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run (see [Running in parallel](/concurrency)). |
+| `.yg-events.jsonl*` | The verdict-events telemetry sidecar (see [Verdict-events sidecar](/reviewers#verdict-events-sidecar)). The trailing `*` also covers its `.1` rotation. |
+| `.yg-fill-divergence.log*` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run (see [Running in parallel](/concurrency)). The trailing `*` also covers its `.1` rotation. |
 | `.feature-field.json` | The silent structural-deviation index behind the [structural-attention](/feature-field) hint. |
+| `.yg-packages-versions.json` | What each installed package's source was last seen to publish — a local cache the `yg pack` commands write while they are already talking to a source. |
+| `*.tmp` | An atomic write's half-finished temp file, orphaned by a hard kill. `yg check` sweeps stale ones on startup; this keeps one from showing up as untracked noise before that. |
 
 Every one of them is rebuildable, so a fresh clone missing all of them is a normal
 state, not a broken one. The only thing a fresh clone *notices* is the absent
@@ -391,11 +434,14 @@ yg init --upgrade
 ```
 
 Lifts the graph's config version to the current one and refreshes the
-agent-rules files (the `AGENTS.md` digest block, the `CLAUDE.md` import, and
-`.clinerules/yggdrasil.md`) to the installed CLI's current content — no flag
-needed to say which agent to write for, since the same files are written for
-every agent. It also sweeps away any file a retired per-platform installer
-left behind from an older CLI. (Upgrading a pre-5.1.0 graph also removes the
+agent-rules files this project carries (the `AGENTS.md` digest block, the
+`CLAUDE.md` import, and `.clinerules/yggdrasil.md`, minus anything
+[`rules_artifacts`](#rules-artifacts) switches off) to the installed CLI's
+current content — no flag says which *agent* to write for, since the rules are
+identical in every artifact; the only choice is which files carry them, and
+`--no-agents-md` / `--no-claude-md` / `--no-clinerules` record that in the
+config rather than having to be repeated. It also sweeps away any file a
+retired per-platform installer left behind from an older CLI. (Upgrading a pre-5.1.0 graph also removes the
 now-retired on-disk `schemas/` directory; schemas are read with
 `yg schemas read <name>` instead.)
 
@@ -545,6 +591,58 @@ no other key — a misspelled key is rejected so a typo can't silently leave the
 shared record disabled. A machine on an older CLI writes only locally and does
 not contribute to the shared file, so a reader that combines the two says as
 much rather than treating the committed record as complete.
+
+---
+
+## Rules artifacts
+
+`rules_artifacts` names which of the three agent-rules files this repository
+wants Yggdrasil to write and to keep in sync. It is absent by default, and an
+absent block — or an absent key inside one — means `true`: the file is installed
+by `yg init` and its drift is reported by `yg check`'s `rules-digest-stale`
+warning. The block only ever turns an artifact **off**.
+
+| Key | Artifact | Default |
+| --- | --- | --- |
+| `agents_md` | The `AGENTS.md` digest block. | `true` |
+| `claude_md` | The `@AGENTS.md` import line in `CLAUDE.md`. | `true` |
+| `clinerules` | The standalone Cline-native copy, `.clinerules/yggdrasil.md`. | `true` |
+
+```yaml
+# .yggdrasil/yg-config.yaml
+rules_artifacts:
+  clinerules: false   # no Cline on this team — stop writing and checking .clinerules/yggdrasil.md
+```
+
+The rules themselves are identical in all three — the only question is which
+files an agent will find them in. A project whose team uses no Cline can set
+`clinerules: false` and stop being told `.clinerules/yggdrasil.md` is missing on
+every run; `yg init --upgrade` stops writing it in the same breath, and the gate
+keeps reporting the artifacts still switched on exactly as before.
+
+Set it by hand, or let `yg init --no-agents-md` / `--no-claude-md` /
+`--no-clinerules` write it for you (see [the CLI reference](/cli-reference)).
+There is no flag that turns one back on — that is an edit to this block, where
+the decision lives.
+
+Three rules about the block itself:
+
+- **It is read from the committed file only.** A `yg-secrets.yaml` overlay can
+  never change which files the repository carries, since one machine writing a
+  file every other machine does not is exactly the drift this key exists to end.
+- **Values must be booleans, and no other key is accepted.** An unknown sibling
+  is a hard `config-rules-artifacts-unknown-key` error and a non-boolean value a
+  `config-invalid` one — so a typo (`clinrules: false`) cannot leave you
+  believing an artifact was switched off while `yg check` goes on asking for it.
+- **`claude_md` may not stay on while `agents_md` is off**
+  (`config-rules-artifacts-orphan-import`). The whole content of the `CLAUDE.md`
+  artifact is an import *of* `AGENTS.md`, so that combination asks for a pointer
+  to a file Yggdrasil no longer maintains. `--no-agents-md` switches `claude_md`
+  off with it.
+
+Switching an artifact off never deletes a file already on disk. `yg init` names
+it — still there from an earlier install, now maintained by nobody — and leaves
+it; delete it by hand when you mean to.
 
 ---
 

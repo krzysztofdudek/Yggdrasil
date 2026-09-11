@@ -39,7 +39,8 @@ in your repository, so a project that requires **every** tracked file to belong
 to a component will report them as unmapped errors on the next check. That is
 any project whose `yg-config.yaml` has no `coverage:` block at all, or whose
 `coverage.required` covers the repository root. They're repository plumbing,
-not project source — exclude them:
+not project source — exclude them. A project carrying all three artifacts
+excludes all four paths:
 
 ```yaml
 coverage:
@@ -50,10 +51,12 @@ coverage:
     - .gitattributes
 ```
 
-`yg init --upgrade` tells you when this applies to your project and prints the
-same stanza; it never edits the file for you. Mapping them to a component
-instead works just as well if you'd rather keep them under enforcement. A
-freshly initialized project requires nothing and is unaffected.
+A project that has switched an artifact off under `rules_artifacts` never gets
+that file written, so its stanza is shorter by that line. `yg init --upgrade`
+tells you when this applies to your project and prints the stanza for the
+artifacts your project actually has; it never edits the file for you. Mapping
+them to a component instead works just as well if you'd rather keep them under
+enforcement. A freshly initialized project requires nothing and is unaffected.
 :::
 
 ## How each agent picks up the rules
@@ -101,7 +104,10 @@ in whichever file that agent reads — or have it run `yg prime` directly. Both
 give it the same rules every other agent gets.
 
 The same sweep covers every other file the retired per-platform installers used
-to write, whether or not the agent appears above: `.cursor/rules/yggdrasil.mdc`
-and the old single rules file at `.yggdrasil/agent-rules.md`. Whatever it
-removes is listed in the `yg init --upgrade` output as cleaned-up legacy
-artifacts, so nothing disappears silently.
+to write, whether or not the agent appears above: `.cursor/rules/yggdrasil.mdc`,
+the old single rules file at `.yggdrasil/agent-rules.md`, and the yggdrasil
+marker block inside `.github/copilot-instructions.md` — only our own block is
+cut out, the rest of the file stays byte-exact, and the file itself is deleted
+only when nothing but that block remained. Whatever it removes is listed in the
+`yg init --upgrade` output as cleaned-up legacy artifacts, so nothing disappears
+silently.
