@@ -42,8 +42,9 @@ consumer installs from the URL they type, so the same package published from two
 forks is two different packages and neither can claim the other's name.
 
 You are on the PUBLISHING side of this topic. For the consuming side —
-\`yg pack add\`, adapting a copy, updating — read the same page in the docs or run
-\`yg pack list\` in a repository that has some.
+\`yg pack add\`, adapting a copy, updating — read the \`yg pack\` section of
+\`yg knowledge read cli-reference\`, or run \`yg pack list\` in a repository that
+has some.
 
 ## Recognising one
 
