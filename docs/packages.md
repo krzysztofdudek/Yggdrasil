@@ -64,13 +64,24 @@ asks you to say:
 yg pack add ../law-repo#house-style --as acme/law
 ```
 
+That settles which package owns which names, and it is still checked rather than
+assumed: if any rule the package would install already exists in this repository
+under that exact name, `yg pack add` refuses and names it, rather than let one
+quietly take the other's place. Remove the rule that is there, or install under a
+different `--as`.
+
 ## Adapting, not editing
 
 **You never edit an installed rule.** `yg check` refuses any change to a copied
-file, and `yg pack update` refuses to run at all while one exists. That is not
-protectiveness — it is what makes an update a replacement instead of a merge. An
-edit you made to a copy would vanish the next time the package moved, and nothing
-would record that it had ever been there.
+file, and `yg pack update <name>` refuses to touch a package whose copy you have
+changed. That is not protectiveness — it is what makes an update a replacement
+instead of a merge. An edit you made to a copy would vanish the next time the
+package moved, and nothing would record that it had ever been there.
+
+`yg pack update` with no name works through your packages in name order and stops
+at the first one whose copy was edited — so the packages sorting before it are
+already updated and the record already rewritten when it refuses. Restore the file
+it names and run it again to finish the rest.
 
 Everything you want different goes in the `yg-aspect.adapt.yaml` written beside
 each rule. `yg pack add` writes it for you, already listing what you may change:
@@ -101,8 +112,15 @@ rule wearing the package's name. Naming one of them is refused, and so is a key
 the adaptation does not recognise at all — a misspelled key that was quietly
 dropped would leave a rule looking tuned when it is not.
 
-An adaptation you have not touched changes nothing: the file `yg pack add` writes
-is comments plus the package's own defaults.
+An adaptation you have not touched behaves, on the day you install, exactly as the
+package does — but it does not stay inert. The `config:` block `yg pack add` writes
+is live YAML, not commented-out examples: it pins every declared setting to the
+package's default **as it stands at install time**. An update carries that file
+across byte for byte, and a pinned value wins over the new default. So if the
+package raises `threshold` from 40 to 80 in its next version, `yg pack update`
+replaces the copy and your untouched adaptation keeps the rule running at 40.
+Open the adaptation and either follow the new default or delete the key to track
+it.
 
 ### `references` is for LLM rules; `ctx.config` is for the rest
 
@@ -165,9 +183,15 @@ byte.** Rules whose content actually changed go back to unverified, and
 `yg check --approve` judges them again; rules that did not change keep their
 verdicts.
 
+"Byte for byte" includes every setting the stub pinned when you installed, so a
+default the package has since changed is shadowed by an adaptation you never
+opened — see [above](#adapting-not-editing). An update never tells you that
+happened; reading the new version's settings is on you.
+
 If you edited a copy, the update refuses and names the files rather than
 discarding your edit. Restore them, move the change into the adaptation, and run
-it again.
+it again. With no package named, that refusal stops a run that has already updated
+everything sorting before the drifted package.
 
 A setting you set in an adaptation that the new version no longer declares is
 refused when the graph loads, naming the key — a setting that quietly stopped
@@ -313,7 +337,11 @@ moment the rule lands somewhere else:
 | `review_by` | your repository asking *itself* to re-examine a rule — published, it fires in everyone else's, on a date they did not pick |
 | `references` | a repository-relative path read at review time; the package cannot know their layout |
 | a literal root in `scope.files.path` | `src/**` matches a repository laid out that way and silently nothing everywhere else — write `**/src/**` |
-| `reviewer.tier` | tiers are named per repository; yours may mean a different model at a different price in theirs |
+| `reviewer.tier` | tiers are named per repository; yours may mean a different model at a different price in theirs — a warning rather than a refusal, since sometimes you do mean it |
+
+The first three are refusals: `yg marketplace check` exits non-zero on each. The
+tier is a warning — it is reported and the check still passes, because a package
+that really does mean one named tier is a thing you are allowed to publish.
 
 **How a bundle names its siblings.** Inside a package, `implies: [naming]` — a
 bare directory name, never a full path. A package may not imply anything outside
@@ -359,6 +387,9 @@ with a graph and run `yg drill`.
 | A setting the package does not declare | The graph refuses to load, naming the key and the package |
 | `implies` reaching outside the package | The graph refuses to load, naming both rules |
 | The package needs a newer Yggdrasil | Installing refuses, naming both versions |
+| A rule the package would install has the same name as one already here | `yg pack add` refuses, naming it — remove the existing rule, or install under a different `--as <owner>/<repo>` |
+| The package carries a symbolic link | Installing refuses, naming the link — a link published elsewhere would resolve against *your* filesystem once copied in |
+| The package carries a binary file | Installing refuses, naming the file — a package ships rules and case files, and copying is a text round-trip |
 | The source cannot be reached | Nothing is installed or changed, and nothing is left behind |
 
 The check that guards copied files is built into `yg check` rather than written

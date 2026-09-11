@@ -27,10 +27,17 @@ demanding you model the rest. Meta-modeling is partial by design.
    every prompt for that rule. References need no mapping and no relation.
 3. **Companion (per unit)** — a `companion.mjs` hook returns a different file per
    unit, so each requirement document can pull in the specific check it names. A
-   companion-returned file must be reachable from the reviewed component (its own
-   files, a declared relation's target, an ancestor, or a descendant).
+   companion-returned file must be reachable from the reviewed component: its own
+   files, a declared relation's target *and everything beneath that target*, an
+   ancestor, or a descendant — minus whatever the graph excludes (a nested project's
+   own root, a `coverage.excluded` path) and minus anything a symlink resolves to
+   outside the repository. A file enforced by its architecture type alone, with no
+   component of its own, is not covered by that rule at all: what it may read comes
+   from the architecture's allowed relations between its own type and each
+   candidate's owning type.
 4. **Deterministic read** — a deterministic check may read a reachable rule file
-   through its context object (same reachability rule as a companion).
+   through its context object (the same reachability rule as a companion, the
+   type-based form for a component-less file included).
 
 References (2) need no graph wiring; companion (3) and deterministic reads (4) need
 the target reachable, which for a graph-directory file means mapping it and declaring
@@ -43,13 +50,17 @@ Mapping rule files makes them first-class citizens, with the obligations that br
 - The built-in relation check parses your mapped check code; a check that imports
   another component's code needs that relation declared, or it's refused.
 - Every rule effective on the component now reviews those rule files too — choose the
-  component's type deliberately and use [conditional rules](/conditional-aspects) so a
-  code rule doesn't fire on a Markdown rule file.
+  component's type deliberately, and keep a code rule and a Markdown rule file out of
+  the same component, because no predicate will separate them for you (next point).
 - The file-classification predicate auto-exempts every `.yggdrasil/` path — it returns
   true without checking — so you can map a rule file to a component of any type without
-  tripping a type/`when` mismatch. The flip side: the type's `when` gives you no
-  filtering here. It is the aspect's own scope, not the type predicate, that decides
-  whether a given rule actually fires on a mapped rule file.
+  tripping a type/`when` mismatch. The flip side: neither the type's `when` nor a rule's
+  own `scope.files` filters anything here. Both are evaluated by the same function, and
+  it exempts every `.yggdrasil/` path before either predicate is read — so a mapped rule
+  file passes `scope.files` whatever that predicate says. A [conditional rule](/conditional-aspects)'s
+  `when:` can keep a whole component out of a rule, but it matches on components, not on
+  paths, so it cannot tell a Markdown rule file from a `check.mjs` mapped beside it. The
+  one lever left is the mapping: map each meta layer into its own component.
 - A rule that reviews another rule means editing one re-checks both — keep the meta
   layer small and targeted.
 - **Never map the whole `.yggdrasil/` directory.** A broad glob would sweep in the
@@ -60,6 +71,8 @@ Mapping rule files makes them first-class citizens, with the obligations that br
 
 Map narrowly; attach the meta rule on the narrowest component that owns the files it
 judges, not a broad parent that would cascade everywhere; and use
-[conditional rules](/conditional-aspects) to target exactly the units you mean. Rule
-ids can be nested in directories, so a meta layer can live under its own prefix and
-stay legible — see [Aspects](/aspects).
+[conditional rules](/conditional-aspects) to pick which components the rule attaches
+to at all. What that last lever cannot do is narrow the rule to some of a component's
+mapped rule files and not others — for a `.yggdrasil/` path, the mapping is the only
+filter. Rule ids can be nested in directories, so a meta layer can live under its own
+prefix and stay legible — see [Aspects](/aspects).

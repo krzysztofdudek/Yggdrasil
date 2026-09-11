@@ -147,10 +147,13 @@ arrive in someone's repository as law nobody announced.
 ## You adapt beside a copy; you never edit one
 
 The rule a consumer installs stays byte for byte what you published — \`yg check\`
-refuses an edited copy by name, and \`yg pack update\` refuses to run while one
-exists. Everything they want different goes in the \`yg-aspect.adapt.yaml\` written
-beside each copy: its granularity, its reviewer, its standing, its review date,
-its references, and any setting you declared.
+refuses an edited copy by name, and \`yg pack update\` refuses to update a package
+whose copy has changed. Everything they want different goes in the
+\`yg-aspect.adapt.yaml\` written beside each copy: its granularity, its reviewer,
+its standing, its review date, its references, its companion module, and any
+setting you declared. (\`companion:\` matters to you specifically: a published rule
+cannot know a consumer's layout, so a rule that needs a repository-shaped hook
+ships yours and lets them point at their own.)
 
 That is not protectiveness, and it matters when you are the author: it is what
 lets an update be a REPLACEMENT rather than a merge. Publish a new version and
@@ -199,10 +202,11 @@ names its own code:
 | \`package-drills-missing\` | a deterministic rule with no cases, or with only one of the two kinds |
 | \`package-file-unreadable\` | a file that cannot be read cannot be copied or checked |
 
-And three warnings, which do not fail the check: \`package-config-unused\` (declared
+And four warnings, which do not fail the check: \`package-config-unused\` (declared
 and never read), \`package-config-dynamic\` (the rule reaches its settings through a
 computed name, so this check can only confirm the ones written out),
-\`package-reviewer-tier\`, and \`package-drills-unrecognized\` (a directory under
+\`package-reviewer-tier\` (a published rule names a tier, which is a per-repository
+name — see step 3 above), and \`package-drills-unrecognized\` (a directory under
 \`drills/\` under neither prefix — the runner skips it silently, so it looks like a
 case and runs as none).
 
