@@ -10,6 +10,7 @@ const FIXTURES_DIR = path.join(__dirname, '../../fixtures');
 import type { LockFile } from '../../../src/model/lock.js';
 import {
   LOCK_FORMAT_VERSION,
+  LOCK_FILE_NAME,
   LOCK_NONDET_FILE_NAME,
   LOCK_LOGS_FILE_NAME,
   LOCK_DET_FILE_NAME,
@@ -17,10 +18,13 @@ import {
 
 import {
   readLock,
+  readLegacyLock,
+  readDetLockAspectIds,
   writeLock,
   serializeLock,
   LockInvalidError,
 } from '../../../src/io/lock-store.js';
+import { initDebugLog, _resetForTesting } from '../../../src/utils/debug-log.js';
 
 // The verdict lock is split across a 3-file triad; the in-memory LockFile stays unified.
 // writeLock partitions verdicts by aspect KIND (deterministicAspectIds), never by `touched`.
@@ -973,22 +977,172 @@ describe('lock-store — triad partition & scopes', () => {
     expect(result.nodes).toEqual(TRIAD_LOCK.nodes);
   });
 
-  it('a garbled GITIGNORED deterministic file → lock-invalid with the rematerialize recovery (not a git restore)', async () => {
+  it('a garbled GITIGNORED deterministic file is DISCARDED and rebuilt, not refused (it holds no truth to protect)', async () => {
+    // Superseded the pre-6.0.0 assertion that this threw with a "rematerialize" recovery.
+    // A derived, gitignored, fully rederivable cache must never take the gate down.
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-det-garbled');
     await rm(tmpDir, { recursive: true, force: true });
     await mkdir(tmpDir, { recursive: true });
     await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), '{ not json', 'utf-8');
-    let thrown: unknown;
+
+    const result = readLock(tmpDir);
+    expect(result).toEqual({ version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The committed/derived split — a derived lock never takes the gate down.
+//
+// `.yg-lock.deterministic.json` is gitignored and rederivable in full from the
+// graph plus the committed lock, so a fault in it costs a recomputation and
+// nothing else. The committed files are the source of truth, and a fault there
+// is still a real, visible refusal. Both directions are asserted here: the
+// tolerance must not swallow the alarm that matters.
+//
+// The live case this fixes: a NEWER `yg` writes a section an OLDER `yg` on the
+// far side of a container boundary does not yet allow, and the older one
+// refuses to start. Observed twice on 2026-09-11 (a 5.9.0 host wrote `aspects`,
+// a 5.8.0 container rejected it as an unexpected top-level key). Simulated here
+// with a top-level key no version allows, so the test stays honest as the real
+// schema grows.
+// ---------------------------------------------------------------------------
+describe('lock store — derived locks rebuild, committed locks refuse', () => {
+  async function freshDir(name: string): Promise<string> {
+    const tmpDir = path.join(FIXTURES_DIR, name);
+    await rm(tmpDir, { recursive: true, force: true });
+    await mkdir(tmpDir, { recursive: true });
+    return tmpDir;
+  }
+
+  /** A det lock as a NEWER yg would write it: valid today, plus one section this build has never heard of. */
+  const FROM_A_NEWER_YG = JSON.stringify({
+    version: LOCK_FORMAT_VERSION,
+    verdicts: { 'style/naming': { 'node:billing/cancel': { verdict: 'approved', hash: 'h1' } } },
+    nodes: {},
+    aspects: { 'style/naming': { status: 'enforced' } },
+    cohorts: { 'style/naming': { generation: 4 } },
+  });
+
+  const DERIVED_FAULTS: ReadonlyArray<readonly [string, string]> = [
+    ['an unknown top-level key written by a newer yg (version skew)', FROM_A_NEWER_YG],
+    ['completely unparseable JSON', '{"version": 2, "verdicts": {'],
+    ['truncated mid-write', '{"version":2,"verdicts":{"style/naming":{"node:a":{"verdict":"appr'],
+    ['a JSON array instead of an object', '[1,2,3]'],
+    ['a valid object with no version field', JSON.stringify({ verdicts: {}, nodes: {} })],
+    ['a version from the future', JSON.stringify({ version: 99, verdicts: {}, nodes: {} })],
+    ['a garbled section shape', JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: [], nodes: {} })],
+    ['a garbled entry inside a section', JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: { a: { 'node:b': { verdict: 'maybe' } } }, nodes: {} })],
+  ];
+
+  it.each(DERIVED_FAULTS)(
+    'the DERIVED det lock with %s → readLock rebuilds from scratch, silently',
+    async (label, content) => {
+      const tmpDir = await freshDir('tmp-lock-derived-fault');
+      await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), content, 'utf-8');
+
+      let result: LockFile | undefined;
+      expect(() => {
+        result = readLock(tmpDir);
+      }, label).not.toThrow();
+      // Rebuilt from zero: the bad file contributes nothing, and nothing it carried is
+      // smuggled through. Empty det verdicts read as UNVERIFIED — still fail-closed.
+      expect(result, label).toEqual({ version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} });
+    },
+  );
+
+  it.each(DERIVED_FAULTS)(
+    'the same fault (%s) in a COMMITTED lock is still a real, visible refusal',
+    async (label, content) => {
+      const tmpDir = await freshDir('tmp-lock-committed-fault');
+      await writeFile(path.join(tmpDir, LOCK_NONDET_FILE_NAME), content, 'utf-8');
+      expect(() => readLock(tmpDir), label).toThrow(LockInvalidError);
+    },
+  );
+
+  it('the LEGACY committed single-file lock still refuses an unknown top-level key (readLegacyLock)', async () => {
+    const tmpDir = await freshDir('tmp-lock-legacy-fault');
+    await writeFile(path.join(tmpDir, LOCK_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    expect(() => readLegacyLock(tmpDir)).toThrow(LockInvalidError);
+  });
+
+  it('a broken det lock does not mask the COMMITTED sections read alongside it', async () => {
+    const tmpDir = await freshDir('tmp-lock-det-broken-committed-intact');
+    await writeFile(
+      path.join(tmpDir, LOCK_NONDET_FILE_NAME),
+      JSON.stringify({
+        version: LOCK_FORMAT_VERSION,
+        verdicts: { 'llm/prose': { 'node:billing/cancel': { verdict: 'approved', hash: 'h-llm' } } },
+        nodes: {},
+      }),
+      'utf-8',
+    );
+    await writeFile(
+      path.join(tmpDir, LOCK_LOGS_FILE_NAME),
+      JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: { 'billing/cancel': { source: 'fp-billing' } } }),
+      'utf-8',
+    );
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+
+    const result = readLock(tmpDir);
+    expect(result.verdicts['llm/prose']).toBeDefined();
+    expect(result.nodes['billing/cancel']).toEqual({ source: 'fp-billing' });
+    // The det file's verdicts and its unknown section are both gone, not merged.
+    expect(result.verdicts['style/naming']).toBeUndefined();
+    expect(result.aspects).toBeUndefined();
+  });
+
+  it('readDetLockAspectIds reads a broken det lock as EMPTY rather than throwing', async () => {
+    const tmpDir = await freshDir('tmp-lock-det-ids-broken');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    expect(readDetLockAspectIds(tmpDir)).toEqual(new Set<string>());
+  });
+
+  it('the discard is self-healing: the next write replaces the broken det file with a valid one', async () => {
+    const tmpDir = await freshDir('tmp-lock-det-selfheal');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+
+    const rebuilt = readLock(tmpDir);
+    rebuilt.verdicts['det/aspect'] = { 'node:billing/cancel': { verdict: 'approved', hash: 'fresh' } };
+    await writeLock(tmpDir, rebuilt, {
+      scope: 'deterministic',
+      deterministicAspectIds: new Set(['det/aspect']),
+    });
+
+    const onDisk = readFileSync(path.join(tmpDir, LOCK_DET_FILE_NAME), 'utf-8');
+    expect(onDisk).not.toContain('cohorts');
+    // And it reads back cleanly, with no throw anywhere in the round trip.
+    expect(readLock(tmpDir).verdicts['det/aspect']['node:billing/cancel'].hash).toBe('fresh');
+  });
+
+  it('the discard leaves a breadcrumb in the debug log (silent on stdout, not invisible)', async () => {
+    const tmpDir = await freshDir('tmp-lock-det-breadcrumb');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+
+    const lines: string[] = [];
+    _resetForTesting();
+    initDebugLog(tmpDir, true, (_p, text) => {
+      lines.push(text);
+    });
     try {
       readLock(tmpDir);
-    } catch (e) {
-      thrown = e;
+    } finally {
+      _resetForTesting();
     }
-    expect(thrown).toBeInstanceOf(LockInvalidError);
-    const { next } = (thrown as InstanceType<typeof LockInvalidError>).messageData;
-    // The gitignored cache recovers by rematerializing, NOT by a git restore.
-    expect(next).toMatch(/--only-deterministic/);
-    expect(next).not.toMatch(/git checkout/);
+
+    const logged = lines.join('');
+    expect(logged).toContain(LOCK_DET_FILE_NAME);
+    expect(logged).toMatch(/discarded and rebuilt/);
+    // The diagnosis itself rides along, so a debug run says WHAT was wrong.
+    expect(logged).toMatch(/unexpected top-level key "cohorts"/);
+  });
+
+  it('a real I/O failure still propagates from the derived file — only content faults are tolerated', async () => {
+    // A directory where the det lock should be: readFileSync fails with EISDIR, not a
+    // LockInvalidError. That is an environment fault to fix, not a cache to rebuild.
+    const tmpDir = await freshDir('tmp-lock-det-eisdir');
+    await mkdir(path.join(tmpDir, LOCK_DET_FILE_NAME), { recursive: true });
+    expect(() => readLock(tmpDir)).toThrow();
+    expect(() => readLock(tmpDir)).not.toThrow(LockInvalidError);
   });
 });
 

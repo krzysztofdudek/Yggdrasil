@@ -6,7 +6,8 @@ aspects: []
 relations:
   [
     { target: cli/io/lock-store, type: uses },
-    { target: cli/model/lock, type: uses }
+    { target: cli/model/lock, type: uses },
+    { target: cli/utils, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/io/lock-store.test.ts
