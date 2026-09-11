@@ -205,8 +205,12 @@ the text report's job, not the document's.
 
 `--json` is refused for `--aspect`, `--flow` and `--type`: their subject is not a
 component, and a second document shape must not hide behind the same schema tag.
-New fields may appear within `yg-impact/1`; only a change to an existing field's
-shape takes a new schema number.
+The same facts are documents elsewhere: one rule's reach — every unit it judges,
+with the status there — is [`yg aspects --json --reach`](#yg-aspects---json), and
+what the lock says about each of those units is [`yg check
+--json`](#yg-check---json), whose pairs join to it on the same `unit`. New fields
+may appear within `yg-impact/1`; only a change to an existing field's shape takes
+a new schema number.
 
 ### `yg check --json`
 
@@ -681,7 +685,7 @@ yg log merge-resolve --node <path>
 | `yg tree [--root <path>] [--depth <n>]` | Graph structure |
 | `yg structure` | Read-only structural dashboard: tunnels, module groups, change reach |
 | `yg find "<query>"` | Natural-language graph search |
-| `yg aspects` [`--health`] / `log add` / `log read` | List aspects (`--health` adds the per-rule health row); `log` is a rule's own history |
+| `yg aspects` [`--health`] / `log add` / `log read` | List aspects (`--health` adds the per-rule health row; `--json --reach` names every unit each rule judges); `log` is a rule's own history |
 | `yg advise` [`--all`] [`--ids`] / `dismiss` / `defer` / `import` | Read-only attention feed; never gates (`--json` for the machine-readable form). Never reaches outside the repository — a newer package version is reported from what `yg pack list` last recorded |
 | `yg incident add` / `read` | The committed incident ledger — what escaped enforcement |
 | `yg flows` | List flows |
@@ -870,6 +874,39 @@ corpus is counted, never run. `--health` is a different and far more expensive
 projection and is refused together with `--json`. Each rule also carries the last
 thing its own log recorded — when, and what it said about where the rule stands —
 so a reader of the document does not have to open files.
+
+```bash
+yg aspects --json
+yg aspects --json --reach   # add the units behind the usage counts
+```
+
+`--reach` adds a `reach.units` array to every rule: each subject it actually
+judges, as `unit` (`kind` plus `path`), the `node` that owns it (null for a file
+governed by its architecture type alone), the `status` it is judged under there,
+and the channel it arrived through — `via` (`own`, `hierarchy`, `architecture`,
+`flow`, `port`, `implied`, `type`) with `from` naming the ancestor, type, flow,
+port or implying rule it came from. `usage` counts those places; this names them.
+
+Two properties make it joinable and honest. The `unit` is shaped exactly like
+`yg check --json`'s own `pair.unit`, so a consumer holding both documents matches
+them on the same subject — reach says which units a rule governs, the check
+document says what the lock currently says about each. And `draft` rules are
+listed with the units they reach, which the gate's pair list cannot show, since a
+draft pair is not judged and so never appears there: a rule that reaches nothing
+and a rule not yet judging the ten subjects it reaches are different facts, and an
+empty `units` only ever means the first. A bundle always reports `units: []` — it
+has no reviewer of its own; each rule it implies carries its own reach.
+
+`usage` and `reach` are not the same tally, and neither checks the other:
+`usage` counts components a rule is effective on, while `units` lists the review
+pairs it produces — one per subject file for a file-scoped rule, and none at all
+on a component whose subject set for that rule is empty, which is a vacuous pass
+the gate expects no verdict for.
+
+`--reach` is opt-in because it walks every component's mapped files: without it
+the document is unchanged and costs what it always did. `--reach` without
+`--json` is refused — the enumeration is machine input, and the plain listing
+already answers the same question at a reader's resolution.
 
 #### `yg aspects log` — a rule's own history
 

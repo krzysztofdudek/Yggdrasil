@@ -27,6 +27,7 @@
 // test's pass/fail logic branches on.
 //
 //   1. yg aspects --json           → exits 0, under the time and size ceiling
+//  1b. yg aspects --json --reach   → the enumerated form, same ceilings
 //   2. yg context --node --json    → exits 0, under the time and size ceiling
 //   3. yg check --json             → exits 0, under the time and size ceiling
 // =============================================================================
@@ -81,6 +82,16 @@ describe.skipIf(!distExists)('CLI E2E — read-command cost bounds (this reposit
     // docs/concurrency.md measures against (the one with the most pairs in
     // this repository's own `yg check --json`), reused here for consistency.
     const result = run(['context', '--node', 'cli/core/fill', '--json']);
+    expect(result.status, result.stderr).toBe(0);
+    expect(Buffer.byteLength(result.stdout, 'utf-8')).toBeLessThan(SIZE_CEILING_BYTES);
+  }, TIME_CEILING_MS + 15_000);
+
+  it('1b: yg aspects --json --reach exits 0, under the time and size ceiling', () => {
+    // The enumerated form of case 1: one row per (rule, unit) instead of one per
+    // rule, so it is the read whose size grows with the graph rather than with
+    // the rule count. Same ceilings — the point of the bound is that naming
+    // every unit stays a cheap read on a real graph, not that it is free.
+    const result = run(['aspects', '--json', '--reach']);
     expect(result.status, result.stderr).toBe(0);
     expect(Buffer.byteLength(result.stdout, 'utf-8')).toBeLessThan(SIZE_CEILING_BYTES);
   }, TIME_CEILING_MS + 15_000);

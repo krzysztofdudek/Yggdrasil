@@ -632,9 +632,12 @@ component owns) moves to stderr with its exit code unchanged. A \`--json\` run
 that already has its component also skips the per-pair cost enumeration -- cost
 is the text report's job, not the document's. \`--json\` is REFUSED for
 \`--aspect\`, \`--flow\` and \`--type\`: their subject is not a component, and a
-second document shape must not hide behind the same schema tag. Fields may be
-added within \`yg-impact/1\`; only a change to an existing field's shape takes a
-new schema number.
+second document shape must not hide behind the same schema tag. Those facts are
+documents elsewhere: one rule's reach — every unit it judges, with the status
+there — is \`yg aspects --json --reach\`, and what the lock says about each of
+those units is \`yg check --json\`, whose pairs join to it on the same \`unit\`.
+Fields may be added within \`yg-impact/1\`; only a change to an existing field's
+shape takes a new schema number.
 
 ## yg node
 
@@ -833,6 +836,33 @@ together with \`--json\` rather than folded into the same schema. Each rule also
 carries \`log\`: the timestamp of the newest entry in its own history and, when
 that entry recorded one, the \`statusChange\` it recorded — so a reader of the
 document never opens a file to know whether a rule has moved.
+
+\`\`\`bash
+yg aspects --json
+yg aspects --json --reach   # add the units behind the usage counts
+\`\`\`
+
+\`--reach\` adds \`reach.units\` to every rule: each subject the rule actually
+judges, as \`unit\` (\`kind\` + \`path\`), the \`node\` owning it (null for a file
+governed by its architecture type alone), the \`status\` it is judged under THERE,
+and where it came from — \`via\` (\`own\`, \`hierarchy\`, \`architecture\`, \`flow\`,
+\`port\`, \`implied\`, \`type\`) with \`from\` naming the ancestor, type, flow, port or
+implying rule. \`usage\` COUNTS those places; this NAMES them. The \`unit\` is
+shaped exactly like \`yg check --json\`'s \`pair.unit\`, so the two documents join
+on the same subject: reach says which units a rule governs, the check document
+says what the lock currently says about each. \`draft\` rules are listed with the
+units they reach — the gate's pair list cannot show them, since a draft pair is
+never judged — so a rule that reaches nothing and a rule not yet judging ten real
+subjects stay tellable apart, and an empty \`units\` only ever means the first. A
+bundle always reports \`units: []\`: it has no reviewer of its own, and each rule
+it implies carries its own reach. \`usage\` and \`reach\` are NOT the same tally:
+\`usage\` counts COMPONENTS the rule is effective on, \`units\` lists the review
+PAIRS it produces — one per subject file for a file-scoped rule, none at all on a
+component whose subject set is empty (a vacuous pass the gate expects no verdict
+for). Opt-in because it walks every component's mapped files; without it the
+document is unchanged. \`--reach\` without \`--json\` is refused — the enumeration
+is machine input, and the plain listing already answers the same question at a
+reader's resolution.
 
 ### \`yg aspects log\` — a rule's OWN history
 

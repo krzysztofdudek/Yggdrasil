@@ -10,7 +10,13 @@ description: >-
   its standing, live with the rule instead of being scattered across the
   components it happens to reach. Recording a change of standing is a RECORD, not
   the change: the rule's own file stays the user's to edit, so the command
-  refuses to record a standing the file does not actually carry.
+  refuses to record a standing the file does not actually carry. The machine
+  inventory can also name the units behind those usage counts on request
+  (--json --reach): it enumerates them from the same expected-pair computation
+  the gate runs, never from a walk of its own, so the two can never disagree
+  about what a rule reaches — and it enumerates draft rules too, which the gate
+  omits because it does not judge them, so a rule that reaches nothing stays
+  distinguishable from one not yet judging what it reaches.
 aspects: []
 relations:
   - target: cli/core/loader
@@ -50,6 +56,8 @@ relations:
   - target: cli/core/type-coverage
     type: calls
   - target: cli/io/file-content-cache
+    type: calls
+  - target: cli/core/pairs
     type: calls
 mapping:
   - source/cli/src/cli/aspects-log.ts

@@ -5,9 +5,12 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
-import { computeEffectiveAspects, inferAspectDisplayKind } from '../core/graph/aspects.js';
+import { computeEffectiveAspects, getAspectStatusSources, inferAspectDisplayKind } from '../core/graph/aspects.js';
+import type { AttachSource } from '../core/graph/aspects.js';
 import { computeTypeAspectCascade, isReachableForTypeCoveredFile } from '../core/type-effective.js';
-import type { TypeCoverageInput } from '../core/pairs.js';
+import { computeExpectedPairs } from '../core/pairs.js';
+import type { ExpectedPair, TypeCoverageInput } from '../core/pairs.js';
+import { toPosixPath } from '../utils/posix.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
@@ -16,7 +19,14 @@ import { ASPECTS_JSON_SCHEMA, formatAspectsJson } from '../formatters/aspects-js
 import { registerAspectsLogCommand } from './aspects-log.js';
 import { readAspectLog } from '../core/log/aspect-log.js';
 import { parseStatusEntry } from '../core/log/aspect-status.js';
-import type { AspectsJsonAspect, AspectsJsonDocument, AspectsJsonDrills, AspectsJsonLog } from '../formatters/aspects-json.js';
+import type {
+  AspectsJsonAspect,
+  AspectsJsonDocument,
+  AspectsJsonDrills,
+  AspectsJsonLog,
+  AspectsJsonReachUnit,
+  AspectsJsonReachVia,
+} from '../formatters/aspects-json.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyLock } from '../core/verify-lock.js';
 import type { VerifiedPair } from '../core/verify-lock.js';
@@ -133,6 +143,182 @@ export function computeAspectUsage(graph: Graph, typeCoverage?: TypeCoverageInpu
   return usage;
 }
 
+// ============================================================
+// `--reach` — the units behind the usage counts, enumerated
+// ============================================================
+
+/**
+ * Cascade channel → the word the document uses for it.
+ *
+ * Channels 3 and 4 both name an architecture TYPE's defaults as the declaration
+ * site — the difference is only whose type it was, which `from` carries (the
+ * ancestor's type and the ancestor it came through, for channel 4). The word
+ * names what you would edit to change the attachment, so both read
+ * `architecture`.
+ */
+const REACH_VIA_BY_CHANNEL: Record<AttachSource['channel'], AspectsJsonReachVia> = {
+  1: 'own',
+  2: 'hierarchy',
+  3: 'architecture',
+  4: 'architecture',
+  5: 'flow',
+  6: 'port',
+};
+
+/**
+ * The origin half of an attachment, taken from the machine-readable origin token
+ * the cascade already publishes (`own:<path>`, `ancestor:<path>`,
+ * `type:<typeId>`, `ancestor-type:<typeId>@<path>`, `flow:<path>`,
+ * `port:<name>@<target>`) — everything after the channel prefix.
+ *
+ * Channel 1 reports null: a rule declared on the subject itself has no other
+ * place to point at, and repeating the subject's own path as its origin would
+ * read as a second, different fact.
+ */
+function reachOrigin(source: AttachSource): string | null {
+  if (source.channel === 1) return null;
+  const sep = source.origin.indexOf(':');
+  return sep >= 0 ? source.origin.slice(sep + 1) : source.origin;
+}
+
+/** The document's `unit`, split from a lock unit key the same way `yg-check/1` splits it. */
+function reachUnitOf(unitKey: string): { kind: 'node' | 'file'; path: string } {
+  const key = toPosixPath(unitKey);
+  const sep = key.indexOf(':');
+  return {
+    kind: key.startsWith('node:') ? 'node' : 'file',
+    path: sep >= 0 ? key.slice(sep + 1) : key,
+  };
+}
+
+/**
+ * Caches shared across one reach enumeration. A rule scoped `per: file` produces
+ * one pair per subject file but arrives on the component through exactly one
+ * channel, so provenance is resolved once per (component, rule) rather than once
+ * per pair.
+ */
+interface ReachCaches {
+  sources: Map<string, AttachSource[]>;
+  effective: Map<string, Set<string> | null>;
+}
+
+/**
+ * Which rule pulled `aspectId` onto this component, when no attach site declared
+ * it directly (cascade channel 7). Preference goes to an implier that is itself
+ * effective here — several rules may imply the same one, and naming a rule that
+ * does not reach this component would point a reader at an attachment that is
+ * not there. Falls back to the first implier by id when effectiveness cannot be
+ * computed (a structurally invalid `implies` cycle, which the gate reports on its
+ * own path), and to null when nothing implies the rule at all.
+ */
+function reachImplier(
+  graph: Graph,
+  nodePath: string,
+  aspectId: string,
+  caches: ReachCaches,
+): string | null {
+  const impliers = graph.aspects
+    .filter((a) => a.implies?.includes(aspectId))
+    .map((a) => a.id)
+    .sort();
+  if (impliers.length === 0) return null;
+
+  let effective = caches.effective.get(nodePath);
+  if (effective === undefined) {
+    const node = graph.nodes.get(nodePath);
+    try {
+      effective = node ? computeEffectiveAspects(node, graph) : null;
+    } catch (error) {
+      // An implies cycle — the same structural failure the pair enumeration
+      // skips a node for. Provenance degrades to the first implier rather than
+      // aborting the whole inventory over one broken node.
+      debugWrite(
+        `[aspects] reach provenance for '${aspectId}' on '${nodePath}' fell back to the first implier (effective aspects unresolvable): ${(error as Error).message}`,
+      );
+      effective = null;
+    }
+    caches.effective.set(nodePath, effective);
+  }
+  if (effective === null) return impliers[0];
+  return impliers.find((id) => effective.has(id)) ?? impliers[0];
+}
+
+/** Where one pair's rule came from, in the document's own vocabulary. */
+function reachProvenance(
+  graph: Graph,
+  pair: ExpectedPair,
+  typeCoverage: TypeCoverageInput | undefined,
+  caches: ReachCaches,
+): { via: AspectsJsonReachVia; from: string | null } {
+  if (pair.nodePath === undefined) {
+    // A file governed by its architecture type alone — there is no component to
+    // have carried the rule, so the type IS the provenance.
+    const file = reachUnitOf(pair.unitKey).path;
+    return { via: 'type', from: typeCoverage?.covered.get(file) ?? null };
+  }
+
+  const node = graph.nodes.get(pair.nodePath);
+  if (!node) return { via: 'implied', from: null };
+
+  const cacheKey = `${pair.nodePath}\0${pair.aspectId}`;
+  let sources = caches.sources.get(cacheKey);
+  if (sources === undefined) {
+    sources = getAspectStatusSources(node, pair.aspectId, graph);
+    caches.sources.set(cacheKey, sources);
+  }
+  // First match wins — the same cascade order the text provenance views name.
+  const first = sources[0];
+  if (first !== undefined) return { via: REACH_VIA_BY_CHANNEL[first.channel], from: reachOrigin(first) };
+  return { via: 'implied', from: reachImplier(graph, pair.nodePath, pair.aspectId, caches) };
+}
+
+/**
+ * Every subject each rule reaches, keyed by rule id — the enumeration behind the
+ * `usage` counts.
+ *
+ * Built from ONE pass of the same expected-pair enumeration the gate runs, not
+ * from a parallel walk of its own: the units a rule judges are exactly the pairs
+ * the lock must hold for it, and a second implementation of that question would
+ * be free to disagree with the gate about what a rule reaches.
+ *
+ * `includeDraft: true` on purpose. The gate drops draft pairs because it does not
+ * judge them; this document is an inventory, not a gate, and a rule sitting at
+ * draft over ten real subjects must not read as a rule that reaches nothing. Each
+ * unit carries the effective status it would be judged under, so the two cases
+ * stay tellable apart.
+ *
+ * Read-only, like the rest of the inventory: the blocking channels the pair
+ * enumeration also returns (an unreadable subject) belong to the gate, which
+ * reports them with what/why/next — a subject that cannot be read simply does not
+ * appear here, exactly as it does not appear in the usage counts beside it.
+ */
+export async function computeAspectReach(
+  graph: Graph,
+  typeCoverage?: TypeCoverageInput,
+): Promise<Map<string, AspectsJsonReachUnit[]>> {
+  const byAspect = new Map<string, AspectsJsonReachUnit[]>();
+  // Every rule gets a list, so an empty one always means "reaches nothing" and
+  // never "was not enumerated" — including every bundle, which has no reviewer
+  // and therefore no pair of its own.
+  for (const aspect of graph.aspects) byAspect.set(aspect.id, []);
+
+  const { pairs } = await computeExpectedPairs(graph, { includeDraft: true, typeCoverage });
+  const caches: ReachCaches = { sources: new Map(), effective: new Map() };
+  for (const pair of pairs) {
+    const units = byAspect.get(pair.aspectId);
+    if (!units) continue; // a pair for a rule the inventory does not list cannot be placed
+    const { via, from } = reachProvenance(graph, pair, typeCoverage, caches);
+    units.push({
+      unit: reachUnitOf(pair.unitKey),
+      node: pair.nodePath === undefined ? null : toPosixPath(pair.nodePath),
+      status: pair.status,
+      via,
+      from,
+    });
+  }
+  return byAspect;
+}
+
 /**
  * The rule inventory as one machine document — the same facts the listing
  * prints, plus each rule's drill-corpus size and its standing review date.
@@ -140,13 +326,20 @@ export function computeAspectUsage(graph: Graph, typeCoverage?: TypeCoverageInpu
  * The corpus is COUNTED, never run: `discoverDrillCases` lists the cases on
  * disk, so this stays a read with no reviewer, no check execution and no lock
  * access, exactly like the text listing beside it.
+ *
+ * `reach` names every subject each rule governs. It is opt-in (`--reach`)
+ * because it walks every component's mapped files to enumerate them: absent, the
+ * document is byte-identical to what it always was, and the caller that only
+ * wants the counts pays nothing for the names.
  */
 export async function buildAspectsJson(
   graph: Graph,
   projectRoot: string,
   typeCoverage?: TypeCoverageInput,
+  withReach = false,
 ): Promise<AspectsJsonDocument> {
   const usage = computeAspectUsage(graph, typeCoverage);
+  const reach = withReach ? await computeAspectReach(graph, typeCoverage) : undefined;
   const sorted = [...graph.aspects].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const aspects: AspectsJsonAspect[] = [];
   for (const aspect of sorted) {
@@ -175,6 +368,7 @@ export async function buildAspectsJson(
         flow: u.flow,
         typeCovered: u.typeCovered,
       },
+      ...(reach === undefined ? {} : { reach: { units: reach.get(aspect.id) ?? [] } }),
       drills,
       log: await lastLogFacts(graph, aspect),
     });
@@ -912,7 +1106,11 @@ export function registerAspectsCommand(program: Command): void {
       'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age, catch/exposure counts and reading, false-block (fp) count, and wrong-rule incidents attributed to the rule',
     )
     .option('--json', `Machine-readable output: one ${ASPECTS_JSON_SCHEMA} document on stdout instead of the listing.`)
-    .action(async (options: { health?: boolean; json?: boolean }) => {
+    .option(
+      '--reach',
+      'With --json: add each rule\'s reach — every unit it judges, with the effective status there and the channel it arrived through. Draft rules included, so a rule not yet judging its subjects is never mistaken for one that reaches none.',
+    )
+    .action(async (options: { health?: boolean; json?: boolean; reach?: boolean }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
@@ -924,10 +1122,20 @@ export function registerAspectsCommand(program: Command): void {
           })}`) + '\n');
           process.exit(1);
         }
+        if (options.reach === true && options.json !== true) {
+          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            what: '--reach needs --json.',
+            why: 'Reach is an enumeration of every unit each rule judges — hundreds of lines on a real graph, and machine input by nature. The listing answers the same question at the resolution a person reads it at: how many places each rule reaches, split by the channel it arrived through.',
+            next: 'Run: yg aspects --json --reach (the enumeration), or yg aspects (the listing with the counts).',
+          })}`) + '\n');
+          process.exit(1);
+        }
         if (options.json === true) {
           const projectRoot = path.dirname(graph.rootPath);
           const typeCoverage = await computeTypeCoverageForAspects(graph, projectRoot);
-          process.stdout.write(formatAspectsJson(await buildAspectsJson(graph, projectRoot, typeCoverage)));
+          process.stdout.write(
+            formatAspectsJson(await buildAspectsJson(graph, projectRoot, typeCoverage, options.reach === true)),
+          );
         } else if (options.health) {
           // Injected reference instant for the coarse rule-age column. Read once
           // here at the command boundary (an observability timestamp — it records
