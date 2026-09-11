@@ -23,10 +23,18 @@ yg portal
 ```
 
 This serves the portal on a local address that only your own machine can reach,
-and prints the link. It is **read-only**: browsing it changes nothing. The one
-exception is a single, clearly-labelled approve action — and even that just runs
-the same verification you would run from the command line; you can turn it off
-entirely with `yg portal --no-write` for a shared screen or a wall display.
+and prints the link. It is **read-only** in the sense that matters: browsing it
+never touches your source, your graph, or the lock file. The one action that can
+act on the project is a single, clearly-labelled approve — and even that just
+runs the same verification you would run from the command line; you can turn it
+off entirely with `yg portal --no-write` for a shared screen or a wall display.
+The page's other controls write nothing at all: a `↻ Refresh` button that
+re-fetches the live data for free, a `⌕` button opening a ⌘K-style command
+palette over views, components and rules, a `◐` light/dark toggle, and the
+in-page export bars described below. (Like `yg check`, the portal does quietly
+maintain its own gitignored classification cache under `.yggdrasil/` as you
+browse, when `coverage.type_level` is on — never your lock, your graph, or your
+source.)
 
 For anything that could act on the project — the approve action, the cost
 preview, and the live data behind them — the portal answers only requests that
@@ -151,6 +159,12 @@ A row of views down the side, each answering a different question:
   itself a waiver, so the two totals can genuinely differ.
 - **Structure** and **Start here** — the component tree with a filter, and a short
   guided walk for someone seeing the project for the first time.
+
+Two of those views also hand you something to take away. **Coverage & audit**
+carries an export bar — "Coverage CSV", "Residue CSV", "JSON bundle" — and
+**Suppressions** its own "Export CSV" / "Export JSON". Both build the file inside
+the page, with no network call and nothing written to the project, so the audit
+travels to someone who has no checkout of their own.
 
 ## Honest by design
 
