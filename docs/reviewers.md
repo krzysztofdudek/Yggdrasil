@@ -25,11 +25,11 @@ The `reviewer:` block is **optional** — reviewer kind is inferred from rule-fi
 
 ## LLM reviewer
 
-The LLM reviewer is a separate LLM call from the coding agent — one LLM verifying the work of another. `yg check --approve` assembles each unverified LLM pair into one prompt — the aspect's `content.md` plus the subject files for that pair (the whole node under `per: node`, a single file under `per: file`). The reviewer also receives any reference files declared on the aspect, presented as authoritative context (not under review). It responds with SATISFIED or NOT SATISFIED, and the verdict is recorded in the lock. Each unverified LLM pair costs one reviewer call, multiplied by the tier's consensus count.
+The LLM reviewer is a separate LLM call from the coding agent — one LLM verifying the work of another. `yg check --approve` assembles each unverified LLM pair into one prompt — the aspect's `content.md` plus the subject files for that pair (the whole node under `per: node`, a single file under `per: file`). The reviewer also receives any reference files declared on the aspect, presented as authoritative context (not under review). It responds with a JSON object — `{"satisfied": true|false, "reason": "explanation with file:line references"}` — and that `satisfied` boolean is recorded in the lock as the verdict. Each unverified LLM pair costs one reviewer call, multiplied by the tier's consensus count.
 
 **Draft aspects produce no pairs.** When an aspect's effective status on a node is `draft`, no pair is expected for it — there is nothing to verify and nothing to record (`yg aspect-test` can still run a draft aspect live — diagnostic only, the lock is never written). Aspects with effective status `advisory` or `enforced` are verified normally; the level only changes how a refused or unverified pair renders in `yg check` (warning vs. error). Verdicts survive status flips, including a `draft` round-trip — returning an aspect to enforced re-uses the recorded verdict for unchanged inputs. See [Aspect Status](/aspect-status) for the lifecycle.
 
-**LLM verdicts are not deterministic.** The same code against the same rule can come back SATISFIED on one run and NOT SATISFIED on another — most often on borderline rules. To avoid laundering a refusal into an approval, a recorded refusal is final for unchanged inputs: re-running `yg check --approve` does not re-roll it. The three honest ways out are fix the code, sharpen the rule (which re-verifies every pair of the aspect — check `yg impact --aspect` first), or add a `yg-suppress` marker with your sign-off. Manage variance up front by writing rules that are concrete and decidable rather than vague, by preferring a `deterministic` `check.mjs` whenever a rule is programmatically checkable (zero LLM cost, identical result every run), and by raising `consensus` on high-stakes or noisy aspects so a majority vote smooths out single-call variance. To explore whether the rule text is the problem, use `yg aspect-test` — a diagnostic re-run that never writes the lock.
+**LLM verdicts are not deterministic.** The same code against the same rule can come back satisfied on one run and refused on another — most often on borderline rules. To avoid laundering a refusal into an approval, a recorded refusal is final for unchanged inputs: re-running `yg check --approve` does not re-roll it. The three honest ways out are fix the code, sharpen the rule (which re-verifies every pair of the aspect — check `yg impact --aspect` first), or add a `yg-suppress` marker with your sign-off. Manage variance up front by writing rules that are concrete and decidable rather than vague, by preferring a `deterministic` `check.mjs` whenever a rule is programmatically checkable (zero LLM cost, identical result every run), and by raising `consensus` on high-stakes or noisy aspects so a majority vote smooths out single-call variance. To explore whether the rule text is the problem, use `yg aspect-test` — a diagnostic re-run that never writes the lock.
 
 ### Directory structure
 
@@ -246,7 +246,7 @@ Adding `companion.mjs` to an existing LLM aspect introduces `companionHash` on t
 
 ### What `yg aspect-test --dry-run` shows
 
-`--dry-run` on a companion-bearing LLM aspect runs the hook live and prints the resolved companion paths and the assembled prompt, but makes no reviewer call and does not touch the lock. The `--files` ad-hoc path (testing against an explicit file list without a node) is not available for companion aspects — the hook requires a node to bound its allowed reads.
+`--dry-run` on a companion-bearing LLM aspect runs the hook live and prints the resolved companion paths and the assembled prompt, but makes no reviewer call and does not touch the lock. The `--files` ad-hoc path (testing against an explicit file list with no graph attachment) is not available for any LLM aspect, companion-bearing or not — `--files` works with deterministic aspects only. An LLM review needs graph context an ad-hoc file list cannot supply: a node mapping or an architecture-derived read allowance, the effective aspects, the tier config. Address an LLM aspect with `--node <path>` or `--file <path>` instead.
 
 ### Failure modes — fail closed
 
@@ -255,7 +255,7 @@ Any failure to assemble a companion is an **infra-fail**: nothing is written to 
 - The hook throws an exception.
 - The hook returns a value that is not an array of `{ path }` objects.
 - A returned path does not exist on disk.
-- A returned path falls outside the node's allowed-reads set (the error names the owning node and the companion's owning node, never the subject file).
+- A returned path falls outside the node's allowed-reads set. The `what` sentence names the subject unit and the aspect — and for a `per: file` pair that unit *is* the subject file path. The `next` fix suggestion is the part that stays about nodes: it names the reviewed node and the owning node of the companion path, never the subject file, because only a node can hold a relation declaration. Two variants of this message the rest of this page does not otherwise cover: for a nodeless pair (a file enforced by its architecture type alone) it names no owning node at all, only the file's architecture type and the relation allow-list in `yg-architecture.yaml`; for a path excluded from graph coverage it names neither node nor type, only which exclusion put the path out of reach.
 - `companion.mjs` fails to import (syntax error, missing dependency).
 
 The hook is a resolver, not a judge — it never emits violations.
@@ -264,7 +264,7 @@ The hook is a resolver, not a judge — it never emits violations.
 
 ## Deterministic reviewer
 
-The deterministic reviewer ships a `check.mjs` module run locally at zero LLM cost. Whatever `Violation[]` your `check` function returns is the verdict — no LLM, no nondeterminism, no per-call cost. There is **one** `check(ctx)` contract. The `ctx` exposes everything a check might need: `ctx.node` and `ctx.files` (the subject files, each with a `file.ast` parse tree when the language has a grammar), `ctx.fs` (the file system, within an allowed-reads boundary), and `ctx.graph` (the graph topology). A check uses whichever it needs — inspect a single file's parse tree for a syntactic rule, or read related nodes and the file system for a cross-node structural rule. See `yg knowledge read writing-deterministic-aspects`.
+The deterministic reviewer ships a `check.mjs` module run locally at zero LLM cost. Whatever `Violation[]` your `check` function returns is the verdict — no LLM, no nondeterminism, no per-call cost. There is **one** `check(ctx)` contract. The `ctx` exposes everything a check might need: `ctx.node` and `ctx.files` (the subject files, each with a `file.ast` parse tree when the language has a grammar), `ctx.fs` (the file system, within an allowed-reads boundary), `ctx.graph` (the graph topology), and `ctx.config` (the rule's settings for this repository). A check uses whichever it needs — inspect a single file's parse tree for a syntactic rule, or read related nodes and the file system for a cross-node structural rule. See `yg knowledge read writing-deterministic-aspects`.
 
 The two subsections below illustrate each end of that range: [parse-tree checks](#parse-tree-checks) for per-file syntactic rules, and [graph-aware checks](#graph-aware-checks) for rules spanning more than one node — but both are the same `check.mjs` contract and the same `reviewer.type: deterministic` field.
 
@@ -452,7 +452,16 @@ yg aspect-test --aspect async-fs --files src/utils/config.ts
 
 # Use a node's mapping as the file list
 yg aspect-test --aspect async-fs --node orders/order-service
+
+# Run against a file covered by its architecture type alone, with no owning component
+yg aspect-test --aspect async-fs --file src/generated/mapping.ts
 ```
+
+`yg aspect-test` addresses exactly one unit per run, and there are three ways to name it — at most one per invocation:
+
+- `--node <path>` — a real component in the graph. The unit is that node's mapping, with the node's own allowed reads.
+- `--file <path>` — a source file enforced by its architecture type alone, with no owning component. It uses the architecture-derived read allowance rather than a node mapping, and it is the only way to test an aspect against a type-covered, nodeless file.
+- `--files <paths...>` — fully ad-hoc, no graph attachment at all. Deterministic aspects only.
 
 `yg aspect-test` exits 0 for clean, 1 for violations, and never writes the lock. Output:
 
@@ -493,6 +502,13 @@ The `check(ctx)` function is synchronous and returns `Violation[]`. The `ctx` ob
 ```typescript
 interface Ctx {
   node: GraphNode;     // the node being reviewed; node.files is always the FULL mapping
+
+  config: Record<string, string | number | boolean>;
+                       // the rule's settings for THIS repository: the values its package
+                       // declared, with yg-aspect.adapt.yaml on top. Empty for a rule
+                       // that declares no configuration. Reading a key folds that key's
+                       // value into the pair's identity.
+
   files: File[];       // the unit's subject files — the scope-driven view, not an alias
                        // for node.files: under per: file it is the single file, and a
                        // scope.files filter narrows it. Equal to node.files only when
@@ -550,7 +566,7 @@ The graph-aware runner enforces a strict read boundary — reading outside it th
 
 #### The observation model: what invalidates a deterministic verdict
 
-A deterministic verdict is reusable only while everything the check **observed** still hashes to the value it had when the verdict was recorded. As the check runs, the runner records every observation it makes beyond the subject files: each `ctx.fs.read` (with the content hash), each `ctx.fs.list` (with a hash of the directory's entry names), each `ctx.fs.exists` probe (including negative ones — a `false` result is an observation), and each `ctx.graph` access. These observations are folded into the pair's input hash, so a later change to any observed value re-verifies the pair — adding a file the check listed, making a probed path appear, or editing a related node all count.
+A deterministic verdict is reusable only while everything the check **observed** still hashes to the value it had when the verdict was recorded. As the check runs, the runner records every observation it makes beyond the subject files: each `ctx.fs.read` (with the content hash), each `ctx.fs.list` (with a hash of the directory's entry names), each `ctx.fs.exists` probe (including negative ones — a `false` result is an observation), each `ctx.graph` access, and each `ctx.config` key the check reads (including a key that reads as `undefined` — its later appearance is itself a change). These observations are folded into the pair's input hash, so a later change to any observed value re-verifies the pair — adding a file the check listed, making a probed path appear, editing a related node, or changing a setting the rule reads all count. Changing a setting the rule never reads changes nothing.
 
 The practical consequence: **every observation widens your invalidation surface.** Read and probe only what the rule needs, and the verdict survives longer between re-runs.
 
@@ -563,6 +579,8 @@ yg aspect-test --aspect sibling-test-file --node orders/order-service
 # Verify the check is deterministic (same violations on every run)
 yg aspect-test --aspect sibling-test-file --node orders/order-service --check-determinism
 ```
+
+The same three addressing modes apply here — `--node`, `--file`, `--files`, described under [Testing parse-tree checks](#testing-parse-tree-checks). A rule that governs files covered by their architecture type alone is tested with `--file <path>`; `--node` has no nodeless unit to address.
 
 `yg aspect-test` exits 1 if violations exist and never writes the lock. Run it against both compliant and non-compliant nodes to confirm no false positives and no false negatives. `--check-determinism` runs the check twice and fails if the violation sets differ — your safeguard against machine-dependent or side-effecting checks.
 
@@ -692,7 +710,7 @@ Readers combine the local sidecar with the committed stream, de-duplicated line 
 
 **Cost spikes when an aspect changes.** Editing a widely-used aspect's content invalidates every pair it produces → N LLM calls to refill. Before such an edit, run `yg impact --aspect <id>` to see the count. `--aspect` also accounts for `companion.mjs` — editing it invalidates every pair of the aspect just as a `content.md` edit does, at the same billed cost. Consider `consensus: 1` for high-fan-out aspects.
 
-**Companion assembly failure.** If the companion hook throws, returns a bad shape, or resolves a path that does not exist or falls outside the allowed-reads boundary, the pair is an infra-fail: nothing is written, the pair stays unverified, and `yg check` stays red. The error message names the owning nodes (source and target) — never the subject file being reviewed. Fix the hook or the relation declarations and re-run `yg check --approve`.
+**Companion assembly failure.** If the companion hook throws, returns a bad shape, or resolves a path that does not exist or falls outside the allowed-reads boundary, the pair is an infra-fail: nothing is written, the pair stays unverified, and `yg check` stays red. The error's `what` sentence names the unit being reviewed (for a `per: file` pair, that is the subject file) and the aspect; its `next` fix suggestion instead names the owning nodes, source and target, and never the subject file — a per-file subject cannot hold a relation declaration, only its owning node can. Fix the hook or the relation declarations and re-run `yg check --approve`.
 
 ### Deterministic reviewer
 

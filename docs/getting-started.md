@@ -24,7 +24,9 @@ yg init
 ```
 
 Run in a terminal, this scaffolds `.yggdrasil/` — config, architecture
-defaults, and the agent-rules files, identical for every agent — and walks
+defaults, and the agent-rules files (the `AGENTS.md` digest block, the
+`@AGENTS.md` import line in `CLAUDE.md`, and `.clinerules/yggdrasil.md`),
+identical for every agent — and walks
 you through one topic: which reviewer should verify your code (it asks for a
 provider, then a model, and — for an API provider — checks for a key). If you
 already run an agent CLI — **Claude Code, Codex, or Gemini CLI** — pick it: it
@@ -34,6 +36,13 @@ providers (Anthropic, OpenAI, Google) need a key, read only from an environment
 variable (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` — never a
 flag, so it never lands in shell history) and stored in
 `.yggdrasil/yg-secrets.yaml` (automatically gitignored).
+
+Each of the three agent-rules files is optional. Skip any of them with
+`--no-agents-md`, `--no-claude-md`, or `--no-clinerules` — the choice is
+recorded under `rules_artifacts` in `.yggdrasil/yg-config.yaml`, so a later
+`yg init --upgrade` keeps honoring it and prints which files it is leaving out.
+(`--no-agents-md` also switches off the `CLAUDE.md` import, which is an import
+_of_ that file.)
 
 ### Start keyless — no reviewer, no API key
 
@@ -97,6 +106,8 @@ yg check: PASS (1 warning)  0 nodes · 0/50 files (0 node-owned, 0 type-covered,
 
 Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 
+Nothing is required to be covered, so the 50 uncovered files this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.
+
 Warnings (1):
 
   uncovered (50)
@@ -105,7 +116,7 @@ Warnings (1):
             Fix: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
 ```
 
-`yg init` turns `coverage.type_level` on by default (see [Configuration](/configuration#coverage-config)), and the fresh architecture starts with no classifying types — hence the notice line. Add a `when:` predicate to a type and matching files start satisfying coverage on their own, with no node required.
+`yg init` turns `coverage.type_level` on by default (see [Configuration](/configuration#coverage-config)), and the fresh architecture starts with no classifying types — hence the first notice line. Add a `when:` predicate to a type and matching files start satisfying coverage on their own, with no node required. The second notice is require-nothing mode stating its own consequence: it appears whenever `coverage.required` is empty _and_ something is still uncovered, and it stops the moment either half stops being true.
 
 Nothing is enforced yet — the warnings are your to-do list. Tell your agent to
 create the first rule.
@@ -215,7 +226,9 @@ That default also applies to the handful of files Yggdrasil itself maintains at
 your repo root — `AGENTS.md`, `CLAUDE.md`, `.clinerules/`, `.gitattributes` — so
 on such a project they show up as unmapped errors right after `yg init
 --upgrade` adds them. They're repository plumbing, not project source; exclude
-them (`yg init --upgrade` prints this same stanza when it applies to you):
+them. `yg init --upgrade` prints the exact stanza for your project, built from
+whichever of these files it actually wrote on that run — on a repo that installs
+all of them it looks like this:
 
 ```yaml
 coverage:
@@ -226,6 +239,10 @@ coverage:
     - .gitattributes
 ```
 
+Only `.gitattributes` is unconditional. The three agent-rules entries drop out of
+the printed stanza when you have switched them off under `rules_artifacts` in
+`.yggdrasil/yg-config.yaml` (via `--no-agents-md`, `--no-claude-md`, or
+`--no-clinerules`), because a file that was never written cannot be unmapped.
 :::
 
 The fast path: **minimal nodes (no aspects) for everything you're not working
@@ -263,8 +280,7 @@ The lock's deterministic verdicts live in a gitignored local cache
 (`.yg-lock.deterministic.json`), so a fresh CI checkout starts without them and
 `yg check` would report those pairs as unverified. Rebuild the cache first — it's
 free and needs no key — with `yg check --approve --only-deterministic`, which fills
-only the deterministic pairs and writes the gitignored cache (plus a port's
-contract baseline when one is missing). See
+only the deterministic pairs and writes the gitignored cache. See
 [The lock](/the-lock) for the file layout.
 
 **GitHub Actions:**

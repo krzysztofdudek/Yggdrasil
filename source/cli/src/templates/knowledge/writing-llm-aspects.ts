@@ -255,9 +255,12 @@ export async function companion(ctx) {
 \`\`\`
 
 The hook may be async. Returned paths may be absolute or relative; the runner
-normalizes each to repo-root-relative POSIX, deduplicates, and sorts. For
-\`scope.per: node\`, a returned path that equals a unit subject file is silently
-skipped and not recorded.
+normalizes each to repo-root-relative POSIX, deduplicates, and sorts. A returned
+path that equals one of the unit's subject files is silently skipped and not
+recorded — it is already in the prompt and the hash as a subject. This holds
+regardless of scope: under \`scope.per: file\` the subject set is that one file,
+under \`scope.per: node\` it is the whole subject set. A per-file hook cannot
+re-inject its own subject as a labelled companion.
 
 **Never mutate a tree \`ctx.parseAst\` hands you.** As with a deterministic
 \`check.mjs\` (see the \`writing-deterministic-aspects\` doc), the runner may reuse

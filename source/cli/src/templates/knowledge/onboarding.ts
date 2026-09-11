@@ -328,14 +328,20 @@ record a refusal.
    config\`); in the hand-config path also write \`.yggdrasil/.gitignore\`
    with the lines \`yg init\` ships (\`yg-secrets.yaml\`, \`.symbols-cache/\`,
    \`.ast-cache/\`, \`.type-class-cache/\`, \`.debug.log\`,
-   \`.yg-lock.deterministic.json\`, \`.yg-events.jsonl\`,
-   \`.yg-fill-divergence.log\`, \`.feature-field.json\`)
+   \`.yg-lock.deterministic.json\`, \`.yg-events.jsonl*\`,
+   \`.yg-fill-divergence.log*\`, \`.feature-field.json\`,
+   \`.yg-packages-versions.json\`, \`*.tmp\` — the two rotation globs keep
+   their trailing \`*\`)
    so the derived caches the demos generate never surface as untracked files
-   and break the porcelain proof. Add the scaffold's side files (the three
-   agent-rules artifacts — \`AGENTS.md\`, the \`CLAUDE.md\` import,
-   \`.clinerules/yggdrasil.md\` — plus \`.gitattributes\`) to
+   and break the porcelain proof. Add the scaffold's side files (the
+   agent-rules artifacts this repo actually carries — by default all three:
+   \`AGENTS.md\`, the \`CLAUDE.md\` import, \`.clinerules/yggdrasil.md\`; fewer
+   when \`rules_artifacts\` in \`.yggdrasil/yg-config.yaml\` has switched one
+   off, e.g. after \`yg init --no-clinerules\` — plus \`.gitattributes\`,
+   which is always written) to
    \`coverage.excluded\` so the learner's first green isn't blemished by a
-   setup warning.
+   setup warning. A learner asking whether they can skip one of the three
+   files: yes — \`yg knowledge read configuration\`, \`rules_artifacts\`.
 4. Graph by hand per \`yg schemas read node|aspect|architecture\`: two nodes,
    one deterministic aspect, one OBVIOUS planted violation. Mapping entries
    as file globs (see the C2 known-limitation note).
