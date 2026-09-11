@@ -49,8 +49,9 @@ function copyFixture(label: string): string {
 // writePruneSummary's "Pruned..." lines) print to STDERR for a real
 // --approve run (core/check.ts routes fill's own `write` sink to
 // process.stderr.write there — only a --dry-run preview routes it to
-// stdout instead). The final report (verdict, Type coverage, Errors/
-// Warnings) always prints to stdout via formatOutput. `all` combines both
+// stdout instead). The final report (verdict, Errors/Warnings, and the
+// type-coverage listing when --coverage asks for it) always prints to
+// stdout via formatOutput. `all` combines both
 // so a caller checking for prune/fill wording does not have to track which
 // stream a given line landed on.
 function run(args: string[], dir: string): { code: number; stdout: string; stderr: string; all: string } {
@@ -97,8 +98,9 @@ describe('flag disable/enable GC round-trip for a deterministic virtual entry', 
     const cfgPath = path.join(dir, '.yggdrasil', 'yg-config.yaml');
     const onCfg = readFileSync(cfgPath, 'utf-8');
 
-    // ON: first fill.
-    const first = run(['check', '--approve', '--only-deterministic'], dir);
+    // ON: first fill. `--coverage` because the evidence read below is the
+    // per-type listing naming handler.ts, opt-in since 6.0.0.
+    const first = run(['check', '--approve', '--only-deterministic', '--coverage'], dir);
     expect(first.code).toBe(0);
     expect(first.stdout).toMatch(/handler\.ts/);
 
@@ -111,7 +113,7 @@ describe('flag disable/enable GC round-trip for a deterministic virtual entry', 
     // neither the file nor the architecture must not manufacture extra cost
     // beyond this one, expected refill.
     writeFileSync(cfgPath, onCfg); // restore the original ON config verbatim
-    const second = run(['check', '--approve', '--only-deterministic'], dir);
+    const second = run(['check', '--approve', '--only-deterministic', '--coverage'], dir);
     expect(second.code).toBe(0);
     expect(second.stdout).toMatch(/handler\.ts/);
     // Exactly one mention, not a count that grew from repeated cycling.

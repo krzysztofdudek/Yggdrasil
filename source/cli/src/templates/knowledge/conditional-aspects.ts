@@ -239,7 +239,7 @@ the run that discards it says so.
 Matching a type satisfies coverage; it does not by itself mean anything runs.
 A type's whole-unit (\`scope: { per: node }\`) rules can never run on a file
 with no component, a rule's own \`when:\` can still fail against the facts
-above, and a rule can still be draft. \`yg check\` names all of this per
+above, and a rule can still be draft. \`yg check --coverage\` names all of this per
 matched type — files covered, rules actually enforced, rules that run but
 only warn (reported under their own heading, never folded in with the ones
 that block), rules attached but not (with the reason and a count), and — the

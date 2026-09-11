@@ -31,14 +31,48 @@ function copyFixture(...overlays: string[]): string {
   return dir;
 }
 
+/**
+ * The report as `yg check --coverage` renders it — the listing is opt-in since
+ * 6.0.0, so every assertion about it below must ask for it, exactly as a
+ * reader does. `renderPlain` is the other half of the same contract.
+ */
 async function renderCheck(dir: string): Promise<string> {
   const graph = await loadGraph(dir);
   const files = await walkRepoFiles(dir);
   const result = await runCheck(graph, files);
-  return formatOutput(result);
+  return formatOutput(result, { kind: 'full' }, false, false, { coverage: true });
+}
+
+/** The report as plain `yg check` renders it — no view flag, no coverage flag. */
+async function renderPlain(dir: string): Promise<string> {
+  const graph = await loadGraph(dir);
+  const files = await walkRepoFiles(dir);
+  const result = await runCheck(graph, files);
+  return formatOutput(result, { kind: 'full' }, false, false);
 }
 
 describe('yg check — type-visibility block', () => {
+  // The other side of every assertion in this file: over the SAME fixture and
+  // the same run, a plain `yg check` carries none of it. A green tree with
+  // type-level coverage on gets the verdict and what the run found, nothing
+  // else — the listing is the answer to a question asked when the type map is
+  // written, not on every run.
+  it('plain yg check renders none of this block — the whole listing is behind --coverage', async () => {
+    const dir = copyFixture(FIXTURE_ZERO_ENFORCEMENT);
+    const plain = await renderPlain(dir);
+    expect(plain).not.toContain('Type coverage:');
+    expect(plain).not.toContain('file covered:');
+    expect(plain).not.toContain('files covered:');
+    expect(plain).not.toContain('Enforced:');
+    expect(plain).not.toContain('inherited rules stop at');
+    expect(plain).not.toMatch(/matched by a type have no rules that apply/);
+    expect(plain).not.toContain('src/ep/e.ts');
+    // The same run WITH the flag does carry it — so the absence above is the
+    // flag's doing, not a fixture that never produced a block.
+    expect(await renderCheck(dir)).toContain('Type coverage:');
+    rmSync(dir, { recursive: true, force: true });
+  });
+
   it('says plainly when a file is covered but nothing applies to it', async () => {
     const dir = copyFixture(FIXTURE_ZERO_ENFORCEMENT);
     const out = await renderCheck(dir);

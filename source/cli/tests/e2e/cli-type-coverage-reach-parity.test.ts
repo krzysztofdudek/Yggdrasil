@@ -86,7 +86,11 @@ describe.skipIf(!distExists)("CLI E2E — a type-covered file's read allowance m
       const beforeEntry = before.verdicts['reach-parent-file-rule']?.['file:src/reach/leaf/a.ts'];
       expect(beforeEntry?.verdict).toBe('approved');
 
-      const verified = run(['check'], dir);
+      // `--coverage`: both assertions below read the type's own "Enforced:"
+      // summary line, which lives in the coverage listing — opt-in since
+      // 6.0.0. Without the flag the two negative assertions would pass for the
+      // wrong reason (no line at all) and the positive one could not hold.
+      const verified = run(['check', '--coverage'], dir);
       // Never re-fills: a plain check with a stored hash that no longer
       // matches what verify recomputes would report this pair unverified —
       // forever, since neither side of that mismatch ever changes again.

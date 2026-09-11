@@ -247,7 +247,10 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
 // aspect implies cycle — named the same way `yg owner --file` / `yg context
 // --file` already name it, never a bare "nothing applies"), plus the
 // repo-wide zero-applicable-rules line. A statement of fact, not a warning —
-// printed in every view, same posture as the zero-classifying-types notice.
+// and, since 6.0.0, one the reader asks for by name: `yg check --coverage`
+// renders it, plain `yg check` does not (see check-render-views.ts for why
+// the coverage axis is independent of the view flags, and why nothing this
+// block reports is lost when it is off).
 
 /** Matches the rest of the check summary's own list-truncation cap. */
 const FILE_LIST_CAP = 12;
@@ -417,12 +420,15 @@ function renderCountList(
 }
 
 /**
- * `countsOnly`: the counts-only triage views (--summary, --top) print this
- * block ahead of their own narrowed body (same posture as the zero-
- * classifying-types notice), so it must stay to COUNTS there — never the
- * per-aspect reason breakdown, half-expanded-bundle names, chain-termination
- * text, or zero-enforcement file samples a full `yg check` shows. Those views
- * exist specifically to keep the wall short; this block must not undo that.
+ * Rendered only for a run that asked for it (`yg check --coverage`); the
+ * caller (check-render-views.ts) owns that gate.
+ *
+ * `countsOnly`: `--coverage` inside a counts-only triage view (--summary,
+ * --top) prints this block ahead of that view's own narrowed body, so it must
+ * stay to COUNTS there — never the per-aspect reason breakdown,
+ * half-expanded-bundle names, chain-termination text, or zero-enforcement file
+ * samples `yg check --coverage` shows. Those views exist specifically to keep
+ * the wall short; this block must not undo that.
  */
 export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOnly?: boolean }): string {
   const report = result.typeVisibility;

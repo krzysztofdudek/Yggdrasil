@@ -323,7 +323,11 @@ the run, and on the refusal itself.
 ### `yg check`
 
 Unified gate combining structural integrity, the prompt-size gate, lock
-verification, coverage, and completeness. It **writes nothing** — it recomputes
+verification, coverage, and completeness. It **writes nothing** *unless the
+project configured it to* — `auto_approve` in `yg-config.yaml` (see below) makes
+a bare `yg check` a fill, so "just run `yg check`, it is read-only" is only true
+for a project that never set it; `yg check --no-approve` is the read that is
+always a read. Otherwise it recomputes
 each expected pair's input hash and compares it to the recorded verdict in the
 lock (the committed `yg-lock.nondeterministic.json` and `yg-lock.logs.json`, plus
 the gitignored `.yg-lock.deterministic.json` cache; see [The lock](/the-lock)). By default it
@@ -363,7 +367,7 @@ unverified, not a display glitch.
 
 Exit code 0 if fully clean, 1 if any errors found.
 
-#### `--top [N]`, `--summary`, `--details`, `--aspect <id>`, and `--quiet` — output control
+#### `--top [N]`, `--summary`, `--details`, `--aspect <id>`, `--coverage`, and `--quiet` — output control
 
 The default output groups issues by rule. When a rule's fix is **node-specific**
 (the `Next:` command names the node — e.g. a per-node log entry, or declaring a
@@ -384,6 +388,7 @@ yg check --top        # only the single suggested-next group (flag with no value
 yg check --summary    # per-node counts only — no per-issue blocks
 yg check --details    # ungrouped per-pair view (old full output)
 yg check --aspect <id>  # drill into one rule — all pairs for that aspect
+yg check --coverage   # ADD the per-type coverage listing (not a view; combines with everything)
 yg check --approve --quiet  # suppress progress output during --approve (stderr)
 ```
 
@@ -407,6 +412,27 @@ the plain header. An **unknown / mistyped** `--aspect` id is a guided error nami
 the id (run `yg aspects` for the real list) rather than a misleading `0 of N`
 view; when a valid aspect simply has no issues this run while other errors remain,
 the drill-in still surfaces the global `Next:` so you are never left at a dead end.
+`--coverage` is not one of these views and is not mutually exclusive with any of
+them. It is the other axis — how much the run *enumerates*, rather than which
+issues it renders — and it ADDS the per-type coverage listing: which files each
+type covers, which rules actually enforce, which are attached but do not (with
+the reason and a count), where each type's inherited chain stops, and the
+repo-wide roll-up of files that match a type with no rule that applies to them.
+Plain `yg check` does not print it, because it answers a question asked when the
+type map is written or changed rather than on every run — on a project with many
+classifying types it was the bulk of every report, green or not. It combines with
+every view above AND with `--approve` / `--only-deterministic` (it widens a
+statement of fact; it can never narrow the issue set, move a count, or change the
+exit code), and only `--json` refuses it — that document carries the coverage
+counts and has never carried the listing. Inside `--summary` / `--top` it renders
+one counts line per type rather than the full listing.
+
+```bash
+yg check --coverage                                 # the report plus the per-type listing
+yg check --approve --only-deterministic --coverage  # the CI gate, with the listing
+yg check --summary --coverage                       # per-type counts only
+```
+
 `--quiet` / `-q` silences the `--approve` fill-progress on stderr, leaving only the
 final report on stdout. With `--dry-run` the budget preview is the command's
 deliverable, so `--dry-run` wins over `--quiet` — the budget still prints on

@@ -17,6 +17,12 @@ import { fileURLToPath } from 'node:url';
 // mutated in place — to pin both directions, plus the companion line-ending
 // vector, at the process level: exit code and rendered output, not internal
 // state.
+//
+// The runs below pass `--coverage` because the evidence they read IS the
+// per-type coverage listing ("'alpha' — 1 file covered: …"), which since
+// 6.0.0 renders only when asked for by name; `--details` stays for the
+// ungrouped issue blocks these tests also read. Two independent axes, both
+// named explicitly.
 // ---------------------------------------------------------------------------
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -76,7 +82,7 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
       writeFileSync(path.join(dir, 'src', 'alpha', 'a.ts'), body);
       writeFileSync(path.join(dir, 'src', 'beta', 'b.ts'), body); // byte-identical, does NOT match 'alpha's path
 
-      const { status, out } = run(['check', '--details'], dir);
+      const { status, out } = run(['check', '--details', '--coverage'], dir);
 
       // src/beta/b.ts must NOT be silently absorbed into 'alpha' just because
       // src/alpha/a.ts (byte-identical) was classified first in the scan.
@@ -108,7 +114,7 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
       writeFileSync(path.join(dir, 'src', 'svc', 'handler.ts'), handlerBody);
       writeFileSync(path.join(dir, 'src', 'misc', 'plain.ts'), handlerBody); // now byte-identical to handler.ts
 
-      const { out } = run(['check', '--details'], dir);
+      const { out } = run(['check', '--details', '--coverage'], dir);
 
       // handler.ts must still read as type-covered by 'svc' — never demoted to
       // unmapped because plain.ts (byte-identical, wrong path) got classified
@@ -137,7 +143,7 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
       writeFileSync(path.join(dir, 'src', 'a-windows.sh'), '#!/bin/sh\r\necho hi\r\n');
       writeFileSync(path.join(dir, 'src', 'b-unix.sh'), '#!/bin/sh\necho hi\n');
 
-      const { status, out } = run(['check', '--details'], dir);
+      const { status, out } = run(['check', '--details', '--coverage'], dir);
 
       // b-unix.sh has no \r anywhere — it must never match 'dos-script' just
       // because a-windows.sh's line-ending-NORMALIZED content hash happens to
@@ -166,13 +172,13 @@ describe.skipIf(!distExists)('E2E: the type-classification cache never serves on
       mkdirSync(path.join(dir, 'src'), { recursive: true });
       writeFileSync(path.join(dir, 'src', 'script.sh'), '#!/bin/sh\r\necho hi\r\n');
 
-      const first = run(['check', '--details'], dir);
+      const first = run(['check', '--details', '--coverage'], dir);
       expect(first.out).toContain("'dos-script' — 1 file covered: src/script.sh");
 
       // Same path, second PROCESS invocation (a fresh cache read from disk),
       // re-saved LF-only: the literal \r is gone.
       writeFileSync(path.join(dir, 'src', 'script.sh'), '#!/bin/sh\necho hi\n');
-      const second = run(['check', '--details'], dir);
+      const second = run(['check', '--details', '--coverage'], dir);
 
       // A key built from line-ending-normalized bytes would see an UNCHANGED
       // content hash across the edit and keep serving the CRLF-era verdict —

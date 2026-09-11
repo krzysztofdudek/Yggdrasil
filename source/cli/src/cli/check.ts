@@ -103,6 +103,13 @@ export function registerCheckCommand(program: Command): void {
     .option('--summary', 'Read-only triage: print per-node counts only (no per-issue blocks). Header counts + exit code stay TRUE.')
     .option('--details', 'Read-only: ungrouped, one block per issue (full per-pair detail). Opposite of the default grouped view.')
     .option('--aspect <id>', "Read-only: drill into one rule — show only that aspect's issues, grouped, with the full per-node detail.")
+    // The coverage axis — independent of the four view flags above and legal
+    // alongside the writer (--approve / --only-deterministic), because it
+    // WIDENS a statement of fact rather than narrowing the issue set: no count,
+    // no verdict and no exit code moves with it. Plain `yg check` is the
+    // verdict and what it found; this is the type map's own accounting, asked
+    // for when the type map is written or changed.
+    .option('--coverage', "Add the per-type coverage listing: which files each type covers, which rules enforce, which are attached but do not, and which files nothing runs on. Off by default; combines with any view and with --approve.")
     .option('-q, --quiet', 'Suppress --approve progress on stderr (only the final report + exit code). No-op with a plain read; with --dry-run the budget preview still prints (--dry-run wins).')
     // Asks for the whole project to be answered for, regardless of what it
     // measures a change against — the explicit "prove everything" invocation a
@@ -114,7 +121,7 @@ export function registerCheckCommand(program: Command): void {
     // Hidden calibration instrument: print the raw per-file structural measurements grouped by
     // family, with the outliers marked, then exit 0. Writes nothing, makes no LLM calls.
     .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
-    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }) => {
+    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; coverage?: boolean; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }) => {
       try {
         const asJson = opts.json === true;
         const cwd = process.cwd();
@@ -165,6 +172,21 @@ export function registerCheckCommand(program: Command): void {
             what: `${viewFlag} cannot be combined with --json.`,
             why: `${viewFlag} narrows the TEXT report — fewer blocks, same counts. --json emits one machine document that always carries the whole run, so there is nothing for a narrowing flag to narrow, and a document trimmed to a few findings would read as a smaller problem instead of a smaller rendering.`,
             next: `Run: yg check --json (the whole run as a document), or yg check ${viewFlag}${opts.aspect !== undefined ? ' <id>' : wantsTop ? ' <n>' : ''} (the narrowed text view).`,
+          })}`) + '\n');
+          await exitAfterFlush(1);
+          return;
+        }
+        // --coverage is legal with every OTHER flag on this command — it is the
+        // coverage axis, not a fifth view (see check-render-views.ts). The one
+        // exception is --json, and for the opposite reason to the guard above:
+        // the document carries coverage as aggregate counts only and never the
+        // per-type listing, so --coverage would have nothing to add to it and
+        // would be silently ignored. Say so instead.
+        if (asJson && opts.coverage) {
+          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            what: '--coverage cannot be combined with --json.',
+            why: '--coverage adds the per-type coverage LISTING to the text report. The --json document reports coverage as aggregate counts (files, covered, node-owned, type-covered, excluded) and has never carried the per-type breakdown, so there is nothing for --coverage to add — accepting it would silently do nothing.',
+            next: 'Run: yg check --coverage (the text report with the per-type listing), or yg check --json (the machine document with the coverage counts).',
           })}`) + '\n');
           await exitAfterFlush(1);
           return;
@@ -472,7 +494,13 @@ export function registerCheckCommand(program: Command): void {
             process.stdout.write(
               asJson
                 ? formatCheckJson(buildCheckJson(fill.checkResult))
-                : formatOutput(fill.checkResult, { kind: 'full' }, autoFilled),
+                // `undefined` for the emoji gate keeps formatOutput's own
+                // chalk-derived default; the writer path carries --coverage
+                // exactly as the read path does, which is the whole point of
+                // putting the listing on its own axis — the gate lane
+                // (`yg check --approve --only-deterministic`) can ask for it,
+                // and gets the short report when it does not.
+                : formatOutput(fill.checkResult, { kind: 'full' }, autoFilled, undefined, { coverage: opts.coverage === true }),
             );
             // A dry-run is a cost preview only — it never writes and must never fail
             // the build for unverified/refused pairs it merely previewed. Exit 0 always.
@@ -524,7 +552,7 @@ export function registerCheckCommand(program: Command): void {
           changeScope: changeScope,
         });
         await applyHonestCoverageSplit(result, graph, repoFiles);
-        process.stdout.write(asJson ? formatCheckJson(buildCheckJson(result)) : formatOutput(result, view));
+        process.stdout.write(asJson ? formatCheckJson(buildCheckJson(result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and
         // independent of the chosen view — a truncated --top/--summary render must

@@ -126,7 +126,14 @@ export function servedPortal(
 
 /** Spawn `yg check` over a fixture and return its raw stdout+stderr + exit code (consistency check). */
 export function runCheck(cwd: string): { out: string; status: number | null } {
-  const res = spawnSync('node', [BIN_PATH, 'check'], { cwd, encoding: 'utf-8' });
+  // `--coverage` renders the per-type coverage listing, which plain `yg check`
+  // has not carried since 6.0.0. The count-parity specs read their
+  // ground truth out of that listing (the repo-wide zero-enforcement and
+  // uncomputable roll-ups the portal's own ledger must agree with), so it has
+  // to be asked for by name here. It only ADDS the block: every other count
+  // these specs parse — the header split, Errors(N)/Warnings(N), the rule
+  // groups — is byte-identical with and without it.
+  const res = spawnSync('node', [BIN_PATH, 'check', '--coverage'], { cwd, encoding: 'utf-8' });
   return { out: (res.stdout ?? '') + (res.stderr ?? ''), status: res.status };
 }
 

@@ -333,7 +333,9 @@ describe.skipIf(!distExists)('yg advise agrees with yg check on a rule enforced 
     // Ground truth from yg check: type 'forked' (tests/fixtures/type-level-engine)
     // has no real component node anywhere — src/forked/f.ts is enforced by its
     // architecture type alone — yet forked-own-rule is live there.
-    const checked = run(['check'], projectRoot);
+    // `--coverage`: the ground truth this test reads is the per-type coverage
+    // listing, which plain `yg check` has not carried since 6.0.0.
+    const checked = run(['check', '--coverage'], projectRoot);
     // The (optional) trailing ", N unverified" is this fixture's own honest
     // reporting of a pair that has not been approved here — irrelevant to
     // what this test actually pins, which is that the rule is listed as

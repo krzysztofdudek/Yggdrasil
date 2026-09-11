@@ -70,6 +70,29 @@ with full per-node details; its \`Next (this group):\` line is the bare command
 to run. \`--details\` reverts to the old ungrouped per-pair layout — useful when
 you need every individual reviewer reason visible at once.
 
+### \`--coverage\`: the per-type coverage listing
+
+A different axis from the four views above. \`--coverage\` ADDS the type tier's
+own accounting to the report — per matched type, which files it covers, which
+rules enforce, which are attached but do not (with the reason and a count),
+where the inherited chain stops, plus the repo-wide roll-up of files that match
+a type and have no rule that applies to them. Plain \`yg check\` does not print
+it: it answers a question asked when the type map is written or changed, and on
+a repo with many classifying types it is most of the output on every run.
+
+\`\`\`bash
+yg check --coverage                                   # the report plus the listing
+yg check --approve --only-deterministic --coverage    # legal on the writer path too
+yg check --summary --coverage                         # per-type COUNTS only, one line each
+\`\`\`
+
+Because it widens a statement of fact rather than narrowing the issue set, it is
+mutually exclusive with nothing except \`--json\` (whose document carries the
+coverage COUNTS and never the listing). It combines with every view flag and
+with \`--approve\` / \`--only-deterministic\`, and it never moves a count, a
+verdict, or the exit code. Inside \`--summary\` / \`--top\` it renders one counts
+line per type instead of the full listing, so a triage view stays short.
+
 Guardrail: EVERY view always prints the true aggregate \`Errors (N)\`/\`Warnings (N)\`
 header and preserves the real exit code, so a narrowed view can never read as a
 clean build. When a \`--top\` slice leaves a section (Errors or Warnings) with a
