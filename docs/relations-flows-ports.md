@@ -111,11 +111,13 @@ Three blocking errors keep the port contract honest, and none of them has an "ac
 
 | Code | When it fires | Fix |
 |---|---|---|
-| `port-names-empty` | A relation declares `portNames` (or its deprecated alias) as an empty list. | Omit the field entirely to enter through `default`, or name at least one real port. |
+| `port-names-empty` | A relation declares `portNames` (or its deprecated alias) as an empty list. Unlike the other two rows this is not a distinct issue code: an empty list fails node parsing, so `yg check` reports it as `yaml-invalid` (rule `invalid-node-yaml`) and the text `port-names-empty` appears only inside that error's message. Filtering `yg check --json` or writing a suppression on `port-names-empty` matches nothing. | Omit the field entirely to enter through `default`, or name at least one real port. |
 | `port-undefined` | A relation names a port the target does not publish — including when the target publishes no ports at all. `default` never fires this: it always exists. | Fix the port name, or add the missing port to the target. |
 | `port-missing-aspect` | A named port — `default` included — lists a rule that is not defined under `aspects/`. | Define the rule, or remove it from the port. (An undefined id is caught as `aspect-undefined` whether or not a relation names the port; this code is the "and a relation actually enters through it" case.) |
 
 Each message names the relation, explains what would go unverified, and tells you what to add.
+
+The port contract has one advisory diagnostic outside that table: `port-default-reserved` (rule `reserved-port-name`, severity **warning**). It fires whenever a node explicitly declares a port literally named `default`. Declaring it is legal — it is how you hang aspects on the implicit entry every node already carries — but on a graph written before `default` became reserved the name may have meant an ordinary, unrelated port whose meaning has now changed underneath it. So the warning asks you to confirm one thing: are this port's aspects really meant to apply to every consumer that names no port? If yes, leave it. If the name predates the reservation and meant something else, rename it. The check is stateless, so it fires on every run rather than once — nobody has to hunt for a suppression to make it go away after they have looked. It never blocks `yg check`.
 
 ---
 
@@ -134,6 +136,8 @@ nodes:
 aspects:
   - correlation-tracking
 ```
+
+`nodes:` may also be written as `participants:` — the parser accepts the two as full aliases, and its own error messages name both spellings, so a file using either key (or an error quoting the other one) is reading the same field.
 
 Every aspect on the flow applies to every participant. So `correlation-tracking` above is now a rule each of those three services must satisfy — one place to require it across a whole process, instead of repeating it on every node.
 

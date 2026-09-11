@@ -69,16 +69,45 @@ explicitly — a relation that named no port at all normalizes to `[default]`, s
 `consumes_port: default` matches it too. Without that, the predicate would silently
 miss every relation that reaches a node through the implicit `default` port.
 
+That is the *evaluation* rule. Reference validation is currently stricter, and
+the difference bites exactly here: `when-unknown-port` treats the literal name
+`default` like any other port name. A bare `consumes_port: default` (no `target`)
+is rejected unless at least one node in the graph explicitly writes
+`ports: { default: … }` in its `yg-node.yaml`; a `target`-qualified
+`consumes_port: default` is rejected unless *that* target node declares it. The
+implicit `default` port every node carries at evaluation time does not satisfy
+the check. Declaring the port explicitly is legal and is how you unblock the
+idiom — `default` is the one port name whose declaration needs no `description` —
+though doing so draws a non-blocking `port-default-reserved` warning asking you
+to confirm the port's aspects really are meant for every caller that names no
+port. So: add `ports: { default: {} }` to the relevant node before writing
+`consumes_port: default`, or the predicate that would match at runtime turns
+`yg check` red.
+
+`has_port` — under both `node:` and `descendants:` — is **not** normalized the
+way `consumes_port` is. It is checked literally against the node's declared
+`ports:` map, so `has_port: default` does **not** mean "every node": it matches
+only nodes that explicitly write `ports: { default: … }`, which is usually almost
+none. This is the opposite of `consumes_port: default`, which does match
+relations that arrived through the implicit port. Do not reach for
+`has_port: default` expecting a universal match.
+
 Full grammar reference: `yg schemas read aspect`.
 
-Beyond the structural shape, `yg check` also checks that the names a predicate
-uses actually exist — a silent typo in a predicate would make it quietly never
-match, which is the worst possible failure for something whose whole job is to
-decide applicability. Three blocking errors cover it: `when-unknown-type` (an
-unknown `node.type`, `descendants.type`, or `target_type`), `when-unknown-node`
-(a relation `target` or a `node.id` — string or any entry of a list — naming a
-component path that does not exist), and `when-unknown-port` (an unknown
-`consumes_port`). A malformed predicate itself is
+Beyond the structural shape, `yg check` also checks that *most* of the names a
+predicate uses actually exist — a silent typo in a predicate would make it
+quietly never match, which is the worst possible failure for something whose
+whole job is to decide applicability. Three blocking errors cover it:
+`when-unknown-type` (an unknown `node.type`, `descendants.type`, or
+`target_type`), `when-unknown-node` (a relation `target` or a `node.id` — string
+or any entry of a list — naming a component path that does not exist), and
+`when-unknown-port` (an unknown `consumes_port`). One gap is worth knowing about:
+`has_port`, on both `node:` and `descendants:` clauses, is **not**
+reference-checked. A typo there — `node: { has_port: charrge }` — passes
+validation, evaluates to false on every node, and produces no diagnostic at all,
+which is exactly the silent never-match the other three codes exist to prevent.
+Re-read a `has_port` name yourself; nothing else will. A malformed predicate
+itself is
 `when-predicate-invalid`; a malformed one on a rule or an `implies` edge is
 `aspect-when-invalid`. Writing a file atom (`path`/`content`) where node atoms
 belong is an error too, and the message points you at `scope.files` instead.

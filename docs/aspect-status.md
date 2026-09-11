@@ -3,11 +3,17 @@
 Yggdrasil aspects ship with three enforcement levels: `draft`, `advisory`,
 `enforced`. **Status governs how results render**, and it never changes a
 verdict's input hash or whether a recorded verdict stays valid and is re-used.
-Beyond rendering it has two operational effects: `draft` removes a pair from the
-expected set entirely (nothing is verified for it), and — so a known-broken node
-never bills the reviewer — an `enforced` deterministic refusal on a node makes
-`yg check --approve` skip that node's LLM pairs for the run. Otherwise it is the
-dial you turn as a rule matures: start silent, gather signal, then enforce.
+Beyond rendering it has several operational effects. `draft` removes a pair from
+the expected set entirely (nothing is verified for it) and, through `implies`,
+propagates nothing at all — a draft implier never delivers the aspects it implies
+(see [Draft is dormant](#draft-is-dormant)). An `enforced` deterministic refusal
+on a pair's owning component — or, for a pair with no owning component, on its
+unit — makes `yg check --approve` skip that component's (or that unit's) LLM
+pairs for the run, so a known-broken subject never bills the reviewer. And only
+`enforced` pairs gate positive closure: a node's source fingerprint and log
+baseline advance only once every enforced pair on it is freshly settled, while an
+advisory refusal never blocks closure. Otherwise it is the dial you turn as a
+rule matures: start silent, gather signal, then enforce.
 
 ## Three levels
 
@@ -16,6 +22,13 @@ dial you turn as a rule matures: start silent, gather signal, then enforce.
 | `draft`     | pair not expected    | pair not expected             | no                 |
 | `advisory`  | warning              | warning                       | no                 |
 | `enforced`  | error                | error                         | yes                |
+
+A third pair state follows status the same way the two columns above do:
+`companion-error`. When an LLM rule's `companion.mjs` hook fails while the
+prompt-size gate assembles the pair, the pair cannot be built and
+`aspect-companion-runtime-error` is emitted — a warning under `advisory`, an
+error that blocks `yg check` under `enforced`. Read the table's two columns as
+"a status-sensitive finding," not as the only two that exist.
 
 A pair whose **effective** status is `draft` is not expected — nothing is
 verified for it and no new verdict is written. (Effective status is the strictest
@@ -53,7 +66,14 @@ that names no branch (the default), the table above is the whole story.
   `draft` is also the only way to park an aspect without a provider key —
   it removes the pairs rather than leaving them red. For LLM aspects with a
   `companion.mjs` hook: when the aspect is `draft`, the hook never runs
-  during `yg check --approve`; `yg aspect-test` still runs it live.
+  during `yg check --approve`; `yg aspect-test` still runs it live. One
+  consequence to know before you reach for the machine-readable output: a draft
+  pair is dropped before `yg check --json` is projected, so a draft rule has no
+  rows in `pairs[]` at all, and an empty join there means either "reaches
+  nothing" or "is draft" with no way to tell the two apart. The surface that
+  does enumerate a draft rule's reach is
+  [`yg aspects --json --reach`](/cli-reference#yg-aspects---json), whose
+  `reach.units[]` lists a draft unit like any other.
 - **`advisory`** — rule is complete; gather signal across the repo
   without blocking CI. Pairs are verified and cached normally; refusals and
   unverified pairs surface as warnings. Use this to measure how often a rule

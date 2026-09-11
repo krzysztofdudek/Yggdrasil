@@ -1,5 +1,5 @@
 export const summary =
-  'One predicate grammar, three sites (when:, architecture node_types.*.when, scope.files), shared combinators, node atoms vs file atoms, cross-hints';
+  'One predicate grammar, three sites (when:, architecture node_types.*.when, scope.files), shared combinators, node atoms (incl. node.id) vs file atoms, what when-unknown-* does and does not validate, cross-hints';
 
 export const content = `# Conditional aspects (when predicate)
 
@@ -54,24 +54,54 @@ when:
   # Or top-level atomic clauses (multiple atoms at the top level imply all_of):
   node:
     type: <type-id>          # node is exactly this type
-    has_port: <port-name>    # node declares this named port
+    has_port: <port-name>    # node DECLARES this named port (literal — see below)
     has_mapping: true|false  # node owns at least one mapped file (or owns none)
+    id: <node-path> | [<node-path>, ...]   # node path is exactly this (or one of these), relative to model/
   relations:
     <relation-type>:         # calls | uses | extends | implements | emits | listens
       target_type: <type-id> # at least one relation of this type targets a node of this type
       target: <node-path>    # ...or targets exactly this node path (relative to model/)
       consumes_port: <port>  # ...or consumes this port on the relation
-  descendants:               # same checks, but satisfied by ANY hierarchical descendant
+  descendants:               # each field below is checked INDEPENDENTLY against the whole descendant set
     type: <type-id>
     has_port: <port-name>
     relations: { <relation-type>: { target_type: <type-id> } }
 \`\`\`
+
+\`node.id\` matches a node's path EXACTLY — never a subtree; a list means "any of
+these paths". Wrapped in \`not:\`, it is the standard idiom for excluding one named
+component from an otherwise-broad attachment:
+\`when: { not: { node: { id: services/legacy } } }\`.
+
+A \`descendants:\` clause is NOT "one descendant satisfies everything". Each field
+runs its own existential pass over the full descendant set, so
+\`descendants: { type: repository, has_port: charge }\` passes when descendant A has
+the type and a completely different descendant B has the port. If the node has no
+descendants at all, the clause is always false.
 
 \`consumes_port\` matches a relation's NORMALIZED port list, not only what it
 wrote explicitly — a relation that named no port at all normalizes to
 \`[default]\`, so \`consumes_port: default\` matches it too. Without that, the
 predicate would silently miss every relation that reaches a node through the
 implicit \`default\` port.
+
+That governs MATCHING only. It does not exempt the literal name \`default\` from
+reference-integrity validation: \`checkWhenReferences\` treats \`default\` like any
+other port name. A bare \`consumes_port: default\` (no \`target\`) is flagged
+\`when-unknown-port\` (error, blocking) unless at least one node in the graph
+explicitly declares \`ports: { default: ... }\` in its \`yg-node.yaml\`; a targeted
+\`consumes_port: default\` is flagged the same way unless THAT target declares it.
+Declaring an explicit \`default\` port is legal and is exactly how you unblock the
+idiom (\`default\` is the one port name that needs no \`description\`) — it only
+draws the non-blocking \`port-default-reserved\` warning asking you to confirm the
+port's aspects are meant for every consumer that names no port. So add
+\`ports: { default: {...} }\` to the relevant target node(s) BEFORE writing
+\`consumes_port: default\` in a \`when:\`.
+
+\`has_port\` is the opposite case: it is checked LITERALLY against the node's
+declared \`ports:\` map, with no normalization. \`has_port: default\` therefore does
+not mean "every node" — it matches only nodes that explicitly declare a
+\`default\` port.
 
 Rules the parser enforces:
 - A relation-type entry must carry a match. \`relations: { emits: {} }\` is
@@ -84,12 +114,18 @@ Rules the parser enforces:
   both, and at most one boolean operator. To combine more, nest another level.
 
 Beyond these structural checks, \`yg check\` reference-integrity-validates the
-identifiers a \`when\` predicate names. These are error-severity:
+TYPE, NODE-PATH and \`consumes_port\` identifiers a \`when\` predicate names — not
+\`has_port\` or \`has_mapping\`, which are evaluated but never checked against a
+node's declared ports. These are error-severity:
 - An unknown \`target_type\`, \`descendants.type\`, or \`node.type\` raises a
   \`when-unknown-type\` error.
-- An unknown relation \`target\` (a node path that does not exist) raises a
+- An unknown relation \`target\`, or an unknown \`node.id\` (a node path that does
+  not exist — for a single string id or any entry of an id list), raises a
   \`when-unknown-node\` error.
 - An unknown \`consumes_port\` raises a \`when-unknown-port\` error.
+- \`node.has_port\` and \`descendants.has_port\` are NOT validated. A typo there
+  passes the gate silently and simply evaluates to false forever, with no
+  diagnostic — proofread those names by hand.
 
 ### A node calls a service client
 
@@ -225,8 +261,13 @@ against a fixed set of total facts:
   alike — dependency analysis cannot tell calling from using from extending from
   implementing, so a single import satisfies a \`relations:\` clause naming any of
   the four the same way. An import is never evidence of an \`emits\` or \`listens\`
-  relation, and never evidence of a \`consumes_port\` — those atoms always read
-  false for a type-covered file, regardless of what it imports.
+  relation — those atoms always read false for a type-covered file, regardless of
+  what it imports.
+- A \`consumes_port\` atom behaves differently from the two above. Every derived
+  relation carries exactly the implicit \`default\` port, so
+  \`consumes_port: default\` reads TRUE for a type-covered file with any resolved
+  import of a matching kind. \`consumes_port\` naming any other, explicitly
+  declared port always reads false — no derived relation ever names one.
 
 This makes applicability for such a file volatile in a way a declared component
 is not: a rule whose applicability depends on what a file imports can start or

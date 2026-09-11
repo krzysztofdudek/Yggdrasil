@@ -1,4 +1,4 @@
-export const summary = 'Six relation types, paired events, ports propagate aspects via channel 6 through a named port or the implicit default, port-undefined/port-missing-aspect/port-names-empty errors, built-in relation-conformance check';
+export const summary = 'Six relation types, paired events, ports propagate aspects via channel 6 through a named port or the implicit default, port-undefined/port-missing-aspect errors plus the port-default-reserved warning, empty portNames as a yaml-invalid parse failure, built-in relation-conformance check';
 
 export const content = `# Ports and relations
 
@@ -162,13 +162,30 @@ The named port's aspects become effective on the caller through channel 6.
 The caller must now satisfy \`correlation-tracking\` and \`idempotency-key\`
 for its own source files, in addition to its other aspects.
 
+## Explicitly declaring \`ports.default\` triggers a migration warning
+
+Declaring \`default\` under a node's \`ports:\` map is legal — it is how you hang
+aspects on the implicit port, and it is also what unblocks a
+\`consumes_port: default\` clause in a \`when:\` predicate, which the
+\`when-unknown-port\` validator otherwise rejects. But \`yg check\` always emits a
+non-blocking warning (code \`port-default-reserved\`, rule \`reserved-port-name\`)
+when it sees an explicit \`ports.default\` entry: on a graph written before
+\`default\` became reserved, that name may have meant an ordinary, unrelated port
+whose meaning has now silently changed. The check is stateless — it fires on
+every run, not once ever — so confirm the port's aspects are intentionally meant
+to bind every caller that names no port, or rename it if it predates the
+reservation and meant something else. It never blocks.
+
 ## A relation with no named port enters through \`default\`
 
 Naming no port at all is not a gap — it is the normal path. \`portNames: []\`
-(an empty list) is refused instead (code \`port-names-empty\`): an empty list
-would read as "name nothing", and the parser will not silently reinterpret
-that as "enter through \`default\`" — omit the field entirely for that, or
-name at least one real port.
+(an empty list) is refused instead: an empty list would read as "name nothing",
+and the parser will not silently reinterpret that as "enter through
+\`default\`" — omit the field entirely for that, or name at least one real port.
+The refusal happens in the NODE PARSER, so it surfaces as
+\`code: yaml-invalid\` (rule \`invalid-node-yaml\`), not as a port-contract code;
+the string \`port-names-empty\` appears only inside that error's message, and
+filtering or suppressing on it matches nothing.
 
 A relation that names nothing normalizes to \`portNames: [default]\`.
 \`default\` carries whatever the owner put on it — nothing, unless declared —

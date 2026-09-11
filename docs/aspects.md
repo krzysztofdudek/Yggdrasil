@@ -51,7 +51,7 @@ You don't set the kind in a config field — it's inferred from which file is pr
 
 ## Status, at a glance
 
-Every aspect has a status that controls how its results show up. You move a rule along as your confidence grows: `draft` while you're still writing it (nothing is checked, nothing recorded), `advisory` once it's ready (failures show as warnings, CI stays green), `enforced` once you trust it (failures block CI).
+Every aspect has a status that controls how its results show up. You move a rule along as your confidence grows: `draft` while you're still writing it (nothing is checked, nothing recorded), `advisory` once it's ready (failures show as warnings, CI stays green — with one carve-out: a pair whose assembled prompt exceeds the tier's size limit reports `prompt-too-large` as an error whatever its status, because it can never be verified at all), `enforced` once you trust it (failures block CI).
 
 Status defaults to `enforced`. See [Aspect Status](/aspect-status) for the full lifecycle.
 

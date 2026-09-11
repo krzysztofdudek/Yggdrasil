@@ -105,7 +105,7 @@
       "file:source/cli/src/core/aspect-test-file-target.ts": {"hash":"177d7bfd360fe9feaba32672b73372f4b420dd27f60f72a37ad16d34693fa3df","promptChars":11241,"verdict":"approved"},
       "file:source/cli/src/core/check-aspect-status.ts": {"hash":"a6244f23298331cece99483585bab16724ecdd3240ed67a679561929df3dd6d5","promptChars":5059,"verdict":"approved"},
       "file:source/cli/src/core/check-byte-guard.ts": {"hash":"f354e0631ea69f1bc1b91a2051b51a838ed67b2a10c5cf7f5cd76cbda1945d58","promptChars":22669,"verdict":"approved"},
-      "file:source/cli/src/core/check-codes.ts": {"filledAt":"2026-09-11T14:52:52.997Z","filledSha":"d12037195c9b31c339124ac33abfb4b65f953160","hash":"8f1ea11c1d0622d58441d44e41ba64d6ac29bcd00617b133904a513dc1f38a28","promptChars":24113,"verdict":"approved"},
+      "file:source/cli/src/core/check-codes.ts": {"filledAt":"2026-09-11T19:20:44.861Z","filledSha":"0b2e747fc2a981c2d0deab378e92c8d1308a966c","hash":"584f8dc32de40a6379ac4c85f45fb808e3e30f4dc03e35ee05a6bf038f9d6f67","promptChars":24397,"verdict":"approved"},
       "file:source/cli/src/core/check-contract.ts": {"hash":"9a95c242e443d633ae06bc32b9cbc92e691af7a31fcb0adb37f2a3d337108529","promptChars":10674,"verdict":"approved"},
       "file:source/cli/src/core/check-coverage-phase.ts": {"hash":"d6a25701ddf259325ceeeb76e6353d5d8dd7ef3609a33606bc5aaa8b46379686","promptChars":15394,"verdict":"approved"},
       "file:source/cli/src/core/check-coverage-scan.ts": {"hash":"d54002479683098b1d6a8996e1b65af90b9fe98b0081eee886914ca4ff956c55","promptChars":10939,"verdict":"approved"},

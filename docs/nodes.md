@@ -37,6 +37,10 @@ The fields:
 - **aspects** — the rules this component must satisfy. Each name points to an aspect under `.yggdrasil/aspects/`. See [Aspects](/aspects).
 - **relations** — the other components this one depends on. See [Relations, flows, ports](/relations-flows-ports).
 - **mapping** — which source files this node owns.
+- **ports** — optional. Named entry points, keyed by port name, that another component's relation can target explicitly; a port's aspects become the caller's obligation once a relation enters through it. See [Relations, flows, ports](/relations-flows-ports).
+- **max_direct_relations** — optional. A per-node override of the global high-fan-out ceiling, written as `{ limit, reason }`. It exists for a deliberate single-responsibility seam — one auditable gateway or orchestrator that concentrates coupling by design — and it sanctions a specific reviewed count rather than silencing the warning: the node still warns once it exceeds its own declared limit. See [Configuration](/configuration).
+
+The example above shows the fields a typical node carries, not every field a node file may carry — the last two are omitted far more often than they are used.
 
 ## Mapping files
 

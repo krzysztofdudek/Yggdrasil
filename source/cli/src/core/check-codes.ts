@@ -54,8 +54,12 @@ export const STRUCTURAL_CODES = new Set<string>([
   'when-unknown-type',
   'when-unknown-node',
   'when-unknown-port',
-  // Port-contract codes — blocking architecture-gate errors (documented in the
-  // ports-and-relations knowledge topic); belong in the single-source structural set.
+  // Port-contract codes — the BLOCKING architecture-gate errors (documented in the
+  // ports-and-relations knowledge topic); they belong in the single-source
+  // structural set. The port contract also has one NON-blocking code that is
+  // deliberately absent here because it is a warning, not a gate:
+  // 'port-default-reserved' (rule 'reserved-port-name'), documented in the same
+  // knowledge topic and on the relations-flows-ports docs page.
   // A file installed from a package no longer matches what that package
   // published — edited, missing, or never installed at all. Blocking and
   // built in: an installed rule's whole value is that it is the rule its
