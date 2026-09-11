@@ -6,7 +6,7 @@ title: Supported Platforms
 the same content, regardless of which agent you use. There is no platform
 question to answer.
 
-It writes:
+By default it writes all three:
 
 - A short summary block inside marker comments in `AGENTS.md`.
 - A one-line `@AGENTS.md` import added to `CLAUDE.md`, because Claude Code
@@ -14,17 +14,27 @@ It writes:
 - A copy of the same summary at `.clinerules/yggdrasil.md`, because Cline
   looks there instead of `AGENTS.md`.
 
+Each one can be switched off independently with `yg init --no-agents-md`,
+`--no-claude-md` or `--no-clinerules`. The choice is recorded durably under
+`rules_artifacts` in `.yggdrasil/yg-config.yaml`, so it holds on every later
+run and reaches the team through the repository rather than through everyone's
+command line — see [the CLI reference](/cli-reference) and
+[Configuration](/configuration). A disabled artifact is never written, never
+created, and never touched.
+
 That summary tells the agent to run `yg prime` before making any change.
 `yg prime` prints the complete, current operating manual straight from your
 installed Yggdrasil CLI — so an agent's instructions are always up to date
 and are never cut short by a small instruction budget.
 
-`yg check` also watches these three files and warns if one goes missing,
-gets hand-edited, falls behind after you upgrade the CLI, or ends up
-duplicated — always pointing you at `yg init --upgrade` to fix it.
+`yg check` also watches whichever of these files this project has enabled
+under `rules_artifacts`, and warns if one of those goes missing, gets
+hand-edited, falls behind after you upgrade the CLI, or ends up duplicated —
+always pointing you at `yg init --upgrade` to fix it. An artifact switched off
+is never mentioned.
 
 ::: warning Upgrading a project that requires its whole tree
-These three files (and the `.gitattributes` entry `yg init` maintains) are new
+The files above (and the `.gitattributes` entry `yg init` maintains) are new
 in your repository, so a project that requires **every** tracked file to belong
 to a component will report them as unmapped errors on the next check. That is
 any project whose `yg-config.yaml` has no `coverage:` block at all, or whose

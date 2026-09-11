@@ -384,12 +384,25 @@ the next \`yg check --approve\`.
 Each triad file is independently optional; an absent file contributes empty
 state. So a fresh checkout (gitignored deterministic cache absent) reads its
 deterministic pairs as unverified until \`yg check --approve --only-deterministic\`
-rematerializes them. A garbled or unparseable file, or an unrecognized \`version\`
-(neither 1 nor 2 — 2 is accepted only for the backward-compat drop above), is a
-blocking \`lock-invalid\` error (fail closed) naming the offending file; for a
-committed file the \`next:\` covers both recoveries (restore from git, or delete
-and re-fill via \`yg check --approve\`); for the gitignored cache the recovery is
-to delete it and re-run \`yg check --approve --only-deterministic\` (free).
+rematerializes them. Garbled or unparseable content, or an unrecognized
+\`version\` (neither 1 nor 2 — 2 is accepted only for the backward-compat drop
+above), is treated differently in the two kinds of file.
+
+In a COMMITTED file it is a blocking \`lock-invalid\` error (fail closed) naming
+the offending file, and the \`next:\` covers both recoveries: restore it from git,
+or delete it and re-fill via \`yg check --approve\`.
+
+The gitignored DERIVED cache (\`.yg-lock.deterministic.json\`) is not an error at
+all. The same fault there is silently DISCARDED and the file rebuilt from
+scratch — a line in the debug log, nothing on stdout, no issue, no change of
+exit code — because the file holds no truth of its own: it is rederivable in
+full, and an empty section still reads fail-closed (those pairs come back
+\`unverified\`, never verified). That tolerance exists because the way this
+happens in practice is version skew across a container or CI boundary, not
+corruption, and refusing to run would cost the whole gate. So there is no manual
+recovery to perform: the next run that writes the file rematerializes it. (Only
+the content verdict is tolerated — a real I/O failure, a permission error or an
+unreadable mount, still propagates from either kind of file.)
 
 ## See also
 

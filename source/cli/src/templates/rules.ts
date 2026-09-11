@@ -17,7 +17,7 @@ const SYSTEM = `## SYSTEM
 
 Yggdrasil is continuous architecture enforcement. A graph in \`.yggdrasil/\` describes the architecture. A reviewer verifies source code against it. If code violates a rule, the reviewer refuses it. Every verdict — an LLM reviewer's judgment and a deterministic check's result alike — is stored as a content-addressed entry in the lock; a verdict holds exactly while the inputs that produced it are unchanged. (The lock is a committed/gitignored triad — see Graph Elements.)
 
-The CLI (\`yg\`) never modifies your source or graph files. You create and edit graph files manually. The lock is written only by \`yg check --approve\` and \`yg log merge-resolve\`. Logs are written by \`yg log add\` (a component's) and \`yg aspects log add\` (a rule's) — plus one entry an approving run writes by itself, into a rule's log, when that rule's status was changed by hand and nobody recorded why. The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run. \`suggestedNext\` at the end of \`yg check\` gives one concrete step. Follow it.
+The CLI (\`yg\`) never modifies your source files, and during normal review it never modifies your graph files either — you create and edit those manually. Two commands are the deliberate exception: \`yg adopt\` installs an entire proposed \`.yggdrasil/\` graph as a transaction (moving any graph already here aside to \`.yggdrasil.replaced-*\` first), and \`yg drill add\` writes case files into a rule's own \`aspects/<rule>/drills/<case>/\` directory. The lock is written by \`yg check --approve\`, \`yg log merge-resolve\`, and \`yg verdict record\` (the external-judge channel — a judgement recorded straight into the committed lock, bound to a content hash); the one-time 5.1.0 lock-split migration that \`yg init --upgrade\` runs also rewrites it, once, on upgrade. Logs are written by \`yg log add\` (a component's) and \`yg aspects log add\` (a rule's) — plus one entry an approving run writes by itself, into a rule's log, when that rule's status was changed by hand and nobody recorded why. The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run. \`suggestedNext\` at the end of \`yg check\` gives one concrete step. Follow it.
 
 ### Graph Elements
 
@@ -128,7 +128,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | Command | Purpose |
 |---|---|
 | \`yg check\` | By default: writes no verdicts, no LLM calls — re-hash lock verdicts, run the relation check live, validate coverage. Blocks CI. Behavior changes if \`auto_approve\` is set (see below). |
-| \`yg check --approve\` | Fill every unverified pair the run answers for (deterministic first, then LLM), then report. The only writer of verdicts. Overrides \`auto_approve\`. |
+| \`yg check --approve\` | Fill every unverified pair the run answers for (deterministic first, then LLM), then report. Overrides \`auto_approve\`. (The one other writer of verdicts is \`yg verdict record\`, the external-judge channel: it records a judgement straight into the lock without running the configured reviewer, and \`yg check\` re-proves it by hashing and names the judge in its report.) |
 | \`yg check --approve --only-deterministic\` | Fill ONLY deterministic pairs (free, keyless), writing the gitignored cache (plus a port's contract baseline when one is missing); then report. The CI / pre-commit gate. Overrides \`auto_approve\`. |
 | \`yg check --approve --dry-run\` | Free cost preview — print the reviewer-call budget (an upper bound) + per-node breakdown, then exit 0 WITHOUT writing or calling the reviewer. |
 | \`yg check --top [N]\` | Read-only: show only the N highest-priority GROUPS (bare \`--top\` = single suggested-next group). True aggregate header always shown. |
@@ -160,7 +160,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg portal [--static]\` | Local read-only web view of the graph and its verification state (loopback-only; one shelled Approve). |
 | \`yg prime\` [\`--digest\`] | Re-print this manual fresh from the installed CLI (\`--digest\` prints only the committed digest block). |
 
-The table above is the working set, not the whole surface. The commands it omits — \`yg aspects\` (and \`--health\`), \`yg flows\`, \`yg owner\`, \`yg type-suggest\`, \`yg init\` — plus every option flag of every command, are in the full reference: \`yg knowledge read cli-reference\`.
+The table above is the working set, not the whole surface. The commands it omits — \`yg aspects\` (and \`--health\`), \`yg flows\`, \`yg owner\`, \`yg type-suggest\`, \`yg init\`, \`yg adopt\`, \`yg verdict\`, \`yg node\`, \`yg pack\`, \`yg marketplace\` — plus every option flag of every command, are in the full reference: \`yg knowledge read cli-reference\`.
 
 ### Impact and Cost
 
@@ -566,7 +566,7 @@ Before writing a suppress: confirm the aspect's effective status is \`advisory\`
 
 ### Escape Hatch
 
-If the user explicitly requests a code-only change without graph updates: comply, but warn that it leaves the affected pairs unverified. \`yg check\` will catch them — and CI will block until they are filled. Do not run \`yg check --approve\` — leave the pairs unverified.
+If the user explicitly requests a code-only change without graph updates: comply, but warn that it leaves the affected pairs unverified. \`yg check\` will catch them — and CI will block until they are filled. Do not run \`yg check --approve\` — and where \`auto_approve\` is set in \`yg-config.yaml\`, bare \`yg check\` fills verdicts too, so run \`yg check --no-approve\` to leave the pairs unverified.
 
 ### Working with architecture file
 

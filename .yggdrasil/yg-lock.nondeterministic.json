@@ -447,8 +447,8 @@
       "file:source/cli/src/migrations/to-5.1.0.ts": {"hash":"80f76af2b241d275af85ed2cc38583ee85a0b0cf194d4b3765df2a76fd4e1ca3","promptChars":6068,"verdict":"approved"},
       "file:source/cli/src/migrations/to-6.0.0.ts": {"filledAt":"2026-09-10T09:31:05.533Z","filledSha":"97459635c20b37b8daf480dc0d1b98dae971ba97","hash":"9c87081aef18879902ff16f89ab9bcb0ac03a6d8a52cf1cf88396f86db454bd7","promptChars":10042,"verdict":"approved"},
       "file:source/cli/src/portal/serializer.ts": {"hash":"235fb78d38c835b05519216f9d7026af3ee68f9165d383346fa893a2c240cb4f","promptChars":37904,"verdict":"approved"},
-      "file:source/cli/src/templates/digest.ts": {"hash":"dd9064eb465cb9d9ad7d4c310f0d1504b22249a0799c771f891047c20256d17a","promptChars":8109,"verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"filledAt":"2026-09-11T15:29:35.434Z","filledSha":"3ac07d1ce0bee706a03a3dadadc60f6ec2f65efe","hash":"0966c2e7de84005aa6b1df90ca5ad86e239e6c7fe276967d75db8b50287209b7","promptChars":68578,"verdict":"approved"},
+      "file:source/cli/src/templates/digest.ts": {"filledAt":"2026-09-11T18:27:07.058Z","filledSha":"f5dd769350c03ded02f435b5f7b42a6f706639ad","hash":"cc74738182d57064db5d77624da3212d42cc653828a1c49dcc4994cf371a4166","promptChars":8234,"verdict":"approved"},
+      "file:source/cli/src/templates/rules.ts": {"filledAt":"2026-09-11T18:27:07.418Z","filledSha":"f5dd769350c03ded02f435b5f7b42a6f706639ad","hash":"f7542c3d46be76e20316ce43cf6c650525cc2f9c744a0eb691834e7fe799af40","promptChars":69610,"verdict":"approved"},
       "file:source/cli/src/utils/binary-check.ts": {"hash":"9a901d564b54bfb64faf222f3d4a0df67bfc1e0198c7eed7c01bba1dbb2b49c7","promptChars":5739,"verdict":"approved"},
       "file:source/cli/src/utils/binary-extensions.ts": {"hash":"e7db4d4c5ccbeeb221b6a2af9f5ff921c8b947f83afadc0f247428386025ab1b","promptChars":5343,"verdict":"approved"},
       "file:source/cli/src/utils/coverage-exclusion.ts": {"hash":"30f0f6dcd252d4a80fbc5a6652e8a7b8b4f30cf6c575f7283c0112bd2c4a955f","promptChars":6885,"verdict":"approved"},
@@ -1302,9 +1302,9 @@
       "file:source/cli/src/portal/engine-api.ts": {"hash":"6d4666114d318df93053e0f7060bf98a8950b79cb61b39bbbebab191f48696b2","promptChars":24390,"verdict":"approved"},
       "file:source/cli/src/portal/serializer.ts": {"hash":"4197b3c1a164fdadbb6971d292854446555b1be7bfa6c7630b29fa2ee2d11281","promptChars":38860,"verdict":"approved"},
       "file:source/cli/src/templates/default-config.ts": {"filledAt":"2026-09-11T14:54:37.615Z","filledSha":"d12037195c9b31c339124ac33abfb4b65f953160","hash":"5603a7a35ab9425fac48b65ff9f579d28c821d764ed8ad74f0ac80322295f78d","promptChars":8199,"verdict":"approved"},
-      "file:source/cli/src/templates/digest.ts": {"hash":"70e163116b1e84a998b3a7d2417d571a552dae7f1e236deb690940a6ecf1dcbe","promptChars":9065,"verdict":"approved"},
+      "file:source/cli/src/templates/digest.ts": {"filledAt":"2026-09-11T18:27:06.330Z","filledSha":"f5dd769350c03ded02f435b5f7b42a6f706639ad","hash":"39bdb198be45b693a60ecdd65d146df265dd8c42068b90ed907893fda59dc768","promptChars":9190,"verdict":"approved"},
       "file:source/cli/src/templates/platform.ts": {"filledAt":"2026-09-11T14:53:14.476Z","filledSha":"d12037195c9b31c339124ac33abfb4b65f953160","hash":"009f2eaf051cb3937481f0652fe8d2c1912a90fb7d6e70510ee93be39d31526c","promptChars":26956,"verdict":"approved"},
-      "file:source/cli/src/templates/rules.ts": {"filledAt":"2026-09-11T15:29:46.513Z","filledSha":"3ac07d1ce0bee706a03a3dadadc60f6ec2f65efe","hash":"1fcc33285a1294d357d76b35e2cedbf474809890e36e31a2dee9c7fd0e9b5c8e","promptChars":69534,"verdict":"approved"}
+      "file:source/cli/src/templates/rules.ts": {"filledAt":"2026-09-11T18:27:07.776Z","filledSha":"f5dd769350c03ded02f435b5f7b42a6f706639ad","hash":"8d6bad6fa24487ace3c7132731e54b94750900433658c26aa37f303dfd952f15","promptChars":70566,"verdict":"approved"}
     }
   },
   "nodes": {

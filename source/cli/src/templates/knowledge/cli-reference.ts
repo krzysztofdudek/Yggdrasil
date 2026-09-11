@@ -212,8 +212,10 @@ existing field's shape takes a new schema number.
 
 ## yg check --approve
 
-Fill every unverified pair the run answers for, then report. The only writer of verdicts (alongside
-\`yg log merge-resolve\`, which writes the per-node log baseline). Explicit flags
+Fill every unverified pair the run answers for, then report. One of the lock's
+writers, not the only one: \`yg verdict record\` writes a verdict too (the
+external-judge channel — see \`## yg verdict\` below), and \`yg log merge-resolve\`
+writes the per-node log baseline. Explicit flags
 (\`--approve\`, \`--no-approve\`, \`--only-deterministic\`) always override any
 \`auto_approve\` setting in \`yg-config.yaml\`.
 

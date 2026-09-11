@@ -8,3 +8,4 @@ yg-secrets.yaml
 .yg-events.jsonl*
 .yg-fill-divergence.log*
 *.tmp
+.yg-packages-versions.json
