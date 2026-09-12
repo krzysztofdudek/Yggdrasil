@@ -1,7 +1,15 @@
 # Node.js
 node_modules/
 dist/
-build/
+# Anchored to the repo root on purpose. Unanchored, `build/` matches EVERY
+# directory named `build` at any depth — and the committed architecture graph has
+# one: `.yggdrasil/model/cli/config/build/`, the node describing the CLI's build
+# configuration. Its files were therefore invisible to git and had to be
+# force-added one by one. Nothing nested in this repo is build output: the CLI
+# builds to `source/cli/dist/` (tsup) and the docs to `docs/.vitepress/dist/`,
+# both already covered. The anchor keeps a future root-level `build/` ignored
+# without swallowing graph directories that are named after what they describe.
+/build/
 *.tgz
 source/cli/coverage/
 /coverage/
