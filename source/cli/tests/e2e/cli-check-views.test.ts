@@ -237,8 +237,16 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
 
   // Build the shared fixture once per describe block; tear down after all tests.
   // (vitest describe-level hooks run once; individual tests must not mutate dir.)
+  //
+  // ORDER-DEPENDENT: the `setup:` test below populates `dir`, and every test
+  // after it reads that value. These were written as `it.sequential(...)`, an
+  // option vitest 5 removed (it existed only to opt a test out of an enclosing
+  // `concurrent` suite). Plain `it()` is exactly equivalent here: vitest runs
+  // the tests of one file sequentially, in declaration order, unless the suite
+  // or config opts into concurrency — and nothing in this repo does. Never mark
+  // this block (or the config) `concurrent`; it would race `dir` against setup.
 
-  it.sequential('setup: build fixture', () => {
+  it('setup: build fixture', () => {
     dir = buildViewsFixture();
     expect(existsSync(dir)).toBe(true);
   });
@@ -247,7 +255,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
-  it.sequential('--details: ungrouped view, one block per issue (more blocks than default), exit 1', () => {
+  it('--details: ungrouped view, one block per issue (more blocks than default), exit 1', () => {
     const { stdout, status } = run(['check', '--details'], dir);
     const out = strip(stdout);
 
@@ -283,7 +291,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(out).not.toMatch(/\d+ pairs {2}\d+ nodes/);
   });
 
-  it.sequential('--aspect aspect-one: only that aspect\'s issues, K of N header, exit 1', () => {
+  it('--aspect aspect-one: only that aspect\'s issues, K of N header, exit 1', () => {
     const { stdout, status } = run(['check', '--aspect', 'aspect-one'], dir);
     const out = strip(stdout);
 
@@ -307,7 +315,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(out).toMatch(/^Next \(this group\): yg check --approve$/m);
   });
 
-  it.sequential('--aspect aspect-two: only that aspect\'s single issue, header shows K=1 of N=5, exit 1', () => {
+  it('--aspect aspect-two: only that aspect\'s single issue, header shows K=1 of N=5, exit 1', () => {
     const { stdout, status } = run(['check', '--aspect', 'aspect-two'], dir);
     const out = strip(stdout);
 
@@ -328,7 +336,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(out).not.toContain('mapping-path-missing');
   });
 
-  it.sequential('--top 1: exactly ONE group block rendered, true total still visible, exit 1', () => {
+  it('--top 1: exactly ONE group block rendered, true total still visible, exit 1', () => {
     const { stdout, status } = run(['check', '--top', '1'], dir);
     const out = strip(stdout);
 
@@ -348,7 +356,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expectNoDanglingSectionHeader(stdout);
   });
 
-  it.sequential('bare --top: exactly ONE group block — the suggested-next group — true total visible, exit 1', () => {
+  it('bare --top: exactly ONE group block — the suggested-next group — true total visible, exit 1', () => {
     const { stdout, status } = run(['check', '--top'], dir);
     const out = strip(stdout);
 
@@ -377,7 +385,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expectNoDanglingSectionHeader(stdout);
   });
 
-  it.sequential('--top 2: both groups rendered (all groups shown when N groups <= top), exit 1', () => {
+  it('--top 2: both groups rendered (all groups shown when N groups <= top), exit 1', () => {
     const { stdout, status } = run(['check', '--top', '2'], dir);
     const out = strip(stdout);
 
@@ -394,7 +402,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expectNoDanglingSectionHeader(stdout);
   });
 
-  it.sequential('--details --approve: mutual-exclusion error to stderr, exit 1', () => {
+  it('--details --approve: mutual-exclusion error to stderr, exit 1', () => {
     const { stderr, status } = run(['check', '--details', '--approve'], dir);
     const err = strip(stderr);
 
@@ -406,7 +414,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(err).toContain('yg check --approve');
   });
 
-  it.sequential('--details --summary: mutual-exclusion error to stderr, exit 1', () => {
+  it('--details --summary: mutual-exclusion error to stderr, exit 1', () => {
     const { stderr, status } = run(['check', '--details', '--summary'], dir);
     const err = strip(stderr);
 
@@ -415,7 +423,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
   });
 
   // ── Fix 7: read-only triage views cannot combine with the fill flag ──────────
-  it.sequential('--summary --only-deterministic: rejected (read-only view + fill flag), exit 1', () => {
+  it('--summary --only-deterministic: rejected (read-only view + fill flag), exit 1', () => {
     const { stderr, status } = run(['check', '--summary', '--only-deterministic'], dir);
     const err = strip(stderr);
     expect(status).toBe(1);
@@ -425,7 +433,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
     expect(err).toContain('yg check --approve --only-deterministic');
   });
 
-  it.sequential('--top --only-deterministic: rejected (read-only view + fill flag), exit 1', () => {
+  it('--top --only-deterministic: rejected (read-only view + fill flag), exit 1', () => {
     const { stderr, status } = run(['check', '--top', '--only-deterministic'], dir);
     const err = strip(stderr);
     expect(status).toBe(1);
@@ -433,7 +441,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check Phase-2 view flags', () => {
   });
 
   // ── Fix 6(a): unknown aspect id is a clear error, not a silent 0-count FAIL ───
-  it.sequential('--aspect <unknown-id>: clear "unknown aspect" error naming the id, exit 1', () => {
+  it('--aspect <unknown-id>: clear "unknown aspect" error naming the id, exit 1', () => {
     const { stdout, stderr, status } = run(['check', '--aspect', 'totally-bogus-aspect'], dir);
     const err = strip(stderr);
     const out = strip(stdout);
@@ -536,7 +544,10 @@ function buildAnnotationFixture(): string {
 describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotation', () => {
   let dir: string;
 
-  it.sequential('setup: build annotation fixture', () => {
+  // ORDER-DEPENDENT, same contract as the block above: `setup:` populates `dir`
+  // for the tests that follow. Plain `it()` (not the vitest-5-removed
+  // `it.sequential`) is sufficient only while this suite stays non-concurrent.
+  it('setup: build annotation fixture', () => {
     dir = buildAnnotationFixture();
     expect(existsSync(dir)).toBe(true);
   });
@@ -545,7 +556,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
     if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
-  it.sequential('--top 1 with errors AND warnings: warning subheader annotated, never dangling, exit 1', () => {
+  it('--top 1 with errors AND warnings: warning subheader annotated, never dangling, exit 1', () => {
     const { stdout, status } = run(['check', '--top', '1'], dir);
     const out = strip(stdout);
 
@@ -579,7 +590,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --top empty-section annotatio
     expectNoDanglingSectionHeader(stdout);
   });
 
-  it.sequential('bare --top behaves as --top 1: one group + annotated warning subheader, exit 1', () => {
+  it('bare --top behaves as --top 1: one group + annotated warning subheader, exit 1', () => {
     const { stdout, status } = run(['check', '--top'], dir);
     const out = strip(stdout);
 
@@ -694,7 +705,10 @@ function buildStructuralCoverageFixture(): string {
 describe.skipIf(!distExists)('CLI E2E — F3: bare --top group === the rule Next names', () => {
   let dir: string;
 
-  it.sequential('setup: build structural+coverage fixture', () => {
+  // ORDER-DEPENDENT, same contract as the blocks above: `setup:` populates `dir`
+  // for the tests that follow. Plain `it()` (not the vitest-5-removed
+  // `it.sequential`) is sufficient only while this suite stays non-concurrent.
+  it('setup: build structural+coverage fixture', () => {
     dir = buildStructuralCoverageFixture();
     expect(existsSync(dir)).toBe(true);
   });
@@ -703,7 +717,7 @@ describe.skipIf(!distExists)('CLI E2E — F3: bare --top group === the rule Next
     if (dir) rmSync(dir, { recursive: true, force: true });
   });
 
-  it.sequential('the group bare --top renders is exactly the rule the Next: line names (structural + coverage mix)', () => {
+  it('the group bare --top renders is exactly the rule the Next: line names (structural + coverage mix)', () => {
     const top = run(['check', '--top'], dir);
     const full = run(['check'], dir);
     // Red repo — both exit 1, TRUE aggregate preserved.

@@ -585,7 +585,7 @@
       "file:source/cli/tests/e2e/cli-check-output-flush.test.ts": {"hash":"8f5b8772e1fec44ba6efb33168ad19a0a53413f99ef9b63f4a68ad8f40b5999d","promptChars":19361,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-check-quiet.test.ts": {"filledAt":"2026-09-12T05:42:29.530Z","filledSha":"45e102a71f4eb61be372e927e280b97f60c28467","hash":"adca63b3eb81ab61c2f004ea04202981df48b70248fb8c8b8d023d2398cae568","promptChars":12519,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-check-validation.test.ts": {"hash":"96c141790eaaf5f6af647a6e8d9556f70eb48301fad322bd8a4f6f2306b679da","promptChars":25718,"verdict":"approved"},
-      "file:source/cli/tests/e2e/cli-check-views.test.ts": {"hash":"673164df9cd1a7b688e22ab904662e8d66b03255e2f4341bc6b985f23c937d45","promptChars":33279,"verdict":"approved"},
+      "file:source/cli/tests/e2e/cli-check-views.test.ts": {"filledAt":"2026-09-12T08:37:49.972Z","filledSha":"42af45ce41f9c7778cd97d01afd608b55e628de1","hash":"1d74e37cbcd254489b2ef42525dabbfb9fe2c2d383d0edb4cb6fd6340ca69bd1","promptChars":34120,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-child-precedence-relations.test.ts": {"hash":"1ac1a3f707d4658d8560eafa6ce086675cb562df5cfc7bb3bdf0a7784cf28181","promptChars":8954,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-child-precedence.test.ts": {"hash":"a72015c50dd7ed78fa79b7d7b2877b4a14dd09261d1e2625ba3829ee5a34ee02","promptChars":9739,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-commands-surface.test.ts": {"hash":"9a398006a7b538b8bc07c952e7795a53d007215c7c00d6190d588a02e5f03943","promptChars":17850,"verdict":"approved"},
