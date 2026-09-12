@@ -40,9 +40,13 @@ export interface ImpactJsonDependentRelation {
 
 /**
  * One component that depends on the subject. `direct` distinguishes a declared
- * edge onto the subject from one reached through other components; an indirect
- * dependent declares no relation to the subject and so carries an empty
- * `relations` list.
+ * STRUCTURAL edge (`uses`/`calls`/`extends`/`implements`) onto the subject from
+ * one reached only through other components. `relations` is NOT scoped to that
+ * same structural set — it lists every relation type the dependent declares
+ * onto the subject, `emits`/`listens` included — so an indirect dependent can
+ * still carry a non-empty `relations` list if it has a non-structural relation
+ * straight onto the subject. Do not read `relations.length === 0` as a proxy
+ * for `direct === false`; read the two fields independently.
  */
 export interface ImpactJsonDependent {
   node: string;
