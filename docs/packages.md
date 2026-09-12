@@ -73,15 +73,16 @@ different `--as`.
 ## Adapting, not editing
 
 **You never edit an installed rule.** `yg check` refuses any change to a copied
-file, and `yg pack update <name>` refuses to touch a package whose copy you have
-changed. That is not protectiveness — it is what makes an update a replacement
-instead of a merge. An edit you made to a copy would vanish the next time the
-package moved, and nothing would record that it had ever been there.
+file, and `yg pack update` refuses to run at all while one exists. That is not
+protectiveness — it is what makes an update a replacement instead of a merge. An
+edit you made to a copy would vanish the next time the package moved, and nothing
+would record that it had ever been there.
 
-`yg pack update` with no name works through your packages in name order and stops
-at the first one whose copy was edited — so the packages sorting before it are
-already updated and the record already rewritten when it refuses. Restore the file
-it names and run it again to finish the rest.
+The refusal is all or nothing. `yg pack update` with no name checks every
+installed copy before it replaces any of them, so an edited file under one package
+stops the whole run with nothing touched — not the package you edited and not the
+ones sorting before it. It names every file it found. Restore them and run it
+again.
 
 Everything you want different goes in the `yg-aspect.adapt.yaml` written beside
 each rule. `yg pack add` writes it for you, already listing what you may change:

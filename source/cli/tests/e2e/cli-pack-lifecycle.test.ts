@@ -26,6 +26,9 @@
 //   Updating
 //   10. copy untouched              → replaced, record rewritten, adaptation byte-identical
 //   11. copy edited                 → refused, listing the files, nothing replaced
+//  11b. no name, a LATER package edited → the whole run refuses; the package
+//                                     sorting before it is untouched on disk and
+//                                     in the record
 //   12. a version that is not there → refused, naming the tag, record untouched
 //   13. a setting the new version dropped → refused at load, by name
 //   Listing and removing
@@ -156,6 +159,44 @@ function setSetting(dir: string, key: string, value: string): void {
 
 /** Built once: a git repository publishing demo 0.1.0 and 0.2.0 as tags. */
 let gitMarket = '';
+
+/**
+ * A throwaway git marketplace publishing TWO packages — `alpha` and `zulu` — each
+ * at 0.1.0 and 0.2.0, both built from the same demo fixture.
+ *
+ * The names are chosen for their sort order and nothing else. `yg pack update`
+ * with no argument works the record in name order, so `alpha` is the package a run
+ * would replace FIRST and `zulu` the one it only reaches afterwards — which is
+ * what makes an edit under `zulu` able to prove that nothing was touched before
+ * the refusal.
+ */
+function twoPackageMarket(): string {
+  const market = mkdtempSync(path.join(tmpdir(), 'yg-pack-two-'));
+  runGitFixture(market, ['init', '-q', '-b', 'main']);
+  for (const [version, from] of [
+    ['0.1.0', MARKET_V1],
+    ['0.2.0', MARKET_V2],
+  ] as const) {
+    rmSync(path.join(market, 'packages'), { recursive: true, force: true });
+    for (const name of ['alpha', 'zulu']) {
+      cpSync(path.join(from, 'packages', 'demo'), path.join(market, 'packages', name), { recursive: true });
+      const manifest = path.join(market, 'packages', name, 'yg-package.yaml');
+      writeFileSync(manifest, readFileSync(manifest, 'utf-8').replace('name: demo', `name: ${name}`), 'utf-8');
+    }
+    writeFileSync(
+      path.join(market, 'yg-marketplace.yaml'),
+      'schema: yg-marketplace/1\npackages:\n' +
+        ['alpha', 'zulu'].map((n) => `  - name: ${n}\n    path: packages/${n}\n    version: ${version}\n`).join(''),
+      'utf-8',
+    );
+    runGitFixture(market, ['add', '-A']);
+    runGitFixture(market, ['commit', '-qm', `alpha and zulu ${version}`]);
+    runGitFixture(market, ['tag', `pack/alpha@${version}`]);
+    runGitFixture(market, ['tag', `pack/zulu@${version}`]);
+  }
+  runGitFixture(market, ['remote', 'add', 'origin', 'https://example.test/acme/law.git']);
+  return market;
+}
 
 beforeAll(() => {
   if (!distExists) return;
@@ -423,6 +464,50 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it(
+    '11b: with no package named, one edited copy refuses the whole run — the packages sorting before it are untouched',
+    () => {
+      // The regression this pins: drift used to be judged package by package
+      // INSIDE the update loop, so an edit under a package sorting late refused
+      // the run only after every package before it had already been replaced on
+      // disk and rewritten in the record — while the refusal printed "Nothing was
+      // updated." Both halves are asserted here: the refusal, and that `alpha` is
+      // still exactly what it was.
+      const market = twoPackageMarket();
+      const dir = consumer('update-all-dirty');
+      try {
+        expect(run(['pack', 'add', `${market}#alpha@0.1.0`], dir).status).toBe(0);
+        expect(run(['pack', 'add', `${market}#zulu@0.1.0`], dir).status).toBe(0);
+
+        const alphaCheck = path.join('.yggdrasil', 'aspects', 'packages', 'acme', 'law', 'alpha', 'rule-a', 'check.mjs');
+        const zuluCheck = path.join('.yggdrasil', 'aspects', 'packages', 'acme', 'law', 'zulu', 'rule-a', 'check.mjs');
+        const alphaBefore = read(dir, alphaCheck);
+        const lockBefore = read(dir, LOCK);
+        expect(lockBefore).toContain('version: "0.1.0"');
+        // Only the LATER package is edited. Both are at 0.1.0 against a source
+        // publishing 0.2.0, so `alpha` has a real update waiting for it.
+        write(dir, zuluCheck, `${read(dir, zuluCheck)}\n// mine\n`);
+
+        const updated = run(['pack', 'update'], dir);
+        expect(updated.status).toBe(1);
+        expect(updated.all).toContain('.yggdrasil/aspects/packages/acme/law/zulu/rule-a/check.mjs');
+        expect(updated.all).toContain('Nothing was updated');
+        // It never got as far as replacing anything, so it never said it did.
+        expect(updated.all).not.toContain('0.1.0 → 0.2.0');
+
+        // The pin. Byte for byte the 0.1.0 copy, and still recorded at 0.1.0.
+        expect(read(dir, alphaCheck)).toBe(alphaBefore);
+        expect(read(dir, alphaCheck)).not.toContain('countBlankLines');
+        expect(read(dir, LOCK)).toBe(lockBefore);
+        expect(read(dir, LOCK)).not.toContain('0.2.0');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+        rmSync(market, { recursive: true, force: true });
+      }
+    },
+    60_000,
+  );
 
   it('12: a version the source does not publish is refused, naming the tag', () => {
     const dir = consumer('update-notag');

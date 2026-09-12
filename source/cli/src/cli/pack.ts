@@ -749,6 +749,35 @@ async function runUpdate(name: string | undefined, opts: { to?: string }): Promi
   }
 
   const drift = await collectPackagesDrift(projectRoot, lock);
+
+  // Every package this run would touch is judged for drift HERE, in one pass,
+  // before a single file is replaced. The data costs nothing extra —
+  // `collectPackagesDrift` already hashes the whole record against disk and
+  // consumes nothing an install produces — and judging it inside the update loop
+  // instead made the no-argument form apply partially: a package sorting earlier
+  // was already replaced on disk and rewritten in the record by the time a later
+  // one's edited copy stopped the run, while the refusal it printed claimed that
+  // nothing had been updated. Refusing the whole run up front is what makes that
+  // claim true.
+  const drifted = names.filter((pkgName) => !isCopyIntact(drift.byPackage.get(pkgName)));
+  if (drifted.length > 0) {
+    const listed = drifted
+      .map((pkgName) => {
+        const packageDrift = drift.byPackage.get(pkgName);
+        const touched = [...(packageDrift?.modified ?? []), ...(packageDrift?.missing ?? [])]
+          .sort((a, b) => (a < b ? -1 : 1))
+          .map((f) => `  ${repoRelativePackagePath(f)}`)
+          .join('\n');
+        return `The copy of '${pkgName}' has been changed since it was installed:\n${touched}`;
+      })
+      .join('\n');
+    failWith({
+      what: listed,
+      why: 'An update replaces every file the package installed, so those changes would be gone with nothing recording that they existed. Nothing was updated — not this package and not any other, however many were named.',
+      next: `Restore the files listed above and put your changes in the ${ADAPT_FILENAME} beside each rule, which an update leaves alone. Then run this again.`,
+    });
+  }
+
   let changed = 0;
   // Refreshed alongside the update, for the same reason a listing refreshes it:
   // this command already reaches the source, and asking it one more question
@@ -759,18 +788,6 @@ async function runUpdate(name: string | undefined, opts: { to?: string }): Promi
 
   for (const pkgName of names) {
     const entry = lock.packages[pkgName];
-    const packageDrift = drift.byPackage.get(pkgName);
-    if (!isCopyIntact(packageDrift)) {
-      const touched = [...(packageDrift?.modified ?? []), ...(packageDrift?.missing ?? [])]
-        .sort((a, b) => (a < b ? -1 : 1))
-        .map((f) => `  ${repoRelativePackagePath(f)}`)
-        .join('\n');
-      failWith({
-        what: `The copy of '${pkgName}' has been changed since it was installed:\n${touched}`,
-        why: 'An update replaces every file the package installed, so those changes would be gone with nothing recording that they existed. Nothing was updated.',
-        next: `Restore the files listed above and put your changes in the ${ADAPT_FILENAME} beside each rule, which an update leaves alone. Then run this again.`,
-      });
-    }
 
     const tags = await listPackageVersionTags(entry.source, pkgName);
     if (tags !== null) {
