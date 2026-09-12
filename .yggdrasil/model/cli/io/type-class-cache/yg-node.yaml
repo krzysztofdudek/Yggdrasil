@@ -4,6 +4,5 @@ description: "Local cache for the type-level classification lattice's classifica
 relations:
   - target: cli/io/atomic-write
     type: calls
-    consumes: [write-atomic]
 mapping:
   - source/cli/src/io/type-class-cache.ts

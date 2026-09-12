@@ -20,23 +20,13 @@ aspects:                      # optional — aspect identifiers applied directly
     when: <predicate>         #   optional — see yg schemas read aspect for grammar
                               # Aspects cascade to all child nodes.
 
-ports:                        # optional — named entry points with required aspects
-  port-name:                  # consumers of this node reference ports via consumes
-    description: "What this port provides"  # required
-    version: 1                # optional — the contract's version, an integer >= 1.
-                              #   Absent is read as 1. Consumers pin to this number, and the
-                              #   contract test below is baselined per version, so raising it
-                              #   is how you say the contract moved.
-    test: tests/contracts/place-order.test.ts
-                              # optional — the test that IS this contract, relative to the
-                              #   repository root. It may sit inside this node's mapping or
-                              #   outside it (a contract test is often shared). The file must
-                              #   exist. A built-in deterministic check records its content
-                              #   once per version and REFUSES the graph (port-contract-changed)
-                              #   when it changes at an unchanged version — bump version:, or
-                              #   restore the file. Free and keyless: the record is written by
-                              #   yg check --approve --only-deterministic.
-    aspects:                  # required — aspects consumers must satisfy (channel 6)
+ports:                        # optional — named entry points with required aspects.
+                              # \`default\` exists on every node without declaring it, and is the
+                              # entry every relation uses unless it names another.
+  port-name:                  # a relation reaches this node through a port by naming it in portNames
+    description: "What this port provides"  # required, except on a port literally named \`default\`
+    aspects:                  # optional — aspects a relation entering here must satisfy (channel 6).
+                              # A port that declares none loads as a named entry that carries nothing.
       - simple-aspect         #   bare string form
       - id: conditional-aspect
         status: enforced      #   optional — explicit status override (channel 6).
@@ -53,11 +43,16 @@ relations:                    # optional — outgoing dependencies to other node
                               # \`yg knowledge read ports-and-relations\`.
   - target: other/module-path # required — node path relative to model/
     type: calls               # required — calls | uses | extends | implements | emits | listens
-    consumes: [port-name]     # optional — port names consumed from target
-                              # required when target declares ports — otherwise yg check emits a
-                              # BLOCKING ERROR (port-missing-consumes) that fails the architecture gate.
-                              # There is no waiver; resolve by adding consumes or removing the ports.
-                              # Naming a target that declares no ports raises consumes-without-ports.
+    portNames: [port-name]    # optional — the ports this relation enters through (\`consumes\` still
+                              # works as a deprecated alias; declaring both is rejected).
+                              # Naming none is fine — the relation normalizes to the implicit
+                              # default port, which carries no requirement unless declared. Naming
+                              # an empty list is a BLOCKING ERROR (port-names-empty) — omit the field
+                              # instead. Naming a port the target does not publish — including when
+                              # the target publishes no ports at all — is a BLOCKING ERROR
+                              # (port-undefined); \`default\` never triggers it, since it always exists.
+                              # Neither error has a waiver; fix the port name, or add the port to
+                              # the target.
     event_name: order.placed  # optional — ONLY for the event relation types (emits / listens):
                               # a descriptive label for the channel. emits and listens must be
                               # PAIRED BY NODE PATH — every emits A->B needs some listens B->A (and

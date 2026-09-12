@@ -25,37 +25,23 @@ import { toPosixPath } from '../../utils/posix.js';
  */
 
 /**
- * A port's declared contract version, or null when it declares none.
- *
- * The DECLARED value, deliberately — not the version the contract check reads a
- * versionless port at. A consumer pinning to a version is reading what the port
- * says about itself, and a number the port never wrote would be a claim it never
- * made.
- */
-function portVersion(port: PortDef): number | null {
-  return port.version ?? null;
-}
-
-/** A port's declared contract test, repo-relative POSIX, or null when it declares none. */
-function portTest(port: PortDef): string | null {
-  return port.test === undefined ? null : toPosixPath(port.test);
-}
-
-/**
  * Every component that consumes `portName` from `nodePath`, in graph order.
  *
- * A port is consumed through the `consumes:` list on a relation, and that list
+ * A port is consumed through the `portNames` list on a relation (`consumes:` is
+ * an accepted alias in yg-node.yaml, never on the parsed shape), and that list
  * is legal on EVERY relation type — so this walks all declared relations rather
  * than the structural subset the dependency algorithms use. A component that
  * reaches the subject only through an event relation is therefore still counted
- * as a consumer of the contract it names.
+ * as a consumer of the contract it names. `portNames` is never empty — a
+ * relation naming none still "consumes" the implicit `default` port, so it is
+ * counted as one of its consumers too.
  */
 function collectPortConsumers(graph: Graph, nodePath: string, portName: string): ImpactJsonPortConsumer[] {
   const consumers: ImpactJsonPortConsumer[] = [];
   for (const [candidatePath, candidate] of graph.nodes) {
     for (const rel of candidate.meta.relations ?? []) {
       if (rel.target !== nodePath) continue;
-      if (!rel.consumes?.includes(portName)) continue;
+      if (!rel.portNames.includes(portName)) continue;
       consumers.push({ node: candidatePath, relation: rel.type });
     }
   }
@@ -69,7 +55,7 @@ function relationsOnto(graph: Graph, dependentPath: string, nodePath: string): I
   const out: ImpactJsonDependentRelation[] = [];
   for (const rel of dependent.meta.relations ?? []) {
     if (rel.target !== nodePath) continue;
-    out.push({ type: rel.type, ports: [...(rel.consumes ?? [])] });
+    out.push({ type: rel.type, ports: [...rel.portNames] });
   }
   return out;
 }
@@ -93,10 +79,8 @@ export function buildImpactDocument(graph: Graph, nodePath: string): ImpactJsonD
 
   const ports: ImpactJsonPort[] = Object.entries(node.meta.ports ?? {})
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
-    .map(([name, port]) => ({
+    .map(([name]) => ({
       name,
-      version: portVersion(port),
-      test: portTest(port),
       consumers: collectPortConsumers(graph, nodePath, name),
     }));
 
@@ -124,8 +108,6 @@ export function buildImpactDocument(graph: Graph, nodePath: string): ImpactJsonD
 function nodeJsonPort(port: PortDef): NodeJsonPort {
   return {
     description: port.description,
-    version: portVersion(port),
-    test: portTest(port),
     aspects: [...(port.aspects ?? [])],
   };
 }
@@ -135,7 +117,7 @@ function nodeJsonRelation(relation: Relation): NodeJsonRelation {
   const out: NodeJsonRelation = {
     target: relation.target,
     type: relation.type,
-    consumes: [...(relation.consumes ?? [])],
+    consumes: [...relation.portNames],
   };
   if (relation.event_name !== undefined) out.event_name = relation.event_name;
   return out;

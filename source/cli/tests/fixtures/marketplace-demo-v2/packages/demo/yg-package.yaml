@@ -1,0 +1,24 @@
+schema: yg-package/1
+name: demo
+version: 0.2.0
+requires:
+  yg: ">=5.9.0"
+aspects:
+  - rule-a
+  - rule-b
+  - rule-c
+config:
+  rule-a:
+    threshold:
+      type: number
+      default: 3
+    # Declared and never read by the rule. It is here on purpose: a value the rule
+    # does not consult must not enter any verdict, so changing it re-opens nothing.
+    label:
+      type: string
+      default: "house"
+    # Added in 0.2.0. A repository that installed 0.1.0 and then updated keeps its
+    # own threshold and picks this up at the package's default.
+    countBlankLines:
+      type: boolean
+      default: true

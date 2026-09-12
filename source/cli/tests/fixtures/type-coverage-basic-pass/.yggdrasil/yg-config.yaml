@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # Companion to type-coverage-basic/: this fixture is a genuine PASS twin — every
 # file here is silently satisfied (excluded root or type-covered), with no

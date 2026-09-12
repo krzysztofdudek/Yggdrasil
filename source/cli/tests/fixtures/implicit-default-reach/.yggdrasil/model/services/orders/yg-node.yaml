@@ -1,0 +1,8 @@
+name: OrdersService
+description: Creates orders and charges the customer via the payments default port — no port declared on this side; the aspect must still reach it through the implicit default channel.
+type: consumer
+relations:
+  - target: services/payments
+    type: uses
+mapping:
+  - src/services/orders.ts

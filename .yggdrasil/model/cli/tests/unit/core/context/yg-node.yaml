@@ -10,8 +10,10 @@ relations:
   [
     { target: cli/core/context, type: uses },
     { target: cli/core/loader, type: uses },
+    { target: cli/core/checks/relations, type: uses },
     { target: cli/formatters, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/context-builder.test.ts
   - source/cli/tests/unit/core/graph-loader.test.ts
+  - source/cli/tests/unit/core/graph-loader-port-aspects.test.ts

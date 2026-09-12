@@ -43,6 +43,46 @@ export interface CoverageConfig {
   typeLevel: boolean;
 }
 
+/**
+ * Which of the three agent-rules artifacts this repository wants Yggdrasil to
+ * write and to keep in sync (`AGENTS.md`'s digest block, the `@AGENTS.md`
+ * import line in `CLAUDE.md`, and the standalone `.clinerules/yggdrasil.md`
+ * copy). Every field defaults to TRUE — absent config, an absent block, or an
+ * absent key all mean "as today": the artifact is installed by `yg init` and
+ * its drift is reported by `yg check`. This is an OPT-OUT, never a change of
+ * default: an existing adopter who never touches the key sees byte-identical
+ * behavior.
+ *
+ * `false` means the artifact is not this repository's business at all —
+ * `yg init` does not write it and the committed-digest gate does not look at
+ * it, so a repo that deliberately carries no Cline copy stops being told its
+ * `.clinerules/yggdrasil.md` is missing. An artifact already on disk is left
+ * exactly where it is (deleting a committed file on an unrelated `--upgrade`
+ * run is the one irreversible move here); `yg init` names it instead, so the
+ * user can remove it themselves.
+ */
+export interface RulesArtifactsConfig {
+  /** Write and check the `AGENTS.md` digest block. */
+  agentsMd: boolean;
+  /** Write and check the `@AGENTS.md` import line in `CLAUDE.md`. */
+  claudeMd: boolean;
+  /** Write and check the standalone `.clinerules/yggdrasil.md` copy. */
+  clinerules: boolean;
+}
+
+/**
+ * Today's behavior, and what every key absent from a repo's `rules_artifacts`
+ * block resolves to: all three artifacts installed and checked. Lives beside
+ * the interface (like DEFAULT_PORT_NAME) rather than in the parser, because
+ * the pure check engine falls back to it too and may not reach the io layer
+ * for a constant.
+ */
+export const DEFAULT_RULES_ARTIFACTS: RulesArtifactsConfig = {
+  agentsMd: true,
+  claudeMd: true,
+  clinerules: true,
+};
+
 export interface YggConfig {
   version?: string;
   quality?: QualityConfig;
@@ -73,6 +113,18 @@ export interface YggConfig {
   events?: { committed_llm?: boolean };
   /** Coverage scope. Absent ⇒ DEFAULT_COVERAGE (whole repo required = today's behavior). */
   coverage?: CoverageConfig;
+  /**
+   * Which agent-rules artifacts this repo carries. Absent ⇒
+   * DEFAULT_RULES_ARTIFACTS (all three written and checked = today's
+   * behavior).
+   *
+   * COMMITTED-ONLY, like `coverage.typeLevel` and `progressive`: read from the
+   * committed `yg-config.yaml` before the gitignored `yg-secrets.yaml` overlay
+   * is merged. Which files the repository carries is a decision the whole team
+   * shares — a local, unshared file must never stop `yg init` from writing a
+   * teammate's artifact, nor silence a drift warning only on one machine.
+   */
+  rulesArtifacts?: RulesArtifactsConfig;
   /**
    * Progressive-mode settings. Absent ⇒ progressive mode is OFF and every run
    * behaves exactly as it always has. `reference` names the committed branch or
@@ -144,32 +196,18 @@ export interface QualityConfig {
 
 export type RelationType = 'uses' | 'calls' | 'extends' | 'implements' | 'emits' | 'listens';
 
+/**
+ * The reserved port name every node carries implicitly, whether or not it
+ * declares one — a relation naming no port normalizes to this at parse time.
+ * A node declares `ports.default` explicitly only to hang aspects on it.
+ */
+export const DEFAULT_PORT_NAME = 'default';
+
 /** Port on a target node — consumers must satisfy port's aspects */
 export interface PortDef {
   description: string;
-  aspects: string[];
-  /**
-   * The contract's version. An integer >= 1, absent when the port declares
-   * none — and then read as version 1 wherever a version is needed, so a port
-   * that names a `test` is protected from the first day whether or not its
-   * author has started numbering.
-   *
-   * A version is what makes a contract change SAYABLE: consumers pin what they
-   * consume to a number, and the port's recorded contract baseline is kept per
-   * version, so the number rising is the declaration that the contract moved.
-   */
-  version?: number;
-  /**
-   * Repo-relative POSIX path of the test that IS this contract — the executable
-   * statement of what a consumer may rely on. Absent when the port declares
-   * none.
-   *
-   * It may sit inside the node's own mapping or outside it: a contract test is
-   * often shared, owned by neither side of the port. The path is validated to
-   * exist and its content is baselined per version, so it cannot change without
-   * the version changing.
-   */
-  test?: string;
+  /** Required aspects a consumer must satisfy. Absent means the port carries none. */
+  aspects?: string[];
   /** Per-aspect applicability filters for aspects listed in `aspects` */
   aspectWhens?: Record<string, WhenPredicate>;
   /** Per-aspect explicit status override for aspects listed in `aspects` (channel 6) */
@@ -233,7 +271,14 @@ export interface NodeMeta {
 export interface Relation {
   target: string;
   type: RelationType;
-  consumes?: string[];
+  /**
+   * Named ports this relation enters through. Never empty — the parser
+   * normalizes a relation naming none to `[DEFAULT_PORT_NAME]`, the port every
+   * node carries implicitly. `portNames:` is the field in yg-node.yaml;
+   * `consumes:` is accepted there too, as an alias, but never appears on this
+   * parsed shape.
+   */
+  portNames: string[];
   /** For event relations (emits, listens): display name of the event, e.g. OrderPlaced */
   event_name?: string;
 }
@@ -368,11 +413,31 @@ export interface AspectDef {
    */
   errs?: ErrsDirection;
   /**
-   * True when companion.mjs is present beside the aspect's rule sources.
-   * Valid only when reviewer.type === 'llm'. Set by the loader when companion.mjs
-   * is detected in the aspect directory.
+   * True when the aspect has a companion resolver: a companion.mjs beside its rule
+   * sources, or a `companion:` key naming one elsewhere in the repository.
+   * Valid only when reviewer.type === 'llm'.
    */
   hasCompanion?: boolean;
+  /**
+   * Repository-relative POSIX path of a companion module named by `companion:`
+   * instead of shipped beside the rule. Set only when the key is present — an
+   * aspect with its own companion.mjs leaves this undefined. Its bytes are ALSO
+   * carried in `artifacts` under the name `companion.mjs`, so the companion hash
+   * (and therefore every verdict the resolver contributed to) tracks edits to it
+   * exactly as it tracks edits to a packaged one.
+   */
+  companionPath?: string;
+  /**
+   * Settled configuration this aspect's check.mjs / companion.mjs reads through
+   * `ctx.config`: the declaring package's defaults with the consumer's adapt
+   * applied over them. Absent when the aspect declares no configuration.
+   *
+   * A value here is NOT hashed on its own. It enters a verdict only through the
+   * `config:` observation the runner records when the rule actually READS the key
+   * — so changing a key nothing reads invalidates nothing, and changing one a rule
+   * does read sends exactly that rule's verdicts back to unverified.
+   */
+  config?: Record<string, string | number | boolean>;
 }
 
 // ============================================================

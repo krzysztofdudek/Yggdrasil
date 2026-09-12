@@ -185,18 +185,29 @@ An unclosed fence is treated as running to the end of the file, so a marker afte
 it is inert too — any fence ambiguity fails toward enforcement, so a fenced
 example is only ever skipped, never honored.
 
+The OTHER CommonMark code-block form — a plain block indented four or more
+spaces (or by a tab), with no fence syntax at all — is masked exactly the same
+way. A marker inside one is a documented example too: not honored by any
+reviewer, not listed by \`yg suppressions\`. So BOTH Markdown code-block forms,
+fenced and indented, are recognized as inert examples.
+
+Watch the indent, though: the masking is by leading whitespace alone, so ANY
+line beginning with four spaces or a tab counts — including a marker written as
+the continuation of a nested list item that pushes it that far right. Such a
+marker is silently skipped. Keep a genuine waiver flush against the left margin.
+
 To place a GENUINE, honored suppress marker in a Markdown file, use an HTML
-comment OUTSIDE any fence — it waives the line that follows it, exactly like a
-single-line marker in code:
+comment outside any fence and unindented — it waives the line that follows it,
+exactly like a single-line marker in code:
 
 \`\`\`markdown
 <!-- yg-suppress(<aspect-id>) <reason> -->
 the line this waives
 \`\`\`
 
-Out of scope (no special handling): a 4-space-indented code block is NOT masked,
-and a marker on a bare prose line is already inert (the raw-line scan requires a
-leading comment delimiter). Only fenced blocks are recognized as inert examples.
+A marker on a bare prose line is inert for a different reason: the raw-line scan
+requires a leading comment delimiter, so a delimiter-less prose line was never a
+marker to begin with — nothing masks it, it simply never parsed as one.
 
 ## Reason text
 
@@ -229,8 +240,12 @@ refusal by declaring the relation in the node's \`yg-node.yaml\` or removing the
 dependency — never by trying to suppress it.
 
 A suppress marker (single or disable form) must carry a reason — an empty
-reason is rejected with a clear error. Beyond that, the token is matched as a
-plain string against the aspect id being checked: there is NO validation
-that the id names an existing aspect, so a typo simply suppresses nothing
-(the marker is inert). Nothing validates that the reason is sufficient.
+reason is rejected with a clear error. Beyond that, the honoring path matches
+the token as a plain string against the aspect id being checked: nothing there
+validates that the id names an existing aspect, so at check time a typo simply
+suppresses nothing (the marker is inert, and no error says so). The read-only
+inventory does catch it: \`yg suppressions\` cross-checks every non-wildcard
+marker's aspect id against the graph and reports an \`unknown-aspect\` warning
+when it matches nothing — run it to find a typo'd, renamed, or deleted aspect
+id. Nothing validates that the reason is sufficient.
 `;

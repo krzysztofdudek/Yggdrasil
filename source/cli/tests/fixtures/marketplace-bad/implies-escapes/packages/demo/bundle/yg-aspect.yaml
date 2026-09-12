@@ -1,0 +1,6 @@
+# `implies` inside a package names a rule of that package by its directory name.
+# This one names something else entirely.
+name: HouseStyle
+description: The house style bundle.
+implies:
+  - somebody-elses-rule

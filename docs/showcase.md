@@ -50,7 +50,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `enforce: strict`
 
-**Used as:** Enabled on all classifying types except `example`, `repo-config`, and `test-fixture`. Any file matching a type's `when` predicate must be in a mapping of that type.
+**Used as:** Enabled on all classifying types except `example`, `repo-config`, `test-fixture`, and `rule-script`. Any file matching a type's `when` predicate must be in a mapping of that type.
 
 **Earn-rate: high.** Caught 18 violations when we flipped the flag: fixture TypeScript files leaking into the `test-suite` type, GitHub Actions workflows and linting configs not in dedicated ci-config nodes. Each was a real gap, not a false positive.
 
@@ -70,7 +70,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `log_required`
 
-**Used as:** Opted in (`log_required: true`) on the production-code types whose changes carry business intent worth recording — `engine`, `command`, the persistence/parser/AST adapters, `migration`, `template`, and the portal backend types (`portal-pipeline`, `portal-engine-api`, `portal-server`). Documentation, schemas, test suites, fixtures, and CI configs leave it off (the default), so no log entry is demanded before their changes are verified.
+**Used as:** Opted in (`log_required: true`) on the twelve production-code types whose changes carry business intent worth recording — `engine`, `command`, `reviewer-dispatch`, the persistence/parser/AST/relations adapters, `migration`, `template`, and the portal backend types (`portal-pipeline`, `portal-engine-api`, `portal-server`). Documentation, schemas, test suites, fixtures, and CI configs leave it off (the default), so no log entry is demanded before their changes are verified.
 
 **Earn-rate: high.** Targeting the gate at code an LLM reviewer scrutinizes captures the *why* behind real changes where it matters, without accumulating meaningless log entries on config files and test suites.
 
@@ -80,7 +80,7 @@ Before writing a single YAML file, we spent the equivalent of several days restr
 
 ### `aspects:` (type-level defaults — channel 3)
 
-**Used as:** `engine` type automatically applies `source-no-raw-control-chars`, `deterministic`, `no-direct-fs`, `no-direct-console`, `no-nondeterminism-direct`, `source-hygiene`, and `single-source-graph-queries`. `command` type applies `source-no-raw-control-chars`, `cli-command-contract`, `diagnostic-logging`, `command-contract-shape`, `source-hygiene`, `command-error-via-buildissuemessage`, and `sibling-test-file`. 31 of 36 types carry at least one default aspect.
+**Used as:** `engine` type automatically applies `source-no-raw-control-chars`, `deterministic`, `no-direct-fs`, `no-direct-console`, `no-nondeterminism-direct`, `source-hygiene`, and `single-source-graph-queries`. `command` type applies `source-no-raw-control-chars`, `cli-command-contract`, `diagnostic-logging`, `command-contract-shape`, `source-hygiene`, `command-error-via-buildissuemessage`, and `sibling-test-file`. 33 of 38 types carry at least one default aspect.
 
 **Earn-rate: high.** This is the architecture-as-policy layer. Adding one aspect to a type applies it to every node of that type, past and future. We used it to roll out `test-deterministic` to every test-suite node at once.
 
@@ -168,19 +168,19 @@ inherit its implier's level.
 
 **Used as:** Not currently used in this repo. `descendants:` is a `when:` grammar feature that filters on a node's **hierarchical** descendants — its child nodes in the model tree — **not** the transitive call graph.
 
-**Earn-rate: situational.** Because it walks the model hierarchy and not the call graph, it does not express "any node whose call chain eventually reaches X". To enforce a property along a **call chain** — e.g. every node that leads to an LLM provider must redact provider data before logging it — attach the aspect explicitly to the chain nodes, or use ports + `consumes` (channel 6) to carry the requirement across the specific boundary that matters.
+**Earn-rate: situational.** Because it walks the model hierarchy and not the call graph, it does not express "any node whose call chain eventually reaches X". To enforce a property along a **call chain** — e.g. every node that leads to an LLM provider must redact provider data before logging it — attach the aspect explicitly to the chain nodes, or use a port (channel 6) to carry the requirement across the specific boundary that matters.
 
 **Recommendation:** Reach for `descendants:` only when the property genuinely follows the parent/child model hierarchy (e.g. "every child node of this subsystem inherits this rule"). It is the most complex filter in the grammar; do not use it to approximate call-chain propagation, which it cannot see — use explicit attachment or a port instead.
 
 ---
 
-### Ports + `consumes:` (channel 6)
+### Ports (channel 6)
 
-**Used as:** `cli/io/atomic-write` declares a `write-atomic` port carrying `atomic-write-contract` — the graph's only port. Six consumers declare `consumes: [write-atomic]` on their relation to it (`cli/core/check`, `cli/io/lock-store`, `cli/io/stores`, `cli/portal/serializer`, `cli/relations/core`, and `cli/tests/unit/support/utils`), pulling the contract into each consumer's own effective aspects.
+**Used as:** `cli/io/atomic-write` publishes port `default` carrying `atomic-write-contract` — the graph's only port, and the one every node already has implicitly. Eleven nodes hold a `calls`/`uses` relation onto it, and every one of them gets the contract without declaring anything on its own side at all: a relation naming no port has always entered through `default`. It used to be a named port (`write-atomic`) that six of them opted into explicitly through their relation; the rename to `default` proved the name was carrying no weight beyond what `atomic-write-contract`'s own `when: node.type: persistence-adapter` already carried alone — of the eleven, only the three that are `persistence-adapter` (`cli/io/lock-store`, `cli/io/stores`, `cli/io/type-class-cache`) are actually bound by the rule, and those three get it from their type regardless of the port. Channel 6 still fires on all eleven — reach through a port and eligibility under a `when` filter are separate questions — it just no longer needs a name or an explicit relation entry to do it.
 
-**Earn-rate: medium.** The port closed a real gap: persistence-adapters could route raw `fs.writeFile` through a helper module and evade the atomic-write requirement. Channel 6 makes the aspect enforceable on the consumer's own code.
+**Earn-rate: medium, but this repo's own instance turned out to earn nothing.** The mechanism closes a real gap in general: a caller could otherwise route raw `fs.writeFile` through a helper module and evade a target's requirement, and a *named* port lets a maintainer see, from the target's own file, exactly which relations opted in. This repo's one instance never needed that: every caller it reached that mattered was already `persistence-adapter`, already bound by the aspect's own type default. The port was pure ceremony — six explicit relation entries maintained for an enforcement effect the type default already produced.
 
-**Recommendation:** Declare ports sparingly — only when a critical aspect must be verifiable on the consumer's own source files, not just the target's. A bare `calls` relation is sufficient when you only need to document the dependency. Three questions to ask before creating a port: (1) Is there an aspect that must hold on the consumer? (2) Could the consumer evade the aspect without the port? (3) Are there multiple consumers you would otherwise have to annotate individually?
+**Recommendation:** Declare a named port sparingly — only when a critical aspect must be verifiable on the consumer's own source files, not just the target's. A bare relation into `default` is sufficient when you only need to document the dependency, or when every caller should be bound uniformly. Three questions to ask before naming a port: (1) Is there an aspect that must hold on the consumer? (2) Would the aspect reach that consumer anyway through another channel — its type default, a flow, an ancestor — making a named port redundant? (3) Are there multiple consumers you would otherwise have to annotate individually?
 
 ---
 
@@ -188,13 +188,13 @@ inherit its implier's level.
 
 **Used as:** Eighteen flows carry aspects. `validate` flow applies `deterministic`, `what-why-next`, and `silent-missing-files` to its four participant nodes. `verification` flow applies `provider-redaction` and `what-why-next`. Flow-level aspects propagate to all participant nodes automatically.
 
-**Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to all eighteen flows, covering 39 distinct participant nodes — a handful of flow-level declarations instead of dozens of node-level ones.
+**Earn-rate: high.** Flows are the right place for cross-cutting process requirements. The `what-why-next` aspect was attached to all eighteen flows, covering 42 distinct participant nodes — a handful of flow-level declarations instead of dozens of node-level ones.
 
 **Recommendation:** Think of flows as the "cross-cutting concern" layer. If an aspect should apply to every node that participates in a named business process (authentication, payment, approval), put it on the flow. If an aspect applies only to a specific code layer (engine, formatter), use a type default instead.
 
 ---
 
-### `enforce: strict` — features deliberately not used
+### Features deliberately not used
 
 The following features exist in the schema but were not exercised because no genuine use case arose. We document them here so adopters can calibrate expectations:
 
@@ -202,10 +202,10 @@ The following features exist in the schema but were not exercised because no gen
 |---|---|---|
 | `implies:` object form (conditional gate) | Deferred | No implies chain needed a conditional filter |
 | `when: has_mapping:` | Deferred | No aspect needs file-mapping path filter |
-| `when: has_port:` | Deferred | Only one port; no aspect needs port-existence predicate |
+| `when: has_port:` | Deferred | Every node already carries `default` implicitly; a predicate testing port existence would be trivially true almost everywhere |
 | `when: target:` (exact node path) | Deferred | No aspect needs to pin to one specific node |
-| `when: consumes_port:` | Deferred | Single consumer set; predicate not needed |
-| Multi-port `consumes:` | Deferred | Only one port in catalog |
+| `when: consumes_port:` | Deferred | No relation in the graph names a port explicitly any more; nothing to match against |
+| Multi-port `portNames:` | Deferred | Only one port in the catalog |
 | Paired `emits` / `listens` | Deferred | No event bus in the codebase |
 | `extends` relation | Used | `cli/llm/registry` → `cli/llm/shared` (the registry barrel extends the shared provider interface) |
 | `implements` relation | Deferred | No interface-conformance relation declared across a node boundary |
@@ -220,7 +220,7 @@ Deferred does not mean unsupported — these features are tested and documented.
 |---|---|
 | **Use from day one** | `path:` when, combinators (`all_of`/`not`), `parents:`, `log_required`, type-level `aspects:`, `when:` on aspects |
 | **Introduce when you have 5+ nodes** | `enforce: strict`, node-level aspects, `implies:`, flow-level aspects |
-| **Introduce when a specific problem arises** | `content:` when, ports + `consumes:`, `when: descendants:` |
+| **Introduce when a specific problem arises** | `content:` when, named ports, `when: descendants:` |
 | **Defer until the schema demands it** | Event relations, `implements`, multi-port, conditional implies |
 
 The biggest ROI in our dogfood came from three things: type-level aspect defaults (one YAML line covers all current and future nodes of a type), flow-level aspects (one YAML block covers all participants in a business process), and `enforce: strict` (zero uncovered files at merge time). Everything else is additive.

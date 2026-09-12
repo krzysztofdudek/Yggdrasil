@@ -9,9 +9,9 @@ files under \`.yggdrasil/\`: \`yg-lock.nondeterministic.json\` (committed — LL
 verdicts) and \`yg-lock.logs.json\` (committed — the per-node log/closure baseline),
 plus \`.yg-lock.deterministic.json\` (a gitignored local cache — deterministic-check
 verdicts, rebuilt for free on demand; committing them adds nothing but noise). The
-in-memory lock is unified \`{ version, verdicts, nodes }\`; the split is only at the
-I/O boundary, partitioned by aspect KIND. A verdict is valid exactly while the
-inputs that produced it hash to the stored value. Any input change makes the pair
+in-memory lock is unified \`{ version, verdicts, nodes, aspects? }\`; the split is
+only at the I/O boundary, partitioned by aspect KIND. A verdict is valid exactly
+while the inputs that produced it hash to the stored value. Any input change makes the pair
 **unverified**; a status flip never does. States are: **verified / unverified /
 refused**.
 
@@ -27,9 +27,7 @@ deterministic regardless of project config. \`yg check --approve\` fills every
 unverified pair it answers for and then reports (the whole project, or — under
 progressive mode — every free check plus the reviewer work your change is
 accountable for). With \`--only-deterministic\` it fills ONLY
-deterministic pairs (free, keyless) and writes the gitignored cache — plus, when
-a port names a contract test that has no baseline at its current version, that
-one baseline in the committed logs file (see \`nodes.<path>.ports\` below); it
+deterministic pairs (free, keyless) and writes the gitignored cache; it
 records no verdict in a committed file and closes no cycle — so it is the CI /
 pre-commit gate (a fresh checkout has no
 deterministic cache, so this rematerializes it; it also re-hashes the committed
@@ -93,17 +91,18 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
                                               ["list:src/billing", "<sha256>"]],
                                   "verdict": "approved" },
       "node:billing/refunds":   { "hash": "<inputHash>", "verdict": "approved",
+                                  "filledAt": "<ISO>", "filledSha": "<commit sha>",
                                   "judge": { "name": "alice", "provider": "external" } }
     }
   },
   "nodes": {
-    "billing/cancel": {                       // present ONLY when log_required, a log.md exists, or a port names a contract test
+    "billing/cancel": {                       // present ONLY when log_required or a log.md exists
       "source": "<sha256>",                  // source fingerprint — log gate basis; ONLY for log_required nodes
-      "log": { "last_entry_datetime": "<ISO>", "prefix_hash": "<sha256>" },
-      "ports": {                             // port contract baselines — port name → version → record
-        "charge": { "1": { "hash": "<sha256>", "test": "tests/contracts/charge.test.ts" } }
-      }
+      "log": { "last_entry_datetime": "<ISO>", "prefix_hash": "<sha256>" }
     }
+  },
+  "aspects": {                                // OPTIONAL fourth section — each rule's last-seen
+    "billing-rules": { "status": "enforced" } // standing; lives in the GITIGNORED file only
   }
 }
 \`\`\`
@@ -128,33 +127,50 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
   records who decided, never an input of the decision — so the verdict is bound
   to the same inputHash a provider's would have been, which is exactly what lets
   CI re-prove it by hashing with no key and no judge present.
-- \`nodes.<path>.ports\` carries the PORT CONTRACT BASELINES: for each port that
-  names a \`test:\`, the content hash of that test at each contract version it
-  has been recorded at. It is written by an approving run — including the free
-  \`--approve --only-deterministic\`, the one thing besides the gitignored cache
-  such a run writes — and only for a (port, version) that has no record yet; an
-  existing record is NEVER overwritten. That is what makes the contract hold in
-  both directions: at an unchanged version the recorded hash is the only thing
-  the file may still be, and returning to a version used before returns to the
-  contract it named. It lives in the COMMITTED logs file, not the throwaway
-  deterministic cache, for the obvious reason — a baseline a fresh clone rebuilds
-  from whatever it finds is not a baseline. See
-  \`yg knowledge read ports-and-relations\`.
+- \`filledAt\` and \`filledSha\` record WHEN \`--approve\` wrote the verdict (ISO
+  timestamp) and the commit it ran at. Both are written on NON-deterministic
+  entries only — an LLM verdict or an external judge's — because filling a
+  deterministic pair costs nothing and there is nothing to attribute;
+  \`filledSha\` is independently optional on top of that, absent when no commit
+  resolved (no repository, no first commit yet, git missing from \`PATH\`).
+  Like \`reason\` and \`judge\`, neither is a hash ingredient — they record
+  when/at-what-commit a fill happened, never an input of the decision — so they
+  ride along unchanged even once the verdict has gone stale. Entries written
+  before these fields existed simply have neither.
 - \`nodes.<path>\` carries the source fingerprint (the log gate's contract,
   \`yg knowledge read log-management\`) and the append-only log integrity baseline.
   The source fingerprint is the log gate's drift basis, so it is recorded ONLY for
   \`log_required\` nodes — a non-log_required node gets a \`nodes\` entry only when it
   owns a \`log.md\` (then holding just the \`log\` baseline, no \`source\`).
-- Empty section ⇒ no file. Each of the three split files is written ONLY when its
-  section is non-empty; when empty it is not written at all (an existing empty husk
-  is removed). So a repo with no LLM aspects has no \`yg-lock.nondeterministic.json\`,
-  one with no \`log_required\` node and no \`log.md\` has no \`yg-lock.logs.json\`, and
-  one with no deterministic aspects has no \`.yg-lock.deterministic.json\`. readLock
-  treats an absent file as empty state, so this is transparent to every reader — a
-  repo only carries the lock files it actually needs.
+- \`aspects\` is an OPTIONAL FOURTH top-level section, aspectId → \`{ status? }\`:
+  the standing (\`draft\` / \`advisory\` / \`enforced\`) each rule was last seen at by
+  an approving run. It is REMEMBERED state, not a verdict — nothing in it is a
+  hash ingredient, and writing or reading it invalidates no pair. It exists so a
+  standing changed BY HAND (the only way a status changes today) can be noticed
+  once and written into that rule's own log, instead of going unrecorded or
+  being re-announced on every run. Absent in a lock written before rules had a
+  remembered standing, and absent on a checkout that has never run an approve —
+  "no memory yet" and "seen, standing nowhere" are different facts, and only the
+  first is represented. Present, it is validated as strictly as every other
+  section: \`status\` must be a string and any other key inside an entry is
+  \`lock-invalid\`.
+- Empty section ⇒ no file. Each of the three split files is written ONLY when the
+  sections it OWNS are non-empty; when they are all empty it is not written at all
+  (an existing empty husk is removed). So a repo with no LLM aspects has no
+  \`yg-lock.nondeterministic.json\`, and one with no \`log_required\` node and no
+  \`log.md\` has no \`yg-lock.logs.json\`. The deterministic file owns TWO sections,
+  so its test is wider — it is omitted only when its \`verdicts\` AND its \`aspects\`
+  section are both empty. Since \`aspects\` records the standing of EVERY rule in
+  the graph, unfiltered by reviewer kind, a repo with zero deterministic aspects
+  but at least one LLM aspect still gets a \`.yg-lock.deterministic.json\` once an
+  approving run has recorded those standings: empty \`verdicts\`, populated
+  \`aspects\`. readLock treats an absent file as empty state, so this is
+  transparent to every reader — a repo only carries the lock files it actually
+  needs.
 - The built-in relation-conformance check is NOT stored in the lock — it is
-  recomputed live on every \`yg check\`. The lock holds only aspect \`verdicts\`
-  and per-node \`nodes\` facts; there is no relation section. See "Relation
+  recomputed live on every \`yg check\`. The lock holds only aspect \`verdicts\`,
+  per-node \`nodes\` facts and remembered rule standings (\`aspects\`); there is no
+  relation section. See "Relation
   conformance — computed live" below.
 - Serialization is canonical: code-point-sorted keys, stable formatter, trailing
   newline — so git's line merge aligns with entry boundaries.
@@ -163,9 +179,12 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
 on disk it is partitioned across three files, read back into one and split again
 only at the I/O boundary:
 - \`yg-lock.nondeterministic.json\` (committed) — \`verdicts\` of LLM aspects.
-- \`yg-lock.logs.json\` (committed) — the \`nodes\` section, including the port
-  contract baselines.
-- \`.yg-lock.deterministic.json\` (gitignored) — \`verdicts\` of deterministic aspects.
+- \`yg-lock.logs.json\` (committed) — the \`nodes\` section (log gate baselines).
+- \`.yg-lock.deterministic.json\` (gitignored) — \`verdicts\` of deterministic
+  aspects, PLUS the whole \`aspects\` section. The remembered standings ride with
+  the rebuildable cache rather than a committed file because they record what
+  THIS CHECKOUT has witnessed, not a fact the team shares; committing them would
+  churn a file on a change the rule's own history already records.
 
 The partition key is the aspect's KIND, NOT the entry's \`touched\` field: a
 companion-bearing LLM entry also carries \`touched\`, so partitioning by \`touched\`
@@ -381,14 +400,18 @@ one node — that clobbers every other node's verdicts. (Full revert recipe:
 
 ## Lock format version
 
-The current lock FORMAT version is 1 — exactly \`{ version, verdicts, nodes }\`.
-There is no separate relation section and no migration to perform: relation
-conformance is computed live (see above), so nothing about it ever lands in the
-lock. The addition of \`companion.mjs\` support (including \`companionHash\` in the
-inputHash and \`touched\` on companion-bearing LLM entries) does NOT bump the
-format version — existing lock entries hash byte-identically when no
-\`companion.mjs\` is present, and the format remains \`{ version: 1, verdicts,
-nodes }\`.
+The current lock FORMAT version is 1: \`{ version, verdicts, nodes }\` plus the
+OPTIONAL \`aspects\` section described above. Optional is load-bearing here —
+\`aspects\` was added WITHOUT a version bump, so a perfectly valid v1 file may
+legitimately carry three top-level keys or four, and a lock you inspect by hand
+carrying \`aspects\` is current, not damaged. Beyond those four, an unknown
+top-level key is \`lock-invalid\`. There is no separate relation section and no
+migration to perform: relation conformance is computed live (see above), so
+nothing about it ever lands in the lock. The addition of \`companion.mjs\` support
+(including \`companionHash\` in the inputHash and \`touched\` on companion-bearing
+LLM entries) does NOT bump the format version either — existing lock entries hash
+byte-identically when no \`companion.mjs\` is present, and the format remains
+\`{ version: 1, verdicts, nodes, aspects? }\`.
 
 A short history note: an unreleased alpha introduced a v2 lock that added a
 \`relation_verdicts\` section for a cached relation check. That was reverted to v1.
@@ -402,12 +425,25 @@ the next \`yg check --approve\`.
 Each triad file is independently optional; an absent file contributes empty
 state. So a fresh checkout (gitignored deterministic cache absent) reads its
 deterministic pairs as unverified until \`yg check --approve --only-deterministic\`
-rematerializes them. A garbled or unparseable file, or an unrecognized \`version\`
-(neither 1 nor 2 — 2 is accepted only for the backward-compat drop above), is a
-blocking \`lock-invalid\` error (fail closed) naming the offending file; for a
-committed file the \`next:\` covers both recoveries (restore from git, or delete
-and re-fill via \`yg check --approve\`); for the gitignored cache the recovery is
-to delete it and re-run \`yg check --approve --only-deterministic\` (free).
+rematerializes them. Garbled or unparseable content, or an unrecognized
+\`version\` (neither 1 nor 2 — 2 is accepted only for the backward-compat drop
+above), is treated differently in the two kinds of file.
+
+In a COMMITTED file it is a blocking \`lock-invalid\` error (fail closed) naming
+the offending file, and the \`next:\` covers both recoveries: restore it from git,
+or delete it and re-fill via \`yg check --approve\`.
+
+The gitignored DERIVED cache (\`.yg-lock.deterministic.json\`) is not an error at
+all. The same fault there is silently DISCARDED and the file rebuilt from
+scratch — a line in the debug log, nothing on stdout, no issue, no change of
+exit code — because the file holds no truth of its own: it is rederivable in
+full, and an empty section still reads fail-closed (those pairs come back
+\`unverified\`, never verified). That tolerance exists because the way this
+happens in practice is version skew across a container or CI boundary, not
+corruption, and refusing to run would cost the whole gate. So there is no manual
+recovery to perform: the next run that writes the file rematerializes it. (Only
+the content verdict is tolerated — a real I/O failure, a permission error or an
+unreadable mount, still propagates from either kind of file.)
 
 ## See also
 

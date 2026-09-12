@@ -80,28 +80,38 @@ function matchesRelation(r: Relation, match: RelationMatch, graph: Graph, overri
     if (targetType !== match.target_type) return false;
   }
   if (match.consumes_port !== undefined) {
-    if (!r.consumes || !r.consumes.includes(match.consumes_port)) return false;
+    // A relation naming none normalizes to ['default'] at parse time, so
+    // `consumes_port: default` now matches a relation that never declared
+    // anything — a deliberate behavior change (the port itself is no longer
+    // opt-in), pinned by a test rather than left as an incidental side effect.
+    if (!r.portNames.includes(match.consumes_port)) return false;
   }
   return true;
 }
 
 function evaluateDescendantsClause(dc: DescendantsClause, node: GraphNode, graph: Graph, overrides?: WhenEvalOverrides): boolean {
   const descendants = collectDescendants(node);
+  // A node with nothing below it never satisfies a descendants clause, whatever
+  // the clause asks for.
   if (descendants.length === 0) return false;
 
-  if (dc.type !== undefined) {
-    if (!descendants.some(d => d.meta.type === dc.type)) return false;
-  }
+  // One existential over the descendant set, conjunctive inside it: SOME single
+  // descendant has to satisfy every field written here at once. Not one
+  // existential pass per field — that would let `{type: X, has_port: Y}` pass on
+  // a subtree where descendant A has the type and an unrelated descendant B has
+  // the port, which is never what the clause reads like. The disjunctive
+  // reading is still expressible when it is genuinely wanted, by giving each
+  // field its own clause: `all_of: [{descendants: {type: X}}, {descendants: {has_port: Y}}]`.
+  return descendants.some(d => descendantSatisfies(dc, d, graph, overrides));
+}
+
+function descendantSatisfies(dc: DescendantsClause, d: GraphNode, graph: Graph, overrides?: WhenEvalOverrides): boolean {
+  if (dc.type !== undefined && d.meta.type !== dc.type) return false;
   if (dc.has_port !== undefined) {
-    if (!descendants.some(d => d.meta.ports && Object.prototype.hasOwnProperty.call(d.meta.ports, dc.has_port!))) {
-      return false;
-    }
+    if (!d.meta.ports || !Object.prototype.hasOwnProperty.call(d.meta.ports, dc.has_port)) return false;
   }
   if (dc.relations) {
-    // any descendant must satisfy the relation clause
-    if (!descendants.some(d => evaluateRelationClause(dc.relations!, d.meta.relations ?? [], graph, overrides))) {
-      return false;
-    }
+    if (!evaluateRelationClause(dc.relations, d.meta.relations ?? [], graph, overrides)) return false;
   }
   return true;
 }
@@ -114,6 +124,10 @@ function evaluateNodeClause(nc: NodeClause, node: GraphNode): boolean {
   if (nc.has_mapping !== undefined) {
     const has = (node.meta.mapping?.length ?? 0) > 0;
     if (has !== nc.has_mapping) return false;
+  }
+  if (nc.id !== undefined) {
+    const ids = Array.isArray(nc.id) ? nc.id : [nc.id];
+    if (!ids.includes(node.path)) return false;
   }
   return true;
 }

@@ -3,7 +3,7 @@ type: formatter
 description: >-
   Output formatting for the graph's answers, converting structured data to text
   for a person and to versioned JSON documents for a layer above the agent.
-  Six machine forms live here, each owning its own schema constant, its
+  Seven machine forms live here, each owning its own schema constant, its
   document types and its serializer: the context package (every rule with its
   effective status, reviewer kind, cascade channel and the node/type chain it
   inherits along), the blast radius of one component (the ports it publishes
@@ -14,10 +14,19 @@ description: >-
   expected pair with what the lock says about it, the totals, the coverage
   terms, the standing floor a measured change stands on, who judged outside the
   configured reviewer, and the reason for the exit code), the rule inventory
-  (each rule's kind, status, review date, drill-corpus size and reach), and the
-  external judge's package and the verdicts recorded through it. A consumer
-  never has to parse prose to learn what governs a file, who depends on a
-  component, what a component is, or how a build stands.
+  (each rule's kind, status, review date, drill-corpus size and reach), the
+  external judge's package and the verdicts recorded through it, and the
+  waiver inventory's shape (every `yg-suppress` marker with its kind, its
+  resolved range and its reason, every warning with a stable code, and the
+  totals). A consumer never has to parse prose to learn what governs a file,
+  who depends on a component, what a component is, or how a build stands.
+  This node holds only the schema constants, the document types and the pure
+  `format*Json` renderers — never a builder that turns a domain result into a
+  document: a `formatter`-type node may only `uses` a plain data type and
+  `calls` a utility, never reach into a facade or a core result type, so a
+  builder that needs one (buildAspectsJson, buildCheckJson,
+  buildSuppressionsJson) lives one layer up, in the command or core module
+  that owns that input.
 relations:
   - target: cli/model/graph
     type: uses
@@ -37,5 +46,6 @@ mapping:
   - source/cli/src/formatters/message-builder.ts
   - source/cli/src/formatters/node-json.ts
   - source/cli/src/formatters/predicate-trace.ts
+  - source/cli/src/formatters/suppressions-json.ts
   - source/cli/src/formatters/truncate.ts
   - source/cli/src/formatters/verdict-json.ts

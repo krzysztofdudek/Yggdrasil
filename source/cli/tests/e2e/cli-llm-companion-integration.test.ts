@@ -312,8 +312,9 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (integration)
         // `promptChars` IS present: every LLM verdict records the size of the
         // prompt that produced it, plain or companion-backed alike. It is not a
         // hash ingredient — see the cross-node edit below, which still leaves
-        // this pair verified.
-        expect(Object.keys(entry).sort()).toEqual(['hash', 'promptChars', 'verdict']);
+        // this pair verified. `filledAt` is likewise present (this fixture is
+        // not a git repository, so `filledSha` stays absent — neither is one).
+        expect(Object.keys(entry).sort()).toEqual(['filledAt', 'hash', 'promptChars', 'verdict']);
         expect(typeof entry.promptChars).toBe('number');
       }
 

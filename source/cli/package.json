@@ -1,6 +1,6 @@
 {
   "name": "@chrisdudek/yg",
-  "version": "5.9.0",
+  "version": "6.0.0",
   "description": "Say it once: a rule you write holds in every session after. Your AI coding agent gets only the rules that touch the file it is editing, and must satisfy them before it moves on. Free local checks, keyless CI. Works with Claude Code, Cursor, Copilot, Codex, Cline.",
   "type": "module",
   "bin": {
@@ -76,12 +76,12 @@
     "@clack/prompts": "^1.5.0",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
-    "ignore": "^7.0.5",
+    "ignore": "^7.0.8",
     "minimatch": "^10.2.5",
     "minisearch": "^7.2.0",
     "semver": "^7.8.1",
     "smol-toml": "^1.8.0",
-    "web-tree-sitter": "^0.26.12",
+    "web-tree-sitter": "^0.27.0",
     "yaml": "^2.9.0"
   },
   "devDependencies": {
@@ -90,10 +90,10 @@
     "@tree-sitter-grammars/tree-sitter-kotlin": "^1.1.0",
     "@tree-sitter-grammars/tree-sitter-toml": "^0.7.0",
     "@tree-sitter-grammars/tree-sitter-yaml": "^0.7.1",
-    "@types/node": "^26.2.0",
+    "@types/node": "^26.4.1",
     "@types/semver": "^7.8.0",
     "@vitest/coverage-v8": "^4.1.11",
-    "eslint": "^10.8.1",
+    "eslint": "^10.9.1",
     "prettier": "^3.8.3",
     "tree-sitter-c": "^0.24.1",
     "tree-sitter-c-sharp": "^0.23.5",
@@ -109,7 +109,7 @@
     "tree-sitter-typescript": "^0.23.2",
     "tsup": "^8.5.1",
     "typescript": "^6.0.3",
-    "typescript-eslint": "^8.67.0",
+    "typescript-eslint": "^8.69.0",
     "vitest": "^4.1.11"
   },
   "overrides": {

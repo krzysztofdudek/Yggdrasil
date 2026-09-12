@@ -1,0 +1,24 @@
+name: Integration Tests — Fill Writer Records Filled-At/Sha
+type: test-suite
+description: >-
+  Exercises the fill stage's verdict writer (createVerdictWriter) directly
+  against a real temp directory and an in-memory lock, with `now` and `sha`
+  injected exactly as the CLI boundary injects them: setEntry stamps a real
+  verdict with when it was filled and, when a commit was resolvable, at which
+  one; emitEvent carries the same commit onto its telemetry line; a
+  deterministic entry gets neither field, since filling one costs nothing;
+  and killing a run after its first setEntry (never draining) leaves that
+  entry stamped while the next pair was never entered at all. Nothing here
+  spawns the binary or touches git — the CLI's own git resolution is covered
+  by the e2e suite, and the read side by verify-lock/check-json unit tests.
+aspects: []
+relations:
+  [
+    { target: cli/core/fill, type: uses },
+    { target: cli/io/stores, type: uses },
+    { target: cli/model/lock, type: uses },
+    { target: cli/model/graph, type: uses },
+    { target: cli/core/pairs, type: uses }
+  ]
+mapping:
+  - source/cli/tests/integration/fill-records-sha.test.ts

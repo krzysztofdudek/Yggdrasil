@@ -187,7 +187,7 @@ describe('an excluded path read through ctx.fs, ctx.parsers, or a companion is r
 
   it('control: a companion.mjs returning the excluded path when the source is a NESTED PROJECT names that source instead', async () => {
     mkdirSync(path.join(projectRoot, 'specs', 'vendored', '.yggdrasil'), { recursive: true });
-    writeFileSync(path.join(projectRoot, 'specs', 'vendored', '.yggdrasil', 'yg-config.yaml'), 'version: "5.2.0"\n');
+    writeFileSync(path.join(projectRoot, 'specs', 'vendored', '.yggdrasil', 'yg-config.yaml'), 'version: "6.0.0"\n');
     writeFileSync(path.join(projectRoot, 'specs', 'vendored', 'other.md'), '# vendored\n');
     writeCompanionAspect('co-nested-return', `export function companion(ctx) {
       return [{ path: 'specs/vendored/other.md', label: 'vendored' }];

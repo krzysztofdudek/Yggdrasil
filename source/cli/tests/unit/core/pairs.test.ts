@@ -685,7 +685,7 @@ describe('directory mapping vs. a nested project boundary', () => {
     writeFile('services/alpha.py', 'def alpha(): return 1');
     writeFile('services/beta.py', 'def beta(): return 2');
     // A vendored sub-project with its own graph, nested inside the mapped directory.
-    writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "6.0.0"\n');
     writeFile('services/vendored-sub/foreign.py', 'def foreign(): return 1');
 
     const graph = buildPairsGraph(
@@ -728,7 +728,7 @@ describe('directory mapping vs. a nested project boundary', () => {
     const graphBefore = buildPairsGraph(tmpDir, [{ path: 'svc', mapping: ['services'] }], []);
     const fpBefore = await computeSourceFingerprint(graphBefore, 'svc');
 
-    writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "6.0.0"\n');
     writeFile('services/vendored-sub/foreign.py', 'def foreign(): return 1');
     // The nested-project boundary is cached per resolved project root for the
     // lifetime of one real `yg` run (a fresh process every time), but this test
@@ -759,7 +759,7 @@ describe('directory mapping vs. a nested project boundary', () => {
 
   it('computeNodeMappedFiles never lists a file under a nested project\'s own boundary', async () => {
     writeFile('services/alpha.py', 'def alpha(): return 1');
-    writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    writeFile('services/vendored-sub/.yggdrasil/yg-config.yaml', 'version: "6.0.0"\n');
     writeFile('services/vendored-sub/foreign.py', 'def foreign(): return 1');
 
     const graph = buildPairsGraph(tmpDir, [{ path: 'svc', mapping: ['services'] }], []);

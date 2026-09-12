@@ -12,3 +12,5 @@ Extracted the predicate that decides whether a cascade-effective aspect could st
 The absorbed-implies-cycle why sentence moved into a shared, exported helper (describeCascadeCycle) instead of being built inline at each call site. yg owner, yg context --file, and yg check's per-type block all report the identical structural fact, so they now render the exact same wording by construction rather than by three authors keeping three copies of a sentence in sync by hand.
 ## [2026-07-30T21:02:09.862Z]
 Reworded a trailing comment about why port-consumption matching can never succeed for a type-covered file's transient view, dropping a short internal code with no meaning to a reader of this repository.
+## [2026-09-09T19:51:13.490Z]
+A derived relation synthesized for a type-covered file's cascade now carries the implicit default port explicitly, since the model's relation shape no longer allows an absent port list.

@@ -204,6 +204,50 @@ export async function loadHookModule(params: LoadHookModuleParams): Promise<Reco
 }
 
 /**
+ * Build `ctx.config` for one aspect: the settled configuration values (the
+ * declaring package's defaults with the consumer's adapt over them), wrapped so
+ * that READING a key is recorded as an observation.
+ *
+ * A Proxy for exactly the reason `ctx.node` is one (see the ctx.node Proxy below):
+ * the value has to enter the verdict's identity, and it has to do so lazily. If a
+ * rule's configuration were folded in wholesale, adapting any key would invalidate
+ * every verdict of every rule in the package, including rules that never look at
+ * it. Recording on the read means a threshold change re-opens exactly the rules
+ * that consult that threshold.
+ *
+ * This is built INSIDE the worker that runs the rule, from the graph that worker
+ * already holds — nothing new crosses the thread boundary. The configuration is
+ * plain data on the aspect definition, and the aspect definitions ride along in
+ * the graph the pool structured-clones to each worker once at spawn.
+ *
+ * Symbol reads are not recorded: `typeof`, spreading, and a runtime probing the
+ * object for `Symbol.toPrimitive` are not the rule consulting a setting, and
+ * folding them would put engine-internal noise into a stored verdict.
+ */
+function createCtxConfig(
+  aspectId: string,
+  graph: Graph,
+  recorder: ObservationRecorder,
+): Record<string, string | number | boolean> {
+  const values = { ...(graph.aspects.find((a) => a.id === aspectId)?.config ?? {}) };
+  return new Proxy(values, {
+    get(target, prop, receiver) {
+      if (typeof prop === 'string') {
+        // hasOwnProperty rather than `prop in target`: an inherited Object.prototype
+        // member must read as an UNDECLARED key, not as whatever the prototype
+        // happens to carry under that name.
+        recorder.recordConfig(
+          prop,
+          Object.prototype.hasOwnProperty.call(target, prop) ? target[prop] : undefined,
+        );
+        return Object.prototype.hasOwnProperty.call(target, prop) ? target[prop] : undefined;
+      }
+      return Reflect.get(target, prop, receiver);
+    },
+  });
+}
+
+/**
  * How a deterministic/companion unit addresses its subject. A `node` unit is
  * owned by a real component (today's behavior, byte-identical). A `file` unit
  * has NO owning component — a file enforced by its architecture type alone
@@ -266,7 +310,7 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
 
   if (unit.kind === 'file') {
-    return buildNodelessUnitCtx({ unit, projectRoot, astCache, touchedFiles, coverage });
+    return buildNodelessUnitCtx({ aspectId, graph, unit, projectRoot, astCache, touchedFiles, coverage });
   }
 
   const nodePath = unit.nodePath;
@@ -394,6 +438,7 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   });
   const ctx: Ctx = {
     node: ctxNode,
+    config: createCtxConfig(aspectId, graph, recorder),
     files: ctxFilesEnriched,
     // ctx.subject is the unit's subject file(s): for the deterministic whole-node
     // case it is the SAME array reference as ctx.files; for a per:file unit it is
@@ -468,13 +513,15 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
  * resolve any of those keys for a nodeless pair).
  */
 async function buildNodelessUnitCtx(params: {
+  aspectId: string;
+  graph: Graph;
   unit: Extract<StructureUnit, { kind: 'file' }>;
   projectRoot: string;
   astCache: ParseCache;
   touchedFiles: string[];
   coverage: CoverageConfig;
 }): Promise<BuildUnitCtxResult> {
-  const { unit, projectRoot, astCache, touchedFiles, coverage } = params;
+  const { aspectId, graph, unit, projectRoot, astCache, touchedFiles, coverage } = params;
 
   const allowedSet = new Set<string>(unit.allowedReads);
   // Defense-in-depth alongside collectArchitectureReach's own filtering
@@ -520,6 +567,7 @@ async function buildNodelessUnitCtx(params: {
 
   const ctx: Ctx = {
     node: ctxNode,
+    config: createCtxConfig(aspectId, graph, recorder),
     files: ownFilesEnriched,
     // ctx.subject === ctx.files: the same array reference (the documented
     // alias contract), there being no ctx.node.files to alias to instead.

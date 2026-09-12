@@ -1,7 +1,8 @@
 name: Knowledge Docs — Aspect Authoring
 type: knowledge-doc
-description: In-process knowledge documents served by yg knowledge read — how to author aspects (writing LLM and deterministic aspects, conditional when-predicates).
+description: In-process knowledge documents served by yg knowledge read — how to author rules (writing LLM and deterministic aspects, conditional when-predicates) and how to publish them (recognising a marketplace, extracting a rule from a repository into a package by hand, what stays the rule and what becomes a setting, and what every pre-publish refusal means).
 mapping:
   - source/cli/src/templates/knowledge/conditional-aspects.ts
   - source/cli/src/templates/knowledge/writing-deterministic-aspects.ts
   - source/cli/src/templates/knowledge/writing-llm-aspects.ts
+  - source/cli/src/templates/knowledge/packages-and-marketplaces.ts

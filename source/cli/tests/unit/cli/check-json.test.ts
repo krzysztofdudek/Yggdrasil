@@ -146,6 +146,53 @@ describe('the check document — what the lock says about each pair', () => {
   });
 });
 
+describe('the check document — when a verdict was filled', () => {
+  it('an LLM pair with filled: { ts, sha } reports both fields', () => {
+    const doc = buildCheckJson(
+      emptyResult({ pairs: [pair({ filled: { ts: '2026-09-09T00:00:00.000Z', sha: 'a'.repeat(40) } })] }),
+    );
+    expect(doc.pairs[0].filled).toEqual({ ts: '2026-09-09T00:00:00.000Z', sha: 'a'.repeat(40) });
+  });
+
+  it('an LLM pair with filled: { ts } and no sha reports sha as null, not missing', () => {
+    const doc = buildCheckJson(emptyResult({ pairs: [pair({ filled: { ts: '2026-09-09T00:00:00.000Z' } })] }));
+    expect(doc.pairs[0].filled).toEqual({ ts: '2026-09-09T00:00:00.000Z', sha: null });
+    expect('sha' in (doc.pairs[0].filled as object)).toBe(true);
+  });
+
+  it('an LLM pair the lock has never filled reports filled: null', () => {
+    const doc = buildCheckJson(emptyResult({ pairs: [pair()] }));
+    expect(doc.pairs[0].filled).toBeNull();
+  });
+
+  it('a deterministic pair reports filled: null even when the input carries one — the projection enforces the rule rather than trusting the input', () => {
+    const doc = buildCheckJson(
+      emptyResult({
+        pairs: [
+          pair({
+            pair: { ...pair().pair, kind: 'deterministic' },
+            filled: { ts: '2026-09-09T00:00:00.000Z', sha: 'a'.repeat(40) },
+          }),
+        ],
+      }),
+    );
+    expect(doc.pairs[0].filled).toBeNull();
+  });
+
+  it('a stale pair and a refused pair both still carry filled — who/when filled does not depend on the verdict still holding', () => {
+    const doc = buildCheckJson(
+      emptyResult({
+        pairs: [
+          pair({ state: { kind: 'unverified' }, stale: true, filled: { ts: '2026-09-09T00:00:00.000Z', sha: 'a'.repeat(40) } }),
+          pair({ state: { kind: 'refused', reason: 'no validation' }, filled: { ts: '2026-09-09T00:00:01.000Z', sha: 'b'.repeat(40) } }),
+        ],
+      }),
+    );
+    expect(doc.pairs[0].filled).toEqual({ ts: '2026-09-09T00:00:00.000Z', sha: 'a'.repeat(40) });
+    expect(doc.pairs[1].filled).toEqual({ ts: '2026-09-09T00:00:01.000Z', sha: 'b'.repeat(40) });
+  });
+});
+
 describe('the check document — who answered for a pair', () => {
   it('answers `deterministic` for a local check, whatever tier is around', () => {
     const doc = buildCheckJson(

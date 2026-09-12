@@ -27,7 +27,7 @@ features:
     details: A rule you wrote last week applies to work you start today. Nobody restates it, and the agent does not get to quietly drop it.
   - icon: ⚡
     title: A green build can't lie
-    details: Each verdict is tied by hash to the exact code it checked. CI re-proves every rule with no LLM calls and no keys, so a change that was never re-verified can't ride through green.
+    details: Each verdict is tied by hash to the exact code it checked. Run CI with the explicit flags and it re-proves every rule with no LLM calls and no keys, so a change that was never re-verified can't ride through green.
 ---
 
 ## The same rule, two sessions apart
@@ -50,7 +50,7 @@ auditLog.emit() before it returns. A mutation with no
 audit event is a refusal.
 ```
 
-When a script can decide it, you write the rule as a small local script instead. It runs for free, with no model at all, on every single check.
+When a script can decide it, you write the rule as a small local script instead. It runs for free, with no model at all, whenever a check fills verdicts — `yg check --approve`, or the `yg check --approve --only-deterministic` step CI and pre-commit run to keep it cheap and keyless. A plain `yg check` is a pure read: it re-hashes the verdicts already recorded and re-runs the built-in relation-conformance pass, but it does not execute the script fresh. (Unless the repo sets `auto_approve` in `yg-config.yaml`, which makes a bare `yg check` fill verdicts too — see [The lock](/the-lock). It is also why the keyless-CI guarantee above is stated with the flags: CI passes them explicitly — `yg check --approve --only-deterministic`, then `yg check --no-approve` — and explicit flags always win over the config, so a repo on `auto_approve: full` cannot quietly turn the CI step into a reviewer fill that verifies an unverified change instead of refusing it.)
 
 ## See it catch a mistake
 

@@ -50,15 +50,15 @@ describe('renderStructure', () => {
       node('auth'),
       node('auth/api'),
       node('checkout'),
-      node('checkout/controller', [{ target: 'orders/service', type: 'uses' }]),
+      node('checkout/controller', [{ portNames: ['default'], target: 'orders/service', type: 'uses' }]),
       node('orders'),
       node('orders/service', [
-        { target: 'auth/api', type: 'uses' },
-        { target: 'users/repo', type: 'uses' },
-        { target: 'users/repo', type: 'emits', consumes: [] } as Relation,
+        { portNames: ['default'], target: 'auth/api', type: 'uses' },
+        { portNames: ['default'], target: 'users/repo', type: 'uses' },
+        { target: 'users/repo', type: 'emits', portNames: [] } as Relation,
       ]),
       node('users'),
-      node('users/repo', [{ target: 'orders/service', type: 'listens' } as Relation]),
+      node('users/repo', [{ portNames: ['default'], target: 'orders/service', type: 'listens' } as Relation]),
     ]);
 
     const out = renderStructure(graph, NO_DETECTED);
@@ -78,7 +78,7 @@ describe('renderStructure', () => {
   it('phrases a ported edge as "via declared contract"', () => {
     const graph = graphOf([
       node('a'),
-      node('a/svc', [{ target: 'b/svc', type: 'uses', consumes: ['charge'] } as Relation]),
+      node('a/svc', [{ target: 'b/svc', type: 'uses', portNames: ['charge'] } as Relation]),
       node('b'),
       node('b/svc'),
     ]);
@@ -89,9 +89,9 @@ describe('renderStructure', () => {
   it('describes a cycle between groups positively (no jargon)', () => {
     const graph = graphOf([
       node('x'),
-      node('x/svc', [{ target: 'y/svc', type: 'calls' }]),
+      node('x/svc', [{ portNames: ['default'], target: 'y/svc', type: 'calls' }]),
       node('y'),
-      node('y/svc', [{ target: 'x/svc', type: 'calls' }]),
+      node('y/svc', [{ portNames: ['default'], target: 'x/svc', type: 'calls' }]),
     ]);
     const out = renderStructure(graph, NO_DETECTED);
     // Two groups that depend on each other → a cycle, phrased positively.
@@ -142,7 +142,7 @@ describe('renderStructure', () => {
     // that edge (span 9) ahead of the real tunnel (span 4); it must not.
     const graph = graphOf([
       node('checkout'),
-      node('checkout/controller', [{ target: 'orders/service', type: 'uses' }]),
+      node('checkout/controller', [{ portNames: ['default'], target: 'orders/service', type: 'uses' }]),
       node('orders'),
       node('orders/service'),
     ]);
@@ -167,7 +167,7 @@ describe('renderStructure', () => {
   it('renderModules calls the header "component groups" flag-off, and widens the wording once a type-covered file joins a group — never a file called a component', () => {
     const graph = graphOf([
       node('x'),
-      node('x/svc', [{ target: 'y/svc', type: 'calls' }]),
+      node('x/svc', [{ portNames: ['default'], target: 'y/svc', type: 'calls' }]),
       node('y'),
       node('y/svc'),
     ]);

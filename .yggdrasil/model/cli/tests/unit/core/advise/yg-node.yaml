@@ -25,4 +25,5 @@ mapping:
   - source/cli/tests/unit/core/advise-nominations.test.ts
   - source/cli/tests/unit/core/advise-import.test.ts
   - source/cli/tests/unit/core/advise-imported-nominations.test.ts
+  - source/cli/tests/unit/core/advise-package-nominations.test.ts
   - source/cli/tests/unit/core/node-churn.test.ts

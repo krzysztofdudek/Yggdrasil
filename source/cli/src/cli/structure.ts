@@ -74,7 +74,7 @@ function collectDeclaredRelations(graph: Graph): DeclaredRelation[] {
         from: nodeId,
         to: rel.target,
         type: rel.type,
-        consumes: rel.consumes ?? [],
+        consumes: rel.portNames,
       });
     }
   }

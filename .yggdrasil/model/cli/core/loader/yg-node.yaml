@@ -18,5 +18,9 @@ relations:
     type: calls
   - target: cli/io/parsers/aspect
     type: calls
+  - target: cli/io/parsers/packages
+    type: calls
+  - target: cli/model/packages
+    type: uses
 mapping:
   - source/cli/src/core/graph-loader.ts

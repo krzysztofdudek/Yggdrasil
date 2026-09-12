@@ -21,8 +21,7 @@ import { fileURLToPath } from 'node:url';
 // them (verified by grep across tests/e2e/):
 //   - relation-broken, event-unpaired, relation-target-forbidden  → cli-relations.test.ts
 //   - aspect-status-downgrade                                     → cli-status-suppress.test.ts / cli-channels.test.ts
-//   - consumes-without-ports, port-missing-aspect/consumes,
-//     port-undefined                                              → cli-ports*.test.ts
+//   - port-missing-aspect, port-undefined                         → cli-ports*.test.ts
 //   - the 8 codes named above                                    → cli-check-validation.test.ts
 //
 // Determinism guarantees (same as the companion suite):

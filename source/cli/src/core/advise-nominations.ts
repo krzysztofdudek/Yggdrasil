@@ -66,6 +66,9 @@ import type { DrillResultLine } from '../io/drill-results-store.js';
 import type { VerdictEvent } from '../io/events-store.js';
 import type { ImportedAdvice } from '../io/advise-imported-store.js';
 import { importedNominations } from './advise-imported-nominations.js';
+import { packageUpdateNominations } from './advise-package-nominations.js';
+import type { PackageUpdateSignal } from './advise-package-nominations.js';
+export type { PackageUpdateSignal } from './advise-package-nominations.js';
 import { architectureCutNominations } from './advise-architecture-cut.js';
 
 /** One advisable attention item, bound to the exact evidence it rests on. */
@@ -238,6 +241,16 @@ export interface NominationSources {
    */
   typeCoverage?: TypeCoverageInput;
   /**
+   * Installed packages whose source publishes a version this repository does not
+   * have, read at the CLI boundary. Absent → none, and the class is silent.
+   *
+   * A package whose source could NOT be reached must be absent from this list
+   * entirely, never present with an empty version list: an unreachable source
+   * knows nothing, and an item claiming there is no newer version would be a
+   * finding this run never actually made.
+   */
+  packageUpdates?: PackageUpdateSignal[];
+  /**
    * Proposals another tool measured and handed over, read from the committed
    * register at the CLI boundary. Absent → none, and the class is silent.
    * Importing is not accepting: these arrive in the feed as proposals with the
@@ -307,6 +320,15 @@ export const CLASS_RANK = {
   //     to weigh, never something that should push the graph's own findings down
   //     the feed.
   imported: 200,
+  // --- A newer version of an installed package: news from outside, about rules
+  //     from outside. Ranked below every class the graph derives for itself, for
+  //     the same reason `imported` is — nothing another repository published
+  //     should push a finding this graph made about its own code down the feed.
+  //     Placed just ABOVE `imported` rather than below it because an imported
+  //     proposal is the feed's documented last item, and because this one is at
+  //     least concrete: it names a version and a command, where a proposal asks
+  //     for a judgement.
+  packageUpdate: 190,
 } as const;
 
 /** Promotion needs at least this many recorded clean approvals to be nominated. */
@@ -1242,6 +1264,8 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   // --- Imported: proposals another tool measured, below everything the graph
   //     derives itself. Absent ⇒ silent. ---
   nominations.push(...importedNominations(sources.importedAdvice ?? []));
+
+  nominations.push(...packageUpdateNominations(sources.packageUpdates ?? [], todayIso));
 
   nominations.sort((a, b) => {
     if (a.classRank !== b.classRank) return a.classRank - b.classRank;

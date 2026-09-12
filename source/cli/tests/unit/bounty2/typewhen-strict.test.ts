@@ -48,7 +48,7 @@ const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'e2e-lifecycle');
 const distExists = existsSync(BIN_PATH);
 
 /** Minimal yg-config with the schema version loadGraph expects. */
-const CONFIG = 'version: "5.2.0"\n';
+const CONFIG = 'version: "6.0.0"\n';
 
 type FileSpec = { rel: string; content: string; mode?: number };
 type NodeSpec = { dir: string; yaml: string };
@@ -795,7 +795,7 @@ describe('checkStrictBackwardCoverage — branch coverage', () => {
       architecture: STRICT_ARCH,
       files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
       nodes: [],
-      config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - secrets/\n',
+      config: 'version: "6.0.0"\ncoverage:\n  excluded:\n    - secrets/\n',
     });
     try {
       const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
@@ -811,7 +811,7 @@ describe('checkStrictBackwardCoverage — branch coverage', () => {
       architecture: STRICT_ARCH,
       files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
       nodes: [],
-      config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - unrelated/\n',
+      config: 'version: "6.0.0"\ncoverage:\n  excluded:\n    - unrelated/\n',
     });
     try {
       const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
@@ -836,7 +836,7 @@ describe('checkStrictBackwardCoverage — branch coverage', () => {
       architecture: STRICT_ARCH_WITH_OTHER,
       files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
       nodes: [{ dir: 'holder', yaml: nodeYaml('holder', 'other', ['secrets/cmd.ts']) }],
-      config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - secrets/\n',
+      config: 'version: "6.0.0"\ncoverage:\n  excluded:\n    - secrets/\n',
     });
     try {
       const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());
@@ -852,7 +852,7 @@ describe('checkStrictBackwardCoverage — branch coverage', () => {
       architecture: STRICT_ARCH_WITH_OTHER,
       files: [{ rel: 'secrets/cmd.ts', content: 'registerCommand("foo")' }],
       nodes: [{ dir: 'holder', yaml: nodeYaml('holder', 'other', ['secrets/cmd.ts']) }],
-      config: 'version: "5.2.0"\ncoverage:\n  excluded:\n    - unrelated/\n',
+      config: 'version: "6.0.0"\ncoverage:\n  excluded:\n    - unrelated/\n',
     });
     try {
       const { issues } = await checkStrictBackwardCoverage(graph, new FileContentCache());

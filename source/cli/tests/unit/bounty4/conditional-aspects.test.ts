@@ -198,7 +198,7 @@ describe('C. aspect-when atom semantics', () => {
 
   it('relations.<type>.target_type — at least one relation of that type targets a node of this type', () => {
     const tgt = mkNode('payments', { type: 'service-client' });
-    const n = mkNode('orders', { type: 'command', relations: [{ target: 'payments', type: 'calls' }] });
+    const n = mkNode('orders', { type: 'command', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] });
     const g = mkGraph([tgt, n]);
     expect(evaluateWhen({ relations: { calls: { target_type: 'service-client' } } }, n, g)).toBe(true);
     expect(evaluateWhen({ relations: { calls: { target_type: 'repository' } } }, n, g)).toBe(false);
@@ -209,7 +209,7 @@ describe('C. aspect-when atom semantics', () => {
   it('relations.<type>.target — targets exactly this node path', () => {
     const n = mkNode('orders', {
       type: 'command',
-      relations: [{ target: 'payments/service', type: 'calls' }],
+      relations: [{ portNames: ['default'], target: 'payments/service', type: 'calls' }],
     });
     const g = mkGraph([n, mkNode('payments/service', { type: 'service' })]);
     expect(evaluateWhen({ relations: { calls: { target: 'payments/service' } } }, n, g)).toBe(true);
@@ -220,7 +220,7 @@ describe('C. aspect-when atom semantics', () => {
     const tgt = mkNode('payments', { type: 'service', ports: { charge: { description: 'c', aspects: [] } } });
     const n = mkNode('orders', {
       type: 'command',
-      relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }],
+      relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }],
     });
     const g = mkGraph([tgt, n]);
     expect(evaluateWhen({ relations: { calls: { consumes_port: 'charge' } } }, n, g)).toBe(true);
@@ -234,8 +234,8 @@ describe('C. aspect-when atom semantics', () => {
     const n = mkNode('n', {
       type: 'command',
       relations: [
-        { target: 'b', type: 'calls' },
-        { target: 'a', type: 'calls' },
+        { portNames: ['default'], target: 'b', type: 'calls' },
+        { portNames: ['default'], target: 'a', type: 'calls' },
       ],
     });
     const g = mkGraph([a, b, n]);
@@ -249,8 +249,8 @@ describe('C. aspect-when atom semantics', () => {
     const n = mkNode('n', {
       type: 'command',
       relations: [
-        { target: 'b', type: 'calls' }, // right type, wrong target_type
-        { target: 'a', type: 'uses' }, // right target+type, wrong relation type
+        { portNames: ['default'], target: 'b', type: 'calls' }, // right type, wrong target_type
+        { portNames: ['default'], target: 'a', type: 'uses' }, // right target+type, wrong relation type
       ],
     });
     const g = mkGraph([a, b, n]);
@@ -259,7 +259,7 @@ describe('C. aspect-when atom semantics', () => {
 
   it('multiple relation-type keys combine via AND', () => {
     const a = mkNode('a', { type: 'svc' });
-    const n = mkNode('n', { type: 'command', relations: [{ target: 'a', type: 'calls' }] });
+    const n = mkNode('n', { type: 'command', relations: [{ portNames: ['default'], target: 'a', type: 'calls' }] });
     const g = mkGraph([a, n]);
     // only `calls` present; requiring both calls AND uses => false
     expect(evaluateWhen({ relations: { calls: { target: 'a' }, uses: { target: 'a' } } }, n, g)).toBe(false);
@@ -282,7 +282,7 @@ describe('C. aspect-when atom semantics', () => {
     const child = mkNode('orders/api', {
       type: 'service',
       ports: { charge: { description: 'c', aspects: [] } },
-      relations: [{ target: 'pay', type: 'calls' }],
+      relations: [{ portNames: ['default'], target: 'pay', type: 'calls' }],
     });
     const target = mkNode('pay', { type: 'service-client' });
     const parent = mkNode('orders', { type: 'module' });
@@ -343,11 +343,11 @@ describe('D. aspect-when boolean combinators', () => {
     };
     const sc = mkNode('sc', { type: 'service-client' });
     // node calls directly
-    const direct = mkNode('direct', { type: 'command', relations: [{ target: 'sc', type: 'calls' }] });
+    const direct = mkNode('direct', { type: 'command', relations: [{ portNames: ['default'], target: 'sc', type: 'calls' }] });
     expect(evaluateWhen(pred, direct, mkGraph([sc, direct]))).toBe(true);
     // only a descendant calls
     const parent = mkNode('parent', { type: 'module' });
-    const child = mkNode('parent/h', { type: 'handler', relations: [{ target: 'sc', type: 'calls' }] });
+    const child = mkNode('parent/h', { type: 'handler', relations: [{ portNames: ['default'], target: 'sc', type: 'calls' }] });
     link(parent, child);
     expect(evaluateWhen(pred, parent, mkGraph([sc, parent, child]))).toBe(true);
     // neither

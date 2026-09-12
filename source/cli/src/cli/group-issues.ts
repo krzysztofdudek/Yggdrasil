@@ -101,7 +101,7 @@ export const CODE_ONLY_GROUP_CODES = withOutsideTwins(['unverified']);
 // ── Shared code-set constants ────────────────────────────────
 
 /** Architecture-rule issue codes (relation, parent, type, port violations). */
-const ARCHITECTURE_CODES = new Set(['relation-target-forbidden', 'parent-type-forbidden', 'type-undefined', 'port-missing-aspect', 'port-missing-consumes', 'port-undefined', 'consumes-without-ports']);
+const ARCHITECTURE_CODES = new Set(['relation-target-forbidden', 'parent-type-forbidden', 'type-undefined', 'port-missing-aspect', 'port-undefined']);
 
 /** Strict-type enforcement issue codes. */
 const STRICT_CODES = new Set(['type-strict-orphan', 'type-strict-misplaced', 'strict-overlap-conflict']);

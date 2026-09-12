@@ -1,6 +1,11 @@
 import { truncateDescription } from './truncate.js';
 import { toPosixPath } from '../utils/posix.js';
 
+// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
+// a value import, to avoid an undeclared new dependency edge onto
+// cli/model/graph for one reserved string.
+const DEFAULT_PORT_NAME = 'default';
+
 /** Honesty note for a type-covered file's own `relations:` atoms — see conditional-aspects.ts's own "Applicability for a file enforced only by its type" section, which this restates for one file rather than the whole doc. */
 export const DERIVED_RELATIONS_NOTE =
   "Dependency conditions here are worked out from this file's own imports, not a declared relation: one resolved import satisfies uses/calls/extends/implements alike, and can never satisfy emits/listens/consumes_port — those always read false for a type-covered file.";
@@ -169,7 +174,10 @@ export function formatFileContext(data: FileContextData): string {
   if (data.dependencies.length > 0) {
     lines.push('Dependencies consumed:');
     for (const dep of data.dependencies) {
-      lines.push(`  ${posixPath(dep.path)} — ${dep.consumed.join(', ')}`);
+      // 'default' is never absent any more (an undeclared relation normalizes
+      // to it) — only a port named BEYOND the implicit one is worth printing.
+      const namedPorts = dep.consumed.filter((p) => p !== DEFAULT_PORT_NAME);
+      lines.push(`  ${posixPath(dep.path)} — ${namedPorts.join(', ')}`);
     }
     lines.push('');
   }

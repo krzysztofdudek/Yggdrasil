@@ -424,7 +424,7 @@ describe('walkRepoFiles', () => {
     const root = await freshRoot('walk-nestygg-gitignored-marker');
     try {
       await mkdir(path.join(root, 'apps/vendorlib/.yggdrasil'), { recursive: true });
-      await writeFile(path.join(root, 'apps/vendorlib/.yggdrasil/yg-config.yaml'), 'version: "5.2.0"\n');
+      await writeFile(path.join(root, 'apps/vendorlib/.yggdrasil/yg-config.yaml'), 'version: "6.0.0"\n');
       await writeFile(path.join(root, 'apps/vendorlib/other.ts'), '');
       await mkdir(path.join(root, 'src'), { recursive: true });
       await writeFile(path.join(root, 'src/a.ts'), '');

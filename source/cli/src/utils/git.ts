@@ -56,3 +56,26 @@ export function getFirstCommitTimestamp(projectRoot: string, relativePath: strin
     return null;
   }
 }
+
+/**
+ * Returns the current commit's full SHA (`git rev-parse HEAD`), or undefined
+ * when it cannot be resolved — not a git repository, no commits yet, or git
+ * missing from PATH. Mirrors getLastCommitTimestamp's fail-soft try/catch: any
+ * git error resolves to undefined, never a fabricated value, and never leaks
+ * git's own error text (stdio is fully piped, never inherited). The length is
+ * whatever the repository's object format produces — 40 hex chars for sha1, 64
+ * for sha256 — never checked or assumed here.
+ */
+export function getHeadSha(projectRoot: string): string | undefined {
+  try {
+    const out = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+    const sha = out.trim();
+    return sha.length > 0 ? sha : undefined;
+  } catch {
+    return undefined;
+  }
+}

@@ -79,7 +79,8 @@ every use of that rule, a changed component declaration reaches that component's
 descendants, ancestors and everyone declaring a relation to it, and a changed
 flow reaches that flow's rules on every participant. A rule that recorded reading
 a changed file while it was being judged is reached too, even though that file is
-not its subject.
+not its subject — and so is every use of a rule that names a changed file in its
+`references:`, which is declared up front rather than observed during a review.
 
 **4. Re-code the findings that fall outside.** The run is assembled exactly as it
 always was — nothing is skipped and nothing goes unchecked. Only at the end is
@@ -178,6 +179,10 @@ From those files:
   rather than from what is on disk.
 - Any rule that recorded reading a changed file while it was being judged is
   yours, even though that file is not its subject.
+- Every use of a rule that lists a changed file in its `references:` is yours,
+  everywhere in the repository. This one is static rather than observed: it fires
+  whether or not the file is that use's subject, whether or not the component owns
+  it, and whether or not that particular use ever recorded reading it.
 
 Changes inside `.yggdrasil/` reach further, because the graph is what decides
 which rules apply to what:
@@ -204,10 +209,19 @@ nothing smaller can bound them:
   tier's own model or provider — reaches nothing.
 - The `progressive` block itself.
 
-Two more rules exist so that a gap can never read as a clean slate: a rule whose
-recorded verdict your change **deleted** is always yours, and a check that has no
-recorded result yet is yours as soon as your change touches anything within its
-reach — so a fresh clone never reads as "everything was already verified".
+Two more rules exist so that a gap can never read as a clean slate. A rule whose
+recorded verdict your change **deleted** is always yours. And a rule with no
+recorded result yet is yours as soon as your change touches anything its component
+is allowed to read — with the reach worked out from the component, so this one
+applies to the rules that can read across their subjects: the deterministic ones,
+and reviewer-judged ones that ship a companion. A plain reviewer-judged rule reads
+nothing but its own subject files and its own rule text, and both are already
+covered exactly by the rules above, so it is reached through those rather than
+through an estimate that would burn most of the graph for no added truth. A rule
+enforced by a file's type alone, with no component of its own, has no component
+reach to work from and is likewise left to those rules. A fresh clone therefore
+never reads as "everything was already verified" — but it is the subject and rule
+lines above, not the reach, that guarantee that for a plain reviewer-judged rule.
 
 Everything else falls on the safe side. A finding that cannot be tied to a file
 or a component keeps blocking: "cannot tell" is never read as "not yours".
@@ -231,10 +245,13 @@ the reference branch's file list once for the whole run.
 #### When this check has to be switched off, and how you will know
 
 The comparison is between the bytes stored on the branch and the bytes in your
-working copy. Anything that **rewrites files between those two points** makes
-them differ for reasons that have nothing to do with your change, and then every
-failing finding on every such file stays blocking, on every run. Two things do
-that, and neither is confined to any one platform:
+working copy. Three things take it out of play, and only the first two print
+anything.
+
+**The bytes disagree for reasons that are not your change.** Anything that
+**rewrites files between those two points** makes them differ whatever you did,
+and then every failing finding on every such file stays blocking, on every run.
+Two things do that, and neither is confined to any one platform:
 
 - a committed `.gitattributes` that sets `text eol=…` or a `filter=` driver — so
   continuous integration meets it exactly as readily as a laptop does;
@@ -259,6 +276,27 @@ project exactly as it would on a branch that reached everything. It errs toward
 gating more rather than less, and `yg check --full` reports the same set either
 way, but if you see this on every run, measuring against a branch is buying you
 nothing until the rewriting stops.
+
+**The recorded file identifiers are in a form this build cannot reproduce.** A
+repository whose objects are named with a hash this version carries no mapping for
+leaves the check unable to make the comparison at all, so it is skipped and every
+finding is judged on git's report alone. That gets a line of its own too — a
+different one:
+
+```text
+Content check skipped: 'origin/main' records file identifiers this version cannot
+reproduce, so findings were judged on git's report of what changed and nothing
+else.
+```
+
+**The reference branch's file list could not be read.** It is read through a
+buffer of bounded size, and a repository whose listing overruns it fails the read
+— as does any other refusal from git at that moment. The check is then disarmed
+and **nothing is printed**: this is the one state on this page your terminal
+cannot show you. It fails open, so a finding the byte comparison would have kept
+blocking is released as inherited instead. `yg check --full` reports the same set
+regardless, which is the run to reach for on a repository large enough to be near
+that limit.
 
 ## What never becomes a warning
 

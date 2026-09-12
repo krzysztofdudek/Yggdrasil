@@ -15,7 +15,7 @@ async function setupProject(): Promise<string> {
   dirs.push(root);
   const yggRoot = path.join(root, '.yggdrasil');
   await mkdir(path.join(yggRoot, 'model'), { recursive: true });
-  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n');
+  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "6.0.0"\n');
   await writeFile(
     path.join(yggRoot, 'yg-architecture.yaml'),
     [
@@ -129,7 +129,7 @@ describe('typeSuggestCommand', () => {
     const root = await setupProject();
     await writeFile(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      'version: "5.2.0"\ncoverage:\n  excluded:\n    - src/misc/\n',
+      'version: "6.0.0"\ncoverage:\n  excluded:\n    - src/misc/\n',
     );
     const output = await captureOutput(() =>
       typeSuggestCommand('src/misc/helper.ts', root),
@@ -147,7 +147,7 @@ describe('typeSuggestCommand', () => {
     const root = await setupProject();
     const nestedYgg = path.join(root, 'src', 'misc', 'vendored', '.yggdrasil');
     await mkdir(nestedYgg, { recursive: true });
-    await writeFile(path.join(nestedYgg, 'yg-config.yaml'), 'version: "5.2.0"\n');
+    await writeFile(path.join(nestedYgg, 'yg-config.yaml'), 'version: "6.0.0"\n');
     await writeFile(path.join(root, 'src', 'misc', 'vendored', 'lib.ts'), '');
 
     const output = await captureOutput(() =>
@@ -162,7 +162,7 @@ describe('typeSuggestCommand', () => {
     const root = await setupProject();
     await writeFile(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      'version: "5.2.0"\ncoverage:\n  excluded:\n    - src/misc/\n',
+      'version: "6.0.0"\ncoverage:\n  excluded:\n    - src/misc/\n',
     );
     const output = await captureOutput(() =>
       typeSuggestCommand('src/cli/log-add.ts', root),

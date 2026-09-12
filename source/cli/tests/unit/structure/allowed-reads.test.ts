@@ -277,7 +277,7 @@ describe('what a rule running on a single file may read', () => {
     });
     g.architecture = ARCH;
     writeRealFile(g, 'src/owned/readable.ts', 'export const r = 1;\n');
-    writeRealFile(g, 'src/owned/vendor/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    writeRealFile(g, 'src/owned/vendor/.yggdrasil/yg-config.yaml', 'version: "6.0.0"\n');
     writeRealFile(g, 'src/owned/vendor/foreign.ts', 'export const SECRET = 1;\n');
 
     const reach = await collectArchitectureReach('src/leaf/a.ts', {

@@ -1,0 +1,25 @@
+name: E2E Tests — own-graph atomic-write-contract port migration
+type: test-suite
+description: >-
+  Subprocess E2E on THIS repository's own graph, pinning the 6.0.0 migration of
+  `cli/io/atomic-write`'s port from its old, explicitly named form to the
+  reserved `default`. Proves the pre-migration pair-set baseline (measured before any
+  edit, via the exact `check --json` + `jq` commands the migration was scoped
+  against) still holds afterwards, widened only by fixing the port's invalid
+  `version`/`test` fields — a mandatory 6.0.0 change orthogonal to the port
+  rename itself, isolated and confirmed by diffing the full pair set across
+  every aspect between the two states. Proves the free deterministic fill
+  leaves no pair unverified or stale; that the port carries neither retired
+  field; that `yg impact` still names all nine former consumers on the
+  renamed port, independent of how many the aspect's own `when` filter later
+  accepts; that a bound consumer shows the rule reached through two channels
+  at once (its own type, and the port); that an unbound consumer the port
+  still reaches is correctly excluded by that filter; and that no graph file
+  mentions the retired port name or a `consumes` declaration on it any more,
+  except the append-only historical entry in `cli/io/stores/log.md`.
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-own-graph-default-port.test.ts

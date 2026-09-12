@@ -135,7 +135,7 @@ describe('computeSuppressionScanUniverse excludes a nested project from the audi
     writeFileSync(path.join(servicesDir, 'alpha.py'), '# yg-suppress(det-perfile) known debt\ndoWork()\n');
     const vendorYgg = path.join(servicesDir, 'vendorlib', '.yggdrasil');
     mkdirSync(vendorYgg, { recursive: true });
-    writeFileSync(path.join(vendorYgg, 'yg-config.yaml'), 'version: "5.2.0"\n');
+    writeFileSync(path.join(vendorYgg, 'yg-config.yaml'), 'version: "6.0.0"\n');
     writeFileSync(
       path.join(servicesDir, 'vendorlib', 'other.py'),
       '# yg-suppress(det-perfile) a foreign waiver this graph must never inventory\ndoWork()\n',
@@ -159,7 +159,7 @@ describe('computeSuppressionScanUniverse excludes a nested project from the audi
     writeFileSync(path.join(servicesDir, 'config.yaml'), 'k: v\n');
     const vendorYgg = path.join(servicesDir, 'vendorlib', '.yggdrasil');
     mkdirSync(vendorYgg, { recursive: true });
-    writeFileSync(path.join(vendorYgg, 'yg-config.yaml'), 'version: "5.2.0"\n');
+    writeFileSync(path.join(vendorYgg, 'yg-config.yaml'), 'version: "6.0.0"\n');
     writeFileSync(path.join(servicesDir, 'vendorlib', 'other.py'), 'SECRET = 1\n');
 
     // The audit path expands every node's mapping entries TOGETHER in one call

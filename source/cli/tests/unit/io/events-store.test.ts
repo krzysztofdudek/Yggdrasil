@@ -300,4 +300,79 @@ describe('events-store', () => {
     expect(() => appendVerdictEvent(unwritableDir, event)).not.toThrow();
     expect(existsSync(unwritableDir)).toBe(false);
   });
+
+  // ── sha (cost-attribution commit, RZ-tickets: yg-check filled-at). Injected
+  //    like the clock, from the CLI boundary — the store neither computes nor
+  //    validates it, and it rides in whichever home the single-home switch
+  //    already sends the event to. ─────────────────────────────────────────
+
+  it('committedLlm OFF: an LLM-fill event with sha lands locally, with sha on the line', () => {
+    appendVerdictEvent(tmpDir, llmFill({ sha: 'a'.repeat(40) }), { committedLlm: false });
+    const local = readLines(EVENTS_FILENAME);
+    expect(local).toHaveLength(1);
+    expect(local[0].sha).toBe('a'.repeat(40));
+    expect(existsSync(path.join(tmpDir, COMMITTED_EVENTS_FILENAME))).toBe(false);
+  });
+
+  it('committedLlm ON: the committed line carries sha, and reason stays stripped (sha is NOT stripped)', () => {
+    const refusal = llmFill({ disposition: 'refused', reason: 'leaks src/secret.ts internals', sha: 'b'.repeat(64) });
+    appendVerdictEvent(tmpDir, refusal, { committedLlm: true });
+    const committed = readLines(COMMITTED_EVENTS_FILENAME);
+    expect(committed).toHaveLength(1);
+    expect(committed[0].sha).toBe('b'.repeat(64));
+    expect('reason' in committed[0]).toBe(false);
+    expect(existsSync(path.join(tmpDir, EVENTS_FILENAME))).toBe(false);
+  });
+
+  it('committedLlm ON: a deterministic-fill event still stays local, with sha present when supplied', () => {
+    const detFill: VerdictEvent = {
+      v: 1,
+      ts: '2026-07-13T00:00:04.000Z',
+      source: 'fill',
+      aspectId: 'det-aspect',
+      unitKey: 'node:svc',
+      kind: 'deterministic',
+      disposition: 'approved',
+      hash: 'hash-det',
+      sha: 'c'.repeat(40),
+    };
+    appendVerdictEvent(tmpDir, detFill, { committedLlm: true });
+    const local = readLines(EVENTS_FILENAME);
+    expect(local).toHaveLength(1);
+    expect(local[0].sha).toBe('c'.repeat(40));
+    expect(existsSync(path.join(tmpDir, COMMITTED_EVENTS_FILENAME))).toBe(false);
+  });
+
+  it('an event with no sha writes a line with no such key at all (never "sha":null)', () => {
+    appendVerdictEvent(tmpDir, llmFill());
+    const raw = readFileSync(path.join(tmpDir, EVENTS_FILENAME), 'utf-8').split('\n').filter((l) => l.length > 0)[0];
+    expect('sha' in (JSON.parse(raw) as VerdictEvent)).toBe(false);
+    expect(raw).not.toContain('"sha"');
+  });
+
+  it('an empty-string sha is written verbatim — the store validates nothing (telemetry never throws)', () => {
+    appendVerdictEvent(tmpDir, llmFill({ sha: '' }));
+    expect(readLines(EVENTS_FILENAME)[0].sha).toBe('');
+  });
+
+  it('accepts both a 40-char (sha1) and a 64-char (sha256) sha', () => {
+    appendVerdictEvent(tmpDir, llmFill({ sha: 'a'.repeat(40) }));
+    appendVerdictEvent(tmpDir, llmFill({ sha: 'b'.repeat(64), ts: '2026-07-13T00:00:05.000Z' }));
+    const lines = readLines(EVENTS_FILENAME);
+    expect(lines[0].sha).toHaveLength(40);
+    expect(lines[1].sha).toHaveLength(64);
+  });
+
+  it('a write to an unwritable path with sha set still does NOT throw (best-effort telemetry)', () => {
+    const unwritableDir = path.join(tmpDir, 'does-not-exist-2', 'nested');
+    expect(() => appendVerdictEvent(unwritableDir, llmFill({ sha: 'a'.repeat(40) }))).not.toThrow();
+    expect(existsSync(unwritableDir)).toBe(false);
+  });
+
+  it('two events differing only by sha append as two lines, in order', () => {
+    appendVerdictEvent(tmpDir, llmFill({ sha: 'a'.repeat(40) }));
+    appendVerdictEvent(tmpDir, llmFill({ sha: 'b'.repeat(40), ts: '2026-07-13T00:00:06.000Z' }));
+    const lines = readLines(EVENTS_FILENAME);
+    expect(lines.map((l) => l.sha)).toEqual(['a'.repeat(40), 'b'.repeat(40)]);
+  });
 });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatOutput } from '../../../src/cli/check-render-views.js';
+import { formatOutput, type CheckView } from '../../../src/cli/check-render-views.js';
 import { useEmoji, renderTypeVisibilityBlock } from '../../../src/cli/check-render-header.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import type { TypeVisibilityReport } from '../../../src/core/type-visibility.js';
@@ -624,7 +624,7 @@ describe('type-visibility block — the attached-but-not-enforced line is groupe
   });
 });
 
-describe('type-visibility block — counts-only under the triage views', () => {
+describe('type-visibility block — what --coverage renders, in full and counts-only form', () => {
   function reportWithDetail(): TypeVisibilityReport {
     return {
       byType: [block({
@@ -641,7 +641,7 @@ describe('type-visibility block — counts-only under the triage views', () => {
     };
   }
 
-  it('the full view shows the per-aspect reason breakdown, bundle name, chain line, and zero-enforcement samples', () => {
+  it('--coverage in the full view shows the per-aspect reason breakdown, bundle name, chain line, and zero-enforcement samples', () => {
     const out = renderTypeVisibilityBlock(typeVisibilityResult(reportWithDetail()));
     expect(out).toContain('own-rule (1)');
     expect(out).toContain('warn-only (1)');
@@ -652,7 +652,7 @@ describe('type-visibility block — counts-only under the triage views', () => {
     expect(out).toContain('z.ts');
   });
 
-  it('--summary / --top keep this block to counts only — never the per-aspect reason text, bundle names, chain line, or file samples', () => {
+  it('--coverage inside --summary / --top keeps this block to counts only — never the per-aspect reason text, bundle names, chain line, or file samples', () => {
     const out = renderTypeVisibilityBlock(typeVisibilityResult(reportWithDetail()), { countsOnly: true });
     expect(out).toContain('1 rule enforced');
     expect(out).toContain('1 advisory');
@@ -701,16 +701,50 @@ describe('type-visibility block — counts-only under the triage views', () => {
     expect(out).not.toContain('unverified');
   });
 
-  it('formatOutput wires countsOnly for --summary and --top, but not for --details / full', () => {
+  // Rewritten for 6.0.0's deliberate reversal: this test used to assert the
+  // opposite premise — that plain `yg check` (and --details) render the FULL
+  // listing, with counts-only reserved for the two triage views. The listing
+  // is now asked for by name; what survives of the old contract is that
+  // --coverage INSIDE a triage view still holds it to counts.
+  it('no view renders the coverage block without --coverage; with it, the triage views still get counts only', () => {
     const report = reportWithDetail();
-    const summaryOut = formatOutput(typeVisibilityResult(report), { kind: 'summary' });
-    const topOut = formatOutput(typeVisibilityResult(report), { kind: 'top', n: 1 });
-    const fullOut = formatOutput(typeVisibilityResult(report));
-    const detailsOut = formatOutput(typeVisibilityResult(report), { kind: 'details' });
-    expect(summaryOut).not.toContain('dead-rule');
-    expect(topOut).not.toContain('dead-rule');
-    expect(fullOut).toContain('dead-rule');
-    expect(detailsOut).toContain('dead-rule');
+    const noFlag = (view?: CheckView): string => formatOutput(typeVisibilityResult(report), view);
+    const withFlag = (view?: CheckView): string => formatOutput(typeVisibilityResult(report), view, false, false, { coverage: true });
+
+    // Off by default, in every one of the five views — nothing of the block,
+    // not even its heading.
+    for (const view of [undefined, { kind: 'details' } as CheckView, { kind: 'summary' } as CheckView, { kind: 'top', n: 1 } as CheckView, { kind: 'aspect', id: 'x' } as CheckView]) {
+      expect(noFlag(view)).not.toContain('Type coverage:');
+      expect(noFlag(view)).not.toContain('dead-rule');
+      expect(noFlag(view)).not.toContain('1 rule enforced');
+    }
+
+    // On with --coverage: the full listing in the full/details/aspect views…
+    expect(withFlag()).toContain('dead-rule');
+    expect(withFlag({ kind: 'details' })).toContain('dead-rule');
+    // …and the counts-only form in the two views that exist to keep the wall
+    // short, which is the one piece of the old wiring that still holds.
+    expect(withFlag({ kind: 'summary' })).toContain('1 rule enforced');
+    expect(withFlag({ kind: 'summary' })).not.toContain('dead-rule');
+    expect(withFlag({ kind: 'top', n: 1 })).toContain('1 rule enforced');
+    expect(withFlag({ kind: 'top', n: 1 })).not.toContain('dead-rule');
+  });
+
+  // The proof that 050 MOVED the listing and changed nothing else: for one
+  // and the same result, `--coverage` output minus the block's own bytes is
+  // the plain output, exactly. Any drift in the rest of the report — a
+  // count, a notice, a blank line — fails this.
+  it('--coverage output is the plain output plus the block verbatim, byte for byte', () => {
+    const result = typeVisibilityResult(reportWithDetail());
+    const plain = formatOutput(result, { kind: 'full' }, false, false);
+    const withCoverage = formatOutput(result, { kind: 'full' }, false, false, { coverage: true });
+    const block = renderTypeVisibilityBlock(result);
+
+    expect(withCoverage).not.toBe(plain);
+    expect(withCoverage).toContain(block);
+    // The block is pushed as its own section, so it arrives preceded by the
+    // separating blank line; removing exactly that leaves the plain report.
+    expect(withCoverage.replace(`\n\n${block}`, '')).toBe(plain);
   });
 });
 
@@ -779,7 +813,7 @@ describe('type-visibility block — an uncomputable file is never folded into th
     expect(out).toContain('2 files matched by a type could not have their rules worked out:');
   });
 
-  it('--summary / --top still count an unresolved file honestly, never silently as zero', () => {
+  it('--coverage inside --summary / --top still counts an unresolved file honestly, never silently as zero', () => {
     const report: TypeVisibilityReport = {
       byType: [block({
         typeId: 'cyclic',
@@ -802,7 +836,7 @@ describe('type-visibility block — an uncomputable file is never folded into th
   // one declared rule (cyclic-a) but TWO files whose cascade cycled on it: the
   // number of rules left unresolved is unknowable (resolution never ran), so
   // only a file count is honest here — "2" must read as files, never rules.
-  it('--summary / --top count files, never rules, when one rule leaves several files unresolved', () => {
+  it('--coverage inside --summary / --top counts files, never rules, when one rule leaves several files unresolved', () => {
     const report: TypeVisibilityReport = {
       byType: [block({
         typeId: 'cyclic',

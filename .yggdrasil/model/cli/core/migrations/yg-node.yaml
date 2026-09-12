@@ -1,6 +1,6 @@
 name: Migrations (current)
 type: migration
-description: "The migration registry plus the registered version migrations. MIGRATIONS lists each to-X.Y.Z migration the migrator harness runs; the 5.1.0 migration removes the obsolete schemas/ directory and splits the legacy single lock into the committed/gitignored triad (the split-lock step)."
+description: "The migration registry plus the registered version migrations. MIGRATIONS lists each to-X.Y.Z migration the migrator harness runs; the 5.1.0 migration removes the obsolete schemas/ directory and splits the legacy single lock into the committed/gitignored triad (the split-lock step); the 6.0.0 migration strips the retired ports section from the committed lock's raw JSON — before the strict validator ever sees it — and warns about any yg-node.yaml still declaring a port's removed version or test field, which it cannot fix on the adopter's behalf."
 aspects:
   - posix-paths-output
 relations:
@@ -16,3 +16,4 @@ mapping:
   - source/cli/src/migrations/index.ts
   - source/cli/src/migrations/to-5.1.0.ts
   - source/cli/src/migrations/split-lock.ts
+  - source/cli/src/migrations/to-6.0.0.ts

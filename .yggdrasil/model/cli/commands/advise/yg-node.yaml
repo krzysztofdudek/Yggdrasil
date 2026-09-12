@@ -2,7 +2,17 @@ name: Advise Commands
 type: command
 description: "CLI commands for the attention feed and for acting on its items —
   the feed itself (rendered for a reader, or as one versioned machine document),
-  yg advise dismiss and yg advise defer, and yg advise import. Dismiss and defer
+  yg advise dismiss and yg advise defer, and yg advise import. The feed never reaches outside this
+  repository. It can still say that a rule installed from another repository has
+  a newer version, and it does so by reading what the package commands recorded
+  the last time someone asked a source directly — a filesystem read like every
+  other signal here. The split is deliberate: an agent runs this command every
+  session, and every other thing it reports is derived from the graph, from this
+  repository's history, or from its own files, so two runs over an unchanged
+  repository agree with each other; another repository's tags can move under an
+  unchanged repository for reasons that have nothing to do with it. A package
+  nobody has asked about contributes nothing rather than an empty answer, since
+  'there is nothing newer' is not something an unasked source has said. Dismiss and defer
   each resolve an item id against the live nominations, capture its current
   evidence snapshot, and append one committed decision line with a mandatory
   human-signed reason. Import reads one proposal document another tool produced —
@@ -14,6 +24,8 @@ description: "CLI commands for the attention feed and for acting on its items �
   the user's own recorded act."
 aspects: []
 relations:
+  - target: cli/io/parsers/packages
+    type: calls
   - target: cli/core/advise
     type: calls
   - target: cli/core/check

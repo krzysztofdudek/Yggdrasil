@@ -119,7 +119,7 @@ function sha256Hex(body: string): string {
  * combines its copy of this fixture with an `init`/`init --upgrade` call, so
  * it never surfaces this interaction.
  */
-const MINIMAL_CONFIG = `version: "5.2.0"
+const MINIMAL_CONFIG = `version: "6.0.0"
 quality:
   max_direct_relations: 10
 coverage:
@@ -242,7 +242,7 @@ function bareUpgradeRepo(label: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-univ-${label}-`));
   const yggRoot = path.join(dir, '.yggdrasil');
   mkdirSync(yggRoot, { recursive: true });
-  writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "5.2.0"\n', 'utf-8');
+  writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: "6.0.0"\n', 'utf-8');
   return dir;
 }
 
@@ -810,6 +810,109 @@ describe.skipIf(!distExists)('universal install (E1-E9, E12) + committed-digest 
       // The project it leaves behind is one yg check accepts.
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // E13: the per-artifact opt-out end to end — `yg init` stops writing the
+  // file, `yg check` stops asking for it, the choice is recorded in the
+  // committed config, and nothing about the other two artifacts changes.
+  it('E13: init --no-clinerules never writes the file, records the choice, and clears the gate for it alone', () => {
+    const dir = greenfieldGraph('optout');
+    try {
+      // Start from a clean, fully-installed, fully-verified project.
+      expect(run(['init', '--upgrade'], dir).status).toBe(0);
+      expect(run(['check', '--approve'], dir).status).toBe(0);
+      expect(existsSync(clinerulesOf(dir))).toBe(true);
+
+      // A missing artifact warns today — the nagging the opt-out answers.
+      rmSync(clinerulesOf(dir), { force: true });
+      expect(run(['check'], dir).all).toContain('.clinerules/yggdrasil.md is missing');
+
+      // Opt out: the file is NOT recreated, the choice lands in the committed
+      // config, and the run says what it skipped.
+      const optOut = run(['init', '--upgrade', '--no-clinerules'], dir);
+      expect(optOut.status).toBe(0);
+      expect(existsSync(clinerulesOf(dir))).toBe(false);
+      expect(optOut.all).toContain('.clinerules/yggdrasil.md');
+      const config = readFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+      expect(config).toContain('rules_artifacts:');
+      expect(config).toMatch(/clinerules:\s*false/);
+
+      // The gate goes quiet — the whole point — without blocking or hiding
+      // anything else: the two artifacts still switched on are still checked.
+      const afterOptOut = run(['check'], dir);
+      expect(afterOptOut.status).toBe(0);
+      expect(afterOptOut.all).not.toContain('rules-digest-stale');
+
+      // The choice STICKS: a later flagless upgrade honors the committed
+      // config rather than reinstating the file.
+      expect(run(['init', '--upgrade'], dir).status).toBe(0);
+      expect(existsSync(clinerulesOf(dir))).toBe(false);
+      expect(run(['check'], dir).all).not.toContain('rules-digest-stale');
+
+      // Disabling one artifact says nothing about the other two: break the
+      // AGENTS.md block and the gate still reports it, naming only that one.
+      writeFileSync(agentsMdOf(dir), 'no block here at all\n', 'utf-8');
+      const stillWatching = run(['check'], dir);
+      expect(stillWatching.status).toBe(0);
+      expect(stillWatching.all).toContain('AGENTS.md digest block is missing');
+      expect(stillWatching.all).not.toContain('.clinerules/yggdrasil.md is missing');
+      expect(run(['init', '--upgrade'], dir).status).toBe(0);
+      expect(run(['check'], dir).all).not.toContain('rules-digest-stale');
+      expect(existsSync(clinerulesOf(dir))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('E13b: a fresh bootstrap with --no-clinerules never creates the file, and a plain one still does', () => {
+    const optedOut = mkdtempSync(path.join(tmpdir(), 'yg-e13-optout-'));
+    const plain = mkdtempSync(path.join(tmpdir(), 'yg-e13-plain-'));
+    try {
+      expect(run(['init', '--no-clinerules'], optedOut).status).toBe(0);
+      expect(existsSync(clinerulesOf(optedOut))).toBe(false);
+      expect(existsSync(agentsMdOf(optedOut))).toBe(true);
+      expect(existsSync(claudeMdOf(optedOut))).toBe(true);
+      expect(readFileSync(path.join(optedOut, '.yggdrasil', 'yg-config.yaml'), 'utf-8'))
+        .toMatch(/clinerules:\s*false/);
+      // The project it leaves behind is one yg check accepts, silently.
+      const check = run(['check'], optedOut);
+      expect(check.status).toBe(0);
+      expect(check.all).not.toContain('rules-digest-stale');
+
+      // Untouched default: all three, and a config carrying no LIVE
+      // rules_artifacts block (only the commented example the template always
+      // shipped) — an existing adopter's bootstrap is unchanged.
+      expect(run(['init'], plain).status).toBe(0);
+      expect(existsSync(clinerulesOf(plain))).toBe(true);
+      expect(readFileSync(path.join(plain, '.yggdrasil', 'yg-config.yaml'), 'utf-8'))
+        .not.toMatch(/^rules_artifacts:/m);
+    } finally {
+      rmSync(optedOut, { recursive: true, force: true });
+      rmSync(plain, { recursive: true, force: true });
+    }
+  });
+
+  it('E13c: --no-agents-md switches the CLAUDE.md import off with it, and the config it writes parses', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-e13c-'));
+    try {
+      expect(run(['init', '--no-agents-md'], dir).status).toBe(0);
+      expect(existsSync(agentsMdOf(dir))).toBe(false);
+      // CLAUDE.md is nothing but an import OF AGENTS.md, so it goes too —
+      // rather than being written as a pointer to a file nobody maintains.
+      expect(existsSync(claudeMdOf(dir))).toBe(false);
+      expect(existsSync(clinerulesOf(dir))).toBe(true);
+      const config = readFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), 'utf-8');
+      expect(config).toMatch(/agents_md:\s*false/);
+      expect(config).toMatch(/claude_md:\s*false/);
+      // The config it wrote is one the parser accepts (a run that recorded a
+      // combination `yg check` refuses would be worse than no opt-out at all).
+      const check = run(['check'], dir);
+      expect(check.status).toBe(0);
+      expect(check.all).not.toContain('config-rules-artifacts');
+      expect(check.all).not.toContain('rules-digest-stale');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

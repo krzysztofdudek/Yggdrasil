@@ -14,11 +14,13 @@ On disk the lock is a **triad** of files under `.yggdrasil/`, partitioned by the
 
 - **`yg-lock.nondeterministic.json`** — **committed.** Holds the LLM-reviewer verdicts. These are expensive to recompute (they need a provider key and a reviewer call), so they travel with the repo. A repo with no LLM aspects has no LLM verdicts, so this file is **not written at all** (an empty husk is removed rather than committed).
 - **`yg-lock.logs.json`** — **committed.** Holds the per-node log/closure baseline that the log gate checks against. A node's **source fingerprint** is recorded here only for `log_required` node types (the fingerprint is the gate's drift basis, so it would be dead weight anywhere else); any node that owns a `log.md` also gets its log-integrity baseline. When no node is `log_required` and none owns a `log.md`, there is nothing to record — and this file is **not written at all** (an empty husk is removed rather than committed).
-- **`.yg-lock.deterministic.json`** — **gitignored local cache, never committed.** Holds the deterministic (`check.mjs`) verdicts. These are a pure performance cache: a deterministic check runs locally with no key and no LLM, so a fresh clone can recompute every one of them for free. Committing them only added bytes and merge noise without adding anything a checkout couldn't rebuild on demand. With no deterministic verdicts to cache, this file too is simply absent.
+- **`.yg-lock.deterministic.json`** — **gitignored local cache, never committed.** Holds the deterministic (`check.mjs`) verdicts. These are a pure performance cache: a deterministic check runs locally with no key and no LLM, so a fresh clone can recompute every one of them for free. Committing them only added bytes and merge noise without adding anything a checkout couldn't rebuild on demand. This file carries one more thing: the **`aspects`** section, each rule's last-seen **standing** (`draft` / `advisory` / `enforced`). That is remembered state rather than a verdict — nothing in it is hashed, and it invalidates nothing — and it rides here rather than in a committed file because it records what *this checkout* has witnessed, not a fact the team shares. It exists so that a standing you change by hand gets noticed once and written into that rule's own log, instead of going unrecorded or being re-announced on every run.
 
-Every one of the three follows the same rule: **when a file's section is empty, the file is not written at all** (and an existing empty one is removed). An absent file reads back as empty state, so a repo only ever carries the lock files it actually needs.
+Every one of the three follows the same rule: **when the sections a file owns are all empty, the file is not written at all** (and an existing empty one is removed). An absent file reads back as empty state, so a repo only ever carries the lock files it actually needs. Note what that means for the deterministic file, which owns two sections rather than one: it is absent only when its verdicts *and* its `aspects` section are both empty. Because standings are recorded for every rule in the graph, not only the deterministic ones, a project whose rules are all LLM-reviewed still ends up with a `.yg-lock.deterministic.json` after its first approving run — an empty `verdicts` object and a populated `aspects` section.
 
-The split is purely on disk, and purely by reviewer kind — there is no per-entry flag that decides which file an entry lands in. In memory the lock is a single object, `{ version, verdicts, nodes }`, exactly as before; loading reads the triad back into that one shape, and writing partitions it back out.
+All three are written by rename, which is why `chmod 444` on a lock file does not stop Yggdrasil rewriting it — see [A read-only file does not stop a write](/concurrency#a-read-only-file-does-not-stop-a-write).
+
+The split is purely on disk, and purely by reviewer kind — there is no per-entry flag that decides which file an entry lands in. In memory the lock is a single object, `{ version, verdicts, nodes, aspects }` — the first three exactly as before, `aspects` optional and present only once some rule's standing has been witnessed; loading reads the triad back into that one shape, and writing partitions it back out.
 
 Because the deterministic verdicts live only in a gitignored cache, a fresh checkout starts with no deterministic cache. Plain `yg check` then reports those pairs as **unverified** until something rematerializes them — `yg check --approve --only-deterministic` (described below) rebuilds the cache for free, no key required.
 
@@ -49,11 +51,15 @@ Change any folded input and the pair goes unverified. Edit a source file, edit t
 
 One thing is deliberately **not** an input: the aspect's status. Flipping `draft ↔ advisory ↔ enforced` changes how a verdict renders, never whether it's valid. A verdict survives every status flip, including a full `draft` round-trip. See [/aspect-status](/aspect-status).
 
+`when`, `implies`, and a port's declaration are not inputs either — they are excluded from the hash by design (applicability is recomputed live on every run, through the expected-pair set, not folded into what a verdict answers for). Editing a `when` clause (including the `node: { id }` exclusion form — see [Conditional Aspects](/conditional-aspects#what-when-is-not)) never invalidates a pair that stays expected: it only changes *which* pairs are expected, adding fresh `unverified` ones or dropping ones from the lock outright. Contrast a status filter written into the *rule's own content* instead (`content.md` or `check.mjs`) — that changes bytes the hash **does** fold, so it invalidates the verdict for every pair of that rule, everywhere it is attached. The operational rule: filter in `when` and it is free; filter in the rule's own text and it costs a re-fill of every pair that rule reaches.
+
 A node's `description:` is not an input either — and it is not sent to the reviewer at all. It is documentation for people reading the graph, so editing one changes nothing that was judged and re-verifies nothing. (The *aspect's* description is a different matter: it is part of the rule, so it is both sent and folded.) The node's path is sent, and is folded.
 
 That leaves the hash covering every ingredient a prompt is built from, which is what lets an LLM entry also record the **size** of the prompt that produced it. The size is not an input — it is a record of inputs the hash already covers — so a `yg check` on a still-valid verdict answers the prompt-size gate from that number instead of resolving companions and re-assembling the whole prompt just to count its characters. On a large project where nothing has changed, that reassembly was most of what a check spent its time on. A tier's `max_prompt_chars` is still read live, so lowering a ceiling still re-gates verdicts that are otherwise untouched.
 
 Entries written by an older version carry no size and are measured the old way; the first `yg check --approve` after upgrading records what it measured, at no reviewer cost.
+
+Two more fields ride the same way, on every reviewer kind this time: `filledAt` (when `--approve` wrote the verdict) and `filledSha` (the commit it ran at, when one was resolvable — absent without a git repository, before the first commit, or with git missing from `PATH`). Neither is an input — they record who and when filled a verdict, never what was judged — so writing or reading them invalidates nothing, and they ride along even once the verdict has gone stale or been refused: "who and when filled this" does not depend on the verdict still holding. Deterministic verdicts never carry them: filling one costs nothing, so there is nothing to attribute. Entries written before these fields existed simply have neither, and read back unchanged.
 
 ## `yg check` vs `yg check --approve`
 
@@ -63,7 +69,7 @@ These are two different jobs.
 
 However, when `auto_approve` is configured in `yg-config.yaml`, bare `yg check` may fill pairs automatically: `auto_approve: deterministic` behaves like `yg check --approve --only-deterministic`; `auto_approve: full` behaves like `yg check --approve`. CI scripts use explicit flags (`yg check --approve --only-deterministic`) and are unaffected by `auto_approve` — the CI-is-free-and-keyless guarantee holds.
 
-`yg check --approve` is the only command that writes verdicts. It fills every unverified pair it answers for: deterministic checks first (they run locally, for free), then the LLM pairs. On a project that measures changes against a branch, the local checks still cover everything and the reviewer is asked only about the rules your change is accountable for. When a pair gets a real verdict — pass or refusal — the entry lands in the lock: the deterministic verdicts in the gitignored cache, the LLM verdicts in the committed `yg-lock.nondeterministic.json`. Then it reports, just like a plain check.
+`yg check --approve` is the only command that fills verdicts through the configured reviewer and the deterministic checks. (It is not the only command that writes one: `yg verdict record` records a judgement from a judge outside the CLI straight into the lock, bound to the hash `yg verdict package` printed, without running the configured reviewer — see [A verdict somebody else made](#a-verdict-somebody-else-made) below and [/cli-reference](/cli-reference).) It fills every unverified pair it answers for: deterministic checks first (they run locally, for free), then the LLM pairs. On a project that measures changes against a branch, the local checks still cover everything and the reviewer is asked only about the rules your change is accountable for. When a pair gets a real verdict — pass or refusal — the entry lands in the lock: the deterministic verdicts in the gitignored cache, the LLM verdicts in the committed `yg-lock.nondeterministic.json`. Then it reports, just like a plain check.
 
 An aspect refusal never blocks other nodes' pairs. `--approve` records every result it gets and exits non-zero if any error remains. One exception: a node carrying an enforced deterministic refusal has its own LLM pairs skipped for that run, so a known-broken node never bills the reviewer — those pairs stay unverified until the refusal is cleared.
 
@@ -89,7 +95,7 @@ A cosmetic edit to the rule or the source — a reworded comment, a whitespace c
 
 ## The log gate
 
-The third lock file, `yg-lock.logs.json`, holds what the graph records ABOUT a component rather than a verdict on it: the log gate's baseline, and a port's contract baseline (below). A node type can opt in to the log gate with `log_required: true` (see [Nodes](/nodes#node-types-the-architecture-file)), and a node of such a type must carry a fresh entry in its `log.md` — written with `yg log add` — before its work is verified. The entry records **why** a change was made; what changed is already in the diff.
+The third lock file, `yg-lock.logs.json`, holds what the graph records ABOUT a component rather than a verdict on it: the log gate's baseline. A node type can opt in to the log gate with `log_required: true` (see [Nodes](/nodes#node-types-the-architecture-file)), and a node of such a type must carry a fresh entry in its `log.md` — written with `yg log add` — before its work is verified. The entry records **why** a change was made; what changed is already in the diff.
 
 **When an entry is required.** Both of these have to hold: the node's type opts in, *and* the node's mapped source has changed since the node last reached positive closure (or this is its first verification and it owns source files). Notably it does **not** depend on the node's rules: a node that owns source but carries no rules at all still needs an entry when that source changes. A re-verification triggered by something other than the source — a rule was edited, the files untouched — needs no new entry.
 
@@ -99,7 +105,7 @@ Corollaries worth knowing:
 
 - An advisory refusal does not prevent closure. A red *enforced* pair keeps the cycle open — and the same log entry stays valid through every retry, because the intent behind the change did not move, only the execution. Iterate on the code without adding entries.
 - A node with no pairs, or only advisory ones, closes vacuously — but still only once its log requirement is satisfied.
-- Closure is recorded only by a run that writes the committed verdict files. `yg check --approve --only-deterministic` records no verdict there, so it never closes a cycle at all: a project that records nothing else keeps the node's newest entry answering for every later change to it, as described under that flag above. (It *can* write one thing into this file — a port's contract baseline, below — which is a record about the component, not a closure of its cycle.)
+- Closure is recorded only by a run that writes the committed verdict files. `yg check --approve --only-deterministic` records no verdict there, so it never closes a cycle at all: a project that records nothing else keeps the node's newest entry answering for every later change to it, as described under that flag above.
 
 **The gate is read-only, and it is all-or-nothing.** A missing entry is a blocking `log-entry-missing` error on a plain `yg check`, computed live from the fingerprint at zero cost — not merely something `--approve` refuses. So CI catches an unlogged source change even on a node that produces no pairs to fill. And at `--approve`, if *any* `log_required` node is missing its entry, the run fills **nothing at all** — no pair on any node, related or not. Add the missing entries and re-run.
 
@@ -114,26 +120,6 @@ Corollaries worth knowing:
 A verdict does not have to come from the configured reviewer. When a judge outside the CLI decides a prose rule (see [Reviewers](/reviewers#a-judge-outside-the-cli)), the entry that lands here is the ordinary one — the same content hash, the same shape — with the judge's name recorded beside it.
 
 The name is provenance, not an input: it is deliberately outside the hash, so the verdict is bound to exactly what a provider's would have been bound to. That is what lets CI stand it back up by hashing alone, with no key and no judge present, and what makes it fall out of force the moment the code it judged changes. `yg check` names the judge in its report, because an approval reports nothing on its own and a green run should never carry a judgement with no visible author.
-
-## Port contract baselines
-
-A port can name the test that *is* its contract, together with the version consumers pin to (see [Ports](/relations-flows-ports)). `yg-lock.logs.json` is where that contract is pinned down: for each such port it records, per contract version, what the named test contained when that version was first recorded.
-
-```jsonc
-"nodes": {
-  "payments/service": {
-    "ports": { "charge": { "1": { "hash": "<sha256>", "test": "tests/contracts/charge.test.ts" } } }
-  }
-}
-```
-
-Three properties are the whole mechanism:
-
-- **An approving run writes it, including the free one.** `yg check --approve --only-deterministic` records a baseline for a port that has none at its current version. That is deliberate: the check the baseline feeds costs nothing and needs no key, so a project whose only approving runs are the free ones must still be able to record — otherwise it would stay red forever on a contract it was never allowed to pin.
-- **It is committed, not cached.** A baseline a fresh clone rebuilds from whatever it happens to find is not a baseline. This is why it lives here rather than in the gitignored deterministic cache.
-- **A record is never overwritten.** Raising `version:` records afresh *alongside* the old one. So going back to a version you used before goes back to the contract it named, instead of quietly re-pinning it to whatever the file says now.
-
-With the baseline in place, a change to the test file at an unchanged version is a blocking `port-contract-changed` error naming the port, the file and the version, with both exits: raise the version (and say why with `yg log add`), or restore the file. A port whose `test:` path does not resolve is `port-test-missing` — nothing is baselined and nothing is compared, because a green over an unreadable contract would be worse than a red.
 
 ## The relation check is not in the lock
 
@@ -164,7 +150,19 @@ yg check --approve
 
 The same recovery applies per committed file: take one side of `yg-lock.logs.json` the same way if it also conflicted. Prefer the side that covers more of the merged code, to minimize re-verification. This is safe because the lock is self-validating: a verdict you kept by accident can't lie — its hash won't match the current inputs, so it re-verifies. The discarded side's verdicts are simply re-filled on that run.
 
-Hand-merging entry by entry is the one thing to avoid. A stray conflict marker makes the whole file invalid, and Yggdrasil fails closed rather than trust a damaged lock. A duplicate key is worse in a quieter way — JSON parsing silently keeps only the last occurrence, with no error — which is exactly why you take one side wholesale instead of splicing entries by hand.
+Hand-merging entry by entry is the one thing to avoid. A stray conflict marker makes the whole file invalid, and Yggdrasil fails closed rather than trust a damaged committed lock — see [A damaged lock file](#a-damaged-lock-file) below for what happens instead when the gitignored cache is the damaged one. A duplicate key is worse in a quieter way — JSON parsing silently keeps only the last occurrence, with no error — which is exactly why you take one side wholesale instead of splicing entries by hand.
+
+## A damaged lock file
+
+Damaged *content* — garbled bytes, a stray conflict marker, a `version` the CLI does not recognize, a structure that fails validation — is not treated the same way in the two kinds of file.
+
+In a **committed** file (`yg-lock.nondeterministic.json`, `yg-lock.logs.json`, or a legacy `yg-lock.json`) it is a blocking `lock-invalid` error. Yggdrasil refuses to run rather than trust a damaged source of truth, names the offending file, and prints both recoveries: restore it from git, or delete it and re-fill with `yg check --approve`.
+
+In the gitignored `.yg-lock.deterministic.json` the same fault is not an error at all. The file is discarded and rebuilt from scratch — one line in the debug log, nothing on stdout, no issue in the report, no change of exit code. It holds no truth of its own: every entry in it is rederivable for free from the graph and the committed lock, and discarding it is still fail-*closed*, because an empty section means those pairs read as **unverified**, never as verified. So there is nothing to do by hand — the next run that writes the file rematerializes it, and `yg check --approve --only-deterministic` will do it on demand, free and keyless.
+
+The asymmetry exists because the realistic way a derived lock goes bad is version skew rather than corruption: a newer `yg` writes a section that a slightly older `yg`, on the other side of a container or CI boundary, does not yet allow — and the older one refuses to start. Some skew between a developer's machine, a container and a pipeline is permanent, and taking the whole gate down over a rebuildable cache is the wrong trade. A malformed *committed* lock is a genuine alarm, so it stays one.
+
+Two boundaries are worth keeping straight. Only the **content** verdict is tolerated: a real I/O failure — a permission error, an unreadable mount — still propagates from either kind of file, because that is an environment fault to fix, not a cache to rebuild. And this has nothing to do with file permissions: a lock frozen at `chmod 444` also gets rewritten, but for an unrelated reason — there the write simply succeeds despite the mode (see [A read-only file does not stop a write](/concurrency#a-read-only-file-does-not-stop-a-write)), whereas here bad content is thrown away and recomputed.
 
 ## Migrating an older single-file lock
 

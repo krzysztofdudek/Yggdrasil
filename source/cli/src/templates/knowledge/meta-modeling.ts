@@ -36,9 +36,14 @@ differ in what they require and what they cost.
    disk, so a graph-directory file mapped this way really does become a subject.
 2. **\`references:\` (static).** An LLM aspect's \`references:\` list may name any
    repository-relative file — including one under the graph directory — and its bytes
-   travel in every prompt for that aspect. References are gated ONLY by repo-escape;
-   they need no mapping and no relation. Use this when the SAME file should be in
-   front of the reviewer for every unit of the aspect.
+   travel in every prompt for that aspect. References need no mapping and no relation,
+   but they are not free of gates: the entry must be well-formed (a bare string, or a
+   \`{ path, description? }\` object), the path must be non-blank, must not climb above
+   the repo root, must not repeat another entry, and must resolve on disk to an
+   EXISTING REGULAR FILE. A missing path and a path naming a directory both fail as
+   blocking \`aspect-reference-broken\` — so \`.yggdrasil/aspects/foo/\` is a refusal,
+   not a way to pull a whole rule directory into a prompt. Use this channel when the
+   SAME file should be in front of the reviewer for every unit of the aspect.
 3. **\`companion.mjs\` (per-unit, dynamic).** A companion hook returns paths to inject
    per unit — so each requirement document can pull in a DIFFERENT file (e.g. the
    check named in its own front-matter). A companion-returned path must be
@@ -64,15 +69,23 @@ graph citizens, with the obligations that implies:
   it. Keep mapped checks self-contained, or declare the relations their imports imply.
 - **Aspect cascade reaches the mapped files.** Every aspect effective on the node
   (its own, ancestors', architecture-type defaults, flow-attached) now reviews those
-  rule files as subjects. Choose the node's type deliberately and use \`when\` /
-  \`scope.files\` so a code-oriented aspect does not fire on a Markdown rule file.
-- **The type's \`when\` gives you no filtering here.** File classification
-  AUTO-EXEMPTS every path under the graph directory: the predicate returns true
-  without evaluating, so a graph-directory file may be mapped to a node of ANY type
-  without tripping \`type-when-mismatch\`. Convenient (no type contortions to model a
-  rule file) but load-bearing in the other direction — the type predicate cannot be
-  your filter, so \`scope.files\` on the aspect is the ONLY thing deciding whether a
-  given rule actually fires on a mapped rule file. Write it explicitly.
+  rule files as subjects. Choose the node's type deliberately, and do not map a
+  \`check.mjs\` and a Markdown rule file into one node expecting a predicate to keep a
+  code-oriented aspect off the Markdown — no predicate can (next point).
+- **Neither \`when\` nor \`scope.files\` filters a graph-directory file.** File
+  classification AUTO-EXEMPTS every path under the graph directory: the predicate
+  returns true without evaluating, so a graph-directory file may be mapped to a node
+  of ANY type without tripping \`type-when-mismatch\`. Convenient — but the SAME
+  evaluator runs an aspect's \`scope.files\`, and it applies the SAME auto-exempt
+  short-circuit before reading that predicate. So a mapped graph-directory file
+  vacuously passes \`scope.files\` too, whatever path or content atoms it names: a
+  meta aspect you believe you narrowed to \`check.mjs\` fires on every mapped
+  \`.yggdrasil/\` subject of the node. The two filters that DO still bite are (a) the
+  mapping itself — name exact rule-file globs in the node's \`mapping:\` rather than a
+  broad directory glob — and (b) node placement, attaching the aspect at the narrowest
+  node. An aspect-level \`when:\` can exclude the file's whole node from the aspect,
+  but it matches on nodes (relations, descendants, node clauses) and has no file-path
+  atom, so it cannot separate two files mapped to the same node.
 - **Self-reference fans out invalidation.** A meta aspect that reviews another
   aspect's check means editing that check re-verifies BOTH the check's own pairs and
   the meta aspect's verdict over it. Density of invalidation grows; keep the meta
@@ -94,8 +107,11 @@ narrowly you map. Keep it tight:
 - **Attach at the leaf, not a broad ancestor.** An aspect on a high parent cascades
   to every descendant. Put the meta aspect on the narrowest node that owns the files
   it judges.
-- **Filter with \`when\` and \`scope.files\`.** These are deterministic and free —
-  use them to target exactly the units you mean and exclude the rest.
+- **Filter with \`when\` and \`scope.files\` — but only off the graph directory.**
+  These are deterministic and free, and on ordinary source they target exactly the
+  units you mean. On a mapped \`.yggdrasil/\` file BOTH are bypassed by the
+  auto-exempt above, so neither narrows a meta aspect at all; for those files the
+  mapping and the attachment node are the whole of your control.
 - **Organize the meta aspects hierarchically.** Aspect ids may be nested in
   directories (a directory with no rule file is a pure organizational grouper), so a
   meta layer can live under its own id prefix and stay legible. See

@@ -51,7 +51,7 @@ You don't set the kind in a config field — it's inferred from which file is pr
 
 ## Status, at a glance
 
-Every aspect has a status that controls how its results show up. You move a rule along as your confidence grows: `draft` while you're still writing it (nothing is checked, nothing recorded), `advisory` once it's ready (failures show as warnings, CI stays green), `enforced` once you trust it (failures block CI).
+Every aspect has a status that controls how its results show up. You move a rule along as your confidence grows: `draft` while you're still writing it (nothing is checked, nothing recorded), `advisory` once it's ready (failures show as warnings, CI stays green — with one carve-out: a pair whose assembled prompt exceeds the tier's size limit reports `prompt-too-large` as an error whatever its status, because it can never be verified at all), `enforced` once you trust it (failures block CI).
 
 Status defaults to `enforced`. See [Aspect Status](/aspect-status) for the full lifecycle.
 
@@ -140,6 +140,16 @@ An LLM rule has two ways to bring in supporting material:
 - **Per-unit companion files (`companion.mjs`)** — a hook that resolves different files for each unit under review. Use this when each file being reviewed has a unique counterpart in another node — a scenario document paired with its matching test spec, a migration paired with its schema. The hook returns paths; the runner reads the files and injects them into that unit's prompt only. A companion's verdict folds everything it reads to decide, so read narrowly (one file via `ctx.fs.read`). See [Reviewers — Per-unit companion files](/reviewers#per-unit-companion-files).
 
 The two mechanisms are independent. Static references are identical for every unit; companion files vary per unit. Both count toward the tier's `max_prompt_chars` prompt-size limit. See [Reviewers](/reviewers) for authoring depth on both.
+
+Both are for LLM rules only. A rule with a `check.mjs` has no reviewer to put supporting material in front of, so `references:` on one is refused. A deterministic rule that needs a value from outside itself takes it through `ctx.config` — see [Packages](/packages#settings-a-rule-reads-ctx-config), where a rule's settings are declared by its package and set by the repository installing it, and where reading one makes it part of that rule's verdict.
+
+A rule can also **name** its companion instead of shipping one beside itself, with a repo-relative `companion:` path in `yg-aspect.yaml`:
+
+```yaml
+companion: tools/pair-scenario-with-spec.mjs
+```
+
+The named module is loaded exactly as a sibling `companion.mjs` would be, and its content is folded into the verdict the same way — editing it re-opens the verdicts it helped produce. This exists for a rule you did not write: a rule [installed from a package](/packages) cannot know your repository's layout, so `companion:` in that rule's `yg-aspect.adapt.yaml` is how you point it at a resolver that does. The path must exist when the graph loads; a missing one is a graph error, not a surprise in the middle of a review.
 
 ## Organizing rules in directories
 

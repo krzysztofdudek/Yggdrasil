@@ -91,64 +91,33 @@ ports:
     aspects: [correlation-tracking]
 ```
 
-A consumer opts into the port through its relation, with `consumes`:
+A relation opts into the port by naming it in `portNames`:
 
 ```yaml
 # orders/order-service/yg-node.yaml
 relations:
   - target: payments/payment-service
     type: calls
-    consumes: [charge]
+    portNames: [charge]
 ```
 
-Now `orders/order-service` must satisfy `correlation-tracking` for its own code, because it consumes the `charge` port. The rule has crossed the boundary.
+(`consumes:` still works, as a deprecated alias for `portNames:`.)
 
-**Why this exists.** A rule attached to a parent node reaches all of its children automatically. But it does not cross a relation. A helper that lives outside the audited parent, yet gets called from inside it, would slip past the audit rule. Ports restore the boundary: the owner publishes the rule as a port, the caller declares `consumes`, and the rule reaches the caller's code along the call.
+Now `orders/order-service` must satisfy `correlation-tracking` for its own code, because its relation names the `charge` port. The rule has crossed the boundary.
 
-Four blocking errors keep the port contract honest, and none of them has an "accept the gap" option:
+**Why this exists.** A port is a named entry to a node. `default` is the name every node carries without declaring it, and it is the entry every relation uses unless the relation names another. A rule attached to a parent node reaches all of its children automatically, but it does not cross a relation: a helper that lives outside the audited parent, yet gets called from inside it, would slip past the audit rule. Ports restore the boundary — the owner publishes the rule on a port, and the rule reaches every relation that enters through that port. Aspects flow through whichever entry declares them, and only through the entry a relation actually names: a relation that names a specific port enters only through that port, not through `default` as well. You declare a port to hang a rule on it — never to force anyone to declare anything; a relation that names nothing is the ordinary path, not a gap.
+
+Three blocking errors keep the port contract honest, and none of them has an "accept the gap" option:
 
 | Code | When it fires | Fix |
 |---|---|---|
-| `port-missing-consumes` | The target declares ports and the consumer's relation declares no `consumes`. | Declare which ports you consume, or remove the ports from the target. |
-| `consumes-without-ports` | A relation declares `consumes` naming a target that declares no ports at all. | Drop the `consumes`, or add the named port to the target. |
-| `port-undefined` | A relation's `consumes` names a port the target does not have. | Fix the port name, or add the missing port to the target. |
-| `port-missing-aspect` | A consumed port lists a rule that is not defined under `aspects/`. | Define the rule, or remove it from the port. (An undefined id is caught as `aspect-undefined` whether or not the port is consumed; this code is the "and it is actually being consumed" case.) |
+| `port-names-empty` | A relation declares `portNames` (or its deprecated alias) as an empty list. Unlike the other two rows this is not a distinct issue code: an empty list fails node parsing, so `yg check` reports it as `yaml-invalid` (rule `invalid-node-yaml`) and the text `port-names-empty` appears only inside that error's message. Filtering `yg check --json` or writing a suppression on `port-names-empty` matches nothing. | Omit the field entirely to enter through `default`, or name at least one real port. |
+| `port-undefined` | A relation names a port the target does not publish — including when the target publishes no ports at all. `default` never fires this: it always exists. | Fix the port name, or add the missing port to the target. |
+| `port-missing-aspect` | A named port — `default` included — lists a rule that is not defined under `aspects/`. | Define the rule, or remove it from the port. (An undefined id is caught as `aspect-undefined` whether or not a relation names the port; this code is the "and a relation actually enters through it" case.) |
 
 Each message names the relation, explains what would go unverified, and tells you what to add.
 
-### A port's version and its contract test
-
-A port can also say which version of the contract it is, and which test *is* that contract:
-
-```yaml
-# payments/payment-service/yg-node.yaml
-ports:
-  charge:
-    description: "Charge a payment method"
-    version: 1
-    test: tests/contracts/charge.test.ts
-    aspects: [correlation-tracking]
-```
-
-Both fields are optional, and a port that declares neither behaves exactly as before.
-
-`version:` is a whole number of 1 or more (leaving it out means 1). It is what consumers pin to when they talk about the contract — "we are on `charge` at 1" — so it only ever rises.
-
-`test:` is a path relative to the repository root. It may live inside the component's own files or outside them; a contract test is often shared, owned by neither side. The file has to exist.
-
-Together they buy you one rule, and it is the reason the pair exists:
-
-> **The contract test cannot change unless the version changes.**
-
-The first approving run — including the free, keyless `yg check --approve --only-deterministic` — records what the test contains at that version. From then on, editing that file while the version stays put is a blocking error that names the port, the file and the version, and gives you both ways out: raise `version:` (recording *why* with `yg log add`), or restore the file. Raising the version records the new contract alongside the old one, so a version you used before keeps pointing at the contract it named.
-
-| Code | When it fires | Fix |
-|---|---|---|
-| `port-contract-unrecorded` | The port names a test that has no recorded contract at this version yet. | `yg check --approve --only-deterministic` — free, no reviewer, no key. |
-| `port-contract-changed` | The test changed (or the port now names a different file) while the version stayed the same. | Raise `version:`, or restore the file. |
-| `port-test-missing` | The `test:` path does not resolve to a readable file. | Point it at the real contract test, or remove the field. |
-
-Like the relation check above, this is built in: there is no rule file to soften, no status to demote it with, and no waiver that reaches it. A contract a consumer could waive is not a contract.
+The port contract has one advisory diagnostic outside that table: `port-default-reserved` (rule `reserved-port-name`, severity **warning**). It fires whenever a node explicitly declares a port literally named `default`. Declaring it is legal — it is how you hang aspects on the implicit entry every node already carries — but on a graph written before `default` became reserved the name may have meant an ordinary, unrelated port whose meaning has now changed underneath it. So the warning asks you to confirm one thing: are this port's aspects really meant to apply to every consumer that names no port? If yes, leave it. If the name predates the reservation and meant something else, rename it. The check is stateless, so it fires on every run rather than once — nobody has to hunt for a suppression to make it go away after they have looked. It never blocks `yg check`.
 
 ---
 
@@ -167,6 +136,8 @@ nodes:
 aspects:
   - correlation-tracking
 ```
+
+`nodes:` may also be written as `participants:` — the parser accepts the two as full aliases, and its own error messages name both spellings, so a file using either key (or an error quoting the other one) is reading the same field.
 
 Every aspect on the flow applies to every participant. So `correlation-tracking` above is now a rule each of those three services must satisfy — one place to require it across a whole process, instead of repeating it on every node.
 

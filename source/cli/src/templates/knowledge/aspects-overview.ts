@@ -184,7 +184,9 @@ node. For the full caching, hashing, and merge model:
 ## Aspect status
 
 Aspects declare \`status: draft | advisory | enforced\` (default \`enforced\`).
-Status is rendering only — it never changes a verdict's validity.
+Status never changes a verdict's validity. Rendering is its main effect, but not
+its only one — \`enforced\` also gates the deterministic-refusal skip and positive
+closure (see \`yg knowledge read aspect-status\`).
 
 | Status   | Expected pairs | Renders as |
 |----------|----------------|------------|
@@ -192,11 +194,17 @@ Status is rendering only — it never changes a verdict's validity.
 | advisory | yes            | warning (refused or unverified) |
 | enforced | yes            | error — blocks \`yg check\`     |
 
-Advisory never blocks; enforced always does; only \`draft\` removes a pair from the
-expected set. (The single exception, and only when progressive mode is on: an
-enforced finding the current change did not reach renders as a warning, and
-\`yg check --full\` blocks on it again. The pair's status is unchanged.) Deep
-reference: \`yg knowledge read aspect-status\`.
+Advisory never blocks a VERDICT issue; enforced always does; only \`draft\` removes
+a pair from the expected set. Two exceptions:
+1. The prompt-size gate — an oversized assembled prompt reports
+   \`prompt-too-large\` at \`error\` severity regardless of the pair's status, so it
+   blocks \`yg check\` even for an advisory rule (it can never be verified, so
+   status cannot soften it).
+2. Progressive mode — when the project sets \`progressive.reference\`, an enforced
+   finding the current change did not reach renders as a warning, and
+   \`yg check --full\` blocks on it again. The pair's status is unchanged.
+
+Deep reference: \`yg knowledge read aspect-status\`.
 
 ## Organizing aspects in directories
 

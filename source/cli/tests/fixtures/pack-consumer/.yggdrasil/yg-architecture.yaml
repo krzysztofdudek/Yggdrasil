@@ -1,0 +1,10 @@
+node_types:
+  app:
+    description: 'The one thing this repository has — a single source file, so a package can be attached to it and nothing else gets in the way.'
+    log_required: false
+    when:
+      path: "src/**"
+    aspects:
+      - no-todo
+    relations:
+      uses: [app]

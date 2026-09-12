@@ -46,7 +46,7 @@ function buildRichGraph(): { graph: Graph; node: GraphNode } {
       // channel 1: own — A (override to advisory), C (filtered by global when), D (draft)
       aspects: ['A', 'C', 'D'],
       aspectStatus: { A: 'advisory' },
-      relations: [{ target: 'dep', type: 'uses', consumes: ['port1'] }],
+      relations: [{ target: 'dep', type: 'uses', portNames: ['port1'] }],
     },
     children: [],
     parent,

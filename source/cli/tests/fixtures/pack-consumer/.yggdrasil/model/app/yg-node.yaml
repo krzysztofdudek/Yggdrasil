@@ -1,0 +1,5 @@
+name: App
+description: The consumer's own code — the component an installed rule gets attached to.
+type: app
+mapping:
+  - src/a.ts

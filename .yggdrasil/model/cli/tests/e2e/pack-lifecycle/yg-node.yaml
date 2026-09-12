@@ -1,0 +1,27 @@
+name: E2E Tests — Installing Law From Another Repository
+type: test-suite
+description: "Subprocess E2E for `yg pack`: installing a package of rules from
+  another repository, keeping the copy exactly as published, adapting it beside
+  the copy, updating it, listing it and removing it. Thirty-one scenarios drive
+  the real binary against a local directory and a local git repository built at
+  test time from the two committed marketplace fixtures — never a committed .git
+  directory — so the suite touches no network at all, with one deliberate
+  exception: the scenario that aims at a port nothing listens on, to prove an
+  unreachable source is refused quickly and leaves nothing behind. Beyond the
+  happy path it pins the three refusals that make the copy a copy (an edited
+  file, a missing one, and a file among the copies no package installed), what a
+  setting a rule reads does to that rule's recorded verdict and what a setting it
+  ignores does not, that an update carries an adaptation across byte for byte and
+  refuses outright rather than discarding an edit, and the edges a design like
+  this fails on quietly: a working tree with CRLF endings, the packages area as a
+  symbolic link, a record that cannot be written, debris left by an install that
+  died halfway, a name carrying a space and unicode, and twenty rules with two
+  hundred files staying inside a stated bound."
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-pack-lifecycle.test.ts

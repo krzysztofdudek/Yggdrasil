@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # The one committed fixture with coverage.type_level ON that a portal
 # extraction ever runs against. Deliberately small: one node-owned file, one

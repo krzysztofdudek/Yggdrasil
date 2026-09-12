@@ -1,0 +1,9 @@
+# One marketplace, one fault. Nothing else here is wrong.
+schema: yg-marketplace/1
+packages:
+  - name: demo
+    path: packages/demo
+    version: 1.0.0
+  - name: ghost
+    path: packages/ghost
+    version: 1.0.0

@@ -1,0 +1,23 @@
+name: Pack Command Unit Tests
+type: test-suite
+description: "Unit tests for the `yg pack` command surface and the two pure
+  pieces of judgement it makes before anything is fetched or written: how a
+  package's record is rendered back to disk (sorted, so two installs of the same
+  set are byte-identical and a diff shows only what moved), and what the
+  adaptation stub written beside a copied rule says — which keys may be changed,
+  which may not and why, and the package's own defaults as live YAML rather than
+  as comments, because a setting someone has to discover before they can change
+  it is a setting nobody changes. Nothing here runs git or reaches a network; the
+  fetch, the install and the refusals are the e2e suite's."
+aspects: []
+relations:
+  - target: cli/commands/pack
+    type: uses
+  - target: cli/io/stores
+    type: uses
+  - target: cli/io/parsers/packages
+    type: uses
+  - target: cli/model/packages
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/pack.test.ts

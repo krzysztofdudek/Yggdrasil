@@ -44,10 +44,6 @@ describe('yg node — the component document', () => {
     expect(doc.name).toBe('PaymentsService');
     expect(doc.parent).toBe('services');
     expect(doc.ports.charge.aspects).toEqual(['audit-required']);
-    // Not yet declarable on a port — present as null so a consumer's reader
-    // does not change shape the day they are.
-    expect(doc.ports.charge.version).toBeNull();
-    expect(doc.ports.charge.test).toBeNull();
   });
 
   it('gives a consumer its declared relation with the port it consumes', async () => {
@@ -112,7 +108,6 @@ describe('yg node — the component document', () => {
       expect(stdout).toContain('Owns (1):');
       expect(stdout).toContain('src/services/payments.ts');
       expect(stdout).toContain('Ports (1):');
-      expect(stdout).toContain('version: (none)');
       expect(stdout).toContain('yg context --node services/payments');
     } finally {
       rmSync(dir, { recursive: true, force: true });

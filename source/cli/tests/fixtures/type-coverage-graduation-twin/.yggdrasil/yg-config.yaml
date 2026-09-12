@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # Graduation twin: one non-strict classifying type (svc), one default per:file
 # deterministic aspect, and exactly one clean-matching file

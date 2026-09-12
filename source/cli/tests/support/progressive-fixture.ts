@@ -300,7 +300,7 @@ function defaultDescription(dir: string): string {
 
 function configYaml(opts: ProgressiveFixtureOptions): string {
   return [
-    'version: "5.2.0"',
+    'version: "6.0.0"',
     ...(opts.autoApprove !== undefined ? [`auto_approve: ${opts.autoApprove}`] : []),
     'coverage:',
     '  required:',

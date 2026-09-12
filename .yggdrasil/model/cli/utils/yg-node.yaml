@@ -31,6 +31,7 @@ mapping:
   - source/cli/src/utils/coverage-exclusion.ts
   - source/cli/src/utils/debug-log.ts
   - source/cli/src/utils/git-introspect.ts
+  - source/cli/src/utils/git-pack-fetch.ts
   - source/cli/src/utils/git.ts
   - source/cli/src/utils/known-providers.ts
   - source/cli/src/utils/mapping-path.ts

@@ -74,7 +74,7 @@ function collectDeclaredRelations(graph: Graph): DeclaredRelation[] {
     for (const rel of node.meta.relations ?? []) {
       if (!graph.nodes.has(rel.target)) continue;
       if (isLineage(nodeId, rel.target)) continue;
-      out.push({ from: nodeId, to: rel.target, type: rel.type, consumes: rel.consumes ?? [] });
+      out.push({ from: nodeId, to: rel.target, type: rel.type, consumes: rel.portNames });
     }
   }
   return out;

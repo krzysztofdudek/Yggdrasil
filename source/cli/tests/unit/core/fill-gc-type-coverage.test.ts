@@ -86,7 +86,7 @@ function buildGraph(
 
   return {
     config: {
-      version: '5.2.0',
+      version: '6.0.0',
       reviewer: { tiers: { default: { provider: 'ollama', model: 'test', temperature: 0, consensus: 1 } }, default: 'default' },
       coverage: { required: ['/'], excluded: [], typeLevel: true },
     },

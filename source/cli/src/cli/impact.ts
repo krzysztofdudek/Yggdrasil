@@ -34,6 +34,11 @@ import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } f
 import { IMPACT_JSON_SCHEMA, formatImpactJson } from '../formatters/impact-json.js';
 import { buildImpactDocument } from '../core/graph/machine-documents.js';
 
+// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
+// a value import, to avoid an undeclared new dependency edge onto
+// cli/model/graph for one reserved string.
+const DEFAULT_PORT_NAME = 'default';
+
 export function registerImpactCommand(program: Command): void {
   program
     .command('impact')
@@ -93,7 +98,7 @@ export function registerImpactCommand(program: Command): void {
                 `Error: ${buildIssueMessage({
                   what: `--json is not available for --aspect, --flow, or --type.`,
                   why: `A ${IMPACT_JSON_SCHEMA} document describes the blast radius of ONE component — its subject is a component path, and an aspect, a flow, or a type has no such subject. Emitting one for them would mean a second document shape hiding behind the same schema tag.`,
-                  next: `Run yg impact --node <path> --json (or --file <path> --json) for the machine document, or drop --json for the aspect/flow/type report.`,
+                  next: `For a component's blast radius as a document, run yg impact --node <path> --json (or --file <path> --json). For one rule's reach as a document — every unit it judges, with the effective status there — run yg aspects --json --reach; for what the lock says about each of those units, yg check --json, whose pairs join to it on the same unit. Otherwise drop --json for the aspect/flow/type report.`,
                 })}\n`,
               ),
             );
@@ -341,8 +346,12 @@ export function registerImpactCommand(program: Command): void {
           } else {
             for (const dep of direct) {
               const rel = relationFrom.get(`${dep}->${nodePath}`);
-              const annot = rel?.consumes?.length
-                ? ` (${rel.type}, consumes: ${rel.consumes.join(', ')})`
+              // 'default' is never absent any more (an undeclared relation
+              // normalizes to it) — only a port named BEYOND the implicit one
+              // is worth annotating.
+              const namedPorts = rel?.consumes.filter((p) => p !== DEFAULT_PORT_NAME) ?? [];
+              const annot = namedPorts.length > 0
+                ? ` (${rel!.type}, consumes: ${namedPorts.join(', ')})`
                 : rel
                   ? ` (${rel.type})`
                   : '';

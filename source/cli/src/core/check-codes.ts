@@ -54,12 +54,27 @@ export const STRUCTURAL_CODES = new Set<string>([
   'when-unknown-type',
   'when-unknown-node',
   'when-unknown-port',
-  // Port-contract codes — blocking architecture-gate errors (documented in the
-  // ports-and-relations knowledge topic); belong in the single-source structural set.
-  'port-missing-consumes',
+  // The `when` reference family has one NON-blocking sibling deliberately absent
+  // here because it is a warning, not a gate: 'when-unmatched-port' (rule
+  // 'when-unmatched-port'), a `has_port` naming a port no node declares. Unlike
+  // an unknown consumes_port, that shape is an established idiom for a
+  // deterministically-false gate and is legal against a port not declared yet,
+  // so it can only advise.
+
+  // Port-contract codes — the BLOCKING architecture-gate errors (documented in the
+  // ports-and-relations knowledge topic); they belong in the single-source
+  // structural set. The port contract also has one NON-blocking code that is
+  // deliberately absent here because it is a warning, not a gate:
+  // 'port-default-reserved' (rule 'reserved-port-name'), documented in the same
+  // knowledge topic and on the relations-flows-ports docs page.
+  // A file installed from a package no longer matches what that package
+  // published — edited, missing, or never installed at all. Blocking and
+  // built in: an installed rule's whole value is that it is the rule its
+  // author published, and a check that could be sharpened or suppressed
+  // would not carry that.
+  'package-file-modified',
   'port-undefined',
   'port-missing-aspect',
-  'consumes-without-ports',
   'relation-target-forbidden',
   'aspect-unexpected-rule-source',
   'aspect-missing-rule-source',
@@ -105,13 +120,6 @@ export const STRUCTURAL_CODES = new Set<string>([
   // apply — always blocking, independent of whether the file sits under a
   // required or advisory coverage root.
   'ambiguous-node-type',
-  // Port-contract baseline codes — the built-in check that holds a port's
-  // declared contract test to the version it was recorded at. Blocking and not
-  // waivable, like relation-undeclared-dependency: a port is a contract, and a
-  // contract that can move unannounced is not one.
-  'port-contract-changed',
-  'port-contract-unrecorded',
-  'port-test-missing',
 ]);
 
 /**
@@ -335,7 +343,10 @@ export function baseCodeOfOutsideTwin(code: string): string | undefined {
  *     matches its own sha256 anchor), duplicated, or older than the installed
  *     CLI's canonical digest. Computed ONLY from injected
  *     RunCheckOptions.rulesArtifacts (the CLI boundary reads the three files and
- *     supplies the canonical hash; core does no fs of its own). Pure read-only
+ *     supplies the canonical hash; core does no fs of its own), and only for the
+ *     artifacts the project's own `rules_artifacts` config keeps ON — an
+ *     artifact a repository switched off is never compared, since no
+ *     `yg init --upgrade` would ever bring it into sync. Pure read-only
  *     warning, deliberately outside every blocking set — it never writes the
  *     lock, changes a verdict, or gates `--approve`. Emitted by checkDigestGate.
  *

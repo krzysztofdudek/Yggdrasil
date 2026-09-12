@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
+import type { RulesArtifactsConfig } from '../../model/graph.js';
+import { DEFAULT_RULES_ARTIFACTS } from '../../model/graph.js';
 import { issueMsg } from './shared.js';
 import { findMarkerBlockRanges, unfencedLineIndices } from '../../utils/marker-block.js';
 import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_RELATIVE_PATH, AGENTS_IMPORT_LINE_LOWER } from '../../utils/rules-artifact-names.js';
@@ -163,32 +165,50 @@ const CLAUDE_IMPORT_LABEL = `${CLAUDE_FILENAME} @${AGENTS_FILENAME} import`;
  * every node-shaped view report a component that does not exist — a pair and
  * node count in `yg check`, a row of its own in `--summary`, and an entry in
  * the web view's node lists linking to a page that cannot exist.
+ *
+ * `enabled` is the repository's own `rules_artifacts` configuration: an
+ * artifact it switched OFF is not inspected at all, so none of the four states
+ * above can be reported for it. Absent configuration — every existing adopter —
+ * resolves to all three enabled, which is this gate's behavior unchanged. The
+ * opt-out is what makes the warning answerable: an artifact a repository has
+ * deliberately chosen not to carry can never be brought into sync by
+ * `yg init --upgrade`, so without it the gate would repeat a remedy that could
+ * not work on every single run.
  */
-export function checkDigestGate(a: RulesArtifacts): ValidationIssue[] {
+export function checkDigestGate(
+  a: RulesArtifacts,
+  enabled: RulesArtifactsConfig = DEFAULT_RULES_ARTIFACTS,
+): ValidationIssue[] {
   const findings: Finding[] = [];
   let duplicated = false;
 
-  if (a.agentsMd === null) {
-    findings.push({ kind: 'missing', where: AGENTS_BLOCK_LABEL });
-  } else {
-    const block = firstDigestBlock(lf(a.agentsMd));
-    if (!block) {
+  if (enabled.agentsMd) {
+    if (a.agentsMd === null) {
       findings.push({ kind: 'missing', where: AGENTS_BLOCK_LABEL });
     } else {
-      duplicated = block.count > 1;
-      inspectAnchoredBlock(AGENTS_BLOCK_LABEL, block.inner, a.canonicalDigestHash, findings);
+      const block = firstDigestBlock(lf(a.agentsMd));
+      if (!block) {
+        findings.push({ kind: 'missing', where: AGENTS_BLOCK_LABEL });
+      } else {
+        duplicated = block.count > 1;
+        inspectAnchoredBlock(AGENTS_BLOCK_LABEL, block.inner, a.canonicalDigestHash, findings);
+      }
     }
   }
 
-  inspectAnchoredBlock(
-    CLINERULES_RELATIVE_PATH,
-    a.clinerules === null ? null : lf(a.clinerules),
-    a.canonicalDigestHash,
-    findings,
-  );
+  if (enabled.clinerules) {
+    inspectAnchoredBlock(
+      CLINERULES_RELATIVE_PATH,
+      a.clinerules === null ? null : lf(a.clinerules),
+      a.canonicalDigestHash,
+      findings,
+    );
+  }
 
-  const claudeOk = a.claudeMd !== null && hasAgentsImportLine(lf(a.claudeMd));
-  if (!claudeOk) findings.push({ kind: 'missing', where: CLAUDE_IMPORT_LABEL });
+  if (enabled.claudeMd) {
+    const claudeOk = a.claudeMd !== null && hasAgentsImportLine(lf(a.claudeMd));
+    if (!claudeOk) findings.push({ kind: 'missing', where: CLAUDE_IMPORT_LABEL });
+  }
 
   if (findings.length === 0 && !duplicated) return [];
 

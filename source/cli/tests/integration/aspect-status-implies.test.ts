@@ -6,7 +6,7 @@ import { loadGraph } from '../../src/core/graph-loader.js';
 import { computeEffectiveAspectStatuses } from '../../src/core/graph/aspects.js';
 
 const YG_CONFIG = `
-version: "5.2.0"
+version: "6.0.0"
 reviewer:
   default: standard
   tiers:

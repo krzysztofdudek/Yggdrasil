@@ -1,0 +1,7 @@
+# A marketplace is an ordinary git repository with this file at its root.
+# It names what the repository publishes; nothing registers anywhere.
+schema: yg-marketplace/1
+packages:
+  - name: demo
+    path: packages/demo
+    version: 0.1.0

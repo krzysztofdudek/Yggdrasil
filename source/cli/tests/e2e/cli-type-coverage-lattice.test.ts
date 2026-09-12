@@ -208,7 +208,7 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       mkdirSync(path.join(dir, '.yggdrasil', 'model'), { recursive: true });
       writeFileSync(
         path.join(dir, '.yggdrasil', 'yg-config.yaml'),
-        'version: "5.2.0"\ncoverage: { required: [src/], excluded: [], type_level: true }\n',
+        'version: "6.0.0"\ncoverage: { required: [src/], excluded: [], type_level: true }\n',
       );
       const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
       writeFileSync(

@@ -121,7 +121,7 @@ describe('computeEffectiveAspects', () => {
     const consumer = makeNode('orders', {
       meta: {
         name: 'orders', type: 'service',
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }],
       },
     });
     const graph = makeGraph({
@@ -206,7 +206,7 @@ describe('computeEffectiveAspects', () => {
       meta: {
         name: 'svc', type: 'service',
         aspects: ['own-aspect'],
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }],
       },
     });
     parent.children = [node];
@@ -280,7 +280,7 @@ describe('computeEffectiveAspects', () => {
     const node = makeNode('svc', {
       meta: {
         name: 'svc', type: 'service',
-        relations: [{ target: 'nonexistent', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'nonexistent', type: 'calls', portNames: ['charge'] }],
       },
     });
     const graph = makeGraph({ nodes: new Map([['svc', node]]) });
@@ -298,7 +298,7 @@ describe('computeEffectiveAspects', () => {
     const consumer = makeNode('orders', {
       meta: {
         name: 'orders', type: 'service',
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge', 'nonexistent'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge', 'nonexistent'] }],
       },
     });
     const graph = makeGraph({
@@ -319,7 +319,7 @@ describe('computeEffectiveAspects', () => {
     const consumer = makeNode('orders', {
       meta: {
         name: 'orders', type: 'service',
-        relations: [{ target: 'payments', type: 'calls' }],
+        relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }],
       },
     });
     const graph = makeGraph({
@@ -342,7 +342,7 @@ describe('computeEffectiveAspects', () => {
     const consumer = makeNode('orders', {
       meta: {
         name: 'orders', type: 'service',
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge', 'refund'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge', 'refund'] }],
       },
     });
     const graph = makeGraph({
@@ -435,7 +435,7 @@ describe('getAspectSource', () => {
     const consumer = makeNode('orders', {
       meta: {
         name: 'orders', type: 'service',
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }],
       },
     });
     const graph = makeGraph({
@@ -483,7 +483,7 @@ describe('computeEffectiveAspects — when filter', () => {
   });
 
   it('attach-site when on type default filters per node', () => {
-    const nodeA = makeNode('a', { meta: { name: 'a', type: 'command', relations: [{ target: 'pay', type: 'calls' }] } });
+    const nodeA = makeNode('a', { meta: { name: 'a', type: 'command', relations: [{ portNames: ['default'], target: 'pay', type: 'calls' }] } });
     const nodeB = makeNode('b', { meta: { name: 'b', type: 'command' } });
     const pay = makeNode('pay', { meta: { name: 'pay', type: 'service-client' } });
     const graph = makeGraph({
@@ -506,7 +506,7 @@ describe('computeEffectiveAspects — when filter', () => {
   });
 
   it('global AND attach-site combine via AND', () => {
-    const node = makeNode('a', { meta: { name: 'a', type: 'command', relations: [{ target: 'pay', type: 'calls' }] } });
+    const node = makeNode('a', { meta: { name: 'a', type: 'command', relations: [{ portNames: ['default'], target: 'pay', type: 'calls' }] } });
     const pay = makeNode('pay', { meta: { name: 'pay', type: 'service-client' } });
     const graph = makeGraph({
       nodes: new Map([['a', node], ['pay', pay]]),

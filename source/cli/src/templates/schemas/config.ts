@@ -4,7 +4,7 @@ export const content = `# yg-config.yaml — Schema for the Yggdrasil project co
 # Located at .yggdrasil/yg-config.yaml — one per project.
 # Edit this after running yg init to describe your project.
 
-version: "5.2.0"                  # managed by CLI — do not edit manually. Records the graph SCHEMA
+version: "6.0.0"                  # managed by CLI — do not edit manually. Records the graph SCHEMA
                                   # version this config conforms to (advances only when the graph
                                   # format changes; NOT the CLI/package release version).
 
@@ -77,6 +77,25 @@ progressive:                      # optional — names the branch your changes a
                                   # smaller answer. A change that reaches yg-architecture.yaml, or the part
                                   # of this file that decides what the graph MEANS, also answers for the
                                   # whole project — measured, deliberate, and announced the same way.
+
+rules_artifacts:                  # optional — which agent-rules files this project carries.
+  agents_md: true                 #   agents_md (default true): the AGENTS.md digest block.
+  claude_md: true                 #   claude_md (default true): the @AGENTS.md import line in CLAUDE.md.
+  clinerules: true                #   clinerules (default true): the standalone .clinerules/yggdrasil.md copy.
+                                  # Absent block, or an absent key, = true: yg init installs the file and
+                                  # yg check reports it when it drifts (rules-digest-stale) — unchanged
+                                  # behavior for every project that never sets this.
+                                  # false = that file is not this project's business: yg init does not
+                                  # write it and the staleness gate does not look at it. A file already
+                                  # on disk is LEFT THERE (yg init names it; deleting it is your call).
+                                  # claude_md cannot stay true while agents_md is false — its whole
+                                  # content is an import OF AGENTS.md — and \`yg init --no-agents-md\`
+                                  # switches both off together.
+                                  # Set it by hand here, or with yg init --no-agents-md / --no-claude-md /
+                                  # --no-clinerules, which records the choice in this file.
+                                  # Must be booleans; unknown keys rejected. Committed-config only: a
+                                  # yg-secrets.yaml overlay can never change which files the repository
+                                  # carries, since that answer must be the same for the whole team.
 
 signals:                          # optional — attention-layer switches. Absent = every signal at its default.
   attention: true                 #   attention (default true): the advisory "structurally unusual" note in

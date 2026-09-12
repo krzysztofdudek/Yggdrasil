@@ -1,5 +1,5 @@
 export const summary =
-  'Full yg command reference: check, check --approve, context, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, prime, knowledge, schemas, simulate, structure, advise, incident, suppressions, portal';
+  'Full yg command reference: check, check --approve, context, node, verdict, adopt, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, prime, knowledge, schemas, simulate, structure, advise, incident, suppressions, pack, marketplace, portal';
 
 export const content = `# CLI reference
 
@@ -48,9 +48,12 @@ a residual count when the suggested command will not clear every error.
 ### Triage views: \`--top [N]\`, \`--summary\`, \`--aspect <id>\`, and \`--details\`
 
 Four read-only flags give alternative views of the same issue set. All are
-mutually exclusive with each other, and all are incompatible with \`--approve\`
-(which has its own \`--dry-run\` cost preview). Explicit CLI flags override
-\`auto_approve\` config.
+mutually exclusive with each other, and all are incompatible with BOTH
+\`--approve\` and \`--only-deterministic\` — the writer path and its
+deterministic-fill flag. (\`--approve\` has its own \`--dry-run\` cost preview;
+\`--only-deterministic\` is refused by name, because a triage view is
+force-read-only and would otherwise silently drop the fill you asked for.)
+Explicit CLI flags override \`auto_approve\` config.
 
 \`\`\`bash
 yg check --top 5           # print only the 5 highest-priority GROUPS
@@ -69,6 +72,29 @@ reconcile with the header. \`--aspect <id>\` shows the single group for that rul
 with full per-node details; its \`Next (this group):\` line is the bare command
 to run. \`--details\` reverts to the old ungrouped per-pair layout — useful when
 you need every individual reviewer reason visible at once.
+
+### \`--coverage\`: the per-type coverage listing
+
+A different axis from the four views above. \`--coverage\` ADDS the type tier's
+own accounting to the report — per matched type, which files it covers, which
+rules enforce, which are attached but do not (with the reason and a count),
+where the inherited chain stops, plus the repo-wide roll-up of files that match
+a type and have no rule that applies to them. Plain \`yg check\` does not print
+it: it answers a question asked when the type map is written or changed, and on
+a repo with many classifying types it is most of the output on every run.
+
+\`\`\`bash
+yg check --coverage                                   # the report plus the listing
+yg check --approve --only-deterministic --coverage    # legal on the writer path too
+yg check --summary --coverage                         # per-type COUNTS only, one line each
+\`\`\`
+
+Because it widens a statement of fact rather than narrowing the issue set, it is
+mutually exclusive with nothing except \`--json\` (whose document carries the
+coverage COUNTS and never the listing). It combines with every view flag and
+with \`--approve\` / \`--only-deterministic\`, and it never moves a count, a
+verdict, or the exit code. Inside \`--summary\` / \`--top\` it renders one counts
+line per type instead of the full listing, so a triage view stays short.
 
 Guardrail: EVERY view always prints the true aggregate \`Errors (N)\`/\`Warnings (N)\`
 header and preserves the real exit code, so a narrowed view can never read as a
@@ -186,8 +212,10 @@ existing field's shape takes a new schema number.
 
 ## yg check --approve
 
-Fill every unverified pair the run answers for, then report. The only writer of verdicts (alongside
-\`yg log merge-resolve\`, which writes the per-node log baseline). Explicit flags
+Fill every unverified pair the run answers for, then report. One of the lock's
+writers, not the only one: \`yg verdict record\` writes a verdict too (the
+external-judge channel — see \`## yg verdict\` below), and \`yg log merge-resolve\`
+writes the per-node log baseline. Explicit flags
 (\`--approve\`, \`--no-approve\`, \`--only-deterministic\`) always override any
 \`auto_approve\` setting in \`yg-config.yaml\`.
 
@@ -343,10 +371,17 @@ It is ON by default; silence it with \`signals: { attention: false }\` in
 \`yg-config.yaml\` (\`signals\` is an optional mapping — its only key today is
 \`attention\`, which must be a boolean).
 
-\`--json\` renders the SAME package as one \`yg-context/1\` document on stdout
+\`--json\` renders the same CORE facts as one \`yg-context/1\` document on stdout
 instead of the text view, for a tool rather than a reader — it works with both
 \`--file\` and \`--node\`, and every exit code and every diagnostic (still on
-stderr) is unchanged. The document names the subject, its \`owner\`, the
+stderr) is unchanged. It is NOT a full parallel of the text view: the node
+form's per-aspect subject-file counts (including \`0 files — vacuous\`), its
+flows, dependents and source files, the file form's dependency list, and the
+log-state line (\`log entry required before --approve: yes/no; fresh entry
+present: yes/no\`) have no field in \`yg-context/1\` today — \`--json --node\`
+never computes the mapped files and never reads the lock. An agent that needs
+the log-gate fact before \`--approve\` must use the text \`--node\` view.
+The document names the subject, its \`owner\`, the
 \`chain\` it inherits along nearest-first (a component and its type per link;
 \`node: null\` plus a type for a file governed by its architecture type alone),
 and every effective rule with its \`id\`, effective \`status\`, reviewer \`kind\`,
@@ -367,14 +402,36 @@ schema number.
 Diagnostic — run a check or reviewer LIVE without writing the lock. Works for
 both reviewer kinds.
 
+THREE mutually-exclusive addressing modes, at most one per run — giving two is
+refused by name, so a confusion between \`--file\` and \`--files\` is never silent:
+
+- \`--node <path>\` — a component. Runs over the node's mapped files with the
+  node's own allow-listed \`ctx\` (its files plus, through declared relations,
+  related nodes' files and metadata).
+- \`--file <path>\` — ONE file enforced by its architecture type alone
+  (\`coverage.type_level\`, no owning component), using the architecture-derived
+  read allowance in place of a node mapping: what the matched type's
+  \`relations:\` allow-list permits, computed exactly as a live
+  \`check --approve\` fill computes it for this kind of unit. Refused when the
+  path already has a component (use \`--node\`) or does not classify to exactly
+  one non-strict architecture type. Graph-ATTACHED, to the file's type.
+- \`--files <paths...>\` — an ad-hoc list with NO graph attachment at all
+  (deterministic aspects only): no node mapping, no architecture
+  classification, no \`ctx.node\` / \`ctx.graph\`. For testing before the aspect
+  is wired into the graph.
+
 \`\`\`bash
 # Deterministic: run check.mjs against a node or ad-hoc files
 yg aspect-test --aspect sibling-test-file --node orders/handler
 yg aspect-test --aspect no-sync-fs --files src/orders/handler.ts
 yg aspect-test --aspect sibling-test-file --node orders/handler --check-determinism
 
+# A file its architecture type alone enforces — no owning component
+yg aspect-test --aspect no-sync-fs --file src/orders/handler.ts
+
 # LLM: run the reviewer, or preview the assembled prompt
 yg aspect-test --aspect test-quality --node orders/handler
+yg aspect-test --aspect test-quality --file src/orders/handler.ts
 yg aspect-test --aspect test-quality --node orders/handler --dry-run
 
 # LLM: measure how consistently the reviewer judges the SAME prompt
@@ -417,16 +474,20 @@ separately; any single refused run marks the unit refused (exit 1), and a unit
 whose runs ALL erred is incomplete (fail closed). \`--repeat\` is rejected with
 \`--dry-run\` (no call to repeat), with \`--files\`, and for deterministic aspects
 (a local check is already exactly reproducible — use \`--check-determinism\`
-there). Use it while authoring an LLM rule to catch a prompt so ambiguous the
-reviewer flips its own verdict run to run.
-\`--tier <name>\` (LLM aspects only, with \`--node\`) re-runs the SAME pairs under
-a named reviewer tier from the merged config (\`yg-config.yaml\` plus the local
-\`yg-secrets\` overlay), OVERRIDING the tier the aspect would normally use — the
-dry-fit for "does this still pass under the model I'm about to switch to?" It is
-purely diagnostic: no graph edits, no lock writes. An unknown tier name is an
-error listing the tiers that exist. \`--tier\` is rejected with \`--files\` and on
-deterministic aspects, and MAY combine with \`--repeat\` (each of the N runs then
-goes through the chosen tier).
+there); it accepts \`--node\` and \`--file\` alike. Use it while authoring an LLM
+rule to catch a prompt so ambiguous the reviewer flips its own verdict run to
+run.
+\`--tier <name>\` (LLM aspects only, with \`--node\` or \`--file\`) re-runs the SAME
+pairs under a named reviewer tier from the merged config (\`yg-config.yaml\` plus
+the local \`yg-secrets\` overlay), OVERRIDING the tier the aspect would normally
+use — the dry-fit for "does this still pass under the model I'm about to switch
+to?" It is purely diagnostic: no graph edits, no lock writes. An unknown tier
+name is an error listing the tiers that exist. \`--tier\` is rejected with
+\`--files\` and on deterministic aspects, and MAY combine with \`--repeat\` (each
+of the N runs then goes through the chosen tier).
+\`--dry-run\` likewise applies to LLM aspects with \`--node\` or \`--file\`, and can
+never be combined with \`--files\` at all: \`--dry-run\` is LLM-only, \`--files\` is
+deterministic-only, so the refusal names the reviewer-type mismatch.
 
 Every LLM \`aspect-test\` run that actually calls the reviewer records one line of
 LOCAL diagnostic telemetry — which reviewer judged the unit and how it voted —
@@ -514,9 +575,11 @@ rule already passes can never tell anybody anything.
 
 NOTHING is written when: the rule is unknown or only bundles others (no rule
 source of its own), the spec is not \`<path>@<commit>\`, the commit is not in the
-repository, the path was not there at that commit, the file is empty there, or
-the same bytes are already a case (a second copy measures nothing and only
-inflates a count people read as coverage). A case that turns out UNMEASURABLE —
+repository, the path was not there at that commit, the file is empty there, its
+content at that commit is not text (it carries a NUL byte), the same bytes are
+already a case (a second copy measures nothing and only inflates a count people
+read as coverage), or the two specs given to \`--violates\` and \`--satisfies\`
+resolve to the SAME case name. A case that turns out UNMEASURABLE —
 a check that needs the whole graph, or a reviewer that cannot be reached — is
 taken back out, because an unmeasurable fixture is worse than none.
 
@@ -576,8 +639,8 @@ yg impact --type service               # all nodes of this type + coverage
 \`\`\`
 
 For \`--node\`, the output ends with a one-line cost summary (\`Editing this node
-re-verifies: N LLM pair(s) = M reviewer call(s); D deterministic = free; G
-currently-green verdict(s) re-rolled\`). For \`--file\`, it ends with a precise
+re-verifies: N LLM pair(s) = M reviewer call(s) (consensus included); D
+deterministic = free; G currently-green verdict(s) re-rolled\`). For \`--file\`, it ends with a precise
 \`Total to re-verify:\` block -- billed reviewer calls, free deterministic pairs,
 and currently-green verdicts re-rolled -- preceded by a per-node breakdown tagged
 with why each node is affected (own pairs / references this file / companion
@@ -593,12 +656,22 @@ redirects you to \`yg impact --aspect <id>\`.
 resolved the owning component -- as one \`yg-impact/1\` document on stdout instead
 of the text report, for a tool rather than a reader. The document names the
 \`subject\`; every port the component publishes under \`ports\` with that port's
-\`version\`, \`test\` and the \`consumers\` that name it in a \`consumes:\` list;
-every component that depends on it under \`dependents\`, each marked \`direct\`
-(it declares a relation onto the subject, and \`relations\` names each relation's
-type and the ports it consumes) or not (reached through other components, so
-\`relations\` is empty); and, under \`transitive\`, each indirect dependent with
-the \`via\` path it is reached through. Both target forms produce the SAME
+\`name\` and the \`consumers\` that name it -- each one the consuming node's path
+and the relation type it names the port through; every component that depends
+on it under \`dependents\`, each marked \`direct\` (it declares a STRUCTURAL
+relation onto the subject) or not (reached only through other components); and,
+under \`transitive\`, each indirect dependent with
+the \`via\` path it is reached through. \`dependents\` membership and \`direct\`
+are decided by the structural relation types alone (\`uses\`, \`calls\`,
+\`extends\`, \`implements\`); \`relations\` is NOT limited to those — it lists every
+relation, of ANY type, the dependent declares straight onto the subject. So a
+non-direct dependent's \`relations\` is usually empty but is not guaranteed to
+be: one reached structurally only through a third component can still declare an
+\`emits\` / \`listens\` edge onto the subject and report it here. Branch on
+\`direct\`, never on \`relations.length === 0\`.
+A relation's port list is never empty:
+one that names no port reports \`default\`, the port every component carries
+whether or not it declares one. Both target forms produce the SAME
 document for the same component, byte for byte: stdout carries it alone, so the
 owner-resolution line \`--file\` normally prints is suppressed and every redirect
 that produces no document (a graph file, a path excluded by design, a file no
@@ -606,9 +679,12 @@ component owns) moves to stderr with its exit code unchanged. A \`--json\` run
 that already has its component also skips the per-pair cost enumeration -- cost
 is the text report's job, not the document's. \`--json\` is REFUSED for
 \`--aspect\`, \`--flow\` and \`--type\`: their subject is not a component, and a
-second document shape must not hide behind the same schema tag. Fields may be
-added within \`yg-impact/1\`; only a change to an existing field's shape takes a
-new schema number.
+second document shape must not hide behind the same schema tag. Those facts are
+documents elsewhere: one rule's reach — every unit it judges, with the status
+there — is \`yg aspects --json --reach\`, and what the lock says about each of
+those units is \`yg check --json\`, whose pairs join to it on the same \`unit\`.
+Fields may be added within \`yg-impact/1\`; only a change to an existing field's
+shape takes a new schema number.
 
 ## yg node
 
@@ -619,19 +695,21 @@ yg node orders/order-service          # text view, for a person
 yg node orders/order-service --json   # one yg-node/1 document, for a tool
 \`\`\`
 
-Both views carry the same facts from the same document: the component's name,
-type and description; the files it owns (\`mapping\`); the components it declares
-a dependency on (\`relations\`, each with the ports it \`consumes\`); the ports it
-publishes (\`ports\`, each with its \`description\`, contract \`version\`, contract
-\`test\`, and the \`aspects\` a consumer of that port must satisfy); and where it
-sits in the hierarchy (\`children\`, \`parent\`).
+Both views carry the same facts from the same document: the component's \`path\`
+and its name, type and description; the files it owns (\`mapping\`); the
+components it declares a dependency on (\`relations\`, each with its \`target\`,
+its \`type\`, the ports it \`consumes\` and, on the event relation types, the
+\`event_name\` it names); the ports it publishes (\`ports\`, each with its
+\`description\` and the \`aspects\` a consumer of that port must satisfy); and
+where it sits in the hierarchy (\`children\`, \`parent\`).
 
 It carries NO rule set on purpose. What a subject must satisfy is
 \`yg context\`'s answer -- assembled from the full seven-channel cascade, with
 each rule's effective status -- and a partial copy here would give you two
 places to learn one fact and one of them to get wrong. A port's \`aspects\` is
 not that: it is the contract the port declares onto its consumers, part of the
-component's own structure.
+component's own structure. A relation's port list is never empty the same way:
+naming none reports \`default\`, the port every component carries implicitly.
 
 A path naming no component is refused with what/why/next and exit 1. Fields may
 be added within \`yg-node/1\`; only a change to an existing field's shape takes a
@@ -781,12 +859,21 @@ with no waiver, never counts). It is a COUNT with a plain-words small-sample lab
 never a bare rate, and — like every signal here — never a gate: it feeds a human
 retirement ritual (the false-block budget — each rule debits the repo by its shrunk
 false-block rate, and retiring the worst offenders makes room for new rules), never
-an automatic block. The last column, **wrong-rule**, is the per-rule incident join:
+an automatic block. The next column, **wrong-rule**, is the per-rule incident join:
 how many committed \`wrong-rule\` incidents name THIS rule via
 \`yg incident add --aspect\` — an honest COUNT always carrying a \`(thin data)\` label,
 because incident testimony is sparse and qualitative (there is no exposure denominator
 to outgrow thin-ness). A \`wrong-rule\` incident recorded WITHOUT \`--aspect\` counts in
-the \`yg advise\` aggregate but never surfaces per-rule here. Honesty
+the \`yg advise\` aggregate but never surfaces per-rule here. One more column,
+**files**, is appended after **wrong-rule** — but ONLY when \`coverage.type_level\`
+is on: the count of distinct type-covered files (enforced by the rule's
+architecture type alone, no owning component) that carry a review pair for this
+rule. With the tier off the column is absent ENTIRELY — not a dash, not a zero —
+so a repository that never turns it on sees exactly the columns above and nothing
+trailing them. With the tier on the count is real and may legitimately read \`0\`.
+Note that **nodes** counts real components only, while **pairs** and **refused**
+already count node-owned and type-covered pairs together; **files** is that
+breakdown, not a separate universe. Honesty
 rule: when units have no valid result on record the **refused** cell reads
 \`unverified\`, NEVER \`0\` — an unchecked unit is not a clean one; likewise **age**
 reads \`unknown\` when that history is unavailable (a shallow clone or no
@@ -806,6 +893,33 @@ together with \`--json\` rather than folded into the same schema. Each rule also
 carries \`log\`: the timestamp of the newest entry in its own history and, when
 that entry recorded one, the \`statusChange\` it recorded — so a reader of the
 document never opens a file to know whether a rule has moved.
+
+\`\`\`bash
+yg aspects --json
+yg aspects --json --reach   # add the units behind the usage counts
+\`\`\`
+
+\`--reach\` adds \`reach.units\` to every rule: each subject the rule actually
+judges, as \`unit\` (\`kind\` + \`path\`), the \`node\` owning it (null for a file
+governed by its architecture type alone), the \`status\` it is judged under THERE,
+and where it came from — \`via\` (\`own\`, \`hierarchy\`, \`architecture\`, \`flow\`,
+\`port\`, \`implied\`, \`type\`) with \`from\` naming the ancestor, type, flow, port or
+implying rule. \`usage\` COUNTS those places; this NAMES them. The \`unit\` is
+shaped exactly like \`yg check --json\`'s \`pair.unit\`, so the two documents join
+on the same subject: reach says which units a rule governs, the check document
+says what the lock currently says about each. \`draft\` rules are listed with the
+units they reach — the gate's pair list cannot show them, since a draft pair is
+never judged — so a rule that reaches nothing and a rule not yet judging ten real
+subjects stay tellable apart, and an empty \`units\` only ever means the first. A
+bundle always reports \`units: []\`: it has no reviewer of its own, and each rule
+it implies carries its own reach. \`usage\` and \`reach\` are NOT the same tally:
+\`usage\` counts COMPONENTS the rule is effective on, \`units\` lists the review
+PAIRS it produces — one per subject file for a file-scoped rule, none at all on a
+component whose subject set is empty (a vacuous pass the gate expects no verdict
+for). Opt-in because it walks every component's mapped files; without it the
+document is unchanged. \`--reach\` without \`--json\` is refused — the enumeration
+is machine input, and the plain listing already answers the same question at a
+reader's resolution.
 
 ### \`yg aspects log\` — a rule's OWN history
 
@@ -1133,12 +1247,25 @@ read-only inspection tool.
 
 \`\`\`bash
 yg suppressions
+yg suppressions --json           # one machine-readable yg-suppressions/1 document
 \`\`\`
 
 Emits non-blocking warnings for:
 - **Unknown aspect-id** — the aspect path in the marker does not match any known aspect.
 - **Wildcard suppress** (\`*\`) — suppresses all aspects in range; any aspect added later is also silently waived.
 - **Unbounded range** — a \`yg-suppress-disable\` marker with no matching \`yg-suppress-enable\`, placed below the file head; usually a forgotten closing \`yg-suppress-enable\`, so the suppression runs to end of file by accident.
+- **Waiver on an under-approximating check** (\`waives-under\`) — the marker targets a rule declared \`errs: under\`, which by construction fires only on a provable violation and cannot false-positive. There is nothing about it to waive, so either the \`errs\` label is wrong or the flagged code deserves a second look.
+
+\`--json\` emits one \`yg-suppressions/1\` document on stdout instead of the text
+listing: \`schema\`, \`markers[]\` (each with \`aspect\`, \`file\`, \`line\`,
+\`kind\`, \`wildcard\`, \`reason\` and \`range\`), \`warnings[]\` (each with a stable
+\`code\` — \`unknown-aspect\`, \`wildcard\`, \`unbounded-range\` or
+\`waives-under\` — plus \`file\`, \`line\`, \`aspect\` and the same rendered
+\`message\` the text form prints), and \`totals\` (\`markers\`, \`files\`,
+\`fileLevel\`). The same non-blocking warnings apply; they are fields here rather
+than lines. It is a registered cross-repo family contract (Horde's \`land\`
+consumes it — see \`docs/family-contracts.md\`), and the exit code stays 0 exactly
+as in the text form.
 
 A bare \`yg-suppress-disable\` with no matching \`yg-suppress-enable\` is the
 sanctioned way to waive an entire file — but only when it sits at the top. When
@@ -1213,8 +1340,9 @@ regardless of which agent CLI or IDE is in use: a hash-anchored digest block
 inside markers in \`AGENTS.md\`, a \`@AGENTS.md\` import line added to
 \`CLAUDE.md\` (Claude Code does not read \`AGENTS.md\` natively), and
 \`.clinerules/yggdrasil.md\` (Cline's native rules location). There is no
-platform question anymore — a fresh init always writes all three artifacts;
-on an existing repo they are refreshed only on request (see below).
+platform question anymore — a fresh init writes all three artifacts unless the
+project opts one out (see "Choosing which rules files to carry" below); on an
+existing repo they are refreshed only on request.
 
 \`\`\`bash
 yg init                        # interactive wizard (TTY only) — asks only for the reviewer
@@ -1245,6 +1373,26 @@ judgment (LLM) rule exists.
 already has a \`.yggdrasil/\` — it chooses how to bootstrap a NEW project and
 never removes a reviewer an existing one configured.
 
+**Choosing which rules files to carry:**
+
+\`\`\`bash
+yg init --no-clinerules             # fresh or existing project
+yg init --upgrade --no-clinerules   # refresh the rules and record the opt-out
+\`\`\`
+
+\`--no-agents-md\`, \`--no-claude-md\` and \`--no-clinerules\` each switch one
+artifact off: \`yg init\` stops writing it, and \`yg check\`'s
+\`rules-digest-stale\` warning stops asking for it. All three carry identical
+rules, so this only decides which files an agent finds them in. The choice is
+recorded in \`.yggdrasil/yg-config.yaml\` under \`rules_artifacts\` and holds on
+every later run, for everyone who has the commit — on an existing project the
+flag is applied to the committed config and the rules reinstalled in the same
+run, TTY or not. No flag turns one back ON; that is an edit to
+\`rules_artifacts\` (see \`yg knowledge read configuration\`).
+\`--no-agents-md\` switches the CLAUDE.md import off with it, since that
+artifact is an import OF AGENTS.md. A file already on disk is never deleted:
+the run names it and leaves the removal to you.
+
 **Existing repo (\`.yggdrasil/\` already present):**
 
 \`\`\`bash
@@ -1252,7 +1400,8 @@ yg init --provider <name> [--model <m>] [--endpoint <url>]   # configure/replace
 yg init --upgrade                                             # refresh agent rules + .gitattributes; lift version bookkeeping
 \`\`\`
 
-\`--upgrade\` always refreshes the three agent-rules artifacts to the
+\`--upgrade\` always refreshes the agent-rules artifacts this project carries
+(every one whose \`rules_artifacts\` key is on — by default all three) to the
 installed CLI's current content and sweeps away every artifact a retired
 per-platform installer used to write — the CLI used to install a different
 rules file per agent (13 installers in total); \`--upgrade\` removes all of
@@ -1327,6 +1476,14 @@ yg prime            # print the full manual
 yg prime --digest   # print only the canonical committed digest block
 \`\`\`
 
+The full-manual output is context-dependent in one respect. In a repository that
+PUBLISHES packages (it has \`yg-marketplace.yaml\` at its root) or CONSUMES them
+(it has \`.yggdrasil/yg-packages.yaml\`), one extra notice line is appended just
+before the closing \`Start with: yg check\`, pointing you at
+\`yg knowledge read packages-and-marketplaces\` before you change anything under a
+package. A repository that is neither sees no such line — so an extra line there
+is the situation reporting itself, not drift.
+
 \`--digest\` prints the exact standing summary that \`yg init\` commits inside
 the \`<!-- yggdrasil:digest ... -->\` markers in \`AGENTS.md\`, and as the full
 content of \`.clinerules/yggdrasil.md\`: a short block that mandates running
@@ -1337,6 +1494,96 @@ on). \`yg check\` compares the committed digest's hash against this canonical
 value and reports \`rules-digest-stale\` — a warning — whenever a project's
 committed digest is missing, hand-edited, from an older CLI, or duplicated;
 the fix is always \`yg init --upgrade\`.
+
+## yg pack
+
+Install rules another repository publishes, and adapt them beside the copy.
+There is no registry: a marketplace is an ordinary git repository with
+\`yg-marketplace.yaml\` at its root, and the identity a package is filed under
+comes from the URL you type — the same package published from two forks is two
+different packages.
+
+\`\`\`bash
+yg pack add <url-or-path>#<package>[@<version>] [--as <owner>/<repo>]
+yg pack update [<package>] [--to <version>]
+yg pack list
+yg pack remove <package>
+yg pack new <name>
+\`\`\`
+
+- \`add\` — copies the package into
+  \`.yggdrasil/aspects/packages/<owner>/<repo>/<package>/\`, records what every
+  copied file hashed to in \`.yggdrasil/yg-packages.yaml\`, and writes a
+  \`yg-aspect.adapt.yaml\` beside each installed rule. \`--as <owner>/<repo>\`
+  supplies the publishing identity when the source cannot say for itself (a local
+  directory with no git origin). Installing a package that is already installed
+  is REFUSED, naming the installed version — use \`update\`.
+- \`update\` — replaces the copy with a newer version and carries your
+  adaptations across byte for byte. \`--to <version>\` takes an exact version
+  instead of whatever the source currently publishes; omitting the package name
+  updates every installed package. REFUSED, naming files, while a copied file has
+  been edited in place — the copy is never yours to edit; everything you want
+  different goes in the \`yg-aspect.adapt.yaml\` beside each rule, which an update
+  leaves alone. Rules whose content changed go back to \`unverified\`.
+- \`list\` — what is installed, which version, from where, and whether each copy
+  is still untouched. It names a newer version only when the source answers; an
+  unreachable source produces silence, never a claim that you are current. What a
+  reachable source said is also kept in a local, never-committed cache, which is
+  what lets \`yg advise\` mention a newer version without reaching outside the
+  repository.
+- \`remove\` — deletes the installed rules and the record. REFUSED while anything
+  in the graph still attaches one of them, listing what does.
+- \`new <name>\` — the PUBLISHING side, for a repository that is itself a
+  marketplace (see \`yg marketplace\` below). Scaffolds \`packages/<name>/\`: a
+  package manifest, one example rule that reads one setting, and the two drill
+  cases that rule needs. It adds the package to \`yg-marketplace.yaml\` by editing
+  that file rather than regenerating it, so its comments survive. Refuses a name
+  carrying a path separator, and refuses to scaffold over a directory that
+  already exists.
+
+**Installing a package runs its author's code.** A rule's script runs in your own
+process on every \`yg check\`. What is sandboxed is what a rule may READ through
+the context it is handed — never the module itself. Install only from a source
+you trust that far.
+
+The documents involved: \`yg-marketplace/1\` (the source repository's root
+manifest), \`yg-package/1\` (each package directory in the source),
+\`yg-packages/1\` (\`.yggdrasil/yg-packages.yaml\`, the installed-package record),
+the per-rule \`yg-aspect.adapt.yaml\` (no schema key), and
+\`yg-package-versions/1\` (\`.yggdrasil/.yg-packages-versions.json\`, local and
+never committed). Full topic: \`yg knowledge read packages-and-marketplaces\`.
+
+## yg marketplace
+
+Publish rules FROM this repository. A marketplace is an ordinary git repository
+with \`yg-marketplace.yaml\` at its root; it needs no \`.yggdrasil/\` of its own,
+because it publishes law rather than enforcing any, and neither subcommand loads
+a graph or asks you to create one.
+
+\`\`\`bash
+yg marketplace init
+yg marketplace check
+\`\`\`
+
+- \`init\` — writes \`yg-marketplace.yaml\` publishing nothing yet, creates
+  \`packages/\`, and — only when \`.github/workflows/\` already exists — writes
+  \`.github/workflows/yg-marketplace.yml\`, which runs the check on every push. It
+  REFUSES rather than overwrite a manifest that is already there, but leaves a
+  workflow of its own that is already there alone without refusing. It requires a
+  git repository: consumers install from a URL and pin by tag, so there is
+  nowhere to publish from until one exists.
+- \`check\` — the pre-publish check. Deterministic, free, no key, non-zero on any
+  refusal. Five questions: the manifests against the directories that exist;
+  every rule loading under the loader a consumer will use; every \`implies\`
+  resolving inside its own package; every setting read declared and every setting
+  declared read; and portability — no review date, no reference path, no
+  folder-anchored file filter, and a pair of drill cases on every deterministic
+  rule. Each finding carries its own code, explained in
+  \`yg knowledge read packages-and-marketplaces\`.
+
+One limit it states rather than implies: it does NOT run your drill cases.
+Running one needs the context a rule is handed, and a marketplace has no graph to
+build that from — install the package somewhere with a graph and run \`yg drill\`.
 
 ## Validator issue codes — verification and status
 
@@ -1364,7 +1611,7 @@ under every configuration".
 | \`aspect-companion-with-check\` | error | \`companion.mjs\` present alongside \`check.mjs\` — companion files are an LLM add-on only |
 | \`aspect-companion-runtime-error\` | error (\`--approve\` report) | \`companion.mjs\` failed to resolve/run at fill time (hook threw, bad return shape, missing path, path outside allowed-reads, or observations stayed inconsistent) — fail closed; plain check shows the pair as \`unverified\` |
 | \`prompt-too-large\` | error | Assembled prompt exceeds the resolved tier's \`max_prompt_chars\` |
-| \`lock-invalid\` | error | Lock unparseable, garbled, conflict-markered, or unknown version — fail closed |
+| \`lock-invalid\` | error | A COMMITTED lock (\`yg-lock.nondeterministic.json\`, \`yg-lock.logs.json\`, or the legacy single-file \`yg-lock.json\`) is unparseable, garbled, conflict-markered, or of an unknown version — fail closed. The DERIVED, gitignored \`.yg-lock.deterministic.json\` is exempt: the same faults there are silently discarded and the file rebuilt from scratch (debug log only, never surfaced as \`lock-invalid\`) — self-healing, not an error, and the pairs it would have covered simply read as \`unverified\` until recomputed. A real I/O failure still propagates from either kind. |
 | \`relation-undeclared-dependency\` | error (always) | Built-in relation-conformance check: node depends on another node's code without a declared, sanctioned relation. Not an aspect — not status-governed, not suppressible. Next: declare the relation in \`yg-node.yaml\` or remove the dependency. |
 | \`type-relation-forbidden\` | error (always) | With \`coverage.type_level\` on: a statically-resolved import between two classified endpoints (an explicit node and/or a type-covered file) has no relation type the architecture allows between their two node TYPES. Additive to \`relation-undeclared-dependency\`, not a replacement — this is the case that check cannot see because a type-covered endpoint has no \`yg-node.yaml\` to declare a relation in. Not an aspect — not status-governed, not suppressible, never cached. Next (cheapest first): allow the type pair in \`yg-architecture.yaml\`, give the target file an explicit node with a curated relation, or remove the dependency. |
 | \`log-entry-missing\` | error | \`--approve\` log gate fired |

@@ -9,7 +9,7 @@ const LOCK_LINE = '/.yggdrasil/yg-lock.*.json linguist-generated=true';
 const ADVISE_LINE = '/.yggdrasil/advise-decisions.jsonl merge=union';
 const IMPORTED_LINE = '/.yggdrasil/advise-imported.jsonl merge=union';
 const EVENTS_LINE = '/.yggdrasil/yg-events.llm.jsonl merge=union';
-const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '*.tmp'];
+const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '.yg-packages-versions.json', '*.tmp'];
 
 async function scaffoldExistingYgg(projectRoot: string, version: string): Promise<string> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
@@ -215,11 +215,11 @@ describe('runVersionUpgrade', () => {
     expect(claudeMd).toContain('@AGENTS.md');
 
     // The to-5.1.0 migration applies to the 4.0.0 seed: it removes the
-    // schemas/ directory. No migration exists between 5.1.0 and the
-    // CLI-supported 5.2.0, so the runner's version-lift fallback carries the
-    // rest of the way and the runner lands the version at 5.2.0.
+    // schemas/ directory. The to-6.0.0 migration then applies too (it has
+    // nothing to do on a project with no lock and no node YAML), carrying the
+    // version the rest of the way to the CLI-supported 6.0.0.
     const cfg = await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8');
-    expect(cfg).toContain('5.2.0');
+    expect(cfg).toContain('6.0.0');
     expect(result.migrationActions).toEqual(
       expect.arrayContaining([
         expect.stringContaining('schemas'),
@@ -237,19 +237,19 @@ describe('runVersionUpgrade', () => {
   it('is a clean no-op when config is already at the supported schema version', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-'));
     dirsToCleanup.push(projectRoot);
-    const yggRoot = await scaffoldExistingYgg(projectRoot, '5.2.0');
+    const yggRoot = await scaffoldExistingYgg(projectRoot, '6.0.0');
 
     const result = await runVersionUpgrade(projectRoot, yggRoot);
 
-    // Version must stay at 5.2.0 — no write, no false 'Migrated' action.
+    // Version must stay at 6.0.0 — no write, no false 'Migrated' action.
     const cfg = await readFile(path.join(yggRoot, 'yg-config.yaml'), 'utf-8');
-    expect(cfg).toContain('5.2.0');
+    expect(cfg).toContain('6.0.0');
     expect(result.migrationActions).toHaveLength(0);
     expect(result.migrationWarnings).toHaveLength(0);
     expect(result.withheld).toBe(false);
   });
 
-  it('lifts a 5.1.0 project straight to 5.2.0 with a version-only config diff (no migration exists for this gap)', async () => {
+  it('lifts a 5.1.0 project straight to 6.0.0 via the to-6.0.0 migration, which has nothing to do here', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-lift-'));
     dirsToCleanup.push(projectRoot);
     const yggRoot = path.join(projectRoot, '.yggdrasil');
@@ -261,16 +261,20 @@ describe('runVersionUpgrade', () => {
     const result = await runVersionUpgrade(projectRoot, yggRoot);
 
     const after = await readFile(configPath, 'utf-8');
-    // The registered migration targets 5.1.0 (not strictly greater than the
-    // 5.1.0 seed), so no migration applies — the version-lift fallback is the
-    // only path that can advance a 5.1.0 project to 5.2.0, and it must touch
-    // nothing but the version line.
+    // The registered to-6.0.0 migration targets 6.0.0, strictly greater than
+    // the 5.1.0 seed, so it DOES apply — unlike the old 5.1.0 -> 5.2.0 gap,
+    // there is no version-lift fallback involved here. On a project with no
+    // lock file and no node YAML the migration has nothing to strip or warn
+    // about, so it reports zero actions and zero warnings, but the runner
+    // still advances the version to its target. The config diff is still
+    // version-line only.
     expect(after).not.toContain('5.1.0');
-    expect(after).toContain('5.2.0');
+    expect(after).toContain('6.0.0');
     expect(after.replace(/^version:.*$/m, 'version: PLACEHOLDER')).toBe(
       before.replace(/^version:.*$/m, 'version: PLACEHOLDER'),
     );
-    expect(result.migrationActions.some((a) => a.includes('version updated to 5.2.0'))).toBe(true);
+    expect(result.migrationActions).toHaveLength(0);
+    expect(result.migrationWarnings).toHaveLength(0);
   });
 
   // Absolute coverage exclusion (a coverage.excluded root now silences a file
@@ -315,14 +319,14 @@ describe('runVersionUpgrade', () => {
     expect(result.exclusionNotice).toBeNull();
   });
 
-  it('a project already at 5.2.0 gets no exclusion notice on a no-op re-run, even with excluded roots configured', async () => {
+  it('a project already past the exclusion boundary (6.0.0) gets no exclusion notice on a no-op re-run, even with excluded roots configured', async () => {
     const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-upgrade-exclusion-noop-'));
     dirsToCleanup.push(projectRoot);
     const yggRoot = path.join(projectRoot, '.yggdrasil');
     await mkdir(path.join(yggRoot, 'model'), { recursive: true });
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'version: "5.2.0"\n\ncoverage:\n  required: []\n  excluded:\n    - src/generated\n',
+      'version: "6.0.0"\n\ncoverage:\n  required: []\n  excluded:\n    - src/generated\n',
       'utf-8',
     );
 
@@ -469,8 +473,12 @@ describe('ensureYggdrasilGitignore', () => {
     await ensureYggdrasilGitignore(yggRoot);
 
     const gi = await readFile(path.join(yggRoot, '.gitignore'), 'utf-8');
-    // The missing lines (.ast-cache/, .type-class-cache/, .debug.log, .yg-lock.deterministic.json, .yg-events.jsonl*, .yg-fill-divergence.log*, .feature-field.json, *.tmp) were appended once; existing content preserved.
-    expect(gi).toBe('custom-local-state\nyg-secrets.yaml\n.symbols-cache/\n.ast-cache/\n.type-class-cache/\n.debug.log\n.yg-lock.deterministic.json\n.yg-events.jsonl*\n.yg-fill-divergence.log*\n.feature-field.json\n*.tmp\n');
+    // Every line the file lacked was appended once, in order, and the unrelated
+    // content it already had is untouched. Built from the same list the installer
+    // reads, so adding a line to that list does not silently make this assertion
+    // describe a file the installer no longer writes.
+    const appended = GITIGNORE_LINES.filter((l) => l !== 'yg-secrets.yaml' && l !== '.symbols-cache/');
+    expect(gi).toBe(`custom-local-state\nyg-secrets.yaml\n.symbols-cache/\n${appended.join('\n')}\n`);
     for (const line of GITIGNORE_LINES) {
       const occurrences = gi.split('\n').filter((l) => l.trim() === line).length;
       expect(occurrences).toBe(1);

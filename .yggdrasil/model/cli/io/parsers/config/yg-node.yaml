@@ -8,6 +8,8 @@ relations:
     type: uses
   - target: cli/utils
     type: calls
+  - target: cli/io/stores
+    type: calls
 mapping:
   - source/cli/src/io/config-parser.ts
   - source/cli/src/io/secrets-parser.ts

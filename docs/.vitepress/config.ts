@@ -47,6 +47,7 @@ export default defineConfig({
           { text: "Aspect Status", link: "/aspect-status" },
           { text: "Conditional Aspects", link: "/conditional-aspects" },
           { text: "Configuration", link: "/configuration" },
+          { text: "Packages", link: "/packages" },
           { text: "Progressive Mode", link: "/progressive-mode" },
           { text: "CLI Reference", link: "/cli-reference" },
           { text: "Running in Parallel", link: "/concurrency" },
@@ -58,6 +59,7 @@ export default defineConfig({
         text: "Reference & deep dives",
         items: [
           { text: "The Lock", link: "/the-lock" },
+          { text: "Family Contracts", link: "/family-contracts" },
           { text: "Meta-modeling", link: "/meta-modeling" },
           { text: "Dogfood Showcase", link: "/showcase" },
         ],

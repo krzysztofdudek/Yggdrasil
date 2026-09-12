@@ -132,7 +132,9 @@ describe.skipIf(!distExists)('CLI E2E — yg impact over type-covered files', ()
       addReviewer(dir, mock.endpoint);
       await runAsync(['check', '--approve'], dir);
 
-      const check = await runAsync(['check'], dir);
+      // `--coverage`: the per-type line this reads is the coverage listing,
+      // which plain `yg check` has not printed since 6.0.0.
+      const check = await runAsync(['check', '--coverage'], dir);
       const checkLine = check.all.split('\n').find((l) => l.includes("'consumer'"));
       expect(checkLine, 'expected a per-type check line for consumer').toBeDefined();
       const m = /(\d+) files? covered/.exec(checkLine!);
@@ -158,7 +160,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact over type-covered files', ()
       addReviewer(dir, mock.endpoint);
       await runAsync(['check', '--approve'], dir);
 
-      const check = await runAsync(['check'], dir);
+      const check = await runAsync(['check', '--coverage'], dir); // the per-type line lives behind --coverage since 6.0.0
       const checkLine = check.all.split('\n').find((l) => l.includes("'leaf'"));
       expect(checkLine, 'expected a per-type check line for leaf').toBeDefined();
       const m = /(\d+) files? covered/.exec(checkLine!);

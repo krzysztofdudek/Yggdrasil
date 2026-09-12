@@ -1,0 +1,7 @@
+name: E2E Tests — Docs Port Vocabulary
+type: test-suite
+description: "Subprocess E2E pinning the 6.0.0 port vocabulary rewrite (portNames replaces consumes, an unnamed relation enters through the implicit default port) across docs and the compiled-in knowledge base: no removed port-contract/consumes-mandate code survives anywhere under docs/, the three rewritten pages (relations-flows-ports, the-lock, showcase) say 'consumes' only in the consumes_port predicate name and one changelog-style alias note, relations-flows-ports.md documents port-names-empty, yg knowledge read ports-and-relations and yg schemas read node match the current schema, yg knowledge read verification-and-lock drops the retired ports lock section, and every port-* code in check-codes.ts is documented in the relations-flows-ports.md table and vice versa (the one documented exception being port-names-empty, a parse-time error outside that registry)."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/docs-ports-vocabulary.test.ts

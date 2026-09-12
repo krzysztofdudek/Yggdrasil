@@ -108,9 +108,7 @@ import { runLlmPhase } from './fill-llm-phase.js';
 import { logGateBlocks } from './fill-log-gate.js';
 import { applyPositiveClosure } from './fill-closure.js';
 import { garbageCollectAndRewrite } from './fill-gc.js';
-import { recordPortContractBaselines } from './checks/port-contracts.js';
 import { recordAspectStatuses } from './log/aspect-status.js';
-import { writeLock } from '../io/lock-store.js';
 import { countPostUnverified, reportDivergenceIfDetected } from './fill-divergence.js';
 import { ProgressTracker } from './fill-progress.js';
 // ── Relation pass (parse + resolve) — same index runCheck's own pass builds,
@@ -268,7 +266,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   }
 
   // ── Serialized lock writer (interruption-safe, §7) + verdict telemetry. ────
-  const writer = createVerdictWriter({ graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds });
+  const writer = createVerdictWriter({ graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha: opts.sha });
 
   // Record the assembled prompt's size on any still-valid verdict that predates
   // the field. Placed BEFORE the log gate below on purpose: this writes no
@@ -394,32 +392,15 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     );
   }
 
-  // ── Step 7b: Port contract baselines. ─────────────────────────────────────
-  // A port that names the test which IS its contract gets that test's content
-  // recorded, once, per contract version — never overwritten, so a later edit at
-  // the same version is a refusal rather than a fresh baseline. Unlike closure
-  // above, this runs under --only-deterministic too: the check it feeds is
-  // deterministic and free, and a run that could not record would leave a repo
-  // permanently red on a contract it was never allowed to baseline. The record
-  // is COMMITTED state (it must survive a fresh clone to be a baseline at all),
-  // so a deterministic-only run persists exactly the logs section and nothing
-  // else — the verdict cache stays the only other thing such a run writes.
-  const portBaselinesChanged = await recordPortContractBaselines(graph, projectRoot, lock);
-  if (portBaselinesChanged) {
-    if (onlyDeterministic) await writeLock(graph.rootPath, lock, { scope: 'logs' });
-    else await writer.persistLock();
-  }
-
-  // ── Step 7c: Rule standings. ──────────────────────────────────────────────
+  // ── Step 7b: Rule standings. ───────────────────────────────────────────────
   // The standing each rule was last seen at is remembered here, and a standing
   // that moved since — a promotion or a demotion made by hand, which is the only
-  // way a status changes today — is written into that rule's own log once. Like
-  // the port baselines above it runs under --only-deterministic too: the memory
-  // costs nothing to keep, and a run that could not keep it would leave every
-  // later run either silent about the change or repeating it forever. Unlike
-  // them the memory is LOCAL — it rides with the gitignored verdict cache — so
-  // the ordinary writer persists it correctly in both modes, and neither
-  // committed file is touched.
+  // way a status changes today — is written into that rule's own log once. This
+  // runs under --only-deterministic too: the memory costs nothing to keep, and a
+  // run that could not keep it would leave every later run either silent about
+  // the change or repeating it forever. The memory is LOCAL — it rides with the
+  // gitignored verdict cache — so the ordinary writer persists it correctly in
+  // both modes, and no committed file is touched.
   const statuses = await recordAspectStatuses(graph, lock, now());
   if (statuses.changed) await writer.persistLock();
   for (const drift of statuses.recorded) {

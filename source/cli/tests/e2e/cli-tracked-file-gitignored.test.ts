@@ -80,7 +80,7 @@ function scaffold(
   writeFileSync(
     path.join(ygRoot, 'yg-config.yaml'),
     [
-      'version: "5.2.0"',
+      'version: "6.0.0"',
       'coverage:',
       '  required:',
       `    - ${opts.requiredRoot}`,
@@ -138,7 +138,7 @@ function scaffoldSymlinkAndGitlink(): string {
   );
   writeFileSync(
     path.join(ygRoot, 'yg-config.yaml'),
-    ['version: "5.2.0"', 'coverage:', '  required:', '    - src/', ''].join('\n'),
+    ['version: "6.0.0"', 'coverage:', '  required:', '    - src/', ''].join('\n'),
     'utf-8',
   );
   writeFileSync(

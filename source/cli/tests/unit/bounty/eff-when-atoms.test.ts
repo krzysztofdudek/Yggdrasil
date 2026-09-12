@@ -114,7 +114,7 @@ describe('node atom — type / has_port / has_mapping', () => {
 // ============================================================================
 
 describe('relations atom — target / target_type / consumes_port', () => {
-  function consumerGraph(when: WhenPredicate, rel: { target: string; type: any; consumes?: string[] }) {
+  function consumerGraph(when: WhenPredicate, rel: { target: string; type: any; portNames: string[] }) {
     const target = makeNode('payments', {
       meta: { name: 'payments', type: 'service-client', ports: { charge: { description: 'c', aspects: [] } } },
     });
@@ -129,21 +129,21 @@ describe('relations atom — target / target_type / consumes_port', () => {
   }
 
   it('relations.calls.target exact match true/false', () => {
-    const { node, graph } = consumerGraph({ relations: { calls: { target: 'payments' } } }, { target: 'payments', type: 'calls' });
+    const { node, graph } = consumerGraph({ relations: { calls: { target: 'payments' } } }, { portNames: ['default'], target: 'payments', type: 'calls' });
     expect(computeEffectiveAspects(node, graph).has('a')).toBe(true);
     graph.aspects[0].when = { relations: { calls: { target: 'elsewhere' } } };
     expect(computeEffectiveAspects(node, graph).has('a')).toBe(false);
   });
 
   it('relations.calls.target_type true/false', () => {
-    const { node, graph } = consumerGraph({ relations: { calls: { target_type: 'service-client' } } }, { target: 'payments', type: 'calls' });
+    const { node, graph } = consumerGraph({ relations: { calls: { target_type: 'service-client' } } }, { portNames: ['default'], target: 'payments', type: 'calls' });
     expect(computeEffectiveAspects(node, graph).has('a')).toBe(true);
     graph.aspects[0].when = { relations: { calls: { target_type: 'service' } } };
     expect(computeEffectiveAspects(node, graph).has('a')).toBe(false);
   });
 
   it('relations.calls.consumes_port true/false', () => {
-    const { node, graph } = consumerGraph({ relations: { calls: { consumes_port: 'charge' } } }, { target: 'payments', type: 'calls', consumes: ['charge'] });
+    const { node, graph } = consumerGraph({ relations: { calls: { consumes_port: 'charge' } } }, { target: 'payments', type: 'calls', portNames: ['charge'] });
     expect(computeEffectiveAspects(node, graph).has('a')).toBe(true);
     graph.aspects[0].when = { relations: { calls: { consumes_port: 'refund' } } };
     expect(computeEffectiveAspects(node, graph).has('a')).toBe(false);
@@ -151,7 +151,7 @@ describe('relations atom — target / target_type / consumes_port', () => {
 
   it('relations clause keyed by a relation TYPE the node lacks -> false', () => {
     // Node has a calls relation but the when keys on `uses`.
-    const { node, graph } = consumerGraph({ relations: { uses: { target: 'payments' } } }, { target: 'payments', type: 'calls' });
+    const { node, graph } = consumerGraph({ relations: { uses: { target: 'payments' } } }, { portNames: ['default'], target: 'payments', type: 'calls' });
     expect(computeEffectiveAspects(node, graph).has('a')).toBe(false);
   });
 
@@ -161,7 +161,7 @@ describe('relations atom — target / target_type / consumes_port', () => {
     const node = makeNode('orders', {
       meta: {
         name: 'orders', type: 'command', aspects: ['a'],
-        relations: [{ target: 'payments', type: 'calls' }, { target: 'lib', type: 'uses' }],
+        relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }, { portNames: ['default'], target: 'lib', type: 'uses' }],
       },
     });
     const graph = makeGraph({
@@ -214,7 +214,7 @@ describe('descendants atom — type / has_port / relations', () => {
   it('descendants.relations true/false', () => {
     const target = makeNode('pay', { meta: { name: 'pay', type: 'service-client' } });
     const { parent, graph } = parentWith(
-      { relations: [{ target: 'pay', type: 'calls' }] },
+      { relations: [{ portNames: ['default'], target: 'pay', type: 'calls' }] },
       { descendants: { relations: { calls: { target_type: 'service-client' } } } },
       [['pay', target]],
     );
@@ -295,7 +295,7 @@ describe('boolean combinators in when', () => {
   it('implicit all_of over multiple atomic keys (relations AND node)', () => {
     const target = makeNode('pay', { meta: { name: 'pay', type: 'service-client' } });
     const node = makeNode('orders', {
-      meta: { name: 'orders', type: 'command', aspects: ['a'], relations: [{ target: 'pay', type: 'calls' }] },
+      meta: { name: 'orders', type: 'command', aspects: ['a'], relations: [{ portNames: ['default'], target: 'pay', type: 'calls' }] },
     });
     const graph = makeGraph({
       nodes: new Map([['pay', target], ['orders', node]]),
@@ -481,7 +481,7 @@ describe('global when wired into every channel — false global drops, true glob
       name: 'port',
       build: (when) => {
         const target = makeNode('pay', { meta: { name: 'pay', type: 'service', ports: { charge: { description: 'c', aspects: ['a'] } } } });
-        const node = makeNode('orders', { meta: { name: 'orders', type: 'service', relations: [{ target: 'pay', type: 'calls', consumes: ['charge'] }] } });
+        const node = makeNode('orders', { meta: { name: 'orders', type: 'service', relations: [{ target: 'pay', type: 'calls', portNames: ['charge'] }] } });
         return { node, graph: makeGraph({ nodes: new Map([['pay', target], ['orders', node]]), aspects: [aspect('a', { when })] }) };
       },
     },
@@ -617,13 +617,13 @@ describe('getAspectSource ignores when (informational provenance)', () => {
 describe('evaluateWhen — edge atoms', () => {
   it('relations.consumes_port false when relation has no consumes', () => {
     const target = makeNode('pay', { meta: { name: 'pay', type: 'service', ports: { charge: { description: 'c', aspects: [] } } } });
-    const node = makeNode('orders', { meta: { name: 'orders', type: 'command', relations: [{ target: 'pay', type: 'calls' }] } });
+    const node = makeNode('orders', { meta: { name: 'orders', type: 'command', relations: [{ portNames: ['default'], target: 'pay', type: 'calls' }] } });
     const graph = makeGraph({ nodes: new Map([['pay', target], ['orders', node]]) });
     expect(evaluateWhen({ relations: { calls: { consumes_port: 'charge' } } }, node, graph)).toBe(false);
   });
 
   it('relations.target_type false when target node is missing from graph', () => {
-    const node = makeNode('orders', { meta: { name: 'orders', type: 'command', relations: [{ target: 'ghost', type: 'calls' }] } });
+    const node = makeNode('orders', { meta: { name: 'orders', type: 'command', relations: [{ portNames: ['default'], target: 'ghost', type: 'calls' }] } });
     const graph = makeGraph({ nodes: new Map([['orders', node]]) });
     expect(evaluateWhen({ relations: { calls: { target_type: 'anything' } } }, node, graph)).toBe(false);
   });

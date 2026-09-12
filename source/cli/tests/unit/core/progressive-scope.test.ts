@@ -106,14 +106,14 @@ describe('buildReverseTargetIndex', () => {
       meta: {
         name: 'orders',
         type: 'library',
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }],
       },
     });
     const plainUser = makeNode('reports', {
       meta: {
         name: 'reports',
         type: 'library',
-        relations: [{ target: 'payments', type: 'uses' }],
+        relations: [{ portNames: ['default'], target: 'payments', type: 'uses' }],
       },
     });
     const graph = makeGraph({
@@ -217,7 +217,7 @@ function makeBurnGraph(): Graph {
       name: 'other',
       type: 'library',
       mapping: ['src/other'],
-      relations: [{ target: 'top/mid', type: 'uses' }],
+      relations: [{ portNames: ['default'], target: 'top/mid', type: 'uses' }],
     },
   });
   const globby = makeNode('globby', {
@@ -422,7 +422,7 @@ describe('computeBurnSet — model row', () => {
   it('puts a reverse-relation source of a DELETED node directory in the node set too', () => {
     const graph = makeBurnGraph();
     const other = graph.nodes.get('other')!;
-    other.meta.relations = [{ target: 'top/mid/gone', type: 'uses' }];
+    other.meta.relations = [{ portNames: ['default'], target: 'top/mid/gone', type: 'uses' }];
     const result = burn(['.yggdrasil/model/top/mid/gone/yg-node.yaml'], { graph });
     expect(result.nodePaths.has('other')).toBe(true);
   });
@@ -439,7 +439,7 @@ describe('computeBurnSet — model row', () => {
     // top/mid/gone was deleted; nodes still declaring a relation to it must re-gate.
     const graph = makeBurnGraph();
     const other = graph.nodes.get('other')!;
-    other.meta.relations = [{ target: 'top/mid/gone', type: 'uses' }];
+    other.meta.relations = [{ portNames: ['default'], target: 'top/mid/gone', type: 'uses' }];
     const result = burn(['.yggdrasil/model/top/mid/gone/yg-node.yaml'], { graph });
     expect(result.pairKeys.has(K('x', 'node:other'))).toBe(true);
   });

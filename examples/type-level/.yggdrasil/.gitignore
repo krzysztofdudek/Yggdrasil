@@ -9,3 +9,4 @@ yg-secrets.yaml
 .feature-field.json
 .yg-events.jsonl*
 *.tmp
+.yg-packages-versions.json

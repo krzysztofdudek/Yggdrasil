@@ -6,7 +6,8 @@ description: Default yg-config.yaml template and platform-specific installer
 relations:
   [
     { target: cli/templates, type: calls },
-    { target: cli/utils, type: calls }
+    { target: cli/utils, type: calls },
+    { target: cli/model/graph, type: uses }
   ]
 mapping:
   - source/cli/src/templates/default-config.ts

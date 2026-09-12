@@ -37,6 +37,10 @@ The fields:
 - **aspects** — the rules this component must satisfy. Each name points to an aspect under `.yggdrasil/aspects/`. See [Aspects](/aspects).
 - **relations** — the other components this one depends on. See [Relations, flows, ports](/relations-flows-ports).
 - **mapping** — which source files this node owns.
+- **ports** — optional. Named entry points, keyed by port name, that another component's relation can target explicitly; a port's aspects become the caller's obligation once a relation enters through it. See [Relations, flows, ports](/relations-flows-ports).
+- **max_direct_relations** — optional. A per-node override of the global high-fan-out ceiling, written as `{ limit, reason }`. It exists for a deliberate single-responsibility seam — one auditable gateway or orchestrator that concentrates coupling by design — and it sanctions a specific reviewed count rather than silencing the warning: the node still warns once it exceeds its own declared limit. See [Configuration](/configuration).
+
+The example above shows the fields a typical node carries, not every field a node file may carry — the last two are omitted far more often than they are used.
 
 ## Mapping files
 
@@ -150,6 +154,8 @@ node_types:
 ```
 
 Reach for it on the types where missing the type means missing a rule that matters — security, audit, anything regulatory. Do not reach for it while a predicate is still broad: `enforce: strict` on `path: "**"` demands that every file in the repository sit in that one type's mappings. Run `yg impact --type <id>` before you flip the flag; it previews which files would come out as orphans or misplaced, so you fix the gaps first rather than turning the build red to find them.
+
+Do **not** reach for it on a directory shared by components of more than one type. A strict type's predicate demands that every matching file belong to exactly one node *of that type* — so a directory where files belonging to two different node types genuinely live side by side produces `type-strict-misplaced` on everything that doesn't happen to belong to the strict type, and that is not a tool bug, it is the predicate doing exactly what `enforce: strict` asked for on a directory it cannot own alone. Narrow the predicate (a tighter `path:` glob, or a `content:` check) or physically split the directory so each type's files have their own home — never drop `strict` from the type that actually needs it just to silence the noise.
 
 The backward scan honors [`coverage.excluded`](/configuration#coverage-config) like every other coverage question does: a file under an excluded root is never a candidate for `type-strict-orphan` or `type-strict-misplaced`, even when it satisfies the type's `when`. A path you have excluded is gone from this graph's coverage entirely — not merely from the ordinary tiering — so the backward scan has nothing to say about it either.
 

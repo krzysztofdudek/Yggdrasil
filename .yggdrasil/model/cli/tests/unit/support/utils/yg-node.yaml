@@ -7,7 +7,7 @@ description: "Unit tests for filesystem and path utility modules: atomic writes,
 aspects: []
 relations:
   [
-    { target: cli/io/atomic-write, type: uses, consumes: [write-atomic] },
+    { target: cli/io/atomic-write, type: uses },
     { target: cli/io/stores, type: uses },
     { target: cli/utils, type: uses }
   ]

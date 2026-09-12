@@ -1,9 +1,40 @@
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, beforeEach, vi } from 'vitest';
+import { Command } from 'commander';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { runSuppressionsScan, formatSuppressionsOutput } from '../../../src/cli/suppressions.js';
 import { scanSuppressionMarkers } from '../../../src/ast/suppress.js';
+
+// ── --json command wiring (below) needs a real graph load + repo walk per
+// invocation — mocked the same way suppressions-disk-scan.test.ts mocks them,
+// so `registerSuppressionsCommand` can be driven in-process without a real
+// `.yggdrasil/` project on disk. Only `walkRepoFiles` is replaced (spread over
+// the real module) — neither `runSuppressionsScan` nor
+// `computeSuppressionScanUniverse` calls it themselves (they take an already-
+// resolved file list as a parameter), so every OTHER describe block in this
+// file, which drives those two directly against real temp files, is unaffected.
+vi.mock('../../../src/cli/preamble.js', () => ({
+  loadGraphOrAbort: vi.fn(),
+  abortOnUnexpectedError: vi.fn(),
+}));
+vi.mock('../../../src/utils/debug-log.js', () => ({
+  initDebugLog: vi.fn(),
+  debugWrite: vi.fn(),
+}));
+vi.mock('../../../src/io/debug-log-writer.js', () => ({ appendToDebugLog: vi.fn() }));
+vi.mock('../../../src/io/repo-scanner.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/io/repo-scanner.js')>();
+  return { ...actual, walkRepoFiles: vi.fn() };
+});
+
+import { registerSuppressionsCommand } from '../../../src/cli/suppressions.js';
+import { loadGraphOrAbort, abortOnUnexpectedError } from '../../../src/cli/preamble.js';
+import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
+
+const mockLoadGraph = vi.mocked(loadGraphOrAbort);
+const mockWalkRepoFiles = vi.mocked(walkRepoFiles);
+const mockAbort = vi.mocked(abortOnUnexpectedError);
 
 // ── scanSuppressionMarkers ────────────────────────────────
 
@@ -500,5 +531,85 @@ describe('suppressions warning generation (via runSuppressionsScan logic in isol
     const out = formatSuppressionsOutput(report);
     // Still shows "no markers" (empty entries) even with warnings
     expect(out).toContain('No active suppression markers found.');
+  });
+});
+
+// ── --json flag ────────────────────────────────────────────
+//
+// `yg suppressions --json` prints one `yg-suppressions/1` document instead of
+// the prose listing — same scan, same exit-0 behavior, just a different
+// formatter over the same report (formatSuppressionsJson vs
+// formatSuppressionsOutput). Driven in-process via registerSuppressionsCommand
+// + Commander's parseAsync, the same shape suppressions-disk-scan.test.ts uses.
+
+describe('registerSuppressionsCommand --json', () => {
+  let tmpDir: string;
+  let stdoutChunks: string[];
+  let stdoutSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    tmpDir = mkdtempSync(path.join(tmpdir(), 'yg-supp-json-'));
+    stdoutChunks = [];
+    stdoutSpy = vi.spyOn(process.stdout, 'write').mockImplementation((chunk) => {
+      stdoutChunks.push(String(chunk));
+      return true;
+    });
+    mockLoadGraph.mockReset();
+    mockWalkRepoFiles.mockReset();
+    mockAbort.mockReset();
+    mockLoadGraph.mockResolvedValue({
+      rootPath: path.join(tmpDir, '.yggdrasil'),
+      aspects: [{ id: 'auth-guard' }],
+      config: {},
+      nodes: new Map(),
+    } as never);
+  });
+
+  afterEach(() => {
+    stdoutSpy.mockRestore();
+    rmSync(tmpDir, { recursive: true, force: true });
+  });
+
+  async function runSuppressions(args: string[]): Promise<void> {
+    const program = new Command();
+    program.exitOverride();
+    registerSuppressionsCommand(program);
+    await program.parseAsync(['node', 'yg', 'suppressions', ...args]);
+  }
+
+  it('registers a --json option on the command', () => {
+    const program = new Command();
+    registerSuppressionsCommand(program);
+    const cmd = program.commands.find((c) => c.name() === 'suppressions')!;
+    expect(cmd.options.some((o) => o.long === '--json')).toBe(true);
+  });
+
+  it('--json calls formatSuppressionsJson: prints one parseable yg-suppressions/1 document; exit 0', async () => {
+    const srcDir = path.join(tmpDir, 'src');
+    mkdirSync(srcDir, { recursive: true });
+    writeFileSync(
+      path.join(srcDir, 'handler.ts'),
+      '// yg-suppress(auth-guard) legacy endpoint, tracked in debt registry\ndoWork();\n',
+    );
+    mockWalkRepoFiles.mockResolvedValue(['src/handler.ts']);
+
+    await runSuppressions(['--json']);
+
+    const output = stdoutChunks.join('');
+    const doc = JSON.parse(output) as { schema: string; markers: unknown[] };
+    expect(doc.schema).toBe('yg-suppressions/1');
+    expect(doc.markers).toHaveLength(1);
+    expect(mockAbort).not.toHaveBeenCalled();
+  });
+
+  it('without --json calls formatSuppressionsOutput: prints the prose listing, not JSON; exit 0', async () => {
+    mockWalkRepoFiles.mockResolvedValue([]);
+
+    await runSuppressions([]);
+
+    const output = stdoutChunks.join('');
+    expect(output).toContain('No active suppression markers found.');
+    expect(() => JSON.parse(output)).toThrow();
+    expect(mockAbort).not.toHaveBeenCalled();
   });
 });

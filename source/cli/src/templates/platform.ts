@@ -7,6 +7,8 @@ import {
   type MarkerBlockRange,
 } from '../utils/marker-block.js';
 import { AGENTS_FILENAME, CLAUDE_FILENAME, CLINERULES_DIR, CLINERULES_FILENAME } from '../utils/rules-artifact-names.js';
+import type { RulesArtifactsConfig } from '../model/graph.js';
+import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 
 // The marker constants and the block scanner live in utils/marker-block.ts so
 // that the committed-digest gate (an `engine` module, which may not import a
@@ -40,8 +42,26 @@ export interface InstallReport {
    * must not have that depend on whether this particular run rewrote a byte.
    * Case-accurate: an `Agents.md` repo gets its own spelling here, not the
    * canonical one.
+   *
+   * An artifact this repository switched off in `rules_artifacts` is NOT here:
+   * the install does not own a file it does not write.
    */
   managed: string[];
+  /**
+   * Repo-relative POSIX paths of the artifacts this run did not write because
+   * the repository's `rules_artifacts` configuration switches them off. Empty
+   * for every repository that never touched the key.
+   */
+  skipped: string[];
+  /**
+   * The subset of `skipped` that is nonetheless still present on disk — a file
+   * an earlier install wrote before the repository opted out. Reported, never
+   * acted on: `yg init` does not delete a committed file on a run the user
+   * asked for something else, and an artifact nothing maintains any more is
+   * exactly what the user should be told about rather than have removed out
+   * from under them.
+   */
+  leftover: string[];
 }
 
 // --- small helpers -------------------------------------------------------
@@ -241,75 +261,114 @@ function scanReadBlock(lines: string[], from: number): { ownsOurEntry: boolean; 
  * 13 retired per-platform installers ever wrote, so a repo that adopted
  * Yggdrasil under the old system ends up with only the new, universal
  * install after running this once.
+ *
+ * `artifacts` is the repository's own `rules_artifacts` choice, defaulting to
+ * all three ON — the behavior every existing adopter has today, and what a
+ * caller with no configuration to consult gets. An artifact switched OFF is
+ * not written, not created, and not touched if it already exists: the opt-out
+ * says "this file is not Yggdrasil's business", which is a reason to stop
+ * writing it, never a licence to delete or rewrite a file the user committed.
+ * (That also means a disabled AGENTS.md keeps whatever legacy import line the
+ * sweep below would otherwise have stripped from it — a file we do not own is
+ * one we do not edit.) The LEGACY sweep still runs in full regardless: those
+ * artifacts belong to retired installers, not to any of the three choices
+ * here, and nothing in this configuration asks to keep them.
  */
-export async function installRules(projectRoot: string, cliVersion: string): Promise<InstallReport> {
+export async function installRules(
+  projectRoot: string,
+  cliVersion: string,
+  artifacts: RulesArtifactsConfig = DEFAULT_RULES_ARTIFACTS,
+): Promise<InstallReport> {
   const written: string[] = [];
   const removed: string[] = [];
+  const managed: string[] = [];
+  const skipped: string[] = [];
+  const leftover: string[] = [];
   const rel = (p: string) => toPosixPath(path.relative(projectRoot, p));
+  /** Record a disabled artifact, noting whether an earlier install left it behind. */
+  const noteSkipped = async (abs: string): Promise<void> => {
+    skipped.push(rel(abs));
+    if (await readIfExists(abs) !== null) leftover.push(rel(abs));
+  };
 
   // 1. AGENTS.md — digest block (replace old block(s) in place, else append).
   const agentsPath = await resolveCaseVariant(projectRoot, AGENTS_FILENAME);
-  const agentsRaw = await readIfExists(agentsPath);
-  const agentsEol = eolOf(agentsRaw);
-  let agents = agentsRaw === null ? '' : norm(agentsRaw);
-  agents = stripLegacyImportLines(agents);
-  const block = `${YGGDRASIL_START}\n${digestBlockBody(cliVersion)}${YGGDRASIL_END}`;
-  const agentsRanges = findMarkerBlockRanges(agents);
-  if (agentsRanges.length > 0) {
-    agents = replaceFirstBlock(agents, agentsRanges, block);
+  if (artifacts.agentsMd) {
+    const agentsRaw = await readIfExists(agentsPath);
+    const agentsEol = eolOf(agentsRaw);
+    let agents = agentsRaw === null ? '' : norm(agentsRaw);
+    agents = stripLegacyImportLines(agents);
+    const block = `${YGGDRASIL_START}\n${digestBlockBody(cliVersion)}${YGGDRASIL_END}`;
+    const agentsRanges = findMarkerBlockRanges(agents);
+    if (agentsRanges.length > 0) {
+      agents = replaceFirstBlock(agents, agentsRanges, block);
+    } else {
+      // No genuine pair — including the case of a leftover unpaired marker,
+      // which is left exactly where it is rather than used to anchor surgery.
+      agents = agents.trimEnd()
+        ? `${agents.trimEnd()}\n\n${block}\n`
+        : `${block}\n`;
+    }
+    const agentsOut = withEol(agents, agentsEol);
+    if (agentsOut !== agentsRaw) { await writeFile(agentsPath, agentsOut, 'utf-8'); written.push(rel(agentsPath)); }
+    managed.push(rel(agentsPath));
   } else {
-    // No genuine pair — including the case of a leftover unpaired marker,
-    // which is left exactly where it is rather than used to anchor surgery.
-    agents = agents.trimEnd()
-      ? `${agents.trimEnd()}\n\n${block}\n`
-      : `${block}\n`;
+    await noteSkipped(agentsPath);
   }
-  const agentsOut = withEol(agents, agentsEol);
-  if (agentsOut !== agentsRaw) { await writeFile(agentsPath, agentsOut, 'utf-8'); written.push(rel(agentsPath)); }
 
   // 2. CLAUDE.md — ensure a single import of the AGENTS file we actually
   // wrote (its case-variant spelling, not a hardcoded `@AGENTS.md`, which
   // would resolve to nothing on a case-sensitive filesystem); drop legacy import.
   const agentsImportLine = `@${path.basename(agentsPath)}`;
   const claudePath = await resolveCaseVariant(projectRoot, CLAUDE_FILENAME);
-  const claudeRaw = await readIfExists(claudePath);
-  const claudeEol = eolOf(claudeRaw);
-  let claude = claudeRaw === null ? '' : norm(claudeRaw);
-  claude = stripLegacyImportLines(claude);
-  // Case-insensitive match (an `Agents.md` repo's `@Agents.md` import is the
-  // same commitment), but only on lines that are OUTSIDE a fenced code block:
-  // a repo documenting its own agent setup routinely shows `@AGENTS.md` inside
-  // a ``` example, and counting that as an installed import left the file
-  // untouched while the run reported success — a repo that LOOKS installed and
-  // gives Claude Code no rules at all. The gate reads the import line through
-  // the same scanner, so writer and reader agree on what counts.
-  const wantedImport = agentsImportLine.toLowerCase();
-  const importIdx = new Set(
-    unfencedLineIndices(claude, (trimmed) => trimmed.toLowerCase() === wantedImport),
-  );
-  const hasImport = importIdx.size > 0;
-  claude = claude.split('\n').map((l, i) => {
-    if (!importIdx.has(i)) return l;
-    // Re-spell a differently-cased import onto the real filename; leave an
-    // already-correct line byte-exact (padding and all).
-    return l.trim() === agentsImportLine ? l : agentsImportLine;
-  }).join('\n');
-  if (!hasImport) {
-    claude = claude.trimEnd() ? `${claude.trimEnd()}\n${agentsImportLine}\n` : `${agentsImportLine}\n`;
+  if (artifacts.claudeMd) {
+    const claudeRaw = await readIfExists(claudePath);
+    const claudeEol = eolOf(claudeRaw);
+    let claude = claudeRaw === null ? '' : norm(claudeRaw);
+    claude = stripLegacyImportLines(claude);
+    // Case-insensitive match (an `Agents.md` repo's `@Agents.md` import is the
+    // same commitment), but only on lines that are OUTSIDE a fenced code block:
+    // a repo documenting its own agent setup routinely shows `@AGENTS.md` inside
+    // a ``` example, and counting that as an installed import left the file
+    // untouched while the run reported success — a repo that LOOKS installed and
+    // gives Claude Code no rules at all. The gate reads the import line through
+    // the same scanner, so writer and reader agree on what counts.
+    const wantedImport = agentsImportLine.toLowerCase();
+    const importIdx = new Set(
+      unfencedLineIndices(claude, (trimmed) => trimmed.toLowerCase() === wantedImport),
+    );
+    const hasImport = importIdx.size > 0;
+    claude = claude.split('\n').map((l, i) => {
+      if (!importIdx.has(i)) return l;
+      // Re-spell a differently-cased import onto the real filename; leave an
+      // already-correct line byte-exact (padding and all).
+      return l.trim() === agentsImportLine ? l : agentsImportLine;
+    }).join('\n');
+    if (!hasImport) {
+      claude = claude.trimEnd() ? `${claude.trimEnd()}\n${agentsImportLine}\n` : `${agentsImportLine}\n`;
+    }
+    const claudeOut = withEol(claude, claudeEol);
+    if (claudeOut !== claudeRaw) { await writeFile(claudePath, claudeOut, 'utf-8'); written.push(rel(claudePath)); }
+    managed.push(rel(claudePath));
+  } else {
+    await noteSkipped(claudePath);
   }
-  const claudeOut = withEol(claude, claudeEol);
-  if (claudeOut !== claudeRaw) { await writeFile(claudePath, claudeOut, 'utf-8'); written.push(rel(claudePath)); }
 
   // 3. .clinerules/yggdrasil.md — wholly ours, overwrite. Compared EOL-aware:
   // a CRLF checkout holds the same content and must not be rewritten (and
   // re-reported as written) on every run.
   const clinePath = path.join(projectRoot, CLINERULES_DIR, CLINERULES_FILENAME);
-  const clineRaw = await readIfExists(clinePath);
-  const clineOut = withEol(digestBlockBody(cliVersion), eolOf(clineRaw));
-  if (clineRaw !== clineOut) {
-    await mkdir(path.dirname(clinePath), { recursive: true });
-    await writeFile(clinePath, clineOut, 'utf-8');
-    written.push(rel(clinePath));
+  if (artifacts.clinerules) {
+    const clineRaw = await readIfExists(clinePath);
+    const clineOut = withEol(digestBlockBody(cliVersion), eolOf(clineRaw));
+    if (clineRaw !== clineOut) {
+      await mkdir(path.dirname(clinePath), { recursive: true });
+      await writeFile(clinePath, clineOut, 'utf-8');
+      written.push(rel(clinePath));
+    }
+    managed.push(rel(clinePath));
+  } else {
+    await noteSkipped(clinePath);
   }
 
   // 4. Legacy whole-file artifacts. Every one of these was, under the old
@@ -400,5 +459,5 @@ export async function installRules(projectRoot: string, cliVersion: string): Pro
     }
   }
 
-  return { written, removed, managed: [rel(agentsPath), rel(claudePath), rel(clinePath)] };
+  return { written, removed, managed, skipped, leftover };
 }

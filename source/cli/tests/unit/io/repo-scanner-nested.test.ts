@@ -141,7 +141,7 @@ describe('findNestedProjectRoots — an empty .yggdrasil/ draws no boundary', ()
       await mkdir(path.join(root, 'services'), { recursive: true });
       await writeFile(path.join(root, 'services/alpha.py'), 'def alpha(): return 1\n');
       await mkdir(path.join(root, 'services/vendorlib/.yggdrasil'), { recursive: true });
-      await writeFile(path.join(root, 'services/vendorlib/.yggdrasil/yg-config.yaml'), 'version: "5.2.0"\n');
+      await writeFile(path.join(root, 'services/vendorlib/.yggdrasil/yg-config.yaml'), 'version: "6.0.0"\n');
       await writeFile(path.join(root, 'services/vendorlib/other.py'), 'def other(): return 1\n');
 
       const roots = await findNestedProjectRoots(root);

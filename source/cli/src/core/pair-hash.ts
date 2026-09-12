@@ -243,12 +243,19 @@ export function computeDetInputHash(input: DetHashInput): string {
  *   graph-children       — the SET of child node ids of <target> (membership fold)
  *   graph-bytype         — the SET of node ids of type <target> (membership fold)
  *   graph-flow           — the SET of declared participant ids of flow <target>
+ *   config               — the VALUE of the configuration key <target> the rule read
+ *
+ * `config` was added when a rule gained settings a repository can adapt. It does
+ * NOT invalidate a single stored verdict: no entry written before it exists can
+ * carry a key with this prefix, so every such entry's `touched` set — and
+ * therefore its hash — is byte-for-byte what it was. The only pairs it can move
+ * are ones recorded after a rule started reading configuration at all.
  *
  * Key encoding is part of the frozen contract — changing it changes all
  * deterministic hashes that include observations.
  */
 export function observationKey(
-  kind: 'read' | 'list' | 'exists' | 'graph' | 'graph-children' | 'graph-bytype' | 'graph-flow',
+  kind: 'read' | 'list' | 'exists' | 'graph' | 'graph-children' | 'graph-bytype' | 'graph-flow' | 'config',
   target: string,
 ): string {
   return `${kind}:${target}`;
@@ -283,6 +290,27 @@ export const MISSING_OBSERVATION = 'missing';
 export function hashNodeSetObservation(nodeIds: string[]): string {
   const lines = [...nodeIds].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join('\n');
   return hashString(lines);
+}
+
+/**
+ * Hash a configuration-value observation: sha256 of the value's canonical JSON.
+ *
+ * Canonical JSON rather than String(value) so `1` and `"1"` are different
+ * observations — a threshold retyped from a number to a string is a real change
+ * to what the rule was given, and folding them together would let it pass as the
+ * same verdict.
+ *
+ * Only a key the rule actually READ is recorded, which is the property that makes
+ * this cheap and honest at once: adapting a key no rule reads invalidates nothing,
+ * and adapting one a rule does read sends exactly that rule's verdicts back to
+ * unverified rather than the whole repository's.
+ */
+export function hashConfigObservation(value: unknown): string {
+  // A key the rule asked for that nothing declares folds the same MISSING token a
+  // vanished file does — so the key later appearing (or disappearing) in a package
+  // is a change, and the value can never be confused with a real one.
+  if (value === undefined) return MISSING_OBSERVATION;
+  return hashString(codePointCanonicalJson(value));
 }
 
 /**

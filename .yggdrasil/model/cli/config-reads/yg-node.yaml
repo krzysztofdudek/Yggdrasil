@@ -1,0 +1,28 @@
+name: Config Reads
+type: structure-adapter
+description: "Which ctx.config keys a rule script reads, worked out from its
+  syntax tree without running it. The runtime answer to the same question lives
+  beside it: the structure runtime hands a rule a configuration object that
+  records every key the rule actually asks for, which is what puts a setting's
+  value into that rule's verdict. That answer needs the rule to run, and running
+  a rule needs a graph — which a repository publishing rules has no reason to
+  have — so the pre-publish check needs the same question answered from the text
+  alone, and it belongs here so the two accounts of what a rule consults stay in
+  each other's sight. It is conservative rather than clever: a dotted access, a
+  literal subscript and a destructuring of the object each resolve to a name, and
+  every other way of reaching the object — an alias, a computed subscript, the
+  object handed to something else whole — is reported as an incomplete reading
+  instead of being guessed at. That asymmetry is the design: a key it reports is
+  one it can point at in the source, so reading a key nobody declared can be a
+  refusal, while an incomplete reading means the opposite direction cannot be
+  concluded at all. The context parameter's name is read off the rule's own
+  declaration rather than assumed, so the analysis is of the script in front of
+  it rather than of the one that was expected."
+aspects: []
+relations:
+  - target: cli/ast/runtime
+    type: calls
+  - target: cli/ast/report
+    type: calls
+mapping:
+  - source/cli/src/structure/config-reads.ts

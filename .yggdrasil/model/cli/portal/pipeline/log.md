@@ -98,3 +98,5 @@ all. The fold that decides a file's state prefers the worst state among its
 checks and is never applied to an empty set, because the reducer it uses seeds
 from a passing value and would otherwise report green for a file that nothing
 checks.
+## [2026-09-09T19:51:20.106Z]
+The portal's per-node relation summary and its structural-edge collector now read a relation's port list from the model's renamed field; the per-node summary keeps omitting the port annotation when a relation names only the implicit default port, matching its prior appearance for a relation that named nothing at all.

@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # Partial-dir: one explicit node owns one file in a directory; its sibling is
 # left type-covered, matching the same architecture type but claimed by no

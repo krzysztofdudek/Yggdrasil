@@ -1,0 +1,48 @@
+name: Marketplace Pre-Publish Check
+type: engine
+description: "The five questions a repository publishing rules is asked before
+  anyone can install from it: whether the two manifests agree with the
+  directories that are actually there, whether every rule loads under the very
+  loader a consumer will load it with, whether every implies stays inside its own
+  package, whether every setting a rule reads is declared and every setting
+  declared is read, and whether the package will still mean the same thing in a
+  repository it has never seen. It reads a tree and returns findings — it never
+  writes, never exits, and above all never loads a graph, because the repository
+  it runs in publishes law rather than enforcing any and normally has none.
+  Portability is the fifth question's whole subject: a review date, a reference
+  path, a named reviewer tier and a scope glob anchored to a literal directory
+  all mean something in the author's repository and something else, or nothing at
+  all, in everybody else's. The settings question is answered from the text of
+  the rule rather than by running it, and answers conservatively: an access it
+  cannot resolve to a literal name is reported as an incomplete reading rather
+  than guessed at, which is what lets a setting read and never declared be a
+  refusal while a setting declared and never read stays a warning and falls
+  silent entirely once the reading is known to be incomplete. Presence of a
+  rule's cases is checked and the cases are not run, because running one needs
+  the graph context a rule is handed and there is deliberately no graph here. Its
+  error codes live here rather than in the shared issue-code
+  registry: that registry exists to group and tally what the enforcement gate
+  reports, and this command runs in a different repository, on a different
+  document, outside that pipeline entirely."
+aspects:
+  - posix-paths-output
+  - what-why-next
+relations:
+  - target: cli/io/parsers/packages
+    type: calls
+  - target: cli/io/parsers/aspect
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/config-reads
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/packages
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/core/marketplace-check.ts

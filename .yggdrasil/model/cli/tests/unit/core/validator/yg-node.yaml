@@ -9,6 +9,8 @@ aspects: []
 relations:
   [
     { target: cli/core/checks/aspects, type: uses },
+    { target: cli/core/graph, type: uses },
+    { target: cli/core/check-codes, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/validator, type: uses },
     { target: cli/formatters, type: uses },

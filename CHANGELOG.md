@@ -7,9 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-- **(Repo-internal test suite — nothing an adopter can observe changed.)** Two progressive-mode tests built their fake clean/smudge filter with GNU sed's one-line insert, which BSD sed on macOS rejects with an error, so both failed on every macOS checkout while passing in CI on Linux. The filter now uses awk, which behaves identically on both. The prompt-headroom instrument guarded its entry by comparing the path it was invoked with against its own module URL; on macOS the temporary directory a test copies it into is a symlink, the module URL resolved through the real path while the invoked path did not, and the script exited silently without measuring anything. The guard now compares real paths. With both fixed, the repository's own pre-commit gate passes on macOS again.
-- **(Repo-internal dogfood graph — nothing an adopter can observe changed.)** Two of the repository's own rules, `cli-command-contract` and `single-source-graph-queries`, reached their review dates on 2 and 4 September 2026 and were reviewed by the maintainer on 8 September 2026: both still earn their place unchanged, and each is renewed for a year on the same day of the year it had, keeping the annual cadence the dates were seeded with. The README also gains the Yggdrasil family section every sibling repository ships, with this repository marked as the core.
-- **(Repo-internal test suite — nothing an adopter can observe changed.)** Six modules that shipped in 5.9.0 reached the release with no branch coverage at all, and the repository's own gate — branch coverage at or above 90% — has been failing on `main` since that merge, at 88.08% (8048 of 9137 branches). Eight new unit suites close it at 91.13% (8327 of 9137), with lines, statements and functions all above 96%. They pin behaviour rather than lines: that `yg check --json` is a projection of the same run the text report renders, so a count in the document and the count in the header can never disagree, and that it tells a pair never judged apart from one judged over code that has since moved and names who answered for each; that `yg impact --json` marks a direct dependent apart from one reached through somebody else, gives each indirect one the path it travels, counts a port consumer that reaches the contract over an event relation, and reports a versionless port's version as none rather than the one the contract check reads it at; that another tool's proposals are read only under a schema this build names, keep the producer's evidence verbatim, add nothing when the same document is handed over twice, and reach the feed ranked below everything the graph derives for itself with every next step still an act for the user to approve; that a rule's case corpus keeps the same bytes from entering twice under a second name and that a case's name carries the file, the day the code existed and the commit it came from; and that a rule's standing changed by hand is noticed once and written into the rule's own log once, while a log that cannot be written never advances the memory of what was seen.
+## [6.0.0] - 2026-09-12
+
+### Added
+
+- `yg aspects --json --reach` — lists every unit a rule reaches, including draft rules (invisible in `yg check --json`).
+- `yg check --coverage` — the per-type coverage listing, moved out of the plain run and `--summary`.
+- `rules_artifacts` config + `yg init --no-agents-md` / `--no-claude-md` / `--no-clinerules` — choose which agent-rules files a repository carries.
+- `yg marketplace init`, `yg pack new`, `yg marketplace check` — publish a rule package.
+- `yg pack add` / `update` / `list` / `remove` — install and manage rule packages from another repository, adapted per install via `yg-aspect.adapt.yaml`.
+- `yg suppressions --json` — the waiver inventory as a `yg-suppressions/1` document.
+- `not:` around `when: { node: { id: … } }` — exclude one named child from a parent-attached rule.
+- A recorded verdict reports the commit it was filled at (`filled`, in `yg check --json` and the event stream).
+- `docs/family-contracts.md` — every machine document the family exchanges, one page, checked against the code.
+
+### Changed
+
+- `descendants:` with more than one field now requires one descendant to satisfy all of them, not each field independently across the subtree. The old per-field reading is still available via `all_of:` over separate `descendants:` clauses.
+- `consumes_port: default` is no longer refused; `has_port:` naming a port nothing declares now warns instead of matching silently.
+- A relation naming no port now enters through the implicit `default` port. Field renamed `portNames:` (`consumes:` still accepted).
+- A port with no `aspects:` loads as an empty entry instead of refusing the component.
+- Naming a port a target does not publish is still refused; not naming one is not.
+
+### Removed
+
+- A port's `version` and contract-test fields are refused; remove them from `yg-node.yaml`. A lock carrying the retired `ports` section is refused until `yg init --upgrade` migrates it. Contract versions and tests now live in Horde.
 
 ## [5.9.0] - 2026-09-07
 

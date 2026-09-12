@@ -36,7 +36,7 @@ function w(rel: string, content: string): string {
 
 /** A staging directory shaped like the one a generator writes. */
 function makeProposal(dir: string, opts: { metadata?: boolean; violations?: Record<string, number | null> } = {}): string {
-  w(`${dir}/.yggdrasil/yg-config.yaml`, 'version: "5.2.0"\n');
+  w(`${dir}/.yggdrasil/yg-config.yaml`, 'version: "6.0.0"\n');
   w(`${dir}/.yggdrasil/yg-architecture.yaml`, 'node_types:\n  service:\n    description: svc\n');
   if (opts.metadata !== false) {
     w(
@@ -98,7 +98,7 @@ describe('looksLikeGraph', () => {
     expect(await looksLikeGraph(path.join(dir, '.yggdrasil'))).toBe(true);
 
     mkdirSync(path.join(root, 'half', '.yggdrasil'), { recursive: true });
-    w('half/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    w('half/.yggdrasil/yg-config.yaml', 'version: "6.0.0"\n');
     expect(await looksLikeGraph(path.join(root, 'half', '.yggdrasil'))).toBe(false);
   });
 });
@@ -122,13 +122,13 @@ describe('readProvenance', () => {
     expect(await readProvenance((await resolveProposal(dir))!)).toBeUndefined();
 
     w('garbled/proposal.json', '{ not json');
-    w('garbled/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    w('garbled/.yggdrasil/yg-config.yaml', 'version: "6.0.0"\n');
     w('garbled/.yggdrasil/yg-architecture.yaml', 'node_types: {}\n');
     expect(await readProvenance((await resolveProposal(path.join(root, 'garbled')))!)).toBeUndefined();
   });
 
   it('does not call a hand-written proposal mined', async () => {
-    w('hand/.yggdrasil/yg-config.yaml', 'version: "5.2.0"\n');
+    w('hand/.yggdrasil/yg-config.yaml', 'version: "6.0.0"\n');
     w('hand/.yggdrasil/yg-architecture.yaml', 'node_types: {}\n');
     w('hand/proposal.json', JSON.stringify({ schema: 'something-else/2' }));
     const provenance = await readProvenance((await resolveProposal(path.join(root, 'hand')))!);

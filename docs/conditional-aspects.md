@@ -48,7 +48,7 @@ when:
       target_type: <type-id>
       target: <node-path>       # relative to model/
       consumes_port: <port>
-  descendants:
+  descendants:                # SOME ONE descendant satisfies every field below at once
     relations: { ... }
     type: <type-id>
     has_port: <port-name>
@@ -56,17 +56,68 @@ when:
     type: <type-id>
     has_port: <port-name>
     has_mapping: true | false
+    id: <node-path> | [<node-path>, ...]   # exact match against the node's path, relative to model/
 ```
+
+`node.id` matches a node's path **exactly** — never a subtree. A list means
+"any of these paths." Wrapped in `not:`, it turns into an exclusion: a rule
+attached to a parent can exclude one named child without removing the child
+from the parent, e.g. `when: { not: { node: { id: services/legacy } } }`.
+
+A `descendants:` clause means **one descendant satisfies every field written
+there**. It is a single existential over the node's subtree, conjunctive inside
+it: `descendants: { type: repository, has_port: charge }` passes only when the
+*same* descendant is a repository *and* declares the `charge` port. Descendant A
+carrying the type while an unrelated descendant B carries the port is **not** a
+match. A node with no descendants at all fails the clause outright, whatever it
+asks for.
+
+If you do want the fields checked independently across the subtree — "some
+descendant is a repository, and some possibly-different descendant has the
+port" — give each field its own clause:
+`all_of: [{ descendants: { type: repository } }, { descendants: { has_port: charge } }]`.
+
+`consumes_port` matches a relation's **normalized** port list, not only what it wrote
+explicitly — a relation that named no port at all normalizes to `[default]`, so
+`consumes_port: default` matches it too. Without that, the predicate would silently
+miss every relation that reaches a node through the implicit `default` port.
+
+Reference validation agrees with that rule: `when-unknown-port` exempts the
+literal name `default`, in both shapes — bare, and `target`-qualified. The
+implicit port every node carries is a real referent, so nothing has to be
+declared to make the predicate legal: write `consumes_port: default` and it
+passes. Declaring `ports: { default: … }` on a node is still legal — it is how
+you hang aspects on the implicit entry, and `default` is the one port name whose
+declaration needs no `description` — but it is not a prerequisite for this
+idiom, and declaring it draws a non-blocking `port-default-reserved` warning of
+its own.
+
+`has_port` — under both `node:` and `descendants:` — is **not** normalized the
+way `consumes_port` is. It is checked literally against the node's declared
+`ports:` map, so `has_port: default` does **not** mean "every node": it matches
+only nodes that explicitly write `ports: { default: … }`, which is usually almost
+none. This is the opposite of `consumes_port: default`, which does match
+relations that arrived through the implicit port. Do not reach for
+`has_port: default` expecting a universal match.
 
 Full grammar reference: `yg schemas read aspect`.
 
-Beyond the structural shape, `yg check` also checks that the names a predicate
-uses actually exist — a silent typo in a predicate would make it quietly never
-match, which is the worst possible failure for something whose whole job is to
-decide applicability. Three blocking errors cover it: `when-unknown-type` (an
-unknown `node.type`, `descendants.type`, or `target_type`), `when-unknown-node`
-(a relation `target` naming a component path that does not exist), and
-`when-unknown-port` (an unknown `consumes_port`). A malformed predicate itself is
+Beyond the structural shape, `yg check` also checks that *most* of the names a
+predicate uses actually exist — a silent typo in a predicate would make it
+quietly never match, which is the worst possible failure for something whose
+whole job is to decide applicability. Three blocking errors cover it:
+`when-unknown-type` (an unknown `node.type`, `descendants.type`, or
+`target_type`), `when-unknown-node` (a relation `target` or a `node.id` — string
+or any entry of a list — naming a component path that does not exist), and
+`when-unknown-port` (an unknown `consumes_port` — the reserved `default` is
+exempt, since every node carries that port). `has_port` is checked too, on both
+`node:` and `descendants:` clauses, but only as a **warning**:
+`when-unmatched-port` fires when the name is declared by no node anywhere in the
+graph, which makes the clause false for every node. It never blocks, because two
+legitimate shapes look identical to a typo — gating a rule off deliberately with
+a port nothing declares, and naming a port that is planned but not declared yet.
+So `node: { has_port: charrge }` still passes `yg check`; it just no longer
+passes silently. A malformed predicate itself is
 `when-predicate-invalid`; a malformed one on a rule or an `implies` edge is
 `aspect-when-invalid`. Writing a file atom (`path`/`content`) where node atoms
 belong is an error too, and the message points you at `scope.files` instead.
@@ -147,6 +198,19 @@ reports it as unverified and prompts `yg check --approve`.
   CI. Use `when` for applicability (this rule only applies to nodes that
   call an external service); use `status` for rule maturity. See
   [Aspect Status](/aspect-status).
+- **Not part of the verdict hash.** `when`, `implies`, and ports are excluded
+  from the pair's input hash by design — they decide *which* pairs are
+  expected, applied live on every run, not what a recorded verdict answers
+  for. So editing a `when` clause never invalidates a verdict already on
+  file: it can only add pairs (fresh, `unverified`) or drop pairs (removed
+  from the lock, no reviewer call) — a pair that stays expected keeps its
+  exact hash. Contrast this with filtering the *same* condition inside a
+  rule's own `content.md` (e.g. "only applies when status is X") — that
+  changes the rule's bytes, which **is** hashed, so it invalidates every
+  verdict for that rule everywhere it is attached. A status filter belongs
+  in `when`, never in the rule's prose: in `when` it is free; in the rule
+  text it costs a re-fill of every pair. See
+  [The Lock](/the-lock#what-makes-a-verdict-valid).
 
 ## Visibility
 

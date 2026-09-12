@@ -547,6 +547,7 @@ relations:
       target: 'events/handler',
       type: 'emits',
       event_name: 'OrderCreated',
+      portNames: ['default'],
     });
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -576,11 +577,12 @@ relations:
     expect(meta.relations![0]).toEqual({
       target: 'auth/auth-api',
       type: 'uses',
-      consumes: ['login', 'logout'],
+      portNames: ['login', 'logout'],
     });
     expect(meta.relations![1]).toEqual({
       target: 'users/user-repo',
       type: 'calls',
+      portNames: ['default'],
     });
 
     await rm(tmpDir, { recursive: true, force: true });
@@ -828,6 +830,406 @@ ports:
       await expect(parseNodeYaml(nodePath)).rejects.toThrow(/description/);
 
       await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('loads a port with no aspects key at all as aspects: []', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-absent');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: PaymentService
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+`,
+        'utf-8',
+      );
+
+      const meta = await parseNodeYaml(nodePath);
+      expect(meta.ports).toEqual({
+        charge: { description: 'Synchronous payment charge', aspects: [] },
+      });
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects a port with neither description nor aspects (description stays required)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-and-description-absent');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge: {}
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.description must be a non-empty string');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects ports.<name>.aspects given as a scalar string', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-scalar-string');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects: "audit-required"
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.aspects must be an array');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects ports.<name>.aspects given as an object', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-object');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects: {}
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.aspects must be an array');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects ports.<name>.aspects given as a number', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-number');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects: 3
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.aspects must be an array');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects ports.<name>.aspects given as null (distinct from the key being absent)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-null');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects: null
+`,
+        'utf-8',
+      );
+
+      // An explicit `null` still takes the !Array.isArray rejection path — only
+      // an ABSENT key defaults to []. Pinned so the two are never conflated.
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('ports.charge.aspects must be an array');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects an empty string entry inside ports.<name>.aspects', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-empty-entry');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects:
+      - ""
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow('aspect id must be a non-empty string');
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects a duplicate aspect id inside ports.<name>.aspects', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-duplicate');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: Bad
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+    aspects:
+      - audit-required
+      - audit-required
+`,
+        'utf-8',
+      );
+
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow("ports.charge.aspects has duplicate 'audit-required'");
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('loads port names with unicode and spaces unchanged as map keys, defaulting their aspects to []', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-unicode-names');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: PaymentService
+type: service
+ports:
+  "płatność":
+    description: "Zwrot środków w PLN"
+  "bulk write":
+    description: "Batch settlement write"
+`,
+        'utf-8',
+      );
+
+      const meta = await parseNodeYaml(nodePath);
+      expect(meta.ports).toEqual({
+        płatność: { description: 'Zwrot środków w PLN', aspects: [] },
+        'bulk write': { description: 'Batch settlement write', aspects: [] },
+      });
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('treats an empty ports map the same as an absent ports key (undefined)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-aspects-empty-ports-map');
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: PaymentService
+type: service
+ports: {}
+`,
+        'utf-8',
+      );
+
+      const meta = await parseNodeYaml(nodePath);
+      expect(meta.ports).toBeUndefined();
+
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+  });
+
+  describe('node-parser ports — version and test are removed (6.0.0), refused not ignored', () => {
+    async function writePortYaml(tmpDir: string, portsBlock: string): Promise<string> {
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `
+name: PaymentService
+type: service
+ports:
+  charge:
+    description: "Synchronous payment charge"
+${portsBlock}
+    aspects:
+      - correlation-tracking
+`,
+        'utf-8',
+      );
+      return nodePath;
+    }
+
+    it('rejects ports.charge.version: 1, naming the field and 6.0.0', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-version-removed');
+      const nodePath = await writePortYaml(tmpDir, '    version: 1');
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.version was removed in 6\.0\.0/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("rejects version: 'abc' the same way — the key's presence is refused, not its shape (the old integer validation is gone)", async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-version-abc');
+      const nodePath = await writePortYaml(tmpDir, "    version: 'abc'");
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.version was removed in 6\.0\.0/);
+      await expect(parseNodeYaml(nodePath)).rejects.not.toThrow(/must be an integer of 1 or more/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects test: pointing at a real repo-relative path, naming the field and 6.0.0', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-test-removed');
+      const nodePath = await writePortYaml(tmpDir, '    test: tests/contracts/charge.test.ts');
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.test was removed in 6\.0\.0/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it("rejects test: '../poza/repo.ts' the same way — the retired path-containment validator never runs, because the key is refused first", async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-test-outside-repo');
+      const nodePath = await writePortYaml(tmpDir, '    test: ../poza/repo.ts');
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.test was removed in 6\.0\.0/);
+      await expect(parseNodeYaml(nodePath)).rejects.not.toThrow(/must not escape/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('rejects a port declaring both version and test — the first offending field found (version) is named', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-both-removed-fields');
+      const nodePath = await writePortYaml(tmpDir, '    version: 1\n    test: tests/contracts/charge.test.ts');
+      await expect(parseNodeYaml(nodePath)).rejects.toThrow(/ports\.charge\.version was removed in 6\.0\.0/);
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+
+    it('a port with neither field, only description and aspects, still parses exactly as before (no regression)', async () => {
+      const tmpDir = path.join(__dirname, '../../fixtures/tmp-port-no-removed-fields');
+      const nodePath = await writePortYaml(tmpDir, '');
+      const meta = await parseNodeYaml(nodePath);
+      expect(meta.ports).toEqual({
+        charge: { description: 'Synchronous payment charge', aspects: ['correlation-tracking'] },
+      });
+      await rm(tmpDir, { recursive: true, force: true });
+    });
+  });
+
+  describe('node-parser — default port and portNames', () => {
+    let counter = 0;
+    /** Write one relation (plus optional ports) into a fresh temp yg-node.yaml and parse it. */
+    async function parseRelation(relationYaml: string, portsYaml = ''): Promise<Awaited<ReturnType<typeof parseNodeYaml>>> {
+      const tmpDir = path.join(FIXTURES_DIR, `tmp-port-default-${counter++}`);
+      await mkdir(tmpDir, { recursive: true });
+      const nodePath = path.join(tmpDir, 'yg-node.yaml');
+      await writeFile(
+        nodePath,
+        `name: N\ntype: service\nrelations:\n  - ${relationYaml}\n${portsYaml}`,
+        'utf-8',
+      );
+      return parseNodeYaml(nodePath);
+    }
+
+    it('a relation with neither key normalizes to portNames: [default]', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses`);
+      expect(meta.relations).toEqual([{ target: 'a/b', type: 'uses', portNames: ['default'] }]);
+    });
+
+    it('portNames: [charge] is carried through unchanged', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    portNames: [charge]`);
+      expect(meta.relations![0].portNames).toEqual(['charge']);
+    });
+
+    it('consumes: [charge] (the alias) normalizes onto portNames, and consumes is not on the result', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    consumes: [charge]`);
+      expect(meta.relations![0].portNames).toEqual(['charge']);
+      expect(meta.relations![0]).not.toHaveProperty('consumes');
+    });
+
+    it('portNames: [default, charge] keeps both, in the order they were written', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    portNames: [default, charge]`);
+      expect(meta.relations![0].portNames).toEqual(['default', 'charge']);
+    });
+
+    it('portNames: [] is rejected — port-names-empty, naming the relation index', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: []`))
+        .rejects.toThrow(/port-names-empty/);
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: []`))
+        .rejects.toThrow(/relations\[0\]/);
+    });
+
+    it('consumes: [] (the alias) is rejected the same way — the alias gets identical validation', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    consumes: []`))
+        .rejects.toThrow(/port-names-empty/);
+    });
+
+    it('declaring both portNames and consumes on one relation is rejected, naming the index and both keys', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: [charge]\n    consumes: [charge]`))
+        .rejects.toThrow(/relations\[0\].*portNames.*consumes|relations\[0\].*consumes.*portNames/s);
+    });
+
+    it('a scalar portNames value is rejected: must be an array of string port names', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: charge`))
+        .rejects.toThrow(/must be an array of string port names/);
+    });
+
+    it('a non-string entry in portNames is rejected: contains non-string', async () => {
+      await expect(parseRelation(`target: a/b\n    type: uses\n    portNames: [1]`))
+        .rejects.toThrow(/contains non-string/);
+    });
+
+    it('a duplicate port name in portNames is tolerated, not rejected (documented choice — see node-parser.ts)', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    portNames: [a, a]`);
+      expect(meta.relations![0].portNames).toEqual(['a', 'a']);
+    });
+
+    it('a port name with unicode and one with a space both pass validation', async () => {
+      const meta = await parseRelation(`target: a/b\n    type: uses\n    portNames: ["ładowanie", "with space"]`);
+      expect(meta.relations![0].portNames).toEqual(['ładowanie', 'with space']);
+    });
+
+    it('an emits/listens relation with no portNames also normalizes to [default] — channel 6 does not skip event relations', async () => {
+      const emits = await parseRelation(`target: a/b\n    type: emits\n    event_name: E`);
+      expect(emits.relations![0].portNames).toEqual(['default']);
+      const listens = await parseRelation(`target: a/b\n    type: listens\n    event_name: E`);
+      expect(listens.relations![0].portNames).toEqual(['default']);
+    });
+
+    it('ports.default with no description parses fine — the implicit port needs none of its own', async () => {
+      const meta = await parseRelation(
+        `target: a/b\n    type: uses`,
+        `ports:\n  default:\n    aspects: []\n`,
+      );
+      expect(meta.ports!.default).toEqual({ description: '', aspects: [] });
+    });
+
+    it('ports.charge with no description still rejects — the exemption is default-only', async () => {
+      await expect(
+        parseRelation(`target: a/b\n    type: uses`, `ports:\n  charge:\n    aspects: []\n`),
+      ).rejects.toThrow('ports.charge.description must be a non-empty string');
+    });
+
+    it('ports.default WITH a description also parses — an explicit declaration is legal', async () => {
+      const meta = await parseRelation(
+        `target: a/b\n    type: uses`,
+        `ports:\n  default:\n    description: "Explicit default"\n    aspects: []\n`,
+      );
+      expect(meta.ports!.default).toEqual({ description: 'Explicit default', aspects: [] });
     });
   });
 

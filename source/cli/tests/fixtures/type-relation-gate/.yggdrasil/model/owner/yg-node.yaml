@@ -5,5 +5,5 @@ mapping:
   - src/owner/target.ts
 ports:
   api:
-    description: Present only to prove a derived (non-declared) edge into this node never trips port-missing-consumes or delivers a port aspect to the type-covered source file — no relation in this fixture ever declares consumes against it.
+    description: Present only to prove a derived (non-declared) edge into this node never trips port-undefined or delivers a port aspect to the type-covered source file — no relation in this fixture ever names this port against it.
     aspects: []

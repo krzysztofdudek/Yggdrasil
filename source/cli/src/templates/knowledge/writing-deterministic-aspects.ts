@@ -221,6 +221,13 @@ interface Ctx {
   // The node being reviewed
   node: GraphNode;
 
+  // The rule's settings for THIS repository: the values its package declared,
+  // with whatever the repo's yg-aspect.adapt.yaml set on top. Empty ({}) for a
+  // rule that declares no configuration. A key the package never declared reads
+  // as undefined. Reading a key is part of the verdict — see "Observation =
+  // invalidation surface" below.
+  config: Record<string, string | number | boolean>;
+
   // ctx.subject — the unit's subject files. Always File[].
   //   per:file  → single-element array [file]; per:node → the node's subject
   //   set (same array reference as ctx.files for the whole-node case).
@@ -295,7 +302,9 @@ itself, \`.files\` included, is absent entirely for a file with none — see
 violation is accepted. On the graphless AST runner (\`yg drill\`,
 \`yg aspect-test --files\`) every returned violation must carry a \`file\` that is one
 of the supplied files — a violation whose \`file\` is absent or outside that set
-raises \`STRUCTURE_CHECK_FILE_NOT_IN_CONTEXT\`.
+raises \`AST_CHECK_FILE_NOT_IN_CONTEXT\` (the AST-runner equivalent of
+\`STRUCTURE_CHECK_FILE_NOT_IN_CONTEXT\`, which is what the graph-aware
+fill / \`--node\` path raises).
 
 ## parseAst is synchronous
 
@@ -429,8 +438,9 @@ re-verifies a live import graph.
 The verdict's reusability rests on the observation fold. The runner records every
 value the check observed through \`ctx\` beyond its subject files — file reads,
 directory listings (the sorted name+kind list), existence probes (including
-negative \`exists\` results), and graph-node accesses — and folds them into the
-pair's hash. A later change to ANY observed value invalidates the verdict and
+negative \`exists\` results), graph-node accesses, and every \`ctx.config\` key the
+check read (an undeclared key reading as \`undefined\` counts too, so the key
+later appearing is itself a change) — and folds them into the pair's hash. A later change to ANY observed value invalidates the verdict and
 re-runs the check at the next \`yg check --approve\` (at zero LLM cost).
 
 The authoring edge: **every observation you make widens your invalidation

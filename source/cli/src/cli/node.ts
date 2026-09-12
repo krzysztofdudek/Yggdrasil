@@ -9,6 +9,11 @@ import type { NodeJsonDocument } from '../formatters/node-json.js';
 import { buildNodeDocument } from '../core/graph/machine-documents.js';
 import { toPosixPath } from '../utils/posix.js';
 
+// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
+// a value import, to avoid an undeclared new dependency edge onto
+// cli/model/graph for one reserved string.
+const DEFAULT_PORT_NAME = 'default';
+
 /** `(none)` rather than an empty line, so an absent section never reads as a missing one. */
 const NONE = '(none)';
 
@@ -33,7 +38,11 @@ function renderNodeText(doc: NodeJsonDocument): string {
   if (doc.relations.length === 0) lines.push(`  ${NONE}`);
   for (const rel of doc.relations) {
     const detail = [rel.type];
-    if (rel.consumes.length > 0) detail.push(`consumes: ${rel.consumes.join(', ')}`);
+    // 'default' is never absent any more (an undeclared relation normalizes to
+    // it) — showing it on every single dependency would be noise, not
+    // information, so only a port named BEYOND the implicit one is worth a line.
+    const namedPorts = rel.consumes.filter((p) => p !== DEFAULT_PORT_NAME);
+    if (namedPorts.length > 0) detail.push(`consumes: ${namedPorts.join(', ')}`);
     if (rel.event_name !== undefined) detail.push(`event: ${rel.event_name}`);
     lines.push(`  -> ${rel.target} (${detail.join(', ')})`);
   }
@@ -45,7 +54,6 @@ function renderNodeText(doc: NodeJsonDocument): string {
   for (const name of portNames) {
     const port = doc.ports[name];
     lines.push(`  ${name} — ${port.description}`);
-    lines.push(`    version: ${port.version ?? NONE}   test: ${port.test ?? NONE}`);
     lines.push(`    consumers must satisfy: ${port.aspects.length > 0 ? port.aspects.join(', ') : NONE}`);
   }
   lines.push('');

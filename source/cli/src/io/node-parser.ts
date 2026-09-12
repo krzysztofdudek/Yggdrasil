@@ -2,6 +2,12 @@
 import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
 import type { AspectStatus, NodeMeta, PortDef, Relation, RelationType } from '../model/graph.js';
+
+// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
+// a value import: importing the value (as opposed to the type already above)
+// would add this node's first real dependency edge onto cli/model/graph,
+// undeclared in the graph — not worth it for one reserved string.
+const DEFAULT_PORT_NAME = 'default';
 import { parseAspectAttachment } from '../utils/when-parser.js';
 import type { WhenPredicate } from '../model/when.js';
 
@@ -142,13 +148,34 @@ function parseRelations(raw: unknown, filePath: string): Relation[] {
       throw new Error(`yg-node.yaml at ${filePath}: relations[${index}].type is invalid`);
     }
 
-    const rel: Relation = {
-      target: target.trim(),
-      type: type as RelationType,
-    };
-    if (Array.isArray(obj.consumes)) {
-      const consumesArr = obj.consumes as unknown[];
-      const offenders = consumesArr
+    if (obj.portNames !== undefined && obj.consumes !== undefined) {
+      throw new Error(
+        `yg-node.yaml at ${filePath}: relations[${index}] declares both 'portNames' and 'consumes'. ` +
+          `'consumes' is accepted only as an alias for 'portNames' — declaring both leaves it ` +
+          `ambiguous which one the relation actually enters through. Keep only one.`,
+      );
+    }
+    const sourceField: 'portNames' | 'consumes' | undefined =
+      obj.portNames !== undefined ? 'portNames' : obj.consumes !== undefined ? 'consumes' : undefined;
+
+    let portNames: string[];
+    if (sourceField === undefined) {
+      // No declaration at all normalizes to the port every node carries implicitly.
+      // This is the ONLY place that normalization happens — every reader downstream
+      // (channel 6, when-evaluator, graph-metrics, machine documents, text views,
+      // architecture checks) sees a Relation whose portNames is already final and
+      // never empty, so none of them need to know 'default' is implicit.
+      portNames = [DEFAULT_PORT_NAME];
+    } else {
+      const rawPortNames = obj[sourceField];
+      if (!Array.isArray(rawPortNames)) {
+        throw new Error(
+          `yg-node.yaml at ${filePath}: relations[${index}].${sourceField} must be an array of string port names (got ${typeof rawPortNames}). ` +
+            `A scalar value is silently ignored, so the named port's required aspects would not be enforced. ` +
+            `Use ${sourceField}: [<port-name>].`,
+        );
+      }
+      const offenders = rawPortNames
         .map((value, i) => ({ value, index: i }))
         .filter((e) => typeof e.value !== 'string');
       if (offenders.length > 0) {
@@ -156,22 +183,30 @@ function parseRelations(raw: unknown, filePath: string): Relation[] {
           .map((e) => `index ${e.index}: ${JSON.stringify(e.value)} (${typeof e.value})`)
           .join('; ');
         throw new Error(
-          `yg-node.yaml at ${filePath}: relations[${index}].consumes contains non-string ${offenders.length === 1 ? 'entry' : 'entries'} [${detail}]. ` +
-            `Every entry must be a string port name; non-string entries would be silently dropped and a consumed port's aspects would not be enforced. ` +
+          `yg-node.yaml at ${filePath}: relations[${index}].${sourceField} contains non-string ${offenders.length === 1 ? 'entry' : 'entries'} [${detail}]. ` +
+            `Every entry must be a string port name; non-string entries would be silently dropped and a named port's aspects would not be enforced. ` +
             `Fix or remove the offending ${offenders.length === 1 ? 'entry' : 'entries'}.`,
         );
       }
-      rel.consumes = consumesArr as string[];
-    } else if (obj.consumes !== undefined) {
-      // A scalar / non-array consumes was silently ignored, so a consumed port's
-      // aspects would not be enforced (channel 6 quietly disabled). Reject loudly,
-      // mirroring the non-string-entry guard above.
-      throw new Error(
-        `yg-node.yaml at ${filePath}: relations[${index}].consumes must be an array of string port names (got ${Array.isArray(obj.consumes) ? 'array' : typeof obj.consumes}). ` +
-          `A scalar value is silently ignored, so the consumed port's required aspects would not be enforced. ` +
-          `Use consumes: [<port-name>].`,
-      );
+      if (rawPortNames.length === 0) {
+        throw new Error(
+          `yg-node.yaml at ${filePath}: relations[${index}].${sourceField} is empty (port-names-empty). ` +
+            `A relation must name at least one port — omit ${sourceField} entirely to enter through the implicit '${DEFAULT_PORT_NAME}' port, ` +
+            `or name at least one real port.`,
+        );
+      }
+      // DECISION (delegated by the task, documented here per its own instruction):
+      // duplicate names are tolerated. The 'consumes' validation this replaces never
+      // checked for repeats either, and a repeat is harmless — the same name just
+      // gets consulted twice downstream. Pinned by a test, not an oversight.
+      portNames = rawPortNames as string[];
     }
+
+    const rel: Relation = {
+      target: target.trim(),
+      type: type as RelationType,
+      portNames,
+    };
     if (typeof obj.event_name === 'string' && obj.event_name.trim()) {
       rel.event_name = obj.event_name.trim();
     }
@@ -262,21 +297,33 @@ function parsePorts(rawPorts: unknown, filePath: string): Record<string, PortDef
     }
     const obj = raw as Record<string, unknown>;
 
-    if (typeof obj.description !== 'string' || obj.description.trim() === '') {
+    // 'default' exists implicitly on every node with no description of its own —
+    // declaring it at all is only ever done to hang aspects on it, so a description
+    // is optional here alone. Providing one anyway is legal and validated exactly
+    // like any other port's.
+    if (obj.description === undefined) {
+      if (name !== DEFAULT_PORT_NAME) {
+        throw new Error(`yg-node.yaml at ${filePath}: ports.${name}.description must be a non-empty string`);
+      }
+    } else if (typeof obj.description !== 'string' || obj.description.trim() === '') {
       throw new Error(`yg-node.yaml at ${filePath}: ports.${name}.description must be a non-empty string`);
     }
+    const description = typeof obj.description === 'string' ? obj.description.trim() : '';
 
-    if (!Array.isArray(obj.aspects)) {
+    if (obj.aspects !== undefined && !Array.isArray(obj.aspects)) {
       throw new Error(`yg-node.yaml at ${filePath}: ports.${name}.aspects must be an array`);
     }
 
+    // Absent key ⇒ a port that carries no requirement, not a malformed port —
+    // only a PRESENT-but-not-array value (guarded above) is a rejection.
+    const rawPortAspects = Array.isArray(obj.aspects) ? obj.aspects : [];
     const portAspects: string[] = [];
     let portAspectWhens: Record<string, WhenPredicate> | undefined;
     let portAspectStatus: Record<string, AspectStatus> | undefined;
     const seenPortAspects = new Set<string>();
-    for (let i = 0; i < (obj.aspects as unknown[]).length; i++) {
+    for (let i = 0; i < rawPortAspects.length; i++) {
       const parsed = parseAspectAttachment(
-        (obj.aspects as unknown[])[i],
+        rawPortAspects[i],
         `yg-node.yaml at ${filePath}: ports.${name}.aspects[${i}]`,
       );
       if (seenPortAspects.has(parsed.id)) {
@@ -291,39 +338,29 @@ function parsePorts(rawPorts: unknown, filePath: string): Record<string, PortDef
         (portAspectStatus ??= {})[parsed.id] = parsed.status;
       }
     }
-    // The contract's version: an integer >= 1. A malformed one is REFUSED rather
-    // than ignored — a version silently dropped would let a contract change ride
-    // in behind a number the author believed they had raised, which is the one
-    // failure this field exists to prevent.
-    let portVersion: number | undefined;
-    if (obj.version !== undefined && obj.version !== null) {
-      if (typeof obj.version !== 'number' || !Number.isInteger(obj.version) || obj.version < 1) {
-        throw new Error(
-          `yg-node.yaml at ${filePath}: ports.${name}.version must be an integer of 1 or more when present — a contract version is a whole number that only ever rises`,
-        );
-      }
-      portVersion = obj.version;
+    // `version` and `test` carried a port's contract version and the test that
+    // was its contract. Removed in 6.0.0 — the check that held a test's content
+    // to a recorded baseline is gone, and contract versions and mirrored
+    // contract tests are Horde's job now. Presence alone is refused, for either
+    // key at any value, exactly like any other retired key: a field silently
+    // dropped would let an author believe a contract is still being checked
+    // when it no longer is.
+    if (obj.version !== undefined) {
+      throw new Error(
+        `yg-node.yaml at ${filePath}: ports.${name}.version was removed in 6.0.0 — delete this field from the YAML. Contract versions are Horde's job now.`,
+      );
     }
-
-    // The test that IS the contract, repo-relative and contained, validated for
-    // existence later by the check that baselines it.
-    let portTest: string | undefined;
-    if (obj.test !== undefined && obj.test !== null) {
-      if (typeof obj.test !== 'string') {
-        throw new Error(
-          `yg-node.yaml at ${filePath}: ports.${name}.test must be a path string relative to the repository root`,
-        );
-      }
-      portTest = validateRelativePath(obj.test, filePath, `ports.${name}.test`);
+    if (obj.test !== undefined) {
+      throw new Error(
+        `yg-node.yaml at ${filePath}: ports.${name}.test was removed in 6.0.0 — delete this field from the YAML. Contract tests are Horde's job now.`,
+      );
     }
 
     ports[name] = {
-      description: obj.description.trim(),
+      description,
       aspects: portAspects,
       ...(portAspectWhens && { aspectWhens: portAspectWhens }),
       ...(portAspectStatus && { aspectStatus: portAspectStatus }),
-      ...(portVersion !== undefined && { version: portVersion }),
-      ...(portTest !== undefined && { test: portTest }),
     };
   }
 

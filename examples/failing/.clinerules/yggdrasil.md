@@ -1,4 +1,4 @@
-<!-- yggdrasil:digest cli=5.8.0 sha256=a94d3f23a66367520d042063e75e36f6ef1ad1ab5d131592f5f34160912c506f -->
+<!-- yggdrasil:digest cli=5.9.0 sha256=a9a184f863d90731a1b385a6dca22073a7eee708920b992d8717b6632b7eb938 -->
 ## Yggdrasil
 
 This repository is managed by Yggdrasil — continuous architecture enforcement.
@@ -27,8 +27,10 @@ Non-negotiable invariants (they hold even before reading the manual):
   references to plans, file paths, steps, or conversation state.
 - Never hand-edit `.yggdrasil/` lock files.
 - If the user explicitly requests a code-only change without graph updates,
-  comply but warn: the affected rules stay unverified and CI stays red. Do
-  not run `yg check --approve` — leave the rules unverified.
+  comply but warn: the affected rules stay unverified and CI stays red. Run
+  `yg check --no-approve`, not a bare `yg check` — where this repo's config
+  sets `auto_approve`, a bare check fills verdicts by itself. Never run
+  `yg check --approve` either.
 
 Start every session with `yg check`; re-print the manual any time with
 `yg prime`.

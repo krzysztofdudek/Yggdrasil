@@ -7,10 +7,14 @@ import type {
   LlmConfig,
   ReviewerConfig,
   CoverageConfig,
+  RulesArtifactsConfig,
 } from '../model/graph.js';
+import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 import { KNOWN_PROVIDERS } from '../utils/known-providers.js';
 import { loadConfigOverlay, deepMerge } from './secrets-parser.js';
+import { readFileOrDefault } from './read-or-default.js';
+import { debugWrite } from '../utils/debug-log.js';
 
 export { KNOWN_PROVIDERS };
 
@@ -88,6 +92,78 @@ function parseCoverage(raw: unknown, filename: string): CoverageConfig {
   }
 
   return { required, excluded, typeLevel: cov.type_level === true };
+}
+
+/** YAML key ⇄ resolved field for each of the three agent-rules artifacts, in the
+ *  order they are installed. One table so the allowed-key set, the per-key type
+ *  check and the resolution below can never disagree about what exists. */
+const RULES_ARTIFACT_KEYS = [
+  ['agents_md', 'agentsMd'],
+  ['claude_md', 'claudeMd'],
+  ['clinerules', 'clinerules'],
+] as const satisfies ReadonlyArray<readonly [string, keyof RulesArtifactsConfig]>;
+
+/**
+ * Validate the optional `rules_artifacts` block — which of the three agent-rules
+ * artifacts this repository wants written and checked.
+ *
+ * Absent block, or an absent key inside it, resolves to `true`: today's
+ * behavior for every adopter who never touches it (all three installed by
+ * `yg init`, all three compared by the committed-digest gate). The block only
+ * ever turns something OFF.
+ *
+ * STRICT when present, for the same reason `signals` / `events` / `progressive`
+ * are: the section is a tight, enumerated namespace, and a misspelled key
+ * (`clinrules`) or a string value (`"false"`) would otherwise leave the repo
+ * believing it had opted out while `yg check` kept reporting the artifact as
+ * missing on every run — exactly the nagging this key exists to end.
+ *
+ * The one cross-key rule: `claude_md` may not stay on while `agents_md` is off.
+ * `claude_md`'s entire content is a one-line `@AGENTS.md` import, so that
+ * combination asks for a pointer to a file Yggdrasil no longer maintains —
+ * refused here rather than written and left dangling.
+ */
+function parseRulesArtifacts(raw: unknown, filename: string): RulesArtifactsConfig {
+  if (raw === undefined) return DEFAULT_RULES_ARTIFACTS;
+  if (typeof raw !== 'object' || Array.isArray(raw) || raw === null) {
+    throw new ConfigParseError({
+      what: `${filename}: rules_artifacts must be a mapping (got ${JSON.stringify(raw)}).`,
+      why: 'rules_artifacts holds one boolean per agent-rules artifact (agents_md, claude_md, clinerules); a non-mapping value cannot carry them.',
+      next: 'Set rules_artifacts to a mapping, e.g. `rules_artifacts: { clinerules: false }`, or remove the key to keep all three.',
+    }, 'config-invalid');
+  }
+  const block = raw as Record<string, unknown>;
+  const allowed = new Set<string>(RULES_ARTIFACT_KEYS.map(([yamlKey]) => yamlKey));
+  for (const k of Object.keys(block)) {
+    if (!allowed.has(k)) {
+      throw new ConfigParseError({
+        what: `${filename}: unknown key '${k}' under rules_artifacts.`,
+        why: `rules_artifacts accepts only: ${[...allowed].join(', ')}. A misspelled key would silently leave that artifact switched ON, so yg check would keep reporting it as missing while the config reads as though it had been turned off.`,
+        next: `Remove the key, or set one of ${[...allowed].join(' / ')} to true or false.`,
+      }, 'config-rules-artifacts-unknown-key');
+    }
+  }
+  const resolved = { ...DEFAULT_RULES_ARTIFACTS };
+  for (const [yamlKey, field] of RULES_ARTIFACT_KEYS) {
+    const value = block[yamlKey];
+    if (value === undefined) continue;
+    if (typeof value !== 'boolean') {
+      throw new ConfigParseError({
+        what: `${filename}: rules_artifacts.${yamlKey} must be a boolean (got ${JSON.stringify(value)}).`,
+        why: 'It switches one agent-rules artifact on or off; a non-boolean value is a typo, and guessing would either write a file the repo opted out of or stop writing one it still wants.',
+        next: `Set rules_artifacts.${yamlKey} to true or false (or remove the key; absent means true).`,
+      }, 'config-invalid');
+    }
+    resolved[field] = value;
+  }
+  if (resolved.claudeMd && !resolved.agentsMd) {
+    throw new ConfigParseError({
+      what: `${filename}: rules_artifacts has claude_md on while agents_md is off.`,
+      why: 'The whole of the CLAUDE.md artifact is a single `@AGENTS.md` import line, so this asks for an import of a file Yggdrasil no longer writes or keeps in sync — a pointer that resolves to nothing the moment AGENTS.md drifts or disappears.',
+      next: 'Turn both off (`agents_md: false, claude_md: false`), or leave agents_md on.',
+    }, 'config-rules-artifacts-orphan-import');
+  }
+  return resolved;
 }
 
 /** Validate the optional quality.max_direct_relations (positive integer). */
@@ -372,6 +448,14 @@ export async function parseConfig(
   // the committed value back without touching whatever was returned.
   const coverage = { ...parseCoverage(raw.coverage, filename), typeLevel: committedTypeLevel === true };
 
+  // Read from `baseRaw`, NOT from the merged `raw`, for the same reason
+  // progressive and coverage.type_level are: which agent-rules artifacts the
+  // repository carries is a committed, team-wide decision. A gitignored
+  // yg-secrets.yaml that could switch one off would stop `yg init` from writing
+  // a file on one machine and keep writing it on every other, and would silence
+  // a drift warning for exactly one developer.
+  const rulesArtifacts = parseRulesArtifacts(baseRaw.rules_artifacts, filename);
+
   return {
     version,
     quality,
@@ -383,7 +467,40 @@ export async function parseConfig(
     events,
     coverage,
     progressive,
+    rulesArtifacts,
   };
+}
+
+/**
+ * The `rules_artifacts` block ALONE, read straight off the committed
+ * `.yggdrasil/yg-config.yaml`.
+ *
+ * `yg init` needs this one answer before it installs anything, in situations
+ * where the full config is not loadable and must not be required to be: a
+ * project mid-migration, one whose reviewer section is incomplete, or one being
+ * upgraded from a schema this CLI has not migrated yet. Running the whole of
+ * parseConfig there would make an unrelated configuration problem abort the
+ * command whose job is to repair the project.
+ *
+ * So the file-level failures degrade to the defaults (all three artifacts on —
+ * today's behavior): an absent file, an unreadable one, a YAML document that is
+ * not a mapping. A `rules_artifacts` block that IS present and malformed still
+ * throws, because that is the one case where defaulting would write files the
+ * user explicitly asked not to have.
+ */
+export async function readRulesArtifactsConfig(yggRoot: string): Promise<RulesArtifactsConfig> {
+  const configPath = path.join(yggRoot, 'yg-config.yaml');
+  const content = await readFileOrDefault(configPath, null, '[config-parser] readRulesArtifactsConfig');
+  if (content === null) return DEFAULT_RULES_ARTIFACTS;
+  let raw: unknown;
+  try {
+    raw = parseYaml(content) as unknown;
+  } catch (err) {
+    debugWrite(`[config-parser] readRulesArtifactsConfig: ${configPath} is not valid YAML (${(err as Error).message}) -> defaults`);
+    return DEFAULT_RULES_ARTIFACTS;
+  }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return DEFAULT_RULES_ARTIFACTS;
+  return parseRulesArtifacts((raw as Record<string, unknown>).rules_artifacts, path.basename(configPath));
 }
 
 function parseReviewer(raw: Record<string, unknown>, filename: string): ReviewerConfig {

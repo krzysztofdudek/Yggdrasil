@@ -10,6 +10,7 @@ const FIXTURES_DIR = path.join(__dirname, '../../fixtures');
 import type { LockFile } from '../../../src/model/lock.js';
 import {
   LOCK_FORMAT_VERSION,
+  LOCK_FILE_NAME,
   LOCK_NONDET_FILE_NAME,
   LOCK_LOGS_FILE_NAME,
   LOCK_DET_FILE_NAME,
@@ -17,10 +18,13 @@ import {
 
 import {
   readLock,
+  readLegacyLock,
+  readDetLockAspectIds,
   writeLock,
   serializeLock,
   LockInvalidError,
 } from '../../../src/io/lock-store.js';
+import { initDebugLog, _resetForTesting } from '../../../src/utils/debug-log.js';
 
 // The verdict lock is split across a 3-file triad; the in-memory LockFile stays unified.
 // writeLock partitions verdicts by aspect KIND (deterministicAspectIds), never by `touched`.
@@ -536,6 +540,8 @@ describe('lock-store', () => {
       touched: [['read:src/b.ts', 'deadbeef']],
       promptChars: 4211,
       judge: { name: 'a-verifier', provider: 'external' },
+      filledAt: '2026-09-09T00:00:00.000Z',
+      filledSha: 'f'.repeat(40),
     };
     const serialized = serializeLock({
       version: LOCK_FORMAT_VERSION,
@@ -591,6 +597,101 @@ describe('lock-store', () => {
         /promptChars.*non-negative integer/,
       );
     }
+  });
+
+  it('readLock accepts a verdict entry carrying filledAt/filledSha, and one without either', async () => {
+    // filledAt/filledSha are written on a real fill; a deterministic entry, and
+    // any entry written before the fields existed, simply has neither.
+    const tmpDir = await writeRawLock(
+      'tmp-lock-entry-filled',
+      JSON.stringify({
+        version: LOCK_FORMAT_VERSION,
+        verdicts: {
+          'my-aspect': {
+            'node:with-filled': {
+              verdict: 'approved', hash: 'h', filledAt: '2026-09-09T00:00:00.000Z', filledSha: 'a'.repeat(40),
+            },
+            'node:without-filled': { verdict: 'approved', hash: 'h' },
+          },
+        },
+        nodes: {},
+      }),
+    );
+    const lock = readLock(tmpDir);
+    expect(lock.verdicts['my-aspect']['node:with-filled'].filledAt).toBe('2026-09-09T00:00:00.000Z');
+    expect(lock.verdicts['my-aspect']['node:with-filled'].filledSha).toBe('a'.repeat(40));
+    expect(lock.verdicts['my-aspect']['node:without-filled'].filledAt).toBeUndefined();
+    expect(lock.verdicts['my-aspect']['node:without-filled'].filledSha).toBeUndefined();
+  });
+
+  it('readLock throws LockInvalidError when filledAt or filledSha is not a string', async () => {
+    for (const [field, bad] of [['filledAt', 7], ['filledSha', 7]] as const) {
+      const tmpDir = await writeRawLock(
+        `tmp-lock-entry-${field}-bad-type`,
+        JSON.stringify({
+          version: LOCK_FORMAT_VERSION,
+          verdicts: { 'my-aspect': { 'node:x': { verdict: 'approved', hash: 'h', [field]: bad } } },
+          nodes: {},
+        }),
+      );
+      let thrown: unknown;
+      try {
+        readLock(tmpDir);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown, field).toBeInstanceOf(LockInvalidError);
+      expect((thrown as InstanceType<typeof LockInvalidError>).messageData.what).toContain(field);
+    }
+  });
+
+  it('serializeEntry: an entry without filledAt/filledSha serializes byte-for-byte as before the fields existed', () => {
+    // Regression guard for the biggest risk of this change: serializeEntry is
+    // an explicit allow-list, and a fresh key added to it must never appear on
+    // an entry that never set it. This is the same golden shape the top-level
+    // "serializeLock emits code-point-sorted keys" test pins, isolated to one
+    // entry so the byte-identity claim cannot hide behind unrelated fields.
+    const serialized = serializeLock({
+      version: LOCK_FORMAT_VERSION,
+      verdicts: { asp: { 'node:svc': { verdict: 'refused', hash: 'h', reason: 'r' } } },
+      nodes: {},
+    });
+    expect(serialized).toContain('"node:svc": {"hash":"h","reason":"r","verdict":"refused"}');
+    expect(serialized).not.toContain('filledAt');
+    expect(serialized).not.toContain('filledSha');
+  });
+
+  it('serializeEntry: an entry WITH filledAt/filledSha orders every key code-point, filledAt/filledSha ahead of hash', () => {
+    const entry: import('../../../src/model/lock.js').VerdictEntry = {
+      verdict: 'refused',
+      hash: 'h',
+      reason: 'r',
+      touched: [['read:a', 'x']],
+      promptChars: 10,
+      judge: { name: 'j', provider: 'external' },
+      filledAt: '2026-09-09T00:00:00.000Z',
+      filledSha: 'a'.repeat(40),
+    };
+    const serialized = serializeLock({
+      version: LOCK_FORMAT_VERSION,
+      verdicts: { asp: { 'node:svc': entry } },
+      nodes: {},
+    });
+    const line = serialized.split('\n').find((l) => l.includes('node:svc'))!;
+    // Actual code-point order of every key this entry carries. Six-space
+    // indent, no trailing comma: this is the only unit of the only aspect.
+    expect(line).toBe(
+      '      "node:svc": {' +
+        '"filledAt":"2026-09-09T00:00:00.000Z",' +
+        '"filledSha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",' +
+        '"hash":"h",' +
+        '"judge":{"name":"j","provider":"external"},' +
+        '"promptChars":10,' +
+        '"reason":"r",' +
+        '"touched":[["read:a","x"]],' +
+        '"verdict":"refused"' +
+        '}',
+    );
   });
 
   it('readLock throws LockInvalidError when a verdict entry reason is a non-string', async () => {
@@ -876,84 +977,191 @@ describe('lock-store — triad partition & scopes', () => {
     expect(result.nodes).toEqual(TRIAD_LOCK.nodes);
   });
 
-  it('a garbled GITIGNORED deterministic file → lock-invalid with the rematerialize recovery (not a git restore)', async () => {
+  it('a garbled GITIGNORED deterministic file is DISCARDED and rebuilt, not refused (it holds no truth to protect)', async () => {
+    // Superseded the pre-6.0.0 assertion that this threw with a "rematerialize" recovery.
+    // A derived, gitignored, fully rederivable cache must never take the gate down.
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-det-garbled');
     await rm(tmpDir, { recursive: true, force: true });
     await mkdir(tmpDir, { recursive: true });
     await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), '{ not json', 'utf-8');
-    let thrown: unknown;
-    try {
-      readLock(tmpDir);
-    } catch (e) {
-      thrown = e;
-    }
-    expect(thrown).toBeInstanceOf(LockInvalidError);
-    const { next } = (thrown as InstanceType<typeof LockInvalidError>).messageData;
-    // The gitignored cache recovers by rematerializing, NOT by a git restore.
-    expect(next).toMatch(/--only-deterministic/);
-    expect(next).not.toMatch(/git checkout/);
+
+    const result = readLock(tmpDir);
+    expect(result).toEqual({ version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} });
   });
 });
 
 // ---------------------------------------------------------------------------
-// Port contract baselines — the committed record that holds a port's contract
-// test to the version it was recorded at. Stored in the `nodes` section beside
-// the source fingerprint and the log baseline, and read back strictly: a
-// corrupted record must fail loudly rather than read as an absent baseline,
-// which would silently un-enforce the contract it held.
+// The committed/derived split — a derived lock never takes the gate down.
+//
+// `.yg-lock.deterministic.json` is gitignored and rederivable in full from the
+// graph plus the committed lock, so a fault in it costs a recomputation and
+// nothing else. The committed files are the source of truth, and a fault there
+// is still a real, visible refusal. Both directions are asserted here: the
+// tolerance must not swallow the alarm that matters.
+//
+// The live case this fixes: a NEWER `yg` writes a section an OLDER `yg` on the
+// far side of a container boundary does not yet allow, and the older one
+// refuses to start. Observed twice on 2026-09-11 (a 5.9.0 host wrote `aspects`,
+// a 5.8.0 container rejected it as an unexpected top-level key). Simulated here
+// with a top-level key no version allows, so the test stays honest as the real
+// schema grows.
 // ---------------------------------------------------------------------------
-describe('lock store — port contract baselines', () => {
-  const withPorts = (): LockFile => ({
+describe('lock store — derived locks rebuild, committed locks refuse', () => {
+  async function freshDir(name: string): Promise<string> {
+    const tmpDir = path.join(FIXTURES_DIR, name);
+    await rm(tmpDir, { recursive: true, force: true });
+    await mkdir(tmpDir, { recursive: true });
+    return tmpDir;
+  }
+
+  /** A det lock as a NEWER yg would write it: valid today, plus one section this build has never heard of. */
+  const FROM_A_NEWER_YG = JSON.stringify({
     version: LOCK_FORMAT_VERSION,
-    verdicts: {},
-    nodes: {
-      'payments/service': {
-        ports: {
-          refund: { '1': { test: 'tests/contracts/refund.test.ts', hash: 'b'.repeat(64) } },
-          charge: {
-            '2': { test: 'tests/contracts/charge.test.ts', hash: 'c'.repeat(64) },
-            '1': { test: 'tests/contracts/charge.test.ts', hash: 'a'.repeat(64) },
-          },
-        },
-      },
+    verdicts: { 'style/naming': { 'node:billing/cancel': { verdict: 'approved', hash: 'h1' } } },
+    nodes: {},
+    aspects: { 'style/naming': { status: 'enforced' } },
+    cohorts: { 'style/naming': { generation: 4 } },
+  });
+
+  const DERIVED_FAULTS: ReadonlyArray<readonly [string, string]> = [
+    ['an unknown top-level key written by a newer yg (version skew)', FROM_A_NEWER_YG],
+    ['completely unparseable JSON', '{"version": 2, "verdicts": {'],
+    ['truncated mid-write', '{"version":2,"verdicts":{"style/naming":{"node:a":{"verdict":"appr'],
+    ['a JSON array instead of an object', '[1,2,3]'],
+    ['a valid object with no version field', JSON.stringify({ verdicts: {}, nodes: {} })],
+    ['a version from the future', JSON.stringify({ version: 99, verdicts: {}, nodes: {} })],
+    ['a garbled section shape', JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: [], nodes: {} })],
+    ['a garbled entry inside a section', JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: { a: { 'node:b': { verdict: 'maybe' } } }, nodes: {} })],
+  ];
+
+  it.each(DERIVED_FAULTS)(
+    'the DERIVED det lock with %s → readLock rebuilds from scratch, silently',
+    async (label, content) => {
+      const tmpDir = await freshDir('tmp-lock-derived-fault');
+      await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), content, 'utf-8');
+
+      let result: LockFile | undefined;
+      expect(() => {
+        result = readLock(tmpDir);
+      }, label).not.toThrow();
+      // Rebuilt from zero: the bad file contributes nothing, and nothing it carried is
+      // smuggled through. Empty det verdicts read as UNVERIFIED — still fail-closed.
+      expect(result, label).toEqual({ version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} });
     },
+  );
+
+  it.each(DERIVED_FAULTS)(
+    'the same fault (%s) in a COMMITTED lock is still a real, visible refusal',
+    async (label, content) => {
+      const tmpDir = await freshDir('tmp-lock-committed-fault');
+      await writeFile(path.join(tmpDir, LOCK_NONDET_FILE_NAME), content, 'utf-8');
+      expect(() => readLock(tmpDir), label).toThrow(LockInvalidError);
+    },
+  );
+
+  it('the LEGACY committed single-file lock still refuses an unknown top-level key (readLegacyLock)', async () => {
+    const tmpDir = await freshDir('tmp-lock-legacy-fault');
+    await writeFile(path.join(tmpDir, LOCK_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    expect(() => readLegacyLock(tmpDir)).toThrow(LockInvalidError);
   });
 
-  it('serializes every level in sorted order, so two runs recording the same facts agree byte for byte', () => {
-    const text = serializeLock(withPorts());
-    // Port names sorted, and versions sorted within a port — neither follows the
-    // insertion order above.
-    expect(text).toContain(
-      '"payments/service": {"ports":{"charge":{"1":{"hash":"' + 'a'.repeat(64) + '","test":"tests/contracts/charge.test.ts"},' +
-        '"2":{"hash":"' + 'c'.repeat(64) + '","test":"tests/contracts/charge.test.ts"}},' +
-        '"refund":{"1":{"hash":"' + 'b'.repeat(64) + '","test":"tests/contracts/refund.test.ts"}}}}',
+  it('a broken det lock does not mask the COMMITTED sections read alongside it', async () => {
+    const tmpDir = await freshDir('tmp-lock-det-broken-committed-intact');
+    await writeFile(
+      path.join(tmpDir, LOCK_NONDET_FILE_NAME),
+      JSON.stringify({
+        version: LOCK_FORMAT_VERSION,
+        verdicts: { 'llm/prose': { 'node:billing/cancel': { verdict: 'approved', hash: 'h-llm' } } },
+        nodes: {},
+      }),
+      'utf-8',
     );
+    await writeFile(
+      path.join(tmpDir, LOCK_LOGS_FILE_NAME),
+      JSON.stringify({ version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: { 'billing/cancel': { source: 'fp-billing' } } }),
+      'utf-8',
+    );
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+
+    const result = readLock(tmpDir);
+    expect(result.verdicts['llm/prose']).toBeDefined();
+    expect(result.nodes['billing/cancel']).toEqual({ source: 'fp-billing' });
+    // The det file's verdicts and its unknown section are both gone, not merged.
+    expect(result.verdicts['style/naming']).toBeUndefined();
+    expect(result.aspects).toBeUndefined();
   });
 
-  it('round-trips through the committed logs file', async () => {
-    const dir = path.join(FIXTURES_DIR, 'tmp-lock-ports');
-    await mkdir(path.join(dir, '.yggdrasil'), { recursive: true });
-    const yggRoot = path.join(dir, '.yggdrasil');
-    await writeLock(yggRoot, withPorts(), { scope: 'logs' });
-    expect(existsSync(path.join(yggRoot, LOCK_LOGS_FILE_NAME))).toBe(true);
-    const back = readLock(yggRoot);
-    expect(back.nodes['payments/service'].ports).toEqual({
-      charge: {
-        '1': { test: 'tests/contracts/charge.test.ts', hash: 'a'.repeat(64) },
-        '2': { test: 'tests/contracts/charge.test.ts', hash: 'c'.repeat(64) },
-      },
-      refund: { '1': { test: 'tests/contracts/refund.test.ts', hash: 'b'.repeat(64) } },
+  it('readDetLockAspectIds reads a broken det lock as EMPTY rather than throwing', async () => {
+    const tmpDir = await freshDir('tmp-lock-det-ids-broken');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+    expect(readDetLockAspectIds(tmpDir)).toEqual(new Set<string>());
+  });
+
+  it('the discard is self-healing: the next write replaces the broken det file with a valid one', async () => {
+    const tmpDir = await freshDir('tmp-lock-det-selfheal');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+
+    const rebuilt = readLock(tmpDir);
+    rebuilt.verdicts['det/aspect'] = { 'node:billing/cancel': { verdict: 'approved', hash: 'fresh' } };
+    await writeLock(tmpDir, rebuilt, {
+      scope: 'deterministic',
+      deterministicAspectIds: new Set(['det/aspect']),
     });
+
+    const onDisk = readFileSync(path.join(tmpDir, LOCK_DET_FILE_NAME), 'utf-8');
+    expect(onDisk).not.toContain('cohorts');
+    // And it reads back cleanly, with no throw anywhere in the round trip.
+    expect(readLock(tmpDir).verdicts['det/aspect']['node:billing/cancel'].hash).toBe('fresh');
   });
 
+  it('the discard leaves a breadcrumb in the debug log (silent on stdout, not invisible)', async () => {
+    const tmpDir = await freshDir('tmp-lock-det-breadcrumb');
+    await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), FROM_A_NEWER_YG, 'utf-8');
+
+    const lines: string[] = [];
+    _resetForTesting();
+    initDebugLog(tmpDir, true, (_p, text) => {
+      lines.push(text);
+    });
+    try {
+      readLock(tmpDir);
+    } finally {
+      _resetForTesting();
+    }
+
+    const logged = lines.join('');
+    expect(logged).toContain(LOCK_DET_FILE_NAME);
+    expect(logged).toMatch(/discarded and rebuilt/);
+    // The diagnosis itself rides along, so a debug run says WHAT was wrong.
+    expect(logged).toMatch(/unexpected top-level key "cohorts"/);
+  });
+
+  it('a real I/O failure still propagates from the derived file — only content faults are tolerated', async () => {
+    // A directory where the det lock should be: readFileSync fails with EISDIR, not a
+    // LockInvalidError. That is an environment fault to fix, not a cache to rebuild.
+    const tmpDir = await freshDir('tmp-lock-det-eisdir');
+    await mkdir(path.join(tmpDir, LOCK_DET_FILE_NAME), { recursive: true });
+    expect(() => readLock(tmpDir)).toThrow();
+    expect(() => readLock(tmpDir)).not.toThrow(LockInvalidError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The retired 'ports' section — removed in 6.0.0 (port contract baselines are
+// gone; a version and a contract test are no longer things a port declares).
+// NOT tolerated: a node entry still carrying `ports` is refused exactly like
+// any other unexpected key, unconditionally and regardless of its shape — the
+// only way past it is the to-6.0.0 migration, which strips the raw key before
+// this validator ever runs.
+// ---------------------------------------------------------------------------
+describe('lock store — the retired ports section is refused, not tolerated', () => {
   it.each([
-    ['a version key that is not a whole number', '{"ports":{"charge":{"1.5":{"hash":"h","test":"t"}}}}', 'not a contract version'],
-    ['a record that is not an object', '{"ports":{"charge":{"1":"h"}}}', 'must be a JSON object'],
-    ['a record missing its hash', '{"ports":{"charge":{"1":{"test":"t"}}}}', '.hash" must be a string'],
-    ['an unexpected key inside a record', '{"ports":{"charge":{"1":{"hash":"h","test":"t","note":"x"}}}}', 'unexpected key "note"'],
-    ['ports that is not an object', '{"ports":[]}', '.ports" must be a JSON object when present'],
-  ])('refuses %s rather than reading it as no baseline at all', async (_label, nodeEntry, expected) => {
-    const dir = path.join(FIXTURES_DIR, 'tmp-lock-ports-bad');
+    ['a well-formed baseline record', '{"ports":{"charge":{"1":{"hash":"h","test":"t"}}}}'],
+    ['garbage shaped as a number', '{"ports":3}'],
+    ['garbage shaped as an array', '{"ports":[]}'],
+    ['garbage shaped as an object with junk inside', '{"ports":{"charge":7}}'],
+  ])('refuses a node entry with %s, naming the file and the unexpected key', async (_label, nodeEntry) => {
+    const dir = path.join(FIXTURES_DIR, 'tmp-lock-ports-refused');
     const yggRoot = path.join(dir, '.yggdrasil');
     await mkdir(yggRoot, { recursive: true });
     await writeFile(
@@ -964,7 +1172,25 @@ describe('lock store — port contract baselines', () => {
     try {
       readLock(yggRoot);
     } catch (err) {
-      expect((err as LockInvalidError).message).toContain(expected);
+      const message = (err as LockInvalidError).message;
+      expect(message).toContain(LOCK_LOGS_FILE_NAME);
+      expect(message).toContain('unexpected key "ports"');
     }
+  });
+
+  it('a node entry without ports round-trips unaffected, byte for byte', async () => {
+    const dir = path.join(FIXTURES_DIR, 'tmp-lock-no-ports');
+    await mkdir(path.join(dir, '.yggdrasil'), { recursive: true });
+    const yggRoot = path.join(dir, '.yggdrasil');
+    const lock: LockFile = {
+      version: LOCK_FORMAT_VERSION,
+      verdicts: {},
+      nodes: { 'payments/service': { source: 'fp', log: { last_entry_datetime: '2026-01-01T00:00:00Z', prefix_hash: 'h' } } },
+    };
+    await writeLock(yggRoot, lock, { scope: 'logs' });
+    const before = readFileSync(path.join(yggRoot, LOCK_LOGS_FILE_NAME), 'utf-8');
+    await writeLock(yggRoot, readLock(yggRoot), { scope: 'logs' });
+    const after = readFileSync(path.join(yggRoot, LOCK_LOGS_FILE_NAME), 'utf-8');
+    expect(after).toBe(before);
   });
 });

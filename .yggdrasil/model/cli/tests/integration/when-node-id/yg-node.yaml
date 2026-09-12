@@ -1,0 +1,10 @@
+name: Integration Tests — When Node Id
+type: test-suite
+description: "Pure-function integration tests for `computeEffectiveAspects`/`computeEffectiveAspectStatuses` proving `when: { not: { node: { id } } }` excludes one named child from a parent-attached aspect without removing it from the parent, on an in-memory parent + two-children graph, plus the list-id and no-when control cases."
+aspects: []
+relations:
+  [
+    { target: cli/core/graph, type: uses }
+  ]
+mapping:
+  - source/cli/tests/integration/when-node-id.test.ts

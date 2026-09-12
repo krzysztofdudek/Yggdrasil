@@ -453,14 +453,14 @@ describe('yg simulate — overlayCurrentArchitectureAndCoverage (--file target)'
       );
       writeFileSync(
         path.join(clone, 'yg-config.yaml'),
-        'version: "5.2.0"\ncoverage:\n  required: []\n  excluded: []\n  type_level: false\ndebug: false\n',
+        'version: "6.0.0"\ncoverage:\n  required: []\n  excluded: []\n  type_level: false\ndebug: false\n',
         'utf-8',
       );
       overlayCurrentArchitectureAndCoverage(real, clone);
       const spliced = readFileSync(path.join(clone, 'yg-config.yaml'), 'utf-8');
       // The clone's OWN schema version (already verified equal to today's by the
       // caller BEFORE this overlay runs) and other keys survive untouched.
-      expect(spliced).toContain('version: "5.2.0"');
+      expect(spliced).toContain('version: "6.0.0"');
       expect(spliced).toContain('debug: false');
       // The coverage settings are TODAY's, not the clone's historical ones.
       expect(spliced).toContain('type_level: true');
@@ -477,10 +477,10 @@ describe('yg simulate — overlayCurrentArchitectureAndCoverage (--file target)'
     const clone = mkYggRoot('overlay-clone3');
     try {
       writeFileSync(path.join(real, 'yg-config.yaml'), 'version: "5.9.0"\ncoverage:\n  type_level: true\n', 'utf-8');
-      writeFileSync(path.join(clone, 'yg-config.yaml'), 'version: "5.2.0"\n', 'utf-8');
+      writeFileSync(path.join(clone, 'yg-config.yaml'), 'version: "6.0.0"\n', 'utf-8');
       overlayCurrentArchitectureAndCoverage(real, clone);
       const spliced = readFileSync(path.join(clone, 'yg-config.yaml'), 'utf-8');
-      expect(spliced).toContain('version: "5.2.0"');
+      expect(spliced).toContain('version: "6.0.0"');
       expect(spliced).toContain('type_level: true');
     } finally {
       rmSync(path.dirname(real), { recursive: true, force: true });

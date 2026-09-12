@@ -1,4 +1,4 @@
-version: "5.2.0"
+version: "6.0.0"
 
 # yg-config.yaml — deliberately narrower coverage.required than
 # type-coverage-basic/ so docs/ falls in NEITHER required nor excluded (the

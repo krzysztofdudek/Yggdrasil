@@ -1,0 +1,4 @@
+name: FileNotTooLong
+description: A mapped source file must not run past the line count this repository set.
+reviewer:
+  type: deterministic

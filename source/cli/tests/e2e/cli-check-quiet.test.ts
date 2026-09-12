@@ -122,6 +122,62 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
     }
   });
 
+  it('(5) --approve --dry-run --json --quiet: the budget preview moves to STDERR, never vanishes', () => {
+    const dir = deterministicFixture('quiet-dryrun-json');
+    try {
+      // All four flags at once: --json claims STDOUT for the machine document,
+      // so the budget preview joins the stderr stream; --quiet must NOT swallow
+      // it there. --dry-run wins over --quiet on EVERY combination — the
+      // preview is the command's deliverable and the JSON document carries no
+      // budget field of its own, so dropping it loses the information outright.
+      const result = run(['check', '--approve', '--dry-run', '--json', '--quiet'], dir);
+
+      // The budget breakdown reaches STDERR (stdout is the JSON document's).
+      expect(result.stderr).toContain('reviewer call(s) is an UPPER BOUND');
+      expect(result.stderr).toMatch(/Filling \d+ unverified pairs/);
+
+      // STDOUT stays a clean, parseable JSON document — no preview text mixed in.
+      expect(result.stdout).not.toContain('UPPER BOUND');
+      expect(() => JSON.parse(result.stdout)).not.toThrow();
+
+      // --dry-run always exits 0 (it is a cost preview, never a verdict).
+      expect(result.status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('(6) --approve --dry-run --json (no --quiet): preview on STDERR, JSON document alone on STDOUT', () => {
+    const dir = deterministicFixture('quiet-dryrun-json-loud');
+    try {
+      // Regression guard for the deliberate --json redirect: without --quiet the
+      // preview already belongs on stderr so stdout carries the document alone.
+      const result = run(['check', '--approve', '--dry-run', '--json'], dir);
+
+      expect(result.stderr).toContain('reviewer call(s) is an UPPER BOUND');
+      expect(result.stdout).not.toContain('UPPER BOUND');
+      expect(() => JSON.parse(result.stdout)).not.toThrow();
+      expect(result.status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('(7) --approve --dry-run (no --json, no --quiet): preview on STDOUT, unchanged', () => {
+    const dir = deterministicFixture('quiet-dryrun-plain');
+    try {
+      // Regression guard for the fourth combination: plain --dry-run keeps the
+      // preview on stdout, where it has always been.
+      const result = run(['check', '--approve', '--dry-run'], dir);
+
+      expect(result.stdout).toContain('reviewer call(s) is an UPPER BOUND');
+      expect(result.stdout).toMatch(/Filling \d+ unverified pairs/);
+      expect(result.status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('(3) plain `yg check` with --quiet: no-op (no progress anyway on read-only), exit 0 on verified', () => {
     const dir = deterministicFixture('quiet-plain-check');
     try {

@@ -163,11 +163,12 @@ describe.skipIf(!distExists)('CLI E2E — port channel-6 enforcement / relation 
 
   // --- Scenario 2: bare relation does NOT propagate the port aspect ---
   // A consumer reaching a target via a plain `uses` relation (no `consumes`)
-  // does NOT inherit that target's port aspect. To keep `yg check` valid (a bare
-  // relation to a target WITH ports is itself a port-missing-consumes error), we
-  // add a SECOND, port-LESS provider and a second consumer that uses it bare.
-  // The same always-flagging check.mjs that refuses the charge consumer must NOT
-  // be effective on — and must NOT refuse — the bare-relation consumer.
+  // does NOT inherit that target's port aspect. A bare relation to a PORTED
+  // target is legal on its own now (it enters through the implicit `default`
+  // port) — this scenario isolates propagation regardless, with a SECOND,
+  // port-LESS provider and a second consumer that uses it bare. The same
+  // always-flagging check.mjs that refuses the charge consumer must NOT be
+  // effective on — and must NOT refuse — this second, bare-relation consumer.
 
   function setupBareRelationGraph(dir: string): void {
     // Broaden the architecture so a second provider/consumer pair classifies.

@@ -1,0 +1,9 @@
+name: E2E Tests — The default port
+description: "Subprocess E2E for D1c's implicit `default` port and the `portNames` field: an undeclared relation normalizes to `default` and that satisfies a ported target without `port-undefined` or the retired `port-missing-consumes`; a relation naming `default` reaches a portless target cleanly; `default`'s own aspects propagate through an undeclared relation and combine with a named port's when both are listed, but not when only the named one is; an empty `portNames` list and declaring both `portNames` and `consumes` are both rejected; the `consumes` alias renders identical `yg node --json` output; a literal `default` port draws a stateless reserved-name notice every run; `yg-node/1` and `yg-impact/1` keep their schema and field names while their lists stop being empty; a missing port description is legal only for `default`; unicode and space-named ports survive; and a `mapping` path escape is still rejected."
+type: test-suite
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-ports-default.test.ts

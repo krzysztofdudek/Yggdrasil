@@ -35,7 +35,7 @@ describe('schema-version load gate', () => {
   });
 
   it('refuse-load triggers when config schema version is above what this CLI supports', async () => {
-    writeFileSync(join(repo, '.yggdrasil', 'yg-config.yaml'), 'version: "6.0.0"\n');
+    writeFileSync(join(repo, '.yggdrasil', 'yg-config.yaml'), 'version: "7.0.0"\n');
     // A too-new schema version is an expected user error (upgrade the CLI), thrown as
     // UnsupportedSchemaVersionError; the "upgrade CLI" guidance now lives in the
     // command-layer presentation, not the loader's message.

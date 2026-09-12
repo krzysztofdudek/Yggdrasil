@@ -216,7 +216,7 @@ describe('runRelationPass stops file enumeration at a nested project boundary', 
     mkdirSync(path.join(root, 'src', 'a', 'vendorlib', '.yggdrasil'), { recursive: true });
     writeFileSync(
       path.join(root, 'src', 'a', 'vendorlib', '.yggdrasil', 'yg-config.yaml'),
-      'version: "5.2.0"\n',
+      'version: "6.0.0"\n',
     );
     writeFileSync(
       path.join(root, 'src', 'a', 'vendorlib', 'bad' + EXT),

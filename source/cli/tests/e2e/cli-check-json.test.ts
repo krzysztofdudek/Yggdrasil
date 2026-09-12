@@ -17,6 +17,7 @@
 //   7. an externally judged pair names its judge as the reviewer
 //   8. yg aspects --json     → status, kind, review date, drill counts, reach
 //   9. this repository's own graph → parses, and matches its own text report
+//  10. yg aspects --json --reach → the units behind the counts, opt-in
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -30,6 +31,10 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
 const BIN_PATH = path.join(CLI_ROOT, 'dist', 'bin.js');
 const FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'e2e-lifecycle');
+// The one fixture carrying a bundle with no reviewer of its own AND files
+// governed by an architecture type alone — the two reach shapes the lifecycle
+// fixture above has no example of.
+const FIXTURE_TYPE_LEVEL = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine');
 // The repository this CLI is developed in — its own graph is the largest real
 // one available, and the ticket's own acceptance is stated against it.
 const REPO_ROOT = path.resolve(CLI_ROOT, '..', '..');
@@ -42,9 +47,9 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
   return { stdout, stderr, status: result.status, all: stdout + stderr };
 }
 
-function copyFixture(label: string): string {
+function copyFixture(label: string, source: string = FIXTURE): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-checkjson-${label}-`));
-  cpSync(FIXTURE, dir, { recursive: true });
+  cpSync(source, dir, { recursive: true });
   return dir;
 }
 
@@ -90,8 +95,22 @@ interface AspectsDoc {
     errs: string | null;
     implies: string[];
     usage: { nodes: number; architecture: number; own: number; implied: number; flow: number; typeCovered: number };
+    reach?: { units: ReachUnit[] };
     drills: { violates: number; satisfies: number; total: number };
   }>;
+}
+
+interface ReachUnit {
+  unit: { kind: string; path: string };
+  node: string | null;
+  status: string;
+  via: string;
+  from: string | null;
+}
+
+/** The join key both documents describe a subject by. */
+function unitKey(u: { unit: { kind: string; path: string } }): string {
+  return `${u.unit.kind}:${u.unit.path}`;
 }
 
 /** The header's own numbers, read back out of the text report. */
@@ -266,6 +285,177 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --json', () => {
     }
   });
 
+  it('10: --reach adds the units behind the counts and changes nothing else in the document', () => {
+    const dir = copyFixture('reach');
+    try {
+      const plain = run(['aspects', '--json'], dir);
+      const withReach = run(['aspects', '--json', '--reach'], dir);
+      expect(plain.status).toBe(0);
+      expect(withReach.status).toBe(0);
+      const plainDoc = JSON.parse(plain.stdout) as AspectsDoc;
+      const reachDoc = JSON.parse(withReach.stdout) as AspectsDoc;
+
+      // The default document is the one it always was: strip the added field and
+      // the two documents are the same document, field for field.
+      expect(plainDoc.aspects.every((a) => a.reach === undefined)).toBe(true);
+      const stripped = {
+        ...reachDoc,
+        aspects: reachDoc.aspects.map(({ reach: _reach, ...rest }) => rest),
+      };
+      expect(stripped).toEqual(plainDoc);
+
+      // Every rule carries the field, so an empty list always means "reaches
+      // nothing" and never "was not enumerated".
+      for (const a of reachDoc.aspects) expect(a.reach).toBeDefined();
+
+      // A rule the architecture attaches: named subjects, not just a count.
+      const arch = reachDoc.aspects.find((a) => a.id === 'has-doc-comment')!;
+      expect(arch.reach!.units.length).toBe(arch.usage.nodes);
+      expect(arch.reach!.units.map((u) => u.via)).toEqual(
+        arch.reach!.units.map(() => 'architecture'),
+      );
+      expect(arch.reach!.units.map((u) => u.from)).toEqual(
+        arch.reach!.units.map(() => 'service'),
+      );
+      expect(arch.reach!.units.map((u) => u.unit.path).sort()).toEqual([
+        'services/orders',
+        'services/payments',
+      ]);
+      for (const u of arch.reach!.units) {
+        expect(u.unit.kind).toBe('node');
+        expect(u.node).toBe(u.unit.path);
+        expect(u.status).toBe('enforced');
+      }
+
+      // A rule that arrives through more than one channel names the first in
+      // cascade order, not an arbitrary one: this fixture's flow propagates a
+      // rule the components' own type already attaches, and the type is the
+      // nearer declaration.
+      const twoChannels = reachDoc.aspects.find((a) => a.id === 'no-todo-comments')!.reach!.units;
+      expect(twoChannels.length).toBeGreaterThan(0);
+      for (const u of twoChannels) {
+        expect(u.via).toBe('architecture');
+        expect(u.from).toBe('service');
+      }
+
+      // A rule a component declares on itself has no other origin to point at.
+      const own = reachDoc.aspects.find((a) => a.id === 'wip-rule')!.reach!.units;
+      expect(own.map((u) => ({ via: u.via, from: u.from, path: u.unit.path }))).toEqual([
+        { via: 'own', from: null, path: 'services/orders' },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('11: a draft rule reports the units it reaches, which the gate document cannot show at all', () => {
+    const dir = copyFixture('reach-draft');
+    try {
+      const reachDoc = JSON.parse(run(['aspects', '--json', '--reach'], dir).stdout) as AspectsDoc;
+      const draft = reachDoc.aspects.find((a) => a.id === 'wip-rule')!;
+      expect(draft.status).toBe('draft');
+      // Not "reaches nothing": it reaches a real component, and is not judging it.
+      expect(draft.reach!.units.length).toBe(1);
+      expect(draft.reach!.units[0].status).toBe('draft');
+
+      // The gate never enumerates a pair it does not judge, which is exactly why
+      // reading reach out of the check document mistakes a draft rule for a dead one.
+      const check = JSON.parse(run(['check', '--json', '--full'], dir).stdout) as CheckDoc;
+      expect(check.pairs.some((p) => p.aspect === 'wip-rule')).toBe(false);
+      expect(check.totals.draftSkipped).toBeGreaterThan(0);
+
+      // Every non-draft unit, on the other hand, is a pair the gate holds — the
+      // same subject under the same key, so the two documents join.
+      const enforcedUnits = new Set(
+        reachDoc.aspects.flatMap((a) => (a.reach!.units).filter((u) => u.status !== 'draft').map(unitKey).map((k) => `${a.id} ${k}`)),
+      );
+      const gatePairs = new Set(check.pairs.map((p) => `${p.aspect} ${unitKey(p)}`));
+      expect([...gatePairs].filter((k) => !enforcedUnits.has(k))).toEqual([]);
+      expect([...enforcedUnits].filter((k) => !gatePairs.has(k))).toEqual([]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('12: a bundle reaches nothing of its own, and a file governed by its type alone names the type', () => {
+    const dir = copyFixture('reach-typed', FIXTURE_TYPE_LEVEL);
+    try {
+      const doc = JSON.parse(run(['aspects', '--json', '--reach'], dir).stdout) as AspectsDoc;
+
+      // A bundle has no reviewer and no verdict of its own — what it pulls in is
+      // `implies`, and each implied rule carries its own reach.
+      const bundle = doc.aspects.find((a) => a.id === 'bundle')!;
+      expect(bundle.kind).toBe('aggregate');
+      expect(bundle.reach!.units).toEqual([]);
+      expect(bundle.implies.length).toBeGreaterThan(0);
+
+      // A file no component owns: the type is the provenance, and there is no
+      // owning component to name.
+      const typed = doc.aspects.find((a) => a.id === 'own-file-rule')!.reach!.units;
+      const nodeless = typed.find((u) => u.node === null)!;
+      expect(nodeless.via).toBe('type');
+      expect(nodeless.from).toBe('leaf');
+      expect(nodeless.unit.kind).toBe('file');
+
+      // The same rule on a file a component DOES own reports that component.
+      const owned = typed.find((u) => u.node !== null)!;
+      expect(owned.via).toBe('architecture');
+      expect(owned.node).toBe('owned');
+
+      // A flow names the flow; a rule pulled in by another names that rule, so a
+      // reader of an unexplained attachment has the thing to go and edit.
+      const viaFlow = doc.aspects.find((a) => a.id === 'flow-only-rule')!.reach!.units;
+      expect(viaFlow.map((u) => ({ via: u.via, from: u.from }))).toEqual([
+        { via: 'flow', from: 'leaf-flow' },
+      ]);
+      const viaBundle = doc.aspects.find((a) => a.id === 'whole-unit-rule')!.reach!.units;
+      expect(viaBundle.map((u) => ({ via: u.via, from: u.from }))).toEqual([
+        { via: 'implied', from: 'bundle' },
+      ]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('12b: reach is unmoved by the lock, which is what the gate document spends its time on', () => {
+    const dir = copyFixture('reach-cost');
+    try {
+      // Reading reach out of the gate document costs a whole verification pass:
+      // the lock is read and every recorded verdict re-hashed against current
+      // inputs. Reach answers the question the pair enumeration alone answers,
+      // so filling the lock — the work that pass exists to do — must not move it
+      // by one byte, while the gate document changes verdict by verdict.
+      const before = run(['aspects', '--json', '--reach'], dir);
+      const gateBefore = JSON.parse(run(['check', '--json', '--full'], dir).stdout) as CheckDoc;
+      run(['check', '--approve', '--only-deterministic'], dir);
+      const after = run(['aspects', '--json', '--reach'], dir);
+      const gateAfter = JSON.parse(run(['check', '--json', '--full'], dir).stdout) as CheckDoc;
+
+      expect(after.stdout).toBe(before.stdout);
+      expect(gateAfter.totals.verdicts.approved).toBeGreaterThan(gateBefore.totals.verdicts.approved);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('13: --reach needs --json, and a build without the flag refuses it by name', () => {
+    const dir = copyFixture('reach-refused');
+    try {
+      const refused = run(['aspects', '--reach'], dir);
+      expect(refused.status).toBe(1);
+      expect(refused.stdout).toBe('');
+      expect(refused.stderr).toContain('--reach needs --json.');
+
+      // The version signal a consumer reads: a CLI that does not know the flag
+      // refuses it by name rather than answering with a document missing the field.
+      const unknown = run(['aspects', '--json', '--reach-units'], dir);
+      expect(unknown.status).not.toBe(0);
+      expect(unknown.stderr).toContain("unknown option '--reach-units'");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('8b: --health is refused with --json rather than folded into the same schema', () => {
     const dir = copyFixture('health');
     try {
@@ -311,5 +501,24 @@ describe.skipIf(!distExists)("CLI E2E — the documents on this repository's own
     // it is not, and the case then fails as a timeout rather than on anything it
     // asserts. The generous ceiling buys real headroom without relaxing a single
     // assertion — this is the same per-test override the heavier cases here use.
+  }, 180_000);
+
+  it('10b: reach on this graph agrees with the gate pair for pair', () => {
+    const reach = run(['aspects', '--json', '--reach'], REPO_ROOT);
+    const gate = run(['check', '--json', '--full'], REPO_ROOT);
+    expect(reach.status).toBe(0);
+
+    const reachDoc = JSON.parse(reach.stdout) as AspectsDoc;
+    const gateDoc = JSON.parse(gate.stdout) as CheckDoc;
+
+    // The same subjects, from the same enumeration: this repository carries no
+    // draft rule, so the two sets are equal rather than merely overlapping.
+    expect(reachDoc.aspects.every((a) => a.status !== 'draft')).toBe(true);
+    const reachKeys = new Set(
+      reachDoc.aspects.flatMap((a) => a.reach!.units.map((u) => `${a.id} ${unitKey(u)}`)),
+    );
+    const gateKeys = new Set(gateDoc.pairs.map((p) => `${p.aspect} ${unitKey(p)}`));
+    expect(reachKeys.size).toBe(gateDoc.pairs.length);
+    expect([...gateKeys].filter((k) => !reachKeys.has(k))).toEqual([]);
   }, 180_000);
 });

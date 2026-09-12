@@ -1,5 +1,5 @@
 export const summary =
-  'One predicate grammar, three sites (when:, architecture node_types.*.when, scope.files), shared combinators, node atoms vs file atoms, cross-hints';
+  'One predicate grammar, three sites (when:, architecture node_types.*.when, scope.files), shared combinators, node atoms (incl. node.id) vs file atoms, the when-unknown-* errors plus the when-unmatched-port warning, cross-hints';
 
 export const content = `# Conditional aspects (when predicate)
 
@@ -54,18 +54,58 @@ when:
   # Or top-level atomic clauses (multiple atoms at the top level imply all_of):
   node:
     type: <type-id>          # node is exactly this type
-    has_port: <port-name>    # node declares this named port
+    has_port: <port-name>    # node DECLARES this named port (literal — see below)
     has_mapping: true|false  # node owns at least one mapped file (or owns none)
+    id: <node-path> | [<node-path>, ...]   # node path is exactly this (or one of these), relative to model/
   relations:
     <relation-type>:         # calls | uses | extends | implements | emits | listens
       target_type: <type-id> # at least one relation of this type targets a node of this type
       target: <node-path>    # ...or targets exactly this node path (relative to model/)
       consumes_port: <port>  # ...or consumes this port on the relation
-  descendants:               # same checks, but satisfied by ANY hierarchical descendant
+  descendants:               # SOME ONE descendant satisfies every field below at once
     type: <type-id>
     has_port: <port-name>
     relations: { <relation-type>: { target_type: <type-id> } }
 \`\`\`
+
+\`node.id\` matches a node's path EXACTLY — never a subtree; a list means "any of
+these paths". Wrapped in \`not:\`, it is the standard idiom for excluding one named
+component from an otherwise-broad attachment:
+\`when: { not: { node: { id: services/legacy } } }\`.
+
+A \`descendants:\` clause means "ONE descendant satisfies every field written
+here". It is a single existential over the subtree, conjunctive inside it, so
+\`descendants: { type: repository, has_port: charge }\` passes only when the SAME
+descendant is a repository AND declares the \`charge\` port — descendant A having
+the type while an unrelated descendant B has the port is NOT a match. If the node
+has no descendants at all, the clause is always false.
+
+If you genuinely want the fields checked independently across the subtree ("some
+descendant is a repository, and some possibly-other descendant has the port"),
+give each field its own clause:
+\`all_of: [{ descendants: { type: repository } }, { descendants: { has_port: charge } }]\`.
+
+\`consumes_port\` matches a relation's NORMALIZED port list, not only what it
+wrote explicitly — a relation that named no port at all normalizes to
+\`[default]\`, so \`consumes_port: default\` matches it too. Without that, the
+predicate would silently miss every relation that reaches a node through the
+implicit \`default\` port.
+
+Reference-integrity validation agrees: the literal name \`default\` is EXEMPT from
+\`when-unknown-port\`, in both shapes — bare (no \`target\`) and targeted. The
+implicit port every node carries is a real referent, so no node has to declare
+\`ports: { default: ... }\` for the clause to be legal. Write
+\`consumes_port: default\` directly. Declaring an explicit \`default\` port is still
+legal (it is how you hang aspects on the implicit port, and \`default\` is the one
+port name that needs no \`description\`), but it is not a prerequisite for this
+idiom — and declaring it draws the non-blocking \`port-default-reserved\` warning
+asking you to confirm the port's aspects are meant for every consumer that names
+no port.
+
+\`has_port\` is the opposite case: it is checked LITERALLY against the node's
+declared \`ports:\` map, with no normalization. \`has_port: default\` therefore does
+not mean "every node" — it matches only nodes that explicitly declare a
+\`default\` port.
 
 Rules the parser enforces:
 - A relation-type entry must carry a match. \`relations: { emits: {} }\` is
@@ -77,13 +117,25 @@ Rules the parser enforces:
 - At a single level, use EITHER one boolean operator OR atomic clauses — not
   both, and at most one boolean operator. To combine more, nest another level.
 
-Beyond these structural checks, \`yg check\` reference-integrity-validates the
-identifiers a \`when\` predicate names. These are error-severity:
+Beyond these structural checks, \`yg check\` reference-integrity-validates every
+identifier a \`when\` predicate names — TYPE, NODE-PATH, \`consumes_port\` and
+\`has_port\` (\`has_mapping\` is a boolean, so there is nothing to resolve). The
+first three are error-severity:
 - An unknown \`target_type\`, \`descendants.type\`, or \`node.type\` raises a
   \`when-unknown-type\` error.
-- An unknown relation \`target\` (a node path that does not exist) raises a
+- An unknown relation \`target\`, or an unknown \`node.id\` (a node path that does
+  not exist — for a single string id or any entry of an id list), raises a
   \`when-unknown-node\` error.
-- An unknown \`consumes_port\` raises a \`when-unknown-port\` error.
+- An unknown \`consumes_port\` raises a \`when-unknown-port\` error. The reserved
+  name \`default\` is exempt — every node carries that port implicitly.
+
+\`has_port\` is WARNING-severity instead. A \`node.has_port\` or
+\`descendants.has_port\` naming a port that NO node in the graph declares raises
+\`when-unmatched-port\`, which never blocks \`yg check\`. The clause is false for
+every node, which is usually a typo — but it is also the standard way to write a
+deterministically-false gate, and it is legal against a port that is planned but
+not declared yet. So the warning puts the name in front of you and leaves the
+call to you; nothing else will.
 
 ### A node calls a service client
 
@@ -219,8 +271,13 @@ against a fixed set of total facts:
   alike — dependency analysis cannot tell calling from using from extending from
   implementing, so a single import satisfies a \`relations:\` clause naming any of
   the four the same way. An import is never evidence of an \`emits\` or \`listens\`
-  relation, and never evidence of a \`consumes_port\` — those atoms always read
-  false for a type-covered file, regardless of what it imports.
+  relation — those atoms always read false for a type-covered file, regardless of
+  what it imports.
+- A \`consumes_port\` atom behaves differently from the two above. Every derived
+  relation carries exactly the implicit \`default\` port, so
+  \`consumes_port: default\` reads TRUE for a type-covered file with any resolved
+  import of a matching kind. \`consumes_port\` naming any other, explicitly
+  declared port always reads false — no derived relation ever names one.
 
 This makes applicability for such a file volatile in a way a declared component
 is not: a rule whose applicability depends on what a file imports can start or
@@ -233,7 +290,7 @@ the run that discards it says so.
 Matching a type satisfies coverage; it does not by itself mean anything runs.
 A type's whole-unit (\`scope: { per: node }\`) rules can never run on a file
 with no component, a rule's own \`when:\` can still fail against the facts
-above, and a rule can still be draft. \`yg check\` names all of this per
+above, and a rule can still be draft. \`yg check --coverage\` names all of this per
 matched type — files covered, rules actually enforced, rules that run but
 only warn (reported under their own heading, never folded in with the ones
 that block), rules attached but not (with the reason and a count), and — the

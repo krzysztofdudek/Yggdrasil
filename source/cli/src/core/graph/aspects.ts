@@ -93,8 +93,8 @@ function* iterateAttachments(node: GraphNode, graph: Graph): Generator<Attachmen
   // 6. Port consumption aspects (channel 6)
   for (const relation of node.meta.relations ?? []) {
     const targetNode = graph.nodes.get(relation.target);
-    if (!targetNode?.meta.ports || !relation.consumes) continue;
-    for (const portName of relation.consumes) {
+    if (!targetNode?.meta.ports) continue;
+    for (const portName of relation.portNames) {
       const port = targetNode.meta.ports[portName];
       if (!port?.aspects) continue;
       for (const id of port.aspects) {

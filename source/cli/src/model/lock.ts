@@ -70,23 +70,27 @@ export interface VerdictEntry {
    * re-prove it by hashing, with no key and no judge present.
    */
   judge?: { name: string; provider: 'external' };
-}
-
-/**
- * One port's contract baseline AT ONE VERSION: the test file that was the
- * contract, and what it hashed to when that version was recorded.
- *
- * Kept per version, and never overwritten once written. That is what makes the
- * rule enforceable in both directions: at an unchanged version the recorded hash
- * is the only thing the file may still be, and a version that has been used
- * before keeps its own record, so returning to it returns to the contract it
- * named rather than silently re-baselining whatever is on disk now.
- */
-export interface PortContractRecord {
-  /** Repo-relative POSIX path of the contract test, as declared when recorded. */
-  test: string;
-  /** sha256 of that file's normalized bytes at the moment the version was recorded. */
-  hash: string;
+  /**
+   * WHEN `--approve` wrote this verdict (ISO 8601, from the fill's injected
+   * clock — never Date.now() in core/). Absent on every deterministic entry
+   * (filling one costs nothing, so there is nothing to attribute) and on any
+   * entry written before this field existed.
+   *
+   * NOT a hash ingredient — a RECORD of when a verdict was filled, never an
+   * input of the decision, so writing or reading it invalidates nothing. It
+   * exists so a consumer above the agent can attribute reviewer cost to the
+   * branch that caused it.
+   */
+  filledAt?: string;
+  /**
+   * The commit (`git rev-parse HEAD`) `--approve` ran at when it wrote this
+   * verdict. Independently optional: a repository the fill ran in without a
+   * resolvable commit (no repository, no commit yet, git missing from PATH)
+   * still gets `filledAt` but never a fabricated `filledSha`.
+   *
+   * NOT a hash ingredient, for the same reason `filledAt` is not.
+   */
+  filledSha?: string;
 }
 
 export interface LockNodeEntry {
@@ -95,17 +99,6 @@ export interface LockNodeEntry {
   source?: string;
   /** Append-only log baseline (validateAppendOnly semantics, unchanged). */
   log?: { last_entry_datetime: string; prefix_hash: string };
-  /**
-   * Port contract baselines: port name → version (as a decimal string key) →
-   * the record for that version. Absent on a node whose ports declare no `test`.
-   *
-   * This is COMMITTED state, in the logs file beside the source fingerprint and
-   * the log baseline — deliberately, and for the same reason those are: a
-   * baseline that a fresh clone rebuilds from whatever it finds is not a
-   * baseline. It is written only by an approving run, and only for a (port,
-   * version) pair that has none.
-   */
-  ports?: Record<string, Record<string, PortContractRecord>>;
 }
 
 /**

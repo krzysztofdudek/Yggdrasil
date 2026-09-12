@@ -69,7 +69,7 @@ describe('channel 6 — basic propagation to consumer', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: 'Charge', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -86,7 +86,7 @@ describe('channel 6 — basic propagation to consumer', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -98,7 +98,7 @@ describe('channel 6 — basic propagation to consumer', () => {
   it('every relation type that consumes a port propagates (calls/uses/extends/implements)', () => {
     for (const type of ['calls', 'uses', 'extends', 'implements'] as RelationType[]) {
       const target = makeNode('t', { meta: { name: 't', type: 'service', ports: { p: { description: '', aspects: ['x'] } } } });
-      const consumer = makeNode('c', { meta: { name: 'c', type: 'service', relations: [{ target: 't', type, consumes: ['p'] }] } });
+      const consumer = makeNode('c', { meta: { name: 'c', type: 'service', relations: [{ target: 't', type, portNames: ['p'] }] } });
       const graph = makeGraph({ nodes: new Map([['t', target], ['c', consumer]]), aspects: [aspect('x')] });
       expect(computeEffectiveAspects(consumer, graph).has('x'), `relation type ${type}`).toBe(true);
     }
@@ -108,7 +108,7 @@ describe('channel 6 — basic propagation to consumer', () => {
     for (const type of ['emits', 'listens'] as RelationType[]) {
       const target = makeNode('t', { meta: { name: 't', type: 'service', ports: { p: { description: '', aspects: ['x'] } } } });
       const consumer = makeNode('c', {
-        meta: { name: 'c', type: 'service', relations: [{ target: 't', type, consumes: ['p'], event_name: 'Evt' }] },
+        meta: { name: 'c', type: 'service', relations: [{ target: 't', type, portNames: ['p'], event_name: 'Evt' }] },
       });
       const graph = makeGraph({ nodes: new Map([['t', target], ['c', consumer]]), aspects: [aspect('x')] });
       expect(computeEffectiveAspects(consumer, graph).has('x'), `relation type ${type}`).toBe(true);
@@ -126,7 +126,7 @@ describe('channel 6 — bare relation does NOT propagate', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: 'Charge', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls' }] },
+      meta: { name: 'orders', type: 'service', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -140,7 +140,7 @@ describe('channel 6 — bare relation does NOT propagate', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: 'Charge', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: [] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: [] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -157,8 +157,8 @@ describe('channel 6 — bare relation does NOT propagate', () => {
       meta: {
         name: 'orders', type: 'service',
         relations: [
-          { target: 'payments', type: 'uses' },                       // bare
-          { target: 'payments', type: 'calls', consumes: ['charge'] }, // consuming
+          { portNames: ['default'], target: 'payments', type: 'uses' },                       // bare
+          { target: 'payments', type: 'calls', portNames: ['charge'] }, // consuming
         ],
       },
     });
@@ -192,7 +192,7 @@ describe('channel 6 — multiple consumed ports', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge', 'refund'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge', 'refund'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -212,8 +212,8 @@ describe('channel 6 — multiple consumed ports', () => {
       meta: {
         name: 'orders', type: 'service',
         relations: [
-          { target: 'payments', type: 'calls', consumes: ['charge'] },
-          { target: 'inventory', type: 'calls', consumes: ['reserve'] },
+          { target: 'payments', type: 'calls', portNames: ['charge'] },
+          { target: 'inventory', type: 'calls', portNames: ['reserve'] },
         ],
       },
     });
@@ -235,7 +235,7 @@ describe('channel 6 — multiple consumed ports', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge', 'refund'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge', 'refund'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -249,7 +249,7 @@ describe('channel 6 — multiple consumed ports', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge', 'charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge', 'charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -269,7 +269,7 @@ describe('channel 6 — non-existent / missing port consumption', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['nonexistent'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['nonexistent'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -283,7 +283,7 @@ describe('channel 6 — non-existent / missing port consumption', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge', 'nope'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge', 'nope'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -294,7 +294,7 @@ describe('channel 6 — non-existent / missing port consumption', () => {
 
   it('relation target node does not exist in the graph → no throw, no aspects', () => {
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'ghost', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'ghost', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({ nodes: new Map([['orders', consumer]]) });
     expect(() => computeEffectiveAspects(consumer, graph)).not.toThrow();
@@ -304,7 +304,7 @@ describe('channel 6 — non-existent / missing port consumption', () => {
   it('target exists but has NO ports map at all → consuming any name is a no-op', () => {
     const target = makeNode('payments', { meta: { name: 'payments', type: 'service' } });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -318,7 +318,7 @@ describe('channel 6 — non-existent / missing port consumption', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: [] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -337,7 +337,7 @@ describe('channel 6 — directionality (consumer only, not the owner)', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -353,7 +353,7 @@ describe('channel 6 — directionality (consumer only, not the owner)', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const bystander = makeNode('reporting', { meta: { name: 'reporting', type: 'service' } });
     const graph = makeGraph({
@@ -370,7 +370,7 @@ describe('channel 6 — directionality (consumer only, not the owner)', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const child = makeNode('orders/sub', { parent: consumer, meta: { name: 'sub', type: 'service' } });
     consumer.children = [child];
@@ -392,7 +392,7 @@ describe('channel 6 — status contribution', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -406,7 +406,7 @@ describe('channel 6 — status contribution', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -423,7 +423,7 @@ describe('channel 6 — status contribution', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -444,7 +444,7 @@ describe('channel 6 — status contribution', () => {
         name: 'orders', type: 'service',
         aspects: ['ct'],
         aspectStatus: { ct: 'enforced' },
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }],
       },
     });
     const graph = makeGraph({
@@ -462,7 +462,7 @@ describe('channel 6 — status contribution', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -483,7 +483,7 @@ describe('channel 6 — feeds implies expansion (channel 7)', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['port-root'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -503,7 +503,7 @@ describe('channel 6 — feeds implies expansion (channel 7)', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -536,7 +536,7 @@ describe('channel 6 — when filtering', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -558,7 +558,7 @@ describe('channel 6 — when filtering', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -572,7 +572,7 @@ describe('channel 6 — when filtering', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -594,7 +594,7 @@ describe('channel 6 — when filtering', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -620,7 +620,7 @@ describe('channel 6 — when filtering', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -640,7 +640,7 @@ describe('channel 6 — getAspectSource provenance', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', consumer]]) });
     expect(getAspectSource('ct', consumer, graph)).toBe("port 'charge' on 'payments'");
@@ -659,7 +659,7 @@ describe('channel 6 — getAspectSource provenance', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', consumer]]), aspects: [aspect('ct')] });
     // getAspectSource is informational and ignores `when`.
@@ -679,7 +679,7 @@ describe('channel 6 — getAspectSource provenance', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge', 'refund'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge', 'refund'] }] },
     });
     const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', consumer]]) });
     expect(getAspectSource('shared', consumer, graph)).toBe("port 'charge' on 'payments'");
@@ -690,7 +690,7 @@ describe('channel 6 — getAspectSource provenance', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls' }] }, // bare
+      meta: { name: 'orders', type: 'service', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] }, // bare
     });
     const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', consumer]]) });
     expect(getAspectSource('ct', consumer, graph)).toBe('unknown source');
@@ -710,7 +710,7 @@ describe('channel 6 — getAspectStatusSources provenance', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -728,7 +728,7 @@ describe('channel 6 — getAspectStatusSources provenance', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -744,7 +744,7 @@ describe('channel 6 — getAspectStatusSources provenance', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls' }] },
+      meta: { name: 'orders', type: 'service', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -758,7 +758,7 @@ describe('channel 6 — getAspectStatusSources provenance', () => {
       meta: { name: 'payments', type: 'service', ports: { charge: { description: '', aspects: ['ct'] } } },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['nope'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['nope'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -778,7 +778,7 @@ describe('channel 6 — getAspectStatusSources provenance', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge', 'refund'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge', 'refund'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -804,7 +804,7 @@ describe('channel 6 — getAspectStatusSources provenance', () => {
       },
     });
     const consumer = makeNode('orders', {
-      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'orders', type: 'service', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({
       nodes: new Map([['payments', target], ['orders', consumer]]),
@@ -827,7 +827,7 @@ describe('channel 6 — combines with other channels', () => {
       meta: {
         name: 'orders', type: 'service',
         aspects: ['own-x'],
-        relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }],
       },
     });
     const graph = makeGraph({
@@ -843,7 +843,7 @@ describe('channel 6 — combines with other channels', () => {
       meta: {
         name: 'svc', type: 'service',
         ports: { p: { description: '', aspects: ['x'] } },
-        relations: [{ target: 'svc', type: 'calls', consumes: ['p'] }],
+        relations: [{ target: 'svc', type: 'calls', portNames: ['p'] }],
       },
     });
     const graph = makeGraph({ nodes: new Map([['svc', node]]), aspects: [aspect('x')] });

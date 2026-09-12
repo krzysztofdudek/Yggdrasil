@@ -6,9 +6,8 @@
 // SAME graph queries those views use. These tests pin the properties a machine
 // consumer relies on and the text view cannot show it: which dependents are
 // direct and which are reached through somebody else, the path each indirect one
-// travels, who consumes a published port (including through an event relation,
-// which the dependency algorithms deliberately ignore), and a port's DECLARED
-// contract version rather than the one a versionless port is read at.
+// travels, and who consumes a published port (including through an event
+// relation, which the dependency algorithms deliberately ignore).
 //
 // The graphs are built in memory rather than loaded from a fixture: every case
 // below turns on one edge or one declared field, and a fixture project would
@@ -17,8 +16,10 @@
 
 import { describe, it, expect } from 'vitest';
 import { buildImpactDocument, buildNodeDocument } from '../../../src/core/graph/machine-documents.js';
+import { buildNodeContextJson } from '../../../src/core/context-builder.js';
 import { IMPACT_JSON_SCHEMA } from '../../../src/formatters/impact-json.js';
 import { NODE_JSON_SCHEMA } from '../../../src/formatters/node-json.js';
+import { CONTEXT_JSON_SCHEMA } from '../../../src/formatters/context-json.js';
 import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 function makeNode(nodePath: string, overrides: Partial<GraphNode> = {}): GraphNode {
@@ -63,8 +64,6 @@ function paymentsGraph(): Graph {
         charge: {
           description: 'Take a payment.',
           aspects: ['audit-required'],
-          version: 3,
-          test: 'tests\\contracts\\charge.test.ts',
         },
         refund: { description: 'Give it back.', aspects: [] },
         dispute: { description: 'Contest it.', aspects: [] },
@@ -75,14 +74,14 @@ function paymentsGraph(): Graph {
     meta: {
       name: 'OrdersService',
       type: 'service',
-      relations: [{ target: 'services/payments', type: 'uses', consumes: ['charge'] }],
+      relations: [{ target: 'services/payments', type: 'uses', portNames: ['charge'] }],
     },
   });
   const reporting = makeNode('services/reporting', {
     meta: {
       name: 'ReportingService',
       type: 'service',
-      relations: [{ target: 'services/orders', type: 'uses' }],
+      relations: [{ portNames: ['default'], target: 'services/orders', type: 'uses' }],
     },
   });
   const ledger = makeNode('services/ledger', {
@@ -90,7 +89,7 @@ function paymentsGraph(): Graph {
       name: 'LedgerService',
       type: 'service',
       relations: [
-        { target: 'services/payments', type: 'listens', event_name: 'PaymentTaken', consumes: ['charge'] },
+        { target: 'services/payments', type: 'listens', event_name: 'PaymentTaken', portNames: ['charge'] },
       ],
     },
   });
@@ -99,8 +98,8 @@ function paymentsGraph(): Graph {
       name: 'BillingService',
       type: 'service',
       relations: [
-        { target: 'services/payments', type: 'uses', consumes: ['charge', 'refund'] },
-        { target: 'services/payments', type: 'emits', event_name: 'InvoiceRaised' },
+        { target: 'services/payments', type: 'uses', portNames: ['charge', 'refund'] },
+        { portNames: ['default'], target: 'services/payments', type: 'emits', event_name: 'InvoiceRaised' },
       ],
     },
   });
@@ -135,7 +134,9 @@ describe('the impact document — who depends on a component', () => {
 
     expect(billing?.relations).toEqual([
       { type: 'uses', ports: ['charge', 'refund'] },
-      { type: 'emits', ports: [] },
+      // Never empty any more — the emits relation named no port, so it reports
+      // the implicit 'default' one instead of an empty list.
+      { type: 'emits', ports: ['default'] },
     ]);
   });
 
@@ -148,27 +149,14 @@ describe('the impact document — who depends on a component', () => {
 });
 
 describe('the impact document — the ports a component publishes', () => {
-  it('lists ports by name, with the declared version and contract test', () => {
+  it('lists ports by name', () => {
     const doc = buildImpactDocument(paymentsGraph(), 'services/payments');
 
     expect(doc.ports.map((p) => p.name)).toEqual(['charge', 'dispute', 'refund']);
-    expect(doc.ports[0].version).toBe(3);
-    // Repo-relative POSIX, whatever separator the graph was read with.
-    expect(doc.ports[0].test).toBe('tests/contracts/charge.test.ts');
-  });
-
-  it('says a versionless port declares no version rather than the one it is read at', () => {
-    // The contract check reads a versionless port at version 1; the document
-    // reports what the port SAYS about itself, and a number it never wrote
-    // would be a claim it never made.
-    const doc = buildImpactDocument(paymentsGraph(), 'services/payments');
-    const refund = doc.ports.find((p) => p.name === 'refund');
-    expect(refund?.version).toBeNull();
-    expect(refund?.test).toBeNull();
   });
 
   it('counts a consumer that reaches the port through an event relation', () => {
-    // `consumes:` is legal on every relation type, so a component that names a
+    // `portNames:` is legal on every relation type, so a component that names a
     // port over an event edge is bound by its contract just the same — even
     // though it is not a structural dependent.
     const doc = buildImpactDocument(paymentsGraph(), 'services/payments');
@@ -213,7 +201,9 @@ describe('the component document — structure the text view leaves implicit', (
     const doc = buildNodeDocument(paymentsGraph(), 'services/billing');
     expect(doc.relations).toEqual([
       { target: 'services/payments', type: 'uses', consumes: ['charge', 'refund'] },
-      { target: 'services/payments', type: 'emits', consumes: [], event_name: 'InvoiceRaised' },
+      // `consumes` is the yg-node/1 field name — frozen — and is never empty any
+      // more: the emits relation named no port, so it reports 'default'.
+      { target: 'services/payments', type: 'emits', consumes: ['default'], event_name: 'InvoiceRaised' },
     ]);
   });
 
@@ -221,8 +211,6 @@ describe('the component document — structure the text view leaves implicit', (
     const doc = buildNodeDocument(paymentsGraph(), 'services/payments');
     expect(doc.ports.charge).toEqual({
       description: 'Take a payment.',
-      version: 3,
-      test: 'tests/contracts/charge.test.ts',
       aspects: ['audit-required'],
     });
     expect(Object.keys(doc.ports)).toEqual(['charge', 'dispute', 'refund']);
@@ -231,5 +219,51 @@ describe('the component document — structure the text view leaves implicit', (
     expect(bare.description).toBe('');
     expect(bare.mapping).toEqual([]);
     expect(bare.ports).toEqual({});
+  });
+});
+
+// =============================================================================
+// D1c — the implicit `default` port. schema numbers and field names (`consumes`
+// on yg-node/1, `ports` on yg-impact/1) are FROZEN by decision (2026-09-09):
+// only the never-empty-list behavior changes. yg-context/1 carries no such
+// field at all and is untouched.
+// =============================================================================
+
+describe('the default port — machine documents never report an empty port list', () => {
+  it('buildNodeDocument: an undeclared relation reports consumes: [default], on the unchanged yg-node/1 schema', () => {
+    const doc = buildNodeDocument(paymentsGraph(), 'services/reporting');
+    expect(doc.schema).toBe('yg-node/1');
+    expect(doc.relations).toEqual([{ target: 'services/orders', type: 'uses', consumes: ['default'] }]);
+    expect(doc.relations[0]).not.toHaveProperty('portNames');
+  });
+
+  it('buildImpactDocument: the same undeclared relation reports ports: [default] on the dependent, on the unchanged yg-impact/1 schema', () => {
+    const doc = buildImpactDocument(paymentsGraph(), 'services/orders');
+    expect(doc.schema).toBe('yg-impact/1');
+    const reporting = doc.dependents.find((d) => d.node === 'services/reporting');
+    expect(reporting?.relations).toEqual([{ type: 'uses', ports: ['default'] }]);
+    expect(reporting?.relations[0]).not.toHaveProperty('consumes');
+  });
+
+  it('collectPortConsumers (via buildImpactDocument) finds a consumer of "charge" through the normalized portNames list', () => {
+    const doc = buildImpactDocument(paymentsGraph(), 'services/payments');
+    const charge = doc.ports.find((p) => p.name === 'charge');
+    expect(charge?.consumers).toEqual([
+      { node: 'services/billing', relation: 'uses' },
+      { node: 'services/ledger', relation: 'listens' },
+      { node: 'services/orders', relation: 'uses' },
+    ]);
+  });
+
+  it('buildNodeContextJson stays on yg-context/1 with the exact same shape for a graph with no default port — golden, not a file snapshot', () => {
+    const doc = buildNodeContextJson(paymentsGraph(), 'services/reporting');
+    expect(doc.schema).toBe(CONTEXT_JSON_SCHEMA);
+    expect(doc).toEqual({
+      schema: 'yg-context/1',
+      target: { kind: 'node', path: 'services/reporting' },
+      owner: { kind: 'node', path: 'services/reporting', type: 'service' },
+      chain: [{ node: 'services/reporting', type: 'service' }],
+      aspects: [],
+    });
   });
 });

@@ -37,10 +37,16 @@ const REPO_ROOT = path.resolve(__dirname, '../../../..');
 /** A minimal Graph carrying only what deriveStructure reads: node ids + declared relations. */
 function graphOf(
   nodeIds: string[],
-  relations: Record<string, Array<{ target: string; type: string; consumes?: string[] }>> = {},
+  relations: Record<string, Array<{ target: string; type: string; portNames?: string[] }>> = {},
 ): Graph {
   const nodes = new Map<string, unknown>();
-  for (const id of nodeIds) nodes.set(id, { meta: { relations: relations[id] ?? [] } });
+  for (const id of nodeIds) {
+    // The real parser never leaves portNames unset (an undeclared relation
+    // normalizes to ['default']) — mirror that here so this hand-built fixture
+    // matches what collectDeclaredRelations actually receives.
+    const rels = (relations[id] ?? []).map((r) => ({ ...r, portNames: r.portNames ?? ['default'] }));
+    nodes.set(id, { meta: { relations: rels } });
+  }
   return { nodes } as unknown as Graph;
 }
 
@@ -82,7 +88,7 @@ describe('deriveStructure — a normal (above-floor) graph with a cross-tree dep
   const nodeIds = ['a', 'a/x', 'a/x/y', 'b', 'b/p', 'b/p/q', 'c', 'd', 'e', 'f', 'g'];
   const graph = graphOf(nodeIds, {
     'a/x/y': [{ target: 'b/p/q', type: 'uses' }], // span 6 — the deepest cross-tree tunnel
-    'a/x': [{ target: 'b/p', type: 'calls', consumes: ['port'] }], // span 4, via a declared contract
+    'a/x': [{ target: 'b/p', type: 'calls', portNames: ['port'] }], // span 4, via a declared contract
   });
   // Detected-only edge (the flattened seam shape): c → d.
   const detected = [{ from: 'c', targets: ['d'] }];

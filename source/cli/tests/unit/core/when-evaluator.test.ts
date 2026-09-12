@@ -29,7 +29,7 @@ describe('evaluateWhen', () => {
   it('relations.calls.target_type matches', () => {
     const target = makeNode('payments', { meta: { name: 'p', type: 'service-client' } });
     const node = makeNode('orders', {
-      meta: { name: 'o', type: 'command', relations: [{ target: 'payments', type: 'calls' }] },
+      meta: { name: 'o', type: 'command', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] },
     });
     const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', node]]) });
     const p: WhenPredicate = { relations: { calls: { target_type: 'service-client' } } };
@@ -45,7 +45,7 @@ describe('evaluateWhen', () => {
 
   it('relations.calls.target exact path', () => {
     const node = makeNode('orders', {
-      meta: { name: 'o', type: 'command', relations: [{ target: 'payments/service', type: 'calls' }] },
+      meta: { name: 'o', type: 'command', relations: [{ portNames: ['default'], target: 'payments/service', type: 'calls' }] },
     });
     const graph = makeGraph({
       nodes: new Map([
@@ -65,16 +65,34 @@ describe('evaluateWhen', () => {
       },
     });
     const node = makeNode('orders', {
-      meta: { name: 'o', type: 'command', relations: [{ target: 'payments', type: 'calls', consumes: ['charge'] }] },
+      meta: { name: 'o', type: 'command', relations: [{ target: 'payments', type: 'calls', portNames: ['charge'] }] },
     });
     const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', node]]) });
     expect(evaluateWhen({ relations: { calls: { consumes_port: 'charge' } } }, node, graph)).toBe(true);
     expect(evaluateWhen({ relations: { calls: { consumes_port: 'refund' } } }, node, graph)).toBe(false);
   });
 
+  it('consumes_port: default matches a relation that named nothing at all — a DELIBERATE behavior change: the parser normalizes an undeclared relation to portNames: [default], so the implicit port is now a real match target, not just a name that happens to never appear', () => {
+    const target = makeNode('payments', {
+      meta: {
+        name: 'p', type: 'service',
+        ports: { charge: { description: 'charge', aspects: [] } },
+      },
+    });
+    const bare = makeNode('orders', {
+      meta: { name: 'o', type: 'command', relations: [{ target: 'payments', type: 'calls', portNames: ['default'] }] },
+    });
+    const graph = makeGraph({ nodes: new Map([['payments', target], ['orders', bare]]) });
+    expect(evaluateWhen({ relations: { calls: { consumes_port: 'default' } } }, bare, graph)).toBe(true);
+    // Naming only the implicit port never satisfies a REAL port name — a
+    // relation is named-in-full, not partially: it enters through exactly
+    // what it named.
+    expect(evaluateWhen({ relations: { calls: { consumes_port: 'charge' } } }, bare, graph)).toBe(false);
+  });
+
   it('descendants.relations matches when a child has the relation', () => {
     const child = makeNode('orders/handler', {
-      meta: { name: 'h', type: 'handler', relations: [{ target: 'payments', type: 'calls' }] },
+      meta: { name: 'h', type: 'handler', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] },
     });
     const target = makeNode('payments', { meta: { name: 'p', type: 'service-client' } });
     const parent = makeNode('orders', { meta: { name: 'o', type: 'module' }, children: [child] });
@@ -106,6 +124,65 @@ describe('evaluateWhen', () => {
     expect(evaluateWhen({ descendants: { has_port: 'charge' } }, parent, graph)).toBe(true);
   });
 
+  it('a multi-field descendants clause is AND-PER-DESCENDANT: ONE descendant must satisfy every field at once — two different descendants each satisfying one field is NOT a match', () => {
+    // typed has the type but no port; ported has the port but the wrong type.
+    // No single descendant satisfies both fields.
+    const typed = makeNode('orders/cmd', { meta: { name: 'c', type: 'command' } });
+    const ported = makeNode('orders/api', {
+      meta: { name: 'a', type: 'handler', ports: { charge: { description: 'c', aspects: [] } } },
+    });
+    const parent = makeNode('orders', { meta: { name: 'o', type: 'module' }, children: [typed, ported] });
+    typed.parent = parent;
+    ported.parent = parent;
+    const graph = makeGraph({
+      nodes: new Map([['orders', parent], ['orders/cmd', typed], ['orders/api', ported]]),
+    });
+
+    // Each field alone still passes — single-field clauses are untouched.
+    expect(evaluateWhen({ descendants: { type: 'command' } }, parent, graph)).toBe(true);
+    expect(evaluateWhen({ descendants: { has_port: 'charge' } }, parent, graph)).toBe(true);
+
+    // Together they must NOT pass: the two fields are satisfied by two
+    // DIFFERENT descendants. (Under the former OR-per-field semantics this
+    // read true — the exact false positive this pins against.)
+    expect(evaluateWhen({ descendants: { type: 'command', has_port: 'charge' } }, parent, graph)).toBe(false);
+
+    // The same clause passes the moment ONE descendant carries both facts.
+    const both = makeNode('orders/both', {
+      meta: { name: 'b', type: 'command', ports: { charge: { description: 'c', aspects: [] } } },
+    });
+    both.parent = parent;
+    parent.children.push(both);
+    graph.nodes.set('orders/both', both);
+    expect(evaluateWhen({ descendants: { type: 'command', has_port: 'charge' } }, parent, graph)).toBe(true);
+  });
+
+  it('a multi-field descendants clause including relations also needs ONE descendant carrying all of it', () => {
+    const target = makeNode('payments', { meta: { name: 'p', type: 'service-client' } });
+    // caller has the relation but the wrong type; typed has the type but no relation.
+    const caller = makeNode('orders/handler', {
+      meta: { name: 'h', type: 'handler', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] },
+    });
+    const typed = makeNode('orders/cmd', { meta: { name: 'c', type: 'command' } });
+    const parent = makeNode('orders', { meta: { name: 'o', type: 'module' }, children: [caller, typed] });
+    caller.parent = parent;
+    typed.parent = parent;
+    const graph = makeGraph({
+      nodes: new Map([
+        ['orders', parent], ['orders/handler', caller], ['orders/cmd', typed], ['payments', target],
+      ]),
+    });
+
+    const clause: WhenPredicate = {
+      descendants: { type: 'command', relations: { calls: { target_type: 'service-client' } } },
+    };
+    expect(evaluateWhen(clause, parent, graph)).toBe(false);
+
+    // Give the command the call itself and the same clause matches.
+    typed.meta.relations = [{ portNames: ['default'], target: 'payments', type: 'calls' }];
+    expect(evaluateWhen(clause, parent, graph)).toBe(true);
+  });
+
   it('node.type matches', () => {
     const node = makeNode('x', { meta: { name: 'x', type: 'command' } });
     const graph = makeGraph({ nodes: new Map([['x', node]]) });
@@ -130,6 +207,58 @@ describe('evaluateWhen', () => {
     expect(evaluateWhen({ node: { has_mapping: false } }, mapped, graph)).toBe(false);
     expect(evaluateWhen({ node: { has_mapping: true } }, unmapped, graph)).toBe(false);
     expect(evaluateWhen({ node: { has_mapping: false } }, unmapped, graph)).toBe(true);
+  });
+
+  it('node.id matches the exact path and only the exact path', () => {
+    const a = makeNode('a/b', { meta: { name: 'a/b', type: 'service' } });
+    const graph = makeGraph({
+      nodes: new Map([
+        ['a/b', a],
+        ['a/c', makeNode('a/c', { meta: { name: 'a/c', type: 'service' } })],
+        ['a/b/c', makeNode('a/b/c', { meta: { name: 'a/b/c', type: 'service' } })],
+      ]),
+    });
+    expect(evaluateWhen({ node: { id: 'a/b' } }, a, graph)).toBe(true);
+    expect(evaluateWhen({ node: { id: 'a/b' } }, graph.nodes.get('a/c')!, graph)).toBe(false);
+    expect(evaluateWhen({ node: { id: 'a/b' } }, graph.nodes.get('a/b/c')!, graph)).toBe(false);
+  });
+
+  it('node.id list matches any of its entries, and only those', () => {
+    const a = makeNode('a', { meta: { name: 'a', type: 'service' } });
+    const b = makeNode('b', { meta: { name: 'b', type: 'service' } });
+    const c = makeNode('c', { meta: { name: 'c', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['a', a], ['b', b], ['c', c]]) });
+    const p: WhenPredicate = { node: { id: ['a', 'b'] } };
+    expect(evaluateWhen(p, a, graph)).toBe(true);
+    expect(evaluateWhen(p, b, graph)).toBe(true);
+    expect(evaluateWhen(p, c, graph)).toBe(false);
+  });
+
+  it('not: around node.id inverts the match', () => {
+    const a = makeNode('a/b', { meta: { name: 'a/b', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['a/b', a]]) });
+    expect(evaluateWhen({ not: { node: { id: 'a/b' } } }, a, graph)).toBe(false);
+    expect(evaluateWhen({ not: { node: { id: 'a/c' } } }, a, graph)).toBe(true);
+  });
+
+  it('node.id combined with type is an AND within the clause', () => {
+    const a = makeNode('a/b', { meta: { name: 'a/b', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['a/b', a]]) });
+    expect(evaluateWhen({ node: { id: 'a/b', type: 'service' } }, a, graph)).toBe(true);
+    expect(evaluateWhen({ node: { id: 'a/b', type: 'inny' } }, a, graph)).toBe(false);
+  });
+
+  it('node.id matches unicode and space characters literally', () => {
+    const node = makeNode('usługi/płatności moduł', { meta: { name: 'x', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['usługi/płatności moduł', node]]) });
+    expect(evaluateWhen({ node: { id: 'usługi/płatności moduł' } }, node, graph)).toBe(true);
+    expect(evaluateWhen({ node: { id: 'uslugi/platnosci modul' } }, node, graph)).toBe(false);
+  });
+
+  it('node.id does not normalize backslashes to forward slashes', () => {
+    const node = makeNode('a/b', { meta: { name: 'a/b', type: 'service' } });
+    const graph = makeGraph({ nodes: new Map([['a/b', node]]) });
+    expect(evaluateWhen({ node: { id: 'a\\b' } }, node, graph)).toBe(false);
   });
 
   it('all_of requires every clause true', () => {

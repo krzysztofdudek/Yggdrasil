@@ -1,0 +1,20 @@
+name: Integration Tests — Checking A Marketplace On Disk
+type: test-suite
+description: "Runs the pre-publish check over committed marketplaces: the
+  positive one that the package-installing suites already install from, and seven
+  negatives that each carry exactly one fault and produce exactly one refusal
+  with its own code. The isolation is the point — a fixture carrying two faults
+  could pass this suite while the check meant to catch the second one was broken.
+  The positive fixture's one warning is pinned as well, and it is the fixture
+  saying what it was built to say: it declares a setting its rule deliberately
+  never reads, to prove elsewhere that changing an unread setting re-opens no
+  verdict, and read from here that same fact IS the declared-but-never-read
+  warning."
+aspects: []
+relations:
+  - target: cli/core/marketplace-check
+    type: uses
+  - target: cli/tests/fixtures
+    type: uses
+mapping:
+  - source/cli/tests/integration/marketplace-check-fixtures.test.ts

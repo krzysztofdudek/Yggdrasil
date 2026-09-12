@@ -13,6 +13,7 @@ import * as flows from './flows.js';
 import * as aspectStatus from './aspect-status.js';
 import * as metaModeling from './meta-modeling.js';
 import * as onboarding from './onboarding.js';
+import * as packagesAndMarketplaces from './packages-and-marketplaces.js';
 
 export type KnowledgeTopic = {
   summary: string;
@@ -79,5 +80,9 @@ export const KNOWLEDGE_TOPICS: Record<string, KnowledgeTopic> = {
   flows: {
     summary: flows.summary,
     content: flows.content,
+  },
+  'packages-and-marketplaces': {
+    summary: packagesAndMarketplaces.summary,
+    content: packagesAndMarketplaces.content,
   },
 };

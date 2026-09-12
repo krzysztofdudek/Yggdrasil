@@ -1,9 +1,13 @@
 import { mkdir, writeFile, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { parseDocument } from 'yaml';
 import { DEFAULT_CONFIG, DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRules } from '../templates/platform.js';
+import type { RulesArtifactsConfig } from '../model/graph.js';
+import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { FILL_DIVERGENCE_GITIGNORE_LINE } from '../io/debug-log-writer.js';
+import { PACKAGE_VERSIONS_CACHE_FILENAME } from '../io/package-versions-cache.js';
 
 // ---------------------------------------------------------------------------
 // .gitattributes — mark the committed lock as generated
@@ -88,6 +92,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
  *    - `.yg-events.jsonl` — the fill stage's append-only verdict-events telemetry sidecar
  *    - `.yg-fill-divergence.log` — the fill stage's convergence-sentinel evidence dump
  *    - `.feature-field.json` — `yg check`'s silent structural-deviation attention index
+ *    - `.yg-packages-versions.json` — what each installed package's source was last seen to publish
  *    - `*.tmp`            — an atomic write's half-finished temp file, orphaned by a hard kill
  *  This is the single source of truth for what init writes into the local
  *  gitignore (both fresh init and every --upgrade). Paths are relative to the
@@ -120,6 +125,14 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // maintains (files structurally unusual among their node's same-language peers); never
   // committed. The writer (core/feature-index-write) self-ensures this same line as a backstop.
   '.feature-field.json',
+  // What each installed package's source was last seen to publish: a local,
+  // rebuildable cache the package commands write while they are already talking
+  // to a source, so the attention feed can mention a newer version without
+  // reaching outside the repository itself. Knowledge about somebody else's
+  // repository rather than this one — it would churn on every listing and two
+  // machines would legitimately disagree — so it is never committed. The writer
+  // (io/package-versions-cache) self-ensures this same line as a backstop.
+  PACKAGE_VERSIONS_CACHE_FILENAME,
   // Half-finished atomic write (io/atomic-write.ts writes `<target>.<pid>-<n>-<hex>.tmp`
   // then renames). Its own cleanup covers a thrown error, but nothing can run on a hard
   // kill — a SIGKILL, an out-of-memory abort, a machine losing power — so a temp can
@@ -183,6 +196,7 @@ export async function createYggdrasilStructure(
   projectRoot: string,
   yggRoot: string,
   cliVersionStr: string,
+  artifacts: RulesArtifactsConfig = DEFAULT_RULES_ARTIFACTS,
 ): Promise<void> {
   await mkdir(path.join(yggRoot, 'model'), { recursive: true });
   await mkdir(path.join(yggRoot, 'aspects'), { recursive: true });
@@ -193,5 +207,50 @@ export async function createYggdrasilStructure(
   await ensureYggdrasilGitignore(yggRoot);
   // yg-secrets.yaml is created by writeSecretsFile when user provides an API key
 
-  await installRules(projectRoot, cliVersionStr);
+  // A fresh project has no config to consult BEFORE this point — the file
+  // scaffolded one line above is the first one there is — so a bootstrap
+  // opt-out arrives as a flag and is RECORDED here, before the install reads
+  // it. Recording is the whole point: without it the choice would live only in
+  // that one invocation, `yg check` would go on reporting the artifact as
+  // missing, and the next `yg init --upgrade` would write the file the user
+  // just declined. Untouched defaults write nothing, so a plain `yg init`
+  // produces the same config it always has, byte for byte.
+  await writeRulesArtifactsConfig(yggRoot, artifacts);
+
+  await installRules(projectRoot, cliVersionStr, artifacts);
+}
+
+/**
+ * Record the repository's agent-rules artifact choice in its committed
+ * `.yggdrasil/yg-config.yaml`, so `yg init` and `yg check` read the same
+ * answer on every later run and on every teammate's machine.
+ *
+ * A no-op when all three artifacts are enabled: that is the default the absent
+ * key already means, and writing it out would add a block to every config for
+ * no change in behavior.
+ *
+ * Edits the YAML DOCUMENT rather than re-serializing a parsed object (which is
+ * what the reviewer section's writer does): this file is scaffolded full of
+ * explanatory comments and is meant to be read and hand-edited, so a write
+ * that silently stripped every comment around the keys it did not touch would
+ * cost the user more than the key is worth.
+ */
+export async function writeRulesArtifactsConfig(
+  yggRoot: string,
+  artifacts: RulesArtifactsConfig,
+): Promise<void> {
+  if (artifacts.agentsMd && artifacts.claudeMd && artifacts.clinerules) return;
+  const configPath = path.join(yggRoot, 'yg-config.yaml');
+  let existing = '';
+  try {
+    existing = await readFile(configPath, 'utf-8');
+  } catch (e: unknown) {
+    if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
+    debugWrite(`[init] writeRulesArtifactsConfig: ${configPath} not found (ENOENT), starting fresh`);
+  }
+  const doc = parseDocument(existing);
+  doc.setIn(['rules_artifacts', 'agents_md'], artifacts.agentsMd);
+  doc.setIn(['rules_artifacts', 'claude_md'], artifacts.claudeMd);
+  doc.setIn(['rules_artifacts', 'clinerules'], artifacts.clinerules);
+  await writeFile(configPath, doc.toString(), 'utf-8');
 }

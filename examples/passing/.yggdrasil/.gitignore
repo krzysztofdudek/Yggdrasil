@@ -9,3 +9,4 @@ yg-secrets.yaml
 .type-class-cache/
 .yg-events.jsonl*
 *.tmp
+.yg-packages-versions.json

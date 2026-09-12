@@ -146,13 +146,27 @@ write path.
 
 Same decision, all rationale embedded in the entry.
 
-## Format constraints (validated by yg check)
+## Format constraints
+
+Enforced in two places: \`yg log add\` refuses a malformed \`--reason\` before a
+byte is written (the reserved-header, sub-heading-level and fence-balance rules
+below), and \`yg check\` validates the file as a whole (those same rules plus
+datetime ordering).
 
 - Entry headers \`## [<ISO datetime UTC with milliseconds>]\` are reserved.
 - Sub-headings in your \`--reason\` must be level 3+ (\`###\` or deeper).
 - Do not put a level-2 heading (\`##\`) at the start of any line in your
   \`--reason\` content. Only a real line-start level-2 heading is the
-  problem — a \`## \` that appears inside a fenced code block is allowed.
+  problem — a \`## \` that appears inside a BACKTICK-fenced code block (three
+  or more backticks to open, at least as many to close) is allowed. Tilde
+  fences (\`~~~\`) and indented code blocks are NOT recognized as fences, so a
+  \`## \` line inside one is still a \`level2_header_in_body\` violation.
+- Every backtick fence you open inside \`--reason\` must be closed with a
+  matching one. An unbalanced fence swallows every following
+  \`## [datetime]\` entry header into this entry's body for later readers, so
+  \`yg log add\` refuses the entry outright ("Reason contains an unclosed code
+  fence") and \`yg check\` reports it as a blocking \`unclosed_code_fence\`
+  \`log-format\` error.
 - Multi-line content via bash \`$'multi\\nline'\` or via \`--reason-file <path>\`.
 - Datetimes must be strictly ascending across entries.
 
@@ -232,8 +246,20 @@ recovery, revert) operate on the file but via git, not by hand-editing.
 
 ## Large logs
 
-When \`log.md\` is large (rough threshold: >50 entries OR >5000 tokens),
-do not load full content into your context. Delegate to a subagent:
+When \`log.md\` is large (rough threshold: >50 entries OR >5000 tokens), do not
+load full content into your context.
+
+Reach for the built-in bounded reader FIRST:
+
+\`\`\`bash
+yg log read --node <path>                  # the 10 newest entries, newest-first
+yg log read --node <path> --top 3          # just the 3 newest
+yg log read --node <path> --with-verdicts  # interleave this node's verification events
+yg log read --node <path> --all            # full history (cannot combine with --top)
+\`\`\`
+
+Only when even the bounded output is too large or too verbose for the task at
+hand, delegate a summarization pass to a subagent:
 
 \`\`\`
 Read .yggdrasil/model/<path>/log.md, summarize relevant context for

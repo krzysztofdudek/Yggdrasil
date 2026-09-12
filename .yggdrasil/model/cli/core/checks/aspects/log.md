@@ -44,3 +44,9 @@ The two dead-attach warnings (a rule effective nowhere, and an architecture defa
 Both dead-attach warnings assumed that whenever a declared type had no real component, any rule left unresolved there was blocked by the applicability condition the rule declares. That assumption breaks when the type's one instance could not be resolved at all, because the rule definitions it depends on form a cycle - a structural fault with no condition to blame. The warnings now tell the two situations apart and name the cycle when that is the real cause, instead of describing a condition that was never evaluated.
 ## [2026-07-30T21:01:56.572Z]
 Reworded three docstrings describing the threaded type-coverage classification parameter so each explains, in its own words, that the classification is computed once by the caller and passed through rather than recomputed, instead of leaning on a short internal code with no meaning to a reader of this repository.
+## [2026-09-09T18:32:27.017Z]
+The dangling-reference and orphaned-aspect checks now treat a port with no aspects list as declaring nothing, instead of assuming the list is always present, when they walk a node's ports.
+## [2026-09-10T14:14:08.710Z]
+The when-unknown-node reference check for node.id, part of adding node: { id } to the when grammar (id: <path> | [<path>, ...], exact match against node.path), so a when clause naming a node that does not exist in the graph is caught the same way an unknown relation target already is.
+## [2026-09-12T06:10:53.859Z]
+Two reference-validation gaps closed: a when: clause naming the reserved default port no longer trips an unknown-port refusal (it evaluates correctly at runtime and the validator now knows it), and has_port referencing a port nothing declares now raises a non-blocking warning instead of matching nothing in total silence.

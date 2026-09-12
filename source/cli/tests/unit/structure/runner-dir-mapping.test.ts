@@ -175,7 +175,7 @@ describe('runStructureAspect — directory-mapped nodes (fix 3b)', () => {
     // this same check.mjs sees would otherwise fold a foreign body into the review.
     writeFileSync(path.join(projectRoot, 'src/a.ts'), 'export const a = 1;');
     mkdirSync(path.join(projectRoot, 'src/vendor/.yggdrasil'), { recursive: true });
-    writeFileSync(path.join(projectRoot, 'src/vendor/.yggdrasil/yg-config.yaml'), 'version: "5.2.0"\n');
+    writeFileSync(path.join(projectRoot, 'src/vendor/.yggdrasil/yg-config.yaml'), 'version: "6.0.0"\n');
     writeFileSync(path.join(projectRoot, 'src/vendor/foreign.ts'), 'export const SECRET = 1;');
 
     await writeAspect('dir6', `export function check(ctx) {

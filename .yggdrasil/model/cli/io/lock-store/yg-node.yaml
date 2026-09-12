@@ -18,13 +18,21 @@ description: >-
   rule's own history once instead of never or endlessly. That memory is local
   and rebuildable, not committed state — it records what this checkout has
   witnessed — so it rides with the verdict cache, keeps the committed files free
-  of churn, and is written only once something has actually been seen.
+  of churn, and is written only once something has actually been seen. Strictness
+  is not uniform across the two sides, and deliberately so: a content fault in a
+  COMMITTED file is a real, visible refusal, because that file is the source of
+  truth and nothing can rederive it; the same fault in the gitignored derived
+  cache is discarded and the file rebuilt from scratch, silently. That cache
+  holds no truth to protect — an empty section reads as unverified, which is
+  still fail-closed — while refusing over it would take the whole gate down on
+  any version skew that widens the schema, which is how this actually breaks in
+  the field rather than through corruption.
 relations:
   - target: cli/model/lock
     type: uses
   - target: cli/io/atomic-write
     type: calls
-    consumes:
-      - write-atomic
+  - target: cli/utils
+    type: calls
 mapping:
   - source/cli/src/io/lock-store.ts

@@ -55,6 +55,16 @@ export interface CheckJsonPair {
   reviewer: string | null;
   /** The hash the recorded verdict is bound to, when the lock holds an entry at all. */
   hash: string | null;
+  /**
+   * WHEN `--approve` filled this verdict, and at which commit — independent of
+   * whether the verdict is still in force, so a stale or refused pair still
+   * reports it. Null for a deterministic pair (filling one costs nothing, so
+   * there is nothing to attribute) and for any pair the lock has never filled.
+   * `sha` is null when no commit was resolvable at fill time (no repository,
+   * no commit yet, git missing from PATH) — the key is present regardless, so
+   * a consumer always finds it.
+   */
+  filled: { ts: string; sha: string | null } | null;
   /** The violation report, on a refusal in force. */
   report?: string;
 }

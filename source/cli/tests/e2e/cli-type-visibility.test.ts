@@ -4,6 +4,12 @@
  * variant), asserting the per-type block, the zero-applicable-rules honesty
  * line, and the `yg context --file` typed view — all from real stdout, no
  * in-process shortcuts.
+ *
+ * Every assertion about the per-type listing runs `yg check --coverage`:
+ * since 6.0.0 the listing is rendered only when asked for by name. The first
+ * describe block below pins the other half of that contract — what a plain
+ * `yg check` must NOT print, and that the verdict, the header counts and the
+ * exit code are the same either way.
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -33,11 +39,125 @@ function copyFixture(...overlays: string[]): string {
   return dir;
 }
 
-describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (E2E)', () => {
-  it('yg check shows the per-type block, a half-expanded bundle, and one fork chain-termination line', () => {
+/** The distinctive lines of the per-type coverage listing — nothing but `--coverage` may print any of them. */
+const LISTING_MARKERS = [
+  'Type coverage:',
+  ' file covered:',
+  ' files covered:',
+  'Enforced:',
+  'Attached but not enforced',
+  'matched by a type',
+  'inherited rules stop at',
+];
+
+/** The verdict line — the first line of the report, PASS/FAIL plus every header count. */
+function verdictLine(out: string): string {
+  return out.split('\n')[0];
+}
+
+describe.skipIf(!distExists)('yg check — the coverage listing is asked for by name (E2E)', () => {
+  // The reversal 050 exists for: on a repo with many classifying types the
+  // per-type listing was the bulk of every run's output, green or not, so the
+  // verdict and the warnings sat under a wall of paths. It is the same report
+  // as before minus that enumeration — never a different verdict, never a
+  // different count, never a different exit code.
+  it('plain yg check prints no coverage listing at all, while --coverage prints it — same verdict, same header counts, same exit code', () => {
+    const dir = copyFixture(ZERO_ENFORCEMENT);
+    try {
+      const plain = run(['check'], dir);
+      const withCoverage = run(['check', '--coverage'], dir);
+
+      for (const marker of LISTING_MARKERS) {
+        expect(plain.stdout).not.toContain(marker);
+        expect(withCoverage.stdout).toContain(marker);
+      }
+      // The zero-enforcement roll-up and its file samples travel with it —
+      // both halves of the listing move behind the flag together.
+      expect(plain.stdout).not.toContain('satisfy coverage with no enforcement');
+      expect(plain.stdout).not.toContain('src/ep/e2.ts');
+      expect(withCoverage.stdout).toMatch(/2 files matched by a type have no rules that apply to them/);
+
+      // What must NOT move: the verdict line (which carries every header
+      // count), the exit code, and the single Next: line.
+      expect(verdictLine(plain.stdout)).toBe(verdictLine(withCoverage.stdout));
+      expect(plain.status).toBe(withCoverage.status);
+      const nextOf = (out: string): string | undefined => out.split('\n').find((l) => l.startsWith('Next: '));
+      expect(nextOf(plain.stdout)).toBe(nextOf(withCoverage.stdout));
+
+      // The plain report is not empty of content — it still carries what the
+      // run found. Dropping the listing must not drop the findings with it.
+      expect(plain.stdout).toMatch(/Errors \(\d+\)|Warnings \(\d+\)|PASS/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // --summary is the narrowest read-only view there is; it used to carry one
+  // counter line per type ahead of its own body, which on a 20-type repo is a
+  // 21-line wall in the view whose entire purpose is not having one.
+  it('--summary carries no per-type listing — not even the counts-only form', () => {
+    const dir = copyFixture(ZERO_ENFORCEMENT);
+    try {
+      const { stdout } = run(['check', '--summary'], dir);
+      for (const marker of LISTING_MARKERS) expect(stdout).not.toContain(marker);
+      expect(stdout).not.toMatch(/rules? enforced/);
+      expect(stdout).not.toMatch(/attached-but-not-enforced instance/);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // The gate lane runs `yg check --approve --only-deterministic`, and the view
+  // flags are refused there by design — so before 050 the writer path had no
+  // route to a short report at all. It inherits the new default instead, and
+  // --coverage is legal on it when someone does want the listing (proved by
+  // the --approve tests further down, which read the listing from exactly
+  // that command).
+  it('--approve --only-deterministic, with no view flag, inherits the concise default', () => {
+    const dir = copyFixture(ZERO_ENFORCEMENT);
+    try {
+      const { stdout } = run(['check', '--approve', '--only-deterministic'], dir);
+      for (const marker of LISTING_MARKERS) expect(stdout).not.toContain(marker);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  // --details is the OTHER axis: how issue blocks are grouped. 050 left it
+  // exactly as it was, so it must behave like the default here — concise
+  // without --coverage, full with it.
+  it('--details keeps its own meaning: no listing on its own, the full listing with --coverage', () => {
+    const dir = copyFixture(ZERO_ENFORCEMENT);
+    try {
+      const alone = run(['check', '--details'], dir);
+      const withCoverage = run(['check', '--details', '--coverage'], dir);
+      for (const marker of LISTING_MARKERS) {
+        expect(alone.stdout).not.toContain(marker);
+        expect(withCoverage.stdout).toContain(marker);
+      }
+      expect(alone.status).toBe(withCoverage.status);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('--coverage with --json is refused, naming what the document already carries', () => {
     const dir = copyFixture();
     try {
-      const { stdout, status } = run(['check'], dir);
+      const { stderr, status } = run(['check', '--coverage', '--json'], dir);
+      expect(status).toBe(1);
+      expect(stderr).toContain('--coverage cannot be combined with --json.');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (E2E)', () => {
+  it('yg check --coverage shows the per-type block, a half-expanded bundle, and one fork chain-termination line', () => {
+    const dir = copyFixture();
+    try {
+      const { stdout, status } = run(['check', '--coverage'], dir);
       expect([0, 1]).toContain(status); // may FAIL on unrelated fixture issues; the render surface is what's pinned
       expect(stdout).toContain('Type coverage:');
       expect(stdout).toMatch(/bundle: file-level part applies; whole-unit part needs a component/);
@@ -47,10 +167,10 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
     }
   });
 
-  it('yg check shows the zero-applicable-rules honesty line with samples', () => {
+  it('yg check --coverage shows the zero-applicable-rules honesty line with samples', () => {
     const dir = copyFixture(ZERO_ENFORCEMENT);
     try {
-      const { stdout } = run(['check'], dir);
+      const { stdout } = run(['check', '--coverage'], dir);
       expect(stdout).toMatch(/2 files matched by a type have no rules that apply to them/);
       expect(stdout).toContain('src/ep/e.ts');
       expect(stdout).toContain('src/ep/e2.ts');
@@ -70,12 +190,21 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
   // pins that `yg check` now tells the two apart, naming the cycle the same
   // way the per-file surfaces do, while a genuinely-zero-rule file keeps its
   // honest zero wording.
-  it('yg check distinguishes an uncomputable rule set (implies cycle) from a genuinely empty one, naming the cycle', () => {
+  it('yg check --coverage distinguishes an uncomputable rule set (implies cycle) from a genuinely empty one, naming the cycle', () => {
     const dir = copyFixture(CYCLIC_TYPE);
     try {
-      const { stdout, status } = run(['check'], dir);
+      const { stdout, status } = run(['check', '--coverage'], dir);
       expect(status).toBe(1); // aspect-implies-cycle keeps the run red — unaffected by this fix
       expect(stdout).toContain('aspect-implies-cycle');
+
+      // The fault itself is never behind the flag: a plain run still fails,
+      // still names the cycle as its blocking error, and still says so in its
+      // Next: line. Only the per-type enumeration of the files it reaches
+      // needs --coverage.
+      const plain = run(['check'], dir);
+      expect(plain.status).toBe(1);
+      expect(plain.stdout).toContain('aspect-implies-cycle');
+      expect(plain.stdout).not.toContain('Rules could not be worked out:');
 
       // The 'cyclic' per-type block names the cycle and its own declared rule
       // (cyclic-a) instead of rendering an unexplained "Enforced: (none)".
@@ -111,10 +240,16 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
   // leaves the reader to guess why. A LATER, separate `yg check` (this run
   // never fills — fail-closed means no verdict was ever written) has nothing
   // to hand off and must fall back to that same qualified wording honestly.
-  it('yg check --approve names a component-free disposition its own fill just watched happen; a later plain yg check falls back to the qualified wording', () => {
+  //
+  // This is also the pin that --coverage is LEGAL on the writer path, which is
+  // the whole reason it is its own axis rather than a fifth view flag: the
+  // fill-only "cannot run" reason exists nowhere else, so a coverage flag the
+  // writer refused would put it permanently out of reach.
+  it('yg check --approve --coverage names a component-free disposition its own fill just watched happen; a later plain yg check --coverage falls back to the qualified wording', () => {
     const dir = copyFixture(NEEDS_NODE_CONTEXT);
     try {
-      const approve = run(['check', '--approve', '--only-deterministic'], dir);
+      const approve = run(['check', '--approve', '--only-deterministic', '--coverage'], dir);
+      expect(approve.status).toBe(1); // the fill runs and the run stays red — the flag widens the report, it never touches the verdict
       // The fill-time notice (the runner's own typed disposition, real stderr progress).
       expect(approve.stderr).toContain(
         "check.mjs for aspect 'needs-node-context' accessed ctx.node.id, which is unavailable here.",
@@ -135,7 +270,7 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
       // Fail-closed: the runtime error wrote nothing, so a later, separate
       // (never-filled) `yg check` has no disposition to hand off — the
       // qualified fallback, unchanged from before this handoff existed.
-      const plain = run(['check'], dir);
+      const plain = run(['check', '--coverage'], dir);
       expect(plain.stdout).toContain('Enforced: needs-node-context (1, 1 unverified)');
       expect(plain.stdout).not.toContain('cannot run');
     } finally {
@@ -153,7 +288,7 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
   it('the run that says a pair cannot run never also tells the reader to re-run --approve for that same pair', () => {
     const dir = copyFixture(NEEDS_NODE_CONTEXT);
     try {
-      const first = run(['check', '--approve', '--only-deterministic'], dir);
+      const first = run(['check', '--approve', '--only-deterministic', '--coverage'], dir);
       expect(first.status).toBe(1);
       expect(first.stdout).toMatch(/Enforced: needs-node-context \(1, 1 cannot run/);
 
@@ -169,7 +304,7 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
       // Never persisted, never stale: re-running is byte-identical — the
       // same honest, self-consistent report every time, not a promise that
       // quietly stops being true on a second attempt.
-      const second = run(['check', '--approve', '--only-deterministic'], dir);
+      const second = run(['check', '--approve', '--only-deterministic', '--coverage'], dir);
       expect(second.stdout).toBe(first.stdout);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -272,7 +407,7 @@ describe.skipIf(!distExists)('yg check / yg context --file — type-visibility (
       // per-file surfaces must agree, not read the mere presence of an
       // entry as proof it is still current.
       writeFileSync(path.join(dir, 'src', 'leaf', 'a.ts'), 'export const a = 2; // edited after approve\n');
-      const plainAfterEdit = run(['check'], dir);
+      const plainAfterEdit = run(['check', '--coverage'], dir);
       const leafIdx = plainAfterEdit.stdout.indexOf("'leaf'");
       const nextBlockIdx = plainAfterEdit.stdout.indexOf("\n  '", leafIdx + 1);
       const leafBlock = plainAfterEdit.stdout.slice(leafIdx, nextBlockIdx === -1 ? undefined : nextBlockIdx);

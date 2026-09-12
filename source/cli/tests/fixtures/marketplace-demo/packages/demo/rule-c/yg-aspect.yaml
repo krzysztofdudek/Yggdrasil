@@ -1,0 +1,10 @@
+# An aggregating rule: no reviewer of its own, it just bundles others.
+#
+# `implies` here is RELATIVE — `rule-a`, not a full path. The package cannot know
+# where it will be installed, so it names its own rules by directory name and the
+# loader prefixes them with the install path.
+name: HouseStyle
+description: The house style bundle — everything this package asks of a component at once.
+implies:
+  - rule-a
+status: draft

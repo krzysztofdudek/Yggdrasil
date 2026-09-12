@@ -1,4 +1,4 @@
-export const summary = 'Six relation types, paired events, ports propagate aspects via channel 6, defense against cross-file evasion, missing-contract errors, built-in relation-conformance check';
+export const summary = 'Six relation types, paired events, ports propagate aspects via channel 6 through a named port or the implicit default, port-undefined/port-missing-aspect errors plus the port-default-reserved warning, empty portNames as a yaml-invalid parse failure, built-in relation-conformance check';
 
 export const content = `# Ports and relations
 
@@ -92,8 +92,9 @@ node's type so an allowed relation exists, or extend the allowed relations in
 
 A declared relation here is a bare relation: it satisfies the conformance check
 but does NOT propagate the target's aspects. If the dependency also needs to
-carry a critical aspect across the boundary, model a port and \`consumes\` it (see
-below) in addition to declaring the relation.
+carry a critical aspect across the boundary, publish a port on the target and
+name it in the relation's \`portNames\` (see below), in addition to declaring
+the relation.
 
 ## Structural relations must form a DAG
 
@@ -114,25 +115,32 @@ requirement instead.
 
 ## Ports — named entry points with aspects
 
-A port on a node says: "consumers of this endpoint must satisfy these
-aspects." In \`yg-node.yaml\`:
+A port is a named entry point on a node. Every node carries one implicitly —
+\`default\` — whether or not it is declared: a relation that names no port
+enters through \`default\`. A port that declares \`aspects\` says: "a relation
+that enters through this port must also satisfy these aspects." In
+\`yg-node.yaml\`:
 
 \`\`\`yaml
 name: PaymentsService
 type: service
-ports:                                  # map keyed by port name (NOT a list)
+ports:                                  # map keyed by port name (NOT a list); optional
   charge:
     description: Capture a payment from the user
     aspects: [correlation-tracking, idempotency-key]
 \`\`\`
 
+\`default\` needs no \`description\` — it is the one port every node already
+carries. A port's \`aspects\` is optional too: one that declares none loads as
+a named entry that carries nothing, instead of refusing the node.
+
 Every aspect id listed in a port's \`aspects\` must be defined under
 \`aspects/\`. An undefined id is caught unconditionally by the
-reference-integrity check (code \`aspect-undefined\`); when the port is
-actually consumed, the missing aspect additionally surfaces as
-\`port-missing-aspect\`.
+reference-integrity check (code \`aspect-undefined\`); when a relation
+actually enters through the port, the missing aspect additionally surfaces
+as \`port-missing-aspect\` (this holds for \`default\` too).
 
-A consumer references the port via the relation's \`consumes\`. In
+A relation names the port it enters through with \`portNames\`. In
 \`yg-node.yaml\`, \`relations:\` is a flat list and each entry carries its own
 \`type:\`:
 
@@ -142,120 +150,91 @@ type: command
 relations:                             # flat list; type is a field on each entry
   - target: payments/service
     type: calls
-    consumes: [charge]
+    portNames: [charge]
 \`\`\`
 
 (The map-keyed-by-relation-type shape — \`relations: { calls: [...] }\` — is the
-\`yg-architecture.yaml\` allowed-relations shape, not the node shape.)
+\`yg-architecture.yaml\` allowed-relations shape, not the node shape. The
+deprecated alias field name still works — declaring both on the same
+relation is refused.)
 
-The consumed port's aspects become effective on the consumer through
-channel 6. The consumer must now satisfy \`correlation-tracking\` and
-\`idempotency-key\` for its own source files, in addition to its other
-aspects.
+The named port's aspects become effective on the caller through channel 6.
+The caller must now satisfy \`correlation-tracking\` and \`idempotency-key\`
+for its own source files, in addition to its other aspects.
 
-## A port's version and its contract test
+## Explicitly declaring \`ports.default\` triggers a migration warning
 
-A port may also declare the VERSION consumers pin to and the TEST that IS the
-contract:
+Declaring \`default\` under a node's \`ports:\` map is legal — it is how you hang
+aspects on the implicit port. It is NOT needed to write \`consumes_port: default\`
+in a \`when:\` predicate: reference validation exempts the reserved name, so that
+clause is accepted whether or not any node declares the port. But \`yg check\`
+always emits a non-blocking warning (code \`port-default-reserved\`, rule
+\`reserved-port-name\`) when it sees an explicit \`ports.default\` entry: on a
+graph written before \`default\` became reserved, that name may have meant an
+ordinary, unrelated port whose meaning has now silently changed. The check is
+stateless — it fires on every run, not once ever — so confirm the port's aspects
+are intentionally meant to bind every caller that names no port, or rename it if
+it predates the reservation and meant something else. It never blocks.
 
-\`\`\`yaml
-ports:
-  charge:
-    description: Capture a payment from the user
-    version: 1
-    test: tests/contracts/charge.test.ts
-    aspects: [correlation-tracking, idempotency-key]
-\`\`\`
+## A relation with no named port enters through \`default\`
 
-Both are optional and additive: a port that declares neither behaves exactly as
-before, and an existing graph loads unchanged.
+Naming no port at all is not a gap — it is the normal path. \`portNames: []\`
+(an empty list) is refused instead: an empty list would read as "name nothing",
+and the parser will not silently reinterpret that as "enter through
+\`default\`" — omit the field entirely for that, or name at least one real port.
+The refusal happens in the NODE PARSER, so it surfaces as
+\`code: yaml-invalid\` (rule \`invalid-node-yaml\`), not as a port-contract code;
+the string \`port-names-empty\` appears only inside that error's message, and
+filtering or suppressing on it matches nothing.
 
-- \`version:\` — an integer >= 1; absent is read as 1. A non-integer, or a
-  number below 1, is REFUSED at load rather than ignored: a version silently
-  dropped would let a contract change ride in behind a number its author
-  believed they had raised.
-- \`test:\` — a path relative to the REPOSITORY ROOT. It may sit inside this
-  node's mapping or outside it; a contract test is often shared, owned by
-  neither side of the port. The file must exist (\`port-test-missing\`
-  otherwise).
+A relation that names nothing normalizes to \`portNames: [default]\`.
+\`default\` carries whatever the owner put on it — nothing, unless declared —
+so a caller is free to stay outside a named port's aspects simply by not
+naming that port; \`yg check\` never forces a declaration. A node that needs
+an aspect to hold on EVERY caller, regardless of what they name, gets that
+only by putting the aspect on its own \`ports.default\`, and, if it has other
+named ports too, repeating the aspect on each of them — a relation that
+names a specific port enters ONLY through that port, not through \`default\`
+as well.
 
-**The rule they buy you.** A built-in deterministic check records the contract
-test's content ONCE per (node, port, version) in the committed lock, and then
-holds the file to it:
-
-- No record yet at this version → \`port-contract-unrecorded\`. Fill it with
-  \`yg check --approve --only-deterministic\` — free, no reviewer, no key.
-- The file changed (or the port now names a different file) at an UNCHANGED
-  version → \`port-contract-changed\`, a blocking error. Either raise
-  \`version:\` (and say why with \`yg log add\`), or restore the file.
-- A record is never overwritten. Raising the version records afresh alongside
-  the old one, so going back to a version you used before goes back to the
-  contract it named, rather than re-baselining whatever is on disk now.
-
-This is a BUILT-IN check, not an aspect: there is no \`content.md\` or
-\`check.mjs\` to sharpen, no \`status:\` to demote it with, and no
-\`yg-suppress\` that reaches it — the same posture as the relation-conformance
-check above. A contract a consumer could waive is not a contract.
-
-Ports also carry their \`version\` and \`test\` into the machine documents
-(\`yg node <path> --json\`, \`yg impact --node <path> --json\`), as the port
-DECLARED them — a versionless port reports \`null\` there, never the 1 the check
-reads it at, because that would put a claim in the port's mouth it never made.
-
-## Why ports exist — defending against cross-file evasion
+## Why ports exist — the boundary channel 2 cannot cross
 
 A critical aspect attached to a parent node propagates to all children via
 channel 2 (ancestor). But it does NOT cross relation boundaries: a helper
 node living outside the audit-logging parent but invoked from inside it
 escapes the audit-logging aspect.
 
-Ports restore the boundary:
+A port restores the boundary — but only for a relation that actually names
+it:
 
-1. Define a port on the owner node carrying the critical aspect.
-2. The helper node declares \`consumes: [<port-name>]\` on its inbound
-   relation.
-3. The helper inherits the port's aspects (channel 6 propagation).
+1. Publish a port on the owner node carrying the critical aspect (\`default\`
+   or a named one).
+2. The caller names it: \`portNames: [<port-name>]\` on its inbound relation
+   (or nothing, to enter through \`default\`).
+3. The caller inherits the port's aspects (channel 6 propagation).
 
-An attacker who routes calls through an intermediary without declaring
-\`consumes\` will not inherit the port's aspects — but \`yg check\` fails with
-a blocking error on the missing port contract, surfacing the gap.
+## Naming a port the target does not have
 
-## Missing port contracts
-
-If a target node declares ports and the consumer's relation does NOT
-declare \`consumes\`, \`yg check\` emits a blocking error (code
-\`port-missing-consumes\`) that fails the architecture gate. Like every
-diagnostic, it is rendered in the what/why/next form: it names the
-relation, explains that the target's port-required aspects won't be
-verified without a \`consumes\` declaration, and tells you to add
-\`consumes: [<port-names>]\` to the relation.
-
-There is no "accept the gap" mechanism. Resolve it one of two ways:
-declare which port(s) you consume on the relation, or remove the ports
-from the target node.
-
-## Consuming a target with no ports
-
-The inverse is also an error. If a relation declares \`consumes\` naming a
-target that declares NO ports, \`yg check\` emits a blocking error (code
-\`consumes-without-ports\`). Resolve it by removing the \`consumes\` from the
-relation, or by adding the named port(s) to the target node.
-
-A target that DOES have ports but whose \`consumes\` names a port that does not
-exist on that target emits a blocking error (code \`port-undefined\`). Fix the
-port name in \`consumes\`, or add the missing port to the target node.
+If a relation's \`portNames\` names a port that the target does not publish —
+\`default\` excepted, since it always exists — \`yg check\` emits a blocking
+error (code \`port-undefined\`). This holds the same way whether the target
+declares other ports and simply lacks this one, or declares no ports at
+all: either way there is no contract to check the named port against.
+Resolve it by fixing the port name, or by adding the missing port to the
+target node.
 
 ## When to use ports
 
-Use ports when:
-- The target node enforces an aspect that consumers MUST also satisfy.
-- The aspect must cross node boundaries (helper invoked from owner).
+Use a named port when:
+- The target node enforces an aspect that some but not all callers MUST
+  also satisfy. \`default\` binds every caller uniformly, so a named port is
+  what lets you scope the requirement to only the ones that opt in.
 - A security or compliance aspect must extend across files via the call
-  chain.
+  chain, and only a subset of callers carry it.
 
-Don't use ports for ordinary internal calls — bare relations are
-sufficient when the called-into node has no aspect that the caller must
-propagate.
+Don't add one for ordinary internal calls, and don't add one just to make
+an aspect reach every caller — put the aspect on \`default\` instead; no
+declaration is needed on either side.
 
 ## yg context surfaces port-derived aspects
 

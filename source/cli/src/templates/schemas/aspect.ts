@@ -1,4 +1,4 @@
-export const summary = 'Aspect definition — reviewer kind, scope, status, review_by, errs, implies, references, when.';
+export const summary = 'Aspect definition — reviewer kind, scope, status, review_by, errs, implies, references, companion, when.';
 
 export const content = `# yg-aspect.yaml — Schema for cross-cutting aspects
 # Each aspect is a directory under .yggdrasil/aspects/ containing this file
@@ -147,7 +147,9 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #       target_type: <type-id>   # match target node's declared type
                                    #       target: <node-path>      # match exact node path (relative to model/)
                                    #       consumes_port: <port>    # match a port consumed on this relation
-                                   #   descendants:                 # same as relations but evaluated against any descendant in model/
+                                   #   descendants:                 # SOME ONE descendant in model/ satisfies every field below at once
+                                   #                                # (not one independent pass per field — for that, give each
+                                   #                                #  field its own descendants: clause under all_of)
                                    #     relations: {...}
                                    #     type: <type-id>
                                    #     has_port: <port-name>
@@ -219,6 +221,13 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #         - not: { path: "**/*.test.ts" }
 
 # references:                      # optional — supporting files for the LLM reviewer.
+                                   # LLM ONLY, and that is a design line rather than a gap:
+                                   # a deterministic aspect has no reviewer to put supporting
+                                   # material in front of, so references: on one is refused
+                                   # (aspect-references-on-deterministic). A deterministic rule
+                                   # that needs a value from outside itself takes it through
+                                   # ctx.config, where the value it READS becomes part of that
+                                   # rule's verdict — something a reference file cannot offer.
                                    #   Permitted on LLM aspects ONLY (forbidden on deterministic).
                                    #   Each entry is a string (shorthand) OR an object { path, description? }.
                                    #
@@ -242,6 +251,20 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    # toward the assembled reviewer prompt, bounded by reviewer.tiers.<name>.max_prompt_chars
                                    # (default 50000) in yg-config.yaml; an over-limit pair is a blocking prompt-too-large
                                    # error with remedies (see yg knowledge read writing-llm-aspects).
+
+# companion: <path>               # OPTIONAL — the companion resolver named by PATH instead of
+                                   # shipped beside the rule. Repository-relative, and the file must
+                                   # exist when the graph loads (aspect-companion-missing otherwise) —
+                                   # a resolver discovered missing on the rule's first run would
+                                   # surface as an infrastructure failure mid-review instead of a
+                                   # graph error. Its bytes are folded into the verdict exactly as a
+                                   # sibling companion.mjs would be, so editing YOUR module
+                                   # invalidates the verdicts it helped produce.
+                                   #
+                                   # Written for a rule you did NOT write: a rule installed from a
+                                   # package cannot know your repository's layout, so this key in that
+                                   # rule's yg-aspect.adapt.yaml is how you point it at a resolver
+                                   # that does. See yg knowledge / the Packages guide.
 
 # companion.mjs                   # OPTIONAL — per-unit companion file resolver. LLM aspects ONLY.
                                    # Requires content.md (validator error aspect-companion-without-content

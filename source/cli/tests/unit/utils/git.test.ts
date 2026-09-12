@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { getLastCommitTimestamp, getFirstCommitTimestamp } from '../../../src/utils/git.js';
+import { getLastCommitTimestamp, getFirstCommitTimestamp, getHeadSha } from '../../../src/utils/git.js';
 
 vi.mock('node:child_process', () => ({
   execFileSync: vi.fn(),
@@ -107,6 +107,37 @@ describe('git', () => {
         expect.arrayContaining(['path/with/backslashes']),
         expect.any(Object),
       );
+    });
+  });
+
+  describe('getHeadSha', () => {
+    it('returns the trimmed sha when git rev-parse HEAD succeeds', () => {
+      vi.mocked(execFileSync).mockReturnValue('abc123def456\n');
+      expect(getHeadSha(FIXTURE_ROOT)).toBe('abc123def456');
+      expect(execFileSync).toHaveBeenCalledWith(
+        'git',
+        ['rev-parse', 'HEAD'],
+        expect.objectContaining({ cwd: FIXTURE_ROOT }),
+      );
+    });
+
+    it('returns undefined on empty output', () => {
+      vi.mocked(execFileSync).mockReturnValue('');
+      expect(getHeadSha(FIXTURE_ROOT)).toBeUndefined();
+    });
+
+    it('returns undefined when execFileSync throws (no repository, no commit yet, or git missing from PATH)', () => {
+      vi.mocked(execFileSync).mockImplementation(() => {
+        throw new Error('fatal: not a git repository');
+      });
+      expect(getHeadSha('/tmp/not-a-repo')).toBeUndefined();
+    });
+
+    it('accepts both a 40-char (sha1) and a 64-char (sha256) HEAD — never checked or assumed', () => {
+      vi.mocked(execFileSync).mockReturnValue(`${'a'.repeat(40)}\n`);
+      expect(getHeadSha(FIXTURE_ROOT)).toHaveLength(40);
+      vi.mocked(execFileSync).mockReturnValue(`${'b'.repeat(64)}\n`);
+      expect(getHeadSha(FIXTURE_ROOT)).toHaveLength(64);
     });
   });
 });

@@ -65,7 +65,7 @@ function fillLock(dir: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// consumes/port channel-6 contract + the four port error codes, through the
+// consumes/port channel-6 contract + the two port error codes, through the
 // real binary. Hermetic: no LLM, no network — the single port aspect is
 // deterministic, and every error scenario is a pure validation (architecture
 // gate) failure that never reaches the reviewer.
@@ -104,22 +104,26 @@ describe.skipIf(!distExists)('CLI E2E — ports / consumes channel-6 contract', 
     }
   });
 
-  it('3: removing consumes (provider keeps ports) fails check with port-missing-consumes (exit 1)', () => {
+  // RETIRED by D1c (6.0.0): removing the port declaration used to fail check
+  // with port-missing-consumes. It no longer does — the relation normalizes
+  // to the implicit 'default' port, and naming only 'default' is not an
+  // error, so this now asserts the opposite of what it used to.
+  it('3: removing consumes (provider keeps ports) no longer fails check — default is exempt (exit 0)', () => {
     const dir = copyFixture('missing-consumes');
     try {
-      // Drop the `consumes: [charge]` line from the consumer's relation. The
-      // provider still declares ports, so the contract is now unfulfilled.
+      // Drop the `portNames: [charge]` line from the consumer's relation. The
+      // provider still declares ports, but naming none now means 'default'.
       const yaml = readFileSync(consumerNodeYaml(dir), 'utf-8');
       const stripped = yaml
         .split('\n')
-        .filter((l) => !l.includes('consumes:'))
+        .filter((l) => !l.includes('portNames:'))
         .join('\n');
       expect(stripped).not.toEqual(yaml); // guard: the mutation actually changed something
       writeFileSync(consumerNodeYaml(dir), stripped, 'utf-8');
 
       const { status, stdout } = run(['check'], dir);
-      expect(status).toBe(1);
-      expect(stdout).toContain('port-missing-consumes');
+      expect(status).toBe(0);
+      expect(stdout).not.toContain('port-missing-consumes');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -130,7 +134,7 @@ describe.skipIf(!distExists)('CLI E2E — ports / consumes channel-6 contract', 
     try {
       // Point the consumes at a port name the provider does not declare.
       const yaml = readFileSync(consumerNodeYaml(dir), 'utf-8');
-      const mutated = yaml.replace('consumes: [charge]', 'consumes: [nonexistent]');
+      const mutated = yaml.replace('portNames: [charge]', 'portNames: [nonexistent]');
       expect(mutated).not.toEqual(yaml);
       writeFileSync(consumerNodeYaml(dir), mutated, 'utf-8');
 
@@ -165,12 +169,14 @@ describe.skipIf(!distExists)('CLI E2E — ports / consumes channel-6 contract', 
     }
   });
 
-  it('6: consumes on a relation whose target has NO ports fails check with consumes-without-ports (exit 1)', () => {
-    const dir = copyFixture('consumes-without-ports');
+  it('6: naming a real port on a relation whose target has NO ports fails check with port-undefined (exit 1)', () => {
+    const dir = copyFixture('port-undefined-no-ports');
     try {
       // Strip the entire `ports:` block from the provider while the consumer
-      // keeps `consumes: [charge]`. The target now declares no ports, so the
-      // consumes declaration is meaningless and rejected.
+      // keeps `portNames: [charge]`. The target now declares no ports at all —
+      // naming a real (non-default) port against it is still port-undefined,
+      // the same code as naming one the target merely lacks. There is no
+      // separate consumes-without-ports code any more.
       const yaml = readFileSync(providerNodeYaml(dir), 'utf-8');
       const out: string[] = [];
       let skipping = false;
@@ -196,7 +202,10 @@ describe.skipIf(!distExists)('CLI E2E — ports / consumes channel-6 contract', 
 
       const { status, stdout } = run(['check'], dir);
       expect(status).toBe(1);
-      expect(stdout).toContain('consumes-without-ports');
+      expect(stdout).toContain('port-undefined');
+      expect(stdout).toContain("port 'charge' not found");
+      expect(stdout).toContain('Available ports: []');
+      expect(stdout).not.toContain('consumes-without-ports');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

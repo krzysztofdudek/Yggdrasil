@@ -55,7 +55,7 @@ describe('validator', () => {
       });
       graph.nodes.set('a', createNode('a', {
         type: 'service',
-        relations: [{ target: 'b', type: 'calls' }],
+        relations: [{ portNames: ['default'], target: 'b', type: 'calls' }],
       }));
       graph.nodes.set('b', createNode('b', { type: 'library' })); // library not in allowed list
 
@@ -80,7 +80,7 @@ describe('validator', () => {
       });
       graph.nodes.set('a', createNode('a', {
         type: 'service',
-        relations: [{ target: 'b', type: 'calls' }],
+        relations: [{ portNames: ['default'], target: 'b', type: 'calls' }],
       }));
       graph.nodes.set('b', createNode('b', { type: 'module' }));
 
@@ -187,7 +187,7 @@ describe('validator', () => {
       }));
       // Consumer node with a relation that consumes the port
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'target', type: 'uses', consumes: ['api'] }],
+        relations: [{ target: 'target', type: 'uses', portNames: ['api'] }],
       }));
 
       const result = await validate(graph);
@@ -206,7 +206,7 @@ describe('validator', () => {
         ports: { 'api': { description: 'API port', aspects: ['audit-logging'] } },
       }));
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'target', type: 'uses', consumes: ['api'] }],
+        relations: [{ target: 'target', type: 'uses', portNames: ['api'] }],
       }));
 
       const result = await validate(graph);
@@ -221,7 +221,7 @@ describe('validator', () => {
       }));
       // Relation to target but no consumes — not consuming any port
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'target', type: 'uses' }],
+        relations: [{ portNames: ['default'], target: 'target', type: 'uses' }],
       }));
 
       const result = await validate(graph);
@@ -235,7 +235,7 @@ describe('validator', () => {
       });
       graph.nodes.set('a', createNode('a', {
         type: 'unknown-type',
-        relations: [{ target: 'b', type: 'unknown-rel' as any }],
+        relations: [{ target: 'b', type: 'unknown-rel' as any, portNames: ['default'] }],
       }));
 
       const result = await validate(graph);
@@ -245,8 +245,8 @@ describe('validator', () => {
     });
   });
 
-  describe('missing-consumes', () => {
-    it('fires when relation target has ports but consumer has no consumes', async () => {
+  describe('naming no port — the one-sided mandate D1c retired (port-missing-consumes is gone)', () => {
+    it('a relation naming none (normalizes to default) to a ported target → no issue', async () => {
       const graph = createGraph({
         aspects: [{ name: 'Audit', id: 'valid-tag', reviewer: { type: 'llm' as const }, artifacts: [] }],
       });
@@ -254,54 +254,36 @@ describe('validator', () => {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
       }));
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'provider', type: 'calls' }],
+        relations: [{ portNames: ['default'], target: 'provider', type: 'calls' }],
       }));
 
       const result = await validate(graph);
-      const portMissingConsumes = result.issues.filter(i => i.code === 'port-missing-consumes');
-      expect(portMissingConsumes).toContainEqual(expect.objectContaining({
-        code: 'port-missing-consumes', rule: 'missing-consumes',
-      }));
+      expect(result.issues.filter(i => ['port-undefined', 'port-missing-aspect'].includes(i.code ?? ''))).toHaveLength(0);
     });
 
     it('does not fire when target has empty ports (ports: {})', async () => {
       const graph = createGraph();
       graph.nodes.set('provider', createNode('provider', { ports: {} }));
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'provider', type: 'calls' }],
+        relations: [{ portNames: ['default'], target: 'provider', type: 'calls' }],
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'port-missing-consumes')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'port-undefined')).toHaveLength(0);
     });
 
-    it('does not fire when target has no ports', async () => {
+    it('does not fire when target has no ports at all', async () => {
       const graph = createGraph();
       graph.nodes.set('provider', createNode('provider'));
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'provider', type: 'calls' }],
+        relations: [{ portNames: ['default'], target: 'provider', type: 'calls' }],
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'port-missing-consumes')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'port-undefined')).toHaveLength(0);
     });
 
-    it('does not fire when consumer has consumes field', async () => {
-      const graph = createGraph({
-        aspects: [{ name: 'Audit', id: 'valid-tag', reviewer: { type: 'llm' as const }, artifacts: [] }],
-      });
-      graph.nodes.set('provider', createNode('provider', {
-        ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
-      }));
-      graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'provider', type: 'calls', consumes: ['charge'] }],
-      }));
-
-      const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'port-missing-consumes')).toHaveLength(0);
-    });
-
-    it('fires for emits/listens relations to a port-bearing target without consumes (ports apply to every relation type)', async () => {
+    it('does not fire for emits/listens relations naming no port either (ports apply to every relation type, and so does the default exemption)', async () => {
       const graph = createGraph({
         aspects: [{ name: 'Audit', id: 'valid-tag', reviewer: { type: 'llm' as const }, artifacts: [] }],
       });
@@ -309,15 +291,14 @@ describe('validator', () => {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
       }));
       graph.nodes.set('emitter', createNode('emitter', {
-        relations: [{ target: 'provider', type: 'emits' }],
+        relations: [{ portNames: ['default'], target: 'provider', type: 'emits' }],
       }));
       graph.nodes.set('listener', createNode('listener', {
-        relations: [{ target: 'provider', type: 'listens' }],
+        relations: [{ portNames: ['default'], target: 'provider', type: 'listens' }],
       }));
 
       const result = await validate(graph);
-      const missing = result.issues.filter(i => i.code === 'port-missing-consumes');
-      expect(missing.map(i => i.nodePath).sort()).toEqual(['emitter', 'listener']);
+      expect(result.issues.filter(i => i.code === 'port-undefined')).toHaveLength(0);
     });
   });
 
@@ -330,7 +311,7 @@ describe('validator', () => {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
       }));
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'provider', type: 'calls', consumes: ['nonexistent'] }],
+        relations: [{ target: 'provider', type: 'calls', portNames: ['nonexistent'] }],
       }));
 
       const result = await validate(graph);
@@ -347,7 +328,7 @@ describe('validator', () => {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
       }));
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'provider', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'provider', type: 'calls', portNames: ['charge'] }],
       }));
 
       const result = await validate(graph);
@@ -355,22 +336,22 @@ describe('validator', () => {
     });
   });
 
-  describe('consumes-without-ports', () => {
-    it('fires when relation has consumes but target has no ports', async () => {
+  describe('unknown-port — naming a real port on a target with no ports at all (folded into port-undefined)', () => {
+    it('fires when relation names a real port but target has no ports', async () => {
       const graph = createGraph();
       // Provider has NO ports
       graph.nodes.set('provider', createNode('provider'));
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'provider', type: 'calls', consumes: ['some-port'] }],
+        relations: [{ target: 'provider', type: 'calls', portNames: ['some-port'] }],
       }));
 
       const result = await validate(graph);
       expect(result.issues).toContainEqual(expect.objectContaining({
-        code: 'consumes-without-ports', rule: 'consumes-without-ports',
+        code: 'port-undefined', rule: 'unknown-port',
       }));
     });
 
-    it('does not fire when relation has consumes and target has ports', async () => {
+    it('does not fire when relation names a real port and target has that port', async () => {
       const graph = createGraph({
         aspects: [{ name: 'Audit', id: 'valid-tag', reviewer: { type: 'llm' as const }, artifacts: [] }],
       });
@@ -379,11 +360,11 @@ describe('validator', () => {
         ports: { charge: { description: 'Pay', aspects: ['valid-tag'] } },
       }));
       graph.nodes.set('consumer', createNode('consumer', {
-        relations: [{ target: 'provider', type: 'calls', consumes: ['charge'] }],
+        relations: [{ target: 'provider', type: 'calls', portNames: ['charge'] }],
       }));
 
       const result = await validate(graph);
-      expect(result.issues.filter(i => i.code === 'consumes-without-ports')).toHaveLength(0);
+      expect(result.issues.filter(i => i.code === 'port-undefined')).toHaveLength(0);
     });
   });
 

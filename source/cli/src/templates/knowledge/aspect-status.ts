@@ -1,10 +1,22 @@
 export const summary =
-  'Three-level aspect status (draft / advisory / enforced) — rendering only, severity by status incl. unverified, verdict reuse across flips, declaration sites, max() rule, implies propagation';
+  'Three-level aspect status (draft / advisory / enforced) — severity by status incl. unverified, the two non-rendering effects of enforced (det gate, positive closure), draft invisibility in check --json, verdict reuse across flips, declaration sites, max() rule, implies propagation';
 
 export const content = `# Aspect status
 
 Aspect status controls how a verdict renders in \`yg check\` and whether it blocks.
-Status is RENDERING only — it never changes a verdict's validity. Three levels:
+Rendering is the primary effect, and status never changes a verdict's validity —
+but it is NOT rendering only. Two further operational consequences follow from
+\`enforced\`:
+
+1. An enforced DETERMINISTIC refusal seeds \`detEnforcedRefusedNodes\` and makes
+   the LLM phase skip that unit's paid review for the run (fill-det-phase.ts) —
+   an advisory refusal does not. A real spend difference when planning a run.
+2. Only ENFORCED pairs gate positive closure (fill-closure.ts): an enforced
+   refusal keeps a node's source fingerprint and log baseline from advancing,
+   while an advisory refusal never blocks closure.
+
+Deep detail: \`yg knowledge read cli-reference\` (the det gate) and
+\`yg knowledge read log-management\` (closure). Three levels:
 
 | Status      | Expected pairs | Refused renders as | Unverified renders as | Blocks \`yg check\`? |
 |-------------|----------------|--------------------|-----------------------|----------------------|
@@ -12,7 +24,8 @@ Status is RENDERING only — it never changes a verdict's validity. Three levels
 | \`advisory\`| yes            | warning            | warning               | no                   |
 | \`enforced\`| yes            | error              | error                 | yes                  |
 
-Status colors verdicts that exist; it never substitutes for verification.
+Status colors verdicts that exist and gates the two effects above; it never
+substitutes for verification.
 
 - A recorded **advisory** refusal never blocks. A recorded **enforced** refusal
   blocks.
@@ -34,6 +47,12 @@ Status colors verdicts that exist; it never substitutes for verification.
   above applies to this code too, so an oversized pair the current change did not
   reach is listed as a warning, with \`yg check --full\` blocking on it again. On a
   project that names no branch, it blocks on every run whatever its status.
+- A draft pair is also invisible to machine consumers of \`yg check --json\`: it
+  is filtered out of \`pairs[]\` before the check result is built (pairs.ts), so
+  an empty \`pairs[]\` join for a rule means either it reaches nothing or it is
+  draft — the two cannot be told apart from the check document alone. To see
+  what a draft rule actually reaches, use \`yg aspects --json --reach\`, whose
+  \`reach.units[]\` lists a draft rule's units even though the gate cannot.
 - Only **\`draft\`** removes a pair from the expected set entirely. Both keyless
   exits from a blocking pair are status flips (relevant in a keyless-CI
   emergency): \`draft\` removes the pair altogether; demoting to \`advisory\`
@@ -133,13 +152,15 @@ For aspect A implies aspect B on node N:
 
 | Status   | When |
 |----------|------|
-| draft    | Content.md / check.mjs is still being authored, or the rule is unclear. Zero cost, zero enforcement, no expected pairs. |
+| draft    | Content.md / check.mjs is still being authored, or the rule is unclear. Zero cost, zero enforcement, no expected pairs — and so no rows in \`yg check --json\`'s \`pairs[]\` either; \`yg aspects --json --reach\` is where a draft rule's reach is visible. |
 | advisory | Rule is complete but you want to gather signal across the repo without blocking CI. Refused and unverified both render as warnings. |
 | enforced | Rule is vetted; violations should block. Refused and unverified both block check. |
 
 ## See also
 
 - [[aspects-overview]] — when to create aspects in general
+- [[cli-reference]] — \`yg aspects --json --reach\` shows what a draft rule
+  reaches, since a draft pair never appears in \`yg check --json\`'s \`pairs[]\`
 - [[verification-and-lock]] — the lock, hashing, caching, the three exits from a refusal
 - [[conditional-aspects]] — \`when\` predicates (orthogonal to status)
 - [[writing-llm-aspects]] / [[writing-deterministic-aspects]] — authoring guide

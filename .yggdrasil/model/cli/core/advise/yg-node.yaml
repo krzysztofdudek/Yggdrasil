@@ -18,7 +18,9 @@ description: "Pure advise engine — turns the graph's live attention signals in
   graph concluded — and importing is never accepting: dismissing, deferring or
   acting on one remains the user's own recorded act. Two self-contained
   nomination sources live in files of their own beside the engine — the imported
-  class, and the architecture-cut class moved out for room: the engine file is the
+  class, the architecture-cut class moved out for room, and the class that says a
+  rule installed from another repository has moved on (which, like imported,
+  carries somebody else's words and so belongs visibly apart): the engine file is the
   one this repository's own reviewer prompt runs closest to its ceiling on, and a
   source with a single entry point is the cheapest thing to move."
 relations:
@@ -44,4 +46,5 @@ mapping:
   - source/cli/src/core/advise-feed.ts
   - source/cli/src/core/advise-import.ts
   - source/cli/src/core/advise-imported-nominations.ts
+  - source/cli/src/core/advise-package-nominations.ts
   - source/cli/src/core/node-churn.ts

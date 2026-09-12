@@ -45,6 +45,7 @@ import {
   hashListObservation,
   hashExistsObservation,
   hashNodeSetObservation,
+  hashConfigObservation,
   MISSING_OBSERVATION,
 } from './pair-hash.js';
 import { computeAllowedNodePaths } from '../structure/ctx-graph.js';
@@ -122,6 +123,18 @@ export interface VerifiedPair {
    * binding without reading the lock a second way.
    */
   recordedHash?: string;
+  /**
+   * WHEN `--approve` wrote this pair's stored verdict, and at which commit —
+   * independent of whether that verdict is still in force. Unlike `judge`
+   * above, a stale or refused pair still reports it: "who filled this and
+   * when" does not depend on the verdict currently holding.
+   *
+   * Absent when the lock has never filled this pair, or filled it with a CLI
+   * from before this field existed. `sha` inside is independently absent when
+   * no commit was resolvable at fill time (no repository, no commit yet, git
+   * missing from PATH) — never fabricated.
+   */
+  filled?: { ts: string; sha?: string };
   /**
    * True for the half of `unverified` that is not "never seen": an entry EXISTS
    * for this pair but its hash no longer matches the current inputs.
@@ -378,7 +391,7 @@ async function verifyLlmPair(
   const stored = storedEntry?.touched ?? [];
   const touchedNow: Array<[string, string]> = [];
   for (const [key] of stored) {
-    touchedNow.push([key, await reObserve(key, graph, pair.nodePath ?? '', projectRoot, readBytes)]);
+    touchedNow.push([key, await reObserve(key, graph, aspect, pair.nodePath ?? '', projectRoot, readBytes)]);
   }
 
   // ── Validity recompute. Requires a resolvable tier; if the tier cannot be
@@ -551,7 +564,7 @@ async function verifyDetPair(
     const touchedNow: Array<[string, string]> = [];
     for (const [key] of stored) {
       // Empty component context for a nodeless unit — see verifyLlmPair's twin comment.
-      const nowHash = await reObserve(key, graph, pair.nodePath ?? '', projectRoot, readBytes);
+      const nowHash = await reObserve(key, graph, aspect, pair.nodePath ?? '', projectRoot, readBytes);
       touchedNow.push([key, nowHash]);
     }
 
@@ -606,6 +619,14 @@ function classifyWithGate(
   resolvedTierName?: string,
 ): VerifiedPair {
   const tier = resolvedTierName === undefined ? {} : { tierName: resolvedTierName };
+  // WHO filled this pair rides only with a verdict IN FORCE (below, like
+  // `judge`); WHEN and at which commit do not — read straight off the stored
+  // entry, whatever the pair's state, so a stale or refused pair still reports
+  // who and when it was last filled.
+  const filled: { filled?: { ts: string; sha?: string } } =
+    storedEntry?.filledAt === undefined
+      ? {}
+      : { filled: { ts: storedEntry.filledAt, ...(storedEntry.filledSha !== undefined && { sha: storedEntry.filledSha }) } };
   if (valid && storedEntry !== undefined) {
     const verdictState: PairState =
       storedEntry.verdict === 'refused'
@@ -617,9 +638,9 @@ function classifyWithGate(
     const judge = storedEntry.judge;
     const recordedHash = storedEntry.hash;
     if (gate) {
-      return { pair, state: verdictState, oversized: gate, recordedHash, ...tier, ...(judge && { judge }) };
+      return { pair, state: verdictState, oversized: gate, recordedHash, ...tier, ...(judge && { judge }), ...filled };
     }
-    return { pair, state: verdictState, recordedHash, ...tier, ...(judge && { judge }) };
+    return { pair, state: verdictState, recordedHash, ...tier, ...(judge && { judge }), ...filled };
   }
 
   // Invalid or missing entry. An entry that EXISTS but no longer hashes to its
@@ -633,9 +654,10 @@ function classifyWithGate(
       state: { kind: 'prompt-too-large', chars: gate.chars, limit: gate.limit, tierName: gate.tierName },
       ...tier,
       ...recorded,
+      ...filled,
     };
   }
-  return { pair, state: { kind: 'unverified' }, ...tier, ...recorded };
+  return { pair, state: { kind: 'unverified' }, ...tier, ...recorded, ...filled };
 }
 
 // ============================================================
@@ -657,6 +679,7 @@ function classifyWithGate(
 async function reObserve(
   key: string,
   graph: Graph,
+  aspect: AspectDef,
   currentNodePath: string,
   projectRoot: string,
   readBytes: (absPath: string) => Promise<Buffer | null>,
@@ -709,6 +732,20 @@ async function reObserve(
       // target = flow name. Fold the SET of the flow's declared participant ids.
       const flow = graph.flows.find((f) => f.name === target || f.path === target);
       return hashNodeSetObservation(flow ? [...flow.nodes] : []);
+    }
+    case 'config': {
+      // target = the configuration key the rule read. The CURRENT value comes off
+      // the aspect as loaded — package defaults with this repository's adapt over
+      // them — so a threshold changed in an adapt reproduces a different hash and
+      // the verdict is unverified. A key that has since vanished from the package
+      // folds MISSING_OBSERVATION, byte-identical to what the recorder folded for
+      // a key that was never declared.
+      const config = aspect.config;
+      const value =
+        config !== undefined && Object.prototype.hasOwnProperty.call(config, target)
+          ? config[target]
+          : undefined;
+      return hashConfigObservation(value);
     }
     /* v8 ignore next 2 -- unknown kind never produced by observationKey() */
     default:

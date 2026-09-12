@@ -3,7 +3,7 @@
 # Every element carries an `# evidence:` line naming the counts, paths and shares behind it. Read the
 # evidence, keep what is true, delete what is not.
 
-version: "5.2.0"
+version: "6.0.0"
 coverage:
   required: []
   excluded: []

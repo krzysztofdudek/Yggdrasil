@@ -1,6 +1,6 @@
 name: E2E Tests — Ports & Channel-6
 type: test-suite
-description: "Subprocess E2E proving the consumes/port contract end-to-end — a port's aspects become effective on the consumer (channel 6), yg context shows the port-derived origin, and the four blocking port error codes surface (port-missing-consumes, port-undefined, port-missing-aspect, consumes-without-ports)."
+description: "Subprocess E2E proving the consumes/port contract end-to-end — a port's aspects become effective on the consumer (channel 6), yg context shows the port-derived origin, and the two blocking port error codes surface (port-undefined, port-missing-aspect). The former one-sided mandate (port-missing-consumes, merged consumes-without-ports) is gone: naming no port is legal, naming one the target lacks is not."
 aspects: []
 relations: []
 mapping:

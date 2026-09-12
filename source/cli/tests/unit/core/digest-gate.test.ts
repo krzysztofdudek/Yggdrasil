@@ -181,3 +181,63 @@ describe('checkDigestGate', () => {
     expect(checkDigestGate({ ...base, agentsMd })).toHaveLength(0);
   });
 });
+
+/**
+ * Per-artifact opt-out: a project says in its own `rules_artifacts` config
+ * which of the three files it carries, and the gate never reports a state for
+ * one it does not. The default — no second argument, which is every project
+ * that never set the key — must behave exactly as the suite above.
+ */
+describe('checkDigestGate — rules_artifacts opt-out', () => {
+  const allMissing = { ...base, agentsMd: null, claudeMd: null, clinerules: null };
+
+  it('an explicit all-on config is identical to passing none at all', () => {
+    const explicit = { agentsMd: true, claudeMd: true, clinerules: true };
+    expect(checkDigestGate(base, explicit)).toHaveLength(0);
+    expect(checkDigestGate(allMissing, explicit)).toEqual(checkDigestGate(allMissing));
+  });
+
+  it('a disabled .clinerules is never reported missing, while the other two still are', () => {
+    const issues = checkDigestGate(allMissing, { agentsMd: true, claudeMd: true, clinerules: false });
+    expect(issues).toHaveLength(1);
+    expect(issues[0].messageData.what).not.toContain('.clinerules/yggdrasil.md');
+    expect(issues[0].messageData.what).toContain('AGENTS.md digest block is missing');
+    expect(issues[0].messageData.what).toContain('CLAUDE.md @AGENTS.md import is missing');
+  });
+
+  it('a repo whose ONLY finding is the disabled artifact goes completely silent', () => {
+    const onlyClineMissing = { ...base, clinerules: null };
+    expect(checkDigestGate(onlyClineMissing)).toHaveLength(1);
+    expect(checkDigestGate(onlyClineMissing, { agentsMd: true, claudeMd: true, clinerules: false }))
+      .toHaveLength(0);
+  });
+
+  it('disabling one artifact leaves the other two judged exactly as before', () => {
+    const tampered = { ...base, agentsMd: goodAgents.replace('BODY', 'EVIL'), clinerules: null };
+    const off = checkDigestGate(tampered, { agentsMd: true, claudeMd: true, clinerules: false });
+    expect(off).toHaveLength(1);
+    expect(off[0].messageData.what).toContain('AGENTS.md digest block was modified by hand');
+    expect(off[0].messageData.what).not.toContain('.clinerules');
+  });
+
+  it('a disabled artifact that is still present and stale is not a finding either', () => {
+    // The file lingers from an earlier install and no longer matches anything;
+    // the project opted out, so the gate has nothing to say about it.
+    const stale = { ...base, clinerules: `${anchor('0'.repeat(64))}\nOLD\n` };
+    expect(checkDigestGate(stale)).toHaveLength(1);
+    expect(checkDigestGate(stale, { agentsMd: true, claudeMd: true, clinerules: false }))
+      .toHaveLength(0);
+  });
+
+  it('a disabled AGENTS.md silences the duplicate-block finding too', () => {
+    const duplicated = { ...base, agentsMd: goodAgents + goodAgents };
+    expect(checkDigestGate(duplicated)[0].messageData.what).toContain('more than one yggdrasil block');
+    expect(checkDigestGate(duplicated, { agentsMd: false, claudeMd: false, clinerules: true }))
+      .toHaveLength(0);
+  });
+
+  it('all three off is a gate that can never fire', () => {
+    expect(checkDigestGate(allMissing, { agentsMd: false, claudeMd: false, clinerules: false }))
+      .toHaveLength(0);
+  });
+});

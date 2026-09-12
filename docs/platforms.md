@@ -6,7 +6,7 @@ title: Supported Platforms
 the same content, regardless of which agent you use. There is no platform
 question to answer.
 
-It writes:
+By default it writes all three:
 
 - A short summary block inside marker comments in `AGENTS.md`.
 - A one-line `@AGENTS.md` import added to `CLAUDE.md`, because Claude Code
@@ -14,22 +14,33 @@ It writes:
 - A copy of the same summary at `.clinerules/yggdrasil.md`, because Cline
   looks there instead of `AGENTS.md`.
 
+Each one can be switched off independently with `yg init --no-agents-md`,
+`--no-claude-md` or `--no-clinerules`. The choice is recorded durably under
+`rules_artifacts` in `.yggdrasil/yg-config.yaml`, so it holds on every later
+run and reaches the team through the repository rather than through everyone's
+command line — see [the CLI reference](/cli-reference) and
+[Configuration](/configuration). A disabled artifact is never written, never
+created, and never touched.
+
 That summary tells the agent to run `yg prime` before making any change.
 `yg prime` prints the complete, current operating manual straight from your
 installed Yggdrasil CLI — so an agent's instructions are always up to date
 and are never cut short by a small instruction budget.
 
-`yg check` also watches these three files and warns if one goes missing,
-gets hand-edited, falls behind after you upgrade the CLI, or ends up
-duplicated — always pointing you at `yg init --upgrade` to fix it.
+`yg check` also watches whichever of these files this project has enabled
+under `rules_artifacts`, and warns if one of those goes missing, gets
+hand-edited, falls behind after you upgrade the CLI, or ends up duplicated —
+always pointing you at `yg init --upgrade` to fix it. An artifact switched off
+is never mentioned.
 
 ::: warning Upgrading a project that requires its whole tree
-These three files (and the `.gitattributes` entry `yg init` maintains) are new
+The files above (and the `.gitattributes` entry `yg init` maintains) are new
 in your repository, so a project that requires **every** tracked file to belong
 to a component will report them as unmapped errors on the next check. That is
 any project whose `yg-config.yaml` has no `coverage:` block at all, or whose
 `coverage.required` covers the repository root. They're repository plumbing,
-not project source — exclude them:
+not project source — exclude them. A project carrying all three artifacts
+excludes all four paths:
 
 ```yaml
 coverage:
@@ -40,10 +51,12 @@ coverage:
     - .gitattributes
 ```
 
-`yg init --upgrade` tells you when this applies to your project and prints the
-same stanza; it never edits the file for you. Mapping them to a component
-instead works just as well if you'd rather keep them under enforcement. A
-freshly initialized project requires nothing and is unaffected.
+A project that has switched an artifact off under `rules_artifacts` never gets
+that file written, so its stanza is shorter by that line. `yg init --upgrade`
+tells you when this applies to your project and prints the stanza for the
+artifacts your project actually has; it never edits the file for you. Mapping
+them to a component instead works just as well if you'd rather keep them under
+enforcement. A freshly initialized project requires nothing and is unaffected.
 :::
 
 ## How each agent picks up the rules
@@ -91,7 +104,10 @@ in whichever file that agent reads — or have it run `yg prime` directly. Both
 give it the same rules every other agent gets.
 
 The same sweep covers every other file the retired per-platform installers used
-to write, whether or not the agent appears above: `.cursor/rules/yggdrasil.mdc`
-and the old single rules file at `.yggdrasil/agent-rules.md`. Whatever it
-removes is listed in the `yg init --upgrade` output as cleaned-up legacy
-artifacts, so nothing disappears silently.
+to write, whether or not the agent appears above: `.cursor/rules/yggdrasil.mdc`,
+the old single rules file at `.yggdrasil/agent-rules.md`, and the yggdrasil
+marker block inside `.github/copilot-instructions.md` — only our own block is
+cut out, the rest of the file stays byte-exact, and the file itself is deleted
+only when nothing but that block remained. Whatever it removes is listed in the
+`yg init --upgrade` output as cleaned-up legacy artifacts, so nothing disappears
+silently.

@@ -20,8 +20,10 @@ import {
 //   b
 //   └── b/y
 //
-// Declared relations (as loaded from the graph model — plain data):
-//   a/x → a     uses    (structural, consumes: [])              → origin 'declared'
+// Declared relations (as loaded from the graph model — plain data). `consumes`
+// mirrors a Relation's normalized `portNames`, which the real parser never
+// leaves empty: a relation naming no port carries ['default'], not [].
+//   a/x → a     uses    (structural, consumes: ['default'])      → origin 'declared'
 //   a   → b     emits   (EVENT type — EXCLUDED from the universe)
 //   b/y → b     calls   (structural, consumes: ['port'])        → viaContract, and
 //                        also statically detected               → origin 'both'
@@ -34,8 +36,8 @@ import {
 const NODE_IDS = ['a', 'a/x', 'b', 'b/y'];
 
 const DECLARED = [
-  { from: 'a/x', to: 'a', type: 'uses', consumes: [] as string[] },
-  { from: 'a', to: 'b', type: 'emits', consumes: [] as string[] }, // event — excluded
+  { from: 'a/x', to: 'a', type: 'uses', consumes: ['default'] },
+  { from: 'a', to: 'b', type: 'emits', consumes: ['default'] }, // event, default-only — excluded
   { from: 'b/y', to: 'b', type: 'calls', consumes: ['port'] }, // structural + viaContract
 ];
 
@@ -96,12 +98,22 @@ describe('edgeUniverse', () => {
     expect(universe.map((e) => `${e.from}->${e.to}`)).toEqual(['z->a', 'z->b']);
   });
 
-  it('viaContract is true iff some declared relation for the pair carries non-empty consumes', () => {
+  it('viaContract is true iff some declared relation for the pair names a port other than default', () => {
     const universe = edgeUniverse(DECLARED, DETECTED);
     const withContract = universe.find((e) => e.from === 'b/y' && e.to === 'b');
     expect(withContract?.viaContract).toBe(true);
+    // a/x -> a names only the implicit 'default' (['default'], never []) — the
+    // trivial port every node carries does not make this a contract edge.
     const noContract = universe.find((e) => e.from === 'a/x' && e.to === 'a');
     expect(noContract?.viaContract).toBe(false);
+  });
+
+  it('viaContract is true when a relation names default ALONGSIDE a real port — default does not cancel it out', () => {
+    const universe = edgeUniverse(
+      [{ from: 'p', to: 'q', type: 'uses', consumes: ['default', 'charge'] }],
+      new Map(),
+    );
+    expect(universe.find((e) => e.from === 'p' && e.to === 'q')?.viaContract).toBe(true);
   });
 
   it('is deterministically sorted by (from, to) regardless of input order', () => {

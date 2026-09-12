@@ -42,13 +42,16 @@ import type {
 // Distinct from bounty3 (which exhaustively drove branch coverage of the same
 // check functions): this suite is organized invariant-by-invariant against the
 // VERBATIM spec text, and specifically hunts code↔doc divergences:
-//   * the documented `port-missing-consumes` MESSAGE FORMAT is not produced.
 //   * "Every aspect id listed in a port's aspects must be defined" is gated on
 //     CONSUMPTION for the documented `port-missing-aspect` code; the unconditional
 //     enforcement actually comes from a different code (`aspect-undefined`).
-//   * the four documented port-contract codes are NOT in STRUCTURAL_CODES (the
+//   * the two documented port-contract codes ARE in STRUCTURAL_CODES (the
 //     "single source of truth" set the engine uses for the structural tally /
-//     suggestedNext priority).
+//     suggestedNext priority) — a historical divergence, now fixed.
+//   * D1c (6.0.0) retired the one-sided mandate: port-missing-consumes and
+//     consumes-without-ports are gone, and port-undefined now covers naming a
+//     real port on a portless target too. INVARIANTS 6-8 below were rewritten
+//     against that decision rather than the original spec text they quote.
 // ============================================================================
 
 // --- In-memory graph builders (no FS, no clock, no RNG) ---
@@ -133,7 +136,7 @@ describe('spec §"Relation types" — exactly six relation types', () => {
     // must treat ONLY the four structural types as graph edges.
     for (const t of SPEC_STRUCTURAL) {
       const nodes = new Map<string, GraphNode>([
-        ['A', makeNode('A', { relations: [{ target: 'A', type: t }] })],
+        ['A', makeNode('A', { relations: [{ target: 'A', type: t, portNames: ['default'] }] })],
       ]);
       expect(codesOf(checkNoCycles(makeGraph({ nodes }))), `structural ${t}`).toEqual([
         'structural-cycle',
@@ -141,7 +144,7 @@ describe('spec §"Relation types" — exactly six relation types', () => {
     }
     for (const t of SPEC_EVENT) {
       const nodes = new Map<string, GraphNode>([
-        ['A', makeNode('A', { relations: [{ target: 'A', type: t, event_name: 'E' }] })],
+        ['A', makeNode('A', { relations: [{ target: 'A', type: t, event_name: 'E', portNames: ['default'] }] })],
       ]);
       // Event self-loop is NOT a structural cycle (pairing, not composition).
       expect(checkNoCycles(makeGraph({ nodes })).filter((i) => i.code === 'structural-cycle'), `event ${t}`).toEqual([]);
@@ -157,7 +160,7 @@ describe('spec §"Relation types" — exactly six relation types', () => {
 describe('spec §"Relation types" — emits/listens must be paired (event-unpaired)', () => {
   it('A emits→B WITHOUT B listens→A → blocking event-unpaired error', () => {
     const nodes = new Map<string, GraphNode>([
-      ['A', makeNode('A', { relations: [{ target: 'B', type: 'emits', event_name: 'E' }] })],
+      ['A', makeNode('A', { relations: [{ portNames: ['default'], target: 'B', type: 'emits', event_name: 'E' }] })],
       ['B', makeNode('B')],
     ]);
     const issues = checkUnpairedEvents(makeGraph({ nodes }));
@@ -168,15 +171,15 @@ describe('spec §"Relation types" — emits/listens must be paired (event-unpair
 
   it('A emits→B AND B listens→A → no issue (the documented happy path)', () => {
     const nodes = new Map<string, GraphNode>([
-      ['A', makeNode('A', { relations: [{ target: 'B', type: 'emits', event_name: 'E' }] })],
-      ['B', makeNode('B', { relations: [{ target: 'A', type: 'listens', event_name: 'E' }] })],
+      ['A', makeNode('A', { relations: [{ portNames: ['default'], target: 'B', type: 'emits', event_name: 'E' }] })],
+      ['B', makeNode('B', { relations: [{ portNames: ['default'], target: 'A', type: 'listens', event_name: 'E' }] })],
     ]);
     expect(checkUnpairedEvents(makeGraph({ nodes }))).toEqual([]);
   });
 
   it('a lone listens→source WITHOUT the matching emits is also unpaired', () => {
     const nodes = new Map<string, GraphNode>([
-      ['A', makeNode('A', { relations: [{ target: 'B', type: 'listens', event_name: 'E' }] })],
+      ['A', makeNode('A', { relations: [{ portNames: ['default'], target: 'B', type: 'listens', event_name: 'E' }] })],
       ['B', makeNode('B')],
     ]);
     expect(codesOf(checkUnpairedEvents(makeGraph({ nodes })))).toEqual(['event-unpaired']);
@@ -205,7 +208,7 @@ describe('spec §"Architecture controls allowed relations" — relation-target g
 
   it('a target type NOT in the allowed list → relation-target-forbidden', () => {
     const nodes = new Map<string, GraphNode>([
-      ['a', makeNode('a', { type: 'service', relations: [{ target: 'b', type: 'calls' }] })],
+      ['a', makeNode('a', { type: 'service', relations: [{ portNames: ['default'], target: 'b', type: 'calls' }] })],
       ['b', makeNode('b', { type: 'library' })],
     ]);
     const issues = checkArchitectureRelations(makeGraph({ nodes, architecture: arch({ calls: ['module'] }) }));
@@ -214,7 +217,7 @@ describe('spec §"Architecture controls allowed relations" — relation-target g
 
   it('a target type IN the allowed list → no issue', () => {
     const nodes = new Map<string, GraphNode>([
-      ['a', makeNode('a', { type: 'service', relations: [{ target: 'b', type: 'calls' }] })],
+      ['a', makeNode('a', { type: 'service', relations: [{ portNames: ['default'], target: 'b', type: 'calls' }] })],
       ['b', makeNode('b', { type: 'module' })],
     ]);
     expect(checkArchitectureRelations(makeGraph({ nodes, architecture: arch({ calls: ['module'] }) }))).toEqual([]);
@@ -224,7 +227,7 @@ describe('spec §"Architecture controls allowed relations" — relation-target g
     // Spec lists all six types under the same architecture control. An emits to
     // a disallowed target type must be rejected just like a structural one.
     const nodes = new Map<string, GraphNode>([
-      ['a', makeNode('a', { type: 'service', relations: [{ target: 'b', type: 'emits', event_name: 'E' }] })],
+      ['a', makeNode('a', { type: 'service', relations: [{ portNames: ['default'], target: 'b', type: 'emits', event_name: 'E' }] })],
       ['b', makeNode('b', { type: 'library' })],
     ]);
     const issues = checkArchitectureRelations(makeGraph({ nodes, architecture: arch({ emits: ['module'] }) }));
@@ -239,9 +242,9 @@ describe('spec §"Architecture controls allowed relations" — relation-target g
 // ============================================================================
 
 describe('spec §"Ports" — consumed port aspects propagate to the consumer (channel 6)', () => {
-  it('declaring consumes:[charge] makes the port aspect effective on the consumer', () => {
+  it('declaring portNames:[charge] makes the port aspect effective on the consumer', () => {
     const provider = makeNode('p', { ports: { charge: { description: 'd', aspects: ['correlation-tracking', 'idempotency-key'] } } });
-    const consumer = makeNode('c', { relations: [{ target: 'p', type: 'calls', consumes: ['charge'] }] });
+    const consumer = makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['charge'] }] });
     const nodes = new Map<string, GraphNode>([['p', provider], ['c', consumer]]);
     const graph = makeGraph({ nodes, aspects: [aspect('correlation-tracking'), aspect('idempotency-key')] });
 
@@ -264,7 +267,7 @@ describe('spec §"Ports" — consumed port aspects propagate to the consumer (ch
     // Spec §"yg context surfaces port-derived aspects": channel 6 entries are
     // labeled with the source port AND target node.
     const provider = makeNode('payments/service', { ports: { charge: { description: 'd', aspects: ['correlation-tracking'] } } });
-    const consumer = makeNode('orders/handler', { relations: [{ target: 'payments/service', type: 'calls', consumes: ['charge'] }] });
+    const consumer = makeNode('orders/handler', { relations: [{ target: 'payments/service', type: 'calls', portNames: ['charge'] }] });
     const nodes = new Map<string, GraphNode>([['payments/service', provider], ['orders/handler', consumer]]);
     const graph = makeGraph({ nodes, aspects: [aspect('correlation-tracking')] });
 
@@ -280,7 +283,7 @@ describe('spec §"Ports" — consumed port aspects propagate to the consumer (ch
 describe('spec §mental-model — a BARE relation does not propagate the port aspect', () => {
   it('a relation with no consumes leaves the port aspect off the consumer', () => {
     const provider = makeNode('p', { ports: { charge: { description: 'd', aspects: ['correlation-tracking'] } } });
-    const consumer = makeNode('c', { relations: [{ target: 'p', type: 'calls' }] }); // bare, no consumes
+    const consumer = makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] }); // bare, no consumes
     const nodes = new Map<string, GraphNode>([['p', provider], ['c', consumer]]);
     const graph = makeGraph({ nodes, aspects: [aspect('correlation-tracking')] });
 
@@ -289,77 +292,51 @@ describe('spec §mental-model — a BARE relation does not propagate the port as
 
   it('a relation to a port-less target never propagates anything regardless of consumes presence', () => {
     const target = makeNode('p'); // no ports
-    const consumer = makeNode('c', { relations: [{ target: 'p', type: 'uses' }] });
+    const consumer = makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'uses' }] });
     const nodes = new Map<string, GraphNode>([['p', target], ['c', consumer]]);
     expect(computeEffectiveAspects(consumer, makeGraph({ nodes })).size).toBe(0);
   });
 });
 
 // ============================================================================
-// INVARIANT 6 — Missing port contract: "If a target node declares ports and the
-// consumer's relation does NOT declare `consumes`, `yg check` emits a blocking
-// error (code port-missing-consumes)". The documented MESSAGE is also quoted:
-//   "Missing port contract: <consumer> → <target> has ports [<list>],
-//    consumer must declare consumes: [<port-name>]."
+// INVARIANT 6 — "Missing port contracts", RETIRED by D1c (6.0.0) and removed.
+// The old spec required `yg check` to block a relation that named no port
+// when its target declared ports (code port-missing-consumes). D1c introduced
+// the implicit `default` port: a relation that names nothing now names
+// `default`, and naming only the implicit port is never an error, so the
+// requirement itself is gone, not just its message — the knowledge topic's
+// old "Missing port contracts" section is replaced by "Naming no port is
+// fine". port-missing-consumes no longer exists anywhere in the codebase.
+// This section is kept only to record that the invariant was retired on
+// purpose, not silently dropped.
 // ============================================================================
 
-describe('spec §"Missing port contracts" — port-missing-consumes', () => {
-  it('target has ports, consumer omits consumes → port-missing-consumes (blocking error)', () => {
+describe('spec §"Naming no port is fine" — the old port-missing-consumes mandate is gone', () => {
+  it('target has ports, consumer names none → no error (default is exempt)', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ct'] } } })],
-      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls' }] })],
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
     ]);
     const issues = checkPortConsumes(makeGraph({ nodes }));
-    expect(codesOf(issues)).toEqual(['port-missing-consumes']);
-    expect(issues[0].severity).toBe('error');
-  });
-
-  it('the diagnostic names the consumer (nodePath), the target, and the port list', () => {
-    const nodes = new Map<string, GraphNode>([
-      ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ct'] }, refund: { description: 'd', aspects: ['ct'] } } })],
-      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls' }] })],
-    ]);
-    const [issue] = checkPortConsumes(makeGraph({ nodes }));
-    const text = `${issue.messageData.what} ${issue.messageData.why} ${issue.messageData.next}`;
-    expect(issue.nodePath).toBe('c'); // consumer
-    expect(text).toContain('p'); // target
-    expect(text).toContain('charge'); // port list
-    expect(text).toContain('refund');
-    expect(text).toContain('consumes'); // instruction to declare consumes
-  });
-
-  // DIVERGENCE: the spec quotes a specific rendered message
-  //   "Missing port contract: <consumer> → <target> has ports [...], consumer
-  //    must declare consumes: [<port-name>]."
-  // The actual diagnostic states the problem in the `what` line — the consumer
-  // relates to a target that declares ports but the relation has no consumes —
-  // and NEVER contains the literal "Missing port contract:".
-  // Pinned here as ACTUAL behavior (see suspectedBugs: port-missing-consumes-message-divergence).
-  it("the documented literal 'Missing port contract:' message is NOT produced (actual format pinned)", () => {
-    const nodes = new Map<string, GraphNode>([
-      ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ct'] } } })],
-      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls' }] })],
-    ]);
-    const [issue] = checkPortConsumes(makeGraph({ nodes }));
-    const text = `${issue.messageData.what}\n${issue.messageData.why}\n${issue.messageData.next}`;
-    expect(text).not.toContain('Missing port contract:');
-    expect(issue.messageData.what).toContain('has no consumes');
+    expect(issues).toEqual([]);
   });
 });
 
 // ============================================================================
-// INVARIANT 7 — "If a relation declares `consumes` naming a target that declares
-// NO ports, `yg check` emits a blocking error (code consumes-without-ports)."
+// INVARIANT 7 — "Naming a port the target does not have", RETIRED-AND-MERGED
+// by D1c (6.0.0). The old spec gave a portless target its own code
+// (consumes-without-ports); D1c folds it into port-undefined — a portless
+// target is just the empty-ports-map case of the same check.
 // ============================================================================
 
-describe('spec §"Consuming a target with no ports" — consumes-without-ports', () => {
-  it('consumes on a port-less target → consumes-without-ports', () => {
+describe('spec §"Naming a port the target does not have" — folded into port-undefined', () => {
+  it('naming a real port on a port-less target → port-undefined (not a separate code)', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p')], // NO ports
-      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', consumes: ['charge'] }] })],
+      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['charge'] }] })],
     ]);
     const issues = checkPortConsumes(makeGraph({ nodes }));
-    expect(codesOf(issues)).toEqual(['consumes-without-ports']);
+    expect(codesOf(issues)).toEqual(['port-undefined']);
     expect(issues[0].severity).toBe('error');
   });
 });
@@ -369,11 +346,11 @@ describe('spec §"Consuming a target with no ports" — consumes-without-ports',
 // that does not exist on that target emits a blocking error (code port-undefined)."
 // ============================================================================
 
-describe('spec §"Consuming a target with no ports" — port-undefined for a bad name', () => {
+describe('spec §"Naming a port the target does not have" — port-undefined for a bad name', () => {
   it('consumes a non-existent port on a target that DOES have ports → port-undefined', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ct'] } } })],
-      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', consumes: ['phantom'] }] })],
+      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['phantom'] }] })],
     ]);
     const issues = checkPortConsumes(makeGraph({ nodes }));
     expect(codesOf(issues)).toEqual(['port-undefined']);
@@ -383,7 +360,7 @@ describe('spec §"Consuming a target with no ports" — port-undefined for a bad
 
   it('an undefined port name yields NO channel-6 propagation (the consumer inherits nothing)', () => {
     const provider = makeNode('p', { ports: { charge: { description: 'd', aspects: ['ct'] } } });
-    const consumer = makeNode('c', { relations: [{ target: 'p', type: 'calls', consumes: ['phantom'] }] });
+    const consumer = makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['phantom'] }] });
     const nodes = new Map<string, GraphNode>([['p', provider], ['c', consumer]]);
     expect(computeEffectiveAspects(consumer, makeGraph({ nodes, aspects: [aspect('ct')] })).size).toBe(0);
   });
@@ -405,7 +382,7 @@ describe('spec §"Ports" — every port aspect must be defined (port-missing-asp
   it('a CONSUMED port with an undefined aspect → port-missing-aspect on the consumer', () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ghost'] } } })],
-      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', consumes: ['charge'] }] })],
+      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['charge'] }] })],
     ]);
     const issues = checkPortAspectsDefined(makeGraph({ nodes })); // 'ghost' not defined
     expect(codesOf(issues)).toEqual(['port-missing-aspect']);
@@ -418,7 +395,7 @@ describe('spec §"Ports" — every port aspect must be defined (port-missing-asp
   it("an UNCONSUMED port with an undefined aspect does NOT emit port-missing-aspect (actual gating)", () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ghost'] } } })],
-      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls' }] })], // bare — does not consume
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })], // bare — does not consume
     ]);
     expect(checkPortAspectsDefined(makeGraph({ nodes }))).toEqual([]);
   });
@@ -429,48 +406,62 @@ describe('spec §"Ports" — every port aspect must be defined (port-missing-asp
   it("the invariant is actually enforced via the UNDOCUMENTED code 'aspect-undefined' (consumption-independent)", () => {
     const nodes = new Map<string, GraphNode>([
       ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ghost'] } } })],
-      ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls' }] })], // unconsumed
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })], // unconsumed
     ]);
     const issues = checkDanglingAspectRefs(makeGraph({ nodes }));
     expect(codesOf(issues)).toEqual(['aspect-undefined']); // NOT 'port-missing-aspect'
     expect(issues[0].messageData.what).toContain('ghost');
     expect(issues[0].messageData.what).toContain('charge');
   });
+
+  // D1c (6.0.0): "port-missing-aspect covers default" — a node that declares
+  // ONLY ports.default is not exempt from this check just because `default`
+  // is also the implicit port every node carries undeclared.
+  it('a CONSUMED ports.default with an undefined aspect → port-missing-aspect names default', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['p', makeNode('p', { ports: { default: { description: 'd', aspects: ['ghost'] } } })],
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
+    ]);
+    const issues = checkPortAspectsDefined(makeGraph({ nodes }));
+    expect(codesOf(issues)).toEqual(['port-missing-aspect']);
+    expect(issues[0].messageData.what).toContain("Port 'default'");
+  });
+
+  it('a CONSUMED ports.default with a defined aspect → no issue', () => {
+    const nodes = new Map<string, GraphNode>([
+      ['p', makeNode('p', { ports: { default: { description: 'd', aspects: ['ct'] } } })],
+      ['c', makeNode('c', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
+    ]);
+    expect(checkPortAspectsDefined(makeGraph({ nodes, aspects: [aspect('ct')] }))).toEqual([]);
+  });
 });
 
 // ============================================================================
-// INVARIANT 10 — the four documented port-contract codes + the documented
+// INVARIANT 10 — the two SURVIVING documented port-contract codes (D1c retired
+// port-missing-consumes and consumes-without-ports) + the documented
 // relation-target code are all spelled exactly as the spec says, and each is a
-// blocking error. (Code-name conformance.)
-//
-// DIVERGENCE: the spec calls these "blocking error(s)". The engine's documented
-// "single source of truth" set STRUCTURAL_CODES — which drives the structural
-// tally and suggestedNext priority — does NOT contain ANY of the four port codes
-// nor relation-target-forbidden.
+// blocking error present in STRUCTURAL_CODES, the single-source set the engine
+// uses for the structural tally and suggestedNext priority.
 // ============================================================================
 
-describe('spec §"Missing port contracts" — documented blocking codes', () => {
-  const DOCUMENTED_PORT_CODES = [
-    'port-missing-aspect',
-    'port-missing-consumes',
-    'consumes-without-ports',
-    'port-undefined',
-  ] as const;
+describe('spec §"Naming a port the target does not have" — documented blocking codes', () => {
+  const DOCUMENTED_PORT_CODES = ['port-missing-aspect', 'port-undefined'] as const;
 
   it('every documented port code is emitted with severity error by the real checks', () => {
-    // port-missing-aspect + port-undefined + consumes-without-ports + missing-consumes
     const everyCode = new Set<string>();
-    // missing-consumes / port-undefined / consumes-without-ports
+    // 'miss' and 'empty' name only the implicit default port — D1c made that
+    // legal, so neither raises anything. 'bad' names a real port the target
+    // lacks; 'cwp' names a real port on a target with NO ports at all — both
+    // are port-undefined now, not two different codes.
     {
       const nodes = new Map<string, GraphNode>([
         ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ct'] } } })],
-        ['miss', makeNode('miss', { relations: [{ target: 'p', type: 'calls' }] })],
-        ['bad', makeNode('bad', { relations: [{ target: 'p', type: 'calls', consumes: ['nope'] }] })],
-        ['empty', makeNode('empty', { relations: [{ target: 'p', type: 'calls' }] })],
+        ['miss', makeNode('miss', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
+        ['bad', makeNode('bad', { relations: [{ target: 'p', type: 'calls', portNames: ['nope'] }] })],
+        ['empty', makeNode('empty', { relations: [{ portNames: ['default'], target: 'p', type: 'calls' }] })],
       ]);
-      // separate target with no ports for consumes-without-ports
       nodes.set('np', makeNode('np'));
-      nodes.set('cwp', makeNode('cwp', { relations: [{ target: 'np', type: 'calls', consumes: ['x'] }] }));
+      nodes.set('cwp', makeNode('cwp', { relations: [{ target: 'np', type: 'calls', portNames: ['x'] }] }));
       for (const i of checkPortConsumes(makeGraph({ nodes }))) {
         expect(i.severity).toBe('error');
         everyCode.add(i.code ?? '');
@@ -479,7 +470,7 @@ describe('spec §"Missing port contracts" — documented blocking codes', () => 
     {
       const nodes = new Map<string, GraphNode>([
         ['p', makeNode('p', { ports: { charge: { description: 'd', aspects: ['ghost'] } } })],
-        ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', consumes: ['charge'] }] })],
+        ['c', makeNode('c', { relations: [{ target: 'p', type: 'calls', portNames: ['charge'] }] })],
       ]);
       for (const i of checkPortAspectsDefined(makeGraph({ nodes }))) {
         expect(i.severity).toBe('error');
@@ -489,19 +480,17 @@ describe('spec §"Missing port contracts" — documented blocking codes', () => 
     for (const c of DOCUMENTED_PORT_CODES) {
       expect(everyCode.has(c), `code ${c} should be emitted`).toBe(true);
     }
+    expect(everyCode.has('port-missing-consumes')).toBe(false);
+    expect(everyCode.has('consumes-without-ports')).toBe(false);
   });
 
-  // DIVERGENCE: none of the documented port codes are in STRUCTURAL_CODES, the
-  // "single source of truth" set the engine uses for the structural tally and
-  // suggestedNext priority. They block only via severity:'error' and a separate
-  // renderer-local ARCHITECTURE_CODES set, not via the documented structural set.
-  it('the documented blocking port-contract codes are present in STRUCTURAL_CODES', () => {
-    // FIXED: these blocking architecture-gate codes are now in the single-source
-    // structural set, so suggestedNext prioritizes them like other structural errors.
+  it('the documented blocking port-contract codes are present in STRUCTURAL_CODES, and the two retired ones are not', () => {
     for (const c of DOCUMENTED_PORT_CODES) {
       expect(STRUCTURAL_CODES.has(c), `STRUCTURAL_CODES.has(${c})`).toBe(true);
     }
     expect(STRUCTURAL_CODES.has('relation-target-forbidden')).toBe(true);
+    expect(STRUCTURAL_CODES.has('port-missing-consumes')).toBe(false);
+    expect(STRUCTURAL_CODES.has('consumes-without-ports')).toBe(false);
   });
 });
 
@@ -514,7 +503,7 @@ describe('spec §"Missing port contracts" — documented blocking codes', () => 
 describe('spec §intro — a relation target must resolve to an existing node', () => {
   it('relation to a non-existent node → relation-broken', () => {
     const nodes = new Map<string, GraphNode>([
-      ['a', makeNode('a', { relations: [{ target: 'ghost/node', type: 'uses' }] })],
+      ['a', makeNode('a', { relations: [{ portNames: ['default'], target: 'ghost/node', type: 'uses' }] })],
     ]);
     expect(codesOf(checkRelationTargets(makeGraph({ nodes })))).toEqual(['relation-broken']);
   });
@@ -549,31 +538,25 @@ function run(args: string[], cwd: string): { status: number | null; all: string 
 }
 
 describe.skipIf(!distExists)('E2E — documented CLI-observable port behaviors', () => {
-  it('omitting consumes against a port target fails check with port-missing-consumes (exit 1)', () => {
+  // D1c (6.0.0): omitting portNames used to fail check with the now-removed
+  // port-missing-consumes. It no longer does — the relation normalizes to the
+  // implicit 'default' port, and naming only 'default' is not an error — so
+  // this asserts the opposite of the pre-D1c behavior (a real-binary companion
+  // to the unit-level describe block above), and the string assertion below
+  // stands as a live guard that the retired code's name never resurfaces in
+  // rendered output.
+  it('omitting consumes against a port target no longer fails check (default is exempt)', () => {
     const dir = copyFixture('missing-consumes');
     const consumerYaml = path.join(dir, '.yggdrasil', 'model', 'services', 'orders', 'yg-node.yaml');
-    const yaml = readFileSync(consumerYaml, 'utf-8').replace(/\n\s*consumes: \[charge\]/, '');
+    const yaml = readFileSync(consumerYaml, 'utf-8').replace(/\n\s*portNames: \[charge\]/, '');
     writeFileSync(consumerYaml, yaml, 'utf-8');
 
     const check = run(['check'], dir);
-    expect(check.status).toBe(1);
-    expect(check.all).toContain('port-missing-consumes');
+    expect(check.status).toBe(0);
+    expect(check.all).not.toContain('port-missing-consumes');
   });
 
-  // The same scenario through the real renderer: confirm the documented literal
-  // "Missing port contract:" is NOT what an adopter sees (divergence, E2E layer).
-  it('the rendered port-missing-consumes diagnostic does NOT contain "Missing port contract:"', () => {
-    const dir = copyFixture('missing-consumes-msg');
-    const consumerYaml = path.join(dir, '.yggdrasil', 'model', 'services', 'orders', 'yg-node.yaml');
-    const yaml = readFileSync(consumerYaml, 'utf-8').replace(/\n\s*consumes: \[charge\]/, '');
-    writeFileSync(consumerYaml, yaml, 'utf-8');
-
-    const check = run(['check'], dir);
-    expect(check.all).toContain('port-missing-consumes');
-    expect(check.all).not.toContain('Missing port contract:');
-  });
-
-  it('consuming a port with consumes:[charge] propagates the audit aspect — yg context shows channel-6 label', () => {
+  it('consuming a port with portNames:[charge] propagates the audit aspect — yg context shows channel-6 label', () => {
     const dir = copyFixture('context');
     const ctx = run(['context', '--node', 'services/orders'], dir);
     expect(ctx.status).toBe(0);
@@ -584,7 +567,7 @@ describe.skipIf(!distExists)('E2E — documented CLI-observable port behaviors',
   it('consuming a non-existent port fails check with port-undefined (exit 1)', () => {
     const dir = copyFixture('undefined-port');
     const consumerYaml = path.join(dir, '.yggdrasil', 'model', 'services', 'orders', 'yg-node.yaml');
-    const yaml = readFileSync(consumerYaml, 'utf-8').replace('consumes: [charge]', 'consumes: [phantom]');
+    const yaml = readFileSync(consumerYaml, 'utf-8').replace('portNames: [charge]', 'portNames: [phantom]');
     writeFileSync(consumerYaml, yaml, 'utf-8');
 
     const check = run(['check'], dir);

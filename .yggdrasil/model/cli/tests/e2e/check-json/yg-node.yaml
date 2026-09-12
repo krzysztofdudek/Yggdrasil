@@ -17,7 +17,16 @@ description: >-
   smaller problem instead of a smaller rendering. For the rule inventory:
   status, reviewer kind, tier, review date, reach by channel and drill-corpus
   size, with the health projection refused rather than folded into the same
-  schema.
+  schema. Also the enumerated form of that reach, which names each unit a rule
+  judges instead of counting them: that asking for it leaves the rest of the
+  document untouched, that each unit names the channel it arrived through and
+  the nearest one when several deliver the same rule, that a bundle reaches
+  nothing of its own and a file governed by its type alone names the type, that
+  a draft rule reports the units the gate document cannot show at all while
+  every judged unit is a pair the gate holds under the same key, that filling
+  the lock — the work the gate document spends its pass on — does not move the
+  enumeration by a byte, and that it is refused without the machine flag and
+  refused by name by a build that does not know it.
 aspects: []
 relations:
   - target: cli/tests/fixtures

@@ -667,6 +667,102 @@ describe.skipIf(!distExists)(
       }
     });
 
+    it('T20a: aspect-when consumes_port: default is NOT a dangling reference, targeted or bare', () => {
+      const dir = copyFixture('t20a');
+      try {
+        // `services/payments` declares no ports, and neither does any other node
+        // in the fixture — yet `default` is the port every node carries
+        // implicitly, so both shapes must pass reference validation untouched.
+        writeArch(
+          dir,
+          [
+            'node_types:',
+            '  module:',
+            "    description: 'Organizational grouping.'",
+            '    log_required: false',
+            '  service:',
+            "    description: 'A service unit.'",
+            '    log_required: false',
+            '    when:',
+            '      path: "src/services/**"',
+            '    parents: [module]',
+            '    aspects:',
+            '      - id: no-todo-comments',
+            '        when:',
+            '          relations:',
+            '            calls:',
+            '              target: services/payments',
+            '              consumes_port: default',
+            '      - id: requires-named-export',
+            '        when:',
+            '          relations:',
+            '            calls:',
+            '              consumes_port: default',
+            '      - has-doc-comment',
+            '    relations:',
+            '      uses: [service]',
+            '      calls: [service]',
+            '',
+          ].join('\n'),
+        );
+        const { stdout } = run(['check'], dir);
+        // The only findings left are the fixture's usual unverified pairs and
+        // digest staleness; no port reference is reported at all.
+        expect(stdout).not.toContain('when-unknown-port');
+        expect(stdout).not.toContain('when-unmatched-port');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
+    it('T20b: aspect-when has_port naming a port no node declares WARNS — never an error, so it cannot block', () => {
+      const dir = copyFixture('t20b');
+      try {
+        writeArch(
+          dir,
+          [
+            'node_types:',
+            '  module:',
+            "    description: 'Organizational grouping.'",
+            '    log_required: false',
+            '  service:',
+            "    description: 'A service unit.'",
+            '    log_required: false',
+            '    when:',
+            '      path: "src/services/**"',
+            '    parents: [module]',
+            '    aspects:',
+            '      - id: no-todo-comments',
+            '        when:',
+            '          node:',
+            '            has_port: charrge',
+            '      - requires-named-export',
+            '      - has-doc-comment',
+            '    relations:',
+            '      uses: [service]',
+            '      calls: [service]',
+            '',
+          ].join('\n'),
+        );
+        const { stdout } = run(['check'], dir);
+        expect(stdout).toContain('when-unmatched-port');
+        expect(stdout).toContain("Port 'charrge'");
+
+        // Severity is the whole point: a deterministically-false has_port is an
+        // established idiom, so the finding must arrive as a warning. Read it
+        // off the machine surface rather than the rendered grouping.
+        const json = JSON.parse(run(['check', '--json'], dir).stdout) as {
+          issues: Array<{ code: string; severity: string }>;
+        };
+        const found = json.issues.filter((i) => i.code === 'when-unmatched-port');
+        expect(found).toHaveLength(1);
+        expect(found[0].severity).toBe('warning');
+        expect(json.issues.some((i) => i.code === 'when-unknown-port')).toBe(false);
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+
     // -----------------------------------------------------------------------
     // GROUP 5 — Architecture relation constraints + deprecated/invalid fields.
     // -----------------------------------------------------------------------

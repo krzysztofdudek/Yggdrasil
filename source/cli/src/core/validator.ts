@@ -15,6 +15,7 @@ import {
   checkArchitectureConstraints,
   checkPortAspectsDefined,
   checkPortConsumes,
+  checkReservedDefaultPortName,
 } from './checks/architecture.js';
 import {
   checkDanglingAspectRefs,
@@ -37,6 +38,7 @@ import {
 } from './checks/aspect-contracts.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { checkIncidentLedger } from './checks/incident-ledger.js';
+import { checkPackageFilesModified } from './checks/packages.js';
 import {
   checkFileMappingGitignored,
   checkFileDuplicateMapping,
@@ -199,6 +201,7 @@ export async function validate(
   issues.push(...checkArchitectureConstraints(graph));
   issues.push(...checkPortAspectsDefined(graph));
   issues.push(...checkPortConsumes(graph));
+  issues.push(...checkReservedDefaultPortName(graph));
   issues.push(...checkOrphanedAspects(graph));
   issues.push(...checkWhenReferences(graph));
   issues.push(...checkAspectRuleSources(graph));
@@ -214,6 +217,10 @@ export async function validate(
 
   // Stage 5: global checks.
   issues.push(...checkFileDuplicateMapping(graph));
+  // Installed packages: every copied file still what its package published.
+  // Global rather than per-node — a package's copy belongs to no component, so
+  // there is no node to scope the finding to.
+  issues.push(...(await checkPackageFilesModified(graph)));
   const strictOutcome = await checkStrictBackwardCoverage(graph, cache);
   issues.push(...strictOutcome.issues);
   allUnreadable.push(...strictOutcome.unreadable);

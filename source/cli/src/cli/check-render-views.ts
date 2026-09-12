@@ -15,6 +15,9 @@ import { toPosixPath } from '../utils/posix.js';
  * TRUE error/warning counts and keeps the single `Next:` line — only the body
  * (which issue blocks, if any, are rendered) changes. The exit code is computed
  * outside this function from the full issue set, so no view can read as green.
+ *
+ * Orthogonal to all of it: the type-coverage listing, governed by its own
+ * `--coverage` flag (`CheckRenderOptions` below), never by the view.
  *   - full    : header + every error/warning block grouped by (code, aspectId)
  *               + Next. Default view.
  *   - details : header + every error/warning block ungrouped (one block per
@@ -27,6 +30,26 @@ import { toPosixPath } from '../utils/posix.js';
  *   - aspect  : header + issue group for the named aspect only + Next.
  */
 export type CheckView = { kind: 'full' } | { kind: 'top'; n: number } | { kind: 'summary' } | { kind: 'details' } | { kind: 'aspect'; id: string };
+
+/**
+ * The second, INDEPENDENT axis of the report: how much of the type tier's own
+ * coverage the run enumerates. `coverage` is `--coverage` — off by default, on
+ * in every mode the flag is passed to, including the writer path (`--approve`),
+ * which is the surface the flag exists for.
+ *
+ * Why it is its own axis and not another `CheckView`: the view flags narrow the
+ * ISSUE set (which blocks render, and how they group). The coverage listing is
+ * not an issue — it is a statement of fact about what the type tier covers and
+ * what it enforces — so asking for it can never narrow, re-group, or hide a
+ * finding, never moves a count, and never touches the exit code. That is also
+ * why it is legal alongside `--approve`/`--only-deterministic` while the view
+ * flags are refused there (see check.ts): widening a statement of fact on a
+ * writer run cannot make the run read as a smaller problem.
+ */
+export interface CheckRenderOptions {
+  /** `--coverage`: render the per-type coverage listing. Default false — the plain report is the verdict and what it found. */
+  coverage?: boolean;
+}
 
 /**
  * Parse a raw --top value into a block count, or null on garbage.
@@ -90,7 +113,7 @@ function residualAfterNext(result: CheckResult): string {
   return `  (fills ${N} unverified; ${K} error${K === 1 ? '' : 's'} remain — need code/graph fixes)`;
 }
 
-export function formatOutput(result: CheckResult, view: CheckView = { kind: 'full' }, autoFilled = false, emoji = useEmoji): string {
+export function formatOutput(result: CheckResult, view: CheckView = { kind: 'full' }, autoFilled = false, emoji = useEmoji, render: CheckRenderOptions = {}): string {
   const errors = result.issues.filter(i => i.severity === 'error');
   const warnings = result.issues.filter(i => i.severity === 'warning');
 
@@ -143,11 +166,32 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   }
 
   // Type-visibility: a statement of fact about the type tier's own coverage,
-  // not an issue — printed ahead of every view, same posture as the notice
-  // above. The two triage views (--summary, --top) exist to keep the wall
-  // short, so this block stays to counts there too — never the full per-
-  // aspect reason breakdown a narrowed view is supposed to avoid.
-  if (result.typeVisibility && result.typeVisibility.byType.length > 0) {
+  // not an issue — and, since 6.0.0, printed ONLY when asked for by name
+  // (--coverage). It answers "which files does which type claim, and what
+  // actually runs on them" — a question asked when the type map is written or
+  // changed, not on every run. On a repo with 20 classifying types it was 122
+  // of the default report's 138 lines, which buried the verdict and the
+  // warnings under paths nobody reads on a green run. Nothing is lost by the
+  // move: every count it carries is derived from the same run either way, and
+  // the one state in it that is a genuine fault — a type whose rules could not
+  // be worked out at all, an aspect `implies` cycle — is ALSO a blocking
+  // `aspect-implies-cycle` error that the default report still prints, counts,
+  // and fails on. What went behind the flag is enumeration, never a finding.
+  //
+  // Deliberately NOT conditioned on anything else — in particular not on "the
+  // type map changed since last run" (io/type-class-cache.ts already computes
+  // an `architecturePredicateHash` that would make that cheap to detect).
+  // Output that varies with local state is output two people on one commit do
+  // not share, and a fresh CI checkout — the surface this change is most for —
+  // has no previous run at all, so it would get the long form every time. A
+  // gate says the same thing to everyone; a flag the reader types is how they
+  // ask for more.
+  //
+  // Under --coverage the two triage views (--summary, --top) still hold it to
+  // counts: those views exist to keep the wall short, and asking for coverage
+  // inside one asks for the per-type figures, not the per-aspect reason
+  // breakdown, bundle names, chain-termination text, or file samples.
+  if (render.coverage && result.typeVisibility && result.typeVisibility.byType.length > 0) {
     sections.push('');
     const countsOnly = view.kind === 'summary' || view.kind === 'top';
     sections.push(renderTypeVisibilityBlock(result, { countsOnly }));
