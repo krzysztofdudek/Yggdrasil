@@ -147,7 +147,9 @@ status: enforced                   # optional — aspect-level default. enum: dr
                                    #       target_type: <type-id>   # match target node's declared type
                                    #       target: <node-path>      # match exact node path (relative to model/)
                                    #       consumes_port: <port>    # match a port consumed on this relation
-                                   #   descendants:                 # same as relations but evaluated against any descendant in model/
+                                   #   descendants:                 # SOME ONE descendant in model/ satisfies every field below at once
+                                   #                                # (not one independent pass per field — for that, give each
+                                   #                                #  field its own descendants: clause under all_of)
                                    #     relations: {...}
                                    #     type: <type-id>
                                    #     has_port: <port-name>

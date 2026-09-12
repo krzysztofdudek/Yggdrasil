@@ -124,6 +124,65 @@ describe('evaluateWhen', () => {
     expect(evaluateWhen({ descendants: { has_port: 'charge' } }, parent, graph)).toBe(true);
   });
 
+  it('a multi-field descendants clause is AND-PER-DESCENDANT: ONE descendant must satisfy every field at once — two different descendants each satisfying one field is NOT a match', () => {
+    // typed has the type but no port; ported has the port but the wrong type.
+    // No single descendant satisfies both fields.
+    const typed = makeNode('orders/cmd', { meta: { name: 'c', type: 'command' } });
+    const ported = makeNode('orders/api', {
+      meta: { name: 'a', type: 'handler', ports: { charge: { description: 'c', aspects: [] } } },
+    });
+    const parent = makeNode('orders', { meta: { name: 'o', type: 'module' }, children: [typed, ported] });
+    typed.parent = parent;
+    ported.parent = parent;
+    const graph = makeGraph({
+      nodes: new Map([['orders', parent], ['orders/cmd', typed], ['orders/api', ported]]),
+    });
+
+    // Each field alone still passes — single-field clauses are untouched.
+    expect(evaluateWhen({ descendants: { type: 'command' } }, parent, graph)).toBe(true);
+    expect(evaluateWhen({ descendants: { has_port: 'charge' } }, parent, graph)).toBe(true);
+
+    // Together they must NOT pass: the two fields are satisfied by two
+    // DIFFERENT descendants. (Under the former OR-per-field semantics this
+    // read true — the exact false positive this pins against.)
+    expect(evaluateWhen({ descendants: { type: 'command', has_port: 'charge' } }, parent, graph)).toBe(false);
+
+    // The same clause passes the moment ONE descendant carries both facts.
+    const both = makeNode('orders/both', {
+      meta: { name: 'b', type: 'command', ports: { charge: { description: 'c', aspects: [] } } },
+    });
+    both.parent = parent;
+    parent.children.push(both);
+    graph.nodes.set('orders/both', both);
+    expect(evaluateWhen({ descendants: { type: 'command', has_port: 'charge' } }, parent, graph)).toBe(true);
+  });
+
+  it('a multi-field descendants clause including relations also needs ONE descendant carrying all of it', () => {
+    const target = makeNode('payments', { meta: { name: 'p', type: 'service-client' } });
+    // caller has the relation but the wrong type; typed has the type but no relation.
+    const caller = makeNode('orders/handler', {
+      meta: { name: 'h', type: 'handler', relations: [{ portNames: ['default'], target: 'payments', type: 'calls' }] },
+    });
+    const typed = makeNode('orders/cmd', { meta: { name: 'c', type: 'command' } });
+    const parent = makeNode('orders', { meta: { name: 'o', type: 'module' }, children: [caller, typed] });
+    caller.parent = parent;
+    typed.parent = parent;
+    const graph = makeGraph({
+      nodes: new Map([
+        ['orders', parent], ['orders/handler', caller], ['orders/cmd', typed], ['payments', target],
+      ]),
+    });
+
+    const clause: WhenPredicate = {
+      descendants: { type: 'command', relations: { calls: { target_type: 'service-client' } } },
+    };
+    expect(evaluateWhen(clause, parent, graph)).toBe(false);
+
+    // Give the command the call itself and the same clause matches.
+    typed.meta.relations = [{ portNames: ['default'], target: 'payments', type: 'calls' }];
+    expect(evaluateWhen(clause, parent, graph)).toBe(true);
+  });
+
   it('node.type matches', () => {
     const node = makeNode('x', { meta: { name: 'x', type: 'command' } });
     const graph = makeGraph({ nodes: new Map([['x', node]]) });

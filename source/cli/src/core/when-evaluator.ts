@@ -91,21 +91,27 @@ function matchesRelation(r: Relation, match: RelationMatch, graph: Graph, overri
 
 function evaluateDescendantsClause(dc: DescendantsClause, node: GraphNode, graph: Graph, overrides?: WhenEvalOverrides): boolean {
   const descendants = collectDescendants(node);
+  // A node with nothing below it never satisfies a descendants clause, whatever
+  // the clause asks for.
   if (descendants.length === 0) return false;
 
-  if (dc.type !== undefined) {
-    if (!descendants.some(d => d.meta.type === dc.type)) return false;
-  }
+  // One existential over the descendant set, conjunctive inside it: SOME single
+  // descendant has to satisfy every field written here at once. Not one
+  // existential pass per field — that would let `{type: X, has_port: Y}` pass on
+  // a subtree where descendant A has the type and an unrelated descendant B has
+  // the port, which is never what the clause reads like. The disjunctive
+  // reading is still expressible when it is genuinely wanted, by giving each
+  // field its own clause: `all_of: [{descendants: {type: X}}, {descendants: {has_port: Y}}]`.
+  return descendants.some(d => descendantSatisfies(dc, d, graph, overrides));
+}
+
+function descendantSatisfies(dc: DescendantsClause, d: GraphNode, graph: Graph, overrides?: WhenEvalOverrides): boolean {
+  if (dc.type !== undefined && d.meta.type !== dc.type) return false;
   if (dc.has_port !== undefined) {
-    if (!descendants.some(d => d.meta.ports && Object.prototype.hasOwnProperty.call(d.meta.ports, dc.has_port!))) {
-      return false;
-    }
+    if (!d.meta.ports || !Object.prototype.hasOwnProperty.call(d.meta.ports, dc.has_port)) return false;
   }
   if (dc.relations) {
-    // any descendant must satisfy the relation clause
-    if (!descendants.some(d => evaluateRelationClause(dc.relations!, d.meta.relations ?? [], graph, overrides))) {
-      return false;
-    }
+    if (!evaluateRelationClause(dc.relations, d.meta.relations ?? [], graph, overrides)) return false;
   }
   return true;
 }

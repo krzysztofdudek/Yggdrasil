@@ -62,7 +62,7 @@ when:
       target_type: <type-id> # at least one relation of this type targets a node of this type
       target: <node-path>    # ...or targets exactly this node path (relative to model/)
       consumes_port: <port>  # ...or consumes this port on the relation
-  descendants:               # each field below is checked INDEPENDENTLY against the whole descendant set
+  descendants:               # SOME ONE descendant satisfies every field below at once
     type: <type-id>
     has_port: <port-name>
     relations: { <relation-type>: { target_type: <type-id> } }
@@ -73,11 +73,17 @@ these paths". Wrapped in \`not:\`, it is the standard idiom for excluding one na
 component from an otherwise-broad attachment:
 \`when: { not: { node: { id: services/legacy } } }\`.
 
-A \`descendants:\` clause is NOT "one descendant satisfies everything". Each field
-runs its own existential pass over the full descendant set, so
-\`descendants: { type: repository, has_port: charge }\` passes when descendant A has
-the type and a completely different descendant B has the port. If the node has no
-descendants at all, the clause is always false.
+A \`descendants:\` clause means "ONE descendant satisfies every field written
+here". It is a single existential over the subtree, conjunctive inside it, so
+\`descendants: { type: repository, has_port: charge }\` passes only when the SAME
+descendant is a repository AND declares the \`charge\` port — descendant A having
+the type while an unrelated descendant B has the port is NOT a match. If the node
+has no descendants at all, the clause is always false.
+
+If you genuinely want the fields checked independently across the subtree ("some
+descendant is a repository, and some possibly-other descendant has the port"),
+give each field its own clause:
+\`all_of: [{ descendants: { type: repository } }, { descendants: { has_port: charge } }]\`.
 
 \`consumes_port\` matches a relation's NORMALIZED port list, not only what it
 wrote explicitly — a relation that named no port at all normalizes to

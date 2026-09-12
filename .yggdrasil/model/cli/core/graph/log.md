@@ -147,3 +147,5 @@ The port-consumption predicate, the graph's own machine documents, and the rever
 The impact and component documents no longer report a port's version or contract-test path — the two helpers that read those fields off a port's declaration are removed, and the port entries both documents build simply carry one fewer pair of keys than before.
 ## [2026-09-10T14:14:09.279Z]
 evaluateNodeClause gained an id field: node.id matches a node's path exactly (string or list-of-strings, list meaning any-of), giving when: { not: { node: { id } } } a way to exclude one named child from a parent-attached aspect without removing it from the parent.
+## [2026-09-12T06:25:19.710Z]
+A multi-field descendants: clause used to match if each field held on some descendant independently -- two different descendants could each satisfy one field and the clause matched, even though no single descendant satisfied both. Now requires one descendant to satisfy every field at once, matching how the sibling relations: clause already worked one level down.

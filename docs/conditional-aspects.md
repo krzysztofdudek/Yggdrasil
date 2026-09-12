@@ -48,7 +48,7 @@ when:
       target_type: <type-id>
       target: <node-path>       # relative to model/
       consumes_port: <port>
-  descendants:
+  descendants:                # SOME ONE descendant satisfies every field below at once
     relations: { ... }
     type: <type-id>
     has_port: <port-name>
@@ -63,6 +63,19 @@ when:
 "any of these paths." Wrapped in `not:`, it turns into an exclusion: a rule
 attached to a parent can exclude one named child without removing the child
 from the parent, e.g. `when: { not: { node: { id: services/legacy } } }`.
+
+A `descendants:` clause means **one descendant satisfies every field written
+there**. It is a single existential over the node's subtree, conjunctive inside
+it: `descendants: { type: repository, has_port: charge }` passes only when the
+*same* descendant is a repository *and* declares the `charge` port. Descendant A
+carrying the type while an unrelated descendant B carries the port is **not** a
+match. A node with no descendants at all fails the clause outright, whatever it
+asks for.
+
+If you do want the fields checked independently across the subtree — "some
+descendant is a repository, and some possibly-different descendant has the
+port" — give each field its own clause:
+`all_of: [{ descendants: { type: repository } }, { descendants: { has_port: charge } }]`.
 
 `consumes_port` matches a relation's **normalized** port list, not only what it wrote
 explicitly — a relation that named no port at all normalizes to `[default]`, so
