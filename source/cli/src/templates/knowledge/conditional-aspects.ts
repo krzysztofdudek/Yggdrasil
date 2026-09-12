@@ -1,5 +1,5 @@
 export const summary =
-  'One predicate grammar, three sites (when:, architecture node_types.*.when, scope.files), shared combinators, node atoms (incl. node.id) vs file atoms, what when-unknown-* does and does not validate, cross-hints';
+  'One predicate grammar, three sites (when:, architecture node_types.*.when, scope.files), shared combinators, node atoms (incl. node.id) vs file atoms, the when-unknown-* errors plus the when-unmatched-port warning, cross-hints';
 
 export const content = `# Conditional aspects (when predicate)
 
@@ -85,18 +85,16 @@ wrote explicitly — a relation that named no port at all normalizes to
 predicate would silently miss every relation that reaches a node through the
 implicit \`default\` port.
 
-That governs MATCHING only. It does not exempt the literal name \`default\` from
-reference-integrity validation: \`checkWhenReferences\` treats \`default\` like any
-other port name. A bare \`consumes_port: default\` (no \`target\`) is flagged
-\`when-unknown-port\` (error, blocking) unless at least one node in the graph
-explicitly declares \`ports: { default: ... }\` in its \`yg-node.yaml\`; a targeted
-\`consumes_port: default\` is flagged the same way unless THAT target declares it.
-Declaring an explicit \`default\` port is legal and is exactly how you unblock the
-idiom (\`default\` is the one port name that needs no \`description\`) — it only
-draws the non-blocking \`port-default-reserved\` warning asking you to confirm the
-port's aspects are meant for every consumer that names no port. So add
-\`ports: { default: {...} }\` to the relevant target node(s) BEFORE writing
-\`consumes_port: default\` in a \`when:\`.
+Reference-integrity validation agrees: the literal name \`default\` is EXEMPT from
+\`when-unknown-port\`, in both shapes — bare (no \`target\`) and targeted. The
+implicit port every node carries is a real referent, so no node has to declare
+\`ports: { default: ... }\` for the clause to be legal. Write
+\`consumes_port: default\` directly. Declaring an explicit \`default\` port is still
+legal (it is how you hang aspects on the implicit port, and \`default\` is the one
+port name that needs no \`description\`), but it is not a prerequisite for this
+idiom — and declaring it draws the non-blocking \`port-default-reserved\` warning
+asking you to confirm the port's aspects are meant for every consumer that names
+no port.
 
 \`has_port\` is the opposite case: it is checked LITERALLY against the node's
 declared \`ports:\` map, with no normalization. \`has_port: default\` therefore does
@@ -113,19 +111,25 @@ Rules the parser enforces:
 - At a single level, use EITHER one boolean operator OR atomic clauses — not
   both, and at most one boolean operator. To combine more, nest another level.
 
-Beyond these structural checks, \`yg check\` reference-integrity-validates the
-TYPE, NODE-PATH and \`consumes_port\` identifiers a \`when\` predicate names — not
-\`has_port\` or \`has_mapping\`, which are evaluated but never checked against a
-node's declared ports. These are error-severity:
+Beyond these structural checks, \`yg check\` reference-integrity-validates every
+identifier a \`when\` predicate names — TYPE, NODE-PATH, \`consumes_port\` and
+\`has_port\` (\`has_mapping\` is a boolean, so there is nothing to resolve). The
+first three are error-severity:
 - An unknown \`target_type\`, \`descendants.type\`, or \`node.type\` raises a
   \`when-unknown-type\` error.
 - An unknown relation \`target\`, or an unknown \`node.id\` (a node path that does
   not exist — for a single string id or any entry of an id list), raises a
   \`when-unknown-node\` error.
-- An unknown \`consumes_port\` raises a \`when-unknown-port\` error.
-- \`node.has_port\` and \`descendants.has_port\` are NOT validated. A typo there
-  passes the gate silently and simply evaluates to false forever, with no
-  diagnostic — proofread those names by hand.
+- An unknown \`consumes_port\` raises a \`when-unknown-port\` error. The reserved
+  name \`default\` is exempt — every node carries that port implicitly.
+
+\`has_port\` is WARNING-severity instead. A \`node.has_port\` or
+\`descendants.has_port\` naming a port that NO node in the graph declares raises
+\`when-unmatched-port\`, which never blocks \`yg check\`. The clause is false for
+every node, which is usually a typo — but it is also the standard way to write a
+deterministically-false gate, and it is legal against a port that is planned but
+not declared yet. So the warning puts the name in front of you and leaves the
+call to you; nothing else will.
 
 ### A node calls a service client
 

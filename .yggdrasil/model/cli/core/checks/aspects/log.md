@@ -48,3 +48,5 @@ Reworded three docstrings describing the threaded type-coverage classification p
 The dangling-reference and orphaned-aspect checks now treat a port with no aspects list as declaring nothing, instead of assuming the list is always present, when they walk a node's ports.
 ## [2026-09-10T14:14:08.710Z]
 The when-unknown-node reference check for node.id, part of adding node: { id } to the when grammar (id: <path> | [<path>, ...], exact match against node.path), so a when clause naming a node that does not exist in the graph is caught the same way an unknown relation target already is.
+## [2026-09-12T06:10:53.859Z]
+Two reference-validation gaps closed: a when: clause naming the reserved default port no longer trips an unknown-port refusal (it evaluates correctly at runtime and the validator now knows it), and has_port referencing a port nothing declares now raises a non-blocking warning instead of matching nothing in total silence.

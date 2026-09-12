@@ -54,6 +54,13 @@ export const STRUCTURAL_CODES = new Set<string>([
   'when-unknown-type',
   'when-unknown-node',
   'when-unknown-port',
+  // The `when` reference family has one NON-blocking sibling deliberately absent
+  // here because it is a warning, not a gate: 'when-unmatched-port' (rule
+  // 'when-unmatched-port'), a `has_port` naming a port no node declares. Unlike
+  // an unknown consumes_port, that shape is an established idiom for a
+  // deterministically-false gate and is legal against a port not declared yet,
+  // so it can only advise.
+
   // Port-contract codes — the BLOCKING architecture-gate errors (documented in the
   // ports-and-relations knowledge topic); they belong in the single-source
   // structural set. The port contract also has one NON-blocking code that is

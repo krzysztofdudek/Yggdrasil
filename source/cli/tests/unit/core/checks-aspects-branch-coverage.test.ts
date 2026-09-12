@@ -12,7 +12,9 @@ import {
   checkAspectTierReferences,
   checkAspectReferences,
 } from '../../../src/core/checks/aspect-contracts.js';
-import type { Graph } from '../../../src/model/graph.js';
+import { evaluateWhen } from '../../../src/core/when-evaluator.js';
+import { STRUCTURAL_CODES } from '../../../src/core/check-codes.js';
+import type { Graph, GraphNode } from '../../../src/model/graph.js';
 
 /**
  * Branch-coverage tests for the aspect-graph validators. Each exercises a rejection/
@@ -20,7 +22,10 @@ import type { Graph } from '../../../src/model/graph.js';
  * every `when` container/attach-site (all_of / any_of / not, bare consumes_port, aspect
  * impliesWhens, architecture/node/port/flow aspectWhens), and the aspect-contract paths
  * for a missing reviewer, an unknown tier with no tiers configured, an empty references
- * list, and a reference that resolves to a directory.
+ * list, and a reference that resolves to a directory. Also the two port-name rules the
+ * `when` validator applies asymmetrically: `consumes_port: default` is exempt (the
+ * reserved port exists on every node, so it is never an unknown reference), while an
+ * unmatchable `has_port` only warns (naming a port nothing declares is a legal idiom).
  */
 
 /** Minimal Graph literal; callers override only the fields the validator under test reads. */
@@ -237,6 +242,97 @@ describe('checkWhenReferences — predicate containers and unknown references', 
   it('validates an unknown `node.id` even under `not:`', () => {
     const issues = checkWhenReferences(mkGraph(aspectWithWhen({ not: { node: { id: 'nie/ma' } } })));
     expect(issues.some((i) => i.code === 'when-unknown-node')).toBe(true);
+  });
+
+  // --- consumes_port: default — the reserved port is never an unknown reference ---
+
+  it('raises nothing for a bare `consumes_port: default`, even though no node declares the port', () => {
+    const g = mkGraph({
+      nodes: new Map([node('x/y', { ports: { charge: { description: 'd', aspects: [] } } })] as [string, unknown][]) as unknown as Graph['nodes'],
+      ...aspectWithWhen({ relations: { uses: { consumes_port: 'default' } } }),
+    });
+    expect(checkWhenReferences(g)).toHaveLength(0);
+  });
+
+  it('raises nothing for a `target`-qualified `consumes_port: default` on a target that declares no ports at all', () => {
+    const g = mkGraph({
+      nodes: new Map([node('x/y', { ports: {} })] as [string, unknown][]) as unknown as Graph['nodes'],
+      ...aspectWithWhen({ relations: { uses: { target: 'x/y', consumes_port: 'default' } } }),
+    });
+    expect(checkWhenReferences(g)).toHaveLength(0);
+  });
+
+  it('exempts only `default` — every other undeclared port name still raises when-unknown-port, bare or targeted', () => {
+    const nodes = new Map([node('x/y', { ports: {} })] as [string, unknown][]) as unknown as Graph['nodes'];
+    const bare = checkWhenReferences(mkGraph({ nodes, ...aspectWithWhen({ relations: { uses: { consumes_port: 'ghost-port' } } }) }));
+    const targeted = checkWhenReferences(mkGraph({ nodes, ...aspectWithWhen({ relations: { uses: { target: 'x/y', consumes_port: 'ghost-port' } } }) }));
+    expect(bare.map((i) => i.code)).toEqual(['when-unknown-port']);
+    expect(targeted.map((i) => i.code)).toEqual(['when-unknown-port']);
+  });
+
+  it('the same graph that validates clean also MATCHES: `consumes_port: default` is true for a relation that named no port', () => {
+    const caller = {
+      path: 'x/caller',
+      meta: { name: 'x/caller', type: 'service', relations: [{ target: 'x/y', type: 'uses', portNames: ['default'] }] },
+      children: [],
+      parent: null,
+    };
+    const g = mkGraph({
+      nodes: new Map([node('x/y', { ports: {} }), ['x/caller', caller]] as [string, unknown][]) as unknown as Graph['nodes'],
+      ...aspectWithWhen({ relations: { uses: { consumes_port: 'default' } } }),
+    });
+    expect(checkWhenReferences(g)).toHaveLength(0);
+    expect(evaluateWhen({ relations: { uses: { consumes_port: 'default' } } }, caller as unknown as GraphNode, g)).toBe(true);
+  });
+
+  // --- has_port — advisory only, because an unmatchable port is a legal idiom ---
+
+  it('warns (never errors) on a `node.has_port` no node in the graph declares', () => {
+    const g = mkGraph({
+      nodes: new Map([node('x/y', { ports: { charge: { description: 'd', aspects: [] } } })] as [string, unknown][]) as unknown as Graph['nodes'],
+      ...aspectWithWhen({ node: { has_port: 'charrge' } }),
+    });
+    const issues = checkWhenReferences(g);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe('when-unmatched-port');
+    expect(issues[0].severity).toBe('warning');
+    expect(issues[0].messageData.what).toContain('charrge');
+    expect(issues[0].messageData.what).toMatch(/aspect 'a' when/);
+  });
+
+  it('warns the same way on a `descendants.has_port`', () => {
+    const g = mkGraph({
+      nodes: new Map([node('x/y', { ports: { charge: { description: 'd', aspects: [] } } })] as [string, unknown][]) as unknown as Graph['nodes'],
+      ...aspectWithWhen({ descendants: { has_port: 'charrge' } }),
+    });
+    const issues = checkWhenReferences(g);
+    expect(issues).toHaveLength(1);
+    expect(issues[0].code).toBe('when-unmatched-port');
+    expect(issues[0].severity).toBe('warning');
+  });
+
+  it('raises nothing when `has_port` names a port SOME node declares — it need not be the node the clause will match', () => {
+    const g = mkGraph({
+      nodes: new Map([
+        node('x/y', { ports: { charge: { description: 'd', aspects: [] } } }),
+        node('x/z', {}),
+      ] as [string, unknown][]) as unknown as Graph['nodes'],
+      ...aspectWithWhen({ node: { has_port: 'charge' } }),
+    });
+    expect(checkWhenReferences(g)).toHaveLength(0);
+  });
+
+  it('descends `not:` and the boolean containers to reach a `has_port`', () => {
+    const g = mkGraph(aspectWithWhen({ not: { node: { has_port: 'charrge' } } }));
+    expect(checkWhenReferences(g).map((i) => i.code)).toEqual(['when-unmatched-port']);
+    const anyOf = mkGraph(aspectWithWhen({ any_of: [{ descendants: { has_port: 'charrge' } }] }));
+    expect(checkWhenReferences(anyOf).map((i) => i.code)).toEqual(['when-unmatched-port']);
+  });
+
+  it('when-unmatched-port is deliberately OUTSIDE the structural set, so it can never block yg check', () => {
+    expect(STRUCTURAL_CODES.has('when-unmatched-port')).toBe(false);
+    // Its blocking sibling stays in, so the two are not confused for each other.
+    expect(STRUCTURAL_CODES.has('when-unknown-port')).toBe(true);
   });
 });
 
