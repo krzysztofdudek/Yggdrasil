@@ -5,11 +5,12 @@
  * such a file. Real spawned binary, real tests/fixtures/type-level-engine/.
  */
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { copyFixtureTree } from '../../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -23,8 +24,8 @@ const distExists = existsSync(BIN_PATH);
 
 function copyFixture(...overlays: string[]): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-context-file-typecov-'));
-  cpSync(FIXTURE, dir, { recursive: true });
-  for (const overlay of overlays) cpSync(overlay, dir, { recursive: true });
+  copyFixtureTree(FIXTURE, dir);
+  for (const overlay of overlays) copyFixtureTree(overlay, dir);
   return dir;
 }
 

@@ -26,12 +26,13 @@
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, readFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startMockReviewer, runAsync } from './support/mock-reviewer.js';
 import { readLock } from './support/read-lock.js';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -43,8 +44,8 @@ const cfgPath = (d: string) => path.join(d, '.yggdrasil', 'yg-config.yaml');
 
 function copyMergedFixture(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-typecov-impact-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  cpSync(path.join(BASE_FIXTURE, 'variants', 'two-covered-files'), dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  copyFixtureTree(path.join(BASE_FIXTURE, 'variants', 'two-covered-files'), dir);
   return dir;
 }
 

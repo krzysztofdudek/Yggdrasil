@@ -13,7 +13,7 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, rmSync, cpSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -23,6 +23,7 @@ import type { StructureUnit } from '../../../src/structure/runner.js';
 import { buildTestGraphForStructure } from '../helpers/build-test-graph-structure.js';
 import { cleanupTestGraphs } from '../helpers/build-test-graph.js';
 import { FIXTURE_NODELESS_RUNNER } from '../../fixtures/type-level-engine/variants/index.js';
+import { copyFixtureTree } from '../../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BASE_FIXTURE = path.join(__dirname, '..', '..', 'fixtures', 'type-level-engine');
@@ -32,8 +33,8 @@ describe('deterministic runner — nodeless unit (unit.kind === "file")', () => 
 
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-nodeless-runner-'));
-    cpSync(BASE_FIXTURE, projectRoot, { recursive: true });
-    cpSync(FIXTURE_NODELESS_RUNNER, projectRoot, { recursive: true });
+    copyFixtureTree(BASE_FIXTURE, projectRoot);
+    copyFixtureTree(FIXTURE_NODELESS_RUNNER, projectRoot);
   });
   afterEach(() => {
     rmSync(projectRoot, { recursive: true, force: true });

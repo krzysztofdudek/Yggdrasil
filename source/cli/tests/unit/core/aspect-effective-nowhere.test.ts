@@ -2,7 +2,7 @@ import { describe, it, expect, afterEach } from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
-import { mkdtempSync, cpSync, rmSync, readdirSync } from 'node:fs';
+import { mkdtempSync, rmSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import {
@@ -18,6 +18,7 @@ import { scanUncoveredFiles } from '../../../src/core/check.js';
 import { computeTypeCoverage } from '../../../src/core/type-coverage.js';
 import { FileContentCache } from '../../../src/io/file-content-cache.js';
 import { FIXTURE_TYPE_ONLY } from '../../fixtures/type-level-engine/variants/index.js';
+import { copyFixtureTree } from '../../support/fixture-copy.js';
 
 const __dirname2 = path.dirname(fileURLToPath(import.meta.url));
 const BASE_FIXTURE = path.join(__dirname2, '..', '..', 'fixtures', 'type-level-engine');
@@ -39,8 +40,8 @@ async function classify(graph: Graph): Promise<TypeCoverageInput> {
  */
 function buildTypeOnlyProject(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-type-only-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  cpSync(FIXTURE_TYPE_ONLY, dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  copyFixtureTree(FIXTURE_TYPE_ONLY, dir);
   const modelDir = path.join(dir, '.yggdrasil', 'model');
   for (const child of readdirSync(modelDir)) {
     rmSync(path.join(modelDir, child), { recursive: true, force: true });

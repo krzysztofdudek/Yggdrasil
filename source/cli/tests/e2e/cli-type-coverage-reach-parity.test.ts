@@ -19,12 +19,13 @@
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, cpSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLock } from './support/read-lock.js';
 import { FIXTURE_REACH_PARITY } from '../fixtures/type-level-engine/variants/index.js';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -41,8 +42,8 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
 
 function copyMergedFixture(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-reach-parity-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  cpSync(FIXTURE_REACH_PARITY, dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  copyFixtureTree(FIXTURE_REACH_PARITY, dir);
   return dir;
 }
 

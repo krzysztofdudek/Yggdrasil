@@ -12,12 +12,13 @@
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, chmodSync, symlinkSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync, appendFileSync, chmodSync, symlinkSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { startMockReviewer, runAsync } from './support/mock-reviewer.js';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -33,8 +34,8 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
 
 function copyMergedFixture(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-aspecttest-file-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  cpSync(path.join(BASE_FIXTURE, 'variants', 'two-covered-files'), dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  copyFixtureTree(path.join(BASE_FIXTURE, 'variants', 'two-covered-files'), dir);
   return dir;
 }
 
@@ -47,8 +48,8 @@ function copyMergedFixture(): string {
  */
 function copyMergedFixtureWithBinarySubject(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-aspecttest-file-binsub-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  cpSync(path.join(BASE_FIXTURE, 'variants', 'binary-subject'), dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  copyFixtureTree(path.join(BASE_FIXTURE, 'variants', 'binary-subject'), dir);
   return dir;
 }
 

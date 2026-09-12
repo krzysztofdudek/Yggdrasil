@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, cpSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runCheck, type CheckResult } from '../../src/core/check.js';
@@ -18,6 +18,7 @@ import type { PortalData } from '../../src/portal/contract.js';
 import type { VerifiedPair, PairState } from '../../src/core/verify-lock.js';
 import type { Graph } from '../../src/model/graph.js';
 import { nodeUnit } from '../../src/model/lock.js';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // The REAL repo root (real .yggdrasil/ graph + real source). tests/integration → cli → source → repo.
@@ -441,7 +442,7 @@ describe('extractPortalData re-reads the nested-project boundary on every call (
 
   it('a separate project appearing between two extractions is excluded on the SECOND call too', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-nested-'));
-    cpSync(FIXTURE_ROOT, dir, { recursive: true });
+    copyFixtureTree(FIXTURE_ROOT, dir);
     try {
       const before = await extractPortalData(dir, { writeEnabled: false });
 
@@ -478,7 +479,7 @@ describe('extractPortalData over a real tier-on fixture — a checked file is ne
 
   async function extractWithRealRefusal(): Promise<{ data: PortalData; dir: string }> {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-typecov-'));
-    cpSync(FIXTURE_ROOT, dir, { recursive: true });
+    copyFixtureTree(FIXTURE_ROOT, dir);
     // Fill the one deterministic pair LIVE (no committed lock) — the fixture's
     // FIXME comment makes this a genuine refusal, not a fabricated state.
     const graph = await loadGraph(dir);
@@ -602,8 +603,8 @@ describe('extractPortalData over a fixture with a real aspect implies cycle — 
 
   async function extractWithCycle(): Promise<{ data: PortalData; dir: string }> {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-cyclic-'));
-    cpSync(BASE_FIXTURE, dir, { recursive: true });
-    cpSync(CYCLIC_OVERLAY, dir, { recursive: true });
+    copyFixtureTree(BASE_FIXTURE, dir);
+    copyFixtureTree(CYCLIC_OVERLAY, dir);
     const data = await extractPortalData(dir, { writeEnabled: false });
     return { data, dir };
   }
@@ -678,7 +679,7 @@ describe('extractPortalData over a flag-off fixture with an excluded root — ex
 
   async function extractFlagOff(): Promise<{ data: PortalData; dir: string }> {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-extract-flagoff-excl-'));
-    cpSync(FIXTURE_ROOT, dir, { recursive: true });
+    copyFixtureTree(FIXTURE_ROOT, dir);
     const data = await extractPortalData(dir, { writeEnabled: false });
     return { data, dir };
   }

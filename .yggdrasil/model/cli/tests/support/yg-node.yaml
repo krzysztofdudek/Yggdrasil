@@ -1,4 +1,4 @@
-name: Tests — Shared Git Fixtures
+name: Tests — Shared Test Support
 type: test-suite
 description: "Cross-tier test support: a git-fixture isolation helper used by unit,
   integration, and e2e suites that spawn throwaway `git init`/`add`/`commit`
@@ -19,10 +19,19 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   or as advisory: an advisory one warns forever and is never re-coded by the
   change-scope classification, which is the only way to observe a finding that
   stands on untouched code while blocking nothing — the state a repository
-  adopting a mined graph actually lives with. Both helpers import only Node
-  builtins; nothing from src/**."
+  adopting a mined graph actually lives with.
+
+  It also owns the one way a suite copies a COMMITTED fixture project into its own
+  directory. The fixtures under tests/fixtures/ are shared, and the engine writes
+  rebuildable caches into each one's .yggdrasil/ as it runs there, so the committed
+  tree on disk carries whatever cache state the last run left. The copier skips
+  those cache directories, which makes every copied project start with a cold cache
+  by construction instead of by luck, and keeps a copy from reading the one part of
+  the tree a concurrently running worker is writing. All three helpers import only
+  Node builtins; nothing from src/**."
 aspects: []
 relations: []
 mapping:
+  - source/cli/tests/support/fixture-copy.ts
   - source/cli/tests/support/git-fixture.ts
   - source/cli/tests/support/progressive-fixture.ts

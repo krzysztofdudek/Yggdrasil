@@ -5,7 +5,6 @@ import {
   mkdtempSync,
   mkdirSync,
   rmSync,
-  cpSync,
   readFileSync,
   writeFileSync,
   appendFileSync,
@@ -16,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { runGitFixture } from '../support/git-fixture.js';
 import { detLockPath } from './support/read-lock.js';
 import { FIXTURE_TWO_COVERED_FILES } from '../fixtures/type-level-engine/variants/index.js';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 // ---------------------------------------------------------------------------
 // CLI E2E — `yg aspects --health` (C3 slice 1).
@@ -72,7 +72,7 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
 
 function copyFixture(label: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-aspects-health-${label}-`));
-  cpSync(FIXTURE, dir, { recursive: true });
+  copyFixtureTree(FIXTURE, dir);
   return dir;
 }
 
@@ -594,8 +594,8 @@ const TYPE_LEVEL_BASE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-eng
 
 function copyMergedTypeLevelFixture(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-aspects-health-typelevel-'));
-  cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
-  cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+  copyFixtureTree(TYPE_LEVEL_BASE, dir);
+  copyFixtureTree(FIXTURE_TWO_COVERED_FILES, dir);
   return dir;
 }
 
@@ -673,8 +673,8 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts type-covere
 
 function copyMergedTypeLevelFixtureWithBinarySubject(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-aspects-health-waiverhosts-'));
-  cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
-  cpSync(path.join(TYPE_LEVEL_BASE, 'variants', 'binary-subject'), dir, { recursive: true });
+  copyFixtureTree(TYPE_LEVEL_BASE, dir);
+  copyFixtureTree(path.join(TYPE_LEVEL_BASE, 'variants', 'binary-subject'), dir);
   return dir;
 }
 

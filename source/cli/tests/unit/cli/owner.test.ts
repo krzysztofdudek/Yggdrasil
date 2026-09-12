@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, cp, rm, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, rm, mkdir, writeFile, readFile } from 'node:fs/promises';
 import { Command } from 'commander';
 import { findOwner } from '../../../src/cli/owner.js';
 import type { Graph } from '../../../src/model/graph.js';
@@ -24,6 +24,7 @@ vi.mock('../../../src/io/debug-log-writer.js', () => ({ appendToDebugLog: vi.fn(
 
 import { registerOwnerCommand } from '../../../src/cli/owner.js';
 import { loadGraphOrAbort } from '../../../src/cli/preamble.js';
+import { copyFixtureTreeAsync } from '../../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -33,7 +34,7 @@ const TYPE_LEVEL_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-
 
 async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
   const root = await mkdtemp(path.join(tmpdir(), 'ygg-owner-'));
-  await cp(FIXTURE, root, { recursive: true });
+  await copyFixtureTreeAsync(FIXTURE, root);
   try {
     return await fn(root);
   } finally {
@@ -43,8 +44,8 @@ async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
 
 async function withTypeLevelFixtureCopy<T>(fn: (cwd: string) => Promise<T>, ...overlays: string[]): Promise<T> {
   const root = await mkdtemp(path.join(tmpdir(), 'ygg-owner-typelevel-'));
-  await cp(TYPE_LEVEL_FIXTURE, root, { recursive: true });
-  for (const overlay of overlays) await cp(overlay, root, { recursive: true });
+  await copyFixtureTreeAsync(TYPE_LEVEL_FIXTURE, root);
+  for (const overlay of overlays) await copyFixtureTreeAsync(overlay, root);
   try {
     return await fn(root);
   } finally {

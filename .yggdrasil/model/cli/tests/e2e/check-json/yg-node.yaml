@@ -31,5 +31,7 @@ aspects: []
 relations:
   - target: cli/tests/fixtures
     type: uses
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/e2e/cli-check-json.test.ts

@@ -15,11 +15,12 @@
  * Public surface only — the page is a real CLI emit and `yg check` is the real CLI; nothing is
  * fabricated. COVERS adds no new manifest surface (it re-asserts coverage/overview honesty).
  */
-import { mkdtempSync, cpSync } from 'node:fs';
+import { mkdtempSync} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { test, expect } from './support/fixtures';
 import { runCheck, staticPage, freshFixtureCopy, servedPortal, readInlinedData, approveDeterministic, fixtureRoot, runSuppressions } from './support/harness';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 export const COVERS: string[] = [];
 
@@ -268,8 +269,8 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     // ONE zero-enforcement file — the two must never share a count, on either surface.
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-e2e-cyclic-'));
     t.tmpDirs.push(dir);
-    cpSync(fixtureRoot('type-level-engine'), dir, { recursive: true });
-    cpSync(path.join(fixtureRoot('type-level-engine'), 'variants', 'cyclic-type'), dir, { recursive: true });
+    copyFixtureTree(fixtureRoot('type-level-engine'), dir);
+    copyFixtureTree(path.join(fixtureRoot('type-level-engine'), 'variants', 'cyclic-type'), dir);
 
     const check = runCheck(dir);
     const cliUncomputable = parseCheckUncomputableCount(check.out);

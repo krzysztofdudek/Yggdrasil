@@ -22,10 +22,11 @@
 
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, cpSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -49,7 +50,7 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
 
 function copyFixture(label: string, source: string = FIXTURE): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-checkjson-${label}-`));
-  cpSync(source, dir, { recursive: true });
+  copyFixtureTree(source, dir);
   return dir;
 }
 

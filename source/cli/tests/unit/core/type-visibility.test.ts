@@ -6,7 +6,7 @@
  * set (the one and only ground truth for "enforced" / "advisory").
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -30,6 +30,7 @@ import { buildTestGraphForStructure } from '../helpers/build-test-graph-structur
 import { cleanupTestGraphs } from '../helpers/build-test-graph.js';
 import { FIXTURE_NODELESS_RUNNER, FIXTURE_CYCLIC_TYPE } from '../../fixtures/type-level-engine/variants/index.js';
 import type { Graph, GraphNode, AspectDef, ScopeDef, WhenPredicate } from '../../../src/model/graph.js';
+import { copyFixtureTree } from '../../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -242,8 +243,8 @@ describe('buildTypeVisibility — one row per reason', () => {
     let projectRoot: string;
     beforeEach(() => {
       projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-type-visibility-runtime-'));
-      cpSync(BASE_FIXTURE, projectRoot, { recursive: true });
-      cpSync(FIXTURE_NODELESS_RUNNER, projectRoot, { recursive: true });
+      copyFixtureTree(BASE_FIXTURE, projectRoot);
+      copyFixtureTree(FIXTURE_NODELESS_RUNNER, projectRoot);
     });
     afterEach(() => {
       rmSync(projectRoot, { recursive: true, force: true });
@@ -440,8 +441,8 @@ describe('buildTypeVisibility — report shape (real type-level-engine fixture)'
     // ("resolution ran and found nothing" vs. "resolution never ran") are
     // pinned side by side, never folded into one bucket.
     const projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-type-visibility-cyclic-'));
-    cpSync(BASE_FIXTURE, projectRoot, { recursive: true });
-    cpSync(FIXTURE_CYCLIC_TYPE, projectRoot, { recursive: true });
+    copyFixtureTree(BASE_FIXTURE, projectRoot);
+    copyFixtureTree(FIXTURE_CYCLIC_TYPE, projectRoot);
     try {
       const graph = await loadGraph(projectRoot);
       const typeCoverage = tc([

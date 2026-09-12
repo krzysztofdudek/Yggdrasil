@@ -7,7 +7,7 @@
  * rendered exactly once per type.
  */
 import { describe, it, expect, afterAll } from 'vitest';
-import { mkdtempSync, cpSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,7 @@ import { runCheck } from '../../../src/core/check.js';
 import { walkRepoFiles } from '../../../src/io/repo-scanner.js';
 import { formatOutput } from '../../../src/cli/check-render-views.js';
 import { FIXTURE_ZERO_ENFORCEMENT, FIXTURE_BINARY_SUBJECT } from '../../fixtures/type-level-engine/variants/index.js';
+import { copyFixtureTree } from '../../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -25,8 +26,8 @@ const BASE_FIXTURE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-engine
 const tmpDirs: string[] = [];
 function copyFixture(...overlays: string[]): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-check-type-visibility-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  for (const overlay of overlays) cpSync(overlay, dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  for (const overlay of overlays) copyFixtureTree(overlay, dir);
   tmpDirs.push(dir);
   return dir;
 }

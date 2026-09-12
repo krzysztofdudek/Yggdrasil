@@ -2,11 +2,12 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
-import { mkdtempSync, cpSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import vm from 'node:vm';
 import { extractPortalData } from '../../src/portal/extract.js';
 import type { PortalData } from '../../src/portal/contract.js';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 /**
  * Phase-5 frontend tests (5.1 export + attestation digest · 5.2 file-aware loop in the views ·
@@ -465,7 +466,7 @@ describe('Phase-5 export — the coverage CSV reconciles at coverage.type_level 
 
   beforeAll(async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-csv-typecov-'));
-    cpSync(path.resolve(__dirname, '../fixtures/portal-type-coverage'), dir, { recursive: true });
+    copyFixtureTree(path.resolve(__dirname, '../fixtures/portal-type-coverage'), dir);
     try {
       typeCovData = await extractPortalData(dir, { writeEnabled: false });
     } finally {
@@ -519,8 +520,8 @@ describe('Phase-5 export — the uncomputable (aspect implies cycle) state reach
 
   beforeAll(async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-csv-cyclic-'));
-    cpSync(BASE_FIXTURE, dir, { recursive: true });
-    cpSync(CYCLIC_OVERLAY, dir, { recursive: true });
+    copyFixtureTree(BASE_FIXTURE, dir);
+    copyFixtureTree(CYCLIC_OVERLAY, dir);
     try {
       cyclicData = await extractPortalData(dir, { writeEnabled: false });
     } finally {

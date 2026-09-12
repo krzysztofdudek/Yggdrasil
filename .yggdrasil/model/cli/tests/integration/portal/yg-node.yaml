@@ -51,7 +51,7 @@ description: >-
   matrix keeps its DOM-list mirror; and `--no-write` view-only mode disables the write control.
 aspects: []
 max_direct_relations:
-  limit: 21
+  limit: 22
   reason: >-
     Reviewed architectural seam. This suite integration-tests the full portal
     extraction pipeline against the real engine, so its relation count tracks
@@ -60,7 +60,12 @@ max_direct_relations:
     tier-on fixture before extraction — the only way to get a genuine, live
     refused verdict on a type-covered file rather than a fabricated one — so
     the count is exactly the number of reviewed engine seams this suite
-    exercises, not padding.
+    exercises, not padding. The 22nd (cli/tests/support) is not an engine seam
+    at all: it is the shared test-support helper every suite now copies a
+    committed fixture through, so that a copied project starts with a cold
+    engine cache instead of whatever a concurrent worker left in the shared
+    tree. Counting a test-harness helper against an engine-seam budget is the
+    metric being imprecise, not the suite growing.
 relations:
   - target: cli/portal/pipeline
     type: uses
@@ -103,6 +108,8 @@ relations:
   - target: cli/rules-artifacts
     type: uses
   - target: cli/core/fill
+    type: uses
+  - target: cli/tests/support
     type: uses
 mapping:
   - source/cli/tests/integration/portal-extract.test.ts

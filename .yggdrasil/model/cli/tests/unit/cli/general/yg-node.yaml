@@ -68,7 +68,8 @@ relations:
     { target: cli/progressive-preflight, type: uses },
     { target: cli/progressive-scope-resolve, type: uses },
     { target: cli/core/check-codes, type: uses },
-    { target: cli/core/progressive-scope, type: uses }
+    { target: cli/core/progressive-scope, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/build-command.test.ts

@@ -16,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import {
   mkdtemp, mkdir, writeFile, rm, readFile,
 } from 'node:fs/promises';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync, cpSync, appendFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, appendFileSync } from 'node:fs';
 import { readBytesOrEmpty } from '../../../src/core/fill-shared.js';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
@@ -59,6 +59,7 @@ vi.mock('../../../src/structure/runner.js', async (importOriginal) => {
   };
 });
 import { runStructureAspect, StructureRunnerError } from '../../../src/structure/runner.js';
+import { copyFixtureTree } from '../../support/fixture-copy.js';
 const mockRunStructureAspect = vi.mocked(runStructureAspect);
 
 function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
@@ -308,8 +309,8 @@ describe('detGateKey cross-contamination — real fill run, componentless pairs'
   it('a cached refusal on one file does not stop the LLM fill of an unrelated file matching the same type', async () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-det-gate-'));
     dirs.push(dir);
-    cpSync(TWO_COVERED_FILES_BASE, dir, { recursive: true });
-    cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+    copyFixtureTree(TWO_COVERED_FILES_BASE, dir);
+    copyFixtureTree(FIXTURE_TWO_COVERED_FILES, dir);
     // The fixture ships no reviewer config — LLM aspects need a resolvable
     // tier even though createLlmProvider itself is mocked below.
     appendFileSync(path.join(dir, '.yggdrasil', 'yg-config.yaml'), `\n${V5_REVIEWER_CONFIG}`);

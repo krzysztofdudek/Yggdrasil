@@ -2,7 +2,9 @@ name: E2E Tests — Portal Command Surface
 type: test-suite
 description: "Subprocess E2E proving the `yg portal` command surface: registration under the top-level --help, the full option set (--static / --out / --port / --open / --no-write), integer validation of --port, and the --static self-contained emit. The static test spawns `yg portal --static` against a real fixture project and asserts the emitted page is one offline HTML document — exactly one inlined-PortalData script that round-trips, no externally-loadable network/CDN reference, the vendored layout library inlined. The server test spawns `yg portal --port 0` against a temp fixture copy and drives the real loopback endpoints with an HTTP client: loopback bind, the live page, GET /data, the GET /approve/dry-run cost preview, and a real POST /approve {llm:false} that runs the deterministic fill via the spawned CLI and is reflected in the next /data — never a silent success. The file-aware test copies a real log_required fixture, closes a baseline through the public CLI (yg check --approve writes the committed source fingerprint), emits a --static page, then edits one mapped source file and re-emits — asserting the touched node flips to unverified on the page while the untouched one stays verified, and that the page meta pins the committed-lock hash + the git commit ref. Public-surface only — spawns dist/bin.js and reads the committed file it wrote; no src import; no browser is ever launched."
 aspects: []
-relations: []
+relations:
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/e2e/cli-portal-surface.test.ts
   - source/cli/tests/e2e/cli-portal-static.test.ts

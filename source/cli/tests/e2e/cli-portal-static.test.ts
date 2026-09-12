@@ -1,9 +1,10 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, appendFileSync, cpSync } from 'node:fs';
+import { existsSync, readFileSync, mkdtempSync, rmSync, mkdirSync, writeFileSync, appendFileSync} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 // Public-surface E2E for `yg portal --static`. Spawns the built dist/bin.js against a REAL
 // fixture project (a real .yggdrasil/ graph + real source) and asserts the emitted page is
@@ -165,8 +166,8 @@ describe.skipIf(!distExists)('CLI E2E — yg portal --static lists a marker wher
   it('the embedded suppression inventory names the type-covered file, the .yggdrasil/-mapped file, and the gitignored mapped file', () => {
     const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typelevel-'));
     try {
-      cpSync(TYPE_LEVEL_FIXTURE_ROOT, dir, { recursive: true });
-      cpSync(path.join(TYPE_LEVEL_FIXTURE_ROOT, 'variants', 'binary-subject'), dir, { recursive: true });
+      copyFixtureTree(TYPE_LEVEL_FIXTURE_ROOT, dir);
+      copyFixtureTree(path.join(TYPE_LEVEL_FIXTURE_ROOT, 'variants', 'binary-subject'), dir);
 
       const nodeYamlPath = path.join(dir, '.yggdrasil', 'model', 'owned', 'yg-node.yaml');
       const original = readFileSync(nodeYamlPath, 'utf-8');

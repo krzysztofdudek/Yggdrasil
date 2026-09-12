@@ -15,7 +15,7 @@
  *     place.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, cpSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -25,6 +25,7 @@ import { computeExpectedPairs } from '../../../src/core/pairs.js';
 import type { TypeCoverageInput } from '../../../src/core/pairs.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import type { Graph, GraphNode, AspectDef, ScopeDef, WhenPredicate } from '../../../src/model/graph.js';
+import { copyFixtureTree } from '../../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -318,8 +319,8 @@ describe('computeExpectedPairs — coverage.excluded cuts a component\'s own exp
 
   beforeEach(() => {
     projectDir = mkdtempSync(path.join(tmpdir(), 'yg-pairs-excl-mapped-'));
-    cpSync(BASE_FIXTURE, projectDir, { recursive: true });
-    cpSync(VARIANT_EXCLUDED_BUT_MAPPED, projectDir, { recursive: true });
+    copyFixtureTree(BASE_FIXTURE, projectDir);
+    copyFixtureTree(VARIANT_EXCLUDED_BUT_MAPPED, projectDir);
   });
 
   afterEach(() => {

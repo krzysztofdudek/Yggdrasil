@@ -18,13 +18,14 @@
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, appendFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, readFileSync, appendFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startMockReviewer, runAsync } from './support/mock-reviewer.js';
 import { readLock } from './support/read-lock.js';
 import { FIXTURE_TWO_COVERED_FILES } from '../fixtures/type-level-engine/variants/index.js';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -37,8 +38,8 @@ const eventsPath = (d: string) => path.join(d, '.yggdrasil', '.yg-events.jsonl')
 
 function copyMergedFixture(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-typecov-fill-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  copyFixtureTree(FIXTURE_TWO_COVERED_FILES, dir);
   return dir;
 }
 

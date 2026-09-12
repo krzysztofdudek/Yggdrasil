@@ -13,10 +13,11 @@
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, cpSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -34,8 +35,8 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
 
 function copyFixture(...overlays: string[]): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-type-visibility-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  for (const overlay of overlays) cpSync(overlay, dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  for (const overlay of overlays) copyFixtureTree(overlay, dir);
   return dir;
 }
 

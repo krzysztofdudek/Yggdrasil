@@ -6,7 +6,6 @@ import {
   mkdtempSync,
   mkdirSync,
   rmSync,
-  cpSync,
   readFileSync,
   writeFileSync,
   appendFileSync,
@@ -25,6 +24,7 @@ import {
 } from '../../../src/core/advise-nominations.js';
 import { CACHE_SCHEMA_VERSION } from '../../../src/relations/facts-cache.js';
 import { ruleHashFor } from '../../../src/core/pair-inputs.js';
+import { copyFixtureTree } from '../../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../../..');
@@ -81,7 +81,7 @@ describe.skipIf(!distExists)('yg advise dismiss / defer (spawned)', () => {
 
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-e2e-'));
-    cpSync(FIXTURE, projectRoot, { recursive: true });
+    copyFixtureTree(FIXTURE, projectRoot);
     appendFileSync(
       path.join(projectRoot, '.yggdrasil', 'aspects', 'requires-logging', 'yg-aspect.yaml'),
       '\nreview_by: 2020-01-01\n',
@@ -166,7 +166,7 @@ describe.skipIf(!distExists)('yg advise — Step 1: sections, precedence, proven
 
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-s1-'));
-    cpSync(FIXTURE, projectRoot, { recursive: true });
+    copyFixtureTree(FIXTURE, projectRoot);
     // overdue review_by
     appendFileSync(
       path.join(projectRoot, '.yggdrasil', 'aspects', 'requires-logging', 'yg-aspect.yaml'),
@@ -234,7 +234,7 @@ describe.skipIf(!distExists)('yg advise — Step 2: cap, --all, --ids (spawned)'
 
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-s2-'));
-    cpSync(FIXTURE, projectRoot, { recursive: true });
+    copyFixtureTree(FIXTURE, projectRoot);
     // 12 distinct wildcard suppress markers → 12 suppress-anomaly nominations.
     let block = '\n';
     for (let i = 0; i < MARKERS; i++) {
@@ -325,7 +325,7 @@ describe.skipIf(!distExists)('yg advise agrees with yg check on a rule enforced 
 
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-typelevel-'));
-    cpSync(TYPE_LEVEL_FIXTURE, projectRoot, { recursive: true });
+    copyFixtureTree(TYPE_LEVEL_FIXTURE, projectRoot);
   });
   afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
 
@@ -358,7 +358,7 @@ describe.skipIf(!distExists)('yg advise nominates a risky marker on every file a
 
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-waiverhosts-'));
-    cpSync(TYPE_LEVEL_FIXTURE, projectRoot, { recursive: true });
+    copyFixtureTree(TYPE_LEVEL_FIXTURE, projectRoot);
     // Adds architecture type 'pics' (matches src/pics/**, attaches the LLM
     // per-file rule prose-rule) and a real text subject, src/pics/readme.md —
     // a type-covered file whose extension (`.md`) the suppression scan's
@@ -367,7 +367,7 @@ describe.skipIf(!distExists)('yg advise nominates a risky marker on every file a
     // with), so this variant is what makes the type-covered case below
     // actually depend on the type-coverage exemption rather than passing
     // for an unrelated reason.
-    cpSync(path.join(TYPE_LEVEL_FIXTURE, 'variants', 'binary-subject'), projectRoot, { recursive: true });
+    copyFixtureTree(path.join(TYPE_LEVEL_FIXTURE, 'variants', 'binary-subject'), projectRoot);
 
     // A live marker is honored on three different kinds of file, and `yg advise`
     // must nominate a risky one on all three: a type-covered file with no
@@ -422,7 +422,7 @@ describe.skipIf(!distExists)('yg advise — id-surface injection hygiene (spawne
 
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-idhyg-'));
-    cpSync(FIXTURE, projectRoot, { recursive: true });
+    copyFixtureTree(FIXTURE, projectRoot);
     canonicalId = writeHostileDrillCase(projectRoot);
   });
   afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
@@ -469,7 +469,7 @@ describe.skipIf(!distExists)('yg advise — drill-miss is gated to the current i
 
   beforeEach(async () => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-corpus-'));
-    cpSync(FIXTURE, projectRoot, { recursive: true });
+    copyFixtureTree(FIXTURE, projectRoot);
     // Stage a REAL in-repo corpus for requires-audit: one case a dev line names and
     // one a holdout line names — both genuinely on disk under the aspect's drills/.
     const drills = path.join(projectRoot, '.yggdrasil', 'aspects', 'requires-audit', 'drills');
@@ -526,7 +526,7 @@ describe.skipIf(!distExists)('yg advise — attention count mirrors yg structure
   let projectRoot: string;
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-mirror-'));
-    cpSync(FIXTURE, projectRoot, { recursive: true });
+    copyFixtureTree(FIXTURE, projectRoot);
   });
   afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
 
@@ -586,7 +586,7 @@ describe.skipIf(!distExists)('yg advise — G4: a drill MISS line missing `case`
 
   beforeEach(() => {
     projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-advise-nocase-'));
-    cpSync(FIXTURE, projectRoot, { recursive: true });
+    copyFixtureTree(FIXTURE, projectRoot);
     // A corrupted / partially-written local drill line: valid JSON, a real MISS
     // (expect refused, got satisfied), but NO `case` field. drillMissNominations
     // dereferences line.case and passes it to quoteData — quoteData(undefined)

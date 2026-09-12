@@ -15,7 +15,8 @@ relations:
     { target: cli/relations/core, type: uses },
     { target: cli/core/companion-resolve, type: uses },
     { target: cli/core/pairs, type: uses },
-    { target: cli/model/lock, type: uses }
+    { target: cli/model/lock, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/structure/allowed-reads.test.ts

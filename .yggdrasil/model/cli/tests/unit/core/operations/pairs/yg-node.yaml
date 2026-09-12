@@ -19,7 +19,8 @@ relations:
     { target: cli/core/pair-hash, type: uses },
     { target: cli/core/pair-inputs, type: uses },
     { target: cli/io/stores, type: uses },
-    { target: cli/core/verify-lock, type: uses }
+    { target: cli/core/verify-lock, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/pairs.test.ts

@@ -23,11 +23,12 @@
  * threaded code path on both sides.
  */
 import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, rmSync, cpSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync} from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -44,7 +45,7 @@ function run(args: string[], cwd: string): { stdout: string; stderr: string; sta
  *  leaf siblings (src/leaf/{a,b}.ts) — the twin comparison this suite runs. */
 function twinFixtureCopy(withLeafFiles: boolean): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-ctx-aspecttest-typecov-'));
-  cpSync(FIXTURE, dir, { recursive: true });
+  copyFixtureTree(FIXTURE, dir);
   if (!withLeafFiles) {
     rmSync(path.join(dir, 'src', 'leaf', 'a.ts'), { force: true });
     rmSync(path.join(dir, 'src', 'leaf', 'b.ts'), { force: true });

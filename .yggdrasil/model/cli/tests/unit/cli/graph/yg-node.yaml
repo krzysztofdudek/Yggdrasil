@@ -34,7 +34,8 @@ relations:
     { target: cli/core/review-package, type: uses },
     { target: cli/formatters, type: uses },
     { target: cli/io/lock-store, type: uses },
-    { target: cli/tests/fixtures, type: uses }
+    { target: cli/tests/fixtures, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/cli/aspects.test.ts

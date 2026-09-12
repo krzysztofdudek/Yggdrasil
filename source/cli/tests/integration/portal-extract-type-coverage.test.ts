@@ -17,7 +17,7 @@
  * below calls the SAME engine functions extractPortalData reuses, directly.
  */
 import { describe, it, expect } from 'vitest';
-import { mkdtempSync, cpSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -31,6 +31,7 @@ import { FileContentCache } from '../../src/io/file-content-cache.js';
 import { walkRepoFiles } from '../../src/io/repo-scanner.js';
 import { scanUncoveredFiles } from '../../src/core/check.js';
 import { FIXTURE_TWO_COVERED_FILES } from '../fixtures/type-level-engine/variants/index.js';
+import { copyFixtureTree } from '../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -47,27 +48,27 @@ const PORTAL_TYPE_COVERAGE = path.join(CLI_ROOT, 'tests', 'fixtures', 'portal-ty
 
 function mergedFixtureCopy(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typecov-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  copyFixtureTree(FIXTURE_TWO_COVERED_FILES, dir);
   return dir;
 }
 
 function needsNodeContextCopy(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typecov-unverified-'));
-  cpSync(BASE_FIXTURE, dir, { recursive: true });
-  cpSync(NEEDS_NODE_CONTEXT, dir, { recursive: true });
+  copyFixtureTree(BASE_FIXTURE, dir);
+  copyFixtureTree(NEEDS_NODE_CONTEXT, dir);
   return dir;
 }
 
 function portalTwoPairsCopy(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-two-pairs-'));
-  cpSync(PORTAL_TWO_PAIRS, dir, { recursive: true });
+  copyFixtureTree(PORTAL_TWO_PAIRS, dir);
   return dir;
 }
 
 function portalTypeCoverageCopy(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-typecov-unenforced-'));
-  cpSync(PORTAL_TYPE_COVERAGE, dir, { recursive: true });
+  copyFixtureTree(PORTAL_TYPE_COVERAGE, dir);
   return dir;
 }
 

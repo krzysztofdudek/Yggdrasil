@@ -2,14 +2,15 @@ import { describe, it, expect } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, cp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
-import { mkdtempSync, cpSync, rmSync } from 'node:fs';
+import { mkdtemp, rm, writeFile, mkdir, readFile } from 'node:fs/promises';
+import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import type { Graph } from '../../../src/model/graph.js';
 import { summarizeImpact, renderImpactTotal, collectInvalidatedPairs } from '../../../src/cli/impact-handlers.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { readLock } from '../../../src/io/lock-store.js';
 import { FIXTURE_TWO_COVERED_FILES } from '../../fixtures/type-level-engine/variants/index.js';
+import { copyFixtureTree, copyFixtureTreeAsync } from '../../support/fixture-copy.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -78,14 +79,14 @@ const TYPE_LEVEL_BASE = path.join(CLI_ROOT, 'tests', 'fixtures', 'type-level-eng
  */
 function mergedTypeLevelFixtureCopy(): string {
   const dir = mkdtempSync(path.join(tmpdir(), 'ygg-impact-typelevel-'));
-  cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
-  cpSync(FIXTURE_TWO_COVERED_FILES, dir, { recursive: true });
+  copyFixtureTree(TYPE_LEVEL_BASE, dir);
+  copyFixtureTree(FIXTURE_TWO_COVERED_FILES, dir);
   return dir;
 }
 
 async function withFixtureCopy<T>(fn: (cwd: string) => Promise<T>): Promise<T> {
   const root = await mkdtemp(path.join(tmpdir(), 'ygg-impact-'));
-  await cp(FIXTURE, root, { recursive: true });
+  await copyFixtureTreeAsync(FIXTURE, root);
   try {
     return await fn(root);
   } finally {
@@ -819,7 +820,7 @@ describe('yg impact — type-level coverage threading', () => {
     // fix it read "(0): (none)" while the cost line beneath it, in the SAME
     // output, said a pair WOULD become unverified — a self-contradiction.
     const dir = mkdtempSync(path.join(tmpdir(), 'ygg-impact-typeonly-'));
-    cpSync(TYPE_LEVEL_BASE, dir, { recursive: true });
+    copyFixtureTree(TYPE_LEVEL_BASE, dir);
     try {
       const result = spawnSync('node', [BIN_PATH, 'impact', '--aspect', 'forked-own-rule'], { cwd: dir, encoding: 'utf-8' });
       expect(result.status).toBe(0);
