@@ -428,11 +428,12 @@ export function registerCheckCommand(program: Command): void {
             // deliverable output (not progress), so its write sink stays on
             // STDOUT. Real fills (dryRun=false) route write to STDERR.
             // --quiet suppresses the progress stream (write → no-op) for a REAL
-            // fill only. --dry-run WINS over --quiet: the budget preview is the
-            // command's primary deliverable, never progress, so it always reaches
-            // STDOUT even when --quiet is also set — otherwise `--approve
-            // --dry-run --quiet` would silently drop the entire budget. The
-            // emitIssue sink (errors/warnings) is NOT affected by --quiet.
+            // fill only. --dry-run WINS over --quiet on every flag combination:
+            // the budget preview is the command's primary deliverable, never
+            // progress, so --quiet never drops it — it only ever chooses the
+            // stream (STDOUT, or STDERR under --json). Otherwise `--approve
+            // --dry-run --quiet [--json]` would silently drop the entire budget.
+            // The emitIssue sink (errors/warnings) is NOT affected by --quiet.
             // --quiet is meaningful only with a REAL fill; with a plain read it
             // is a harmless no-op (no progress to suppress).
             const isDryRun = opts.dryRun ?? false;
@@ -467,8 +468,13 @@ export function registerCheckCommand(program: Command): void {
               // The dry-run budget preview is the command's RESULT on that path,
               // so it goes to stdout — except under --json, where stdout carries
               // the document alone and the preview joins the progress on stderr.
-              write: isDryRun && !asJson
-                ? (s: string) => { process.stdout.write(s); }
+              // --dry-run is tested FIRST, before --quiet, on both branches: the
+              // preview outranks --quiet whether or not --json moved it, and the
+              // JSON document carries no budget field to fall back on.
+              write: isDryRun
+                ? asJson
+                  ? (s: string) => { process.stderr.write(s); }
+                  : (s: string) => { process.stdout.write(s); }
                 : isQuiet
                   ? () => {}
                   : (s: string) => { process.stderr.write(s); },
