@@ -73,7 +73,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@clack/prompts": "^1.8.0",
+    "@clack/prompts": "^1.8.1",
     "chalk": "^6.0.0",
     "commander": "^15.0.0",
     "ignore": "^7.0.9",
@@ -82,7 +82,7 @@
     "semver": "^7.8.1",
     "smol-toml": "^1.8.0",
     "web-tree-sitter": "^0.27.0",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
