@@ -90,11 +90,11 @@
     "@tree-sitter-grammars/tree-sitter-kotlin": "^1.1.0",
     "@tree-sitter-grammars/tree-sitter-toml": "^0.7.0",
     "@tree-sitter-grammars/tree-sitter-yaml": "^0.7.1",
-    "@types/node": "^26.5.1",
+    "@types/node": "^26.6.1",
     "@types/semver": "^7.8.0",
-    "@vitest/coverage-v8": "^5.0.0",
+    "@vitest/coverage-v8": "^5.0.1",
     "eslint": "^10.10.0",
-    "prettier": "^3.8.3",
+    "prettier": "^3.9.7",
     "tree-sitter-c": "^0.24.1",
     "tree-sitter-c-sharp": "^0.23.5",
     "tree-sitter-cpp": "^0.23.4",
@@ -111,7 +111,7 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0",
     "vite": "^8.3.0",
-    "vitest": "^5.0.0"
+    "vitest": "^5.0.1"
   },
   "overrides": {
     "esbuild": "^0.28.1"
