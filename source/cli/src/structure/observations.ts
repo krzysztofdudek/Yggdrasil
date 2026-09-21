@@ -8,6 +8,7 @@ import {
   hashListObservation,
   hashExistsObservation,
   hashNodeSetObservation,
+  hashFileSetObservation,
   MISSING_OBSERVATION,
 } from '../core/pair-hash.js';
 
@@ -96,6 +97,32 @@ export class ObservationRecorder {
    */
   recordFlowParticipants(flowName: string, participantIds: string[]): void {
     this._record(observationKey('graph-flow', flowName), hashNodeSetObservation(participantIds));
+  }
+
+  /**
+   * Record a file-list observation for the reviewed node's own `ctx.node.files`:
+   * the SET of paths that list was built from — the node's mapping expanded, minus
+   * files a descendant node owns and binary files, taken BEFORE any file is read
+   * (an unreadable file stays in the set, so replaying it never reads a byte).
+   *
+   * Recorded on every read of `ctx.node.files`, narrowed subject or not: a check
+   * that walks the list and reads only `.path` otherwise folds nothing that moves
+   * when a file joins the node without becoming this pair's subject.
+   */
+  recordNodeFiles(nodePath: string, paths: string[]): void {
+    this._record(observationKey('node-files', nodePath), hashFileSetObservation(paths));
+  }
+
+  /**
+   * Record a file-list observation for `.files` of a node reached through
+   * ctx.graph: the SET of paths that list was built from — the node's candidate
+   * paths that are regular files, taken BEFORE any file is read. Separate from
+   * `recordNodeFiles` because the two lists differ for the same node (this one
+   * keeps descendant-owned and binary files), and one key would then carry two
+   * values in a check that reads both.
+   */
+  recordGraphFiles(nodePath: string, paths: string[]): void {
+    this._record(observationKey('graph-files', nodePath), hashFileSetObservation(paths));
   }
 
   /**

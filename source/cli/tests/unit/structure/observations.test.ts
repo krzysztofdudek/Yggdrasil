@@ -15,6 +15,7 @@ import {
   hashExistsObservation,
   hashNodeSetObservation,
   hashConfigObservation,
+  hashFileSetObservation,
   MISSING_OBSERVATION,
 } from '../../../src/core/pair-hash.js';
 import { ObservationRecorder } from '../../../src/structure/observations.js';
@@ -782,5 +783,153 @@ describe('ObservationRecorder — settings a rule read', () => {
     const rec = new ObservationRecorder();
     rec.recordConfig('typo', undefined);
     expect(rec.snapshot()).toEqual([['config:typo', MISSING_OBSERVATION]]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// node-files: / graph-files: — the list of a node's files, recorded when read
+// ---------------------------------------------------------------------------
+
+describe('ObservationRecorder — file lists a rule read', () => {
+  it('records ctx.node.files under node-files: and a ctx.graph node\'s files under graph-files:', () => {
+    const rec = new ObservationRecorder();
+    rec.recordNodeFiles('svc', ['src/svc/b.ts', 'src/svc/a.ts']);
+    rec.recordGraphFiles('lib', ['src/lib/x.ts']);
+    expect(rec.snapshot()).toEqual([
+      [observationKey('graph-files', 'lib'), hashFileSetObservation(['src/lib/x.ts'])],
+      [observationKey('node-files', 'svc'), hashFileSetObservation(['src/svc/a.ts', 'src/svc/b.ts'])],
+    ]);
+  });
+
+  it('the same node under both kinds with two different lists is two observations, not a torn run', () => {
+    // ctx.node.files drops descendant-owned and binary files; a node reached
+    // through ctx.graph keeps them — one key would see two values and taint.
+    const rec = new ObservationRecorder();
+    rec.recordNodeFiles('svc', ['src/svc/a.ts']);
+    rec.recordGraphFiles('svc', ['src/svc/a.ts', 'src/svc/logo.png']);
+    expect(rec.snapshot()).toHaveLength(2);
+    expect(rec.tainted).toBe(false);
+  });
+
+  it('reading the same list twice is one observation', () => {
+    const rec = new ObservationRecorder();
+    rec.recordNodeFiles('svc', ['src/svc/a.ts']);
+    rec.recordNodeFiles('svc', ['src/svc/a.ts']);
+    expect(rec.snapshot()).toHaveLength(1);
+    expect(rec.tainted).toBe(false);
+  });
+});
+
+describe('runStructureAspect — file-list observations', () => {
+  let projectRoot: string;
+
+  // P            src/p.ts
+  // P/N          src/n/            a.ts, b.ts, logo.png, c.ts (c.ts owned by P/N/C)
+  // P/N/C        src/n/c.ts
+  // P/S          src/s.ts, src/s/  (a sibling of N: outside N's allowed set)
+  // Dep          src/dep/          x.ts            (N declares uses -> Dep)
+  const graph = () => buildTestGraphForStructure({
+    nodes: [
+      { path: 'P', type: 'module', mapping: ['src/p.ts'] },
+      { path: 'P/N', type: 'module', mapping: ['src/n/'], parent: 'P', relations: [{ type: 'uses', target: 'Dep' }] },
+      { path: 'P/N/C', type: 'module', mapping: ['src/n/c.ts'], parent: 'P/N' },
+      { path: 'P/S', type: 'module', mapping: ['src/s.ts', 'src/s/'], parent: 'P' },
+      { path: 'Dep', type: 'module', mapping: ['src/dep/'] },
+    ],
+  });
+
+  beforeEach(() => {
+    projectRoot = mkdtempSync(path.join(tmpdir(), 'yg-obs-files-'));
+    const files: Record<string, string> = {
+      'src/p.ts': 'export const p = 1;',
+      'src/n/a.ts': 'export const a = 1;',
+      'src/n/b.ts': 'export const b = 1;',
+      'src/n/logo.png': 'not really a png',
+      'src/n/c.ts': 'export const c = 1;',
+      'src/s.ts': 'export const s = 1;',
+      'src/s/inner.ts': 'export const inner = 1;',
+      'src/dep/x.ts': 'export const x = 1;',
+    };
+    for (const [rel, content] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(projectRoot, rel)), { recursive: true });
+      writeFileSync(path.join(projectRoot, rel), content);
+    }
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  async function run(aspectId: string, checkBody: string, subjectScope?: string[]) {
+    const aspectDir = path.join(projectRoot, '.yggdrasil', 'aspects', aspectId);
+    mkdirSync(aspectDir, { recursive: true });
+    writeFileSync(path.join(aspectDir, 'check.mjs'), checkBody);
+    const r = await runStructureAspect({
+      aspectDir: path.join('.yggdrasil/aspects', aspectId),
+      aspectId, unit: { kind: 'node', nodePath: 'P/N' }, graph: graph(), projectRoot,
+      ...(subjectScope !== undefined ? { subjectScope } : {}),
+    });
+    expect(r.succeeded).toBe(true);
+    expect(r.observationsTainted).toBe(false);
+    return r;
+  }
+
+  const NODE_FILES_BY_PATH = 'export function check(ctx) { void ctx.node.files.map((f) => f.path); return []; }';
+
+  it('a per: file run reading ctx.node.files by path records the list, carved and without binaries', async () => {
+    const r = await run('nf-narrowed', NODE_FILES_BY_PATH, ['src/n/a.ts']);
+    expect(r.observations).toContainEqual([
+      observationKey('node-files', 'P/N'),
+      hashFileSetObservation(['src/n/a.ts', 'src/n/b.ts']),
+    ]);
+    // Only names were read — no sibling content folds.
+    expect(r.observations.filter(([k]) => k.startsWith('read:'))).toEqual([]);
+  });
+
+  it('an un-narrowed run records the list too — whether a run narrows is decided by counting files', async () => {
+    const r = await run('nf-whole', NODE_FILES_BY_PATH);
+    expect(r.observations).toContainEqual([
+      observationKey('node-files', 'P/N'),
+      hashFileSetObservation(['src/n/a.ts', 'src/n/b.ts']),
+    ]);
+  });
+
+  it('a check that never reads ctx.node.files records no node-files: observation', async () => {
+    const r = await run('nf-none', 'export function check(ctx) { void ctx.node.id; void ctx.files.length; return []; }', ['src/n/a.ts']);
+    expect(r.observations.map(([k]) => k).filter((k) => k.startsWith('node-files:'))).toEqual([]);
+  });
+
+  it('reading .files of a related node records its expanded list under graph-files:', async () => {
+    const r = await run('gf-dep', "export function check(ctx) { void ctx.graph.node('Dep').files.map((f) => f.path); return []; }");
+    expect(r.observations).toContainEqual([observationKey('graph-files', 'Dep'), hashFileSetObservation(['src/dep/x.ts'])]);
+    expect(r.observations.filter(([k]) => k.startsWith('read:'))).toEqual([]);
+  });
+
+  it('a related node the check asks only for its type records no graph-files: observation', async () => {
+    const r = await run('gf-type-only', "export function check(ctx) { void ctx.graph.node('Dep').type; return []; }");
+    expect(r.observations.map(([k]) => k).filter((k) => k.startsWith('graph-files:'))).toEqual([]);
+  });
+
+  it('the same node read both ways records two lists — the ctx.graph one keeps descendant-owned and binary files', async () => {
+    const r = await run(
+      'nf-and-gf',
+      "export function check(ctx) { void ctx.node.files.length; void ctx.graph.node('P/N').files.length; return []; }",
+      ['src/n/a.ts'],
+    );
+    expect(r.observations).toContainEqual([
+      observationKey('node-files', 'P/N'),
+      hashFileSetObservation(['src/n/a.ts', 'src/n/b.ts']),
+    ]);
+    expect(r.observations).toContainEqual([
+      observationKey('graph-files', 'P/N'),
+      hashFileSetObservation(['src/n/a.ts', 'src/n/b.ts', 'src/n/c.ts', 'src/n/logo.png']),
+    ]);
+  });
+
+  it('a node outside the allowed set lists its raw mapping entries that are files', async () => {
+    // children() of an ancestor returns the sibling P/S, which the runner never
+    // pre-expanded: its directory entry lists nothing, its file entry lists itself.
+    const r = await run(
+      'gf-sibling',
+      "export function check(ctx) { const s = ctx.graph.children(ctx.graph.node('P')).find((n) => n.id === 'P/S'); void s.files.length; return []; }",
+    );
+    expect(r.observations).toContainEqual([observationKey('graph-files', 'P/S'), hashFileSetObservation(['src/s.ts'])]);
   });
 });

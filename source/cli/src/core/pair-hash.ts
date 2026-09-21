@@ -244,6 +244,9 @@ export function computeDetInputHash(input: DetHashInput): string {
  *   graph-bytype         — the SET of node ids of type <target> (membership fold)
  *   graph-flow           — the SET of declared participant ids of flow <target>
  *   config               — the VALUE of the configuration key <target> the rule read
+ *   node-files           — the SET of paths `ctx.node.files` of node <target> was built from
+ *   graph-files          — the SET of paths `.files` of node <target>, reached through
+ *                          ctx.graph, was built from
  *
  * `config` was added when a rule gained settings a repository can adapt. It does
  * NOT invalidate a single stored verdict: no entry written before it exists can
@@ -251,11 +254,23 @@ export function computeDetInputHash(input: DetHashInput): string {
  * therefore its hash — is byte-for-byte what it was. The only pairs it can move
  * are ones recorded after a rule started reading configuration at all.
  *
+ * `node-files` and `graph-files` were added because a check can decide from a
+ * node's file NAMES alone — walking a file list and reading only each `.path` —
+ * and then no content observation and no subject hash carries the list itself: a
+ * file joining the node without becoming this pair's subject left the verdict
+ * standing. They are two kinds, not one, because the two lists differ for the
+ * same node (`ctx.node.files` drops files a descendant node owns and binary
+ * files; a node reached through ctx.graph drops neither), so one key per node
+ * would record two values in a check that reads both. Like `config`, they move
+ * no stored verdict: an entry written before them carries neither prefix.
+ *
  * Key encoding is part of the frozen contract — changing it changes all
  * deterministic hashes that include observations.
  */
 export function observationKey(
-  kind: 'read' | 'list' | 'exists' | 'graph' | 'graph-children' | 'graph-bytype' | 'graph-flow' | 'config',
+  kind:
+    | 'read' | 'list' | 'exists' | 'graph' | 'graph-children' | 'graph-bytype' | 'graph-flow' | 'config'
+    | 'node-files' | 'graph-files',
   target: string,
 ): string {
   return `${kind}:${target}`;
@@ -289,6 +304,26 @@ export const MISSING_OBSERVATION = 'missing';
  */
 export function hashNodeSetObservation(nodeIds: string[]): string {
   const lines = [...nodeIds].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join('\n');
+  return hashString(lines);
+}
+
+/**
+ * Hash a file-list observation (`node-files:` / `graph-files:`): the SET of
+ * repo-relative POSIX paths a node's file list was built from.
+ *
+ * Only membership folds — which paths, never their order, their content, or how
+ * often a path was listed (two overlapping mapping entries can list a file twice).
+ * Adding a file to the node, removing one, or renaming one changes the hash; an
+ * edit to a listed file does not (a check that reads a file's content records
+ * that read separately).
+ *
+ * Contract: sha256 over the deduplicated, code-point-sorted paths joined by
+ * newline. An empty list folds to sha256('') — distinct from MISSING_OBSERVATION,
+ * so "the node listed no files" is a real observed value a later first file
+ * invalidates. Golden-pinned in pair-hash.test.ts.
+ */
+export function hashFileSetObservation(paths: string[]): string {
+  const lines = [...new Set(paths)].sort((a, b) => (a < b ? -1 : a > b ? 1 : 0)).join('\n');
   return hashString(lines);
 }
 

@@ -91,8 +91,9 @@ export interface CtxGraphParams {
   /**
    * Optional observation recorder. When provided, each node returned to the check
    * records a graph: observation (keyed by node path, hashed from nodeYamlRaw).
-   * File reads inside toPublicNode additionally record read: observations for
-   * files NOT in `subjectFiles`.
+   * Reading a returned node's `.files` records a graph-files: observation (the
+   * set of paths that list was built from), and reading a listed file's
+   * `.content` records a read: observation for files NOT in `subjectFiles`.
    */
   recorder?: ObservationRecorder;
   /**
@@ -144,6 +145,23 @@ export function recordNodeGraphObservation(
   } else {
     recorder.recordGraphNode(m.path, yamlBytes);
   }
+}
+
+/**
+ * The candidate paths `.files` of a node reached through ctx.graph is built from
+ * when the runner supplied no pre-expanded file list for that node: its raw
+ * mapping entries, normalized, taken literally (a directory or glob entry is not
+ * expanded and so lists no file). The runner pre-expands exactly the nodes in
+ * `computeAllowedNodePaths` of the reviewed node, so this fallback serves the
+ * nodes ctx.graph can return from outside that set (a sibling returned by
+ * `children()` of an ancestor, a flow participant).
+ *
+ * Exported so lock verification replays a stored graph-files: observation over
+ * the same candidates the runner listed — expanded for a node in the reviewed
+ * node's allowed set, this for any other.
+ */
+export function rawMappingCandidatePaths(m: ModelNode): string[] {
+  return (m.meta.mapping ?? []).map(normalizeMappingPath).filter((p) => p !== '');
 }
 
 export function computeAllowedNodePaths(currentPath: string, graph: Graph): Set<string> {
@@ -226,45 +244,71 @@ export function createCtxGraph(params: CtxGraphParams): CtxGraph {
 
   function toPublicNode(m: ModelNode): GraphNode {
     const files: File[] = [];
+    // The paths this node's `.files` is built from: every candidate that is a
+    // regular file, collected BEFORE any read, so an unreadable file is listed
+    // here even though it never reaches `files`. This is what the graph-files:
+    // observation folds, and lock verification replays it with a stat per path
+    // instead of reading every file.
+    const listedPaths: string[] = [];
     // Prefer the runner's pre-expanded concrete file list (directory and glob
     // entries already resolved to real files). Fall back to the raw mapping
     // entries when no expansion was supplied (file-only, as before).
     const preExpanded = expandedFilesByNode?.get(m.path);
-    const candidatePaths = preExpanded ?? (m.meta.mapping ?? []).map(normalizeMappingPath);
+    const candidatePaths = preExpanded ?? rawMappingCandidatePaths(m);
     for (const p of candidatePaths) {
       if (!p) continue;
       const abs = path.resolve(projectRoot, p);
+      let isFile = false;
       try {
-        const stat = fs.statSync(abs);
-        if (stat.isFile()) {
-          const bytes = fs.readFileSync(abs);
-          const content = bytes.toString('utf8');
-          // touchedFiles reflects the files HANDED to the check (violation-emit
-          // permission), so it stays eager and node-scoped. The read: OBSERVATION
-          // — which is what widens the verdict's invalidation — folds LAZILY: only
-          // when the check actually reads this file's `.content`. A check that
-          // inspects only `.path` (e.g. listing sibling test files by name) must
-          // NOT fold every sibling's bytes into its verdict. Subject files are
-          // already hashed as subject inputs, so they are never double-recorded
-          // and get a plain content property. (Mirrors wrapNonSubjectFile in
-          // hook-loader.ts.)
-          touchedFiles.push(p);
-          files.push(makeGraphFile(p, content, bytes, recorder, subjectFiles));
-        }
+        isFile = fs.statSync(abs).isFile();
       } catch {
         // missing path — skip silently
       }
+      if (!isFile) continue;
+      listedPaths.push(p);
+      let bytes: Buffer;
+      try {
+        bytes = fs.readFileSync(abs);
+      } catch {
+        continue; // unreadable — skip silently (still listed above)
+      }
+      const content = bytes.toString('utf8');
+      // touchedFiles reflects the files HANDED to the check (violation-emit
+      // permission), so it stays eager and node-scoped. The read: OBSERVATION
+      // — which is what widens the verdict's invalidation — folds LAZILY: only
+      // when the check actually reads this file's `.content`. A check that
+      // inspects only `.path` (e.g. listing sibling test files by name) must
+      // NOT fold every sibling's bytes into its verdict. Subject files are
+      // already hashed as subject inputs, so they are never double-recorded
+      // and get a plain content property. (Mirrors wrapNonSubjectFile in
+      // hook-loader.ts.)
+      touchedFiles.push(p);
+      files.push(makeGraphFile(p, content, bytes, recorder, subjectFiles));
     }
     // Record graph: observation for this node — after materializing files so the
     // observation is registered even if the node has no mapped files.
     recordGraphNode(m);
-    return {
+    const publicNode = {
       id: m.path,
       type: m.meta.type,
       mapping: m.meta.mapping ?? [],
-      files,
       ports: (m.meta.ports ?? {}) as Record<string, Port>,
-    };
+    } as GraphNode;
+    // `.files` folds the graph-files: observation LAZILY, on every read: a check
+    // that walks this list and reads only `.path` has decided from the list
+    // itself, which no read: observation and no subject hash carries, so a file
+    // joining this node must invalidate the verdict. A check that only asks for
+    // the node's type or relations never reads `.files` and stays immune to its
+    // files coming and going.
+    Object.defineProperty(publicNode, 'files', {
+      enumerable: true,
+      configurable: true,
+      get(): File[] {
+        if (recorder) recorder.recordGraphFiles(m.path, listedPaths);
+        return files;
+      },
+    });
+    return publicNode;
   }
 
   return {

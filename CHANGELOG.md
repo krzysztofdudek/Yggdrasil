@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- A script rule that decides from a component's file names now re-runs when a file is added to or removed from that component. Before, `yg check` kept its earlier pass when the new file was not one the rule itself checks.
+
 ## [6.0.0] - 2026-09-12
 
 ### Added

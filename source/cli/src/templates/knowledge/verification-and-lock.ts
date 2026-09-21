@@ -243,6 +243,9 @@ graph:<node>           → sha256 of that node's yg-node.yaml bytes ('missing' i
 graph-children:<node>  → sha256 of the sorted child node-id list of <node>
 graph-bytype:<type>    → sha256 of the sorted node-id list of <type> (within reach)
 graph-flow:<flow>      → sha256 of the sorted participant node-id list of <flow>
+node-files:<node>      → sha256 of the sorted path list ctx.node.files was built from
+graph-files:<node>     → sha256 of the sorted path list .files of <node>, reached
+                         through ctx.graph, was built from
 \`\`\`
 
 Observation-completeness is load-bearing: a deterministic verdict is reusable
@@ -252,6 +255,18 @@ and SET membership (an aspect that asks "which nodes are children of X / of type
 Y / participate in flow Z" records the membership, so adding or removing a node
 re-verifies). When in doubt the runner over-records: a spurious extra observation
 costs at worst one free re-run; a missed one yields a stale-green verdict.
+
+A node's FILE LIST is membership too. Reading \`ctx.node.files\`, or \`.files\` of a
+node returned by \`ctx.graph\`, records which paths the list holds — every time it
+is read, whatever the rule's scope — so a check that decides from file names
+alone (walking the list and reading only each \`.path\`) re-verifies when a file
+is added to or removed from that node, even a file that is no subject of the
+pair. The two lists are two kinds because they differ for the same node:
+\`ctx.node.files\` leaves out files a descendant node owns and binary files, a
+node reached through \`ctx.graph\` keeps both. The list is taken before any file
+is read, so an unreadable file still counts as listed and \`yg check\` confirms
+the list without reading a byte. A file's CONTENT is a separate observation,
+recorded only when the check reads it.
 
 ### Excluded from the hash, deliberately
 

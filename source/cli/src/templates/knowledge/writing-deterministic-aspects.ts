@@ -612,7 +612,11 @@ ports re-runs the check (at zero LLM cost) instead of leaving a stale-green
 verdict. (\`ctx.graph.children\` folds each child's identity too, so a child's
 type change invalidates as well.) Reading only \`ctx.node.id\`, \`ctx.node.mapping\`,
 or \`ctx.node.files\` does not add this fold — \`id\` and mapping are already pinned
-by the node path and subject-file hashes.
+by the node path and subject-file hashes. Reading \`ctx.node.files\` (or \`.files\`
+of a node from \`ctx.graph\`) folds something narrower instead: the list of paths
+it holds, so a file added to or removed from that node re-runs the check even
+when the check looks only at file names. A file's content folds only when the
+check reads it.
 
 ## Testing with yg aspect-test
 

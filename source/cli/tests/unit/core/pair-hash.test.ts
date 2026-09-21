@@ -38,6 +38,7 @@ import {
   hashListObservation,
   hashExistsObservation,
   hashConfigObservation,
+  hashFileSetObservation,
   MISSING_OBSERVATION,
   tierHashView,
 } from '../../../src/core/pair-hash.js';
@@ -663,5 +664,84 @@ describe('adding the config: kind moved no stored verdict', () => {
 
   it('an LLM hash is likewise untouched', () => {
     expect(computeLlmInputHash(BASE_LLM_INPUT)).toBe(golden.llmInputHash);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// node-files: / graph-files: — the list of a node's files a rule walked
+//
+// A rule can decide from file NAMES alone (walk a node's file list, read only
+// each `.path`). The list itself is then an input no content observation and no
+// subject hash carries, so it gets observation kinds of its own: one for
+// `ctx.node.files`, one for `.files` of a node reached through ctx.graph (the two
+// lists differ for the same node, so they cannot share one key).
+// ---------------------------------------------------------------------------
+
+describe('file-list observations — node-files: and graph-files:', () => {
+  it('encode like every kind before them', () => {
+    expect(observationKey('node-files', 'billing/cancel')).toBe('node-files:billing/cancel');
+    expect(observationKey('graph-files', 'billing/shared')).toBe('graph-files:billing/shared');
+  });
+
+  it('hashFileSetObservation is sha256 over the deduplicated, sorted paths joined by newline (golden)', () => {
+    // BREAKING: these values are frozen contract — changing them invalidates
+    // every stored verdict that recorded a file list.
+    const golden = '8e3929f8e5ce27f8bb282bdd4c696cb9e314065438a9a519cd5dcc5f3582418d';
+    expect(hashFileSetObservation(['src/billing/cancel.ts', 'src/billing/utils.ts'])).toBe(golden);
+    // Order and repetition do not matter — only membership folds.
+    expect(hashFileSetObservation(['src/billing/utils.ts', 'src/billing/cancel.ts', 'src/billing/cancel.ts'])).toBe(golden);
+    // The documented formula, computed independently of the implementation.
+    expect(golden).toBe(createHash('sha256').update('src/billing/cancel.ts\nsrc/billing/utils.ts', 'utf8').digest('hex'));
+  });
+
+  it('an empty list is a real observed value, distinct from MISSING, that a first file moves', () => {
+    const empty = hashFileSetObservation([]);
+    expect(empty).toBe('e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+    expect(empty).not.toBe(MISSING_OBSERVATION);
+    expect(hashFileSetObservation(['src/a.ts'])).not.toBe(empty);
+  });
+
+  it('a file joining, leaving, or renamed within the list moves the hash', () => {
+    const base = hashFileSetObservation(['src/a.ts', 'src/b.ts']);
+    expect(hashFileSetObservation(['src/a.ts', 'src/b.ts', 'src/c.ts'])).not.toBe(base);
+    expect(hashFileSetObservation(['src/a.ts'])).not.toBe(base);
+    expect(hashFileSetObservation(['src/a.ts', 'src/b2.ts'])).not.toBe(base);
+  });
+
+  it('a deterministic hash folding both kinds is pinned (golden)', () => {
+    // BREAKING: pins the canonical form of a verdict that recorded both lists.
+    const det = computeDetInputHash({
+      aspectId: 'sibling-test-file',
+      scope: { per: 'file' },
+      nodePath: 'billing/cancel',
+      ruleHash: 'e'.repeat(64),
+      files: [['src/billing/cancel.ts', 'f'.repeat(64)]],
+      touched: [
+        [observationKey('node-files', 'billing/cancel'), hashFileSetObservation(['src/billing/utils.ts', 'src/billing/cancel.ts'])],
+        [observationKey('graph-files', 'billing/shared'), hashFileSetObservation(['src/billing/shared/money.ts'])],
+      ],
+      verdict: 'approved',
+    });
+    expect(det).toBe('b80ba9861d6bb44b2781de0e7472e6e675634e752bbaba284b52023672b22bc9');
+  });
+
+  it('adding the two kinds moved no stored verdict: every pinned fingerprint is unchanged', () => {
+    // No entry written before these kinds existed can carry either prefix, so its
+    // `touched` set — and therefore its hash — is byte for byte what it was.
+    expect(computeDetInputHash({
+      aspectId: 'own-file-rule',
+      scope: { per: 'file' },
+      ruleHash: 'r'.repeat(64),
+      files: [['src/leaf/a.ts', 'f'.repeat(64)]],
+      touched: [],
+      verdict: 'approved',
+    })).toBe(golden.virtualDeterministic);
+    expect(computeLlmInputHash(BASE_LLM_INPUT)).toBe(golden.llmInputHash);
+    expect(Object.keys(golden).filter((k) => !k.startsWith('_')).sort()).toEqual([
+      'hashListObservationGolden',
+      'llmInputHash',
+      'virtualDeterministic',
+      'virtualLlm',
+    ]);
   });
 });
