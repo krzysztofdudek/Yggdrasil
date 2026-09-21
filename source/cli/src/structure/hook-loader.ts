@@ -38,43 +38,29 @@ export class StructureRunnerError extends Error {
 }
 
 /**
- * Expand the node's own mapping to a flat list of readable text files.
- * Directory entries are expanded recursively via the gitignore-aware
- * expandMappingPathsWithinOwnGraph helper (same function used by the
- * node-size budget and build-context), so ctx.files exactly matches what the
- * LLM path sees — a separate project's own subtree (a directory carrying its
- * own `.yggdrasil/` graph, or its own `.git` checkout/submodule/worktree) is
- * dropped by that helper before it ever reaches ctx, so a vendored
- * dependency's or a submodule's files are never exposed to this graph's
- * review as though they were this node's own.
- * Files owned by descendant (child) nodes are carved out so a child's
- * aspects apply to those files, not the parent's.
- * Binary files (by extension) and unreadable files are silently skipped.
+ * The paths `ctx.node.files` is built from, before any file is read: the node's
+ * own mapping ALREADY expanded to concrete files (`expandedOwnFiles` —
+ * gitignore-aware, everything the graph excludes globally dropped, as
+ * `enumerateNodeMappedFilesCached` returns it), minus every file a descendant
+ * node maps, minus binary files by extension. Pure and synchronous.
  *
- * Returns each file's RAW disk bytes alongside its File view so the caller can
- * fold a byte-symmetric `read:` observation if the check accesses a non-subject
- * sibling's content (spec §3.1, Bug 1).
+ * Files owned by descendant nodes are carved out so a child's aspects apply to
+ * those files, not the parent's. The carve collects mapping entries from ALL
+ * strict-descendant nodes (not just direct children) and excludes any file one
+ * of them maps (glob-aware), preserving the child-precedence (child-wins) model:
+ * the deepest node that maps a file owns it, including a descendant claiming a
+ * specific file inside a directory this node globs. Recursing beyond direct
+ * children keeps this identical to the subject-set carve
+ * (getChildMappingExclusions), so ctx.node.files and the hashed subject set agree
+ * even when a grandchild owns a file under an organizational parent.
  *
- * `expandedOwnFiles` is the node's mapping ALREADY expanded to concrete files
- * (gitignore-aware, everything the graph excludes globally dropped) — computed
- * once by the caller (`buildUnitCtx`, via `enumerateNodeMappedFilesCached`) and
- * passed in here rather than re-expanded, so this function's own contribution is
- * only the per-file byte READ (never cached — see that function's doc for why
- * the disk walk is memoised but the content read is not).
+ * The ONE definition of that list, shared by `buildOwnFiles` (which reads each
+ * path), by the node-files: observation a read of `ctx.node.files` records, and
+ * by lock verification's replay of that observation — so the recorded set and
+ * the replayed set cannot drift apart. An unreadable file stays in it: replaying
+ * the set must never have to read every file of the node.
  */
-async function buildOwnFiles(
-  node: ModelNode,
-  projectRoot: string,
-  touchedFiles: string[],
-  expandedOwnFiles: string[],
-): Promise<Array<{ file: File; bytes: Buffer }>> {
-  // Collect mapping entries from ALL strict-descendant nodes (not just direct
-  // children) — we exclude any file a descendant maps (glob-aware) to preserve the
-  // child-precedence (child-wins) model: the deepest node that maps a file owns it,
-  // including a descendant claiming a specific file inside a directory this node
-  // globs. Recursing beyond direct children keeps this identical to the subject-set
-  // carve (getChildMappingExclusions), so ctx.node.files and the hashed subject set
-  // agree even when a grandchild owns a file under an organizational parent.
+export function nodeOwnFilePaths(node: ModelNode, expandedOwnFiles: string[]): string[] {
   const childMappingEntries: string[] = [];
   const collectDescendantMappings = (n: ModelNode): void => {
     for (const child of n.children) {
@@ -87,12 +73,46 @@ async function buildOwnFiles(
   };
   collectDescendantMappings(node);
 
-  const result: Array<{ file: File; bytes: Buffer }> = [];
+  const result: string[] = [];
   for (const p of expandedOwnFiles) {
     // Carve out files owned by descendant nodes.
     if (childMappingEntries.length > 0 && isPathInMapping(p, childMappingEntries)) continue;
     // Skip binary files by extension.
     if (BINARY_EXTENSIONS.has(path.extname(p).toLowerCase())) continue;
+    result.push(p);
+  }
+  return result;
+}
+
+/**
+ * Read the node's own files — the paths `nodeOwnFilePaths` lists — into a flat
+ * list of readable text files. Directory entries were expanded recursively by
+ * the gitignore-aware expandMappingPathsWithinOwnGraph helper (same function used
+ * by the node-size budget and build-context), so ctx.files exactly matches what
+ * the LLM path sees — a separate project's own subtree (a directory carrying its
+ * own `.yggdrasil/` graph, or its own `.git` checkout/submodule/worktree) is
+ * dropped by that helper before it ever reaches ctx, so a vendored
+ * dependency's or a submodule's files are never exposed to this graph's
+ * review as though they were this node's own.
+ * Unreadable files are silently skipped.
+ *
+ * Returns each file's RAW disk bytes alongside its File view so the caller can
+ * fold a byte-symmetric `read:` observation if the check accesses a non-subject
+ * sibling's content (spec §3.1, Bug 1).
+ *
+ * `ownFilePaths` is computed once by the caller (`buildUnitCtx`, from the
+ * expansion `enumerateNodeMappedFilesCached` returns) and passed in here rather
+ * than re-derived, so this function's own contribution is only the per-file byte
+ * READ (never cached — see that function's doc for why the disk walk is memoised
+ * but the content read is not).
+ */
+async function buildOwnFiles(
+  projectRoot: string,
+  touchedFiles: string[],
+  ownFilePaths: string[],
+): Promise<Array<{ file: File; bytes: Buffer }>> {
+  const result: Array<{ file: File; bytes: Buffer }> = [];
+  for (const p of ownFilePaths) {
     const abs = path.resolve(projectRoot, p);
     let bytes: Buffer;
     try {
@@ -376,7 +396,10 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   const ctxGraph = createCtxGraph({ currentNodePath: nodePath, graph, projectRoot, touchedFiles, expandedFilesByNode, recorder, subjectFiles });
   const parsers = createCtxParsers({ allowedSet, projectRoot, touchedFiles, astCache, recorder, subjectFiles, nestedProjectRoots, coverage });
 
-  const ownFilesWithBytes = await buildOwnFiles(node, projectRoot, touchedFiles, ownFilesExpanded);
+  // The paths ctx.node.files is built from — also what a read of ctx.node.files
+  // folds as its node-files: observation (see the ctx.node Proxy below).
+  const ownFilePaths = nodeOwnFilePaths(node, ownFilesExpanded);
+  const ownFilesWithBytes = await buildOwnFiles(projectRoot, touchedFiles, ownFilePaths);
   const ownFiles = ownFilesWithBytes.map((x) => x.file);
   // Raw disk bytes per own-file path — used to fold a byte-symmetric read:
   // observation if the check accesses a non-subject sibling's content (Bug 1).
@@ -418,9 +441,20 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
   // verdict, else a check that gates on ctx.node.type (a documented cookbook
   // pattern) produces a stale-green verdict when the type/ports later change.
   // A Proxy records the same graph:<self> observation a ctx.graph.node(self) call
-  // would — lazily, so a check that never reads type/ports pays nothing. (id,
-  // mapping, files are already covered: nodePath is hashed, subject files hashed,
-  // node.files reads fold their own observations.)
+  // would — lazily, so a check that never reads type/ports pays nothing.
+  //
+  // A read of `files` folds the node-files:<self> observation: the SET of paths
+  // the list was built from. Neither the subject hash nor a read: observation
+  // carries that list — a per: file pair hashes one subject file, a filtered
+  // per: node pair hashes only the files its filter keeps, and a sibling's
+  // content folds only when the check reads it — so a check that walks the list
+  // and reads only `.path` would otherwise keep its verdict when a file joins the
+  // node without becoming this pair's subject. Recorded on EVERY read, narrowed
+  // subject or not: whether a run was narrowed is decided by counting files, so a
+  // one-file node under a per: file rule, or a filter that happened to keep every
+  // file, runs un-narrowed and meets the same hole the moment a file is added.
+  // (id and mapping fold nothing here: the node path is hashed, and the mapping
+  // reaches the verdict through the files it expands to.)
   const rawCtxNode = {
     id: node.path,
     type: node.meta.type,
@@ -432,6 +466,8 @@ export async function buildUnitCtx(params: BuildUnitCtxParams): Promise<BuildUni
     get(target, prop, receiver) {
       if (prop === 'type' || prop === 'ports') {
         recordNodeGraphObservation(recorder, projectRoot, node);
+      } else if (prop === 'files') {
+        recorder.recordNodeFiles(node.path, ownFilePaths);
       }
       return Reflect.get(target, prop, receiver);
     },

@@ -21,9 +21,11 @@ import { assembledPromptChars } from '../../../src/llm/prompt.js';
 import {
   hashExistsObservation,
   hashNodeSetObservation,
+  hashFileSetObservation,
   observationKey,
   MISSING_OBSERVATION,
 } from '../../../src/core/pair-hash.js';
+import { resetMappedFilesCache } from '../../../src/io/hash.js';
 import {
   computeSeedLlmHash,
   computeSeedDetHash,
@@ -697,6 +699,196 @@ describe('verifyLock — deterministic graph-set observations', () => {
       { path: 'checkout', name: 'checkout', nodes: ['svc'], aspects: [] },
     ];
     expect((await verifyLock(graph, lock)).pairs[0].state.kind).toBe('unverified');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// File-list observations (node-files: / graph-files:) — replayed without reading
+// ---------------------------------------------------------------------------
+
+describe('verifyLock — deterministic file-list observations', () => {
+  function link(graph: Graph, parent: string, children: string[]): void {
+    const p = graph.nodes.get(parent)!;
+    p.children = children.map((c) => {
+      const child = graph.nodes.get(c)!;
+      child.parent = p;
+      return child;
+    });
+  }
+
+  /** Files join or leave a mapped directory: drop the per-run expansion cache, as a new process would. */
+  function filesMoved(): void {
+    resetMappedFilesCache();
+  }
+
+  const PER_FILE: TestAspect = { id: 'det', kind: 'deterministic', ruleContent: 'check', scope: { per: 'file' } };
+
+  async function stateOf(graph: Graph, lock: LockFile, unitKey: string): Promise<string | undefined> {
+    const result = await verifyLock(graph, lock);
+    return result.pairs.find((p) => p.pair.unitKey === unitKey)?.state.kind;
+  }
+
+  /** svc maps src/svc/ (a.ts, b.ts, logo.png, c.ts); its child svc/c owns c.ts. */
+  function layoutNodeWithChild(): Graph {
+    writeFile('src/svc/a.ts', 'a');
+    writeFile('src/svc/b.ts', 'b');
+    writeFile('src/svc/logo.png', 'png');
+    writeFile('src/svc/c.ts', 'c');
+    const graph = buildGraph(
+      [
+        { path: 'svc', mapping: ['src/svc/'], aspects: ['det'] },
+        { path: 'svc/c', mapping: ['src/svc/c.ts'], aspects: [] },
+      ],
+      [PER_FILE],
+    );
+    link(graph, 'svc', ['svc/c']);
+    return graph;
+  }
+
+  async function seedNodeFiles(lock: LockFile, paths: string[]): Promise<void> {
+    const touched: Array<[string, string]> = [[observationKey('node-files', 'svc'), hashFileSetObservation(paths)]];
+    setEntry(lock, 'det', fileUnit('src/svc/a.ts'), {
+      verdict: 'approved', touched,
+      hash: await detHash({ aspect: PER_FILE, nodePath: 'svc', subjectFiles: ['src/svc/a.ts'], touched, verdict: 'approved' }),
+    });
+  }
+
+  it('node-files: replays the carved, binary-free list — an unchanged node verifies', async () => {
+    const graph = layoutNodeWithChild();
+    const lock = emptyLock();
+    await seedNodeFiles(lock, ['src/svc/a.ts', 'src/svc/b.ts']);
+    expect(await stateOf(graph, lock, fileUnit('src/svc/a.ts'))).toBe('verified');
+  });
+
+  it('node-files: a file joining the node without becoming this pair\'s subject → unverified', async () => {
+    const graph = layoutNodeWithChild();
+    const lock = emptyLock();
+    await seedNodeFiles(lock, ['src/svc/a.ts', 'src/svc/b.ts']);
+    expect(await stateOf(graph, lock, fileUnit('src/svc/a.ts'))).toBe('verified');
+    writeFile('src/svc/NOTES.md', 'notes');
+    filesMoved();
+    expect(await stateOf(graph, lock, fileUnit('src/svc/a.ts'))).toBe('unverified');
+  });
+
+  it('node-files: a file leaving the node → unverified', async () => {
+    const graph = layoutNodeWithChild();
+    const lock = emptyLock();
+    await seedNodeFiles(lock, ['src/svc/a.ts', 'src/svc/b.ts']);
+    rmSync(path.join(tmpDir, 'src/svc/b.ts'));
+    filesMoved();
+    expect(await stateOf(graph, lock, fileUnit('src/svc/a.ts'))).toBe('unverified');
+  });
+
+  it('node-files: a binary file ctx.node.files never lists joining the node → still verified', async () => {
+    const graph = layoutNodeWithChild();
+    const lock = emptyLock();
+    await seedNodeFiles(lock, ['src/svc/a.ts', 'src/svc/b.ts']);
+    writeFile('src/svc/icon.png', 'png');
+    filesMoved();
+    expect(await stateOf(graph, lock, fileUnit('src/svc/a.ts'))).toBe('verified');
+  });
+
+  it('node-files: a new descendant node claiming a listed file → unverified, with no file on disk moving', async () => {
+    const graph = layoutNodeWithChild();
+    const lock = emptyLock();
+    await seedNodeFiles(lock, ['src/svc/a.ts', 'src/svc/b.ts']);
+    const graph2 = buildGraph(
+      [
+        { path: 'svc', mapping: ['src/svc/'], aspects: ['det'] },
+        { path: 'svc/c', mapping: ['src/svc/c.ts'], aspects: [] },
+        { path: 'svc/b', mapping: ['src/svc/b.ts'], aspects: [] },
+      ],
+      [PER_FILE],
+    );
+    link(graph2, 'svc', ['svc/c', 'svc/b']);
+    expect(await stateOf(graph, lock, fileUnit('src/svc/a.ts'))).toBe('verified');
+    expect(await stateOf(graph2, lock, fileUnit('src/svc/a.ts'))).toBe('unverified');
+  });
+
+  it('an entry recorded before file lists were observed keeps its hash — it verifies exactly as before', async () => {
+    // No stored node-files: key, so nothing about the list is replayed: the entry
+    // verifies on its old ingredients alone, however the node's files move.
+    const graph = layoutNodeWithChild();
+    const lock = emptyLock();
+    setEntry(lock, 'det', fileUnit('src/svc/a.ts'), {
+      verdict: 'approved', touched: [],
+      hash: await detHash({ aspect: PER_FILE, nodePath: 'svc', subjectFiles: ['src/svc/a.ts'], touched: [], verdict: 'approved' }),
+    });
+    writeFile('src/svc/NOTES.md', 'notes');
+    filesMoved();
+    expect(await stateOf(graph, lock, fileUnit('src/svc/a.ts'))).toBe('verified');
+  });
+
+  /** svc maps src/a.ts and uses lib (src/lib/); other (src/o.ts, src/odir/) is outside svc's reach. */
+  function layoutRelated(): { graph: Graph; aspect: TestAspect } {
+    writeFile('src/a.ts', 'a');
+    writeFile('src/lib/x.ts', 'x');
+    writeFile('src/o.ts', 'o');
+    writeFile('src/odir/inner.ts', 'inner');
+    const aspect: TestAspect = { id: 'det', kind: 'deterministic', ruleContent: 'check' };
+    const graph = buildGraph(
+      [
+        { path: 'svc', mapping: ['src/a.ts'], aspects: ['det'] },
+        { path: 'lib', mapping: ['src/lib/'], aspects: [] },
+        { path: 'other', mapping: ['src/o.ts', 'src/odir/'], aspects: [] },
+      ],
+      [aspect],
+    );
+    graph.nodes.get('svc')!.meta.relations = [{ type: 'uses', target: 'lib', portNames: [] }];
+    return { graph, aspect };
+  }
+
+  async function seedGraphFiles(lock: LockFile, aspect: TestAspect, target: string, paths: string[]): Promise<void> {
+    const touched: Array<[string, string]> = [[observationKey('graph-files', target), hashFileSetObservation(paths)]];
+    setEntry(lock, 'det', nodeUnit('svc'), {
+      verdict: 'approved', touched,
+      hash: await detHash({ aspect, nodePath: 'svc', subjectFiles: ['src/a.ts'], touched, verdict: 'approved' }),
+    });
+  }
+
+  it('graph-files: a related node\'s expanded list — unchanged verifies, a file joining it → unverified', async () => {
+    const { graph, aspect } = layoutRelated();
+    const lock = emptyLock();
+    await seedGraphFiles(lock, aspect, 'lib', ['src/lib/x.ts']);
+    expect(await stateOf(graph, lock, nodeUnit('svc'))).toBe('verified');
+    writeFile('src/lib/y.ts', 'y');
+    filesMoved();
+    expect(await stateOf(graph, lock, nodeUnit('svc'))).toBe('unverified');
+  });
+
+  it('graph-files: a node outside the reach replays its raw mapping entries — a file under its directory entry changes nothing, its mapped file vanishing does', async () => {
+    const { graph, aspect } = layoutRelated();
+    const lock = emptyLock();
+    await seedGraphFiles(lock, aspect, 'other', ['src/o.ts']);
+    expect(await stateOf(graph, lock, nodeUnit('svc'))).toBe('verified');
+    writeFile('src/odir/second.ts', 'second');
+    filesMoved();
+    expect(await stateOf(graph, lock, nodeUnit('svc'))).toBe('verified');
+    rmSync(path.join(tmpDir, 'src/o.ts'));
+    expect(await stateOf(graph, lock, nodeUnit('svc'))).toBe('unverified');
+  });
+
+  it('graph-files: a relation removed flips the replay from the expanded list to the raw entries → unverified', async () => {
+    const { graph, aspect } = layoutRelated();
+    const lock = emptyLock();
+    await seedGraphFiles(lock, aspect, 'lib', ['src/lib/x.ts']);
+    expect(await stateOf(graph, lock, nodeUnit('svc'))).toBe('verified');
+    graph.nodes.get('svc')!.meta.relations = [];
+    expect(await stateOf(graph, lock, nodeUnit('svc'))).toBe('unverified');
+  });
+
+  it('a file list of a node that no longer exists replays as MISSING under both kinds', async () => {
+    const { graph, aspect } = layoutRelated();
+    const touched: Array<[string, string]> = [
+      [observationKey('graph-files', 'ghost'), MISSING_OBSERVATION],
+      [observationKey('node-files', 'ghost'), MISSING_OBSERVATION],
+    ];
+    const lock = emptyLock();
+    setEntry(lock, 'det', nodeUnit('svc'), {
+      verdict: 'approved', touched,
+      hash: await detHash({ aspect, nodePath: 'svc', subjectFiles: ['src/a.ts'], touched, verdict: 'approved' }),
+    });
+    expect(await stateOf(graph, lock, nodeUnit('svc'))).toBe('verified');
   });
 });
 

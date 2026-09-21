@@ -37,7 +37,7 @@ import { readFileBytes, listDirEntries, statKind } from '../io/graph-fs.js';
 
 import type { Graph, AspectDef } from '../model/graph.js';
 import type { LockFile, VerdictEntry } from '../model/lock.js';
-import { hashBytes } from '../io/hash.js';
+import { hashBytes, enumerateNodeMappedFilesCached } from '../io/hash.js';
 import {
   computeLlmInputHash,
   computeDetInputHash,
@@ -46,9 +46,12 @@ import {
   hashExistsObservation,
   hashNodeSetObservation,
   hashConfigObservation,
+  hashFileSetObservation,
   MISSING_OBSERVATION,
 } from './pair-hash.js';
-import { computeAllowedNodePaths } from '../structure/ctx-graph.js';
+import { computeAllowedNodePaths, rawMappingCandidatePaths } from '../structure/ctx-graph.js';
+import { nodeOwnFilePaths } from '../structure/hook-loader.js';
+import { NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
 import { ruleHashFor, contentFor, tierHashViewFromTier, companionHashFor } from './pair-inputs.js';
 import type { ExpectedPair, UnreadableSubject, TypeCoverageInput, PairDrop, UncomputableTypeCoverage } from './pairs.js';
@@ -256,6 +259,10 @@ export async function verifyPairs(
   // core/fill.ts's own per-run cache (same contract: fromType -> Set<string>).
   const reachCache = new Map<string, Set<string>>();
 
+  // Replayed file-list observations, shared by every pair THIS call reviews —
+  // see FileSetMemo below.
+  const fileSetMemo: FileSetMemo = new Map();
+
   // Shared parse caches for the companion hooks the §4 size gate may run, in
   // the SAME per-(aspect, node/unit) buckets the fill stage uses — see
   // core/parse-cache-buckets.ts for why that grouping is the right one (a
@@ -293,7 +300,7 @@ export async function verifyPairs(
           : undefined;
         try {
           verified.push(
-            await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached, typeCoverage, reachCache, bucket?.cache),
+            await verifyLlmPair(pair, aspect, graph, lock, projectRoot, storedEntry, readBytes, hashCached, typeCoverage, reachCache, bucket?.cache, fileSetMemo),
           );
         } finally {
           // Release even when the pair threw: the bucket's countdown must reach
@@ -303,7 +310,7 @@ export async function verifyPairs(
         }
       } else {
         verified.push(
-          await verifyDetPair(pair, aspect, graph, projectRoot, storedEntry, readBytes, hashCached),
+          await verifyDetPair(pair, aspect, graph, projectRoot, storedEntry, readBytes, hashCached, fileSetMemo),
         );
       }
     }
@@ -332,6 +339,7 @@ async function verifyLlmPair(
   typeCoverage: TypeCoverageInput | undefined,
   reachCache: Map<string, Set<string>>,
   parseCache: ParseCache | undefined,
+  fileSetMemo: FileSetMemo,
 ): Promise<VerifiedPair> {
   // ── Resolve the tier (needed for both validity recompute and the gate). ──
   const reviewer = graph.config.reviewer;
@@ -383,15 +391,16 @@ async function verifyLlmPair(
   //    mismatch ⇒ unverified, never a throw. A plain aspect stored no touched, so
   //    touchedNow stays [] and is NOT folded (the hash guards on length). A
   //    nodeless unit seeds reObserve with the empty component context (''); its
-  //    stored set can never carry a graph-bytype/-children/-flow key (a
-  //    nodeless unit's ctx.graph refuses every call, so those observation
-  //    kinds can never be recorded for one in the first place), so
+  //    stored set can never carry a graph-bytype/-children/-flow/-files or a
+  //    node-files key (a nodeless unit's ctx.graph refuses every call and its
+  //    ctx.node refuses every read, so those observation kinds can never be
+  //    recorded for one in the first place), so
   //    reObserve's component-scoped branches are unreachable here — pinned by a
   //    test, no new branch needed. ──
   const stored = storedEntry?.touched ?? [];
   const touchedNow: Array<[string, string]> = [];
   for (const [key] of stored) {
-    touchedNow.push([key, await reObserve(key, graph, aspect, pair.nodePath ?? '', projectRoot, readBytes)]);
+    touchedNow.push([key, await reObserve(key, graph, aspect, pair.nodePath ?? '', projectRoot, readBytes, fileSetMemo)]);
   }
 
   // ── Validity recompute. Requires a resolvable tier; if the tier cannot be
@@ -553,6 +562,7 @@ async function verifyDetPair(
   storedEntry: VerdictEntry | undefined,
   readBytes: (absPath: string) => Promise<Buffer | null>,
   hashCached: (absPath: string, bytes: Buffer) => string,
+  fileSetMemo: FileSetMemo,
 ): Promise<VerifiedPair> {
   let valid = false;
 
@@ -564,7 +574,7 @@ async function verifyDetPair(
     const touchedNow: Array<[string, string]> = [];
     for (const [key] of stored) {
       // Empty component context for a nodeless unit — see verifyLlmPair's twin comment.
-      const nowHash = await reObserve(key, graph, aspect, pair.nodePath ?? '', projectRoot, readBytes);
+      const nowHash = await reObserve(key, graph, aspect, pair.nodePath ?? '', projectRoot, readBytes, fileSetMemo);
       touchedNow.push([key, nowHash]);
     }
 
@@ -674,7 +684,9 @@ function classifyWithGate(
  * runner folded them from the same graph at record time, so a node added/removed
  * from the relevant set changes the value ⇒ unverified (spec §3.1). The
  * graph-bytype set is scoped to the SAME allowed-node set the runner used for
- * `currentNodePath`, so the two sides agree on which nodes are visible.
+ * `currentNodePath`, so the two sides agree on which nodes are visible. File-list
+ * kinds (node-files/graph-files) rebuild the set of paths a node's file list was
+ * built from, through the same helpers the runner uses, and never read a file.
  */
 async function reObserve(
   key: string,
@@ -683,6 +695,7 @@ async function reObserve(
   currentNodePath: string,
   projectRoot: string,
   readBytes: (absPath: string) => Promise<Buffer | null>,
+  fileSetMemo: FileSetMemo,
 ): Promise<string> {
   const sep = key.indexOf(':');
   /* v8 ignore next -- observation keys are always '<kind>:<target>' by construction */
@@ -733,6 +746,45 @@ async function reObserve(
       const flow = graph.flows.find((f) => f.name === target || f.path === target);
       return hashNodeSetObservation(flow ? [...flow.nodes] : []);
     }
+    case 'node-files': {
+      // target = the reviewed node whose ctx.node.files the check read. Rebuild
+      // the SET of paths that list is built from exactly as the runner did — the
+      // same expansion (same per-run cache), the same shared carve/binary filter —
+      // so an unchanged node reproduces the stored hash, and a node a file has
+      // joined or left does not. No file is read: the set is taken before the read.
+      return memoizedFileSet(fileSetMemo, key, async () => {
+        const node = graph.nodes.get(target);
+        if (!node) return MISSING_OBSERVATION;
+        const expanded = await enumerateNodeMappedFilesCached(
+          target, node.meta.mapping, projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
+        );
+        return hashFileSetObservation(nodeOwnFilePaths(node, expanded));
+      });
+    }
+    case 'graph-files': {
+      // target = a node whose `.files` the check read through ctx.graph. The
+      // runner built that list from the node's EXPANDED mapping when the node sat
+      // in the reviewed node's allowed set (it pre-expands exactly that set) and
+      // from its raw mapping entries otherwise, keeping the candidates that stat as
+      // regular files — replayed the same way, with a stat per path and no read.
+      // Which of the two candidate lists applies depends on the reviewed node, so
+      // the memo key carries it.
+      const node = graph.nodes.get(target);
+      if (!node) return MISSING_OBSERVATION;
+      const expandedView = computeAllowedNodePaths(currentNodePath, graph).has(target);
+      return memoizedFileSet(fileSetMemo, `${expandedView ? 'expanded' : 'raw'}|${key}`, async () => {
+        const candidates = expandedView
+          ? await enumerateNodeMappedFilesCached(
+              target, node.meta.mapping, projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
+            )
+          : rawMappingCandidatePaths(node);
+        const listed: string[] = [];
+        for (const p of candidates) {
+          if ((await statKind(path.resolve(projectRoot, p))) === 'file') listed.push(p);
+        }
+        return hashFileSetObservation(listed);
+      });
+    }
     case 'config': {
       // target = the configuration key the rule read. The CURRENT value comes off
       // the aspect as loaded — package defaults with this repository's adapt over
@@ -751,6 +803,25 @@ async function reObserve(
     default:
       return MISSING_OBSERVATION;
   }
+}
+
+/**
+ * Replayed file-list hashes for ONE verification pass, keyed by what determines
+ * the value. A node's file list is a property of the node, not of the pair that
+ * read it, so a `per: file` rule over a node with many files — every one of its
+ * pairs carrying the same node-files: key — rebuilds that list once per pass, not
+ * once per pair. Scoped to the pass, like the byte cache: a new pass starts empty.
+ * The directory walk underneath is the per-run mapping-expansion cache the runner
+ * itself reads, so the recorded list and the replayed list come from the same walk.
+ */
+type FileSetMemo = Map<string, Promise<string>>;
+
+function memoizedFileSet(memo: FileSetMemo, memoKey: string, compute: () => Promise<string>): Promise<string> {
+  const hit = memo.get(memoKey);
+  if (hit !== undefined) return hit;
+  const pending = compute();
+  memo.set(memoKey, pending);
+  return pending;
 }
 
 async function listDir(absDir: string): Promise<Array<{ name: string; kind: 'file' | 'dir' }> | null> {
