@@ -7,6 +7,7 @@ import { spawnSync } from 'node:child_process';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { readLock } from '../../src/io/lock-store.js';
 import { extractPortalData } from '../../src/portal/extract.js';
+import type { PortalData } from '../../src/portal/contract.js';
 import {
   computePortalLockHash,
   readGitCommitRef,
@@ -40,8 +41,15 @@ afterAll(async () => {
 });
 
 describe('5.1 — attestation provenance enters meta via the facade (real repo)', () => {
+  // Every extraction here walks the whole real repository, so the tests share one and only
+  // the stability test runs a second, independent one. Three of them overran the per-test
+  // budget when the full gate ran this file beside everything else.
+  let data: PortalData;
+  beforeAll(async () => {
+    data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
+  }, 120_000);
+
   it('the lock hash folds the committed lock and is stable across extractions', async () => {
-    const data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
     // A non-empty content hash over the committed lock triad.
     expect(data.meta.lockHash).toMatch(/^[0-9a-f]{64}$/);
     // The same facade fold over the same committed lock reproduces the hash (stable).
@@ -52,8 +60,7 @@ describe('5.1 — attestation provenance enters meta via the facade (real repo)'
     expect(again.meta.lockHash).toBe(data.meta.lockHash);
   }, 120_000);
 
-  it('the commit ref is the real git HEAD (the digest pins it)', async () => {
-    const data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
+  it('the commit ref is the real git HEAD (the digest pins it)', () => {
     // The real repo is a git repo — a full 40-char sha read read-only from .git.
     expect(data.meta.commitRef).toMatch(/^[0-9a-f]{40}$/);
     // Cross-check against the engine-api reader directly and the git CLI (read-only).
