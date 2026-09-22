@@ -19,9 +19,10 @@
 //   7.  `consumes: [charge]` (the alias) -> identical `yg node --json` output
 //       to `portNames: [charge]`, compared byte for byte
 //   8.  `consumes` and `portNames` together -> exit 1, output names both keys
-//   9.  a literally-named `default` port declared WITH a description -> exit
-//       0, but a one-time reserved-name notice appears; a second `yg check`
-//       prints it again (the notice is stateless by design)
+//   9.  a literally-named `default` port declared on purpose, with a
+//       description and an aspect -> exit 0 and no diagnostic about the
+//       declaration at all (declaring it is how aspects hang on the implicit
+//       port, so there is nothing to warn about)
 //   10. `yg node --json` and `yg impact --node --json` on a graph with an
 //       undeclared relation -> schema is still yg-node/1 / yg-impact/1, and
 //       the `consumes` / `ports` lists name `default`
@@ -243,28 +244,30 @@ describe.skipIf(!distExists)('CLI E2E — the default port', () => {
     }
   });
 
-  it('9: a literal `default` port declared with a description -> exit 0 with a one-time notice, printed again on a second run', () => {
+  it('9: a literal `default` port declared on purpose, with an aspect -> exit 0 and no warning about the declaration', () => {
     const dir = copyFixture('reserved-name');
     try {
-      // Fill the pre-existing charge pair first, so the reserved-name notice is
-      // the ONLY thing standing between this graph and a bare "PASS".
+      // Fill the pre-existing charge pair first, so anything the declaration
+      // drew would be the ONLY thing standing between this graph and a bare "PASS".
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
 
+      writeTrivialAspect(dir, 'default-tag', 'Marks every unnamed entry point for testing.');
       const providerYaml = readFileSync(providerNodeYaml(dir), 'utf-8').replace(
         'ports:\n  charge:',
-        'ports:\n  default:\n    description: Explicit default, predating the reservation.\n    aspects: []\n  charge:',
+        'ports:\n  default:\n    description: Every entry point that names no port.\n    aspects:\n      - default-tag\n  charge:',
       );
+      expect(providerYaml).toContain('default-tag');
       writeFileSync(providerNodeYaml(dir), providerYaml, 'utf-8');
+      const refill = run(['check', '--approve', '--only-deterministic'], dir);
+      expect(refill.status).toBe(0);
 
-      const first = run(['check'], dir);
-      expect(first.status).toBe(0);
-      expect(first.all).toContain("'default' is a reserved port name");
-
-      const second = run(['check'], dir);
-      expect(second.status).toBe(0);
-      // Stateless by design — printed again, not suppressed as "already seen".
-      expect(second.all).toContain("'default' is a reserved port name");
+      const check = run(['check'], dir);
+      expect(check.status).toBe(0);
+      expect(check.all).toContain('PASS');
+      expect(check.all).not.toContain('port-default-reserved');
+      expect(check.all).not.toContain('reserved port name');
+      expect(check.all).not.toContain('declares a port literally named');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

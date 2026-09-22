@@ -98,9 +98,7 @@ implicit port every node carries is a real referent, so no node has to declare
 \`consumes_port: default\` directly. Declaring an explicit \`default\` port is still
 legal (it is how you hang aspects on the implicit port, and \`default\` is the one
 port name that needs no \`description\`), but it is not a prerequisite for this
-idiom — and declaring it draws the non-blocking \`port-default-reserved\` warning
-asking you to confirm the port's aspects are meant for every consumer that names
-no port.
+idiom.
 
 \`has_port\` is the opposite case: it is checked LITERALLY against the node's
 declared \`ports:\` map, with no normalization. \`has_port: default\` therefore does

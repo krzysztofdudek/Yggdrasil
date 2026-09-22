@@ -15,7 +15,6 @@ import {
   checkArchitectureConstraints,
   checkPortAspectsDefined,
   checkPortConsumes,
-  checkReservedDefaultPortName,
 } from './checks/architecture.js';
 import {
   checkDanglingAspectRefs,
@@ -201,7 +200,6 @@ export async function validate(
   issues.push(...checkArchitectureConstraints(graph));
   issues.push(...checkPortAspectsDefined(graph));
   issues.push(...checkPortConsumes(graph));
-  issues.push(...checkReservedDefaultPortName(graph));
   issues.push(...checkOrphanedAspects(graph));
   issues.push(...checkWhenReferences(graph));
   issues.push(...checkAspectRuleSources(graph));
