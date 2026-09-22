@@ -18,6 +18,7 @@ import { registerAdviseCommand } from '../../../src/cli/advise.js';
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import {
   buildNominations,
+  hashEvidence,
   parseFamilyCandidates,
   CANDIDATES_SHARD_SCHEMA,
   SUPPORTED_CANDIDATES_V,
@@ -860,6 +861,90 @@ describe.skipIf(!distExists)('buildNominations — T2 ranks strictly below every
 
     // The engine returns the list already classRank-sorted, so family precedes cut.
     expect(noms.indexOf(family!)).toBeLessThan(noms.indexOf(cut!));
+  });
+});
+
+describe('parseFamilyCandidates — who measured and what "without a law" meant', () => {
+  const base = () => familyPayload('2026-06-01T00:00:00.000Z', 1) as Record<string, unknown>;
+
+  it('keeps producer and gate when the file names them', () => {
+    const data = parseFamilyCandidates({ ...base(), producer: 'grain', gate: 'no-certified-convention' });
+    expect(data!.producer).toBe('grain');
+    expect(data!.gate).toBe('no-certified-convention');
+  });
+
+  it('reads a file without them as before — neither key appears', () => {
+    const data = parseFamilyCandidates(base());
+    expect(data).toBeDefined();
+    expect('producer' in data!).toBe(false);
+    expect('gate' in data!).toBe(false);
+    expect(data!.families).toHaveLength(1);
+  });
+
+  it('ignores a producer or gate that is not a non-empty string', () => {
+    const data = parseFamilyCandidates({ ...base(), producer: 42, gate: '  ' });
+    expect('producer' in data!).toBe(false);
+    expect('gate' in data!).toBe(false);
+  });
+});
+
+describe.skipIf(!distExists)('buildNominations — the family nomination names its oracle (pure)', () => {
+  let projectRoot: string;
+  beforeEach(() => {
+    projectRoot = makeMinimalGraph('oracle');
+  });
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  const TS = '2026-06-01T00:00:00.000Z';
+  const familyOf = async (extra: Record<string, unknown>) => {
+    const graph = await loadGraph(projectRoot);
+    const noms = buildNominations(graph, {
+      todayUtc: new Date('2026-07-12T00:00:00.000Z'),
+      familyCandidates: parseFamilyCandidates({ ...(familyPayload(TS, 1) as Record<string, unknown>), ...extra }),
+    });
+    const fam = noms.find((n) => n.id.startsWith('family-without-law:'));
+    expect(fam).toBeDefined();
+    return fam!;
+  };
+
+  it("names Grain's oracle as data and does not claim the miner's narrow-rule criterion for it", async () => {
+    const fam = await familyOf({ producer: 'grain', gate: 'no-certified-convention' });
+    expect(fam.why).toContain("Measured by 'grain' under the gate 'no-certified-convention'.");
+    expect(fam.why).toContain("have no law under the gate 'no-certified-convention'");
+    expect(fam.why).not.toContain('narrow-ancestor rule');
+  });
+
+  it("keeps the narrow-rule sentence for the miner's own gate, and names the miner", async () => {
+    const fam = await familyOf({ producer: 'yggdrasil-miner', gate: 'no-narrow-aspect' });
+    expect(fam.why).toContain('share no own, port, or narrow-ancestor rule');
+    expect(fam.why).toContain("Measured by 'yggdrasil-miner' under the gate 'no-narrow-aspect'.");
+  });
+
+  it('renders a file without producer or gate exactly as before', async () => {
+    const fam = await familyOf({});
+    expect(fam.why).toContain('share no own, port, or narrow-ancestor rule');
+    expect(fam.why).not.toContain('Measured');
+  });
+
+  it('folds the producer into the evidence hash, so a dismissal against one oracle does not silence the other', async () => {
+    const byGrain = await familyOf({ producer: 'grain', gate: 'no-certified-convention' });
+    const byMiner = await familyOf({ producer: 'yggdrasil-miner', gate: 'no-narrow-aspect' });
+    expect(byGrain.evidenceHash).not.toBe(byMiner.evidenceHash);
+  });
+
+  it('keeps the hash a file without a producer always had, so no earlier dismissal goes stale', async () => {
+    const legacy = await familyOf({});
+    const fam = (familyPayload(TS, 1) as { families: { id: string; members: string[]; fittedPredicate: { value: string } }[] })
+      .families[0];
+    expect(legacy.evidenceHash).toBe(
+      hashEvidence({
+        source: 'family-without-law',
+        familyId: fam.id,
+        predicate: fam.fittedPredicate.value,
+        members: fam.members.join('|'),
+        ts: TS,
+      }),
+    );
   });
 });
 
