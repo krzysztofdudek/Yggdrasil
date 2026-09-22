@@ -42,6 +42,17 @@ A check fails when this page and the code disagree — in either direction, in a
 
 `before 6.0.0` means the document already existed when the family started releasing together; 6.0.0 is the first joint release, so it is the first version this column can name precisely.
 
+## What each producer fills
+
+A document can declare more than its producers write. The register says who produces a document; this section says which of its declared kinds each producer actually fills, so a consumer does not have to rediscover the gap. `grain-advice/1` declares four kinds:
+
+- `relation` — filled by Grain, `grain advise`.
+- `split` — filled by Grain, `grain advise`.
+- `rule` — no producer today. Grain could fill it and does not yet.
+- `port` — no producer. Grain reads no aspects, so it has nothing to name a contract from.
+
+Yggdrasil's `yg advise import` accepts all four kinds, because they are the graph's own vocabulary. A family of similar files does not travel in `grain-advice/1` as a `rule`: an advice item names components in `nodes`, and a family is a set of files that can cut across components, so families have their own document, `.family-candidates.json`.
+
 ## The rule
 
 Adding a field inside `/N` is free — a consumer that does not know the field ignores it, and every document here may grow that way without warning. **Changing the shape of a field that already exists is `/N+1`**, and a new family version with it. A consumer that is handed a document version it does not know **refuses**, and names the version to install rather than guessing: in Horde that refusal is `failStaleCli` in `skills/horde/scripts/node.mjs`, reached when `ygJson` sees a `schema` value that is not the one the call site asked for, and it prints the release to upgrade past. (The neighbouring `failNoCli` is a different refusal — no CLI at all — and says nothing about versions.)
