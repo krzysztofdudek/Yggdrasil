@@ -602,6 +602,8 @@ beside the rule. A rule that does not catch its own escape exits non-zero and th
 case stays, failing, until the rule is sharpened enough to catch it. See
 [`yg drill add`](/cli-reference#yg-drill-add--a-real-escape-becomes-a-permanent-case).
 
+A rule sees a case file under its path inside the case directory: `drills/violates-x/src/pay/charge.ts` reaches the rule as `src/pay/charge.ts`, and a file placed directly in its case directory arrives as its bare file name. `yg drill add` stores a case under the path it had in the repository, so a rule anchored on a path prefix drills the way it runs.
+
 `drills/` is a reserved directory name — it is never scanned as an aspect, so a fixture that happens to contain something resembling a rule file can never register a phantom rule. The corpus is a *regression* net, not a measurement of how good the rule is: you wrote the cases, so the rule passing them says it still behaves, not that it generalizes. Keeping one is a convention rather than a requirement — a missing corpus never blocks `yg check`, though the attention feed will point out a rule whose corpus has started failing.
 
 **`yg simulate`** — the "what would this have caught?" question, for script rules only. It replays a candidate `check.mjs` over recent commits in a throwaway clone, one commit at a time, and reports per commit whether it ran clean, how many files it would have refused, or that the commit could not be honestly compared. Read the result with its own caveat in mind: the rules already in place refused code that never landed, so a tightening replay is a *lower* bound on real catches. A judgment rule cannot be replayed this way — a model's verdict is point-in-time testimony, not a reproducible result — so use a drill corpus there instead.

@@ -19,6 +19,8 @@
 //   4. refusals   → each says what/why/next and leaves the corpus untouched
 //   5. unrunnable → a rule that cannot be exercised keeps nothing at all
 //   6. corpus     → what was added is what `yg drill` afterwards runs
+//   7. path       → the case keeps its repository path, so a rule anchored on a
+//                   path prefix sees it where it saw it in the scan
 // =============================================================================
 
 import { describe, it, expect } from 'vitest';
@@ -112,8 +114,9 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       expect(label.endsWith(sha.slice(0, 7))).toBe(true);
       expect(/violates-charge-\d{8}-[0-9a-f]{7}/.test(label)).toBe(true);
 
-      // And it holds the file exactly as it stood at that commit.
-      const stored = readFileSync(path.join(corpusPath(dir), label, 'charge.ts'), 'utf-8');
+      // And it holds the file exactly as it stood at that commit, under the path
+      // it had in the repository.
+      const stored = readFileSync(path.join(corpusPath(dir), label, 'src', 'charge.ts'), 'utf-8');
       expect(stored).toBe(ESCAPED);
 
       // The rule's own log records the act, the provenance and the reason given.
@@ -281,6 +284,41 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       // Taken back out: an unmeasurable case would sit in the corpus forever.
       expect(readdirSync(corpusPath(dir, 'needs-the-graph'))).toHaveLength(0);
       expect(existsSync(logPath(dir, 'needs-the-graph'))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('7: a rule anchored on a path prefix drills the case under the path it had in the repository', () => {
+    const dir = repoWithHistory('path');
+    try {
+      // A rule that holds only below one directory: it refuses a TODO under
+      // src/pay/ and nowhere else, the way a real rule is scoped to part of a tree.
+      const ruleDir = path.join(dir, '.yggdrasil', 'aspects', 'pay-no-todo');
+      mkdirSync(ruleDir, { recursive: true });
+      writeFileSync(
+        path.join(ruleDir, 'yg-aspect.yaml'),
+        'name: PayNoTodo\ndescription: Payment code must not carry TODO comments.\nreviewer:\n  type: deterministic\nstatus: advisory\n',
+        'utf-8',
+      );
+      writeFileSync(
+        path.join(ruleDir, 'check.mjs'),
+        'export function check(ctx) {\n  const out = [];\n  for (const f of ctx.files) {\n    if (f.path.startsWith("src/pay/") && f.content.includes("TODO")) out.push({ file: f.path, line: 1, column: 0, message: "TODO in payment code" });\n  }\n  return out;\n}\n',
+        'utf-8',
+      );
+      const sha = commitFile(dir, 'src/pay/charge.ts', ESCAPED, 'the escape under the payment tree');
+
+      const added = run(['drill', 'add', '--aspect', 'pay-no-todo', '--violates', `src/pay/charge.ts@${sha}`], dir);
+      expect(added.status, added.all).toBe(0);
+      expect(added.stdout).toContain('behaves as expected');
+
+      const [label] = readdirSync(corpusPath(dir, 'pay-no-todo'));
+      expect(readFileSync(path.join(corpusPath(dir, 'pay-no-todo'), label, 'src', 'pay', 'charge.ts'), 'utf-8')).toBe(ESCAPED);
+
+      // The whole corpus replays the same way afterwards.
+      const drilled = run(['drill', '--aspect', 'pay-no-todo'], dir);
+      expect(drilled.status, drilled.all).toBe(0);
+      expect(drilled.stdout).toContain('1 pass');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -1419,6 +1419,8 @@ rule itself, so the reason a case exists travels with the rule instead of living
 in one commit message; when you give no reason the log says so rather than
 inventing one.
 
+The case keeps the path the file had in the repository: `src/search/query.ts` is stored as `drills/<case>/src/search/query.ts`, and the rule drilled over it sees `src/search/query.ts` — in `ctx.files[].path` for a script rule, in the prompt for a judgment rule. A rule anchored on a path prefix therefore drills the way it runs in `yg check`.
+
 **A rule that does not catch its own escape exits non-zero and the case stays.**
 That is the point: the case sits in the corpus, failing, until the rule is
 sharpened enough to catch it. A corpus that only ever accepts cases the rule

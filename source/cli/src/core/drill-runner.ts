@@ -50,6 +50,14 @@ export interface DrillCase {
   expect: 'refused' | 'satisfied';
   /** repo-relative POSIX case source files. */
   files: string[];
+  /**
+   * What the rule sees as each file's path, in the order of `files`: the file's
+   * path inside its case directory. `yg drill add` stores a case under the
+   * repository path it was taken from, so this is that path, and a rule anchored
+   * on a path prefix drills the way it runs; a hand-written case file sitting
+   * directly in its case directory is seen by its file name. Absent ⇒ `files`.
+   */
+  seenAs?: string[];
   /** 'dev' = in-repo drills/; 'holdout' = --dir external. */
   src: 'dev' | 'holdout';
   /** --corpus label, else 'dev' or the --dir basename. */
@@ -94,7 +102,7 @@ export interface DrillDeps {
   /** Run the deterministic check over one case's files. Returns the observed
    *  verdict, 'unsupported' when the check read graph context, or 'unrun' when the
    *  check could not be evaluated (source parse / runtime / shape error). */
-  runDet(caseFiles: string[]): Promise<'refused' | 'satisfied' | 'unsupported' | 'unrun'>;
+  runDet(caseFiles: string[], seenAs: string[]): Promise<'refused' | 'satisfied' | 'unsupported' | 'unrun'>;
   /** Review one assembled prompt. `'unrun'` = an infra/provider failure (no verdict). */
   reviewUnit(prompt: string, consensus: number): Promise<DrillReviewResult | 'unrun'>;
   /** Called exactly once with the budget line, BEFORE the first reviewUnit call. */
@@ -220,7 +228,8 @@ export async function discoverDrillCases(opts: DiscoverDrillsOpts): Promise<Dril
     const caseLabel = ext.length > 0 ? relToBase.slice(0, -ext.length) : relToBase;
     if (opts.caseGlob !== undefined && !globMatch(caseLabel, opts.caseGlob)) continue;
     const relToRoot = toPosixPath(path.relative(opts.projectRoot, abs));
-    cases.push({ aspect: opts.aspectId, caseLabel, expect, files: [relToRoot], src, corpus });
+    const seenAs = relToBase.split('/').slice(1).join('/');
+    cases.push({ aspect: opts.aspectId, caseLabel, expect, files: [relToRoot], seenAs: [seenAs], src, corpus });
   }
   cases.sort((a, b) => (a.caseLabel < b.caseLabel ? -1 : a.caseLabel > b.caseLabel ? 1 : 0));
   return cases;
@@ -355,7 +364,7 @@ export async function runDrills(
   if (aspect.reviewer.type !== 'llm') {
     for (const c of cases) {
       const caseHash = await caseHashOf(c.files, projectRoot);
-      const got = await deps.runDet(c.files);
+      const got = await deps.runDet(c.files, c.seenAs ?? c.files);
       const detail =
         got === 'unsupported'
           ? drillUnsupportedGraphCtxLine(aspect.id)
@@ -403,7 +412,7 @@ export async function runDrills(
 
   for (const c of cases) {
     const caseHash = await caseHashOf(c.files, projectRoot);
-    const caseFiles = await readCaseFiles(c.files, projectRoot);
+    const caseFiles = await readCaseFiles(c.files, c.seenAs ?? c.files, projectRoot);
     // per:file ⇒ one unit per case file; per:node ⇒ all case files in one unit.
     const units: PromptFileInput[][] = perFile ? caseFiles.map((f) => [f]) : [caseFiles];
 
@@ -492,12 +501,16 @@ async function reviewOneUnit(
   return review;
 }
 
-/** Read case file contents as prompt inputs (missing ⇒ empty, mirroring the verifier). */
-async function readCaseFiles(files: string[], projectRoot: string): Promise<PromptFileInput[]> {
+/**
+ * Read case file contents as prompt inputs (missing ⇒ empty, mirroring the
+ * verifier), each under the path the rule sees it by — the same path a
+ * deterministic check gets in `ctx.files`.
+ */
+async function readCaseFiles(files: string[], seenAs: string[], projectRoot: string): Promise<PromptFileInput[]> {
   const out: PromptFileInput[] = [];
-  for (const rel of files) {
+  for (const [i, rel] of files.entries()) {
     const bytes = await readFileBytes(path.resolve(projectRoot, rel));
-    out.push({ path: rel, content: (bytes ?? Buffer.alloc(0)).toString('utf8') });
+    out.push({ path: seenAs[i] ?? rel, content: (bytes ?? Buffer.alloc(0)).toString('utf8') });
   }
   return out;
 }

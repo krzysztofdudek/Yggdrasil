@@ -58,15 +58,15 @@ function stageCorpus(id: string, files: Record<string, string>): string {
 
 /** DrillDeps that record the call sequence and drive verdicts from lookup maps. */
 function makeDeps(opts: {
-  det?: (files: string[]) => 'refused' | 'satisfied' | 'unsupported' | 'unrun';
+  det?: (files: string[], seenAs: string[]) => 'refused' | 'satisfied' | 'unsupported' | 'unrun';
   review?: (prompt: string) => { satisfied: boolean; votes: { satisfied: number; total: number } } | 'unrun';
 } = {}): { deps: DrillDeps; seq: string[]; results: DrillResult[] } {
   const seq: string[] = [];
   const results: DrillResult[] = [];
   const deps: DrillDeps = {
-    runDet: async (files) => {
+    runDet: async (files, seenAs) => {
       seq.push('det');
-      return opts.det ? opts.det(files) : 'satisfied';
+      return opts.det ? opts.det(files, seenAs) : 'satisfied';
     },
     reviewUnit: async (prompt) => {
       seq.push('review');
@@ -96,7 +96,18 @@ describe('drill-runner — discovery', () => {
     expect(byLabel['violates-star/star'].expect).toBe('refused');
     expect(byLabel['satisfies-plain/plain'].expect).toBe('satisfied');
     expect(byLabel['violates-star/star'].files).toEqual(['.yggdrasil/aspects/a/drills/violates-star/star.ts']);
+    // A hand-written case sitting directly in its case directory is seen by its file name.
+    expect(byLabel['violates-star/star'].seenAs).toEqual(['star.ts']);
     expect(cases.every((c) => c.src === 'dev' && c.corpus === 'dev')).toBe(true);
+  });
+
+  it('a case stored under its repository path is seen under that path', async () => {
+    const root = stageCorpus('nested', { 'violates-charge-20260906-3a351e1/src/pay/charge.ts': 'bad' });
+    roots.push(root);
+    const [c] = await discoverDrillCases({ aspectId: 'nested', projectRoot: root });
+    expect(c.caseLabel).toBe('violates-charge-20260906-3a351e1/src/pay/charge');
+    expect(c.files).toEqual(['.yggdrasil/aspects/nested/drills/violates-charge-20260906-3a351e1/src/pay/charge.ts']);
+    expect(c.seenAs).toEqual(['src/pay/charge.ts']);
   });
 
   it('skips .md files, yg-aspect.yaml, and files outside a violates-/satisfies- dir', async () => {
@@ -268,6 +279,19 @@ describe('drill-runner — runDrills (deterministic path)', () => {
     expect(summary.results.every((r) => r.kind === 'deterministic')).toBe(true);
   });
 
+  it('hands the check each case file together with the path it is seen under', async () => {
+    const { root, cases } = stageTwoCases();
+    const seen: string[][] = [];
+    const { deps } = makeDeps({
+      det: (files, seenAs) => {
+        seen.push(seenAs);
+        return files[0].includes('violates-') ? 'refused' : 'satisfied';
+      },
+    });
+    await runDrills(detAspect('d'), root, await cases, CTX, deps);
+    expect(seen).toEqual([['good.ts'], ['bad.ts']]);
+  });
+
   it('a check that UNDER-fires on the violates case → MISS, exit 1', async () => {
     const { root, cases } = stageTwoCases();
     const { deps } = makeDeps({ det: () => 'satisfied' }); // never fires
@@ -413,7 +437,10 @@ describe('drill-runner — runDrills (LLM path, ctx.nodeless)', () => {
     expect(prompts[0]).toContain('Below is a single source file with its content and one aspect (rule set).');
     expect(prompts[0]).toContain('You are reviewing this file on its own. It has no owning component');
 
-    const caseFilePath = cases[0].files[0];
+    // The reviewer sees the case file under the path it has inside its case
+    // directory — the same path a deterministic check gets in ctx.files.
+    const caseFilePath = cases[0].seenAs![0];
+    expect(caseFilePath).toBe('good.ts');
     const suppressedRanges = await resolveSuppressedRangesForPrompt(
       [{ path: caseFilePath, bytes: Buffer.from('GOOD', 'utf8') }],
       'nl',

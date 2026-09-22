@@ -24,18 +24,14 @@ import { walk, report } from '@chrisdudek/yg/ast';
 //
 // EXAMPLE ROOT DETECTION (path-only; the drill runs check.mjs over case files with
 // NO graph context, so the example directory must be derivable from the file path
-// alone). The example root is the first path segment BENEATH the examples
-// container. Two containers are recognised:
-//   - production: a segment named exactly `examples` (the examples node maps
-//     `examples/**`, so every real subject file lives under `examples/<name>/…`).
-//   - drill fixtures: a `violates-*` / `satisfies-*` verdict directory (the
-//     Yggdrasil drill convention), whose immediate child is the synthetic example.
-// The first recognised container in the path wins; the example root is
-// `<container>/<child>`. A file that is not strictly inside such a `<child>`
-// directory has no determinable example and is skipped.
+// alone). The example root is the first path segment BENEATH a segment named
+// exactly `examples` (the examples node maps `examples/**`, so every real subject
+// file lives under `examples/<name>/…`, and a drill case is stored under that same
+// repository path). The example root is `examples/<child>`. A file that is not
+// strictly inside such a `<child>` directory has no determinable example and is
+// skipped.
 
 const JS_TS_EXT = /\.(?:ts|tsx|js|jsx|mjs|cjs)$/i;
-const VERDICT_DIR = /^(?:violates|satisfies)-/;
 
 /** The example root (`<container>/<child>`) for a repo-relative POSIX path, or null. */
 function exampleRootOf(filePath) {
@@ -43,7 +39,7 @@ function exampleRootOf(filePath) {
   // The container must have a child directory (i+1) AND the file must live strictly
   // below that child (index >= i+2), i.e. the child is a directory, not the file.
   for (let i = 0; i + 2 <= segs.length - 1; i++) {
-    if (segs[i] === 'examples' || VERDICT_DIR.test(segs[i])) {
+    if (segs[i] === 'examples') {
       return segs.slice(0, i + 2).join('/');
     }
   }
