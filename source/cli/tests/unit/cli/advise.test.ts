@@ -912,12 +912,20 @@ describe.skipIf(!distExists)('buildNominations — the family nomination names i
     expect(fam.why).toContain("Measured by 'grain' under the gate 'no-certified-convention'.");
     expect(fam.why).toContain("have no law under the gate 'no-certified-convention'");
     expect(fam.why).not.toContain('narrow-ancestor rule');
+    // The WHAT line and the scope claim follow the same gate: Grain's answers "no certified
+    // convention", not "no rule of their own", and Grain never checks non-members.
+    expect(fam.what).toContain("files have no law under the gate 'no-certified-convention'");
+    expect(fam.what).not.toContain('share no rule of their own');
+    expect(fam.why).not.toContain('covers exactly them');
+    expect(fam.why).toContain('selects them (its producer does not check that it leaves every other file out)');
   });
 
   it("keeps the narrow-rule sentence for the miner's own gate, and names the miner", async () => {
     const fam = await familyOf({ producer: 'yggdrasil-miner', gate: 'no-narrow-aspect' });
     expect(fam.why).toContain('share no own, port, or narrow-ancestor rule');
     expect(fam.why).toContain("Measured by 'yggdrasil-miner' under the gate 'no-narrow-aspect'.");
+    expect(fam.what).toContain('share no rule of their own');
+    expect(fam.why).toContain('covers exactly them');
   });
 
   it('renders a file without producer or gate exactly as before', async () => {

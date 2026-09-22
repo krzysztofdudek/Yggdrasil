@@ -429,6 +429,12 @@ describe('looksLikeInterleavedMerge', () => {
     expect(await looksLikeInterleavedMerge(projectRoot, GIT_LOG, edited, expectedBaselineFromContent(SIDE_A))).toBe(false);
   });
 
+  it('recognises the shape when the squash or rebase is already committed, so HEAD holds the interleaved log', async () => {
+    const { projectRoot } = await setupInterleavedWorkingTree();
+    execSync('git add -A && git commit -qm squashed', { cwd: projectRoot, stdio: 'pipe', env: gitFixtureEnv(projectRoot) });
+    expect(await looksLikeInterleavedMerge(projectRoot, GIT_LOG, INTERLEAVED, expectedBaselineFromContent(SIDE_A))).toBe(true);
+  });
+
   it('is false outside a git repository', async () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'yg-merge-nogit-'));
     dirs.push(dir);

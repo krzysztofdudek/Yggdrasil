@@ -258,27 +258,31 @@ describe.skipIf(!distExists)('CLI E2E — yg advise import', () => {
       expect(real.schema).toBe('grain-advice/1');
       expect(real.items.length).toBeGreaterThan(0);
 
+      // A relation the producer marks as already declared is data, not advice, and is left out.
+      const declared = real.items.filter((it) => it.kind === 'relation' && it.evidence?.declared === true);
+      const kept = real.items.filter((it) => !declared.includes(it));
       const result = run(['advise', 'import', REAL_ADVICE], dir);
       expect(result.status).toBe(0);
-      expect(result.stdout).toContain(`Recorded ${real.items.length} proposal`);
+      expect(result.stdout).toContain(`Recorded ${kept.length} proposal`);
+      if (declared.length > 0) expect(result.stdout).toContain(`${declared.length} relation`);
 
       // The producer's evidence object survives the round trip untouched — this
       // graph stores what was measured, it never re-derives it.
       const lines = readFileSync(path.join(dir, REGISTER), 'utf-8').trim().split('\n');
-      expect(lines).toHaveLength(real.items.length);
+      expect(lines).toHaveLength(kept.length);
       for (let i = 0; i < lines.length; i++) {
         const record = JSON.parse(lines[i]) as { source: string; schema: string; at: string; kind: string; nodes: string[]; evidence: Record<string, unknown>; text: string };
         expect(record.source).toBe('grain');
         expect(record.schema).toBe('grain-advice/1');
         expect(record.at).toBe(real.at);
-        expect(record.kind).toBe(real.items[i].kind);
-        expect(record.nodes).toEqual(real.items[i].nodes);
-        expect(record.evidence).toEqual(real.items[i].evidence);
-        expect(record.text).toBe(real.items[i].text);
+        expect(record.kind).toBe(kept[i].kind);
+        expect(record.nodes).toEqual(kept[i].nodes);
+        expect(record.evidence).toEqual(kept[i].evidence);
+        expect(record.text).toBe(kept[i].text);
       }
 
       const doc = JSON.parse(run(['advise', '--json'], dir).stdout) as AdviseDoc;
-      expect(doc.items.filter((i) => i.provenance?.source === 'grain')).toHaveLength(real.items.length);
+      expect(doc.items.filter((i) => i.provenance?.source === 'grain')).toHaveLength(kept.length);
 
       // A nested evidence value reads as what was actually measured. The real
       // producer's split items carry objects, and showing the language's

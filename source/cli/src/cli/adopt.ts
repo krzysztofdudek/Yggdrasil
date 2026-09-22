@@ -170,12 +170,13 @@ export function registerAdoptCommand(program: Command): void {
         // ── Never merge silently over a graph that is already here ─────────
         const destination = path.join(repoRoot, GRAPH_DIR);
         const hasExisting = await graphDirExists(destination);
-        if (hasExisting && opts.replace !== true) {
+        // A dry run writes nothing, so it previews over an existing graph too, and says what accepting takes.
+        if (hasExisting && opts.replace !== true && !dryRun) {
           const existing = await describeExistingGraph(destination);
           process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
             what: `This repository already has a graph: ${count(existing.components, 'component')}, ${count(existing.rules, 'rule')}, ${count(existing.flows, 'flow')}${existing.hasRecordedVerdicts ? ', with verdicts already recorded against it' : ''}.`,
             why: 'Accepting a proposal REPLACES the whole graph; the two are never merged, because a rule taken from one graph and a component taken from another have never been checked against each other and the result would be a body of law nobody wrote. Doing that silently would discard work with no record that it happened.',
-            next: `Re-run with --replace to accept over it — the existing graph is moved aside under ${GRAPH_DIR}.replaced-<timestamp>/ and nothing is deleted. To compare first, run: yg adopt ${proposalDir} --dry-run`,
+            next: `Re-run with --replace to accept over it — the existing graph is moved aside under ${GRAPH_DIR}.replaced-<timestamp>/ and nothing is deleted. To compare first, run: yg adopt ${proposalDir} --dry-run (a dry run writes nothing)`,
           })}\n`));
           await exitAfterFlush(1);
           return;
@@ -217,7 +218,13 @@ export function registerAdoptCommand(program: Command): void {
         }
 
         const provenance = await readProvenance(proposal);
-        const violations = await readExistingViolations(proposal.graphDir, proposed.aspects.map((a) => a.id));
+        // Only rules `yg check` will run count as already broken: a `draft` rule is left out of the
+        // expected set entirely, so the sites it would refuse are not something accepting this graph
+        // turns red. (A rule raised above draft only on some components still counts here whole.)
+        const violations = await readExistingViolations(
+          proposal.graphDir,
+          proposed.aspects.filter((a) => (a.status ?? 'enforced') !== 'draft').map((a) => a.id),
+        );
 
         // ── A preview writes nothing at all ────────────────────────────────
         if (dryRun) {
@@ -231,7 +238,9 @@ export function registerAdoptCommand(program: Command): void {
           if (hasExisting) {
             lines.push(row('Existing graph', `moved aside under ${GRAPH_DIR}.replaced-<timestamp>/, never deleted`));
           }
-          lines.push('', 'Nothing was written. Re-run without --dry-run to accept.', '');
+          lines.push('', hasExisting && opts.replace !== true
+            ? 'Nothing was written. This repository already has a graph: re-run with --replace and without --dry-run to accept over it.'
+            : 'Nothing was written. Re-run without --dry-run to accept.', '');
           process.stdout.write(lines.join('\n'));
           await exitAfterFlush(0);
           return;

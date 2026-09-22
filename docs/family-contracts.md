@@ -17,7 +17,7 @@ A check fails when this page and the code disagree — in either direction, in a
 | Rule list (`yg aspects --json`) | `yg-aspects/1` | Yggdrasil | Horde — the quality index, `law`, `land` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Attention feed (`yg advise --json`) | `yg-advise/1` | Yggdrasil | Horde — `audit` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Rule history (`yg aspects log read --json`) | `yg-aspect-log/1` | Yggdrasil | Horde — `law` | before 6.0.0 | [CLI Reference](/cli-reference) |
-| Review package (`yg verdict package`) | `yg-review/1` | Yggdrasil | a judge outside the configured reviewer — no external consumer inside the family | before 6.0.0 | [CLI Reference](/cli-reference) |
+| Review package (`yg verdict package`) | `yg-review/1` | Yggdrasil | Horde — `retro`; and a judge outside the configured reviewer | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Recorded verdicts (`yg verdict read --json`) | `yg-verdicts/1` | Yggdrasil | Horde — `retro` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Waiver inventory (`yg suppressions --json`) | `yg-suppressions/1` | Yggdrasil | Horde — `land` | 6.0.0 | [CLI Reference](/cli-reference) |
 | Marketplace manifest (`yg-marketplace.yaml`) | `yg-marketplace/1` | the marketplace author | Yggdrasil — `yg pack add` / `update` / `list`, `yg marketplace check` | 6.0.0 | [Packages](/packages) |
@@ -28,7 +28,7 @@ A check fails when this page and the code disagree — in either direction, in a
 | Proposed graph (`proposal.json`) | `grain-proposal/1` | Grain — `propose` | Yggdrasil — `yg adopt` | before 6.0.0 | [this page](/family-contracts) |
 | Repository export | `grain-export/1` | Grain — `grain export` | adopter pipelines and audits; no external consumer inside the family | before 6.0.0 | [this page](/family-contracts) |
 | Convention check (`grain check --json`, `grain review --json`) | `grain-check/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
-| Obligation (`grain obligation --json`) | `grain-obligation/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
+| Obligation (`grain obligation --json`) | `grain-obligation/1` | Grain | Horde — `tk new` | before 6.0.0 | [this page](/family-contracts) |
 | Proposal report (`grain propose --json`) | `grain-propose/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Oracle record (`oracle.json`) | `grain-oracle/1` | Grain — `grain oracle record` | Grain's own scoring; no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Adopter correction inside an oracle record | `grain-correction/1` | Grain — `grain oracle record` | Grain's own scoring; no external consumer | before 6.0.0 | [this page](/family-contracts) |

@@ -4,7 +4,7 @@ import type { Graph } from '../../model/graph.js';
 import type { IssueMessage } from '../../model/validation.js';
 import { validateNodePath } from '../../utils/node-path-validator.js';
 import { parseLog } from '../parsing/log-parser.js';
-import {
+import { firstParentAncestors,
   isMergeCommit,
   getMergeParents,
   getMergeBase,
@@ -242,6 +242,9 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
  * check` uses it to point at `yg log merge-resolve` instead of at restoring the
  * file. Best effort: outside a git repository, or on any git failure, false.
  */
+/** How far back the first-parent line is searched for the version a baseline was recorded from. */
+const ANCESTOR_WALK_LIMIT = 50;
+
 export async function looksLikeInterleavedMerge(
   repoRoot: string,
   gitLogPath: string,
@@ -254,6 +257,12 @@ export async function looksLikeInterleavedMerge(
   try {
     const refs = ['HEAD'];
     if (await isMergeCommit(repoRoot, 'HEAD')) refs.push(...(await getMergeParents(repoRoot, 'HEAD')));
+    // A squash or a rebase that is already committed leaves HEAD holding the interleaved log itself, so
+    // HEAD says nothing about the history before it. The version the recorded baseline was taken from
+    // then sits further back on the first-parent line; a bounded walk finds it.
+    if ((await getFileAtRef(repoRoot, 'HEAD', gitLogPath)) === currentLog) {
+      refs.push(...(await firstParentAncestors(repoRoot, 'HEAD', ANCESTOR_WALK_LIMIT)));
+    }
     for (const ref of refs) {
       const side = await getFileAtRef(repoRoot, ref, gitLogPath);
       if (side === '' || side === currentLog) continue;

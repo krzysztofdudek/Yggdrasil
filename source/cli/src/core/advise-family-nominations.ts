@@ -151,10 +151,16 @@ export function familyNominations(data: FamilyCandidatesData): Nomination[] {
   // Who measured and what "without a law" meant, as data. Only the miner's own gate
   // licenses the "no own, port, or narrow-ancestor rule" sentence; another producer's
   // gate answered a different question, so the sentence names that gate instead.
-  const lawless =
-    data.gate === undefined || data.gate === NARROW_ASPECT_GATE
-      ? 'share no own, port, or narrow-ancestor rule'
-      : `have no law under the gate '${quoteData(data.gate)}'`;
+  const gate = data.gate;
+  const minersGate = gate === undefined || gate === NARROW_ASPECT_GATE;
+  const lawless = minersGate
+    ? 'share no own, port, or narrow-ancestor rule'
+    : `have no law under the gate '${quoteData(gate)}'`;
+  // The WHAT line makes the same claim in fewer words, so it follows the same gate. And only the
+  // miner checks that its fitted scope leaves every non-member out; another producer only drops the
+  // members its predicate misses, so for it the scope selects the family and nothing more is claimed.
+  const lawlessShort = minersGate ? 'share no rule of their own' : `have no law under the gate '${quoteData(gate)}'`;
+  const fits = minersGate ? 'covers exactly them' : 'selects them (its producer does not check that it leaves every other file out)';
   const measuredBy =
     data.producer !== undefined && data.gate !== undefined
       ? ` Measured by '${quoteData(data.producer)}' under the gate '${quoteData(data.gate)}'.`
@@ -171,11 +177,11 @@ export function familyNominations(data: FamilyCandidatesData): Nomination[] {
     out.push({
       id: `family-without-law:${fam.id}`,
       classRank: CLASS_RANK.familyWithoutLaw,
-      what: `A candidate rule family — ${n} files share no rule of their own: ${memberList}.`,
+      what: `A candidate rule family — ${n} files ${lawlessShort}: ${memberList}.`,
       why:
         `${sinceLabel}: these files cluster tightly (tightness ${fam.tightness}) yet ${lawless} ` +
         `— the fingerprint of a convention with no rule of its own. A ` +
-        `fitted scope \`${predQ}\` covers exactly them; scope skeleton ${scopeList}.${measuredBy} Provenance: ${provenance}.`,
+        `fitted scope \`${predQ}\` ${fits}; scope skeleton ${scopeList}.${measuredBy} Provenance: ${provenance}.`,
       // NEXT names the exact human action and ends with the literal consent suffix
       // (T2 uses "requires your consent", never the T0/T1 approval phrasing).
       next: `Create a draft aspect scoped to \`${predQ}\` for these ${n} files, then supply the rationale — never invent it — requires your consent.`,

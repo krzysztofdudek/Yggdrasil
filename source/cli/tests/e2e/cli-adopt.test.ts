@@ -121,6 +121,21 @@ describe.skipIf(!distExists)('CLI E2E — yg adopt', () => {
     }
   });
 
+  it('2b: a draft rule is not counted as already broken — yg check never runs it', () => {
+    const repo = makeRepo('draft');
+    try {
+      stageProposal(repo);
+      const yaml = path.join(repo, '.yggdrasil-proposal', '.yggdrasil', 'aspects', 'grain', 'src', 'no-todo-comments', 'yg-aspect.yaml');
+      writeFileSync(yaml, readFileSync(yaml, 'utf-8').replace(/^status: .*$/m, 'status: draft'), 'utf-8');
+      const { stdout, status } = run(['adopt', '.yggdrasil-proposal', '--dry-run'], repo);
+      expect(status).toBe(0);
+      expect(stdout).not.toContain('1 site the new rules refuse');
+      expect(stdout).toContain('nothing — every measured rule holds across all 1 rule today');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   it('3: refuses a repository that already has a graph, naming what is there', () => {
     const repo = makeRepo('exists');
     try {
@@ -132,6 +147,13 @@ describe.skipIf(!distExists)('CLI E2E — yg adopt', () => {
       expect(second.stderr).toContain('1 component');
       expect(second.stderr).toContain('--replace');
       expect(second.stdout).toBe('');
+
+      // The preview the refusal points at works over the existing graph: it writes nothing and
+      // says that accepting takes --replace.
+      const preview = run(['adopt', '.yggdrasil-proposal', '--dry-run'], repo);
+      expect(preview.status).toBe(0);
+      expect(preview.stdout).toContain('Nothing was written. This repository already has a graph');
+      expect(preview.stdout).toContain('--replace');
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

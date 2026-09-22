@@ -7,12 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- `yg verdict package` now prints the package for a pair whose pass is in force, marked `inForce: true` in the `yg-review/1` document; `state` keeps its two values and reads `unverified` there, the package a judge with no verdict before it would receive. Printing a package writes nothing, so a second judge can now read a pair that already passed, which is what Horde's two-judge measurement needs to stop drawing only from refused pairs. `yg verdict record` still refuses to write a second verdict over a pass in force, so the lock is unchanged.
+
 ### Removed
 
 - The `port-default-reserved` warning. Declaring a port literally named `default` is how a component hangs rules on the implicit port that every relation naming no port enters through, so the declaration is deliberate, and a warning on every run for that deliberate use only taught readers to skip the warnings. `yg check` now says nothing about the declaration itself.
 
 ### Fixed
 
+- `yg check` now points at `yg log merge-resolve` for an interleaved log that a squash or a rebase already committed. It looked for the pre-merge log only at HEAD and at a merge commit's parents; after a committed squash HEAD holds the interleaved log itself, so the check fell back to telling the reader to restore the file from HEAD, which changes nothing. It now also walks back up to 50 commits on the first-parent line for the version the recorded baseline came from.
+- `yg adopt <proposal> --dry-run` now previews over a repository that already has a graph. It was refused like the real acceptance, before the dry run was reached, and the refusal told the reader to run that same refused command to compare first; the preview writes nothing, and now says that accepting over the existing graph takes `--replace`.
+- `yg adopt`'s "Already broken" count no longer includes draft rules. `yg check` never runs a draft rule, so the sites it would refuse are not something accepting the graph turns red, and Grain proposes most rules as drafts.
+- `yg advise import` no longer imports a Grain relation the graph already declares. Grain reports every pair of components that change together and marks in its evidence whether the graph already joins them; each such pair became a proposal to declare a relation that exists, and came back at every commit. They are left out, and the command says how many.
+- `yg advise`'s family-without-law suggestion now makes the miner's two claims only for the miner. Its WHAT line said every family's files "share no rule of their own", and its WHY said the fitted scope "covers exactly them"; for another producer's gate the WHAT line now names that gate, as the WHY already did, and the scope is said to select the family, because only the miner checks that it leaves every other file out.
+- The family contract register names Horde as a consumer of `grain-obligation/1` (`tk new`) and of `yg-review/1` (`retro`); both rows said no one inside the family read them.
 - `yg drill add` now keeps a case under the path the file had in the repository, and a rule drilled over a case sees that path. Before, the case was stored under its bare file name and a script rule saw the corpus location (`.yggdrasil/aspects/<rule>/drills/<case>/<file>`), so a rule anchored on a path prefix passed its own escape as a MISS and could not be drilled at all. A hand-written case sitting directly in its case directory is now seen by its file name. A corpus written against the old corpus location needs its cases moved under their repository path: a case whose relative import walks back out of `drills/<case>/`, or a check that treats the `violates-*` / `satisfies-*` directory as a container. Yggdrasil's own two such corpora (`e2e-public-surface`, `example-self-contained`) were moved, and every corpus in this repository reports the same result as before.
 - `yg log merge-resolve` now works for a merge that left no merge commit — a merge script, a squash, a rebase — with `--ours <ref> --theirs <ref>` (and `--base <ref>`) naming the two sides; the same checks run and the baseline is recorded. When a log fails its integrity check because whole entries from another branch now sit before its last recorded one, `yg check` says so and points at `merge-resolve` instead of telling you to restore the file from git, which would have thrown the other branch's entries away. The docs now say that `git merge-file --union` and `merge=union` join the two sides without sorting.
 - `yg advise`'s uncovered-hot-spot suggestion said a component qualified because no *enforced* rule verified its files, while the check behind it skips any component a non-draft rule covers — an advisory rule included. The reason now states the criterion actually applied (no rule beyond drafts), in the suggestion itself, the knowledge page and the CLI reference, so nobody reasons from it toward promoting a rule on a component that never qualified.
@@ -25,7 +35,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- `yg verdict package` now prints the package for a pair whose pass is in force, marked `inForce: true` in the `yg-review/1` document; `state` keeps its two values and reads `unverified` there, the package a judge with no verdict before it would receive. Printing a package writes nothing, so a second judge can now read a pair that already passed, which is what Horde's two-judge measurement needs to stop drawing only from refused pairs. `yg verdict record` still refuses to write a second verdict over a pass in force, so the lock is unchanged.
 - `yg aspects --json --reach` — lists every unit a rule reaches, including draft rules (invisible in `yg check --json`).
 - `yg check --coverage` — the per-type coverage listing, moved out of the plain run and `--summary`.
 - `rules_artifacts` config + `yg init --no-agents-md` / `--no-claude-md` / `--no-clinerules` — choose which agent-rules files a repository carries.

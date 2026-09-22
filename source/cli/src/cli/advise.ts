@@ -987,9 +987,12 @@ export function registerAdviseCommand(program: Command): void {
         const held = alreadyHeld.length > 0
           ? ` ${alreadyHeld.length} ${alreadyHeld.length === 1 ? 'was' : 'were'} already recorded and ${alreadyHeld.length === 1 ? 'was' : 'were'} not added again.`
           : '';
+        const declared = parsed.alreadyDeclared > 0
+          ? ` ${parsed.alreadyDeclared} relation${parsed.alreadyDeclared === 1 ? '' : 's'} the graph already declares ${parsed.alreadyDeclared === 1 ? 'was' : 'were'} not imported.`
+          : '';
         process.stdout.write(
           chalk.green(
-            `Recorded ${fresh.length} proposal${fresh.length === 1 ? '' : 's'} from '${quoteData(parsed.records[0]?.source ?? 'the document')}'.${held}\n`,
+            `Recorded ${fresh.length} proposal${fresh.length === 1 ? '' : 's'} from '${quoteData(parsed.records[0]?.source ?? 'the document')}'.${held}${declared}\n`,
           ) +
             'They are proposals, not decisions: each appears in yg advise for you to weigh, dismiss or defer.\n',
         );

@@ -34,6 +34,18 @@ export async function getMergeParents(repoCwd: string, ref: string): Promise<str
   return parts.slice(1);
 }
 
+/** The first-parent ancestors of `ref`, nearest first, excluding `ref` itself; at most `limit`. */
+export async function firstParentAncestors(repoCwd: string, ref: string, limit: number): Promise<string[]> {
+  try {
+    const { stdout } = await execFilep('git', ['rev-list', '--first-parent', `--max-count=${limit + 1}`, ref], {
+      cwd: repoCwd,
+    });
+    return stdout.trim().split(/\s+/).filter(Boolean).slice(1);
+  } catch {
+    return [];
+  }
+}
+
 /** Returns the merge-base SHA of two refs. */
 export async function getMergeBase(repoCwd: string, refA: string, refB: string): Promise<string> {
   const { stdout } = await execFilep('git', ['merge-base', refA, refB], { cwd: repoCwd });

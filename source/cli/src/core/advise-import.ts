@@ -30,7 +30,7 @@ export const GRAIN_SOURCE = 'grain';
 
 /** What a parse produced: the records to record, or the reason it was refused. */
 export type ParseImportOutcome =
-  | { ok: true; records: ImportedAdvice[] }
+  | { ok: true; records: ImportedAdvice[]; alreadyDeclared: number }
   | { ok: false; error: IssueMessage };
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
@@ -111,6 +111,7 @@ export function parseGrainAdvice(text: string, nowIso: string): ParseImportOutco
   }
 
   const records: ImportedAdvice[] = [];
+  let alreadyDeclared = 0;
   for (let i = 0; i < items.length; i++) {
     const item: unknown = items[i];
     if (!isPlainObject(item)) {
@@ -155,6 +156,14 @@ export function parseGrainAdvice(text: string, nowIso: string): ParseImportOutco
       };
     }
 
+    // Grain lists every pair that changes together and marks in its evidence whether the graph already
+    // joins them (a relation, or one inside the other). Such a pair is data, not advice: imported, it
+    // would ask the reader to declare a relation the graph already has, and come back at every commit.
+    if (kind === 'relation' && isPlainObject(item.evidence) && item.evidence.declared === true) {
+      alreadyDeclared += 1;
+      continue;
+    }
+
     const record: ImportedAdvice = {
       v: 1,
       ts: nowIso,
@@ -176,7 +185,7 @@ export function parseGrainAdvice(text: string, nowIso: string): ParseImportOutco
     records.push(record);
   }
 
-  return { ok: true, records };
+  return { ok: true, records, alreadyDeclared };
 }
 
 /**

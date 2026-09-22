@@ -70,3 +70,5 @@ Reworked how the attention feed learns that a rule installed from another reposi
 The feed reports a newer version of an installed package only when that version is strictly newer than the one in use, using the same comparison the package commands print. Reporting anything merely different would, right after an update, tell the reader that an older release was available to take.
 ## [2026-09-10T16:19:47.176Z]
 The newer-version item now reads a local cache written by the package commands rather than reaching a source itself, so this command performs no network access at all — matching what it says about itself, and keeping the property that two runs over an unchanged repository agree. A package the cache has never heard of contributes nothing rather than an empty answer: silence here means nobody has asked yet, never that you are up to date.
+## [2026-09-22T20:37:22.998Z]
+advise import now tells the reader how many relation items it left out because the graph already declares them, next to how many were already recorded, so a smaller count than the document's item total is explained rather than silent.

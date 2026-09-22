@@ -56,6 +56,24 @@ function refusal(text: string): { what: string; why: string; next: string } {
   return outcome.error;
 }
 
+describe('reading a proposal document — relations the graph already declares', () => {
+  it('leaves out a relation Grain marks as declared, and counts it', () => {
+    const text = JSON.stringify({
+      schema: GRAIN_ADVICE_SCHEMA,
+      at: AT,
+      items: [
+        item({ evidence: { coChanged: 7, declared: true, declaredVia: 'relation' } }),
+        item({ evidence: { coChanged: 7, declared: true, declaredVia: 'containment' }, nodes: ['services', 'services/orders'] }),
+        item({ evidence: { coChanged: 7, declared: false, declaredVia: null }, nodes: ['services/orders', 'services/billing'] }),
+      ],
+    });
+    const outcome = parseGrainAdvice(text, NOW);
+    if (!outcome.ok) throw new Error(outcome.error.what);
+    expect(outcome.records.map((r) => r.nodes)).toEqual([['services/orders', 'services/billing']]);
+    expect(outcome.alreadyDeclared).toBe(2);
+  });
+});
+
 describe('reading a proposal document — what it accepts', () => {
   it('turns each item into a record under the producer name and the schema it arrived under', () => {
     const [record] = records(doc());
