@@ -89,8 +89,7 @@ declared to make the predicate legal: write `consumes_port: default` and it
 passes. Declaring `ports: { default: … }` on a node is still legal — it is how
 you hang aspects on the implicit entry, and `default` is the one port name whose
 declaration needs no `description` — but it is not a prerequisite for this
-idiom, and declaring it draws a non-blocking `port-default-reserved` warning of
-its own.
+idiom.
 
 `has_port` — under both `node:` and `descendants:` — is **not** normalized the
 way `consumes_port` is. It is checked literally against the node's declared

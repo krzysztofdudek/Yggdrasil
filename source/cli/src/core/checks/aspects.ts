@@ -346,8 +346,7 @@ export function checkWhenReferences(graph: Graph): ValidationIssue[] {
       // checkPortConsumes (checks/architecture.ts), which skips DEFAULT_PORT_NAME
       // for exactly the same reason. Without the exemption the one idiom the
       // evaluator documents as matching every implicit-port relation is refused
-      // unless some node writes `ports: { default: … }` — which in turn draws the
-      // port-default-reserved warning, leaving no clean way to write it at all.
+      // unless some node writes `ports: { default: … }` for no other reason.
       const consumesPort =
         match.consumes_port === DEFAULT_PORT_NAME ? undefined : match.consumes_port;
       if (consumesPort !== undefined && match.target !== undefined) {

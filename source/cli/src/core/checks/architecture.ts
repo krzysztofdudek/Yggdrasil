@@ -543,36 +543,3 @@ export function checkPortConsumes(graph: Graph): ValidationIssue[] {
 
   return issues;
 }
-
-/**
- * Migration advisory: a node that declares `ports.default` explicitly.
- *
- * `default` became a reserved port name that every node carries implicitly —
- * declaring it is legal (it is how a node hangs aspects on the implicit port),
- * but a graph written before the reservation may have used the name for an
- * ordinary, unrelated port whose meaning has now silently changed underneath
- * it. A warning, not an error: the declaration is valid either way, so this
- * never blocks `yg check`. Stateless by design — it fires on every run, not
- * once ever, so nobody has to hunt for a suppression or a state file to make
- * it go away once they've looked.
- */
-export function checkReservedDefaultPortName(graph: Graph): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
-  for (const [nodePath, node] of graph.nodes) {
-    if (!node.meta.ports || !(DEFAULT_PORT_NAME in node.meta.ports)) continue;
-    const msgData: IssueMessage = {
-      what: `Node '${nodePath}' declares a port literally named '${DEFAULT_PORT_NAME}'.`,
-      why: `'default' is a reserved port name — every node carries it implicitly, and a relation naming no port now enters through it. Declaring it explicitly is legal (it is how a node hangs aspects on the implicit port), but if this port predates the reservation, its meaning has changed under it.`,
-      next: `Confirm the port's aspects are meant to apply to every consumer that names no port, or rename it if it was an ordinary port.`,
-    };
-    issues.push({
-      severity: 'warning',
-      code: 'port-default-reserved',
-      rule: 'reserved-port-name',
-      nodePath,
-      ...issueMsg(msgData),
-      messageData: msgData,
-    });
-  }
-  return issues;
-}

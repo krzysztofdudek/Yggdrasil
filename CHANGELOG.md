@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed
+
+- The `port-default-reserved` warning. Declaring a port literally named `default` is how a component hangs rules on the implicit port that every relation naming no port enters through, so the declaration is deliberate, and a warning on every run for that deliberate use only taught readers to skip the warnings. `yg check` now says nothing about the declaration itself.
+
 ### Fixed
 
 - A script rule that decides from a component's file names now re-runs when a file is added to or removed from that component. Before, `yg check` kept its earlier pass when the new file was not one the rule itself checks.

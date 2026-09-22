@@ -108,3 +108,5 @@ Reworded two comments describing the threaded type-coverage classification param
 Registered the new advisory check that flags a node explicitly declaring a port literally named default.
 ## [2026-09-10T15:24:54.954Z]
 The gate now also verifies that every rule installed from another repository still matches what that repository published. It runs as a global check rather than a per-component one because a copied rule belongs to no component — there is no node to attribute the finding to.
+## [2026-09-22T13:01:45.394Z]
+The validator no longer runs the reserved default port check, because that check was removed: a deliberate default port declaration is the documented way to hang aspects on the implicit port and warning about it on every run only trained readers to ignore warnings.

@@ -117,7 +117,7 @@ Three blocking errors keep the port contract honest, and none of them has an "ac
 
 Each message names the relation, explains what would go unverified, and tells you what to add.
 
-The port contract has one advisory diagnostic outside that table: `port-default-reserved` (rule `reserved-port-name`, severity **warning**). It fires whenever a node explicitly declares a port literally named `default`. Declaring it is legal — it is how you hang aspects on the implicit entry every node already carries — but on a graph written before `default` became reserved the name may have meant an ordinary, unrelated port whose meaning has now changed underneath it. So the warning asks you to confirm one thing: are this port's aspects really meant to apply to every consumer that names no port? If yes, leave it. If the name predates the reservation and meant something else, rename it. The check is stateless, so it fires on every run rather than once — nobody has to hunt for a suppression to make it go away after they have looked. It never blocks `yg check`.
+Declaring a port literally named `default` is how you hang aspects on the implicit entry every node already carries; those aspects then apply to every consumer that names no port. `yg check` raises nothing for the declaration itself.
 
 ---
 
