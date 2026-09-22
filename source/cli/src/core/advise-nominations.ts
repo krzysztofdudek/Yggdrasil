@@ -35,7 +35,7 @@
  *     (an enforceable rule never once violated at exposure, whose independent
  *     corroborating signals agree it may be safe to demote — under the anti-Goodhart
  *     covenant), uncovered-hot-spot (a node whose mapped source churns yet has no
- *     enforced rule covering it — churn signal from git history, injected), and
+ *     rule beyond drafts covering it — churn signal from git history, injected), and
  *     type-covered-churn (a type-covered file — no owning node — that has been
  *     EDITED since the commit that created it, and whose matched type genuinely
  *     enforces something on it; since it has no node, no node-level rule can
@@ -760,8 +760,8 @@ function hotSpotNominations(
       classRank: CLASS_RANK.uncoveredHotSpot,
       what: `Node '${nodeQ}' is changing but has no rule covering it.`,
       why:
-        `${churn} of the last ${window} commits touched this node's files, yet no enforced ` +
-        `rule verifies any of them — an uncovered hot spot: the code most in motion has the ` +
+        `${churn} of the last ${window} commits touched this node's files, yet no rule beyond ` +
+        `drafts verifies any of them — an uncovered hot spot: the code most in motion has the ` +
         `least protection.`,
       next:
         `Consider adding a rule or coverage here — propose an aspect or a coverage node to ` +

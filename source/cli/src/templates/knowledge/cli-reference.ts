@@ -1069,8 +1069,8 @@ yg advise --json     # the same feed as one machine-readable document
   below all of those — history-derived suggestions such as promoting a clean-record
   advisory rule, sharpening an inconsistently-judged rule, reviewing a rule that has
   never once caught a violation, and flagging an **uncovered hot spot**: a component
-  whose files change often across recent commits yet carry no enforced rule — the
-  code most in motion with the least protection. A hot spot cites its churn count, a
+  whose files change often across recent commits yet no rule beyond drafts covers
+  them — the code most in motion with the least protection. A hot spot cites its churn count, a
   short sample of the changed files, and the commit window as its evidence, and clears
   itself the moment a rule or coverage lands there or the churn ages out of the
   window; the churn is read from git history, so a shallow or non-git checkout simply

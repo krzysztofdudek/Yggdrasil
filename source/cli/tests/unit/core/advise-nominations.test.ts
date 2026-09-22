@@ -395,6 +395,12 @@ describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, belo
     expect(hot!.what).toBe("Node 'checkout/controller' is changing but has no rule covering it.");
     expect(hot!.why).toContain('3 of the last 200 commits touched this node');
     expect(hot!.why).toContain('the code most in motion has the least protection');
+    // issue 016: the WHY must name the gate's actual criterion (no rule beyond drafts — advisory
+    // counts as covered) rather than "no enforced rule", which is a stricter claim than the gate
+    // applies and would send an agent reasoning from the WHY to propose promoting a rule on a node
+    // that carries a live advisory one and never qualified for this signal at all.
+    expect(hot!.why).toContain('no rule beyond drafts verifies any of them');
+    expect(hot!.why).not.toContain('enforced');
     expect(hot!.next).toContain('propose an aspect or a coverage node');
     expect(hot!.next).toContain('requires their approval');
     expect(hot!.next).toContain(
@@ -429,6 +435,22 @@ describe('buildNominations — T1 uncovered hot spot (churn × zero-aspect, belo
     const churnByNode = new Map([['auth/auth-api', CH(2, ['src/auth/auth.controller.ts'])]]);
     const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
     expect(noms.find((n) => n.id === 'uncovered-hot-spot:auth/auth-api')).toBeDefined();
+  });
+
+  it('does NOT nominate a node covered only by a live ADVISORY aspect, even with high churn (issue 016)', async () => {
+    // Flip the fixture's requires-logging (auth/auth-api's only aspect) to advisory: a live rule,
+    // just not enforced. hasNonDraftEffectiveAspects treats advisory as covering the node, so this
+    // must be excluded exactly like the enforced case above — the WHY's old wording ("no enforced
+    // rule") would have implied the opposite, that an advisory-only node still qualifies.
+    appendFileSync(
+      path.join(projectRoot, '.yggdrasil', 'aspects', 'requires-logging', 'yg-aspect.yaml'),
+      '\nstatus: advisory\n',
+      'utf-8',
+    );
+    const graph = await loadGraph(projectRoot);
+    const churnByNode = new Map([['auth/auth-api', CH(9, ['src/auth/auth.controller.ts'])]]);
+    const noms = buildNominations(graph, { todayUtc: TODAY, churnByNode, churnWindow: 200 });
+    expect(noms.find((n) => n.id === 'uncovered-hot-spot:auth/auth-api')).toBeUndefined();
   });
 
   it('is SILENT when the churn source is unknown (no git / shallow clone → undefined)', async () => {
