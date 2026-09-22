@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `yg advise`'s uncovered-hot-spot suggestion said a component qualified because no *enforced* rule verified its files, while the check behind it skips any component a non-draft rule covers — an advisory rule included. The reason now states the criterion actually applied (no rule beyond drafts), in the suggestion itself, the knowledge page and the CLI reference, so nobody reasons from it toward promoting a rule on a component that never qualified.
 - A script rule that decides from a component's file names now re-runs when a file is added to or removed from that component. Before, `yg check` kept its earlier pass when the new file was not one the rule itself checks.
 
 ## [6.0.0] - 2026-09-12

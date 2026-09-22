@@ -1,7 +1,7 @@
 /**
  * source/cli/src/core/node-churn.ts — PURE per-node churn counting for the advise
  * "uncovered hot spot" nomination (a node whose mapped source changes often yet
- * carries no enforced rule).
+ * no rule beyond drafts covers).
  *
  * The one impure input — the git history — is captured at the CLI boundary and
  * handed in here as ALREADY-PARSED per-commit touch sets, so this module runs git
