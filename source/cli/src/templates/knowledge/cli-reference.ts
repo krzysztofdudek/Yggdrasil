@@ -736,7 +736,9 @@ subject files, any references and resolved companions, the tier's CONSTRAINTS
 (name, consensus, prompt ceiling and this package's size; never the provider,
 the model or a credential), and \`hashes\` with one entry per verdict token. It
 is the SAME assembly the fill stage sends a provider, so what a judge sees and
-what a filled verdict was judged on cannot drift apart.
+what a filled verdict was judged on cannot drift apart. A pair whose pass is in
+force is packaged too, marked \`inForce: true\`, for a second judge to read;
+\`record\` still refuses to write over it.
 
 \`record\` writes the judgement into the lock exactly as a provider verdict is
 written, plus the judge's name. \`--hash\` is the hash from the package for the

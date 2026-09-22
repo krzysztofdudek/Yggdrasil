@@ -57,6 +57,7 @@ interface ReviewDoc {
   unit: { kind: string; path: string };
   node: string | null;
   state: string;
+  inForce?: true;
   rule: { path: string; content: string };
   references: Array<{ path: string; content: string }>;
   companions: Array<{ path: string; content: string }>;
@@ -254,8 +255,18 @@ describe.skipIf(!distExists)('CLI E2E — yg verdict, the external-judge channel
       const doc = packageFor(dir);
       run(['verdict', 'record', '--aspect', RULE, '--node', UNIT, '--by', 'alice', '--verdict', 'pass', '--hash', doc.hashes.pass], dir);
 
-      // Judging it again would replace a judgement that still applies.
-      const again = run(['verdict', 'package', '--aspect', RULE, '--node', UNIT], dir);
+      // The package is still there for a second judge to read, marked in force,
+      // with the same hashes: printing it writes nothing.
+      const reread = run(['verdict', 'package', '--aspect', RULE, '--node', UNIT], dir);
+      expect(reread.status).toBe(0);
+      const inForce = JSON.parse(reread.stdout);
+      expect(inForce.inForce).toBe(true);
+      expect(inForce.state).toBe('unverified');
+      expect(inForce.hashes).toEqual(doc.hashes);
+      expect(doc.inForce).toBeUndefined();
+
+      // Recording again would replace a judgement that still applies.
+      const again = run(['verdict', 'record', '--aspect', RULE, '--node', UNIT, '--by', 'bob', '--verdict', 'refused', '--report', 'x', '--hash', doc.hashes.refused], dir);
       expect(again.status).toBe(1);
       expect(again.stderr).toContain('already holds a verdict for exactly these inputs');
 

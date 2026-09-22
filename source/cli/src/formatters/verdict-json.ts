@@ -55,8 +55,18 @@ export interface ReviewJsonDocument {
   unit: { kind: 'node' | 'file'; path: string };
   /** The component the subject belongs to, or null for a file governed by its type alone. */
   node: string | null;
-  /** The pair's state right now — what makes it pending. */
+  /**
+   * The pair's state right now — what makes it pending. For a pair whose pass is
+   * in force (`inForce: true`) it reads `unverified`: the package is exactly what
+   * a judge with no verdict before it would receive.
+   */
   state: 'unverified' | 'refused';
+  /**
+   * Present, and true, only when the pair already holds a pass in force. The
+   * package is for a second judge to read; `yg verdict record` still refuses to
+   * write over that verdict.
+   */
+  inForce?: true;
   /** The rule's own text, as the judge must read it. */
   rule: { path: string; content: string };
   references: ReviewJsonReference[];

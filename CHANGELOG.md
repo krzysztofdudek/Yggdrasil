@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `yg verdict package` now prints the package for a pair whose pass is in force, marked `inForce: true` in the `yg-review/1` document; `state` keeps its two values and reads `unverified` there, the package a judge with no verdict before it would receive. Printing a package writes nothing, so a second judge can now read a pair that already passed, which is what Horde's two-judge measurement needs to stop drawing only from refused pairs. `yg verdict record` still refuses to write a second verdict over a pass in force, so the lock is unchanged.
 - `yg aspects --json --reach` — lists every unit a rule reaches, including draft rules (invisible in `yg check --json`).
 - `yg check --coverage` — the per-type coverage listing, moved out of the plain run and `--summary`.
 - `rules_artifacts` config + `yg init --no-agents-md` / `--no-claude-md` / `--no-clinerules` — choose which agent-rules files a repository carries.

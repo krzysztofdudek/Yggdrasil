@@ -363,9 +363,11 @@ yg verdict read [--by <name>] [--json]
 - `package` — prints one `yg-review/1` document: the rule's own text, the subject
   files, any references and companion files, the tier's constraints (its name,
   consensus and prompt ceiling — never its provider, model or credentials), and
-  one hash per verdict token. Only for a pair that is pending — unverified, or
-  refused — and only for a rule a reviewer judges; a rule that runs as a local
-  check is machine-only.
+  one hash per verdict token. For a pair that is pending — unverified, or
+  refused — and for one whose pass is in force, which comes marked
+  `inForce: true` so a second judge can read it; `record` still refuses to
+  write over that pass. Only for a rule a reviewer judges; a rule that runs as
+  a local check is machine-only.
 - `record` — writes the judgement into the lock exactly as a provider's verdict
   is written, with `--by <name>` beside it. `--hash` is the hash from the package
   for the verdict being recorded; it is refused if the working tree has moved

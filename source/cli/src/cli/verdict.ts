@@ -107,7 +107,8 @@ async function resolvePair(
   lock: LockFile,
   aspect: AspectDef,
   target: { kind: 'node' | 'file'; path: string },
-): Promise<{ pair: ExpectedPair; state: 'unverified' | 'refused' }> {
+  { allowInForce = false }: { allowInForce?: boolean } = {},
+): Promise<{ pair: ExpectedPair; state: 'unverified' | 'refused'; inForce: boolean }> {
   const { pairs } = await computeExpectedPairs(graph);
   const mine = pairs.filter((p) => p.aspectId === aspect.id && p.kind === 'llm');
   const wantedKey = target.kind === 'node' ? `node:${target.path}` : `file:${target.path}`;
@@ -127,6 +128,11 @@ async function resolvePair(
 
   const [verified] = await verifyPairs(graph, lock, [pair]);
   const kind = verified.state.kind;
+  // Printing a package writes nothing, so a pair whose pass is in force can still be handed to a
+  // second judge who only reads it: the lock is untouched, and `record` below still refuses.
+  if (kind === 'verified' && allowInForce) {
+    return { pair, state: 'unverified', inForce: true };
+  }
   if (kind === 'verified') {
     refuse(
       `Rule '${aspect.id}' on ${wantedKey} already holds a verdict for exactly these inputs.`,
@@ -144,7 +150,7 @@ async function resolvePair(
       `See what blocks it: yg check --aspect ${aspect.id}`,
     );
   }
-  return { pair, state: kind };
+  return { pair, state: kind, inForce: false };
 }
 
 /** Assemble the package for a pair, or refuse with the assembly's own guided message. */
@@ -206,7 +212,7 @@ export function registerVerdictCommand(program: Command): void {
 
   verdict
     .command('package')
-    .description(`Print the exact review package for one pending pair as a ${REVIEW_JSON_SCHEMA} document`)
+    .description(`Print the exact review package for one pair as a ${REVIEW_JSON_SCHEMA} document — a pending pair, or one whose pass is in force (marked inForce: true)`)
     .requiredOption('--aspect <id>', 'Rule id (directory path under aspects/)')
     .option('--file <path>', 'Subject file — for a per-file rule')
     .option('--node <path>', 'Component path relative to .yggdrasil/model/ — for a whole-component rule')
@@ -218,7 +224,7 @@ export function registerVerdictCommand(program: Command): void {
         const aspect = resolveAspect(graph, options.aspect.trim());
         const target = resolveTarget(graph, options);
         const lock = readLockOrRefuse(graph);
-        const { pair, state } = await resolvePair(graph, lock, aspect, target);
+        const { pair, state, inForce } = await resolvePair(graph, lock, aspect, target, { allowInForce: true });
         const tier = resolveTierName(graph, aspect);
         const pkg = await packageFor(graph, projectRoot, pair, aspect, tier.name);
 
@@ -236,6 +242,7 @@ export function registerVerdictCommand(program: Command): void {
           unit: target,
           node: pair.nodePath ?? null,
           state,
+          ...(inForce ? { inForce: true as const } : {}),
           rule: { path: rulePath, content: pkg.promptInput.aspect.content },
           references: pkg.referencesForPrompt.map((r) => ({ path: r.path, description: r.description, content: r.content })),
           companions: pkg.companions.map((c) => ({ path: c.path, content: c.content })),
