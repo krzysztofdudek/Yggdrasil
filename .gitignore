@@ -80,3 +80,7 @@ Thumbs.db
 # Per-machine agent settings. These accumulate whatever a local session happened to
 # approve, so a shared copy would hand every future clone permissions nobody reviewed.
 .claude/settings.local.json
+
+# Grain's local convention index — rebuilt from this repo's own code and git history
+# on demand, so a shared copy would only ever be a stale snapshot of a derived model.
+.grain/
