@@ -34,7 +34,7 @@ A check fails when this page and the code disagree — in either direction, in a
 | Adopter correction inside an oracle record | `grain-correction/1` | Grain — `grain oracle record` | Grain's own scoring; no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Oracle file list (`files.json`) | `grain-oracle-files/1` | Grain — `grain oracle record` | Grain's own scoring; no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Oracle scorecard (`grain oracle score --json`) | `grain-oracle-score/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
-| Family candidates (`.family-candidates.json`) | no schema id — versioned by `v: 1` | Grain — the offline miner | Yggdrasil — `yg advise`, which rejects any `v` it does not name | before 6.0.0 | [this page](/family-contracts) |
+| Family candidates (`.family-candidates.json`) | no schema id — versioned by `v: 1` | Grain — `grain propose`, which writes it into the proposal's `.yggdrasil/` so `yg adopt` installs it with the graph (`--family-candidates <path>` writes it elsewhere, for a repository that adopted earlier) | Yggdrasil — `yg advise`, which rejects any `v` it does not name | before 6.0.0 | [this page](/family-contracts) |
 | Law diff | `horde-law/1` | Horde — `law` | the session, and Ratatoskr | 6.0.0 | [this page](/family-contracts) |
 | Mission retrospective | `horde-retro/1` | Horde — `retro` | the session; no external consumer | 6.0.0 | [this page](/family-contracts) |
 | Mission plan | `horde-plan/1` | Horde — `queue plan` | Horde itself; no external consumer | before 6.0.0 | [this page](/family-contracts) |

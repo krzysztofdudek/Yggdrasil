@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- The family contract register named "the offline miner" as the producer of `.family-candidates.json`. Grain's `grain propose` now writes the file into the proposal's `.yggdrasil/`, so `yg adopt` installs it with the graph, and the register says so, including `--family-candidates <path>` for a repository that adopted earlier.
 - A script rule that decides from a component's file names now re-runs when a file is added to or removed from that component. Before, `yg check` kept its earlier pass when the new file was not one the rule itself checks.
 
 ## [6.0.0] - 2026-09-12
