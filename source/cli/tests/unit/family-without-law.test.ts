@@ -47,6 +47,8 @@ interface Family {
 interface Candidates {
   v: number;
   ts: string;
+  producer?: string;
+  gate?: string;
   coverage: string[];
   families: Family[];
 }
@@ -130,6 +132,10 @@ describe.skipIf(!distExists)('family-without-law miner — mono precision (exact
 
       expect(data.v).toBe(1);
       expect(data.ts).toBe(FIXED_TS);
+      // Who measured and what "without a law" meant — grain propose writes the same
+      // document from a different oracle, so the miner names itself and its gate.
+      expect(data.producer).toBe('yggdrasil-miner');
+      expect(data.gate).toBe('no-narrow-aspect');
       expect(data.coverage).toEqual(['typescript']);
       expect(data.families).toHaveLength(1); // exactly one — zero false families
 

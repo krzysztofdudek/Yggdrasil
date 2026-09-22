@@ -790,7 +790,11 @@ function main() {
   const coverage = [...new Set(records.map((r) => r.language))].sort();
   const families = minePairwise(records, narrowLawOf, root);
 
-  const payload = { v: 1, ts: stamp, coverage, families };
+  // Who measured and what "without a law" meant: Grain's `grain propose` writes this same
+  // document from a different oracle (no certified convention), so each producer names
+  // itself and its gate. Optional fields inside v 1 — a reader that does not know them
+  // ignores them.
+  const payload = { v: 1, ts: stamp, producer: 'yggdrasil-miner', gate: 'no-narrow-aspect', coverage, families };
   const written = writeCandidates(graphRoot, payload);
 
   // ── Human roster ───────────────────────────────────────────────────────────
