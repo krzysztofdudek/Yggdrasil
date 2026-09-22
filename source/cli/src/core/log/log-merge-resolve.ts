@@ -15,11 +15,20 @@ import { debugWrite } from '../../utils/debug-log.js';
 import { toPosix } from '../../utils/posix.js';
 import { readLock, writeLock, LockInvalidError } from '../../io/lock-store.js';
 import { computeLogBaselineFromContent } from './log-gate.js';
+import { validateAppendOnly } from '../log-integrity.js';
+import { validateFormat } from '../log-format.js';
 
 export interface LogMergeResolveInput {
   graph: Graph;
   nodePath: string;
   repoRoot: string;
+  /**
+   * The two sides of a merge that left no merge commit behind — a script that
+   * merges branch logs into the working tree, a squash, a rebase. Absent ⇒ HEAD
+   * must be the merge commit and its two parents are the sides. `base` defaults
+   * to the merge base of `ours` and `theirs`.
+   */
+  sides?: { ours: string; theirs: string; base?: string };
 }
 
 export type LogMergeResolveResult =
@@ -54,13 +63,13 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     };
   }
 
-  if (!(await isMergeCommit(repoRoot, 'HEAD'))) {
+  if (input.sides === undefined && !(await isMergeCommit(repoRoot, 'HEAD'))) {
     return {
       ok: false,
       error: {
         what: 'HEAD is not a merge commit',
-        why: 'yg log merge-resolve must run on a merge commit to verify log integrity across branches.',
-        next: 'Run this command only after completing a merge (git merge --no-ff).',
+        why: 'yg log merge-resolve verifies the merged log against the two sides of the merge, and with no merge commit at HEAD it has no sides to read.',
+        next: `Run it on the merge commit (git merge --no-ff), or, for a merge that left no merge commit, name the two sides: yg log merge-resolve --node ${nodePath} --ours <ref> --theirs <ref>.`,
       },
     };
   }
@@ -99,12 +108,30 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     };
   }
 
-  const [parent1, parent2] = await getMergeParents(repoRoot, 'HEAD');
-  const ancestorSha = await getMergeBase(repoRoot, parent1, parent2);
   const gitLogPath = `.yggdrasil/model/${nodePath}/log.md`;
-  const ancestorLog = await getFileAtRef(repoRoot, ancestorSha, gitLogPath);
-  const parent1Log = await getFileAtRef(repoRoot, parent1, gitLogPath);
-  const parent2Log = await getFileAtRef(repoRoot, parent2, gitLogPath);
+  let ancestorLog: string;
+  let parent1Log: string;
+  let parent2Log: string;
+  try {
+    const [parent1, parent2] =
+      input.sides === undefined
+        ? await getMergeParents(repoRoot, 'HEAD')
+        : [input.sides.ours, input.sides.theirs];
+    const ancestorSha = input.sides?.base ?? (await getMergeBase(repoRoot, parent1, parent2));
+    ancestorLog = await getFileAtRef(repoRoot, ancestorSha, gitLogPath);
+    parent1Log = await getFileAtRef(repoRoot, parent1, gitLogPath);
+    parent2Log = await getFileAtRef(repoRoot, parent2, gitLogPath);
+  } catch (err) {
+    debugWrite(`[log-merge-resolve] could not read the merge sides for ${nodePath}: ${err instanceof Error ? err.message : String(err)}`);
+    return {
+      ok: false,
+      error: {
+        what: `Could not read ${gitLogPath} from the two sides of the merge`,
+        why: 'The merged log is verified against the log each side had and the log they shared, so every one of those refs must resolve in this repository.',
+        next: 'Check the refs with git rev-parse, then re-run with --ours and --theirs naming the two branches that were merged (and --base when they share no merge base).',
+      },
+    };
+  }
 
   const ancestorBytes = Buffer.from(ancestorLog, 'utf-8');
   const currentBytes = Buffer.from(currentLog, 'utf-8');
@@ -204,4 +231,37 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
   }
 
   return { ok: true, nodePath };
+}
+
+/**
+ * True when a log that fails its append-only check has the shape an
+ * interleaving merge leaves: the version at HEAD (or at one of HEAD's parents,
+ * when HEAD is the merge commit) still matches the recorded baseline, every one
+ * of its entries survives unchanged, and the current log is well formed — so the
+ * only change is whole entries sitting before the recorded last entry. `yg
+ * check` uses it to point at `yg log merge-resolve` instead of at restoring the
+ * file. Best effort: outside a git repository, or on any git failure, false.
+ */
+export async function looksLikeInterleavedMerge(
+  repoRoot: string,
+  gitLogPath: string,
+  currentLog: string,
+  baseline: { last_entry_datetime: string; prefix_hash: string },
+): Promise<boolean> {
+  if (validateFormat(currentLog).length > 0) return false;
+  const key = (e: { datetime: string; body: string }): string => `${e.datetime}\n${e.body}`;
+  const current = new Set(parseLog(currentLog).map(key));
+  try {
+    const refs = ['HEAD'];
+    if (await isMergeCommit(repoRoot, 'HEAD')) refs.push(...(await getMergeParents(repoRoot, 'HEAD')));
+    for (const ref of refs) {
+      const side = await getFileAtRef(repoRoot, ref, gitLogPath);
+      if (side === '' || side === currentLog) continue;
+      if (!validateAppendOnly(side, baseline.last_entry_datetime, baseline.prefix_hash).ok) continue;
+      if (parseLog(side).every((e) => current.has(key(e)))) return true;
+    }
+  } catch (err) {
+    debugWrite(`[log-merge-resolve] could not compare ${gitLogPath} with its git history: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return false;
 }

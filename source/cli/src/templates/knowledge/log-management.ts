@@ -238,6 +238,19 @@ When BOTH \`log.md\` and \`yg-lock.logs.json\` conflicted, the order is: resolve
 log → \`yg check --approve\`. (Lock merge mechanics:
 \`yg knowledge read verification-and-lock\`.)
 
+A merge that left no merge commit (a merge script, a squash, a rebase) names its
+two sides instead:
+
+\`\`\`bash
+yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
+\`\`\`
+
+\`git merge-file --union\` and a \`merge=union\` attribute join the two sides
+without sorting them: when entries interleave by date, put them in date order
+before running merge-resolve. Until then \`yg check\` reports \`prefix_modified\`;
+when the recorded history survived and only whole entries were added before its
+last one, the message points at merge-resolve, not at restoring the file.
+
 ## Never edit log.md directly
 
 Integrity verification catches any modification of historical entries (entries

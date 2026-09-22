@@ -25,6 +25,7 @@ import { validateAppendOnly } from './log-integrity.js';
 import { validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
 import { logGateBlocksNode } from './log/log-gate.js';
+import { looksLikeInterleavedMerge } from './log/log-merge-resolve.js';
 import type { CheckIssue } from './check-contract.js';
 
 /**
@@ -86,13 +87,27 @@ export async function classifyLogStateFromLock(
         logBaseline.prefix_hash,
       );
       if (!check.ok) {
-        const logIntegrityMd = {
-          what: `Log integrity broken (${check.reason}) at ${logRel}${logContent === null ? ' (file missing)' : ''}`,
-          why: check.reason === 'prefix_modified'
-            ? 'Historical (pre-baseline) log content was modified — append-only violated.'
-            : 'Baseline boundary entry not found — log was deleted or reset.',
-          next: `Restore from git: git checkout HEAD -- ${logRel} .yggdrasil/yg-lock.logs.json`,
-        };
+        // A merge whose entries interleave by date puts whole entries before the
+        // recorded last one: the history survived, only the hash no longer covers
+        // it. Point that shape at the reconciling command, not at a restore that
+        // would throw the other branch's entries away.
+        const interleaved =
+          check.reason === 'prefix_modified' &&
+          logContent !== null &&
+          (await looksLikeInterleavedMerge(projectRoot, logRel, logContent, logBaseline));
+        const logIntegrityMd = interleaved
+          ? {
+              what: `Log integrity broken (prefix_modified) at ${logRel} — whole entries now sit before the last recorded one`,
+              why: 'The recorded history survived unchanged, but entries were added before its last entry — the shape a merge leaves when two branches\' entries interleave by date. The append-only hash covers the log up to that entry, so it no longer matches until the merge is reconciled.',
+              next: `yg log merge-resolve --node ${nodePathPosix} on the merge commit, or with --ours <ref> --theirs <ref> naming the two merged branches when the merge left no merge commit.`,
+            }
+          : {
+              what: `Log integrity broken (${check.reason}) at ${logRel}${logContent === null ? ' (file missing)' : ''}`,
+              why: check.reason === 'prefix_modified'
+                ? 'Historical (pre-baseline) log content was modified — append-only violated.'
+                : 'Baseline boundary entry not found — log was deleted or reset.',
+              next: `Restore from git: git checkout HEAD -- ${logRel} .yggdrasil/yg-lock.logs.json`,
+            };
         issues.push({
           severity: 'error',
           code: 'log-integrity',

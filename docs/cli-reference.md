@@ -724,6 +724,7 @@ yg log read --node <path> [--top N]
 yg log read --node <path> --all
 yg log read --node <path> --with-verdicts
 yg log merge-resolve --node <path>
+yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
 ```
 
 - `add` — Append an entry. `--reason "<text>"` for inline text; `--reason-file <path>` for
@@ -749,9 +750,13 @@ yg log merge-resolve --node <path>
     tolerated and skipped. If the sidecar is unexpectedly committed (git-tracked),
     the header says so and drops the "local" label — a tracked sidecar is shared
     history, not local-only telemetry.
-- `merge-resolve` — Reconcile `log.md` after a git merge. Must be run from a merge commit.
-  Validates byte-exact ancestor portion and unions new entries from both branches.
-  Never manually concatenate log files — integrity hashes will break.
+- `merge-resolve` — Reconcile `log.md` after a git merge. Run it on the merge commit, or,
+  for a merge that left no merge commit (a merge script, a squash, a rebase), name the two
+  sides with `--ours <ref> --theirs <ref>`; `--base <ref>` overrides their merge base.
+  Validates byte-exact ancestor portion and unions new entries from both branches, in date
+  order. `git merge-file --union` and `merge=union` join the sides without sorting, so put
+  interleaved entries in date order first. Never manually concatenate log files — integrity
+  hashes will break.
 
 ---
 
