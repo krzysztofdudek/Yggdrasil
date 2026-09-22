@@ -4,7 +4,9 @@ on:
   pull_request:
     branches: [main]
   push:
-    branches: [main]
+    # A release branch takes its merges directly, with no pull request in front of them, so a
+    # push there is the only moment its CI can run at all.
+    branches: [main, "release/**"]
 
 # Least-privilege default token: this workflow only reads the repo (checkout, build,
 # test, coverage upload). No job needs write scope, so pin the GITHUB_TOKEN to read-only.
