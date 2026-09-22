@@ -117,6 +117,31 @@ describe('a rule’s case corpus on disk', () => {
     expect(file).toMatchObject({ caseLabel: 'violates-charge-20260906-3a351e1', filename: 'charge.ts' });
   });
 
+  it('writes a case under its repository path and reads it back by that path', async () => {
+    const written = await writeCorpusCase(
+      yggRoot,
+      ASPECT,
+      'violates-charge-20260906-3a351e1',
+      'src/pay/charge.ts',
+      'export function charge() {}\n',
+    );
+
+    expect(written).toBe(
+      path.join(corpusDir(yggRoot, ASPECT), 'violates-charge-20260906-3a351e1', 'src', 'pay', 'charge.ts'),
+    );
+    const [file] = await readCorpusFiles(yggRoot, ASPECT);
+    expect(file).toMatchObject({ caseLabel: 'violates-charge-20260906-3a351e1', filename: 'src/pay/charge.ts' });
+    expect(file.content.toString('utf-8')).toBe('export function charge() {}\n');
+  });
+
+  it('refuses a case path that would land outside its case directory', async () => {
+    for (const bad of ['../escape.ts', '/abs/charge.ts', 'src/../../escape.ts', '']) {
+      await expect(
+        writeCorpusCase(yggRoot, ASPECT, 'violates-charge-20260906-3a351e1', bad, 'x\n'),
+      ).rejects.toThrow(/inside its case directory/);
+    }
+  });
+
   it('takes a whole case back out, and says nothing about one that was never there', async () => {
     // The removal exists to undo a case this same run just wrote and then could
     // not measure — an unmeasurable case can never fail and says nothing.

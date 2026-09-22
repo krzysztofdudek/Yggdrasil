@@ -3,6 +3,6 @@
 // exactly like a static import — the rule inspects the string argument of
 // import()/require() calls, not just top-level import statements.
 export async function loadExtractor(): Promise<unknown> {
-  const mod = await import('../../../../../source/cli/src/portal/extract.js');
+  const mod = await import('../../src/portal/extract.js');
   return mod;
 }

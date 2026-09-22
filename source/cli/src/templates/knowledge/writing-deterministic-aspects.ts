@@ -661,6 +661,12 @@ hand-authored check fixtures and is never scanned as an aspect, so a fixture tha
 happens to contain a \`yg-aspect.yaml\` (or anything the loader could mistake for
 one) can never register a phantom aspect.
 
+Inside \`yg drill\`, \`ctx.files[].path\` is the file's path inside its case
+directory: \`drills/violates-x/src/pay/charge.ts\` arrives as
+\`src/pay/charge.ts\`, and a file placed directly in its case directory as its
+bare file name. \`yg drill add\` stores a case under the path it had in the
+repository, so a check anchored on a path prefix drills the way it runs.
+
 ## Purity rule
 
 The check function is deterministic and synchronous:

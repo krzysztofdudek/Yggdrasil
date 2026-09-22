@@ -334,12 +334,12 @@ export async function buildDrillRun(
   const aspectDir = path.join('.yggdrasil', 'aspects', aspect.id);
 
   const deps: DrillDeps = {
-    runDet: async (caseFiles) => {
+    runDet: async (caseFiles, seenAs) => {
       try {
         const r = await runAstAspect({
           aspectDir,
           aspectId: aspect.id,
-          files: caseFiles.map((f) => ({ path: f })),
+          files: caseFiles.map((f, i) => ({ path: seenAs[i] ?? f, readFrom: f })),
           projectRoot,
           graphAccessTrap: true,
         });

@@ -16,7 +16,15 @@ export { type ParseCache } from './parse-cache.js';
 export interface RunAstAspectParams {
   aspectDir: string;
   aspectId: string;
-  files: Array<{ path: string }>;
+  /**
+   * The files the check runs over. `path` is what the check sees in
+   * `ctx.files[].path` and what its violations must name; `readFrom`, when set,
+   * is the project-relative file the bytes are read from instead. Only `yg drill`
+   * sets it: a case file lives under the rule's corpus but is seen under the path
+   * it has inside its case directory, so a rule anchored on a path prefix drills
+   * the way it runs.
+   */
+  files: Array<{ path: string; readFrom?: string }>;
   projectRoot: string;
   parseCache?: ParseCache;
   /**
@@ -104,7 +112,7 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
       sourceFiles.push({ path: f.path, content: cached.content, ast: cached.ast });
       continue;
     }
-    const content = await readFile(path.resolve(params.projectRoot, f.path), 'utf-8');
+    const content = await readFile(path.resolve(params.projectRoot, f.readFrom ?? f.path), 'utf-8');
     // A file whose extension has no registered grammar is non-parseable: deliver
     // it to check() with ast === undefined so content/regex rules can still
     // iterate it (parity with the graph-aware structure runner and the documented

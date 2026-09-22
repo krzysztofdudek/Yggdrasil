@@ -87,7 +87,7 @@ export function registerDrillAddCommand(drill: Command): void {
           expect: 'violates' | 'satisfies';
           caseLabel: string;
           filePath: string;
-          filename: string;
+          casePath: string;
           content: string;
           commitSha: string;
           commitDay: string;
@@ -137,7 +137,9 @@ export function registerDrillAddCommand(drill: Command): void {
             });
           }
 
-          const filename = path.posix.basename(toPosixPath(parsed.filePath));
+          // The case keeps the path the file had in the repository, so a rule
+          // anchored on a path prefix sees it in the drill where it saw it in the scan.
+          const casePath = path.posix.normalize(toPosixPath(parsed.filePath));
           planned.push({
             expect,
             caseLabel: caseLabelFor({
@@ -147,7 +149,7 @@ export function registerDrillAddCommand(drill: Command): void {
               commitSha: at.commitSha,
             }),
             filePath: toPosixPath(parsed.filePath),
-            filename,
+            casePath,
             content: at.content,
             commitSha: at.commitSha,
             commitDay: at.commitDay,
@@ -169,7 +171,7 @@ export function registerDrillAddCommand(drill: Command): void {
             graph.rootPath,
             aspect.def.id,
             plan.caseLabel,
-            plan.filename,
+            plan.casePath,
             plan.content,
           );
           process.stdout.write(

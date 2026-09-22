@@ -4,8 +4,10 @@
  *
  * A corpus is hand-authored, committed evidence: the shapes a rule must refuse
  * and the shapes it must let through. It lives beside the rule it exercises, at
- * `.yggdrasil/aspects/<rule>/drills/<case>/<file>`, where the case directory's
- * name prefix carries the verdict the case expects. That layout is the reader's
+ * `.yggdrasil/aspects/<rule>/drills/<case>/<path>`, where the case directory's
+ * name prefix carries the verdict the case expects and `<path>` is the file's
+ * repository path for a case taken from history (a bare file name for one
+ * written by hand), because a rule sees a case file under that path. That layout is the reader's
  * contract, so this module writes into exactly it and never invents a shape of
  * its own.
  *
@@ -26,7 +28,7 @@ import { debugWrite } from '../utils/debug-log.js';
 export interface CorpusFile {
   /** The case directory's name — the label a reader sees, verdict prefix and all. */
   caseLabel: string;
-  /** The file's name inside that case directory. */
+  /** The file's POSIX path inside that case directory. */
   filename: string;
   /** Its exact bytes. */
   content: Buffer;
@@ -62,46 +64,58 @@ export async function readCorpusFiles(
   for (const dir of [...caseDirs].sort((a, b) => a.name.localeCompare(b.name))) {
     if (!dir.isDirectory()) continue;
     if (!dir.name.startsWith('violates-') && !dir.name.startsWith('satisfies-')) continue;
-    let files;
-    try {
-      files = await readdir(path.join(base, dir.name), { withFileTypes: true });
-    } catch (err) {
-      debugWrite(`[drill-corpus] unreadable case ${dir.name}: ${err instanceof Error ? err.message : String(err)}`);
-      continue;
-    }
-    for (const file of [...files].sort((a, b) => a.name.localeCompare(b.name))) {
-      if (!file.isFile()) continue;
-      try {
-        out.push({
-          caseLabel: dir.name,
-          filename: file.name,
-          content: await readFile(path.join(base, dir.name, file.name)),
-        });
-      } catch (err) {
-        debugWrite(`[drill-corpus] unreadable case file ${dir.name}/${file.name}: ${err instanceof Error ? err.message : String(err)}`);
-      }
-    }
+    await readCaseDir(path.join(base, dir.name), dir.name, '', out);
   }
   return out;
 }
 
+/** Every file under one case directory, at any depth, by its path inside the case. */
+async function readCaseDir(abs: string, caseLabel: string, prefix: string, out: CorpusFile[]): Promise<void> {
+  let entries;
+  try {
+    entries = await readdir(abs, { withFileTypes: true });
+  } catch (err) {
+    debugWrite(`[drill-corpus] unreadable case directory ${caseLabel}/${prefix}: ${err instanceof Error ? err.message : String(err)}`);
+    return;
+  }
+  for (const entry of [...entries].sort((a, b) => a.name.localeCompare(b.name))) {
+    const rel = prefix === '' ? entry.name : `${prefix}/${entry.name}`;
+    if (entry.isDirectory()) {
+      await readCaseDir(path.join(abs, entry.name), caseLabel, rel, out);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    try {
+      out.push({ caseLabel, filename: rel, content: await readFile(path.join(abs, entry.name)) });
+    } catch (err) {
+      debugWrite(`[drill-corpus] unreadable case file ${caseLabel}/${rel}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+}
+
 /**
- * Write one case into the corpus.
+ * Write one case into the corpus, at `casePath` (POSIX) inside its case
+ * directory — the file's repository path, so the rule later sees it there.
  *
  * The write itself is atomic (temp file + rename) like every other committed
  * artifact this tool produces, so an interrupt can never leave a half-written
- * case that a later drill would then measure a rule against.
+ * case that a later drill would then measure a rule against. A path that is
+ * absolute or climbs out of the case directory is refused rather than written.
  */
 export async function writeCorpusCase(
   yggRootPath: string,
   aspectId: string,
   caseLabel: string,
-  filename: string,
+  casePath: string,
   content: string,
 ): Promise<string> {
+  const segments = casePath.split('/').filter((s) => s !== '' && s !== '.');
+  if (casePath.startsWith('/') || segments.length === 0 || segments.includes('..')) {
+    throw new Error(`a case path must stay inside its case directory: '${casePath}'`);
+  }
   const caseDir = path.join(corpusDir(yggRootPath, aspectId), caseLabel);
-  await mkdir(caseDir, { recursive: true });
-  const filePath = path.join(caseDir, filename);
+  const filePath = path.join(caseDir, ...segments);
+  await mkdir(path.dirname(filePath), { recursive: true });
   await atomicWriteFile(filePath, content);
   return filePath;
 }
