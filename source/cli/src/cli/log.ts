@@ -240,14 +240,35 @@ export function registerLogCommand(program: Command): void {
 
   log
     .command('merge-resolve')
-    .description('Reconcile log.md after a git merge (HEAD must be a merge commit)')
+    .description(
+      'Reconcile log.md after a git merge: on the merge commit, or with --ours/--theirs naming the two sides of a merge that left no merge commit',
+    )
     .requiredOption('--node <path>', 'Node path (relative to .yggdrasil/model/)')
-    .action(async (opts: { node: string }) => {
+    .option('--ours <ref>', 'one side of a merge that left no merge commit (with --theirs)')
+    .option('--theirs <ref>', 'the other side of that merge (with --ours)')
+    .option('--base <ref>', 'the log both sides started from (default: the merge base of --ours and --theirs)')
+    .action(async (opts: { node: string; ours?: string; theirs?: string; base?: string }) => {
       try {
+        if ((opts.ours === undefined) !== (opts.theirs === undefined) || (opts.base !== undefined && opts.ours === undefined)) {
+          process.stderr.write(
+            chalk.red(
+              buildIssueMessage({
+                what: '--ours and --theirs go together, and --base only with them.',
+                why: 'A merge has two sides; the merged log is verified against both, so naming one of them names no merge.',
+                next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only when they share no merge base), or none of them on a merge commit.',
+              }),
+            ) + '\n',
+          );
+          process.exit(1);
+        }
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         const repoRoot = path.dirname(graph.rootPath);
         const nodePath = opts.node.trim().replace(/\/$/, '');
-        const result = await logMergeResolve({ graph, nodePath, repoRoot });
+        const sides =
+          opts.ours !== undefined && opts.theirs !== undefined
+            ? { ours: opts.ours, theirs: opts.theirs, ...(opts.base !== undefined ? { base: opts.base } : {}) }
+            : undefined;
+        const result = await logMergeResolve({ graph, nodePath, repoRoot, ...(sides !== undefined ? { sides } : {}) });
         if (!result.ok) {
           process.stderr.write(chalk.red(buildIssueMessage(result.error)) + '\n');
           process.exit(1);

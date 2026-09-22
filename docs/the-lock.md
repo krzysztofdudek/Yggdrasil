@@ -113,6 +113,8 @@ Corollaries worth knowing:
 
 **After a merge.** If both branches appended entries to the same node, run `yg log merge-resolve --node <path>` from the merge commit. It validates that the shared history is byte-identical on both sides and that the result is the union of both sets of new entries, then records the node's baseline — it reads your merge resolution, it never rewrites it. Never concatenate two log histories by hand. When a committed lock file conflicted *as well*, the order is: take one side of the lock file, then `merge-resolve` each conflicted log, then `yg check --approve`.
 
+**A merge that left no merge commit.** A script that merges branches into the working tree, a squash, or a rebase leaves no merge commit for `merge-resolve` to read the two sides from. Name them instead: `yg log merge-resolve --node <path> --ours <ref> --theirs <ref>` (and `--base <ref>` when they share no merge base). The same checks run: the shared history byte for byte, every new entry from both sides unchanged, nothing invented, the new entries in date order. Note that `git merge-file --union` and a `merge=union` attribute join the two sides without sorting them: when the branches' entries interleave by date, put them in date order before running `merge-resolve`. Until the merge is reconciled, `yg check` reports the log as `prefix_modified`; when the recorded history survived and only whole entries were added before its last one, the message says so and points at `merge-resolve` rather than at restoring the file.
+
 `yg log add` never verifies anything and never invalidates a verdict, so entries can be appended freely between code changes.
 
 ## A verdict somebody else made

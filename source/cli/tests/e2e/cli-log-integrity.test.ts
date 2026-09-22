@@ -361,4 +361,67 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       rmSync(repo, { recursive: true, force: true });
     }
   });
+
+  // --- 7. a merge that left no merge commit: entries interleaved by date ---
+  it('7: a date-ordered merge with no merge commit is pointed at merge-resolve, reconciled with --ours/--theirs, and check is green', () => {
+    const dir = deterministicFixture('nomergecommit');
+    try {
+      const logPath = ordersLogPath(dir);
+      mkdirSync(path.dirname(logPath), { recursive: true });
+      git(dir, 'init -q -b main');
+      git(dir, 'config user.email t@t.test');
+      git(dir, 'config user.name Test');
+      writeFileSync(logPath, ANCESTOR_LOG, 'utf-8');
+      expect(run(['check', '--approve'], dir).status).toBe(0);
+      git(dir, 'add -A');
+      git(dir, 'commit -qm ancestor');
+
+      // feat1 writes 11:00 and 13:00; feat2 writes 12:00 — the dates interleave.
+      const sideA = ANCESTOR_LOG + '## [2026-05-11T11:00:00.000Z]\nfeat1 first.\n' + '## [2026-05-11T13:00:00.000Z]\nfeat1 second.\n';
+      git(dir, 'checkout -qb feat1');
+      writeFileSync(logPath, sideA, 'utf-8');
+      expect(run(['check', '--approve'], dir).status).toBe(0);
+      git(dir, 'add -A');
+      git(dir, 'commit -qm feat1');
+      git(dir, 'checkout -q main');
+      git(dir, 'checkout -qb feat2 main');
+      writeFileSync(logPath, ANCESTOR_LOG + P2_NEW, 'utf-8');
+      expect(run(['check', '--approve'], dir).status).toBe(0);
+      git(dir, 'add -A');
+      git(dir, 'commit -qm feat2');
+
+      // Merged into feat1's working tree in date order, the way a merge script
+      // does it — no merge commit, feat1's lock.
+      git(dir, 'checkout -q feat1');
+      writeFileSync(
+        logPath,
+        ANCESTOR_LOG +
+          '## [2026-05-11T11:00:00.000Z]\nfeat1 first.\n' +
+          P2_NEW +
+          '## [2026-05-11T13:00:00.000Z]\nfeat1 second.\n',
+        'utf-8',
+      );
+
+      const broken = run(['check'], dir);
+      expect(broken.status).toBe(1);
+      expect(broken.all).toContain('whole entries now sit before the last recorded one');
+      expect(broken.all).toContain('yg log merge-resolve --node services/orders');
+      expect(broken.all).toContain('--ours <ref> --theirs <ref>');
+      expect(broken.all).not.toContain('git checkout HEAD --');
+
+      // One side alone names no merge.
+      const half = run(['log', 'merge-resolve', '--node', 'services/orders', '--ours', 'feat1'], dir);
+      expect(half.status).toBe(1);
+      expect(half.all).toContain('--ours and --theirs go together');
+
+      const resolved = run(['log', 'merge-resolve', '--node', 'services/orders', '--ours', 'feat1', '--theirs', 'feat2'], dir);
+      expect(resolved.status, resolved.all).toBe(0);
+      expect(resolved.stdout).toContain('Log baseline updated');
+
+      const green = run(['check'], dir);
+      expect(green.status, green.all).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

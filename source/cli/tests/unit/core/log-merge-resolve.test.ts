@@ -5,7 +5,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { loadGraph } from '../../../src/core/graph-loader.js';
-import { logMergeResolve } from '../../../src/core/log/log-merge-resolve.js';
+import { logMergeResolve, looksLikeInterleavedMerge } from '../../../src/core/log/log-merge-resolve.js';
 import { readLock, writeLock } from '../../../src/io/lock-store.js';
 import { parseLog } from '../../../src/core/parsing/log-parser.js';
 import { LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
@@ -327,5 +327,111 @@ describe('logMergeResolve (core, lock store)', () => {
 
     const lock = readLock(yggRoot);
     expect(lock.nodes.billing?.log).toEqual(expectedBaselineFromContent(RESOLVED_LOG_GOOD));
+  });
+});
+
+// A merge that leaves no merge commit behind: a script merging branch logs into
+// the working tree, a squash, a rebase. Two branches whose entries interleave by
+// date — feat1 writes 11:00 and 13:00, feat2 writes 12:00 — are merged into
+// feat1's working tree in date order.
+const SIDE_A = ANCESTOR_LOG + '## [2026-05-11T11:00:00.000Z]\nfeat1 first.\n' + '## [2026-05-11T13:00:00.000Z]\nfeat1 second.\n';
+const SIDE_B = ANCESTOR_LOG + '## [2026-05-11T12:00:00.000Z]\nfeat2.\n';
+const INTERLEAVED =
+  ANCESTOR_LOG +
+  '## [2026-05-11T11:00:00.000Z]\nfeat1 first.\n' +
+  '## [2026-05-11T12:00:00.000Z]\nfeat2.\n' +
+  '## [2026-05-11T13:00:00.000Z]\nfeat1 second.\n';
+
+async function setupInterleavedWorkingTree(): Promise<{ projectRoot: string; logPath: string }> {
+  const repo = await mkdtemp(path.join(tmpdir(), 'yg-merge-nocommit-'));
+  dirs.push(repo);
+  const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+  r('git init -q -b main');
+  r('git config user.email t@t.test');
+  r('git config user.name Test');
+  const nodeDir = path.join(repo, '.yggdrasil', 'model', 'billing');
+  await mkdir(nodeDir, { recursive: true });
+  const logPath = path.join(nodeDir, 'log.md');
+  await writeFile(path.join(nodeDir, 'yg-node.yaml'), 'name: billing\ntype: module\ndescription: x\n');
+  await writeFile(logPath, ANCESTOR_LOG);
+  r('git add -A && git commit -qm ancestor');
+  r('git checkout -qb feat1');
+  await writeFile(logPath, SIDE_A);
+  r('git add -A && git commit -qm feat1');
+  r('git checkout -q main && git checkout -qb feat2 main');
+  await writeFile(logPath, SIDE_B);
+  r('git add -A && git commit -qm feat2');
+  r('git checkout -q feat1');
+  // The lock carries feat1's baseline, as it would after feat1's own check.
+  await writeLock(
+    path.join(repo, '.yggdrasil'),
+    { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: { billing: { log: expectedBaselineFromContent(SIDE_A) } } },
+    { scope: 'logs' },
+  );
+  await writeFile(logPath, INTERLEAVED);
+  return { projectRoot: repo, logPath };
+}
+
+describe('logMergeResolve — a merge that left no merge commit', () => {
+  it('verifies the date-ordered union against the named sides and records the baseline', async () => {
+    const { projectRoot } = await setupInterleavedWorkingTree();
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({
+      graph,
+      nodePath: 'billing',
+      repoRoot: projectRoot,
+      sides: { ours: 'feat1', theirs: 'feat2' },
+    });
+    expect(result.ok).toBe(true);
+    expect(readLock(path.join(projectRoot, '.yggdrasil')).nodes.billing?.log).toEqual(expectedBaselineFromContent(INTERLEAVED));
+  });
+
+  it('still refuses a union that drops one side\'s entry', async () => {
+    const { projectRoot, logPath } = await setupInterleavedWorkingTree();
+    await writeFile(logPath, SIDE_A);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot, sides: { ours: 'feat1', theirs: 'feat2' } });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.what).toContain('missing or has altered 1 entry');
+  });
+
+  it('without named sides on a non-merge HEAD, says how to name them', async () => {
+    const { projectRoot } = await setupInterleavedWorkingTree();
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.what).toContain('not a merge commit');
+      expect(result.error.next).toContain('--ours <ref> --theirs <ref>');
+    }
+  });
+
+  it('a side that does not resolve is a structured refusal, not a throw', async () => {
+    const { projectRoot } = await setupInterleavedWorkingTree();
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot, sides: { ours: 'feat1', theirs: 'no-such-branch' } });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.what).toContain('Could not read');
+  });
+});
+
+describe('looksLikeInterleavedMerge', () => {
+  const GIT_LOG = '.yggdrasil/model/billing/log.md';
+
+  it('recognises whole entries added before the recorded last one while the recorded history survived', async () => {
+    const { projectRoot } = await setupInterleavedWorkingTree();
+    expect(await looksLikeInterleavedMerge(projectRoot, GIT_LOG, INTERLEAVED, expectedBaselineFromContent(SIDE_A))).toBe(true);
+  });
+
+  it('does not take an edited historical entry for a merge', async () => {
+    const { projectRoot } = await setupInterleavedWorkingTree();
+    const edited = INTERLEAVED.replace('feat1 first.', 'feat1 first, rewritten.');
+    expect(await looksLikeInterleavedMerge(projectRoot, GIT_LOG, edited, expectedBaselineFromContent(SIDE_A))).toBe(false);
+  });
+
+  it('is false outside a git repository', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'yg-merge-nogit-'));
+    dirs.push(dir);
+    expect(await looksLikeInterleavedMerge(dir, GIT_LOG, INTERLEAVED, expectedBaselineFromContent(SIDE_A))).toBe(false);
   });
 });

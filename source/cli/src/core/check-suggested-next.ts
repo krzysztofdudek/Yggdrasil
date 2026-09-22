@@ -139,7 +139,14 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   const logConflict = errors.find(i => i.code === 'log-conflict');
   if (logConflict) return logConflict.messageData.next;
 
-  // 5b. log integrity / format.
+  // 5b. log integrity / format. A log whose recorded history survived and only
+  //     gained whole entries before its last one is an interleaving merge, not a
+  //     tampered log: its own next reconciles it, where a restore from git would
+  //     throw the other branch's entries away.
+  const interleavedMerge = errors.find(
+    i => i.code === 'log-integrity' && i.messageData.next.startsWith('yg log merge-resolve'),
+  );
+  if (interleavedMerge) return interleavedMerge.messageData.next;
   const logIntegrity = errors.find(i => i.code === 'log-integrity');
   if (logIntegrity) {
     // Normalize the node path for the printed command (posix-paths-output): the structured
