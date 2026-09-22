@@ -185,7 +185,7 @@ Delete `.yggdrasil/` and the rules file. No runtime dependencies, no build hooks
 
 Yggdrasil itself needs only Node.js 22+ — see [Five minutes to your first enforced rule](#five-minutes-to-your-first-enforced-rule) above. It has no dependency on the rest of the family.
 
-The family has exactly two dependency edges, both onto Yggdrasil. **Horde requires it** — the same 6.x line as the Horde release you install; an older Yggdrasil is refused, not read around. **Grain uses it optionally** — Grain runs standalone, and when Yggdrasil is present it accepts a proposed graph from Grain with one command. The recommended install is the whole family together, but nothing above forces it: each layer runs without the ones above it.
+The family has exactly two dependency edges, both onto Yggdrasil. **Horde requires it** — 6.0.0 or newer; an older Yggdrasil is refused, not read around. **Grain uses it optionally** — Grain runs standalone, and when Yggdrasil is present it accepts a proposed graph from Grain with one command. The recommended install is the whole family together, but nothing above forces it: each layer runs without the ones above it.
 
 ## The Yggdrasil family
 
