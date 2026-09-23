@@ -180,4 +180,11 @@ export interface CheckResult {
    * common rather than exotic.
    */
   coverageRequiresNothing?: boolean;
+  /**
+   * True when the structural attention index was NOT written because git does
+   * not ignore `.yggdrasil/.feature-field.json` here. A check never edits the
+   * tracked .gitignore to make room for it; the caller prints a notice naming
+   * `yg init --upgrade`, which adds the line.
+   */
+  featureIndexNotIgnored?: boolean;
 }

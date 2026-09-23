@@ -354,6 +354,7 @@ yg-secrets.yaml               # provider API keys
 .family-candidates.*.json     # family-candidate analysis, one file per producer
 .yg-packages-versions.json    # what each installed package's source was last seen to publish
 *.tmp                         # an atomic write's half-finished temp file, orphaned by a hard kill
+.yg-*.lock                     # the run-exclusion lock files held while an approval or a log write runs
 \`\`\`
 
 It is written idempotently on fresh \`yg init\` AND on every \`yg init --upgrade\`

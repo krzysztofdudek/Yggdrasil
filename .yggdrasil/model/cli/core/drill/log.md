@@ -18,3 +18,7 @@ Planning how a case enters a corpus from real history now lives beside the runne
 A drill now hands a rule each case file under the path it has inside its case directory, for a script rule and a judgment rule alike, while the bytes are still read from the corpus. Before, a script rule saw the corpus location of the file, so a rule anchored on a path prefix could never see its prefix in a drill: its own escape came back as a miss and the only way to drill it was a workaround inside the rule that recognised the corpus layout. Seeing the case path makes a drill measure a rule under the path it meets in a real scan, which is the point of a drill. The case hash still covers content only, so earlier drill results stay comparable.
 ## [2026-09-23T20:24:42.253Z]
 Counting the committed refusal cases of a rule reuses the read-only corpus discovery that drills already use, so advise and the health view see the same corpus a drill run would.
+## [2026-09-23T20:49:57.340Z]
+The shape of a wired drill run moved beside the runner's other contract types, so both drill commands can name it without importing each other.
+## [2026-09-23T22:37:56.178Z]
+The graph-governance work met the release work already merged in this component: the wired drill run shape lives beside the runner's contract types so the drill commands stop importing each other, and the read-only corpus discovery that counts committed refusal cases is unchanged.

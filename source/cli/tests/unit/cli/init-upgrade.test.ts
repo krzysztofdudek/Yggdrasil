@@ -10,7 +10,7 @@ const ADVISE_LINE = '/.yggdrasil/advise-decisions.jsonl merge=union';
 const IMPORTED_LINE = '/.yggdrasil/advise-imported.jsonl merge=union';
 const EVENTS_LINE = '/.yggdrasil/yg-events.llm.jsonl merge=union';
 const LOG_EOL_LINE = '/.yggdrasil/**/log.md text eol=lf';
-const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '.family-candidates.json', '.family-candidates.*.json', '.yg-packages-versions.json', '*.tmp'];
+const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '.family-candidates.json', '.family-candidates.*.json', '.yg-packages-versions.json', '*.tmp', '.yg-*.lock'];
 
 async function scaffoldExistingYgg(projectRoot: string, version: string): Promise<string> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');

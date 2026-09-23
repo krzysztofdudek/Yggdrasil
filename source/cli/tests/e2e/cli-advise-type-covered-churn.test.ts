@@ -100,7 +100,7 @@ function makeFixture(label: string, opts: { typeLevel: boolean; excluded?: strin
   w(
     dir,
     '.yggdrasil/yg-config.yaml',
-    `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n${coverageBlock}`,
+    `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n${coverageBlock}`,
   );
   // `yg advise` never runs a reviewer, so content is immaterial — it only needs
   // to be effective, non-draft, and file-scoped so a type-covered file (no
@@ -255,7 +255,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       w(
         withoutType,
         '.yggdrasil/yg-config.yaml',
-        'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n',
+        'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n',
       );
 
       for (const dir of [withType, withoutType]) {
@@ -320,7 +320,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       w(
         dir,
         '.yggdrasil/yg-config.yaml',
-        `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\ncoverage:\n  type_level: true\n`,
+        `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\ncoverage:\n  type_level: true\n`,
       );
       // The rule is narrowed to busy.ts only via scope.files — partner.ts still
       // matches the type (so it satisfies coverage), but this rule's own scope

@@ -10,5 +10,9 @@ The fill options gain one more CLI-resolved value alongside the existing tracked
 The fill's public options now carry the command the run was invoked as. Retry lines used to hard-code a plain approve, which silently widened a free deterministic-only run or a cost preview into a paid full run — or into one certain to stop — whenever someone followed the advice literally.
 ## [2026-09-23T20:24:48.589Z]
 With a per-check budget every deterministic check runs on a worker thread, even for a fill too small to parallelize, because only a check off the main thread can be stopped and only then can the progress heartbeat keep naming the check still running.
+## [2026-09-23T20:50:06.719Z]
+The fill options now require the output sink, TTY state and clock, and the result can carry the dry-run cost preview as numbers, so no caller relies on the engine reading ambient process state and no consumer has to parse the preview sentence.
 ## [2026-09-23T22:12:16.044Z]
 The environment-robustness fixes and the release work already merged met in this component: the fill options now carry a per-check wall-clock budget injected by the CLI layer, next to the options the release added before. The merged source carries both behaviours.
+## [2026-09-23T22:37:59.114Z]
+The lock work met the release work already merged in this component: the fill options require the writer, TTY state and clock and the result carries the dry-run budget as numbers, next to the retry command and the per-check wall-clock budget the earlier work added.

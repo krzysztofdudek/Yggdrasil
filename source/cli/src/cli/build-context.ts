@@ -28,7 +28,7 @@ import { FAMILY_SEP } from '../core/feature-field-schema.js';
 import { getLanguageDisplayName } from '../utils/language-registry.js';
 import { walkRepoFiles, resolveGraphExclusionSet, isExcludedFromGraph, isCoverageExcludedPath, NO_COVERAGE_EXCLUDED, describeExclusionSource, describeExclusionCause } from '../io/repo-scanner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
-import { computeExpectedPairs, computeSourceFingerprint, FileUnreadableError } from '../core/pairs.js';
+import { computeExpectedPairs } from '../core/pairs.js';
 import type { TypeCoverageInput } from '../core/pairs.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached, classifySingleFileCached } from '../core/type-coverage.js';
@@ -38,7 +38,7 @@ import type { TypeVisibilityReport } from '../core/type-visibility.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyPairs } from '../core/verify-lock.js';
-import { readLogContent, hasFreshLogEntry } from '../core/log/log-gate.js';
+import { computeLogGateState } from '../core/log/log-gate.js';
 import type { NodeContextData, NodeAspectSubjects, NodeLogState } from '../formatters/context-node.js';
 import type { Graph } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
@@ -337,36 +337,18 @@ async function attachLockObservability(
   }
   if (Object.keys(subjects).length > 0) data.aspectSubjects = subjects;
 
-  // ── Log-gate state (read-only mirror of fill.ts §9 logic, without the gate) ──
+  // ── Log-gate state (read-only, spec §9) ──
   // A garbled lock throws LockInvalidError, which propagates to the command's
   // handler (fail closed) — context cannot honestly report gate state over an
   // unreadable lock.
   const lock = readLock(graph.rootPath);
-  const archType = graph.architecture.node_types[data.type];
-  const logRequiredType = archType?.log_required ?? false;
-  let required = false;
-  let freshPresent = false;
-  if (logRequiredType) {
-    let currentFingerprint: string | undefined;
-    try {
-      currentFingerprint = await computeSourceFingerprint(graph, nodePath);
-    } catch (e) {
-      // An unreadable mapped file makes the fingerprint uncomputable; gate state
-      // cannot be honestly computed. Leave it false — the file-unreadable error
-      // surfaces in yg check, which is where the user acts on it.
-      if (!(e instanceof FileUnreadableError)) throw e;
-      debugWrite(`[build-context] source fingerprint for ${nodePath}: ${e.message}`);
-    }
-    // Mapping-less nodes have an undefined fingerprint — the gate never fires.
-    if (currentFingerprint !== undefined) {
-      const storedFingerprint = lock.nodes[nodePath]?.source;
-      required = currentFingerprint !== storedFingerprint;
-    }
-    const projectRoot = projectRootFromGraph(graph.rootPath);
-    const logContent = await readLogContent(projectRoot, nodePath);
-    freshPresent = hasFreshLogEntry(logContent, lock.nodes[nodePath]?.log);
-  }
-  const logState: NodeLogState = { required, freshPresent };
+  // The one gate computation `yg check` and the fill stage use — never a local
+  // re-derivation, so context cannot report "no entry owed" while check blocks.
+  const node = graph.nodes.get(nodePath);
+  const gate = node
+    ? await computeLogGateState(graph, projectRootFromGraph(graph.rootPath), node, lock)
+    : { required: false, freshPresent: false, logHasEntries: false };
+  const logState: NodeLogState = { required: gate.required, freshPresent: gate.freshPresent };
   data.logState = logState;
 }
 

@@ -36,3 +36,7 @@ The warning on an explicitly declared default port is gone. Declaring default is
 With no node types declared, which is what a fresh init writes, every node's type string was accepted silently. That taught adopters that types are free-form labels, and the first type anyone added then turned every such node into a blocking error at once. The type checks stay held back on an empty architecture, but each node now gets a non-blocking warning naming its undeclared type and what declaring the first type will require.
 ## [2026-09-23T19:41:25.483Z]
 The helper that says whether any graph file failed to load lives with the shared check utilities, so every check that reasons from the absence of a reference can withhold itself on the same condition instead of re-deriving it.
+## [2026-09-23T20:49:48.473Z]
+The reserved default port name is now imported from the one constant the model declares instead of being repeated as a private literal, so renaming the reserved port can no longer leave silent copies behind; the dependency on the model module is declared in the graph rather than hidden.
+## [2026-09-23T22:37:54.855Z]
+The graph-governance work met the release work already merged in this component: the reserved default port name comes from the one model constant, while the shared helper that withholds absence-based findings on an incompletely loaded graph stays in use. The two changes are independent and both survive.

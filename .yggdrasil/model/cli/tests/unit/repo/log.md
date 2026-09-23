@@ -1,0 +1,2 @@
+## [2026-09-23T20:09:58.726Z]
+Several of the graph's self-governance claims could drift without any rule noticing: which rule scripts the rule-script node owns, whether two architecture types classify the same file, whether descriptions still name a removed command, and whether an enforced rule still calls itself advisory. None of these is expressible as a rule over the graph's own files, so they are held here as repository invariants, together with unit tests for the two node-level rules a single-file drill cannot exercise because they need graph context.

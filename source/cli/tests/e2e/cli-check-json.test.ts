@@ -215,6 +215,30 @@ describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
     }
   });
 
+  it('7: --approve --dry-run --json carries the cost preview as numbers, matching the text header', () => {
+    const dir = copyFixture('dryrun-budget');
+    try {
+      const preview = run(['check', '--approve', '--dry-run', '--json'], dir);
+      expect(preview.status).toBe(0);
+      const doc = JSON.parse(preview.stdout) as CheckDoc & {
+        dryRunBudget?: { pairs: number; nodes: number; files: number; deterministic: number; reviewerCalls: number };
+      };
+      expect(doc.schema).toBe('yg-check/1');
+      expect(doc.dryRunBudget).toBeDefined();
+      const b = doc.dryRunBudget!;
+      // The human header still goes to stderr, and it states the same numbers.
+      expect(preview.stderr).toContain(
+        `Filling ${b.pairs} unverified pairs across ${b.nodes} nodes — ${b.deterministic} deterministic (no cost), ${b.reviewerCalls} reviewer calls`,
+      );
+      expect(b.pairs).toBeGreaterThan(0);
+      // A document from a run that previewed nothing carries no budget.
+      const plain = JSON.parse(run(['check', '--json'], dir).stdout) as Record<string, unknown>;
+      expect(plain.dryRunBudget).toBeUndefined();
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('6: the four text-view selectors are refused with --json, each saying why', () => {
     const dir = copyFixture('views');
     try {

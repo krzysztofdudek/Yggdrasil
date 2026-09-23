@@ -151,6 +151,11 @@ export interface CheckJsonDocument {
   progressive: CheckJsonProgressive | null;
   /** The one concrete step the run points at, or null when there is nothing to do. */
   suggestedNext: string | null;
+  /**
+   * Present only on `yg check --approve --dry-run --json`: what the fill would
+   * cost, as numbers — the same counts the human budget header on stderr states.
+   */
+  dryRunBudget?: { pairs: number; nodes: number; files: number; deterministic: number; reviewerCalls: number };
 }
 
 /** Render one check document as pretty-printed JSON with a trailing newline. */

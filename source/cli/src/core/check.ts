@@ -165,7 +165,8 @@ export interface RunCheckOptions {
   nowUtc?: () => Date;
   /** Write the silent feature-field deviation index after issues are computed (default false). */
   writeFeatureIndex?: boolean;
-  /** INJECTED clock for the index's `generatedAt`; defaults to `() => new Date()` when writing. */
+  /** INJECTED clock for the index's `generatedAt`. Required for the index to be written: the
+   *  engine reads no ambient clock, so without one the index is skipped. */
   now?: () => Date;
   /** INJECTED rules-artifacts snapshot for the committed-digest staleness gate. Absent ⇒ skipped. */
   rulesArtifacts?: RulesArtifacts;
@@ -504,14 +505,16 @@ export async function runCheck(
   // keeps attention off gitignored scratch or a nested-worktree copy that falls under a mapped
   // ancestor directory. With no file list available (coverageVisibleFiles === null) NO index is
   // written — honest scoping.
-  if (options?.writeFeatureIndex && featureFactsByPath && featureHashByPath && coverageVisibleFiles !== null) {
+  let featureIndexNotIgnored = false;
+  if (options?.writeFeatureIndex && options.now && featureFactsByPath && featureHashByPath && coverageVisibleFiles !== null) {
     const includedPaths = new Set(
       excludeNestedGraphSubtrees(coverageVisibleFiles).map((f) => toPosixPath(f.trim())),
     );
-    await writeFeatureIndex(graph, featureFactsByPath, featureHashByPath, includedPaths, {
-      now: options.now ?? (() => new Date()),
+    const written = await writeFeatureIndex(graph, featureFactsByPath, featureHashByPath, includedPaths, {
+      now: options.now,
       covered: earlyTypeCoverage?.covered,
     });
+    featureIndexNotIgnored = written.skippedNotIgnored;
   }
 
   return {
@@ -543,6 +546,7 @@ export async function runCheck(
     byteGuardUnavailable,
     baselineNoise,
     coverageRequiresNothing,
+    featureIndexNotIgnored: featureIndexNotIgnored || undefined,
   };
 }
 

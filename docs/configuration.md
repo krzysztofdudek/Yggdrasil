@@ -17,7 +17,7 @@ refreshes the agent-rules files.
 
 ### Required
 
-- **version** — Schema version managed by the CLI. Do not edit manually. Run `yg init --upgrade` to upgrade.
+- **version** — Schema version managed by the CLI, as a quoted three-part string (`version: "6.0.0"`). Do not edit manually. Run `yg init --upgrade` to upgrade. A missing field, or an unquoted `version: 5.1` (which YAML reads as a number), stops every command that loads the graph with an error saying so.
 
 ### Conditionally required
 
@@ -40,19 +40,18 @@ Those eleven are the whole of it — `version`, `reviewer`, `coverage`, `quality
 `parallel`, `debug`, `auto_approve`, `signals`, `events`, `progressive`,
 `rules_artifacts`.
 
-::: warning A typo at the top level is silent
-The parser reads the eleven keys above and ignores anything else it finds at the
-top level, with no error and no warning. So `auto_aprove: full` does not enable
-auto-approval — it does nothing at all, and the check that would tell you so does
-not exist. Several nested places *are* guarded: a misspelled key directly under
-`reviewer:` or inside a tier is a hard `config-reviewer-unknown-key` /
-`config-tier-unknown-key` error, and `signals:`, `events:`, `coverage:`,
+::: tip A typo at the top level is an error
+Any other top-level key — in `yg-config.yaml` or in the `yg-secrets.yaml`
+overlay — is a `config-unknown-key` error that names the file and, when the key
+is close to a real one, the key you probably meant (`auto_aprove` → did you mean
+`auto_approve`?). The nested places are guarded the same way: a misspelled key
+directly under `reviewer:` or inside a tier is a hard `config-reviewer-unknown-key`
+/ `config-tier-unknown-key` error, and `signals:`, `events:`, `coverage:`,
 `progressive:` and `rules_artifacts:` all reject unknown keys too
 (`rules_artifacts` also refuses a non-boolean value, and refuses `claude_md: true`
 alongside `agents_md: false` — `config-rules-artifacts-unknown-key` /
-`config-rules-artifacts-orphan-import`). Copy the names from this page rather
-than typing them from memory, and confirm a setting took effect by watching the
-behaviour change.
+`config-rules-artifacts-orphan-import`). Unknown keys under a tier's `config:`
+remain the one exception (see below).
 :::
 
 Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),
@@ -423,6 +422,7 @@ separately.
 | `.family-candidates.json` | Family-candidate analysis in the shared file earlier releases wrote; rebuilt by rerunning the producer. |
 | `.family-candidates.*.json` | Family-candidate analysis, one file per producer (`.family-candidates.<producer>.json`); freshness-gated when read and rebuilt by rerunning the producer. |
 | `.yg-packages-versions.json` | What each installed package's source was last seen to publish — a local cache the `yg pack` commands write while they are already talking to a source. |
+| `.yg-*.lock` | The run-exclusion lock files — `.yg-approve.lock`, held for the length of `yg check --approve`, and `.yg-log.lock`, held for the moment a log entry is written (see [Running in parallel](/concurrency)). They exist only while a command runs; `yg init --upgrade` adds this line to an older graph's `.gitignore`. |
 | `*.tmp` | An atomic write's half-finished temp file, orphaned by a hard kill. `yg check` sweeps stale ones on startup; this keeps one from showing up as untracked noise before that. |
 
 Every one of them is rebuildable, so a fresh clone missing all of them is a normal

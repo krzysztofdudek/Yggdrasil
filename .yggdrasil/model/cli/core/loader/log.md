@@ -86,9 +86,13 @@ A missing model directory now loads as an empty graph instead of failing as if t
 The loader gains a throwing variant that diagnoses every failure an adopter can fix into a what, why and next. Long-lived callers such as the portal server need to survive a graph that briefly stops loading; only the command-line wrapper prints and exits.
 ## [2026-09-23T20:30:58.655Z]
 A rule of the repository's own placed under the reserved packages area is now reported by name as reserved rather than silently skipped, because the only other symptom was an undefined-rule error wherever it was attached, with no hint why.
+## [2026-09-23T20:50:10.009Z]
+The schema-version gate fails closed on a missing version and on a version that is not a string. An unquoted number or a deleted line used to skip every gate and load the graph as the current schema; the version is now read through the one shared reader.
 ## [2026-09-23T21:24:57.292Z]
 Two independent release fixes met in this component at merge: the gate-clarity work and the documentation-consistency work. The merged source carries both behaviours unchanged; this entry records that the combination is what the verdicts now answer for.
 ## [2026-09-23T21:31:04.166Z]
 The package-system fixes and the already merged gate-clarity and documentation-consistency fixes met in this component at merge. The merged source carries both sets of behaviour unchanged; this entry records that the combination is what the verdicts now answer for.
 ## [2026-09-23T22:12:16.602Z]
 The environment-robustness fixes and the release work already merged met in this component. Every failure an adopter can fix is now classified here and thrown as a GraphLoadError, so the long-lived portal server fails one request instead of exiting; the release's earlier rule that an absent model directory is an empty graph came with it, so no generic 'does not exist' error is diagnosed as an uninitialized graph any more. The merged source carries both behaviours.
+## [2026-09-23T22:38:00.431Z]
+The graph-governance work met the release work already merged in this component. The missing-version and non-string-version refusals are now classified by the loader's own diagnosis, so the throwing loader used by the portal and the exiting wrapper used by commands give the same message, and upgrade reuses that text; a missing model directory still loads as an empty graph.

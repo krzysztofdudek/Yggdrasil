@@ -14,3 +14,5 @@ The absorbed-implies-cycle why sentence moved into a shared, exported helper (de
 Reworded a trailing comment about why port-consumption matching can never succeed for a type-covered file's transient view, dropping a short internal code with no meaning to a reader of this repository.
 ## [2026-09-09T19:51:13.490Z]
 A derived relation synthesized for a type-covered file's cascade now carries the implicit default port explicitly, since the model's relation shape no longer allows an absent port list.
+## [2026-09-23T20:50:22.572Z]
+The reserved default port name is now imported from the one constant the model declares instead of being repeated as a private literal, so renaming the reserved port can no longer leave silent copies behind; the dependency on the model module is declared in the graph rather than hidden.

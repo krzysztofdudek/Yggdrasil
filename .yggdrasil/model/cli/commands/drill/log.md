@@ -10,3 +10,7 @@ Taking a file from history into a rule corpus now keeps the path the file had in
 An LLM drill refused to run against an unavailable reviewer with a generic endpoint-and-credentials sentence. It now names the provider own cause and the debug switch, so a drill failing for a missing binary or key reads the same way as the fill that would fail for the same reason.
 ## [2026-09-23T20:30:51.940Z]
 The drill command passes the rule's settled configuration, the package defaults with the consumer's adaptation over them, to the runner so a rule that reads its settings is drilled exactly as it runs in the gate. Adding a case to a rule installed from a package is refused, because the case would land inside the package's copy, which the copy rail refuses and the next update deletes.
+## [2026-09-23T20:49:22.312Z]
+The drill command and its add subcommand imported each other. The add command now receives the shared run wiring as a parameter, so the dependency runs one way and the pair no longer forms an import cycle.
+## [2026-09-23T22:37:51.858Z]
+The graph-governance work met the release work already merged in this command: the add subcommand receives the shared run wiring as a parameter so the two drill commands no longer import each other, while drills keep handing a rule its settled configuration and naming a reviewer's own failure cause.

@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -54,8 +55,8 @@ function approveArgs(llm: boolean): string[] {
 /** The literal argument vector for the dry-run cost preview (never writes). */
 function dryRunArgs(llm: boolean): string[] {
   return llm
-    ? ['check', '--approve', '--dry-run']
-    : ['check', '--approve', '--only-deterministic', '--dry-run'];
+    ? ['check', '--approve', '--dry-run', '--json']
+    : ['check', '--approve', '--only-deterministic', '--dry-run', '--json'];
 }
 
 /** Spawn the CLI binary in `cwd` with `args`, capturing stdout/stderr and the exit code. */
@@ -72,11 +73,52 @@ function spawnCli(args: string[], cwd: string): Promise<ApproveResult> {
 }
 
 /**
+ * The approval lock file the CLI holds for the length of `yg check --approve`. Spelled
+ * here rather than imported: the server declares no relation to the engine's stores (a
+ * test pins this spelling to the store's own constant).
+ */
+export const APPROVE_LOCK_PATH = path.join('.yggdrasil', '.yg-approve.lock');
+
+/** Approvals this server has spawned and not yet seen finish, per project root. */
+const approvesInFlight = new Set<string>();
+
+/**
+ * Whether an approval is running in `projectRoot` right now: one this server spawned, or
+ * one started anywhere else (a terminal, an agent) that holds the CLI's approval lock.
+ * A lock whose holder process is gone on this machine does not count — the CLI replaces
+ * such a lock itself. This is the early answer for the button; the spawned CLI's own
+ * lock remains the guard that cannot race.
+ */
+export function approveInProgress(projectRoot: string): boolean {
+  if (approvesInFlight.has(projectRoot)) return true;
+  let holder: { pid?: unknown; host?: unknown };
+  try {
+    holder = JSON.parse(readFileSync(path.join(projectRoot, APPROVE_LOCK_PATH), 'utf-8')) as { pid?: unknown; host?: unknown };
+  } catch {
+    return false;
+  }
+  if (typeof holder.pid !== 'number' || holder.host !== hostname()) return true;
+  try {
+    process.kill(holder.pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
  * Run the ONE write — shell `yg check --approve` (with `--only-deterministic` when `llm`
  * is false) in `projectRoot`. The spawned CLI fills the unverified pairs and owns secrets.
+ * The caller checks {@link approveInProgress} first; this marks the run in flight until the
+ * child exits, so a second click while it runs is refused rather than queued.
  */
 export async function runApproveViaCli(projectRoot: string, llm: boolean): Promise<ApproveResult> {
-  return spawnCli(approveArgs(llm), projectRoot);
+  approvesInFlight.add(projectRoot);
+  try {
+    return await spawnCli(approveArgs(llm), projectRoot);
+  } finally {
+    approvesInFlight.delete(projectRoot);
+  }
 }
 
 /** The dry-run cost preview, parsed from the CLI's own budget output. */
@@ -91,28 +133,37 @@ export interface DryRunPreview {
   raw: string;
 }
 
-// The CLI's dry-run header (fill.ts step 3):
-//   "Filling N unverified pairs across M nodes — D deterministic (no cost), R reviewer calls (consensus included)"
-const BUDGET_RE =
-  /Filling\s+(\d+)\s+unverified pairs across\s+\d+\s+nodes\s+—\s+(\d+)\s+deterministic\s+\(no cost\),\s+(\d+)\s+reviewer calls/;
-
 /**
- * Parse the CLI's dry-run budget header out of its combined stdout/stderr into the typed
- * preview. Pure (no I/O) so it is directly unit-testable on captured CLI output; throws when
- * the header is absent (a dry-run always emits it — its absence means no preview ran).
+ * Read the cost preview out of the CLI's `yg-check/1` document (stdout of
+ * `--dry-run --json`), which carries it as numbers in `dryRunBudget`. The human
+ * header the CLI prints on stderr is never parsed for numbers — its wording is free
+ * to change — and is only carried verbatim as `raw` for display when present.
+ * Pure (no I/O); throws when the document is unreadable or carries no budget (a
+ * dry-run always carries one — its absence means no preview ran).
  */
-export function parseDryRunBudget(output: string): DryRunPreview {
-  const m = output.match(BUDGET_RE);
-  if (!m) {
+export function parseDryRunBudget(stdout: string, stderr: string): DryRunPreview {
+  let budget: { pairs?: unknown; deterministic?: unknown; reviewerCalls?: unknown } | undefined;
+  try {
+    budget = (JSON.parse(stdout) as { dryRunBudget?: typeof budget }).dryRunBudget;
+  } catch {
+    budget = undefined;
+  }
+  if (
+    budget === undefined ||
+    typeof budget.pairs !== 'number' ||
+    typeof budget.deterministic !== 'number' ||
+    typeof budget.reviewerCalls !== 'number'
+  ) {
     throw new Error(
-      `Could not parse the dry-run cost preview from the CLI output. Raw output:\n${output.trim()}`,
+      `Could not read the dry-run cost preview from the CLI's JSON document. Raw output:\n${`${stdout}\n${stderr}`.trim()}`,
     );
   }
+  const headerLine = stderr.split('\n').find((l) => l.startsWith('Filling '));
   return {
-    pairs: Number.parseInt(m[1], 10),
-    deterministic: Number.parseInt(m[2], 10),
-    reviewerCalls: Number.parseInt(m[3], 10),
-    raw: m[0],
+    pairs: budget.pairs,
+    deterministic: budget.deterministic,
+    reviewerCalls: budget.reviewerCalls,
+    raw: headerLine?.trim() ?? `${budget.pairs} pairs — ${budget.deterministic} deterministic (no cost), ${budget.reviewerCalls} reviewer calls`,
   };
 }
 
@@ -123,5 +174,5 @@ export function parseDryRunBudget(output: string): DryRunPreview {
  */
 export async function dryRunApproveViaCli(projectRoot: string, llm: boolean): Promise<DryRunPreview> {
   const result = await spawnCli(dryRunArgs(llm), projectRoot);
-  return parseDryRunBudget(`${result.stdout}\n${result.stderr}`);
+  return parseDryRunBudget(result.stdout, result.stderr);
 }

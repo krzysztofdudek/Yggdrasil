@@ -63,7 +63,7 @@ async function buildProject(checkBody: string = PER_FILE_CHECK): Promise<string>
   const ygg = path.join(root, '.yggdrasil');
   await mkdir(path.join(ygg, 'model', 'svc'), { recursive: true });
   await mkdir(path.join(root, 'src'), { recursive: true });
-  await writeFile(path.join(ygg, 'yg-config.yaml'), 'version: 5\n');
+  await writeFile(path.join(ygg, 'yg-config.yaml'), 'version: "6.0.0"\n');
   await writeFile(
     path.join(ygg, 'yg-architecture.yaml'),
     'node_types:\n  service:\n    description: s\n',
@@ -95,14 +95,14 @@ describe('deterministic fill parity: sequential vs worker pool', () => {
 
     const graphSeq = await loadGraph(rootSeq);
     const sinkSeq = makeSink();
-    const resSeq = await runFill(graphSeq, {
+    const resSeq = await runFill(graphSeq, { isTTY: false, now: Date.now,
       coverageVisibleFiles: null, onlyDeterministic: true, detConcurrency: 1,
       write: () => {}, emitIssue: sinkSeq.emit,
     });
 
     const graphPar = await loadGraph(rootPar);
     const sinkPar = makeSink();
-    const resPar = await runFill(graphPar, {
+    const resPar = await runFill(graphPar, { isTTY: false, now: Date.now,
       coverageVisibleFiles: null, onlyDeterministic: true, detConcurrency: 4,
       write: () => {}, emitIssue: sinkPar.emit,
     });
@@ -135,14 +135,14 @@ describe('deterministic fill parity: sequential vs worker pool', () => {
 
     const graphSeq = await loadGraph(rootSeq);
     const sinkSeq = makeSink();
-    const resSeq = await runFill(graphSeq, {
+    const resSeq = await runFill(graphSeq, { isTTY: false, now: Date.now,
       coverageVisibleFiles: null, onlyDeterministic: true, detConcurrency: 1,
       write: () => {}, emitIssue: sinkSeq.emit,
     });
 
     const graphPar = await loadGraph(rootPar);
     const sinkPar = makeSink();
-    const resPar = await runFill(graphPar, {
+    const resPar = await runFill(graphPar, { isTTY: false, now: Date.now,
       coverageVisibleFiles: null, onlyDeterministic: true, detConcurrency: 4,
       write: () => {}, emitIssue: sinkPar.emit,
     });

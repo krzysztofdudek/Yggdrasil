@@ -6,7 +6,7 @@ import path from 'node:path';
 import * as p from '@clack/prompts';
 import { DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRules, DEPRECATED_PLATFORMS, type InstallReport } from '../templates/platform.js';
-import { loadGraph, CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
+import { loadGraph, CLI_SUPPORTED_SCHEMA, schemaVersionFieldIssue } from '../core/graph-loader.js';
 import { blockingUnmappedPaths } from '../core/check-coverage-tiers.js';
 import { DEFAULT_COVERAGE, readRulesArtifactsConfig } from '../io/config-parser.js';
 import type { RulesArtifactsConfig } from '../model/graph.js';
@@ -14,7 +14,7 @@ import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check-codes.js';
 import { cliVersion } from './cli-version.js';
 import type { ReviewerProvider } from '../model/graph.js';
-import { detectVersion } from '../core/migrator.js';
+import { detectVersion, readSchemaVersion } from '../core/migrator.js';
 import { runVersionUpgrade as coreRunVersionUpgrade } from '../core/migrator-runner.js';
 import { abortOnUnexpectedError, abortUnlessYggdrasilExists } from './preamble.js';
 import { MIGRATIONS } from '../migrations/index.js';
@@ -831,12 +831,20 @@ export function registerInitCommand(program: Command): void {
           // branch or the missing-graph string here (cli-command-contract).
           await abortUnlessYggdrasilExists(yggRoot);
 
-          const currentVersion = await detectVersion(yggRoot);
-          if (currentVersion === null) {
+          // The same one reader the graph loader uses: an absent field and a
+          // non-string one (an unquoted `version: 5.1`) are refused with the
+          // same message `yg check` gives, so the two commands never disagree
+          // about whether the graph has a version.
+          const versionRead = await readSchemaVersion(yggRoot);
+          if (versionRead?.kind === 'absent' || versionRead?.kind === 'not-string') {
+            process.stderr.write(chalk.red(`Error: ${buildIssueMessage(schemaVersionFieldIssue(versionRead))}\n`));
+            process.exit(1);
+          }
+          if (versionRead === null) {
             process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
-              what: 'No graph version detected.',
-              why: ".yggdrasil/yg-config.yaml is missing a 'version:' field, so --upgrade cannot determine which migrations to run.",
-              next: "Run 'yg init' interactively once to record the current version, then retry 'yg init --upgrade'.",
+              what: '.yggdrasil/yg-config.yaml could not be read as a YAML mapping.',
+              why: '--upgrade reads the version field to choose which migrations to run; a missing, unreadable, or unparseable config file has no version to read.',
+              next: 'Restore .yggdrasil/yg-config.yaml from version control, then retry yg init --upgrade.',
             })}\n`));
             process.exit(1);
           }

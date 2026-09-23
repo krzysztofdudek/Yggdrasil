@@ -79,7 +79,7 @@ describe('convergence sentinel — corpus ship gate (zero fires)', () => {
         }
 
         try {
-          await runFill(graph, {
+          await runFill(graph, { write: (s: string) => { process.stdout.write(s); }, isTTY: false, now: Date.now,
             coverageVisibleFiles: null,
             onlyDeterministic: true,
             // Record every fire AND exercise the real io writer, so a fire would

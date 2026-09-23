@@ -1,0 +1,2 @@
+## [2026-09-23T20:09:49.031Z]
+The GitHub Actions pin rule was attached to the whole ci-config type, so it also ran on the TypeScript and JSON tooling configs the type classifies, where a scan of workflow YAML can never refuse; those pairs only inflated the verified count. It now attaches to this node, the one that maps the workflows. The same change removed the eslint, vitest and tsup configs from the repo-config type's predicate: ci-config already classifies them, and the overlap silently disabled the misfiling detection a comment promised.

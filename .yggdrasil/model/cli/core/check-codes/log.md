@@ -88,3 +88,7 @@ when-unmatched-port is a new diagnostic code for a has_port reference to a port 
 The comment that listed the reserved default port warning as the one non-blocking port-contract code no longer holds, because that warning was removed; the comment now describes only the blocking port-contract codes that live in this set.
 ## [2026-09-23T19:41:22.454Z]
 One unverified label covered pairs that were stale, never judged, missing only from a fresh checkout's free local cache, left without a reviewer, or failed on infrastructure, and every one of them was told to run the same fill. The cause is now a first-class fact with one shared ordering, so the report groups, the machine document and the suggested next step all agree on which fix applies and in what order.
+## [2026-09-23T20:49:45.277Z]
+Adds the notice printed when the attention index was skipped because git does not ignore it, shared as one text so every surface says the same thing.
+## [2026-09-23T22:37:54.261Z]
+The graph-governance work met the release work already merged in this component: the shared unverified-cause type and its action order sit beside the new notice for an attention index skipped because git does not ignore it. Both are independent vocabulary and both are kept.

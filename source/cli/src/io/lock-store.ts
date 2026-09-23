@@ -1,4 +1,4 @@
-import { readFileSync, unlinkSync, existsSync } from 'node:fs';
+import { readFileSync, unlinkSync, existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import path from 'node:path';
 import type { IssueMessage } from '../model/validation.js';
@@ -10,8 +10,9 @@ import {
   LOCK_LOGS_FILE_NAME,
   LOCK_DET_FILE_NAME,
 } from '../model/lock.js';
-import { atomicWriteFile } from '../io/atomic-write.js';
+import { atomicWriteFile, atomicWriteFileSync, onProcessInterrupt, tryAcquireExclusiveFile } from '../io/atomic-write.js';
 import { debugWrite } from '../utils/debug-log.js';
+import { toPosixPath } from '../utils/posix.js';
 
 /**
  * A lock file is unparseable, structurally invalid, or has an unrecognized
@@ -36,6 +37,74 @@ export class LockInvalidError extends Error {
     this.name = 'LockInvalidError';
     this.messageData = messageData;
   }
+}
+
+/**
+ * The lock could not be taken or written for a reason in the ENVIRONMENT, not
+ * in the lock's content and not in the code: another approval holds it, or the
+ * file system refused the write (permissions, disk space, a file held open by
+ * another program). Carries a complete what/why/next message, rendered as is —
+ * never wrapped as an unclassified bug.
+ */
+export class LockEnvironmentError extends Error {
+  readonly code: 'approve-in-progress' | 'lock-write-failed';
+  readonly messageData: IssueMessage;
+
+  constructor(code: 'approve-in-progress' | 'lock-write-failed', messageData: IssueMessage) {
+    super(messageData.what);
+    this.name = 'LockEnvironmentError';
+    this.code = code;
+    this.messageData = messageData;
+  }
+}
+
+/**
+ * Run `flush` synchronously if the process is interrupted (SIGINT, SIGTERM)
+ * before the returned disposer is called — the hook a writer that batches its
+ * lock writes uses to put its last state on disk (with {@link writeLockSync})
+ * before the signal takes the process down.
+ */
+export function onInterruptFlushLock(flush: () => void): () => void {
+  return onProcessInterrupt(flush);
+}
+
+/** The file an approval holds while it reads, fills and writes the lock. */
+export const APPROVE_LOCK_FILE_NAME = '.yg-approve.lock';
+
+/** An approval older than this is taken to be abandoned even when its process
+ *  cannot be checked (it ran on another machine sharing the directory). */
+const APPROVE_LOCK_STALE_MS = 12 * 60 * 60 * 1000;
+
+/**
+ * Take the repository's approval lock for the whole read → fill → write cycle,
+ * or throw a {@link LockEnvironmentError} naming who holds it. Two approvals
+ * that overlap would each write their own snapshot of the lock over the
+ * other's, so the second one fails fast instead of silently losing the first
+ * one's verdicts. The lock is released by the returned function, on a normal
+ * process exit, and on SIGINT/SIGTERM; one left by a crashed run is detected
+ * (its process is gone) and replaced.
+ */
+export function acquireApproveLock(yggRoot: string, nowMs: number): () => void {
+  const filePath = path.join(yggRoot, APPROVE_LOCK_FILE_NAME);
+  const result = tryAcquireExclusiveFile(filePath, 'yg check --approve', nowMs, APPROVE_LOCK_STALE_MS);
+  if (!result.ok) {
+    const who = result.holder
+      ? `process ${result.holder.pid} on ${result.holder.host}, running '${result.holder.command}' since ${result.holder.startedAt}`
+      : 'a process that has not finished recording who it is';
+    throw new LockEnvironmentError('approve-in-progress', {
+      what: `Another approval is already running in this repository (${who}).`,
+      why: 'Two approvals running at once each write their own copy of the verdict lock over the other\'s, so the verdicts of one of them would be lost. Nothing was filled or written by this run.',
+      next: `Wait for that run to finish, then re-run: yg check --approve. If no such run exists any more, delete ${toPosixPath(path.relative(path.dirname(yggRoot), filePath))} and re-run.`,
+    });
+  }
+  const release = result.release;
+  const disposeInterrupt = onProcessInterrupt(release);
+  process.once('exit', release);
+  return () => {
+    disposeInterrupt();
+    process.removeListener('exit', release);
+    release();
+  };
 }
 
 // ── File layout (the 5.1.0 triad) ─────────────────────────────────────────────
@@ -717,18 +786,56 @@ function partitionVerdicts(
   return { det, nondet };
 }
 
+/**
+ * What this process last wrote to each lock file: a digest of the content and
+ * the size and modification time the file had right after the write. It lets a
+ * repeated write decide "unchanged" without reading the whole file back, and
+ * "changed" without comparing anything — while a file some other writer touched
+ * since (its size or time no longer match) falls back to the byte comparison.
+ */
+const lastWritten = new Map<string, { digest: string; size: number; mtimeMs: number }>();
+
+function contentDigest(content: string): string {
+  return createHash('sha256').update(content).digest('hex');
+}
+
+function statOrNull(filePath: string): { size: number; mtimeMs: number } | null {
+  try {
+    const st = statSync(filePath);
+    return { size: st.size, mtimeMs: st.mtimeMs };
+  } catch {
+    return null;
+  }
+}
+
 /** Write atomically, skipping the write when on-disk content already matches (no churn). */
 async function writeFileIfChanged(filePath: string, content: string): Promise<void> {
-  try {
-    if (readFileSync(filePath, 'utf-8') === content) return;
-  } catch {
-    // Absent or unreadable → write.
+  const digest = contentDigest(content);
+  const known = lastWritten.get(filePath);
+  const onDisk = statOrNull(filePath);
+  const untouchedSinceOurWrite = known !== undefined && onDisk !== null
+    && onDisk.size === known.size && onDisk.mtimeMs === known.mtimeMs;
+  if (untouchedSinceOurWrite) {
+    if (known.digest === digest) return;
+  } else {
+    try {
+      if (readFileSync(filePath, 'utf-8') === content) {
+        if (onDisk !== null) lastWritten.set(filePath, { digest, ...onDisk });
+        return;
+      }
+    } catch {
+      // Absent or unreadable → write.
+    }
   }
+  lastWritten.delete(filePath);
   await atomicWriteFile(filePath, content);
+  const after = statOrNull(filePath);
+  if (after !== null) lastWritten.set(filePath, { digest, ...after });
 }
 
 /** Remove a file if it exists; absent is a no-op (ENOENT swallowed). */
 function removeFileIfExists(filePath: string): void {
+  lastWritten.delete(filePath);
   try {
     unlinkSync(filePath);
   } catch (e) {
@@ -774,6 +881,13 @@ export interface WriteLockOptions {
   scope?: 'all' | 'deterministic' | 'logs';
   /** Aspect ids whose verdicts belong in the gitignored deterministic file (reviewer.type === 'deterministic'). */
   deterministicAspectIds?: Set<string>;
+  /**
+   * Narrow the write to the split files whose content the caller changed since
+   * its last write (within `scope`). Absent means every file in scope. A file
+   * left out is neither serialized nor compared — the point of passing it is
+   * that a verdict on one side of the partition costs nothing on the others.
+   */
+  partitions?: { nondet?: boolean; logs?: boolean; det?: boolean };
 }
 
 /**
@@ -800,15 +914,46 @@ export async function writeLock(yggRoot: string, lock: LockFile, opts: WriteLock
   if (!detIds) {
     throw new Error(`writeLock: deterministicAspectIds is required for scope '${scope}'`);
   }
+  const want = opts.partitions ?? { nondet: true, logs: true, det: true };
   const { det, nondet } = partitionVerdicts(lock.verdicts, detIds);
 
   if (scope === 'deterministic') {
-    await writeOrRemoveSplitFile(detLockPath(yggRoot), lock.version, det, {}, lock.aspects ?? {});
+    if (want.det) await writeOrRemoveSplitFile(detLockPath(yggRoot), lock.version, det, {}, lock.aspects ?? {});
     return;
   }
 
   // scope === 'all'
-  await writeOrRemoveSplitFile(nondetLockPath(yggRoot), lock.version, nondet, {});
-  await writeOrRemoveSplitFile(logsLockPath(yggRoot), lock.version, {}, lock.nodes);
-  await writeOrRemoveSplitFile(detLockPath(yggRoot), lock.version, det, {}, lock.aspects ?? {});
+  if (want.nondet) await writeOrRemoveSplitFile(nondetLockPath(yggRoot), lock.version, nondet, {});
+  if (want.logs) await writeOrRemoveSplitFile(logsLockPath(yggRoot), lock.version, {}, lock.nodes);
+  if (want.det) await writeOrRemoveSplitFile(detLockPath(yggRoot), lock.version, det, {}, lock.aspects ?? {});
+}
+
+/**
+ * The synchronous last-resort write of {@link writeLock}, for a signal handler
+ * that must put a batching writer's state on disk before the process ends.
+ * Writes every file in scope unconditionally (atomically, by rename); an empty
+ * section still removes its file, exactly as the asynchronous path does.
+ */
+export function writeLockSync(yggRoot: string, lock: LockFile, opts: WriteLockOptions = {}): void {
+  const scope = opts.scope ?? 'all';
+  const put = (filePath: string, verdicts: Record<string, Record<string, VerdictEntry>>, nodes: Record<string, LockNodeEntry>, aspects: Record<string, LockAspectEntry> = {}): void => {
+    if (Object.keys(verdicts).length === 0 && Object.keys(nodes).length === 0 && Object.keys(aspects).length === 0) {
+      removeFileIfExists(filePath);
+      return;
+    }
+    lastWritten.delete(filePath);
+    atomicWriteFileSync(filePath, serializeLock({ version: lock.version, verdicts, nodes, aspects }));
+  };
+  if (scope === 'logs') {
+    put(logsLockPath(yggRoot), {}, lock.nodes);
+    return;
+  }
+  const detIds = opts.deterministicAspectIds;
+  if (!detIds) throw new Error(`writeLockSync: deterministicAspectIds is required for scope '${scope}'`);
+  const { det, nondet } = partitionVerdicts(lock.verdicts, detIds);
+  if (scope === 'all') {
+    put(nondetLockPath(yggRoot), nondet, {});
+    put(logsLockPath(yggRoot), {}, lock.nodes);
+  }
+  put(detLockPath(yggRoot), det, {}, lock.aspects ?? {});
 }

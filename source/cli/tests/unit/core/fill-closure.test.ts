@@ -49,7 +49,7 @@ const ENFORCES_FILE_PERMISSIONS = probeEnforcesFilePermissions();
 
 const DET_PASS = 'export function check(ctx) { void ctx; return []; }\n';
 const REVIEWER_CONFIG =
-  'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
+  'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -96,7 +96,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n', // logRequired defaults to false
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     // The append-only log baseline is recorded (integrity is independent of log_required)…
     expect(lock.nodes['svc']?.log?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
@@ -107,7 +107,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
   it('a non-log_required node with no log.md gets no nodes[] entry at all', async () => {
     const projectRoot = await setupDetNode({});
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).nodes['svc']).toBeUndefined();
   });
 
@@ -118,7 +118,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     const lock = readLock(graph.rootPath);
     expect(lock.nodes['svc']?.source).toBeUndefined();
     expect(lock.nodes['svc']?.log?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
@@ -130,7 +130,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     const run1Source = readLock(graph.rootPath).nodes['svc']?.source;
     expect(run1Source).toBeDefined();
 
@@ -140,7 +140,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
       graph = await loadGraph(projectRoot);
       // Closure computes the source fingerprint, hits FileUnreadableError, and
       // declines to advance — the run completes and the prior fingerprint is intact.
-      await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+      await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
       expect(readLock(graph.rootPath).nodes['svc']?.source).toBe(run1Source);
     } finally {
       await chmod(svc, 0o644); // restore so the temp dir can be cleaned up
@@ -157,7 +157,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     const nodeLog = path.join(projectRoot, '.yggdrasil', 'model', 'svc', 'log.md');
 
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     const sealed = readLock(graph.rootPath).nodes['svc']?.log;
     expect(sealed?.last_entry_datetime).toBe('2026-05-11T11:00:00.000Z');
     expect(sealed?.prefix_hash).toBeDefined();
@@ -172,7 +172,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     // Re-fill (the standard end-of-work path). Closure must NOT recompute the
     // baseline over the tampered bytes and overwrite the committed anchor.
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     const afterTamper = readLock(graph.rootPath).nodes['svc']?.log;
     expect(afterTamper?.prefix_hash).toBe(sealed?.prefix_hash);
@@ -187,7 +187,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     const nodeLog = path.join(projectRoot, '.yggdrasil', 'model', 'svc', 'log.md');
 
     let graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     const first = readLock(graph.rootPath).nodes['svc']?.log;
     expect(first?.last_entry_datetime).toBe('2026-05-11T10:00:00.000Z');
 
@@ -195,7 +195,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     // trailing newline, no blank-line separator — leaving historical bytes intact.
     await writeFile(nodeLog, logMd + '## [2026-05-11T12:00:00.000Z]\nsecond entry body\n');
     graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     const advanced = readLock(graph.rootPath).nodes['svc']?.log;
     expect(advanced?.last_entry_datetime).toBe('2026-05-11T12:00:00.000Z');
@@ -212,7 +212,7 @@ describe('positive closure — log_required source fingerprint + minimal logs lo
     expect(readLock(graph.rootPath).nodes['svc']?.source).toBe('stale-fingerprint');
     // Re-fill: closure reconciles the non-log_required node → strips the dead
     // source; with no log.md the whole entry is removed.
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).nodes['svc']).toBeUndefined();
   });
 });
@@ -284,14 +284,14 @@ describe('positive closure — byte-identical with a nodeless pair present', () 
     const withoutLeafRoot = await setupSvcWithOptionalLeaf(false);
 
     const withLeafGraph = await loadGraph(withLeafRoot);
-    await runFill(withLeafGraph, {
+    await runFill(withLeafGraph, { isTTY: false, now: Date.now,
       coverageVisibleFiles: await walkRepoFiles(withLeafRoot),
       write: () => {},
     });
     const withLeafEntry = readLock(withLeafGraph.rootPath).nodes['svc'];
 
     const withoutLeafGraph = await loadGraph(withoutLeafRoot);
-    await runFill(withoutLeafGraph, {
+    await runFill(withoutLeafGraph, { isTTY: false, now: Date.now,
       coverageVisibleFiles: await walkRepoFiles(withoutLeafRoot),
       write: () => {},
     });

@@ -498,7 +498,10 @@ deliverable, so `--dry-run` wins over `--quiet` — the budget still prints on
 stdout; `--quiet` only suppresses the non-dry-run progress. The precedence holds
 under `--json` too, where stdout carries the document alone and the budget preview
 moves to stderr: `yg check --approve --dry-run --json --quiet` still prints the
-preview, on stderr, beside the document on stdout.
+preview, on stderr, beside the document on stdout. The document itself carries the
+budget as numbers in its `dryRunBudget` field (`pairs`, `nodes`, `files`,
+`deterministic`, `reviewerCalls`), which is what a program should read instead of
+the preview text.
 
 #### `--full` — answer for the whole project
 
@@ -627,7 +630,10 @@ As a byproduct, a plain `yg check` also refreshes a local, gitignored index
 among their node's other same-language files. It is pure attention: never an
 issue, never an exit code, never a suggested next step, computed from the parse
 cache the relation pass already warmed, and written best-effort — a failed write
-never fails a check. It is what makes the advisory line in `yg context --file`
+never fails a check. It is written only where git already ignores it: a check
+never edits the tracked `.yggdrasil/.gitignore`, so on a repository whose
+`.gitignore` lacks the line the check skips the index and prints a notice naming
+`yg init --upgrade`, which adds it. It is what makes the advisory line in `yg context --file`
 possible; see [Structural attention](/feature-field). Only the reporting read path
 maintains it — `--approve`, `--dry-run`, and the internal fill re-checks leave it
 alone.
@@ -987,12 +993,11 @@ never calls a reviewer.
 
 The rule inventory as one `yg-aspects/1` document: each rule's id, name and
 description, its reviewer kind and tier, its status, its standing review date,
-its error direction, what it implies, how many places it reaches (a coarse split
-into `own` / `architecture` / `flow` / `implied`, plus `typeCovered`, where
-`implied` is the residual bucket and absorbs hierarchy-inherited and
-port-delivered attachments as well as genuine `implies` pull-in — `--reach`
-below carries the finer per-channel vocabulary) and how many cases sit in its
-drill corpus. The
+its error direction, what it implies, how many places it reaches (a split into
+`own` / `architecture` / `flow` / `inherited` (declared on an ancestor, or on an
+ancestor's type) / `port` / `implied` (reached only through another rule's
+`implies`), plus `typeCovered` — `--reach` below names the channel per subject)
+and how many cases sit in its drill corpus. The
 corpus is counted, never run. `--health` is a different and far more expensive
 projection and is refused together with `--json`. Each rule also carries the last
 thing its own log recorded — when, and what it said about where the rule stands —

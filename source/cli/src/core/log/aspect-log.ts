@@ -27,7 +27,7 @@ import path from 'node:path';
 
 import type { IssueMessage } from '../../model/validation.js';
 import { ADAPT_LOG_FILENAME, PACKAGES_DIR } from '../../model/packages.js';
-import { readLogSafe, statLogFile, writeLogFile } from '../../io/log-store.js';
+import { readLogSafe, statLogFile, withLogWriteLock, writeLogFile } from '../../io/log-store.js';
 import { composeLogEntry } from './log-entry.js';
 import { parseLog } from '../parsing/log-parser.js';
 import { validateFormat } from '../log-format.js';
@@ -97,12 +97,15 @@ export async function appendAspectLogEntry(
     }
   }
 
-  const existing = await readLogSafe(logPath);
-  const composed = composeLogEntry(existing, input.reasonText, input.nowMs);
-  if (!composed.ok) return { ok: false, error: composed.error };
-
-  await writeLogFile(logPath, composed.content);
-  return { ok: true, datetime: composed.datetime, logPath };
+  // Same read → compose → replace as a component's log, under the same lock.
+  const locked = await withLogWriteLock(input.yggRootPath, async (): Promise<AspectLogAddResult> => {
+    const existing = await readLogSafe(logPath);
+    const composed = composeLogEntry(existing, input.reasonText, input.nowMs);
+    if (!composed.ok) return { ok: false, error: composed.error };
+    await writeLogFile(logPath, composed.content);
+    return { ok: true, datetime: composed.datetime, logPath };
+  });
+  return locked.ok ? locked.value : { ok: false, error: locked.error };
 }
 
 /** One entry read back from a rule's log. */

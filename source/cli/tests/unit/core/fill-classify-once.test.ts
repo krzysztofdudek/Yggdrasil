@@ -67,7 +67,7 @@ describe('runFill — classifies coverage.type_level at most once per run', () =
     const graph = await loadGraph(dir);
     const files = await walkRepoFiles(dir);
 
-    await runFill(graph, { coverageVisibleFiles: files, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: files, write: () => {} });
 
     expect(mockComputeTypeCoverage).toHaveBeenCalledTimes(1);
     expect(typeCoverageRealFn).toBeDefined();
@@ -78,7 +78,7 @@ describe('runFill — classifies coverage.type_level at most once per run', () =
     const graph = await loadGraph(dir);
     const files = await walkRepoFiles(dir);
 
-    await runFill(graph, { coverageVisibleFiles: files, dryRun: true, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: files, dryRun: true, write: () => {} });
 
     expect(mockComputeTypeCoverage).toHaveBeenCalledTimes(1);
   });
@@ -89,7 +89,7 @@ describe('runFill — classifies coverage.type_level at most once per run', () =
     const files = await walkRepoFiles(dir);
     graph.config.coverage!.typeLevel = false;
 
-    await runFill(graph, { coverageVisibleFiles: files, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: files, write: () => {} });
 
     expect(mockComputeTypeCoverage).not.toHaveBeenCalled();
   });

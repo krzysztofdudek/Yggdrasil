@@ -22,6 +22,60 @@ import { debugWrite } from '../../utils/debug-log.js';
 import { toPosixPath } from '../../utils/posix.js';
 
 /**
+ * The read-only log-gate state of one node (spec §9), computed ONE way for every
+ * surface: the fill gate, positive closure, plain `yg check`, and `yg context`'s
+ * display.
+ *
+ *  - `required`     — the type opts into log_required AND the source changed since
+ *                     the stored fingerprint (or none is stored yet), so an entry
+ *                     is owed before --approve. Also true when the fingerprint
+ *                     cannot be computed: an unverifiable source never counts as
+ *                     "unchanged".
+ *  - `freshPresent` — an entry newer than the recorded baseline exists now.
+ *  - `logHasEntries` — the log holds at least one entry at all; with `required`
+ *                     false because a fresh entry already answers, it tells an
+ *                     open log cycle (see {@link logCycleOpen}) from a quiet one.
+ *  - `unreadable`   — set when a mapped file could not be read, so the
+ *                     fingerprint is uncomputable. The real cause to report is
+ *                     the file, not a missing log entry.
+ */
+export interface LogGateState {
+  required: boolean;
+  freshPresent: boolean;
+  logHasEntries: boolean;
+  unreadable?: { filePath: string; reason: string };
+}
+
+export async function computeLogGateState(
+  graph: Graph,
+  projectRoot: string,
+  node: GraphNode,
+  lock: LockFile,
+): Promise<LogGateState> {
+  // The default lives HERE and only here (spec §9): false unless the type opts in.
+  const archType = graph.architecture.node_types[node.meta.type];
+  const logRequired = archType?.log_required ?? false;
+  if (!logRequired) return { required: false, freshPresent: false, logHasEntries: false };
+
+  const logContent = await readLogContent(projectRoot, node.path);
+  const freshPresent = hasFreshLogEntry(logContent, lock.nodes[node.path]?.log);
+  const logHasEntries = parseLog(logContent).length > 0;
+  let currentFingerprint: string | undefined;
+  try {
+    currentFingerprint = await computeSourceFingerprint(graph, node.path);
+  } catch (e) {
+    if (e instanceof FileUnreadableError) {
+      debugWrite(`[log-gate] logGate fingerprint for ${toPosixPath(node.path)}: ${e.message}`);
+      return { required: true, freshPresent, logHasEntries, unreadable: { filePath: toPosixPath(e.filePath), reason: e.reason } };
+    }
+    throw e;
+  }
+  // A mapping-less node has a constant (undefined) fingerprint — never owed (§9).
+  if (currentFingerprint === undefined) return { required: false, freshPresent, logHasEntries };
+  return { required: currentFingerprint !== lock.nodes[node.path]?.source, freshPresent, logHasEntries };
+}
+
+/**
  * True when a node is blocked by the mandatory-log gate (spec §9): the type opts
  * into log_required (default false) AND the current source fingerprint differs
  * from the stored one (or none is stored and the mapping is non-empty — first
@@ -47,60 +101,31 @@ export async function logGateBlocksNode(
   node: GraphNode,
   lock: LockFile,
 ): Promise<boolean> {
-  // The default lives HERE and only here (spec §9): false unless the type opts in.
-  const archType = graph.architecture.node_types[node.meta.type];
-  const logRequired = archType?.log_required ?? false;
-  if (!logRequired) return false;
-
-  let currentFingerprint: string | undefined;
-  try {
-    currentFingerprint = await computeSourceFingerprint(graph, node.path);
-  } catch (e) {
-    if (e instanceof FileUnreadableError) {
-      debugWrite(`[log-gate] logGate fingerprint for ${toPosixPath(node.path)}: ${e.message}`);
-      return true;
-    }
-    throw e;
-  }
-  if (currentFingerprint === undefined) return false;
-  const storedFingerprint = lock.nodes[node.path]?.source;
-  const drifted = currentFingerprint !== storedFingerprint;
-  if (!drifted) return false;
-
-  const logContent = await readLogContent(projectRoot, node.path);
-  return !hasFreshLogEntry(logContent, lock.nodes[node.path]?.log);
+  return logGateStateBlocks(await computeLogGateState(graph, projectRoot, node, lock));
 }
 
-/** Read a node's log.md content; empty string when absent. */
+/** Whether a computed state blocks: an unreadable source always does. */
+export function logGateStateBlocks(state: LogGateState): boolean {
+  if (state.unreadable) return true;
+  return state.required && !state.freshPresent;
+}
+
 /**
  * True when a `log_required` node's source has moved past its recorded
  * baseline (or it never had one) while its log holds at least one entry — the
- * log cycle is OPEN. Paired with {@link logGateBlocksNode} returning false, it
- * means the newest entry is what satisfies the gate for the edit; if no full
- * recording run ever closes the cycle, that same entry keeps answering for
- * every later edit. Unreadable subjects answer false (reported elsewhere).
+ * log cycle is OPEN. Read off the same {@link LogGateState} the gate itself
+ * uses, so the two can never disagree about drift. Paired with
+ * {@link logGateStateBlocks} returning false, it means the newest entry is what
+ * satisfies the gate for the edit; if no full recording run ever closes the
+ * cycle, that same entry keeps answering for every later edit. Unreadable
+ * subjects answer false (reported elsewhere).
  */
-export async function logCycleOpen(
-  graph: Graph,
-  projectRoot: string,
-  node: GraphNode,
-  lock: LockFile,
-): Promise<boolean> {
-  if (graph.architecture.node_types[node.meta.type]?.log_required !== true) return false;
-  let fingerprint: string | undefined;
-  try {
-    fingerprint = await computeSourceFingerprint(graph, node.path);
-  } catch (e) {
-    if (e instanceof FileUnreadableError) {
-      debugWrite(`[log-gate] logCycleOpen fingerprint for ${toPosixPath(node.path)}: ${e.message}`);
-      return false;
-    }
-    throw e;
-  }
-  if (fingerprint === undefined || fingerprint === lock.nodes[node.path]?.source) return false;
-  return parseLog(await readLogContent(projectRoot, node.path)).length > 0;
+export function logCycleOpen(state: LogGateState): boolean {
+  if (state.unreadable) return false;
+  return state.required && state.logHasEntries;
 }
 
+/** Read a node's log.md content; empty string when absent. */
 export async function readLogContent(projectRoot: string, nodePath: string): Promise<string> {
   const logAbs = path.join(projectRoot, '.yggdrasil', 'model', nodePath, 'log.md');
   try {
@@ -123,19 +148,6 @@ export function hasFreshLogEntry(
   if (!newest) return false;
   if (!storedLog) return true;
   return newest.datetime !== storedLog.last_entry_datetime;
-}
-
-/**
- * Compute the append-only log baseline (boundary datetime + prefix hash over
- * bytes [0..newest.offsetEnd)). Returns undefined when the log has no entries.
- * (Ported from approve.ts computeLogBaseline; spec §9.)
- */
-export async function computeLogBaselineForNode(
-  projectRoot: string,
-  nodePath: string,
-): Promise<{ last_entry_datetime: string; prefix_hash: string } | undefined> {
-  const content = await readLogContent(projectRoot, nodePath);
-  return computeLogBaselineFromContent(content);
 }
 
 /**

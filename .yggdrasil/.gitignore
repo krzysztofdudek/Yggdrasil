@@ -13,3 +13,4 @@ yg-secrets.yaml
 *.tmp
 .yg-packages-versions.json
 .family-candidates.yggdrasil-miner.json
+.yg-*.lock

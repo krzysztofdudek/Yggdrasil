@@ -672,7 +672,7 @@ function makeMinimalGraph(label: string): string {
   w(
     dir,
     '.yggdrasil/yg-config.yaml',
-    `reviewer:\n  tiers:\n    standard:\n      provider: claude-code\n      consensus: 1\n      config:\n        model: sonnet\n`,
+    `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: claude-code\n      consensus: 1\n      config:\n        model: sonnet\n`,
   );
   w(dir, '.yggdrasil/model/app/yg-node.yaml', `name: App\ndescription: app\ntype: svc\nmapping:\n  - src/app\n`);
   w(dir, 'src/app/a.ts', 'export const a = 1;\n');
@@ -1057,7 +1057,7 @@ describe.skipIf(!distExists)('yg advise — T2 architecture-cut (spawned)', () =
     w(
       dir,
       '.yggdrasil/yg-config.yaml',
-      `reviewer:\n  tiers:\n    standard:\n      provider: claude-code\n      consensus: 1\n      config:\n        model: sonnet\n`,
+      `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: claude-code\n      consensus: 1\n      config:\n        model: sonnet\n`,
     );
     w(dir, '.yggdrasil/model/ga/yg-node.yaml', `name: GroupA\ndescription: group a\ntype: grp\n`);
     w(dir, '.yggdrasil/model/gb/yg-node.yaml', `name: GroupB\ndescription: group b\ntype: grp\n`);

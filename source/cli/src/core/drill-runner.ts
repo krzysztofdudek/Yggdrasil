@@ -113,6 +113,12 @@ export interface DrillDeps {
   onCaseResult(result: DrillResult, detail?: string): void;
 }
 
+/** A wired-up drill run: the context every case is dispatched under, and the
+ *  impure operations the runner calls back into — or why it could not be wired. */
+export type DrillRunSetup =
+  | { ok: true; ctx: DrillRunContext; deps: DrillDeps }
+  | { ok: false; error: { what: string; why: string; next: string } };
+
 /** Context the command resolves once (tier consensus, tier name, size limit). */
 export interface DrillRunContext {
   /** tier.consensus ?? 1 for LLM aspects; 1 for deterministic. */

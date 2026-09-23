@@ -38,7 +38,7 @@ async function setupProject(): Promise<string> {
   await mkdir(path.join(root, 'src'), { recursive: true });
   await writeFile(
     path.join(ygg, 'yg-config.yaml'),
-    'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n',
+    'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n',
   );
   await writeFile(path.join(ygg, 'yg-architecture.yaml'), 'node_types:\n  service:\n    description: s\n');
   await writeFile(
@@ -70,7 +70,7 @@ describe('GC prune summary — wording', () => {
     await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set(['det-a']) });
 
     let out = '';
-    await runFill(graph, { coverageVisibleFiles: null, write: (s) => { out += s; } });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: (s) => { out += s; } });
 
     // The aspect no longer exists in the graph, so its kind cannot be read off
     // reviewer.type — but its verdicts live in the COMMITTED file, so the
@@ -84,7 +84,7 @@ describe('GC prune summary — wording', () => {
     const graph = await loadGraph(projectRoot);
 
     let out = '';
-    await runFill(graph, { coverageVisibleFiles: null, write: (s) => { out += s; } });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: (s) => { out += s; } });
 
     expect(out).not.toContain('Pruned');
     expect(out).not.toContain('stale verdict');
@@ -98,7 +98,7 @@ describe('GC prune summary — wording', () => {
     await writeLock(graph.rootPath, lock, { scope: 'all', deterministicAspectIds: new Set(['det-a']) });
 
     let out = '';
-    await runFill(graph, { coverageVisibleFiles: null, dryRun: true, write: (s) => { out += s; } });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, dryRun: true, write: (s) => { out += s; } });
 
     expect(out).toContain('Pruned 1 stale verdict(s) — 1 billed, 0 free:');
     // The REAL committed lock is untouched — the stale entry is still there.
@@ -147,7 +147,7 @@ describe('GC prune summary — wording', () => {
     expect(nondetBefore).toContain('ghost-llm');
 
     let out = '';
-    await runFill(graph, { coverageVisibleFiles: null, onlyDeterministic: true, write: (s) => { out += s; } });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, onlyDeterministic: true, write: (s) => { out += s; } });
 
     // Only the entry actually removed from disk is reported — the stale LLM
     // entry was never written away (scope: 'deterministic' never touches the
@@ -165,7 +165,7 @@ describe('GC prune summary — wording', () => {
 
     // A full `--approve` afterward actually prunes both, and says so.
     let out2 = '';
-    await runFill(graph, { coverageVisibleFiles: null, write: (s) => { out2 += s; } });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: (s) => { out2 += s; } });
     expect(out2).toContain('Pruned 1 stale verdict(s) — 1 billed, 0 free:');
     expect(out2).toContain('[llm] ghost-llm on node:svc');
     // ghost-llm was the committed file's only entry — pruning it away leaves

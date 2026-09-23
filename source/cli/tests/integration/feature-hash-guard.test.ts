@@ -79,7 +79,7 @@ describe('feature vectors never enter a verdict inputHash (G3, via the real fill
     w(
       root,
       '.yggdrasil/yg-config.yaml',
-      `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`,
+      `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`,
     );
     // Deterministic probe aspect (folds subject content into its verdict hash).
     w(
@@ -112,7 +112,7 @@ describe('feature vectors never enter a verdict inputHash (G3, via the real fill
 
     // 1. Real fill — warms the AST cache (features written) and persists the deterministic
     //    `probe` verdict, whose inputHash the production pipeline computed over the subject bytes.
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     const probeBefore = Object.values(readLock(graph.rootPath).verdicts['probe'] ?? {})
       .map((e) => e.hash)
       .sort();

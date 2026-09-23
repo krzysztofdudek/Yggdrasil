@@ -1,5 +1,5 @@
 name: Command Exit Codes
-description: "CLI commands use only exit codes 0 and 1 — process.exit(2) or higher is forbidden"
+description: "CLI commands use only exit codes 0 and 1. A call to process.exit(...) or exitAfterFlush(...) (the drain-then-exit helper) is refused when its argument can provably be anything else: a numeric literal, a parenthesised one, or a conditional whose branches are such literals (failed ? 2 : 0). An argument the syntax cannot pin down — a variable, a call, arithmetic — is not judged (errs: under); those codes must come from a computation that itself only yields 0 or 1."
 review_by: 2027-09-16
 errs: under
 reviewer:

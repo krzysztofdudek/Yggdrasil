@@ -921,8 +921,10 @@ describe('extractConfigVocabulary', () => {
     expect(extractConfigVocabulary('- a\n- b\n').tierNames).toEqual([]);
   });
 
-  it('ignores a non-string version, matching the config parser', () => {
-    expect(extractConfigVocabulary('version: 5\n').version).toBeUndefined();
+  it('keeps a non-string version as written, so a changed unquoted number still counts as a change', () => {
+    expect(extractConfigVocabulary('version: 5\n').version).toBe(5);
+    expect(configVocabularyChanged('version: 5\n', 'version: 6\n')).toBe(true);
+    expect(configVocabularyChanged('version: 5\n', 'version: 5\n')).toBe(false);
   });
 });
 

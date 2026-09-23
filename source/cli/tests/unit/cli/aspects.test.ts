@@ -144,6 +144,28 @@ describe('computeAspectUsage', () => {
     expect(usage.get('flow-aspect')?.flow).toBe(1);
   });
 
+  // Hierarchy inheritance and `implies` are different channels: a maintainer
+  // weighing an implies edge must not see inherited reach counted as implied.
+  it('counts hierarchy inheritance as inherited, and only implies-expansion as implied', () => {
+    const parent = makeNode('cli', ['wasm-tree-lifecycle', 'source-hygiene']);
+    const child = makeNode('cli/core', []);
+    child.parent = parent;
+    parent.children.push(child);
+    const graph = makeGraph(
+      [
+        makeAspect('wasm-tree-lifecycle'),
+        makeAspect('source-hygiene', { implies: ['posix-paths-source'] }),
+        makeAspect('posix-paths-source'),
+      ],
+      [parent, child],
+    );
+    const usage = computeAspectUsage(graph);
+    expect(usage.get('wasm-tree-lifecycle')).toMatchObject({ total: 2, own: 1, inherited: 1, implied: 0 });
+    // Reached on both nodes only through source-hygiene's implies.
+    expect(usage.get('posix-paths-source')).toMatchObject({ total: 2, own: 0, inherited: 0, implied: 2 });
+    expect(formatAspectsOutput(graph)).toContain('Used by: 2 nodes (direct: 1, inherited: 1)');
+  });
+
 });
 
 describe('formatAspectsOutput', () => {

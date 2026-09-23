@@ -1,14 +1,11 @@
 name: CLI Graph Query Command Tests
 type: test-suite
 description: >-
-  Unit tests for graph-query commands — aspects, find, flows, impact, node,
-  owner, verdict, and which. The node tests cover the component document both
-  views are built from: the structure of a component with children and a
-  parent, the ports it publishes, and the refusal a path naming no component
-  gets. The verdict tests prove the external-judge channel's whole claim from
-  both ends — the package's hashes ARE the ones the fill stage would store,
-  computed here from the shared assembly rather than re-spelled — and that the
-  command refuses everything that would break that binding. The machine
+  Unit tests for graph-query commands — aspects (with its rule log), find,
+  flows, impact, node, and owner (whose file-to-node lookup the which tests
+  exercise). The node tests cover the component document both views are built
+  from: the structure of a component with children and a parent, the ports it
+  publishes, and the refusal a path naming no component gets. The machine
   documents both the impact and the node views are assembled from are covered
   directly against in-memory graphs: which dependents are direct and which are
   reached through somebody else, the path each indirect one travels, who

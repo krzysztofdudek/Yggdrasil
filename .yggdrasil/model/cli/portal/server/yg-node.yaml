@@ -15,7 +15,7 @@ description: >-
   `yg check --approve --dry-run`; POST /approve is the ONE write — it SPAWNS the existing
   CLI (`yg check --approve`, with `--only-deterministic` when the LLM checkbox is off),
   never re-implements fill, never imports a lock writer, and never reads secrets (the
-  spawned CLI owns keys). View-only mode (--no-write) rejects POST /approve with HTTP 409.
+  spawned CLI owns keys). View-only mode (--no-write) rejects POST /approve with HTTP 409, and so does an approval already running in the project — one this server spawned, or one holding the CLI's approval lock from elsewhere — so the button never starts a second run that would overwrite the first one's verdicts.
   The server reaches the engine ONLY through the portal's own modules: it CALLS the
   pipeline (extractPortalData) and the serializer (page render + asset read) and USES the
   data contract — no direct relation to any engine subsystem. Approve is a child-process
@@ -31,5 +31,4 @@ mapping:
   - source/cli/src/portal/server/server.ts
   - source/cli/src/portal/server/router.ts
   - source/cli/src/portal/server/approve.ts
-  - source/cli/src/portal/server/page.ts
   - source/cli/src/portal/server/boot-pages.ts

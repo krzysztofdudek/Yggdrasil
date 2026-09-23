@@ -24,7 +24,7 @@ import { readTextFile } from '../io/graph-fs.js';
 import { validateAppendOnly } from './log-integrity.js';
 import { validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
-import { logGateBlocksNode, logCycleOpen } from './log/log-gate.js';
+import { computeLogGateState, logGateStateBlocks, logCycleOpen, type LogGateState } from './log/log-gate.js';
 import { looksLikeInterleavedMerge } from './log/log-merge-resolve.js';
 import type { CheckIssue } from './check-contract.js';
 
@@ -155,10 +155,13 @@ export async function classifyLogStateFromLock(
  * nothing new for it — positive closure already refuses to advance the
  * baseline until an entry exists, and the final re-check surfaces this error.
  *
- * Reuses logGateBlocksNode — the single source of truth for the
+ * Reuses computeLogGateState — the single source of truth for the
  * freshness/fingerprint rule shared with the fill gate and positive closure.
  * Nodes with an unreadable mapped subject are skipped: they already surface a
- * blocking file-unreadable error and their fingerprint is uncomputable.
+ * blocking file-unreadable error and their fingerprint is uncomputable. A node
+ * whose unreadable file no pair reported (it has no aspect pairs) gets that
+ * file-unreadable error here, instead of a log-entry-missing whose fix — write
+ * a log entry — would not unblock it.
  */
 export async function classifyLogRequirement(
   graph: Graph,
@@ -170,8 +173,24 @@ export async function classifyLogRequirement(
 ): Promise<void> {
   for (const [nodePath, node] of graph.nodes) {
     if (unreadableNodes.has(nodePath)) continue;
-    if (!(await logGateBlocksNode(graph, projectRoot, node, lock))) {
-      await classifyOpenLogCycle(graph, projectRoot, lock, nodePath, unsettledNodes, issues);
+    const gate = await computeLogGateState(graph, projectRoot, node, lock);
+    if (!logGateStateBlocks(gate)) {
+      classifyOpenLogCycle(gate, graph, nodePath, unsettledNodes, issues);
+      continue;
+    }
+    if (gate.unreadable) {
+      const unreadablePath = toPosixPath(gate.unreadable.filePath);
+      issues.push({
+        severity: 'error',
+        code: 'file-unreadable',
+        rule: 'file-unreadable',
+        messageData: {
+          what: `Node '${toPosixPath(nodePath)}' maps file '${unreadablePath}', which could not be read: ${gate.unreadable.reason}.`,
+          why: `Node type '${node.meta.type}' has log_required: true, and whether a log entry is owed depends on a fingerprint of every mapped file. An unreadable file makes that fingerprint uncomputable, so the node stays blocked until the file can be read.`,
+          next: `Fix the file permissions or remove '${unreadablePath}' from the node mapping, then re-run yg check.`,
+        },
+        nodePath,
+      });
       continue;
     }
     issues.push({
@@ -203,17 +222,16 @@ export async function classifyLogRequirement(
  * refused) is skipped — the fill that settles it is the one that will close the
  * cycle, so the ordinary edit → log → approve loop never sees this.
  */
-async function classifyOpenLogCycle(
+function classifyOpenLogCycle(
+  gate: LogGateState,
   graph: Graph,
-  projectRoot: string,
-  lock: LockFile,
   nodePath: string,
   unsettledNodes: Set<string>,
   issues: CheckIssue[],
-): Promise<void> {
+): void {
   const node = graph.nodes.get(nodePath);
   if (node === undefined || unsettledNodes.has(nodePath)) return;
-  if (!(await logCycleOpen(graph, projectRoot, node, lock))) return;
+  if (!logCycleOpen(gate)) return;
   const p = toPosixPath(nodePath);
   issues.push({
     severity: 'warning',

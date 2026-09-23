@@ -21,6 +21,7 @@ import {
   type DrillResult,
   type DrillRunContext,
   type DrillDeps,
+  type DrillRunSetup,
 } from '../core/drill-runner.js';
 import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
 
@@ -141,7 +142,10 @@ export function registerDrillCommand(program: Command): void {
 
   // The write side of the same corpus, registered here so both halves of
   // `yg drill` — running the cases, and taking one in — are found in one place.
-  registerDrillAddCommand(drill);
+  // `add` runs its new case through the same wiring as the corpus run; the
+  // wiring is handed in rather than imported back from here, so the two
+  // command files depend on each other in one direction only.
+  registerDrillAddCommand(drill, buildDrillRun);
 }
 
 // ============================================================
@@ -284,11 +288,6 @@ function toVerdictEvent(
 // Shared run setup — the ONE place a drill run is wired up
 // ============================================================
 
-/** A wired-up drill run: the context every case is dispatched under, and the
- *  two impure operations the engine calls back into. */
-export type DrillRunSetup =
-  | { ok: true; ctx: DrillRunContext; deps: DrillDeps }
-  | { ok: false; error: { what: string; why: string; next: string } };
 
 /**
  * Wire a drill run for one aspect.

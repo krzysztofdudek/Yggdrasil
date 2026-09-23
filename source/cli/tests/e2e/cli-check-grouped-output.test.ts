@@ -109,7 +109,7 @@ function buildGroupedFixture(opts: {
   writeFileSync(
     path.join(ygRoot, 'yg-config.yaml'),
     [
-      'quality:',
+      'version: "6.0.0"', 'quality:',
       '  max_direct_relations: 10',
       'reviewer:',
       '  tiers:',
@@ -307,7 +307,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
       writeFileSync(
         path.join(ygRoot, 'yg-config.yaml'),
         [
-          'quality:',
+          'version: "6.0.0"', 'quality:',
           '  max_direct_relations: 10',
           'reviewer:',
           '  tiers:',

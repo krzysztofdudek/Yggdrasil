@@ -1,22 +1,8 @@
-import type { LlmProvider, AspectResponse, AspectVerificationResult } from './types.js';
+import type { LlmProvider, AspectResponse } from './types.js';
 import { buildPairPrompt } from './prompt.js';
 
 export type { PromptAspectInput, PromptReferenceInput, PromptFileInput, PairPromptInput } from './prompt.js';
 export { buildPairPrompt, assembledPromptChars } from './prompt.js';
-
-export interface VerifyAspectsParams {
-  provider: LlmProvider;
-  aspects: Array<{
-    id: string;
-    description: string;
-    content: string;
-    references?: Array<{ path: string; description?: string; content: string }>;
-  }>;
-  sourceFiles: Array<{ path: string; content: string }>;
-  nodeDescription: string;
-  nodePath: string;
-  consensus?: number;
-}
 
 /**
  * `nodeDescription` is accepted and IGNORED. The prompt no longer carries a
@@ -88,17 +74,4 @@ export async function verifyWithConsensus(
     },
     votes,
   };
-}
-
-export async function verifyAspects(
-  params: VerifyAspectsParams,
-): Promise<Record<string, AspectVerificationResult>> {
-  const { provider, aspects, sourceFiles, nodePath, nodeDescription, consensus = 1 } = params;
-  const results: Record<string, AspectVerificationResult> = {};
-  for (const aspect of aspects) {
-    const prompt = buildPrompt(aspect, nodeDescription, nodePath, sourceFiles, aspect.references ?? []);
-    const r = (await verifyWithConsensus(provider, prompt, consensus)).response;
-    results[aspect.id] = { satisfied: r.satisfied, reason: r.reason, errorSource: r.errorSource };
-  }
-  return results;
 }

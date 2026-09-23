@@ -373,7 +373,28 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
       );
       const { status, stderr } = run(['init', '--upgrade', '--platform', 'generic'], dir);
       expect(status).toBe(1);
-      expect(stderr).toContain('No graph version detected');
+      expect(stderr).toContain('has no version: field');
+      // It names the real remedy instead of an interactive init that never
+      // records a version.
+      expect(stderr).not.toContain("Run 'yg init' interactively");
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('G11b: init --upgrade and check both refuse an unquoted numeric version with the same quote-it message (exit 1)', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-numeric-version-'));
+    const yggRoot = path.join(dir, '.yggdrasil');
+    try {
+      mkdirSync(path.join(yggRoot, 'model'), { recursive: true });
+      writeFileSync(path.join(yggRoot, 'yg-config.yaml'), 'version: 99.0\n', 'utf-8');
+      writeFileSync(path.join(yggRoot, 'yg-architecture.yaml'), 'node_types: {}\n', 'utf-8');
+      const upgrade = run(['init', '--upgrade', '--platform', 'generic'], dir);
+      expect(upgrade.status).toBe(1);
+      expect(upgrade.stderr).toContain('version: 99.0, which YAML reads as a number');
+      const check = run(['check', '--no-approve'], dir);
+      expect(check.status).toBe(1);
+      expect(check.stderr).toContain('version: 99.0, which YAML reads as a number');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

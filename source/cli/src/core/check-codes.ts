@@ -72,6 +72,13 @@ export function unverifiedCauseRank(cause: UnverifiedCause | undefined): number 
   return UNVERIFIED_CAUSE_ORDER.indexOf(cause ?? 'never-reviewed');
 }
 
+/**
+ * Printed by `yg check` when it skipped the structural attention index because
+ * the repository's .gitignore files do not ignore it. A check writes no tracked
+ * file, so the line is added by `yg init --upgrade`, never by the check.
+ */
+export const FEATURE_INDEX_NOT_IGNORED_NOTICE =
+  "The structural attention index (.yggdrasil/.feature-field.json) was not written: git does not ignore it here, and yg check never edits a tracked .gitignore. Run 'yg init --upgrade' to add the line.";
 
 /**
  * Structural validation codes — graph-shape and config errors that always block

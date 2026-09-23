@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parse as parseYaml } from 'yaml';
+import { parse as parseYaml, parseDocument, isScalar } from 'yaml';
 import type {
   YggConfig,
   QualityConfig,
@@ -29,6 +29,118 @@ const DEFAULT_QUALITY: QualityConfig = {
 };
 
 export const DEFAULT_COVERAGE: CoverageConfig = { required: ['/'], excluded: [], typeLevel: false };
+
+/**
+ * What the `version:` field of a yg-config.yaml holds, read ONE way for every
+ * caller (the graph loader's schema gate, the migrator, `yg init --upgrade`,
+ * `yg simulate`, and this parser's own `config.version`):
+ *
+ *  - `absent`     — the key is not there at all;
+ *  - `string`     — a YAML string, trimmed (whether it is valid semver is the
+ *                   caller's question);
+ *  - `not-string` — present but not a string, most often an unquoted
+ *                   `version: 5.1`, which YAML reads as the NUMBER 5.1. `shown`
+ *                   is how the value reads back, for the error message.
+ *
+ * Distinguishing the last two from a string is the point: a reader that only
+ * accepts strings turns a number or a missing line into "no version", and a gate
+ * keyed on "no version" then lets the graph load unchecked.
+ */
+export type SchemaVersionField =
+  | { kind: 'absent' }
+  | { kind: 'string'; value: string }
+  | { kind: 'not-string'; shown: string };
+
+export function readSchemaVersionField(raw: Record<string, unknown>): SchemaVersionField {
+  if (!Object.prototype.hasOwnProperty.call(raw, 'version') || raw.version === undefined) {
+    return { kind: 'absent' };
+  }
+  const v = raw.version;
+  if (typeof v === 'string') return { kind: 'string', value: v.trim() };
+  return { kind: 'not-string', shown: typeof v === 'number' ? String(v) : JSON.stringify(v) };
+}
+
+/**
+ * {@link readSchemaVersionField} over the raw text of a yg-config.yaml. Returns
+ * null when the text is not a YAML mapping (or not YAML at all): that file has
+ * no readable fields, and reporting it is the full config parser's job.
+ */
+export function parseSchemaVersionText(content: string): SchemaVersionField | null {
+  let doc: unknown;
+  try {
+    doc = parseYaml(content);
+  } catch (err) {
+    debugWrite(`[config-parser] schema version read: ${(err as Error).message}`);
+    return null;
+  }
+  if (doc === null || typeof doc !== 'object' || Array.isArray(doc)) return null;
+  const field = readSchemaVersionField(doc as Record<string, unknown>);
+  if (field.kind !== 'not-string') return field;
+  // Show the value as it is WRITTEN, not as YAML re-reads it: `version: 99.0`
+  // parses to the number 99, and an error quoting "99" would not match the file.
+  const node = parseDocument(content).get('version', true);
+  if (isScalar(node) && node.range) {
+    const written = content.slice(node.range[0], node.range[1]).trim();
+    if (written.length > 0) return { kind: 'not-string', shown: written };
+  }
+  return field;
+}
+
+/**
+ * Every top-level key yg-config.yaml (and its yg-secrets.yaml overlay) may carry.
+ * Each sub-block already rejects keys it does not know; the top level does the
+ * same, because a misspelled block name (`coverge:`, `progresive:`) would
+ * otherwise fall back to its default without a word, and the configuration in
+ * effect would quietly differ from the one the file appears to state.
+ */
+const KNOWN_TOP_LEVEL_KEYS = [
+  'version', 'quality', 'reviewer', 'parallel', 'debug', 'auto_approve',
+  'signals', 'events', 'coverage', 'progressive', 'rules_artifacts',
+];
+
+/** Levenshtein distance — small inputs only (config key names). */
+function editDistance(a: string, b: string): number {
+  const prev = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    let diag = prev[0];
+    prev[0] = i;
+    for (let j = 1; j <= b.length; j++) {
+      const up = prev[j];
+      prev[j] = Math.min(prev[j] + 1, prev[j - 1] + 1, diag + (a[i - 1] === b[j - 1] ? 0 : 1));
+      diag = up;
+    }
+  }
+  return prev[b.length];
+}
+
+function closestKnownKey(key: string): string | undefined {
+  let best: string | undefined;
+  let bestDistance = Infinity;
+  for (const known of KNOWN_TOP_LEVEL_KEYS) {
+    const d = editDistance(key.toLowerCase(), known);
+    if (d < bestDistance) {
+      bestDistance = d;
+      best = known;
+    }
+  }
+  // A suggestion only when the key is plausibly a typo of a real one: at most a
+  // third of the key's length away (and never more than 3 edits).
+  return best !== undefined && bestDistance <= Math.min(3, Math.max(1, Math.floor(key.length / 3))) ? best : undefined;
+}
+
+function rejectUnknownTopLevelKeys(raw: Record<string, unknown>, filename: string): void {
+  for (const key of Object.keys(raw)) {
+    if (KNOWN_TOP_LEVEL_KEYS.includes(key)) continue;
+    const suggestion = closestKnownKey(key);
+    throw new ConfigParseError({
+      what: `${filename}: unknown top-level key '${key}'.`,
+      why: `yg-config.yaml accepts only: ${KNOWN_TOP_LEVEL_KEYS.join(', ')}. An unrecognized key is almost always a typo, and a silently ignored typo means the configuration in effect quietly differs from what the file appears to say (a misspelled block falls back to its default).`,
+      next: suggestion
+        ? `Did you mean '${suggestion}'? Rename the key, or remove it.`
+        : `Rename the key to one of: ${KNOWN_TOP_LEVEL_KEYS.join(', ')}, or remove it.`,
+    }, 'config-unknown-key');
+  }
+}
 
 function parseStringArray(raw: unknown, field: string, filename: string): string[] {
   if (raw === undefined) return [];
@@ -211,6 +323,10 @@ export async function parseConfig(
   // (e.g. a surface that must provably never touch local secrets) uses. The DEFAULT path
   // is unchanged — the overlay is loaded and merged exactly as before.
   const overlay = opts?.skipSecretsOverlay ? undefined : await loadConfigOverlay(path.dirname(filePath));
+  // Each file is checked under its own name, so a typo in the gitignored overlay
+  // is reported where it actually is.
+  rejectUnknownTopLevelKeys(baseRaw, filename);
+  if (overlay) rejectUnknownTopLevelKeys(overlay, 'yg-secrets.yaml');
 
   // coverage.type_level is committed-only: capture its value from baseRaw
   // (the committed yg-config.yaml, before any overlay merge) so a gitignored
@@ -225,7 +341,8 @@ export async function parseConfig(
 
   const raw = overlay ? deepMerge(baseRaw, overlay) : baseRaw;
 
-  const version = typeof raw.version === 'string' ? raw.version.trim() : undefined;
+  const versionField = readSchemaVersionField(raw);
+  const version = versionField.kind === 'string' ? versionField.value : undefined;
 
   const qualityRaw = raw.quality;
   if (qualityRaw !== undefined && (typeof qualityRaw !== 'object' || Array.isArray(qualityRaw))) {

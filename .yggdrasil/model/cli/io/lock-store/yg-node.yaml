@@ -27,6 +27,15 @@ description: >-
   still fail-closed — while refusing over it would take the whole gate down on
   any version skew that widens the schema, which is how this actually breaks in
   the field rather than through corruption.
+  Writes are cheap to repeat: a caller can narrow a write to the split files it
+  changed, and the store remembers a digest of what it last wrote to each file
+  together with that file's size and time, so an unchanged file is skipped and
+  a changed one written without reading the old one back — while a file some
+  other writer touched since is still compared byte for byte. A synchronous
+  write of the same bytes exists for a signal handler. The store also owns the
+  approval lock that keeps two approvals from overwriting each other's lock,
+  and the error type for a lock that could not be taken or written because of
+  the environment rather than its content.
 relations:
   - target: cli/model/lock
     type: uses

@@ -1006,8 +1006,12 @@ function subjectMoved(
  * exist, what they apply to, or how much of the run is gated.
  */
 export interface ConfigVocabulary {
-  /** Trimmed only when it is a string, matching the config parser's own read. */
-  version?: string;
+  /**
+   * The raw `version:` value, compared as-is: this answers "did it move", not
+   * "what schema is it", so an unquoted number that changed counts as a change
+   * too (reading only strings would see two different numbers as equal).
+   */
+  version?: unknown;
   /** The raw `coverage:` block, compared structurally rather than interpreted. */
   coverage: unknown;
   /** Tier names, sorted — a SET, so declaration order is not a change. */
@@ -1051,7 +1055,7 @@ export function extractConfigVocabulary(rawYamlText: string): ConfigVocabulary {
     return { coverage: undefined, tierNames: [], progressive: undefined };
   }
   const raw = doc as Record<string, unknown>;
-  const version = typeof raw.version === 'string' ? raw.version.trim() : undefined;
+  const version = typeof raw.version === 'string' ? raw.version.trim() : raw.version;
 
   let tierNames: string[] = [];
   let declaredDefault: string | undefined;
@@ -1106,7 +1110,7 @@ export function configVocabularyChanged(baseText: string | null, headText: strin
   }
   const canonical = (v: ConfigVocabulary): string =>
     JSON.stringify([
-      v.version ?? null,
+      canonicalValue(v.version),
       canonicalValue(v.coverage),
       v.tierNames,
       v.defaultTier ?? null,

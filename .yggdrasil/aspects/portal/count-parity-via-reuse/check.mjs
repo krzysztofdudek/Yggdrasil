@@ -5,9 +5,11 @@ import { walk, report } from '@chrisdudek/yg/ast';
 // by hashing inputs itself or by hand-rolling a reducer over raw lock verdicts.
 //
 // THE REAL GUARANTEE IS THE POSITIVE ARM plus the count-parity integration test:
-//   - POSITIVE (a node-id manifest): every pipeline node MUST call its required reuse
-//     function(s) — runCheck + computeExpectedPairs. Keyed on NODE ID, not on a file
-//     basename, so renaming/splitting a pipeline file cannot evade the requirement.
+//   - POSITIVE (a node-TYPE manifest): every node of the portal's engine-facade type
+//     MUST call its required reuse functions — runCheck + computeExpectedPairs. Keyed
+//     on the node's architecture type, not on a file basename or a node id, so
+//     renaming or splitting a file or a node cannot evade the requirement. A node
+//     whose type the manifest does not know fails closed.
 //   - the integration test asserts the emitted counts equal `yg check` on the real graph.
 // The NEGATIVE arms below are a TRIPWIRE, not the guarantee: a hand-rolled reducer over
 // raw lock verdicts (or a verdict-hashing import) is the obvious way to drift, so we
@@ -16,13 +18,17 @@ import { walk, report } from '@chrisdudek/yg/ast';
 // test carry the real weight. scope: per node — the whole node's subject set is in
 // ctx.files for one verdict.
 
-// Required reuse callees per node id. Each listed function MUST appear as a call
+// Required reuse callees per node TYPE. Each listed function MUST appear as a call
 // somewhere in the node's files. The portal reaches the engine ONLY through the single
-// facade (cli/portal/engine-api), so the reuse requirement lives THERE — the facade is
+// facade type (portal-engine-api), so the reuse requirement lives THERE — the facade is
 // where runCheck + computeExpectedPairs are actually called; the pipeline reuses the
-// facade. Add an entry when a new engine-reaching node is created.
-const REQUIRED_REUSE = {
-  'cli/portal/engine-api': ['runCheck', 'computeExpectedPairs'],
+// facade and so has no call of its own to require (only the negative arms apply to it).
+// Every type this aspect is attached to must have an entry: a node of an unlisted type
+// is reported, so attaching the rule to a new type forces a decision here instead of
+// silently skipping the positive arm.
+const REQUIRED_REUSE_BY_TYPE = {
+  'portal-engine-api': ['runCheck', 'computeExpectedPairs'],
+  'portal-pipeline': [],
 };
 
 /** Trailing name of a callee: bare `f` or member `ns.f` → `f`. */
@@ -138,11 +144,28 @@ export function check(ctx) {
     });
   }
 
-  // POSITIVE: every required reuse callee for this node must be present. ctx.node is
-  // absent in ad-hoc (--files) runs; the manifest is keyed by node id, so the positive
-  // arm only applies to a real graph node.
-  const nodeId = ctx.node?.id;
-  const required = nodeId ? (REQUIRED_REUSE[nodeId] ?? []) : [];
+  // POSITIVE: every required reuse callee for this node's type must be present.
+  // ctx.node is absent in ad-hoc (--files) runs and for a file enforced by its type
+  // alone; the manifest is keyed by node type, so the positive arm applies to a real
+  // graph node only.
+  const nodeType = ctx.node?.type;
+  let required = [];
+  if (ctx.node) {
+    if (!Object.hasOwn(REQUIRED_REUSE_BY_TYPE, nodeType)) {
+      const first = ctx.files[0];
+      violations.push({
+        file: first ? first.path : undefined,
+        line: 1,
+        column: 0,
+        message:
+          `Node '${ctx.node.id}' has type '${nodeType}', which the count-parity reuse manifest ` +
+          `does not know — add the type to REQUIRED_REUSE_BY_TYPE with the engine functions its ` +
+          `nodes must call (an empty list if it reaches the engine only through the facade).`,
+      });
+    } else {
+      required = REQUIRED_REUSE_BY_TYPE[nodeType];
+    }
+  }
   for (const fnName of required) {
     if (!seenCallees.has(fnName)) {
       const first = ctx.files[0];

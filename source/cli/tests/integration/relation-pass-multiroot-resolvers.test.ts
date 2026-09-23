@@ -72,7 +72,7 @@ describe('runRelationPass — excluding one of two shadowing Python module candi
   });
 
   it('control: with no exclusion, the two shadowing candidates silence the import for BOTH', async () => {
-    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`, 'utf-8');
     const graph = await loadGraph(root);
     const result = await runRelationPass(graph, root, {
       extractorFor: extractorForLanguage,
@@ -87,7 +87,7 @@ describe('runRelationPass — excluding one of two shadowing Python module candi
   it("excluding the candidate that sorts FIRST ('svc/app/lib/mod.py') attributes the import to 'real', the survivor", async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - svc/app/lib/mod.py\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - svc/app/lib/mod.py\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -106,7 +106,7 @@ describe('runRelationPass — excluding one of two shadowing Python module candi
   it("excluding the candidate that sorts LAST ('svc/lib/mod.py') attributes the import to 'shadow', the survivor", async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - svc/lib/mod.py\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - svc/lib/mod.py\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -165,7 +165,7 @@ describe('runRelationPass — excluding one of two PSR-4 root copies of a PHP cl
   });
 
   it('control: with no exclusion, the two PSR-4 roots silence the import for BOTH', async () => {
-    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`, 'utf-8');
     const graph = await loadGraph(root);
     const result = await runRelationPass(graph, root, {
       extractorFor: extractorForLanguage,
@@ -180,7 +180,7 @@ describe('runRelationPass — excluding one of two PSR-4 root copies of a PHP cl
   it("excluding the root that sorts FIRST ('src1/Svc/S1.php') attributes the import to 's2', the survivor", async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src1/Svc/S1.php\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src1/Svc/S1.php\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -199,7 +199,7 @@ describe('runRelationPass — excluding one of two PSR-4 root copies of a PHP cl
   it("excluding the root that sorts LAST ('src2/Svc/S1.php') attributes the import to 's1', the survivor", async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src2/Svc/S1.php\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src2/Svc/S1.php\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);

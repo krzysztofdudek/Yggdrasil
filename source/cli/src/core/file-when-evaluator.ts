@@ -25,14 +25,19 @@ const YGGDRASIL_PREFIX = '.yggdrasil/';
  * would require evaluating the match off the main thread (a worker with a hard
  * timeout) — deliberately deferred as a designed change rather than a
  * heuristic ReDoS reject that could wrongly block a legitimate pattern.
+ *
+ * `truncated` reports that the file was longer than the head, so a non-match
+ * says nothing about the unscanned rest; `engineError` reports that the regex
+ * engine threw (a thrown error, never a timeout). Both reach the predicate trace.
  */
-function safeRegexTest(re: RegExp, str: string): { match: boolean; timeout?: boolean } {
-  const HEAD_LIMIT = 256 * 1024;
-  const head = str.length > HEAD_LIMIT ? str.slice(0, HEAD_LIMIT) : str;
+const HEAD_LIMIT = 256 * 1024;
+function safeRegexTest(re: RegExp, str: string): { match: boolean; truncated: boolean; engineError?: boolean } {
+  const truncated = str.length > HEAD_LIMIT;
+  const head = truncated ? str.slice(0, HEAD_LIMIT) : str;
   try {
-    return { match: re.test(head) };
+    return { match: re.test(head), truncated };
   } catch {
-    return { match: false, timeout: true };
+    return { match: false, truncated, engineError: true };
   }
 }
 
@@ -223,10 +228,21 @@ async function evaluateAtomic(
         trace: { kind: 'atom-content', pattern: predicate.content, result: false, detail: 'invalid content regex' },
       };
     }
-    const { match: matches } = safeRegexTest(regex, fileContent.content!);
+    const { match: matches, truncated, engineError } = safeRegexTest(regex, fileContent.content!);
+    const detail = engineError
+      ? 'the regex engine threw on this file; treated as no match'
+      : truncated && !matches
+        ? `no match in only the first 256 KiB of a ${Math.ceil(fileContent.content!.length / 1024)} KiB file; the rest was not scanned`
+        : undefined;
     return {
       result: matches,
-      trace: { kind: 'atom-content', pattern: predicate.content, result: matches },
+      trace: {
+        kind: 'atom-content',
+        pattern: predicate.content,
+        result: matches,
+        ...(detail === undefined ? {} : { detail }),
+        ...(truncated ? { truncated: true } : {}),
+      },
     };
   }
 

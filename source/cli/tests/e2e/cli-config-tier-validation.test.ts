@@ -146,7 +146,7 @@ function scaffold(
   const aspectRule = opts.aspectRule ?? { file: 'check.mjs', body: 'export function check() {\n  return [];\n}\n' };
   writeFileSync(path.join(ygRoot, 'aspects', 'det', aspectRule.file), aspectRule.body, 'utf-8');
 
-  writeFileSync(path.join(ygRoot, 'yg-config.yaml'), opts.configYaml, 'utf-8');
+  writeFileSync(path.join(ygRoot, 'yg-config.yaml'), opts.configYaml.trim() === '' || /^version:/m.test(opts.configYaml) ? opts.configYaml : `version: "6.0.0"\n${opts.configYaml}`, 'utf-8');
   return dir;
 }
 

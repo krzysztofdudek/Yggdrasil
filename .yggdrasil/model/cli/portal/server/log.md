@@ -34,3 +34,9 @@ under an attacker-controlled hostname. The plain page and static-asset routes
 are deliberately left unguarded, because a browser navigates to them directly
 and cannot attach a custom header; those routes perform no action and reveal
 only the same page a local operator already sees.
+## [2026-09-23T20:25:27.874Z]
+The Approve button spawned a new approval on every click with no regard for one already running, and two approvals overlapping on the same lock overwrite each other's verdicts. The server now answers 409 while an approval is running in the project, whether it spawned that run itself or another process holds the CLI's approval lock, and it still leaves the lock itself to the spawned CLI, which is the guard that cannot race.
+## [2026-09-23T20:50:34.270Z]
+The approve preview reads the cost from the check's machine document instead of pattern-matching the human header, whose wording is free to change. The page module held only one-line wrappers with a single caller, so the router calls the pipeline, serializer and boot pages directly.
+## [2026-09-23T21:29:44.034Z]
+Two changes met here: the approve route now refuses a second approval while one is running, and the page wrappers that only forwarded to the pipeline, the serializer and the boot pages were removed so the router calls those directly. The router keeps both: it imports the real page functions and the in-progress probe side by side.

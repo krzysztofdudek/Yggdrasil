@@ -16,3 +16,5 @@ The shared Java dependency factory built its ancestor-source-root walk with no e
 Every caller that needed statically resolved imports assembled the same four dependencies by hand. That duplicated the wiring and forced each caller to declare its own dependency on the extractor registry, inflating how much each one appeared to reach into. A single entry point now assembles and runs the pass, so a caller depends on this layer alone and the wiring lives in one place.
 ## [2026-09-23T19:15:19.276Z]
 An architecture with no node types constrains no relation, since the relation-target validator skips it entirely, yet the refusal message computed an empty allow-list for the unknown types and told the reader no relation type was allowed and to edit the architecture. On an empty architecture the message now offers every relation type and the stanza to paste, because declaring the relation is all it takes.
+## [2026-09-23T20:50:36.337Z]
+The cache-audit harness had no production caller; it moved into the only test that uses it, so the shipped source and its reviews no longer carry test-only code.

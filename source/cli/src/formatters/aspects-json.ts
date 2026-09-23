@@ -23,7 +23,11 @@ export interface AspectsJsonUsage {
   architecture: number;
   /** Declared on the component itself. */
   own: number;
-  /** Pulled in by another rule's `implies`. */
+  /** Declared on an ancestor component (or an ancestor's architecture type) and inherited down the hierarchy. */
+  inherited: number;
+  /** Required by a port the component consumes. */
+  port: number;
+  /** Pulled in ONLY by another rule's `implies` — no attachment of its own reaches the component. */
   implied: number;
   /** Propagated from a flow the component participates in. */
   flow: number;

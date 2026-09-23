@@ -134,3 +134,4 @@ mapping:
   - source/cli/tests/integration/portal-attestation-meta.test.ts
   - source/cli/tests/integration/portal-phase5-frontend.test.ts
   - source/cli/tests/integration/portal-engine-api-provenance.test.ts
+  - source/cli/tests/integration/portal-approve-busy.test.ts

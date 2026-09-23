@@ -101,31 +101,57 @@ version: "4.0.0"
   });
 
   it('defaults version to undefined when not present', async () => {
-    const config = await parseConfig(path.join(FIXTURE_DIR, 'yg-config.yaml'));
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-noversion');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'parallel: 2\n', 'utf-8');
+    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.version).toBeUndefined();
+    await rm(tmpDir, { recursive: true, force: true });
   });
 
-  it('ignores unknown config sections', async () => {
-    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-ignores-artifacts');
+  it('rejects an unknown top-level key with a did-you-mean suggestion', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-unknown-top');
     await mkdir(tmpDir, { recursive: true });
-    await writeFile(
-      path.join(tmpDir, 'yg-config.yaml'),
-      `
-version: "4.0.0"
-custom_section:
-  key: value
-  nested:
-    deep: true
-`,
-      'utf-8',
-    );
-
-    const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
-    expect(config.version).toBe('4.0.0');
-    // unknown fields should not exist on returned config
-    expect((config as Record<string, unknown>).custom_section).toBeUndefined();
-
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "6.0.0"\nprogresive:\n  reference: main\n', 'utf-8');
+    const err = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ConfigParseError);
+    expect((err as ConfigParseError).code).toBe('config-unknown-key');
+    expect((err as ConfigParseError).messageData.what).toContain("'progresive'");
+    expect((err as ConfigParseError).messageData.next).toContain("Did you mean 'progressive'?");
     await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('rejects an unknown top-level key with no close match without a suggestion', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-unknown-top2');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "6.0.0"\ncustom_section: {}\n', 'utf-8');
+    const err = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+    expect((err as ConfigParseError).code).toBe('config-unknown-key');
+    expect((err as ConfigParseError).messageData.next).not.toContain('Did you mean');
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('names yg-secrets.yaml when the unknown top-level key comes from the overlay', async () => {
+    const tmpDir = path.join(__dirname, '../../fixtures/tmp-config-unknown-overlay');
+    await mkdir(tmpDir, { recursive: true });
+    await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "6.0.0"\n', 'utf-8');
+    await writeFile(path.join(tmpDir, 'yg-secrets.yaml'), 'paralel: 4\n', 'utf-8');
+    const err = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+    expect((err as ConfigParseError).code).toBe('config-unknown-key');
+    expect((err as ConfigParseError).messageData.what).toContain('yg-secrets.yaml');
+    expect((err as ConfigParseError).messageData.next).toContain("Did you mean 'parallel'?");
+    await rm(tmpDir, { recursive: true, force: true });
+  });
+
+  it('reads the schema version field one way: absent, string, or not a string (as written)', async () => {
+    const { parseSchemaVersionText } = await import('../../../src/io/config-parser.js');
+    expect(parseSchemaVersionText('parallel: 2\n')).toEqual({ kind: 'absent' });
+    expect(parseSchemaVersionText('version: " 6.0.0 "\n')).toEqual({ kind: 'string', value: '6.0.0' });
+    expect(parseSchemaVersionText('version: 6.0.0\n')).toEqual({ kind: 'string', value: '6.0.0' });
+    expect(parseSchemaVersionText('version: 99.0 # hand edit\n')).toEqual({ kind: 'not-string', shown: '99.0' });
+    expect(parseSchemaVersionText('version: 5\n')).toEqual({ kind: 'not-string', shown: '5' });
+    expect(parseSchemaVersionText('- a\n')).toBeNull();
+    expect(parseSchemaVersionText('a: [\n')).toBeNull();
   });
 
   it('parses quality defaults when quality is not provided', async () => {

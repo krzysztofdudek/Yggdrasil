@@ -33,7 +33,7 @@ describe('portal — FULL live boundary (real fixtures, no mocking)', () => {
   beforeEach(() => {
     root = mkdtempSync(path.join(tmpdir(), 'portal-boundary-'));
     mkdirSync(path.join(root, '.yggdrasil', 'model'), { recursive: true });
-    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 50\n`, 'utf-8');
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\nquality:\n  max_direct_relations: 50\n`, 'utf-8');
   });
 
   afterEach(() => {

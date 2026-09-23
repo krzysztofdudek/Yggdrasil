@@ -58,7 +58,11 @@ A node or architecture file that fails to load hides whatever it referenced, so 
 The status-downgrade error now names the attach site that declares the lower status and where the higher status comes from: the rule's own default, another site that declares it, or both. It used to say the node attached the rule with the lower status and credited the declaring site with the higher one, so a flow that declared advisory on a rule whose default is enforced produced an error blaming components that attach nothing and naming the flow as the source of enforced. The fix text now says that an attach site can only raise the status, and that softening a rule everywhere means lowering its own default.
 ## [2026-09-23T20:30:55.579Z]
 An attachment naming a rule that exists but failed to load is no longer reported again as undefined, since the load error already carries the real cause; and an undefined rule under the packages area points at installing or detaching the package instead of creating files inside the copy, which the copy rail would refuse.
+## [2026-09-23T20:49:51.186Z]
+The reserved default port name is now imported from the one constant the model declares instead of being repeated as a private literal, so renaming the reserved port can no longer leave silent copies behind; the dependency on the model module is declared in the graph rather than hidden.
 ## [2026-09-23T21:24:56.887Z]
 Two independent release fixes met in this component at merge: the gate-clarity work and the documentation-consistency work. The merged source carries both behaviours unchanged; this entry records that the combination is what the verdicts now answer for.
 ## [2026-09-23T21:31:03.286Z]
 The package-system fixes and the already merged gate-clarity and documentation-consistency fixes met in this component at merge. The merged source carries both sets of behaviour unchanged; this entry records that the combination is what the verdicts now answer for.
+## [2026-09-23T22:37:55.523Z]
+The graph-governance work met the release work already merged in this component: the reserved default port name comes from the one model constant, while the status-downgrade site naming, the withheld absence findings and the packages-area guidance from the earlier work are unchanged.

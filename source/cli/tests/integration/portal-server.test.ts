@@ -514,18 +514,24 @@ describe('portal loopback server — startServer rejects on a bind failure (port
 
 // ── parseDryRunBudget — pure parse of the CLI's budget header (direct unit coverage) ──
 describe('parseDryRunBudget — the engine budget header parse', () => {
-  it('parses the pairs / deterministic / reviewer-call counts and the raw line', () => {
-    const out =
-      'Filling 5 unverified pairs across 3 nodes — 2 deterministic (no cost), 7 reviewer calls (consensus included)\n' +
-      'more text below';
-    const p = parseDryRunBudget(out);
+  it('reads the counts from the yg-check/1 document, never from the human header', () => {
+    const doc = JSON.stringify({ schema: 'yg-check/1', dryRunBudget: { pairs: 5, nodes: 3, files: 0, deterministic: 2, reviewerCalls: 7 } });
+    // The header wording is free to change: the numbers come from the document.
+    const p = parseDryRunBudget(doc, 'Something reworded entirely: 99 of whatever\n');
     expect(p.pairs).toBe(5);
     expect(p.deterministic).toBe(2);
     expect(p.reviewerCalls).toBe(7);
-    expect(p.raw).toContain('5 unverified pairs');
+    expect(p.raw).toContain('5');
   });
 
-  it('throws when the budget header is absent (a dry-run always emits it)', () => {
-    expect(() => parseDryRunBudget('no budget here')).toThrow(/Could not parse/);
+  it('carries the human header line verbatim as raw when the CLI printed one', () => {
+    const header = 'Filling 5 unverified pairs across 3 nodes — 2 deterministic (no cost), 7 reviewer calls (consensus included)';
+    const doc = JSON.stringify({ schema: 'yg-check/1', dryRunBudget: { pairs: 5, nodes: 3, files: 0, deterministic: 2, reviewerCalls: 7 } });
+    expect(parseDryRunBudget(doc, `${header}\nmore\n`).raw).toBe(header);
+  });
+
+  it('throws when the document carries no budget (no preview ran), or is not JSON', () => {
+    expect(() => parseDryRunBudget(JSON.stringify({ schema: 'yg-check/1' }), '')).toThrow(/Could not read the dry-run cost preview/);
+    expect(() => parseDryRunBudget('no budget here', '')).toThrow(/Could not read the dry-run cost preview/);
   });
 });

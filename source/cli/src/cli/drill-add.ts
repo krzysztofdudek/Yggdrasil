@@ -4,7 +4,6 @@ import path from 'node:path';
 
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
-import { buildDrillRun } from './drill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { readFileAtCommit } from '../utils/git-introspect.js';
@@ -15,7 +14,7 @@ import {
   duplicateOf,
   parseCaseSpec,
 } from '../core/drill-add.js';
-import { discoverDrillCases, runDrills } from '../core/drill-runner.js';
+import { discoverDrillCases, runDrills, type DrillRunSetup } from '../core/drill-runner.js';
 import {
   readCorpusFiles,
   removeCorpusCase,
@@ -47,7 +46,10 @@ import type { IssueMessage } from '../model/validation.js';
  * case that turns out to be unmeasurable is taken back out, because an
  * unmeasurable fixture in a corpus is worse than no fixture.
  */
-export function registerDrillAddCommand(drill: Command): void {
+/** The one drill-run wiring (`buildDrillRun` in cli/drill.ts), injected by the parent command. */
+export type BuildDrillRun = (graph: Graph, aspect: AspectDef, projectRoot: string, nodeless: boolean) => Promise<DrillRunSetup>;
+
+export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDrillRun): void {
   drill
     .command('add')
     .description(

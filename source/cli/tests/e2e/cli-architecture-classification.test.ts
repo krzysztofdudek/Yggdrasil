@@ -110,7 +110,7 @@ function archGraph(
   writeFileSync(
     path.join(ygRoot, 'yg-config.yaml'),
     [
-      'quality:',
+      'version: "6.0.0"', 'quality:',
       '  max_direct_relations: 10',
       'reviewer:',
       '  tiers:',

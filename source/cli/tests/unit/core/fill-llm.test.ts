@@ -107,7 +107,7 @@ function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
 }
 
 const V5_REVIEWER_CONFIG =
-  'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
+  'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -176,7 +176,10 @@ async function setupProject(spec: ProjectSpec): Promise<{ projectRoot: string; y
   const nodeDir = path.join(yggRoot, 'model', 'svc');
   await mkdir(nodeDir, { recursive: true });
   await mkdir(path.join(root, 'src'), { recursive: true });
-  await writeFile(path.join(yggRoot, 'yg-config.yaml'), spec.configYaml ?? V5_REVIEWER_CONFIG);
+  await writeFile(
+    path.join(yggRoot, 'yg-config.yaml'),
+    spec.configYaml === undefined ? V5_REVIEWER_CONFIG : /^version:/m.test(spec.configYaml) ? spec.configYaml : `version: "6.0.0"\n${spec.configYaml}`,
+  );
   await writeFile(
     path.join(yggRoot, 'yg-architecture.yaml'),
     `node_types:\n  service:\n    description: s\n    log_required: ${spec.logRequired ?? false}\n`,
@@ -246,7 +249,7 @@ describe('header + summary strings (exact)', () => {
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
     const w = makeWriter();
-    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     expect(w.text()).toContain(
       'Filling 2 unverified pairs across 1 nodes — 1 deterministic (no cost), 1 reviewer calls (consensus included)',
     );
@@ -266,7 +269,7 @@ describe('header + summary strings (exact)', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
     const w = makeWriter();
 
-    await runFill(graph, {
+    await runFill(graph, { isTTY: false, now: Date.now,
       coverageVisibleFiles: null, onlyDeterministic: true, write: w.write, emitIssue: w.emitIssue,
     });
 
@@ -292,11 +295,11 @@ describe('header + summary strings (exact)', () => {
     });
     let graph = await loadGraph(projectRoot);
     // First fill records the verdict.
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     // Second fill: nothing unverified.
     graph = await loadGraph(projectRoot);
     const w = makeWriter();
-    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     expect(w.text()).toContain('0 reviewer calls made — all expected pairs hold valid verdicts');
   });
 });
@@ -315,7 +318,7 @@ describe('cached refusal', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { calls++; return { satisfied: false, reason: 'nope', errorSource: 'codeViolation' as const }; },
     }));
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     expect(calls).toBe(1);
     const lock1 = readLock(graph.rootPath);
     expect(lock1.verdicts['llm-a']?.['node:svc']?.verdict).toBe('refused');
@@ -326,7 +329,7 @@ describe('cached refusal', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { calls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     expect(calls).toBe(0);
     expect(result.reviewerCallsMade).toBe(0);
     // The cached refusal still renders (check report still errors).
@@ -349,7 +352,7 @@ describe('infra fail-closed', () => {
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({ isAvailable: async () => false }));
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     const lock = readLock(graph.rootPath);
     // The free det pair was filled (it does not need the provider).
@@ -372,7 +375,7 @@ describe('infra fail-closed', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { calls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // The reviewer must never be called — the reference is missing.
     expect(calls).toBe(0);
@@ -397,7 +400,7 @@ describe('zero-calls summary gated on runtimeErrors === 0 (side-fix B3)', () => 
     // No LLM provider needed — this run is all deterministic.
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     // The check crashed → runtime error (no write, no reviewer call).
     expect(result.runtimeErrors).toBeGreaterThan(0);
     expect(result.reviewerCallsMade).toBe(0);
@@ -432,7 +435,7 @@ describe('consensus=3 majority-approve', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // Header must show 3 reviewer calls (consensus included).
     expect(w.text()).toContain('3 reviewer calls (consensus included)');
@@ -483,7 +486,7 @@ describe('structural abort — FillGatingError', () => {
 
     // The fill must throw FillGatingError — zero fills dispatched.
     await expect(
-      runFill(graph, { coverageVisibleFiles: null, write: () => {} }),
+      runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} }),
     ).rejects.toBeInstanceOf(FillGatingError);
 
     expect(runnerCallCount).toBe(0);
@@ -529,7 +532,7 @@ describe('structural abort — FillGatingError', () => {
 
     const w = makeWriter();
     await expect(
-      runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue }),
+      runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue }),
     ).rejects.toBeInstanceOf(FillGatingError);
 
     expect(runnerCallCount).toBe(0);
@@ -560,7 +563,7 @@ describe('fill — fail-closed edge branches', () => {
       async verifyAspect() { return { satisfied: false, reason: 'rate limited', errorSource: 'provider' as const }; },
     }));
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // No verdict written — a provider error never becomes a `refused` verdict.
     expect(readLock(graph.rootPath).verdicts['llm-a']?.['node:svc']).toBeUndefined();
@@ -576,7 +579,7 @@ describe('fill — fail-closed edge branches', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { throw new Error('socket hang up'); },
     }));
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     expect(readLock(graph.rootPath).verdicts['llm-a']?.['node:svc']).toBeUndefined();
     expect(result.infraFailures).toBeGreaterThan(0);
   });
@@ -590,7 +593,7 @@ describe('fill — fail-closed edge branches', () => {
       async isAvailable() { throw new Error('dns failure'); },
     }));
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     expect(readLock(graph.rootPath).verdicts['llm-a']?.['node:svc']).toBeUndefined();
     expect(result.infraFailures).toBeGreaterThan(0);
     // The thrown cause reaches the reader instead of a generic "unreachable".
@@ -608,7 +611,7 @@ describe('fill — fail-closed edge branches', () => {
     }));
     mockReportFillTotals.mockClear();
     const w = makeWriter();
-    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     const text = w.text();
     expect(text).toContain("Reviewer provider 'ollama' (tier 'standard') cannot run: 'claude' was not found on PATH — install Claude Code. 1 pair(s) left unverified.");
     expect(text).not.toContain('endpoint did not respond');
@@ -629,7 +632,7 @@ describe('fill — fail-closed edge branches', () => {
     }));
     mockReportFillTotals.mockClear();
     const w = makeWriter();
-    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     const text = w.text();
     expect(text).toContain("returned a provider error: 'claude' exited with code 1: Invalid API key · Please run /login");
     expect(text).not.toContain('Check the provider endpoint, network, and credentials');
@@ -648,7 +651,7 @@ describe('fill — fail-closed edge branches', () => {
     });
     const graph = await loadGraph(projectRoot);
     const w = makeWriter();
-    await expect(runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue })).rejects.toBeInstanceOf(FillGatingError);
+    await expect(runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue })).rejects.toBeInstanceOf(FillGatingError);
     expect(w.text()).toContain('aborted — 1 problem must be fixed before anything runs');
     // No lock verdict was written.
     let lockHasEntry: boolean;
@@ -699,7 +702,7 @@ describe('fill — fail-closed edge branches', () => {
     });
 
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // Fail-closed: NO verdict written for the unresolvable-tier pair.
     expect(readLock(graph.rootPath).verdicts['llm-a']?.['node:svc']).toBeUndefined();
@@ -730,7 +733,7 @@ describe('fill — fail-closed edge branches', () => {
       observationsTainted: false,
     }));
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     expect(readLock(graph.rootPath).verdicts['det-a']?.['node:svc']).toBeUndefined();
     expect(result.runtimeErrors).toBeGreaterThan(0);
     expect(w.text()).toContain('aspect-check-runtime-error');
@@ -750,7 +753,7 @@ describe('fill — fail-closed edge branches', () => {
       observationsTainted: true,
     }));
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     expect(readLock(graph.rootPath).verdicts['det-a']?.['node:svc']).toBeUndefined();
     expect(result.runtimeErrors).toBeGreaterThan(0);
     expect(w.text()).toContain('aspect-check-runtime-error');
@@ -761,7 +764,7 @@ describe('fill — fail-closed edge branches', () => {
       aspects: [{ id: 'det-a', kind: 'deterministic', status: 'enforced', rule: DET_FAIL }],
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     const entry = readLock(graph.rootPath).verdicts['det-a']?.['node:svc'];
     expect(entry?.verdict).toBe('refused');
     // DET_FAIL reports { message: 'bad', file: 'src/svc.ts', line: 1 } → "src/svc.ts:1: bad".
@@ -780,7 +783,7 @@ describe('fill — fail-closed edge branches', () => {
       aspects: [{ id: 'det-a', kind: 'deterministic', status: 'enforced', rule }],
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     const entry = readLock(graph.rootPath).verdicts['det-a']?.['node:svc'];
     expect(entry?.verdict).toBe('refused');
     expect(entry?.reason).toContain('src/svc.ts: no line');
@@ -796,7 +799,7 @@ describe('fill — fail-closed edge branches', () => {
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({ isAvailable: async () => false }));
     const w = makeWriter();
-    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     // The summary's parenthetical id carries the provider / tier.
     expect(w.text()).toContain('ollama');
     expect(w.text()).toContain('standard');
@@ -811,7 +814,7 @@ describe('fill — fail-closed edge branches', () => {
       logContent: '## [2026-05-11T10:00:00.000Z]\nfirst.\n',
     });
     const graph = await loadGraph(projectRoot);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     const nodeEntry = readLock(graph.rootPath).nodes['svc'];
     // No source fingerprint (mapping-less), but the log baseline is recorded.
     expect(nodeEntry?.source).toBeUndefined();
@@ -858,7 +861,7 @@ describe('Bug 1 — BOM/non-UTF-8 reference round-trips fill → verify', () => 
 
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // The fill wrote an approved verdict (the provider was reachable and approved).
     const entry = readLock(graph.rootPath).verdicts['llm-ref']?.['node:svc'];
@@ -919,7 +922,7 @@ describe('per-pair durability under mid-pool failure (item #10)', () => {
       },
     }));
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // The first pair to complete persisted its approved verdict before the
     // second pair's throw — exactly one approved verdict survives on disk.
@@ -959,7 +962,7 @@ describe('per-pair durability under mid-pool failure (item #10)', () => {
         throw new Error('ctrl-c interrupt');
       },
     }));
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // Second run: approve-all + count calls. The cached pair is NOT re-billed.
     graph = await loadGraph(projectRoot);
@@ -970,7 +973,7 @@ describe('per-pair durability under mid-pool failure (item #10)', () => {
         return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const };
       },
     }));
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // Exactly one reviewer call — only the remaining (previously-thrown) pair.
     expect(secondRunCalls).toBe(1);
@@ -993,7 +996,7 @@ describe('per-pair durability under mid-pool failure (item #10)', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { return { satisfied: false, reason: 'rate limited', errorSource: 'provider' as const }; },
     }));
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // No verdict written — the in-pool infra disposition is fail-closed.
     expect(readLock(graph.rootPath).verdicts['llm-a']?.['node:svc']).toBeUndefined();
@@ -1013,7 +1016,7 @@ describe('per-pair durability under mid-pool failure (item #10)', () => {
     });
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves both
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // Both verdicts are approved on disk.
     const verdicts = readLock(graph.rootPath).verdicts;
@@ -1060,7 +1063,7 @@ describe('judge identity on LLM event lines (RZ-2)', () => {
     });
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider()); // approves
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     const events = await readEventsFor(graph.rootPath);
     const llmEvent = events.find((e) => e.aspectId === 'llm-a' && e.disposition === 'approved');
@@ -1079,7 +1082,7 @@ describe('judge identity on LLM event lines (RZ-2)', () => {
     });
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({ isAvailable: async () => false }));
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     const events = await readEventsFor(graph.rootPath);
     const infraEvent = events.find((e) => e.aspectId === 'llm-a' && e.disposition === 'infra');
@@ -1099,7 +1102,7 @@ describe('judge identity on LLM event lines (RZ-2)', () => {
       ok: false,
       error: { what: 'tier unresolvable (test)', why: 'forced', next: 'fix the tier' },
     });
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     const events = await readEventsFor(graph.rootPath);
     const infraEvent = events.find((e) => e.aspectId === 'llm-a' && e.disposition === 'infra');

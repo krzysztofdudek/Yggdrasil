@@ -56,9 +56,14 @@ import {
 interface AspectUsage {
   architecture: number;
   own: number;
+  /** Declared on an ancestor component (or an ancestor's architecture type) and inherited down the hierarchy. */
+  inherited: number;
+  /** Required by a port the component consumes. */
+  port: number;
+  /** Pulled in ONLY by another rule's `implies` — no attachment of its own reaches the node. */
   implied: number;
   flow: number;
-  /** Real component nodes using this aspect — architecture + own + implied + flow. Never includes typeCovered below (a file is not a node). */
+  /** Real component nodes using this aspect — architecture + own + inherited + port + implied + flow. Never includes typeCovered below (a file is not a node). */
   total: number;
   /**
    * Files enforced by their architecture type alone (no owning component) —
@@ -81,7 +86,7 @@ interface AspectUsage {
 export function computeAspectUsage(graph: Graph, typeCoverage?: TypeCoverageInput): Map<string, AspectUsage> {
   const usage = new Map<string, AspectUsage>();
   for (const aspect of graph.aspects) {
-    usage.set(aspect.id, { architecture: 0, own: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 });
+    usage.set(aspect.id, { architecture: 0, own: 0, inherited: 0, port: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 });
   }
 
   for (const [, node] of graph.nodes) {
@@ -107,7 +112,16 @@ export function computeAspectUsage(graph: Graph, typeCoverage?: TypeCoverageInpu
       if (archAspects.has(aspectId)) u.architecture++;
       else if (flowAspects.has(aspectId)) u.flow++;
       else if (ownAspects.has(aspectId)) u.own++;
-      else u.implied++;
+      else {
+        // The cascade's own attachment channels, not a guess: an ancestor's
+        // declaration (2) or an ancestor's type default (4) is inheritance, a
+        // consumed port (6) is a port requirement, and only an aspect with no
+        // attachment at all arrived by `implies`.
+        const channels = new Set(getAspectStatusSources(node, aspectId, graph).map((s) => s.channel));
+        if (channels.has(2) || channels.has(4)) u.inherited++;
+        else if (channels.has(6)) u.port++;
+        else u.implied++;
+      }
     }
   }
 
@@ -343,7 +357,7 @@ export async function buildAspectsJson(
   const sorted = [...graph.aspects].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   const aspects: AspectsJsonAspect[] = [];
   for (const aspect of sorted) {
-    const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 };
+    const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, inherited: 0, port: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 };
     const cases = await discoverDrillCases({ aspectId: aspect.id, projectRoot });
     const drills: AspectsJsonDrills = {
       violates: cases.filter((c) => c.expect === 'refused').length,
@@ -364,6 +378,8 @@ export async function buildAspectsJson(
         nodes: u.total,
         architecture: u.architecture,
         own: u.own,
+        inherited: u.inherited,
+        port: u.port,
         implied: u.implied,
         flow: u.flow,
         typeCovered: u.typeCovered,
@@ -397,7 +413,7 @@ export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInp
   const lines: string[] = [];
 
   for (const aspect of graph.aspects.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))) {
-    const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 };
+    const u = usage.get(aspect.id) ?? { architecture: 0, own: 0, inherited: 0, port: 0, implied: 0, flow: 0, total: 0, typeCovered: 0 };
     const displayName = aspect.description ?? aspect.name;
     const status = aspect.status ?? 'enforced';
     lines.push(`${aspect.id} [${status}] — ${displayName}`);
@@ -419,6 +435,8 @@ export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInp
       const parts: string[] = [];
       if (u.architecture) parts.push(`architecture: ${u.architecture}`);
       if (u.own) parts.push(`direct: ${u.own}`);
+      if (u.inherited) parts.push(`inherited: ${u.inherited}`);
+      if (u.port) parts.push(`port: ${u.port}`);
       if (u.implied) parts.push(`implied: ${u.implied}`);
       if (u.flow) parts.push(`flow: ${u.flow}`);
       if (u.typeCovered) parts.push(`type-covered: ${u.typeCovered}`);

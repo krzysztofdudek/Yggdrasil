@@ -16,7 +16,15 @@ description: "Repo-wide meta-tests (in-process, no spawned binary) that guard
   leave the page saying something a consumer in another repository would
   believe. A fourth fails when an adopter-facing surface (the docs site, the
   READMEs, the templates the CLI prints, the examples) describes a removed
-  feature, such as the port contract baseline, as if it still existed."
+  feature, such as the port contract baseline, as if it still existed. Two more
+  hold the graph's self-governance to the files it claims: every rule script
+  this graph defines, at any nesting depth, is owned by the rule-script node
+  and no drill fixture is; no tracked file matches the when of two
+  architecture types; no description still names a review channel that has
+  been removed, and no enforced rule says it never blocks. The rules that need
+  graph context a single-file drill cannot give (sibling-test-file, the portal
+  count-parity rule) are driven here with a hand-built context over their real
+  rule scripts."
 aspects: []
 relations:
   [
@@ -25,8 +33,10 @@ relations:
     { target: cli/core/graph, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/core/pairs, type: uses },
+    { target: cli/core/type-classifier, type: uses },
     { target: cli/io/file-content-cache, type: uses },
     { target: cli/io/stores, type: uses },
+    { target: cli/relations/core, type: uses },
     { target: cli/tests/support, type: uses },
     { target: cli/utils, type: uses }
   ]
@@ -36,3 +46,5 @@ mapping:
   - source/cli/tests/unit/repo/git-fixture-isolation-invariant.test.ts
   - source/cli/tests/unit/repo/family-contracts-invariant.test.ts
   - source/cli/tests/unit/repo/no-retired-features-in-docs.test.ts
+  - source/cli/tests/unit/repo/graph-self-governance-invariant.test.ts
+  - source/cli/tests/unit/repo/self-governance-rules.test.ts

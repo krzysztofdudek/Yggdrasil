@@ -1,7 +1,7 @@
 // yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
-import { ZERO_CLASSIFYING_TYPES_NOTICE, OUTSIDE_CODES } from '../core/check-codes.js';
+import { ZERO_CLASSIFYING_TYPES_NOTICE, FEATURE_INDEX_NOT_IGNORED_NOTICE, OUTSIDE_CODES } from '../core/check-codes.js';
 import { groupIssues, issuePriorityRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, type IssueGroup } from './group-issues.js';
 import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderChangeScope, renderByteGuardNotice, renderBaselineNoiseNotice, renderCoverageRequiresNothingNotice, renderExternalJudgesNotice } from './check-render-header.js';
 import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup } from './check-render-groups.js';
@@ -139,6 +139,11 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   // and printed in every view (the --aspect drill-in replaces only sections[0],
   // so this survives it). Absent entirely on a run that met neither of the two
   // states it reports, which is every ordinary run.
+  if (result.featureIndexNotIgnored) {
+    sections.push('');
+    sections.push(chalk.dim(FEATURE_INDEX_NOT_IGNORED_NOTICE));
+  }
+
   const byteGuardNotice = renderByteGuardNotice(result);
   if (byteGuardNotice !== undefined) {
     sections.push('');
