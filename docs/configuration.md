@@ -207,7 +207,7 @@ keys listed above are read.
 | `anthropic` | API | Requires `ANTHROPIC_API_KEY` or `yg-secrets.yaml` |
 | `openai` | API | Requires `OPENAI_API_KEY` |
 | `google` | API | Requires `GOOGLE_API_KEY` |
-| `openai-compatible` | API | Any OpenAI-compatible endpoint. The key is optional: `config.api_key`, else `OPENAI_API_KEY`; with neither, requests go out with no `Authorization` header, which suits a keyless local server (vLLM, LM Studio, llama.cpp). `OPENAI_API_KEY` is the same variable the `openai` provider reads, so a key set for one is sent to the other — give the compatible tier its own `config.api_key` in `yg-secrets.yaml` when both are in use. |
+| `openai-compatible` | API | Any OpenAI-compatible endpoint. The key is optional: `config.api_key`, else `OPENAI_COMPATIBLE_API_KEY`; with neither, requests go out with no `Authorization` header, which suits a keyless local server (vLLM, LM Studio, llama.cpp). It never reads `OPENAI_API_KEY`: the endpoint can be any server, and an OpenAI key must not travel to it. |
 | `claude-code` | CLI | Delegates to the installed `claude` CLI |
 | `codex` | CLI | Delegates to the installed `codex` CLI |
 | `gemini-cli` | CLI | Delegates to the installed `gemini` CLI |
@@ -256,7 +256,7 @@ reviewer, and each machine points the same named tier at its own provider, model
 or key.
 
 API providers also check environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
-(read by both `openai` and `openai-compatible`), `GOOGLE_API_KEY`. If the env var is set, the key is not needed in `yg-secrets.yaml`.
+(`openai` only), `OPENAI_COMPATIBLE_API_KEY` (`openai-compatible` only), `GOOGLE_API_KEY`. If the env var is set, the key is not needed in `yg-secrets.yaml`.
 
 `yg-config.yaml` itself must never contain credentials. Commit it to the repository.
 

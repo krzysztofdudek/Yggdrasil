@@ -73,6 +73,28 @@ describe('openai-compatible — the key is optional', () => {
     expect(headers.Authorization).toBeUndefined();
   });
 
+  it('never sends OPENAI_API_KEY to an openai-compatible endpoint', async () => {
+    process.env.OPENAI_API_KEY = 'sk-openai-must-not-leak';
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"satisfied": true, "reason": "ok"}' } }] }), { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    await new OpenAIProvider(compat).verifyAspect('prompt');
+    const headers = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>;
+    expect(headers.Authorization).toBeUndefined();
+  });
+
+  it('reads its own OPENAI_COMPATIBLE_API_KEY', async () => {
+    process.env.OPENAI_COMPATIBLE_API_KEY = 'sk-compat';
+    try {
+      const fetchMock = vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { content: '{"satisfied": true, "reason": "ok"}' } }] }), { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+      await new OpenAIProvider(compat).verifyAspect('prompt');
+      const headers = (fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].headers as Record<string, string>;
+      expect(headers.Authorization).toBe('Bearer sk-compat');
+    } finally {
+      delete process.env.OPENAI_COMPATIBLE_API_KEY;
+    }
+  });
+
   it('the hosted openai provider still requires a key', async () => {
     expect(await new OpenAIProvider(baseCfg).isAvailable()).toBe(false);
   });

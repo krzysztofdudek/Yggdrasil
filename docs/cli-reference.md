@@ -1682,7 +1682,7 @@ Copilot plan allows, e.g. `--model auto`). `--endpoint` defaults to
 and requires `--endpoint`. Credentials are never a flag — an API provider's
 key is read only from its own environment variable
 (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`; `openai-compatible`
-also reads `OPENAI_API_KEY`, and needs no key for a keyless server) at init time,
+reads its own `OPENAI_COMPATIBLE_API_KEY`, never `OPENAI_API_KEY`, and needs no key for a keyless server) at init time,
 keeping keys out of shell history; a missing key is non-fatal and can be set
 later before `yg check --approve`. For a CLI provider, init checks that the CLI
 runs on this machine (the same check the interactive menu makes) and prints a
