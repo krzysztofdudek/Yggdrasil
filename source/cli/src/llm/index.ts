@@ -6,6 +6,7 @@ import './anthropic.js';
 import './google.js';
 import './codex.js';
 import './gemini-cli.js';
+import './copilot-cli.js';
 
 export { createLlmProvider, registerProvider } from './provider.js';
 export type { LlmProvider, AspectResponse } from './types.js';

@@ -117,7 +117,7 @@ reviewer:                         # required only once a judgment (LLM) rule is 
   tiers:                          # required — named tier configurations, minimum one entry.
     standard:                     #   tier name — referenced from aspects via reviewer.tier:
       provider: ollama            #     provider id (one of: ollama, openai, anthropic, google,
-                                  #                       openai-compatible, claude-code, codex, gemini-cli)
+                                  #                       openai-compatible, claude-code, codex, gemini-cli, copilot-cli)
       consensus: 1                #     positive odd integer >= 1 (3+ for majority vote). Per-tier.
       config:                     #     provider-specific settings — same fields the provider accepts.
         model: "qwen3.5:9b"       #       model id

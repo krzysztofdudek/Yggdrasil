@@ -271,7 +271,7 @@ node_types:
     description: "LLM provider — vendor-specific adapter implementing the provider interface. One file per vendor."
     enforce: strict
     when:
-      path: "source/cli/src/llm/{anthropic,claude-code,codex,gemini-cli,google,ollama,openai}.ts"
+      path: "source/cli/src/llm/{anthropic,claude-code,codex,copilot-cli,gemini-cli,google,ollama,openai}.ts"
     aspects:
       - id: source-no-raw-control-chars
         status: enforced
@@ -291,7 +291,7 @@ node_types:
       all_of:
         - path: "source/cli/src/llm/*.ts"
         - not:
-            path: "source/cli/src/llm/{anthropic,claude-code,codex,gemini-cli,google,ollama,openai,cli-base}.ts"
+            path: "source/cli/src/llm/{anthropic,claude-code,codex,copilot-cli,gemini-cli,google,ollama,openai,cli-base}.ts"
         - not:
             path: "**/*.test.ts"
     aspects:
@@ -306,7 +306,7 @@ node_types:
       default: deny
 
   llm-subprocess-base:
-    description: "Subprocess-based LLM provider substrate — spawns child processes for CLI-native LLMs (claude-code, codex, gemini-cli). Exempt from deterministic; redaction is what matters."
+    description: "Subprocess-based LLM provider substrate — spawns child processes for CLI-native LLMs (claude-code, codex, gemini-cli, copilot-cli). Exempt from deterministic; redaction is what matters."
     enforce: strict
     when:
       path: "source/cli/src/llm/cli-base.ts"

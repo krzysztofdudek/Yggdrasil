@@ -24,7 +24,7 @@ export function assertNotCancelled<T>(value: T | symbol): asserts value is T {
 // ---------------------------------------------------------------------------
 
 const API_PROVIDERS: ReviewerProvider[] = ['anthropic', 'openai', 'google', 'openai-compatible', 'ollama'];
-const CLI_PROVIDERS: ReviewerProvider[] = ['claude-code', 'codex', 'gemini-cli'];
+const CLI_PROVIDERS: ReviewerProvider[] = ['claude-code', 'codex', 'gemini-cli', 'copilot-cli'];
 /** Every valid --provider value (free CLI-agent providers first, then API/local). */
 export const ALL_PROVIDERS: ReviewerProvider[] = [...CLI_PROVIDERS, ...API_PROVIDERS];
 /** Env var each API provider reads its key from, for non-interactive init. */
@@ -120,6 +120,8 @@ async function promptModelText(provider: ReviewerProvider): Promise<string> {
     hint = ' (see https://platform.openai.com/docs/models)';
   } else if (provider === 'gemini-cli') {
     hint = ' (see https://ai.google.dev/gemini-api/docs/models)';
+  } else if (provider === 'copilot-cli') {
+    hint = ' (one your Copilot plan allows, e.g. auto; the CLI refuses any other)';
   }
   const model = await p.text({
     message: `Enter model name${hint}`,
@@ -157,6 +159,7 @@ export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
       { value: 'claude-code' as ReviewerProvider, label: 'Claude Code', hint: 'CLI — free, no API key; uses installed claude' },
       { value: 'codex' as ReviewerProvider, label: 'Codex', hint: 'CLI — free, no API key; uses installed codex' },
       { value: 'gemini-cli' as ReviewerProvider, label: 'Gemini CLI', hint: 'CLI — free, no API key; uses installed gemini' },
+      { value: 'copilot-cli' as ReviewerProvider, label: 'GitHub Copilot CLI', hint: 'CLI — no API key; uses installed copilot and your Copilot plan' },
       { value: 'ollama' as ReviewerProvider, label: 'Ollama', hint: 'Local — no API costs; needs a local install' },
       { value: 'anthropic' as ReviewerProvider, label: 'Anthropic', hint: 'API key — Claude models' },
       { value: 'openai' as ReviewerProvider, label: 'OpenAI', hint: 'API key — GPT models' },

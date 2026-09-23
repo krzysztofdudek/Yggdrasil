@@ -124,12 +124,16 @@ tier, \`deep\` for an opt-in higher-capability tier.
 ### reviewer.tiers.<name>.provider
 
 One of: \`ollama\`, \`anthropic\`, \`openai\`, \`google\`, \`openai-compatible\`,
-\`claude-code\`, \`codex\`, \`gemini-cli\`.
+\`claude-code\`, \`codex\`, \`gemini-cli\`, \`copilot-cli\`.
 
-CLI providers (\`claude-code\`, \`codex\`, \`gemini-cli\`) do not require an API key —
+CLI providers (\`claude-code\`, \`codex\`, \`gemini-cli\`, \`copilot-cli\`) do not require an API key —
 they delegate to the installed CLI tool. They are also the only providers with a
 built-in \`config.model\` fallback, applied when a tier omits it:
 \`claude-code\` → \`haiku\`, \`codex\` → \`o4-mini\`, \`gemini-cli\` → \`gemini-2.5-flash\`.
+\`copilot-cli\` has none: the Copilot plan decides which models a seat may use and
+the CLI refuses any other, so the tier names one (\`auto\` lets Copilot pick). It runs
+the real CLI (\`YG_COPILOT_BIN\`, else the first \`copilot\` on PATH outside the VS Code
+extension's stub) with an empty \`COPILOT_HOME\` and no tools.
 Every other provider MUST declare \`config.model\` — a missing one is a hard
 \`config-tier-config-missing\`-class error. (Distinct from \`yg init --model\`, whose
 own default is \`sonnet\` for \`claude-code\` and required for every other provider:

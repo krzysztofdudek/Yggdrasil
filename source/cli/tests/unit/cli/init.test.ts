@@ -166,8 +166,8 @@ describe('resolveReviewerConfigFromFlags', () => {
     if (r.ok) expect(r.config.model).toBe('sonnet');
   });
 
-  it('requires --model for codex and gemini-cli', () => {
-    for (const provider of ['codex', 'gemini-cli'] as const) {
+  it('requires --model for codex, gemini-cli and copilot-cli', () => {
+    for (const provider of ['codex', 'gemini-cli', 'copilot-cli'] as const) {
       const r = resolveReviewerConfigFromFlags({ provider });
       expect(r.ok).toBe(false);
       if (!r.ok) {

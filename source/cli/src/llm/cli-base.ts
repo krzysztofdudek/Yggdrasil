@@ -200,6 +200,8 @@ export abstract class CliAgentProvider implements LlmProvider {
   abstract get binary(): string;
   abstract buildArgs(prompt: string): string[];
   abstract get stdinMode(): boolean;
+  /** Variables a provider sets on top of the caller's environment. */
+  protected get extraEnv(): Record<string, string> { return {}; }
 
   async isAvailable(): Promise<boolean> {
     return binaryAvailable(this.binary);
@@ -214,7 +216,7 @@ export abstract class CliAgentProvider implements LlmProvider {
         stdio: ['pipe', 'pipe', 'pipe'],
         timeout: this.timeout,
         cwd: tmpdir(),
-        env: { ...process.env },
+        env: { ...process.env, ...this.extraEnv },
       });
 
       let stdout = '';

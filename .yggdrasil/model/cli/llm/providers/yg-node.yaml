@@ -19,3 +19,4 @@ mapping:
   - source/cli/src/llm/claude-code.ts
   - source/cli/src/llm/codex.ts
   - source/cli/src/llm/gemini-cli.ts
+  - source/cli/src/llm/copilot-cli.ts

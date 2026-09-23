@@ -189,7 +189,7 @@ reviewer:
 | `provider` | yes | One of the supported providers (see below) |
 | `consensus` | yes | Positive odd integer. `1` = single call. `3` = majority vote. |
 | `max_prompt_chars` | no | Positive integer. Caps the assembled-prompt length for LLM pairs on this tier (see [Prompt-size gate](#prompt-size-gate)). Absent defaults to 50000. `yg init` writes `50000`. |
-| `config.model` | required for `ollama` / `openai` / `anthropic` / `google` / `openai-compatible`; optional for the CLI providers | Provider-specific model identifier. Omitted on a CLI provider it defaults to: `claude-code` → `haiku`, `codex` → `o4-mini`, `gemini-cli` → `gemini-2.5-flash`. |
+| `config.model` | required for `ollama` / `openai` / `anthropic` / `google` / `openai-compatible`; optional for the CLI providers | Provider-specific model identifier. Omitted on a CLI provider it defaults to: `claude-code` → `haiku`, `codex` → `o4-mini`, `gemini-cli` → `gemini-2.5-flash`; `copilot-cli` has no default and must name one. |
 | `config.temperature` | no | Sampling temperature. Defaults to `0`. |
 | `config.endpoint` | required for `openai-compatible` (ollama defaults to `http://localhost:11434`) | API endpoint URL |
 | `config.timeout` | no | Per-call timeout in seconds. Defaults to `300`. Honored by CLI providers and the `ollama` provider; other hosted API providers ignore it. |
@@ -210,9 +210,12 @@ keys listed above are read.
 | `claude-code` | CLI | Delegates to the installed `claude` CLI |
 | `codex` | CLI | Delegates to the installed `codex` CLI |
 | `gemini-cli` | CLI | Delegates to the installed `gemini` CLI |
+| `copilot-cli` | CLI | Delegates to the installed GitHub Copilot CLI (`copilot`), billed to the Copilot plan it is signed in with |
 
-CLI providers (claude-code, codex, gemini-cli) require no API key — they delegate to the
+CLI providers (claude-code, codex, gemini-cli, copilot-cli) require no API key — they delegate to the
 installed CLI tool.
+
+`copilot-cli` has no default model: the organisation's Copilot policy decides which models a seat may use, and the CLI refuses a model outside it instead of substituting another, so `config.model` must name one the plan allows (`auto` lets Copilot pick). The provider runs the real CLI, never the `copilot` stub the VS Code Copilot extension puts on PATH (an installer prompt): it takes `YG_COPILOT_BIN` when set, otherwise the first `copilot` on PATH outside the extension's storage. Each review runs with the user's configuration and MCP servers out of reach (an empty `COPILOT_HOME`), with no repository instructions, no built-in MCP servers and no shell, write, network or memory tools; the sign-in is kept.
 
 ---
 

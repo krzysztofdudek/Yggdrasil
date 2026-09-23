@@ -1,6 +1,7 @@
 import type { ReviewerProvider } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { binaryAvailable } from '../utils/binary-check.js';
+import { createLlmProvider } from './provider.js';
 
 export interface ReviewerTestResult {
   ok: boolean;
@@ -41,6 +42,16 @@ export async function testApiProvider(
 }
 
 export async function testCliProvider(provider: ReviewerProvider): Promise<ReviewerTestResult> {
+  if (provider === 'copilot-cli') {
+    // Asked through the registry, not by name: the provider finds the real CLI itself, past the
+    // VS Code extension's `copilot` stub, and a plain binary probe would take the stub for it.
+    try {
+      if (await createLlmProvider({ provider, model: 'auto', temperature: 0, consensus: 1 }).isAvailable()) return { ok: true };
+    } catch (err) {
+      debugWrite(`[reviewer-test] copilot-cli probe: ${(err as Error).message}`);
+    }
+    return { ok: false, error: "no GitHub Copilot CLI found — install it (npm i -g @github/copilot) or set YG_COPILOT_BIN; the copilot inside the VS Code extension is an installer prompt, not the CLI" };
+  }
   const binary = CLI_BINARIES[provider];
   if (!binary) {
     return { ok: false, error: `Unsupported CLI provider: ${provider}` };

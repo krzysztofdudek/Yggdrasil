@@ -1444,7 +1444,7 @@ that setup; edit \`yg-config.yaml\`'s \`reviewer.tiers\` by hand instead to keep
 multiple tiers.
 
 **Model and endpoint defaults:** \`--model\` defaults to \`sonnet\` only for
-provider \`claude-code\`; every other provider (\`codex\`, \`gemini-cli\`,
+provider \`claude-code\`; every other provider (\`codex\`, \`gemini-cli\`, \`copilot-cli\`,
 \`ollama\`, \`anthropic\`, \`openai\`, \`google\`, \`openai-compatible\`) requires
 \`--model\` explicitly — there is no universal default. \`--endpoint\` defaults to
 \`http://localhost:11434\` for \`ollama\` only; \`openai-compatible\` has no default
