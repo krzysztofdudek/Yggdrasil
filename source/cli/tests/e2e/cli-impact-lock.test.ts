@@ -31,6 +31,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLock } from './support/read-lock.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -41,7 +42,7 @@ const distExists = existsSync(BIN_PATH);
 // Track every tmp dir so afterEach can clean up even if an assertion throws.
 const dirs: string[] = [];
 afterEach(() => {
-  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  for (const d of dirs.splice(0)) rmSync(d, FIXTURE_RM_OPTIONS);
 });
 
 function run(args: string[], cwd: string): { stdout: string; stderr: string; all: string; status: number | null } {
@@ -80,7 +81,7 @@ function dropLlmDefault(dir: string): void {
     .filter((l) => l.trim() !== '- has-doc-comment')
     .join('\n');
   writeFileSync(archPath(dir), arch, 'utf-8');
-  rmSync(aspectDir(dir, 'has-doc-comment'), { recursive: true, force: true });
+  rmSync(aspectDir(dir, 'has-doc-comment'), FIXTURE_RM_OPTIONS);
 }
 
 /**

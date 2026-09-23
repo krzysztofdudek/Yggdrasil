@@ -5,7 +5,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { EVENTS_FILENAME, COMMITTED_EVENTS_FILENAME } from '../../../src/io/events-store.js';
 import { readVerdictEvents, COMMITTED_STREAM_NOTE } from '../../../src/io/events-reader.js';
-import { gitFixtureEnv } from '../../support/git-fixture.js';
+import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 /**
  * Reader tolerance (read-side V1/G1 contract). The reader is telemetry: it must
@@ -22,7 +22,7 @@ describe('events-reader', () => {
   });
 
   afterEach(() => {
-    rmSync(tmpDir, { recursive: true, force: true });
+    rmSync(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   const write = (name: string, lines: string[]): void => {

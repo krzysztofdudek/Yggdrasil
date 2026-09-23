@@ -54,30 +54,43 @@ function fixtureGraphDirs(): string[] {
   return out;
 }
 
+/**
+ * One test per fixture, not one test over the whole corpus.
+ *
+ * A single test that looped over every fixture had ONE timeout for all of them,
+ * so its budget shrank with every fixture added and it timed out on a loaded
+ * machine (about 2 s alone, 30 s under a full parallel suite) without anything
+ * being wrong. Per fixture, each fill keeps the whole default budget — hundreds
+ * of times what it needs — while a fill that really hangs still fails at that
+ * bound, and the failure names the fixture that hung instead of "the corpus".
+ */
+const CORPUS = fixtureGraphDirs();
+const fires: Array<{ fixture: string; dump: string }> = [];
+const ran: string[] = [];
+
 describe('convergence sentinel — corpus ship gate (zero fires)', () => {
-  it('fires on NO existing fixture and writes NO divergence log', async () => {
-    const corpus = fixtureGraphDirs();
-    // Guard against a vacuous gate: the corpus must be non-empty.
-    expect(corpus.length).toBeGreaterThan(0);
+  it('has a non-empty corpus (guard against a vacuous gate)', () => {
+    expect(CORPUS.length).toBeGreaterThan(0);
+  });
 
-    const fires: Array<{ fixture: string; dump: string }> = [];
-    const ran: string[] = [];
-    const skipped: Array<{ fixture: string; reason: string }> = [];
-
-    for (const fixtureDir of corpus) {
+  it.each(CORPUS.map((dir) => [path.basename(dir), dir] as const))(
+    'fires on no divergence and writes no divergence log: %s',
+    async (name, fixtureDir) => {
       const tmp = mkdtempSync(path.join(tmpdir(), 'yg-conv-'));
       try {
-        const dest = path.join(tmp, path.basename(fixtureDir));
+        const dest = path.join(tmp, name);
         cpSync(fixtureDir, dest, { recursive: true });
 
         let graph;
         try {
           graph = await loadGraph(dest);
-        } catch (e) {
-          skipped.push({ fixture: path.basename(fixtureDir), reason: `load: ${(e as Error).message}` });
-          continue;
+        } catch {
+          // A fixture whose graph does not load is broken by design for a
+          // fill; it is not part of the convergence corpus.
+          return;
         }
 
+        const firesHere: Array<{ fixture: string; dump: string }> = [];
         try {
           await runFill(graph, { write: (s: string) => { process.stdout.write(s); }, isTTY: false, now: Date.now,
             coverageVisibleFiles: null,
@@ -86,31 +99,34 @@ describe('convergence sentinel — corpus ship gate (zero fires)', () => {
             // both be caught here and produce the actual on-disk log we assert is
             // absent below.
             divergenceWrite: (dump) => {
-              fires.push({ fixture: path.basename(fixtureDir), dump });
+              firesHere.push({ fixture: name, dump });
               writeFillDivergence(graph!.rootPath, dump);
             },
           });
-          ran.push(path.basename(fixtureDir));
-        } catch (e) {
+        } catch {
           // A structural/config gate (FillGatingError) or other setup failure —
           // that fixture is broken-by-design for a fill; it is not part of the
-          // convergence corpus. Skip it.
-          skipped.push({ fixture: path.basename(fixtureDir), reason: `fill: ${(e as Error).message}` });
-          continue;
+          // convergence corpus.
+          return;
         }
+        ran.push(name);
+        fires.push(...firesHere);
 
+        // The binding assertion: zero fires. If this fails, STOP — a real
+        // convergence divergence was found; the message carries the dump.
+        expect(firesHere, `convergence sentinel fired: ${JSON.stringify(firesHere, null, 2)}`).toEqual([]);
         // Belt-and-suspenders: no divergence log anywhere under the fixture copy.
         expect(findDivergenceLogs(dest)).toEqual([]);
       } finally {
         rmSync(tmp, { recursive: true, force: true });
       }
-    }
+    },
+  );
 
-    // The binding assertion: zero fires across the whole corpus. If this fails,
-    // STOP — a real convergence divergence was found; inspect `fires` for the dump.
-    expect(fires, `convergence sentinel fired: ${JSON.stringify(fires, null, 2)}`).toEqual([]);
-    // Sanity: at least some fixtures actually ran a fill (gate is not vacuous).
+  it('ran a fill on at least some fixtures and saw zero fires across the corpus', () => {
+    // Sanity: the gate is not vacuous — some fixtures actually ran a fill.
     expect(ran.length).toBeGreaterThan(0);
+    expect(fires).toEqual([]);
   });
 });
 

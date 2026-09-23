@@ -5,6 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { readLock as readUnifiedLock } from '../../src/io/lock-store.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(__dirname, '..', '..', 'dist', 'bin.js');
@@ -110,7 +111,7 @@ describe.skipIf(!distExists)('deterministic aspect cross-node invalidation + imp
     root = mkdtempSync(path.join(tmpdir(), 'yg-xnode-'));
   });
 
-  afterEach(() => rmSync(root, { recursive: true, force: true }));
+  afterEach(() => rmSync(root, FIXTURE_RM_OPTIONS));
 
   it('editing a cross-node file observed by a deterministic aspect invalidates the dependent node', () => {
     layout(root);

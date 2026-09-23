@@ -22,11 +22,12 @@ import {
   parsePackagesLock,
 } from '../../../src/io/package-manifest-parser.js';
 import type { PackageManifest } from '../../../src/model/packages.js';
+import { FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 const tempDirs: string[] = [];
 
 afterEach(() => {
-  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const dir of tempDirs.splice(0)) rmSync(dir, FIXTURE_RM_OPTIONS);
 });
 
 function tempDir(): string {

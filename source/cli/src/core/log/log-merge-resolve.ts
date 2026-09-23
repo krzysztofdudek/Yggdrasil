@@ -76,6 +76,21 @@ function unionOfSides(ancestorLog: string, oursLog: string, theirsLog: string): 
   return Buffer.concat([prefix, ...added.map((a) => a.raw)]).toString('utf-8');
 }
 
+/**
+ * A side's entry as it stands once it is no longer the last thing in its file.
+ *
+ * Only the final entry of a log can lack a trailing newline: every other entry
+ * runs up to the next header, which starts a line. A union places that entry
+ * wherever its datetime falls and gives it the newline it needs there (see
+ * {@link unionOfSides}), and a hand resolution has to do the same. The missing
+ * final newline of a side is therefore not part of the entry's content, and the
+ * side's entry is compared with it restored. Nothing else is normalised: any
+ * other difference in the body, whitespace included, is still an altered entry.
+ */
+function withFinalNewline<E extends { body: string }>(e: E): E {
+  return e.body === '' || e.body.endsWith('\n') ? e : { ...e, body: `${e.body}\n` };
+}
+
 export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogMergeResolveResult> {
   const { graph, repoRoot } = input;
   const yggRoot = graph.rootPath;
@@ -224,8 +239,8 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
   }
 
   const ancestorEntries = parseLog(ancestorLog);
-  const p1New = parseLog(parent1Log).slice(ancestorEntries.length);
-  const p2New = parseLog(parent2Log).slice(ancestorEntries.length);
+  const p1New = parseLog(parent1Log).slice(ancestorEntries.length).map(withFinalNewline);
+  const p2New = parseLog(parent2Log).slice(ancestorEntries.length).map(withFinalNewline);
   const currentEntries = parseLog(currentLog);
   const currentNew = currentEntries.slice(ancestorEntries.length);
 

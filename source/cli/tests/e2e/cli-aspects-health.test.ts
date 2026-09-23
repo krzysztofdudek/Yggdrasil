@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runGitFixture } from '../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 import { detLockPath } from './support/read-lock.js';
 import { FIXTURE_TWO_COVERED_FILES } from '../fixtures/type-level-engine/variants/index.js';
 import { copyFixtureTree } from '../support/fixture-copy.js';
@@ -141,7 +141,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const health = run(['aspects', '--health'], dir);
       expect(health.stdout).not.toBe(DEFAULT_ASPECTS_GOLDEN);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -220,7 +220,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(hasDoc[COL.refused]).toBe('unverified');
       expect(hasDoc[COL.refused]).not.toBe('0');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -279,7 +279,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(out).not.toContain('beta-binomial');
       expect(out).not.toContain('Wilson');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -313,7 +313,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
         'no regression drill confirms it can still catch, so whether it deters or is decorative is unconfirmed',
       );
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -369,7 +369,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
         const plain = run(['aspects'], dir);
         expect(plain.stdout).toBe(DEFAULT_ASPECTS_GOLDEN);
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     },
   );
@@ -440,7 +440,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       // Method names never leak into operator-facing text.
       expect(out).not.toContain('beta-binomial');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -469,7 +469,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       // The detail distinguishes an OVERTURN (re-approved) from a plain suppress.
       expect(out).toMatch(/requires-named-export: 1 of 1 recorded block later overturned/);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -492,7 +492,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const noTodo = healthRow(health.stdout, 'no-todo-comments');
       expect(noTodo[COL.fp]).toBe('1 (thin data)');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -511,7 +511,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       const plain = run(['aspects'], dir);
       expect(plain.stdout).toBe(DEFAULT_ASPECTS_GOLDEN);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -576,7 +576,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       expect(advise.status).toBe(0);
       expect(advise.stdout).toContain('2 wrong-rule incidents recorded — rules may be miscalibrated; see incidents.md');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });
@@ -654,7 +654,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts type-covere
       expect(llmLeafRule[COL.refused]).toBe('unverified');
       expect(llmLeafRule[COL.files]).toBe('2');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });
@@ -721,7 +721,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts a marker wh
       const proseRule = healthRow(health.stdout, 'prose-rule');
       expect(proseRule[COL.suppresses]).toBe('1');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

@@ -5,6 +5,8 @@ description: "Subprocess E2E for the prompt-too-large gate, lock merge recovery
   markers, unknown version), and aspect-test diagnostic isolation (lock matrix
   part 4). Real spawned binary with a mock reviewer for the LLM paths."
 aspects: []
-relations: [ { target: cli/tests/e2e/support, type: uses } ]
+relations: [ { target: cli/tests/e2e/support, type: uses },
+    { target: cli/tests/support, type: uses }
+  ]
 mapping:
   - source/cli/tests/e2e/cli-lock-format-recovery.test.ts

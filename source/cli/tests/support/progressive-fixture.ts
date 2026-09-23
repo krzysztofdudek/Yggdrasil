@@ -41,7 +41,7 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { runGitFixture } from './git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from './git-fixture.js';
 
 /** The reference branch every fixture's initial commit lands on. */
 export const REFERENCE_BRANCH = 'main';
@@ -434,8 +434,8 @@ export function createProgressiveFixture(opts: ProgressiveFixtureOptions): Progr
       return shallow;
     },
     cleanup(): void {
-      rmSync(dir, { recursive: true, force: true });
-      for (const clone of shallowClones.splice(0)) rmSync(clone, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      for (const clone of shallowClones.splice(0)) rmSync(clone, FIXTURE_RM_OPTIONS);
     },
   };
 }

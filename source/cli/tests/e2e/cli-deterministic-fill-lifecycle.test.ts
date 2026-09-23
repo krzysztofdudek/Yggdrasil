@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLock as readTriadLock, detLockPath, nondetLockPath, logsLockPath } from './support/read-lock.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 // ---------------------------------------------------------------------------
 // CLI E2E — the DETERMINISTIC FILL LIFECYCLE (verdict-lock model).
@@ -167,7 +168,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(verified.status).toBe(0);
       expect(verified.stdout).toContain('yg check: PASS');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -182,7 +183,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
         .filter((l) => l.includes('unverified') && l.includes('services/orders'));
       expect(unverifiedForOrders.length).toBe(0);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -202,7 +203,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(stdout).toContain("aspect 'no-todo-comments'");
       expect(stdout).toContain('- services/orders');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -229,7 +230,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       const lock = readLock(dir);
       expect(verdictFor(lock, 'no-todo-comments', 'services/orders')?.verdict).toBe('refused');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -248,7 +249,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       const lock = readLock(dir);
       expect(verdictFor(lock, 'no-todo-comments', 'services/orders')?.verdict).toBe('approved');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -273,7 +274,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(check.stdout).toContain('advisory');
       expect(check.stdout).toContain('requires-named-export');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -295,7 +296,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       const lock = readLock(dir);
       expect(lock.verdicts['wip-rule']).toBeUndefined();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -338,7 +339,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(refused.stdout).toContain('Violations:');
       expect(refused.stdout).toContain('TODO comment found');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -376,7 +377,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(cleared.status).toBe(0);
       expect(cleared.stdout).toContain('yg check: PASS');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -396,7 +397,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(status).toBe(1);
       expect(all).toContain("Node 'does/not/exist' not found.");
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -407,7 +408,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(status).toBe(1);
       expect(all).toContain('--depth');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -429,7 +430,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // The deterministic pairs DID fill (they need no reviewer).
       expect(verdictFor(lock, 'no-todo-comments', 'services/orders')?.verdict).toBe('approved');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -469,7 +470,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // The gitignored cache reflects the re-fill.
       expect(verdictFor(readLock(dir), 'no-todo-comments', 'services/orders')?.verdict).toBe('approved');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -497,7 +498,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       expect(det.stdout).toContain('unverified');
       expect(readLock(dir).verdicts['has-doc-comment']).toBeUndefined();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -521,7 +522,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // this run — not imply it is filling them.
       expect(det.all).toMatch(/will NOT be reviewed/i);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

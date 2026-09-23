@@ -25,6 +25,7 @@ import {
   LockInvalidError,
 } from '../../../src/io/lock-store.js';
 import { initDebugLog, _resetForTesting } from '../../../src/utils/debug-log.js';
+import { FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 // The verdict lock is split across a 3-file triad; the in-memory LockFile stays unified.
 // writeLock partitions verdicts by aspect KIND (deterministicAspectIds), never by `touched`.
@@ -40,14 +41,14 @@ afterEach(async () => {
   await Promise.all(
     entries
       .filter((e) => e.startsWith('tmp-lock-'))
-      .map((e) => rm(path.join(FIXTURES_DIR, e), { recursive: true, force: true })),
+      .map((e) => rm(path.join(FIXTURES_DIR, e), FIXTURE_RM_OPTIONS)),
   );
 });
 
 describe('lock-store', () => {
   it('readLock returns empty lock when files absent', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-absent');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const result = readLock(tmpDir);
     expect(result).toEqual({ version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} });
@@ -55,7 +56,7 @@ describe('lock-store', () => {
 
   it('writeLock + readLock roundtrip preserves entries and nodes', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-roundtrip');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const lock: LockFile = {
       version: LOCK_FORMAT_VERSION,
@@ -125,7 +126,7 @@ describe('lock-store', () => {
 
   it('readLock throws LockInvalidError on unparseable JSON', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-bad-json');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(path.join(tmpDir, LOCK_NONDET_FILE_NAME), 'not valid json { {', 'utf-8');
     expect(() => readLock(tmpDir)).toThrow(LockInvalidError);
@@ -133,7 +134,7 @@ describe('lock-store', () => {
 
   it('readLock throws LockInvalidError on an unsupported future version (3)', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-bad-version');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const badLock = { version: 3, verdicts: {}, nodes: {} };
     await writeFile(path.join(tmpDir, LOCK_NONDET_FILE_NAME), JSON.stringify(badLock), 'utf-8');
@@ -142,7 +143,7 @@ describe('lock-store', () => {
 
   it('LockInvalidError for content containing "<<<<<<<" names git conflict markers and its next: includes the take-a-side procedure (git checkout --ours|--theirs, then yg check --approve)', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-conflict');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const conflictContent =
       '<<<<<<< HEAD\n{"version":1,"verdicts":{},"nodes":{}}\n=======\n{"version":1,"verdicts":{},"nodes":{}}\n>>>>>>> branch\n';
@@ -166,7 +167,7 @@ describe('lock-store', () => {
 
   it('LockInvalidError next: names both recoveries (restore from git / delete the file and re-fill via yg check --approve) and the re-verification cost', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-both-recoveries');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(path.join(tmpDir, LOCK_NONDET_FILE_NAME), '{ invalid json }', 'utf-8');
     let thrown: unknown;
@@ -185,7 +186,7 @@ describe('lock-store', () => {
 
   it('readLock does NOT throw when a reason string contains "<<<<<<< HEAD" inside JSON', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-reason-lt7');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const lock: LockFile = {
       version: LOCK_FORMAT_VERSION,
@@ -209,7 +210,7 @@ describe('lock-store', () => {
 
   it('serializer escaping: roundtrip a reason with quotes, newline, and backslash keeps each entry on a single line and returns the exact original string', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-escape');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const tricky = 'has "quotes"\nand newline\t\\backslash';
     const lock: LockFile = {
@@ -237,7 +238,7 @@ describe('lock-store', () => {
 
   it('unknown-field drop: extra properties on VerdictEntry are not serialized and roundtrip yields only known fields', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-extra-field');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const entryWithExtra = {
       verdict: 'approved' as const,
@@ -265,7 +266,7 @@ describe('lock-store', () => {
 
   it('writeLock writes atomically (temp + rename via the existing atomic write helper — no .tmp left behind)', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-atomic');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const lock: LockFile = { version: LOCK_FORMAT_VERSION, verdicts: {}, nodes: {} };
     await writeAll(tmpDir, lock);
@@ -281,7 +282,7 @@ describe('lock-store', () => {
   /** Write a raw (possibly malformed) committed lock file and read it back. */
   async function writeRawLock(name: string, content: string): Promise<string> {
     const tmpDir = path.join(FIXTURES_DIR, name);
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(path.join(tmpDir, LOCK_NONDET_FILE_NAME), content, 'utf-8');
     return tmpDir;
@@ -322,7 +323,7 @@ describe('lock-store', () => {
   it('readLock throws LockInvalidError when nodes is an array (fail closed — log baseline not silently absent)', async () => {
     // The nodes section lives in the logs file; put the malformed nodes there.
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-nodes-array');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, LOCK_LOGS_FILE_NAME),
@@ -334,7 +335,7 @@ describe('lock-store', () => {
 
   it('readLock throws LockInvalidError when a nodes entry has a malformed log', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-node-bad-log');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, LOCK_LOGS_FILE_NAME),
@@ -370,7 +371,7 @@ describe('lock-store', () => {
 
   it('regression: a well-formed lock (refused entry with multi-line reason + touched, node with source+log) round-trips exactly', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-wellformed-roundtrip');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const lock: LockFile = {
       version: LOCK_FORMAT_VERSION,
@@ -402,7 +403,7 @@ describe('lock-store', () => {
 
   it('regression: absent lock files read back as an empty lock (NOT lock-invalid)', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-absent-not-invalid');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     expect(() => readLock(tmpDir)).not.toThrow();
     const result = readLock(tmpDir);
@@ -411,7 +412,7 @@ describe('lock-store', () => {
 
   it('readLock rethrows a non-ENOENT filesystem error (e.g. EISDIR when a committed lock path is a directory)', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-eisdir');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(path.join(tmpDir, LOCK_NONDET_FILE_NAME), { recursive: true });
     let thrown: unknown;
     try {
@@ -753,7 +754,7 @@ describe('lock-store', () => {
 
   it('readLock throws LockInvalidError when a nodes entry is not a plain object', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-node-not-object');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, LOCK_LOGS_FILE_NAME),
@@ -765,7 +766,7 @@ describe('lock-store', () => {
 
   it('readLock throws LockInvalidError when a nodes entry has an unexpected key', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-node-extra-key');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, LOCK_LOGS_FILE_NAME),
@@ -790,7 +791,7 @@ describe('lock-store', () => {
 
   it('readLock throws LockInvalidError when a nodes entry source is a non-string', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-node-bad-source');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, LOCK_LOGS_FILE_NAME),
@@ -802,7 +803,7 @@ describe('lock-store', () => {
 
   it('readLock throws LockInvalidError when a nodes log has an unexpected key', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-log-extra-key');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, LOCK_LOGS_FILE_NAME),
@@ -827,7 +828,7 @@ describe('lock-store', () => {
 
   it('readLock throws LockInvalidError when a nodes log.last_entry_datetime is a non-string', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-log-bad-datetime');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, LOCK_LOGS_FILE_NAME),
@@ -843,7 +844,7 @@ describe('lock-store', () => {
 
   it('readLock throws LockInvalidError when a nodes log.prefix_hash is a non-string', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-log-bad-prefix');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(
       path.join(tmpDir, LOCK_LOGS_FILE_NAME),
@@ -859,7 +860,7 @@ describe('lock-store', () => {
 
   it('serializeNodeEntry renders an empty node entry (no source, no log) as {}', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-empty-node');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     const lock: LockFile = {
       version: LOCK_FORMAT_VERSION,
@@ -892,7 +893,7 @@ describe('lock-store — triad partition & scopes', () => {
 
   it('partition by aspect KIND: deterministic → gitignored file; LLM incl. companion-backed (with touched) → committed nondet file; nodes → logs file', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-partition');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeLock(tmpDir, TRIAD_LOCK, { scope: 'all', deterministicAspectIds: DET_IDS });
 
@@ -922,7 +923,7 @@ describe('lock-store — triad partition & scopes', () => {
 
   it("scope 'deterministic' writes ONLY the gitignored det file — committed files untouched (zero CI churn)", async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-scope-det');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeLock(tmpDir, TRIAD_LOCK, { scope: 'all', deterministicAspectIds: DET_IDS });
 
@@ -944,7 +945,7 @@ describe('lock-store — triad partition & scopes', () => {
 
   it("scope 'logs' writes ONLY the logs file and needs no deterministicAspectIds", async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-scope-logs');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeLock(tmpDir, TRIAD_LOCK, { scope: 'logs' });
 
@@ -955,7 +956,7 @@ describe('lock-store — triad partition & scopes', () => {
 
   it('a verdict scope without deterministicAspectIds throws (programming guard)', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-no-detids');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await expect(writeLock(tmpDir, TRIAD_LOCK, { scope: 'all' })).rejects.toThrow(
       /deterministicAspectIds is required/,
@@ -964,7 +965,7 @@ describe('lock-store — triad partition & scopes', () => {
 
   it('absent gitignored det file (fresh clone): readLock returns committed verdicts + nodes; det verdicts simply absent', async () => {
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-absent-det');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeLock(tmpDir, TRIAD_LOCK, { scope: 'all', deterministicAspectIds: DET_IDS });
     // Simulate a fresh clone: the gitignored deterministic file is not present.
@@ -981,7 +982,7 @@ describe('lock-store — triad partition & scopes', () => {
     // Superseded the pre-6.0.0 assertion that this threw with a "rematerialize" recovery.
     // A derived, gitignored, fully rederivable cache must never take the gate down.
     const tmpDir = path.join(FIXTURES_DIR, 'tmp-lock-det-garbled');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     await writeFile(path.join(tmpDir, LOCK_DET_FILE_NAME), '{ not json', 'utf-8');
 
@@ -1009,7 +1010,7 @@ describe('lock-store — triad partition & scopes', () => {
 describe('lock store — derived locks rebuild, committed locks refuse', () => {
   async function freshDir(name: string): Promise<string> {
     const tmpDir = path.join(FIXTURES_DIR, name);
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
     await mkdir(tmpDir, { recursive: true });
     return tmpDir;
   }

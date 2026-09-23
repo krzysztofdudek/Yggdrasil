@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync, writeFileSync, mkdirSync, symlinkSync } from 'node
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { listGitTrackedFiles } from '../../../src/io/repo-scanner.js';
-import { runGitFixture } from '../../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 /**
  * `listGitTrackedFiles` is the ONE remaining git consumer in the coverage
@@ -28,7 +28,7 @@ const IDENTITY = {
 
 const dirs: string[] = [];
 afterEach(() => {
-  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  for (const d of dirs.splice(0)) rmSync(d, FIXTURE_RM_OPTIONS);
 });
 
 function freshDir(label: string): string {

@@ -4,6 +4,7 @@ import { existsSync, readFileSync, mkdtempSync, rmSync, cpSync, appendFileSync }
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 /**
  * Public-surface E2E for the file-aware loop (5.2) + attestation provenance (5.1).
@@ -24,7 +25,7 @@ const distExists = existsSync(BIN_PATH);
 
 const tmpDirs: string[] = [];
 afterAll(() => {
-  for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
+  for (const d of tmpDirs) rmSync(d, FIXTURE_RM_OPTIONS);
 });
 
 interface PortalNodeLite {

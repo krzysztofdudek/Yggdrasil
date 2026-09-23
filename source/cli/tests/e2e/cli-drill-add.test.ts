@@ -38,6 +38,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -127,7 +128,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       expect(log).toContain('It shipped and nothing stopped it.');
       expect(log).toContain('The rule refuses it');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -166,7 +167,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       expect(drilled.status).toBe(1);
       expect(drilled.all).toContain('MISS');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -192,7 +193,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       expect(log).toContain('No reason was given when the case was added.');
       expect(log).toContain('The rule passes it');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -241,7 +242,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       expect(duplicate.stderr).toContain('is already the case');
       expect(readdirSync(corpusPath(dir))).toHaveLength(1);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -285,7 +286,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       expect(readdirSync(corpusPath(dir, 'needs-the-graph'))).toHaveLength(0);
       expect(existsSync(logPath(dir, 'needs-the-graph'))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -320,7 +321,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       expect(drilled.status, drilled.all).toBe(0);
       expect(drilled.stdout).toContain('1 pass');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -341,7 +342,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       expect(after.stdout).toBe(before.stdout);
       expect(run(['check'], dir).all).not.toContain('Failed to load graph');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -367,7 +368,7 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       expect(cases).toHaveLength(1);
       expect(readFileSync(path.join(corpusPath(dir), cases[0], 'src', 'charge.ts'), 'utf-8')).toBe(ESCAPED);
     } finally {
-      rmSync(root, { recursive: true, force: true });
+      rmSync(root, FIXTURE_RM_OPTIONS);
     }
   });
 });

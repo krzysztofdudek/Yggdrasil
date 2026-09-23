@@ -37,7 +37,8 @@ import { tmpdir, devNull } from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
-import { gitFixtureEnv, runGitFixture } from '../../support/git-fixture.js';
+import { spawnSync } from 'node:child_process';
+import { gitFixtureEnv, runGitFixture, applyQuietGitConfig, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // tests/unit/repo → repo root is five levels up.
@@ -55,7 +56,7 @@ const IDENTITY = {
 
 const dirs: string[] = [];
 afterEach(() => {
-  for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
+  for (const d of dirs.splice(0)) rmSync(d, FIXTURE_RM_OPTIONS);
 });
 
 function freshDir(label: string): string {
@@ -216,5 +217,63 @@ describe('GUARD: git-fixture isolation — a test git op can never touch the rea
     git(['checkout', '-q', 'branch-a']);
     const merged = git(['merge', '-q', '--no-edit', 'branch-b']);
     expect(merged.status, merged.stderr).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Quiet fixtures: nothing keeps writing into a fixture after its command ends.
+// ---------------------------------------------------------------------------
+//
+// Every `git commit` ends by spawning a detached `git maintenance run --auto`
+// that outlives it. When that child repacks, it writes into `.git/objects` and
+// `.git/info` while the test's cleanup is already removing the directory, and a
+// test that passed fails with ENOTEMPTY (seen in CI on `.git/info` and
+// `.git/objects` of a gitlink fixture). The fixture env switches it off.
+describe('GUARD: a fixture git command leaves no background maintenance behind', () => {
+  /** Run `git commit` in a fresh fixture and return git's own trace of it. */
+  function traceOfCommit(label: string, extraEnv: NodeJS.ProcessEnv = {}): string {
+    const fixture = freshDir(label);
+    const trace = path.join(freshDir(`${label}-trace`), 'trace2.txt');
+    writeFileSync(path.join(fixture, 'a.txt'), 'hello\n');
+    runGitFixture(fixture, ['init', '-q', '-b', 'main']);
+    runGitFixture(fixture, ['add', '-A']);
+    const commit = runGitFixture(fixture, ['commit', '-qm', 'seed'], { extraEnv: { ...IDENTITY, ...extraEnv, GIT_TRACE2: trace } });
+    expect(commit.status, commit.stderr).toBe(0);
+    return readFileSync(trace, 'utf-8');
+  }
+
+  it('a commit through the fixture env starts no `git maintenance run --auto`', () => {
+    expect(traceOfCommit('quiet')).not.toContain('maintenance run --auto');
+  });
+
+  it('the probe above is live: the same commit with auto-maintenance switched back on does start one', () => {
+    // A caller's own GIT_CONFIG_* pair wins over the quiet default, which is
+    // what lets this control turn maintenance back on. Without the control, a
+    // git that never traced the child would make the assertion above vacuous.
+    const loud = { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'maintenance.auto', GIT_CONFIG_VALUE_0: 'true' };
+    expect(traceOfCommit('loud', loud)).toContain('maintenance run --auto');
+  });
+
+  it('every git child of a test worker runs quiet, fixture env or not (tests/setup.ts)', () => {
+    // Fixtures built without gitFixtureEnv, and git run by the CLI under test,
+    // inherit the worker's process.env — the worker-level boundary covers them.
+    const cwd = freshDir('worker-env');
+    const get = (key: string) =>
+      spawnSync('git', ['config', '--get', key], { cwd, encoding: 'utf-8', env: process.env }).stdout.trim();
+    expect(get('maintenance.auto')).toBe('false');
+    expect(get('gc.auto')).toBe('0');
+  });
+
+  it('applyQuietGitConfig appends after a caller\'s pairs, keeps a key the caller set, and is idempotent', () => {
+    const env: NodeJS.ProcessEnv = { GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'gc.auto', GIT_CONFIG_VALUE_0: '42' };
+    applyQuietGitConfig(env);
+    applyQuietGitConfig(env);
+    expect(env).toEqual({
+      GIT_CONFIG_COUNT: '2',
+      GIT_CONFIG_KEY_0: 'gc.auto',
+      GIT_CONFIG_VALUE_0: '42',
+      GIT_CONFIG_KEY_1: 'maintenance.auto',
+      GIT_CONFIG_VALUE_1: 'false',
+    });
   });
 });

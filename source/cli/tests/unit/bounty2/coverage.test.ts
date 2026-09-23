@@ -35,7 +35,7 @@ import {
   partitionByCoverageTier,
 } from '../../../src/core/check-coverage-tiers.js';
 import type { CoverageConfig } from '../../../src/model/graph.js';
-import { gitFixtureEnv } from '../../support/git-fixture.js';
+import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 // ───────────────────────────────────────────────────────────────────────────
 // normalizeRoot — POSIX, strip leading/trailing slashes, collapse internal
@@ -418,7 +418,7 @@ describe.skipIf(!distExists)('E2E — yg check renders the coverage tier of an u
       expect(stdout).toContain('unmapped');
       expect(stdout).toContain('extra/foo.ts');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -436,7 +436,7 @@ describe.skipIf(!distExists)('E2E — yg check renders the coverage tier of an u
       expect(stdout).toContain('uncovered');
       expect(stdout).toContain('extra/foo.ts');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -451,7 +451,7 @@ describe.skipIf(!distExists)('E2E — yg check renders the coverage tier of an u
       // The excluded file must not appear anywhere in the coverage report.
       expect(stdout).not.toContain('extra/foo.ts');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -468,7 +468,7 @@ describe.skipIf(!distExists)('E2E — yg check renders the coverage tier of an u
       expect(stdout).not.toContain('extra/widget.generated.ts');
       expect(stdout).toContain('extra/plain.ts');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

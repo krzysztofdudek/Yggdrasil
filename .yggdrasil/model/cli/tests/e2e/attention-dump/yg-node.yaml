@@ -23,7 +23,9 @@ description: "Subprocess E2E over the public CLI: yg check maintains the local,
   byte-identical whether or not a matching type is even declared. Spawns the
   built bin.js; no source imports."
 aspects: []
-relations: []
+relations:
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/e2e/cli-attention-dump.test.ts
   - source/cli/tests/e2e/cli-context-attention-line.test.ts

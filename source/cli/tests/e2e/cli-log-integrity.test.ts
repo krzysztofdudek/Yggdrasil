@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gitFixtureEnv } from '../support/git-fixture.js';
+import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -204,7 +204,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(all).toContain('log_required: true');
       expect(all).toContain('yg log add --node services/orders');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -230,7 +230,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(fill.status).toBe(0);
       expect(fill.stdout).toContain('yg check: PASS');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -249,7 +249,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       // Nothing should have been written for the rejected entry.
       expect(existsSync(ordersLogPath(dir))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -265,7 +265,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(stdout).toContain('Added log entry');
       expect(readFileSync(ordersLogPath(dir), 'utf-8')).toContain('### A level-three heading');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -292,7 +292,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       const headerCount = stdout.split('\n').filter((l) => l.startsWith('## [')).length;
       expect(headerCount).toBe(2);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -308,7 +308,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(all).toContain('Invalid --top value: 0');
       expect(all).toContain('positive integer');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -322,7 +322,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(stdout).toContain('Merge-resolve verified');
       expect(stdout).toContain('Log baseline updated');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -334,7 +334,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(status).toBe(0);
       expect(stdout).toContain('Merge-resolve verified');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -358,7 +358,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(status).toBe(1);
       expect(all).toContain('not a merge commit');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -372,7 +372,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(status).toBe(1);
       expect(all).toContain('ancestor prefix');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -435,7 +435,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       const green = run(['check'], dir);
       expect(green.status, green.all).toBe(0);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

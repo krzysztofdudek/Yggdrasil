@@ -30,6 +30,8 @@ relations:
     type: uses
   - target: cli/core/checks/aspects
     type: uses
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/unit/io/package-manifests.test.ts
   - source/cli/tests/unit/io/aspect-adapt-merge.test.ts

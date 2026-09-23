@@ -22,12 +22,12 @@ import {
   pathExistsAtRef,
 } from '../../../src/utils/git-introspect.js';
 import { hashGitBlob } from '../../../src/core/progressive-scope.js';
-import { gitFixtureEnv } from '../../support/git-fixture.js';
+import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 const dirs: string[] = [];
 
 afterEach(async () => {
-  for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
+  for (const d of dirs.splice(0)) await rm(d, FIXTURE_RM_OPTIONS);
 });
 
 async function setupRepoWithMerge(): Promise<{ repo: string; mergeSha: string }> {

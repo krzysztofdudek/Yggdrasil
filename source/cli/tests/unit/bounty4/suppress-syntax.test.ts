@@ -27,7 +27,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runGitFixture } from '../../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 import {
   collectSuppressions,
@@ -51,7 +51,7 @@ const tempDirs: string[] = [];
 afterEach(() => {
   while (tempDirs.length > 0) {
     const d = tempDirs.pop()!;
-    try { rmSync(d, { recursive: true, force: true }); } catch { /* ignore */ }
+    try { rmSync(d, FIXTURE_RM_OPTIONS); } catch { /* ignore */ }
   }
 });
 

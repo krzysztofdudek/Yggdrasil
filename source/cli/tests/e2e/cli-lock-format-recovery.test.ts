@@ -16,6 +16,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startMockReviewer, runAsync } from './support/mock-reviewer.js';
 import { readLock as readMergedLock, nondetLockPath, logsLockPath, detLockPath } from './support/read-lock.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -59,7 +60,7 @@ function copyFixture(label: string): string {
 function deterministicFixture(label: string): string {
   const dir = copyFixture(label);
   writeFileSync(archPath(dir), readFileSync(archPath(dir), 'utf-8').split('\n').filter((l) => l.trim() !== '- has-doc-comment').join('\n'), 'utf-8');
-  rmSync(path.join(dir, '.yggdrasil', 'aspects', 'has-doc-comment'), { recursive: true, force: true });
+  rmSync(path.join(dir, '.yggdrasil', 'aspects', 'has-doc-comment'), FIXTURE_RM_OPTIONS);
   return dir;
 }
 
@@ -125,7 +126,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       expect(check2.all).not.toMatch(/unverified \(not yet reviewed\)[^\n]*aspect 'has-doc-comment'/);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 30000);
 
@@ -173,7 +174,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       // The kept (orders) entries were never re-verified — they carried forward.
       expect(refill.all).not.toContain('node:services/orders — approved');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -237,7 +238,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       expect(run(['check', '--approve'], dir).status).toBe(0);
       expect(run(['check'], dir).status).toBe(0);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -261,7 +262,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       // Byte-identical: aspect-test NEVER writes the lock.
       expect(readFileSync(detPath(dir), 'utf-8')).toBe(before);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -294,7 +295,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       expect(readFileSync(nondetPath(dir), 'utf-8')).toBe(before); // but the lock is unchanged
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 30000);
 });

@@ -4,6 +4,7 @@ import { existsSync, readFileSync, statSync, cpSync, mkdtempSync, rmSync } from 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 // Public-surface E2E for the loopback portal server (Phase 2.1–2.3). Spawns the built
 // dist/bin.js (`yg portal --port 0`) against a REAL fixture project copy, then drives the
@@ -38,7 +39,7 @@ afterAll(() => {
       /* already gone */
     }
   }
-  for (const d of tmpDirs) rmSync(d, { recursive: true, force: true });
+  for (const d of tmpDirs) rmSync(d, FIXTURE_RM_OPTIONS);
 });
 
 /** Copy the fixture into a fresh temp dir so a real approve never mutates the committed fixture. */

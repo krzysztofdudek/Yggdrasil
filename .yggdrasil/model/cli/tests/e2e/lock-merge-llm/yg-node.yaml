@@ -8,6 +8,8 @@ description: "Subprocess E2E for the paid LLM paths the deterministic merge
   refusal blocks so the stdout drain survives refusal-shaped output. Real
   spawned binary with the in-process mock reviewer."
 aspects: []
-relations: [ { target: cli/tests/e2e/support, type: uses } ]
+relations: [ { target: cli/tests/e2e/support, type: uses },
+    { target: cli/tests/support, type: uses }
+  ]
 mapping:
   - source/cli/tests/e2e/cli-lock-merge-llm.test.ts

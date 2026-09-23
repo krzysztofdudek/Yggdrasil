@@ -31,13 +31,13 @@ import {
   readHeadCommit,
   readOriginUrl,
 } from '../../../src/utils/git-pack-fetch.js';
-import { runGitFixture, gitFixtureEnv } from '../../support/git-fixture.js';
+import { runGitFixture, gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 import { execFileSync } from 'node:child_process';
 
 const tempDirs: string[] = [];
 
 afterEach(() => {
-  for (const dir of tempDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
+  for (const dir of tempDirs.splice(0)) rmSync(dir, FIXTURE_RM_OPTIONS);
 });
 
 function scratch(label: string): string {
@@ -66,7 +66,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  if (source !== '') rmSync(source, { recursive: true, force: true });
+  if (source !== '') rmSync(source, FIXTURE_RM_OPTIONS);
 });
 
 describe('fetching a marketplace', () => {

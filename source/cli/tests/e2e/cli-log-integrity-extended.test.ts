@@ -16,7 +16,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gitFixtureEnv } from '../support/git-fixture.js';
+import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -212,7 +212,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(all).toContain('git checkout HEAD -- .yggdrasil/model/services/orders/log.md');
       expect(all).toContain('.yggdrasil/yg-lock.logs.json');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -235,7 +235,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(stdout).toContain('append-only violated');
       expect(stdout).toContain('git checkout HEAD --');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -257,7 +257,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(all).toContain('log-integrity');
       expect(all).toContain('Baseline boundary entry not found — log was deleted or reset.');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -294,7 +294,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(read.all).toContain('out_of_order');
       expect(read.all).toContain('is not strictly greater than previous');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -314,7 +314,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(read.all).toContain('invalid_datetime');
       expect(read.all).toContain('ISO 8601 UTC with milliseconds and Z suffix');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -332,7 +332,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(read.all).toContain('invalid_header');
       expect(read.all).toContain('is not parseable');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -354,7 +354,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(read.all).toContain('unclosed_code_fence');
       expect(read.all).toContain('opened but never closed');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -377,7 +377,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(read.status).toBe(1);
       expect(read.all).toContain('level2_header_in_body');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -397,7 +397,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(stdout).toContain('services/orders');
       expect(stdout).toContain('Log format must be parseable for indexing and integrity.');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -435,7 +435,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       // to hand-edit the file (which would break the integrity hashes).
       expect(all).not.toContain('Fix format violations');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -462,7 +462,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(all).toContain('log.md is a symbolic link');
       expect(all).toContain('Symlinks bypass append-only guarantees');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -485,7 +485,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(all).toContain('log.md has multiple hard links');
       expect(all).toContain('st_nlink > 1');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -501,7 +501,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       // Nothing was written for the rejected entry.
       expect(existsSync(ordersLogPath(dir))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -517,7 +517,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(all).toContain('Cannot stat --reason-file');
       expect(existsSync(ordersLogPath(dir))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -533,7 +533,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(status).toBe(1);
       expect(all).toContain('--reason-file is not a regular file');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -555,7 +555,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(written).toContain('### context');
       expect(written).toContain('second line of rationale');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -571,7 +571,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(status).toBe(1);
       expect(all).toContain('Exactly one of --reason or --reason-file is required');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -600,7 +600,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       const headerCount = stdout.split('\n').filter((l) => l.startsWith('## [')).length;
       expect(headerCount).toBe(3);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -617,7 +617,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(all).toContain('Invalid --top value: NaN');
       expect(all).toContain('positive integer');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -632,7 +632,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(status).toBe(1);
       expect(all).toContain('Cannot combine --top with --all');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -645,7 +645,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(status).toBe(0);
       expect(stdout).toContain('No log entries.');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -664,7 +664,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       // The dropped entry's datetime is named in the restore guidance.
       expect(all).toContain('2026-05-11T11:00:00.000Z');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -677,7 +677,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(all).toContain('not present in either merge parent');
       expect(all).toContain('2026-05-11T13:00:00.000Z');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -692,7 +692,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       expect(all).toContain('missing or has altered');
       expect(all).toContain('2026-05-11T11:00:00.000Z');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 });

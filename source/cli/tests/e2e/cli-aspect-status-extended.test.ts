@@ -15,6 +15,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLock as readLockStore } from './support/read-lock.js';
 import type { LockFile } from './support/read-lock.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 // ---------------------------------------------------------------------------
 // Harness — every test runs the REAL dist/bin.js against a fresh mkdtemp copy of
@@ -255,7 +256,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       expect(fill.stdout).toContain('- services/orders');
       expect(fill.stdout).toContain('yg check: PASS');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -299,7 +300,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       expect(refused.stdout).toContain("aspect 'no-banned-word'");
       expect(refused.stdout).toContain('- services/orders');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -350,7 +351,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       expect(refused.stdout).toContain("aspect 'no-marker'");
       expect(refused.stdout).toContain('- services/orders');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -406,7 +407,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       // No draft node ever reports an unverified pair or a stale verdict.
       expect(check.stdout).not.toContain('unverified');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -473,7 +474,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       expect(cleared.status).toBe(0);
       expect(cleared.stdout).not.toContain('unverified');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -533,7 +534,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       expect(nodeVerdict(dir, 'services/orders', 'no-todo-comments')?.verdict).toBe('refused');
       expect(nodeVerdict(dir, 'services/orders', 'no-todo-comments')?.reason).toContain('TODO comment found');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -575,7 +576,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       // log_required, so it carries no source hash to compare.)
       expect(nodeVerdict(dir, 'services/orders', 'no-todo-comments')?.hash).toBe(verdictBefore);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -623,7 +624,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       // It is rendered from the lock, not re-flagged as a new unverified pair.
       expect(check.stdout).not.toContain('unverified');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -683,7 +684,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       expect(refused.stdout).toContain("aspect 'imp-b'");
       expect(refused.stdout).toContain('- services/orders');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -745,7 +746,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       expect(result.status).toBe(0);
       expect(result.stdout).not.toContain("Aspect 'implied-by-draft' is refused");
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -779,7 +780,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       // The lock records no verdict for the dormant draft aspect.
       expect(readLock(dir).verdicts['no-todo-comments']).toBeUndefined();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

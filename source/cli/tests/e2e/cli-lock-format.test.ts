@@ -18,6 +18,7 @@ import {
   logsLockPath,
   detLockPath,
 } from './support/read-lock.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 // ---------------------------------------------------------------------------
 // LOCK FILE FORMAT — the 5.1.0 verdict-lock TRIAD.
@@ -153,7 +154,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       expect(cold.all).toContain('- services/payments');
       expect(cold.all).toContain('Next: yg check --approve');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -200,7 +201,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
         }
       }
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -231,7 +232,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       expect(entry.touched).toEqual([]);
       expect('reason' in entry).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -277,7 +278,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       expect(typeof parsed.nodes['services/payments']?.source).toBe('string');
       expect(parsed.nodes['services/orders']).toBeUndefined();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -333,7 +334,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       expect(keys).toEqual(['file:src/services/orders.ts']);
       expect(scoped['file:src/services/orders.ts'].verdict).toBe('approved');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -361,7 +362,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       expect(check.all).toContain('yg check --approve');
       expectCleanLockError(check.all);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -397,7 +398,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       expect(check.all).toContain('yg check --approve');
       expectCleanLockError(check.all);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -422,7 +423,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       expect(check.all).toContain('git checkout HEAD -- .yggdrasil/yg-lock.nondeterministic.json');
       expectCleanLockError(check.all);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -449,7 +450,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       expect(existsSync(logsFile(dir))).toBe(false);
       expect(run(['check'], dir).status).toBe(0);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -488,7 +489,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       expect(check.all).toContain('- services/orders');
       expect(check.all).toContain('Next: yg check --approve');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });
