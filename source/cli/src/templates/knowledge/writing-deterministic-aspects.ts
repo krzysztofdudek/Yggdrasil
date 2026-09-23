@@ -31,8 +31,14 @@ that \`ctx\` they touch. But \`ctx\` is not equally rich everywhere it runs (see
   unsupported-capability gap (exit 0), not a check failure.
 
 **Plain \`yg check\` never executes a deterministic check** — it validates the entry
-by hashing, exactly like an LLM entry. So CI executes no adopter code; check's cost
-is hashing only.
+by hashing, exactly like an LLM entry; its cost is hashing only. That does NOT
+make CI code-free: the deterministic cache is gitignored, so the recommended CI
+recipe first rebuilds it with \`yg check --approve --only-deterministic\`, and that
+step imports and runs EVERY \`check.mjs\` — this repository's own and those of
+every installed package (\`yg pack\`) — with the permissions of the CI job. Treat
+a rule's \`check.mjs\` like any other code your pipeline executes: review it,
+install packages only from sources you trust that far, and think twice before
+running that step on untrusted pull requests.
 
 The verdict is cached in the lock like every other verdict. It is reusable while
 its inputs are unchanged — the subject files AND every value the check observed

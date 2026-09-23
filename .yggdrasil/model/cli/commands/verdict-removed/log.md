@@ -1,0 +1,2 @@
+## [2026-09-23T19:22:51.444Z]
+The external-judge command family was removed, and a caller still using it met a bare unknown-command error with no idea what replaced it. The name stays registered but hidden, so scripts, CI jobs and agents are told the channel is gone and that verdicts are recorded only by the configured reviewer through the approving check. It never reads or writes anything and always fails, so nothing can be recorded through it.

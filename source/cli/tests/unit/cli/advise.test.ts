@@ -222,10 +222,15 @@ describe.skipIf(!distExists)('yg advise — Step 1: sections, precedence, proven
     expect(stdout).toMatch(/marker '\*' at src\/auth\/auth\.controller\.ts:\d+/);
     expect(stdout).toContain('suppress reason: "test wildcard waiver"');
     // Every nomination names a human action requiring approval.
-    const approvals = stdout.match(/requires your approval/g) ?? [];
+    const approvals = stdout.match(/Requires the user's approval/g) ?? [];
     const nominations = stdout.match(/ {4}(marker|Its attach|Orphaned aspects|A review_by)/g) ?? [];
     expect(approvals.length).toBeGreaterThanOrEqual(nominations.length);
     expect(approvals.length).toBeGreaterThanOrEqual(4);
+    // The action line is labelled like every other Next: in the CLI, and speaks
+    // about the user in the third person — the reader is usually an agent.
+    const nextLines = stdout.match(/^ {4}Next: .*Requires the user's approval\.$/gm) ?? [];
+    expect(nextLines.length).toBe(approvals.length);
+    expect(stdout).not.toContain('requires your approval');
   });
 });
 
@@ -1014,7 +1019,7 @@ describe.skipIf(!distExists)('yg advise — T2 family-without-law (spawned)', ()
 
     // NEXT names the exact action and ends with the literal consent suffix.
     expect(stdout).toContain('Create a draft aspect scoped to');
-    expect(stdout).toMatch(/for these 5 files, then supply the rationale — never invent it — requires your consent\./);
+    expect(stdout).toMatch(/for these 5 files, then supply the rationale — never invent it — requires the user's consent\./);
 
     // Exactly one family item (one planted family).
     expect((stdout.match(/A candidate rule family —/g) ?? []).length).toBe(1);
@@ -1079,7 +1084,7 @@ describe.skipIf(!distExists)('yg advise — T2 architecture-cut (spawned)', () =
       expect(status).toBe(0);
       expect(stdout).toContain("Module groups 'ga', 'gb' depend on each other in a loop.");
       expect(stdout).toContain('structure quotient depth 1');
-      expect(stdout).toContain('Consider a cut between these module groups, or declare a contract (a port) across the boundary — requires your consent.');
+      expect(stdout).toContain("Consider a cut between these module groups, or declare a contract (a port) across the boundary — requires the user's consent.");
       // Exactly one item (the finer depth-2 view of the same loop is suppressed).
       expect((stdout.match(/depend on each other in a loop/g) ?? []).length).toBe(1);
       // NEVER the internal graph-theory terms in user-facing output.

@@ -1,5 +1,5 @@
 export const summary =
-  'Full yg command reference: check, check --approve, context, node, verdict, adopt, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, prime, knowledge, schemas, simulate, structure, advise, incident, suppressions, pack, marketplace, portal';
+  'Full yg command reference: check, check --approve, context, node, adopt, aspect-test, drill, impact, tree, aspects, flows, find, log, owner, type-suggest, init, prime, knowledge, schemas, simulate, structure, advise, incident, suppressions, pack, marketplace, portal';
 
 export const content = `# CLI reference
 

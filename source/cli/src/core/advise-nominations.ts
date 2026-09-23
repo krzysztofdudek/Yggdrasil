@@ -428,10 +428,12 @@ function aspectIdFromIssue(issue: ValidationIssue): string | undefined {
 /**
  * Phrase the human action so it reads as a nomination that needs sign-off — the
  * check's own `next` plus an explicit note that acting requires the user's
- * approval (no advise decision is ever taken silently).
+ * approval (no advise decision is ever taken silently). Worded about the user
+ * in the third person: the reader is as often an agent as the user, and "your
+ * approval" addressed to an agent would read as licence to approve it itself.
  */
 export function asApprovalNext(next: string): string {
-  return `${next} This requires your approval.`;
+  return `${next} Requires the user's approval.`;
 }
 
 /** The rule-source filename that carries an aspect's current hash. */

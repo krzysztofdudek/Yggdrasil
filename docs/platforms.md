@@ -56,7 +56,8 @@ that file written, so its stanza is shorter by that line. `yg init --upgrade`
 tells you when this applies to your project and prints the stanza for the
 artifacts your project actually has; it never edits the file for you. Mapping
 them to a component instead works just as well if you'd rather keep them under
-enforcement. A freshly initialized project requires nothing and is unaffected.
+enforcement. A freshly initialized project is unaffected: it requires nothing,
+and `yg init` writes these files into its `coverage.excluded` from the start.
 :::
 
 ## How each agent picks up the rules

@@ -177,7 +177,7 @@ export async function classifyLogRequirement(
       messageData: {
         what: `No fresh log entry for node '${toPosixPath(nodePath)}' — its source changed but no justification entry exists.`,
         why: `Node type '${node.meta.type}' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.`,
-        next: `yg log add --node ${toPosixPath(nodePath)} --reason '<justification>', then re-run: yg check --approve`,
+        next: `yg log add --node ${toPosixPath(nodePath)} --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one`,
       },
       nodePath,
     });

@@ -87,6 +87,44 @@ describe('freshInitKeyless', () => {
   });
 });
 
+describe('fresh init keeps its own plumbing out of coverage', () => {
+  // The files yg init writes at the repository root are repository plumbing,
+  // not project source. A fresh project's first yg check must not list them as
+  // uncovered to-dos, so the scaffold writes exactly the ones it installed into
+  // coverage.excluded.
+  async function excludedOf(ygg: string): Promise<unknown> {
+    const { parse } = await import('yaml');
+    const cfg = parse(await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8')) as { coverage?: { excluded?: unknown; required?: unknown } };
+    expect(cfg.coverage?.required).toEqual([]);
+    return cfg.coverage?.excluded;
+  }
+
+  it('keyless: excludes the three agent-rules files and .gitattributes', async () => {
+    const { root, ygg } = await freshDir('plumbing-keyless');
+    await freshInitKeyless(root, ygg);
+    expect(await excludedOf(ygg)).toEqual(['AGENTS.md', 'CLAUDE.md', '.clinerules/yggdrasil.md', '.gitattributes']);
+  });
+
+  it('with a reviewer: the same exclusion', async () => {
+    const { root, ygg } = await freshDir('plumbing-provider');
+    await freshInitNonInteractive(root, ygg, { provider: 'claude-code' });
+    expect(await excludedOf(ygg)).toEqual(['AGENTS.md', 'CLAUDE.md', '.clinerules/yggdrasil.md', '.gitattributes']);
+  });
+
+  it('an artifact switched off is not excluded, because it was never written', async () => {
+    const { root, ygg } = await freshDir('plumbing-optout');
+    await freshInitKeyless(root, ygg, { agentsMd: true, claudeMd: true, clinerules: false });
+    expect(await excludedOf(ygg)).toEqual(['AGENTS.md', 'CLAUDE.md', '.gitattributes']);
+  });
+
+  it('keeps the explanatory comments of the scaffolded config', async () => {
+    const { root, ygg } = await freshDir('plumbing-comments');
+    await freshInitKeyless(root, ygg);
+    const raw = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
+    expect(raw).toContain('# Coverage — which files must belong to a node.');
+  });
+});
+
 describe('freshInitNonInteractive', () => {
   it('writes a require-nothing coverage baseline and the named reviewer tier (claude-code needs no key)', async () => {
     const { root, ygg } = await freshDir('happy');

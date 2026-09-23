@@ -754,7 +754,7 @@ function renderNomination(nom: VisibleNomination, showIds: boolean): string[] {
   const note = nom.note ? chalk.dim(` (${nom.note})`) : '';
   out.push(`  ${nom.what}${note}`);
   out.push(`    ${nom.why}`);
-  out.push(`    ${nom.next}`);
+  out.push(`    Next: ${nom.next}`);
   // The id embeds raw repo strings (a file path, a drill-case name). Sanitize the
   // RENDERED form only — the canonical id stays intact for evidence-hash matching
   // and for the committed decision line — so no control byte reaches this surface.
