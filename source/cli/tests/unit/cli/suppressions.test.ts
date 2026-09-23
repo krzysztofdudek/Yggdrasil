@@ -613,3 +613,29 @@ describe('registerSuppressionsCommand --json', () => {
     expect(mockAbort).not.toHaveBeenCalled();
   });
 });
+
+describe('yg suppressions prints the lines each marker actually waives', () => {
+  let root: string;
+  beforeEach(() => { root = mkdtempSync(path.join(tmpdir(), 'yg-supp-range-')); });
+  afterEach(() => { rmSync(root, { recursive: true, force: true }); });
+
+  it('single own-line, single trailing, and a closed disable block', async () => {
+    writeFileSync(path.join(root, 'a.ts'), [
+      '// yg-suppress(no-sync) next line only',              // 1 → waives 2
+      'const a = readFileSync("x");',                         // 2
+      'const b = readFileSync("y"); // yg-suppress(no-sync) this line', // 3 → waives 3
+      '// yg-suppress-disable(no-sync) legacy block',         // 4 → waives 5-6
+      'const c = 1;',                                         // 5
+      'const d = 2;',                                         // 6
+      '// yg-suppress-enable(no-sync)',                       // 7
+      '// yg-suppress-disable(no-sync) rest of file',         // 8 → waives 9-end
+      'const e = 3;',                                         // 9
+    ].join('\n'));
+    const report = await runSuppressionsScan(root, ['a.ts'], new Set(['no-sync']));
+    const out = formatSuppressionsOutput(report);
+    expect(out).toContain('line 1: single(no-sync) → waives line 2');
+    expect(out).toContain('line 3: single(no-sync) → waives line 3');
+    expect(out).toContain('line 4: disable(no-sync) → waives lines 5-6');
+    expect(out).toContain('line 8: disable(no-sync) → waives lines 9-end of file');
+  });
+});

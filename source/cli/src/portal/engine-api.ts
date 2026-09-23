@@ -1,7 +1,6 @@
 import path from 'node:path';
 import type { Graph, GraphNode, AspectStatus, CoverageConfig } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
-import { loadGraphOrAbort } from '../cli/preamble.js';
 import { readRulesArtifacts } from '../cli/rules-artifacts.js';
 import { walkRepoFiles, listGitTrackedFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runCheck, scanUncoveredFiles, type CheckResult, type CheckIssue } from '../core/check.js';
@@ -14,7 +13,7 @@ import { verifyLock, type LockVerification, type VerifiedPair, type PairState } 
 import { computeExpectedPairs, describeCascadeCycle, type PairComputation, type TypeCoverageInput } from '../core/pairs.js';
 import type { TypeCoverageResult } from '../core/type-coverage.js';
 import { readLogContent } from '../core/log/log-gate.js';
-import { CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
+import { CLI_SUPPORTED_SCHEMA, loadGraphOrThrow } from '../core/graph-loader.js';
 import {
   computeEffectiveAspects,
   computeEffectiveAspectStatuses,
@@ -113,9 +112,12 @@ export function resolveAllowedRelations(graph: Graph, typeId: string): PortalTyp
 /**
  * Load the project graph committed-only — the portal can provably never read
  * yg-secrets.yaml. `noSecrets: true` is mandatory (enforced by an aspect on this node).
+ * Throws (a GraphLoadError for anything the adopter can fix) and never exits: the
+ * portal server outlives a graph that briefly stops loading, and answers that
+ * request with the diagnosis instead.
  */
 export async function loadPortalGraph(projectRoot: string): Promise<Graph> {
-  return loadGraphOrAbort(projectRoot, {
+  return loadGraphOrThrow(projectRoot, {
     tolerateInvalidConfig: true,
     noSecrets: true,
   });

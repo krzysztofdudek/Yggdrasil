@@ -316,6 +316,25 @@ export async function runSuppressionsScan(
 
 // ── Output formatting ─────────────────────────────────────
 
+/**
+ * The lines a marker actually waives, as `yg check` resolves them: a single
+ * marker waives the next line, or its own line when it trails code; a disable
+ * waives from the line after it (its own line when trailing) up to the line
+ * before its matching enable (the enable's own line when that trails code), or
+ * to the end of the file when nothing closes it. Empty for an enable.
+ */
+function describeWaivedLines(file: string, m: SuppressionMarkerInfo, report: SuppressionsReport, markers: SuppressionMarkerInfo[]): string {
+  const from = m.trailing ? m.line : m.line + 1;
+  if (m.kind === 'single') return ` → waives line ${from}`;
+  if (m.kind !== 'disable') return '';
+  const range = report.ranges?.find((r) => r.file === file && r.aspect === m.aspectId && r.from === m.line);
+  if (range === undefined) return '';
+  if (range.to === null) return ` → waives lines ${from}-end of file`;
+  const enable = markers.find((e) => e.kind === 'enable' && e.aspectId === m.aspectId && e.line === range.to);
+  const to = enable?.trailing ? range.to : range.to - 1;
+  return to >= from ? ` → waives lines ${from}-${to}` : ' → waives nothing (the enable closes it at once)';
+}
+
 export function formatSuppressionsOutput(report: SuppressionsReport): string {
   const lines: string[] = [];
 
@@ -336,7 +355,7 @@ export function formatSuppressionsOutput(report: SuppressionsReport): string {
       const isFileLevel = report.fileLevelKeys?.has(`${file}:${m.line}`) ?? false;
       const kindTag = isFileLevel ? 'file-level' : m.kind === 'single' ? 'single' : m.kind === 'disable' ? 'disable' : 'enable';
       const reasonPart = m.reason ? `  — ${m.reason}` : '';
-      lines.push(`    line ${m.line}: ${kindTag}(${m.aspectId})${wildcardTag}${reasonPart}`);
+      lines.push(`    line ${m.line}: ${kindTag}(${m.aspectId})${wildcardTag}${describeWaivedLines(file, m, report, markers)}${reasonPart}`);
     }
     lines.push('');
   }

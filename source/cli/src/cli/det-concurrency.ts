@@ -102,3 +102,19 @@ export function detConcurrencyForThisMachine(): number {
     processRssBytes: process.memoryUsage().rss,
   });
 }
+
+/** Default wall-clock budget for one deterministic check: generous for a large
+ *  unit's parse, finite for a check that never returns. */
+export const DEFAULT_DET_TASK_BUDGET_MS = 120_000;
+
+/**
+ * The per-check budget the fill runs deterministic checks under: the
+ * `YG_DET_TASK_TIMEOUT_MS` environment variable when it is a non-negative
+ * integer (0 switches the bound off), else {@link DEFAULT_DET_TASK_BUDGET_MS}.
+ * Read here, at the CLI boundary, so the engine reads no environment.
+ */
+export function detTaskBudgetMs(env: Readonly<Record<string, string | undefined>> = process.env): number {
+  const raw = env.YG_DET_TASK_TIMEOUT_MS?.trim();
+  if (raw !== undefined && /^\d+$/.test(raw)) return Number(raw);
+  return DEFAULT_DET_TASK_BUDGET_MS;
+}

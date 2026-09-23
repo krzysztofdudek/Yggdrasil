@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
-import { resolveDetConcurrency, detConcurrencyForThisMachine } from '../../../src/cli/det-concurrency.js';
+import { resolveDetConcurrency, detConcurrencyForThisMachine, detTaskBudgetMs, DEFAULT_DET_TASK_BUDGET_MS } from '../../../src/cli/det-concurrency.js';
 
 const GB = 1024 * 1024 * 1024;
 const MB = 1024 * 1024;
@@ -59,5 +59,20 @@ describe('detConcurrencyForThisMachine', () => {
     const workers = detConcurrencyForThisMachine();
     expect(Number.isInteger(workers)).toBe(true);
     expect(workers).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe('detTaskBudgetMs — the per-check wall-clock budget', () => {
+  it('defaults to a finite budget', () => {
+    expect(detTaskBudgetMs({})).toBe(DEFAULT_DET_TASK_BUDGET_MS);
+    expect(DEFAULT_DET_TASK_BUDGET_MS).toBeGreaterThan(0);
+  });
+  it('YG_DET_TASK_TIMEOUT_MS overrides it; 0 switches the bound off', () => {
+    expect(detTaskBudgetMs({ YG_DET_TASK_TIMEOUT_MS: '5000' })).toBe(5000);
+    expect(detTaskBudgetMs({ YG_DET_TASK_TIMEOUT_MS: '0' })).toBe(0);
+  });
+  it('a value that is not a whole number of milliseconds keeps the default', () => {
+    expect(detTaskBudgetMs({ YG_DET_TASK_TIMEOUT_MS: 'fast' })).toBe(DEFAULT_DET_TASK_BUDGET_MS);
+    expect(detTaskBudgetMs({ YG_DET_TASK_TIMEOUT_MS: '-1' })).toBe(DEFAULT_DET_TASK_BUDGET_MS);
   });
 });

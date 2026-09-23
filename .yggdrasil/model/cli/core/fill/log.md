@@ -142,3 +142,5 @@ Remembering each rule's standing no longer needs a write of its own. The memory 
 The verdict writer now stamps every real verdict it records with when it was filled and, when a commit was resolvable, which one, so a tool above the agent can attribute reviewer cost to the branch that caused it. Never stamped on a deterministic entry, since filling one costs nothing and there is nothing to attribute; the commit itself arrives as a plain value threaded in from the CLI boundary, and the fill computes nothing and calls no git itself.
 ## [2026-09-10T09:18:40.702Z]
 An approving run no longer records a port-contract baseline into the committed lock. The recording step — which used to run even on the free deterministic-only fill — is removed along with the check it fed, so there is nothing left for this stage to write on a port's behalf.
+## [2026-09-23T20:24:45.360Z]
+The fill accepts a per-check wall-clock budget for deterministic checks and passes it to the deterministic phase. A check that never returns used to hang the free keyless gate with no message.

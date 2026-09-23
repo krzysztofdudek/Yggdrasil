@@ -101,3 +101,29 @@ describe('computeLogBaselineFromContent', () => {
     expect(other!.prefix_hash).not.toBe(baseline!.prefix_hash);
   });
 });
+
+describe('line-ending independence of the log baseline (CRLF checkout)', () => {
+  const LF = '## [2026-05-11T14:23:00.000Z]\nFirst.\n\n## [2026-05-11T14:24:00.000Z]\nSecond.\n';
+  const CRLF = LF.replace(/\n/g, '\r\n');
+
+  it('a baseline written from an LF log validates against the same log checked out with CRLF', () => {
+    const baseline = computeLogBaselineFromContent(LF)!;
+    expect(validateAppendOnly(CRLF, baseline.last_entry_datetime, baseline.prefix_hash)).toEqual({ ok: true });
+  });
+
+  it('a baseline written from a CRLF log equals the LF baseline (no migration of existing locks)', () => {
+    expect(computeLogBaselineFromContent(CRLF)).toEqual(computeLogBaselineFromContent(LF));
+  });
+
+  it('an LF entry appended to a CRLF-checked-out log still validates the older baseline', () => {
+    const baseline = computeLogBaselineFromContent(LF)!;
+    const appended = CRLF + '## [2026-05-11T14:25:00.000Z]\nThird.\n';
+    expect(validateAppendOnly(appended, baseline.last_entry_datetime, baseline.prefix_hash)).toEqual({ ok: true });
+  });
+
+  it('a real edit is still caught after normalisation', () => {
+    const baseline = computeLogBaselineFromContent(LF)!;
+    const edited = CRLF.replace('First.', 'Rewritten.');
+    expect(validateAppendOnly(edited, baseline.last_entry_datetime, baseline.prefix_hash)).toEqual({ ok: false, reason: 'prefix_modified' });
+  });
+});

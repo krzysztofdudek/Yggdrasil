@@ -320,6 +320,13 @@ available cores — no configuration, and it never affects verdicts, only speed.
 This is why the free, keyless \`yg check --approve --only-deterministic\` gate
 parallelizes with no \`parallel\` setting at all.
 
+Each deterministic check runs under a wall-clock budget (default 120 seconds;
+set the \`YG_DET_TASK_TIMEOUT_MS\` environment variable, in milliseconds, to
+change it, or to \`0\` to switch it off). A check still running past it — an
+endless loop, runaway regex backtracking — is stopped and reported as
+\`aspect-check-runtime-error\` naming the rule and the unit; nothing is written
+for it and every other check still runs, so the gate never hangs.
+
 ## Debug logging
 
 \`debug\` (top-level) defaults to \`false\`. When set to \`true\`, every command

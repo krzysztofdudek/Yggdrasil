@@ -6,3 +6,5 @@ The progress line that a terminal rewrites in place was not bounded to the termi
 The fill stage can now be handed the measurement of the current change, so what it buys review for is decided by its caller rather than assumed. The option borrows its shape from the read path rather than restating it, so the two surfaces cannot describe the same thing differently.
 ## [2026-09-09T22:30:12.184Z]
 The fill options gain one more CLI-resolved value alongside the existing tracked-file list and change scope: the commit the run executes at, so the verdict writer can stamp it on what it fills without the engine ever calling git itself.
+## [2026-09-23T20:24:48.589Z]
+With a per-check budget every deterministic check runs on a worker thread, even for a fill too small to parallelize, because only a check off the main thread can be stopped and only then can the progress heartbeat keep naming the check still running.

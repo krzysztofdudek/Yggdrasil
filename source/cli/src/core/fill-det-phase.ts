@@ -75,6 +75,8 @@ export interface DetPhaseParams {
   /** Deterministic-phase thread budget: 1 → sequential in-process; >1 → a
    *  worker-thread pool bounded by this value. */
   detConcurrency: number;
+  /** Per-check wall-clock budget in ms (0 = unbounded) — see RunFillOptions.detTaskBudgetMs. */
+  detTaskBudgetMs?: number;
   typeCoverage: TypeCoverageInput | undefined;
   /** The architecture-reach cache shared with the LLM phase — see runFill's own
    *  doc for why one map serves both. */
@@ -86,7 +88,7 @@ export interface DetPhaseParams {
 
 export async function runDeterministicPhase({
   graph, projectRoot, detPairs, aspectById, verification, blockedNodes,
-  detConcurrency, typeCoverage, reachCache, writer, tracker, write,
+  detConcurrency, detTaskBudgetMs = 0, typeCoverage, reachCache, writer, tracker, write,
 }: DetPhaseParams): Promise<DetPhaseResult> {
   const result: DetPhaseResult = {
     detEnforcedRefusedNodes: new Set<string>(),
@@ -170,12 +172,18 @@ export async function runDeterministicPhase({
   // repos, and every fixture) stays in-process, where a single warmed parser is
   // strictly faster than spawning threads. Pool size never enters a verdict — it
   // changes only wall-clock.
-  const detPoolSize = Math.min(
-    detConcurrency,
-    Math.floor(activeDetPairs.length / MIN_DET_PAIRS_PER_WORKER),
+  //
+  // A per-check budget overrides that: a check running on THIS thread cannot be
+  // stopped (an endless loop would freeze the gate, heartbeat included), so with
+  // a budget every check runs on a worker — at least one, even for a fill too
+  // small to parallelize.
+  const bounded = detTaskBudgetMs > 0 && activeDetPairs.length > 0;
+  const detPoolSize = Math.max(
+    bounded ? 1 : 0,
+    Math.min(detConcurrency, Math.floor(activeDetPairs.length / MIN_DET_PAIRS_PER_WORKER)),
   );
-  if (detPoolSize > 1) {
-    const pool = new DetWorkerPool(graph, projectRoot, detPoolSize);
+  if (detPoolSize > 1 || bounded) {
+    const pool = new DetWorkerPool(graph, projectRoot, detPoolSize, detTaskBudgetMs);
     // A pool-backed structure runner: execute the check on a worker and
     // RECONSTRUCT StructureRunnerError on this thread so fillDetPair's catch (its
     // malformed-suppress branch + taint re-run) behaves exactly as in-process.

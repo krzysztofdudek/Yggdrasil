@@ -62,8 +62,10 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // command — which is the routine growth its own recorded fan-out allowance
     // exists to absorb. That broke the tie it previously held with cli/core/fill
     // at 25 and put it above, level with nothing. cli/core/fill is unchanged at
-    // 25 and cli/core/check at 24. cli/portal/engine-api is unchanged at 23, and
-    // is pinned by PATH rather than by index for the same reason aspect-test
+    // 25 and cli/core/check at 24. cli/portal/engine-api dropped from 23 to 22
+    // when it stopped loading the graph through the command-line preamble (whose
+    // failure path exits the process) and started using the engine's throwing
+    // loader, an edge it already declared; it is pinned by PATH rather than by index for the same reason aspect-test
     // below is: anchoring a node to a fixed slot is the brittle anchor a past
     // dogfood entry recorded against this very file.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
@@ -82,7 +84,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     expect(data.hubs.fanOut[3].count).toBe(24);
     const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
     expect(engineApi).toBeDefined();
-    expect(engineApi!.count).toBe(23);
+    expect(engineApi!.count).toBe(22);
     // Also pins that aspect-test's own extraction (a prior architectural
     // change) still landed it BELOW the leaders, never re-joining the tie by
     // accident. Found by path, not by a fixed index — the nodes between the

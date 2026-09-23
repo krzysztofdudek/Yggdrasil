@@ -33,6 +33,10 @@ import { PACKAGE_VERSIONS_CACHE_FILENAME } from '../io/package-versions-cache.js
  *      forcing a conflict on the append-only file. (The file itself only exists
  *      once a repo opts in via `events: { committed_llm: true }`; the attribute is
  *      harmless when the file is absent.)
+ *    - every node's and aspect's log.md pinned to LF — the log's append-only
+ *      baseline is a prefix hash; the hash normalises line endings, and pinning
+ *      the committed text to LF also keeps checkouts (Git for Windows defaults to
+ *      core.autocrlf=true) byte-identical to what was baselined and appended.
  *  Single source of truth for what init writes into the repo-root .gitattributes
  *  (both fresh init and every --upgrade). */
 const GITATTRIBUTES_LINES = [
@@ -40,6 +44,7 @@ const GITATTRIBUTES_LINES = [
   '/.yggdrasil/advise-decisions.jsonl merge=union',
   '/.yggdrasil/advise-imported.jsonl merge=union',
   '/.yggdrasil/yg-events.llm.jsonl merge=union',
+  '/.yggdrasil/**/log.md text eol=lf',
 ] as const;
 
 /**

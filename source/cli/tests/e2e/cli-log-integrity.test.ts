@@ -140,10 +140,12 @@ function git(repo: string, cmd: string): void {
  * adding one entry, merged with a conflict left for the caller to resolve by
  * writing `resolvedLog` into log.md and committing the merge.
  */
-function buildMergeRepo(label: string, resolvedLog: string): string {
+function buildMergeRepo(label: string, resolvedLog: string, graphSubdir = ''): string {
   const repo = mkdtempSync(path.join(tmpdir(), `yg-logmr-${label}-`));
-  cpSync(FIXTURE, repo, { recursive: true });
-  const logPath = ordersLogPath(repo);
+  // graphSubdir places the graph BELOW the git root (a monorepo package).
+  const graphDir = path.join(repo, graphSubdir);
+  cpSync(FIXTURE, graphDir, { recursive: true });
+  const logPath = ordersLogPath(graphDir);
   mkdirSync(path.dirname(logPath), { recursive: true });
 
   git(repo, 'init -q -b main');
@@ -319,6 +321,18 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       expect(status).toBe(0);
       expect(stdout).toContain('Merge-resolve verified');
       expect(stdout).toContain('Log baseline updated');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('5b: merge-resolve works for a graph below the git root (run from that subdirectory)', () => {
+    const repo = buildMergeRepo('subdir', UNION_LOG, 'app');
+    try {
+      const { status, stdout, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], path.join(repo, 'app'));
+      expect(all).not.toContain('Could not read');
+      expect(status).toBe(0);
+      expect(stdout).toContain('Merge-resolve verified');
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

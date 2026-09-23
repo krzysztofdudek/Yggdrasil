@@ -5,7 +5,7 @@ import { GeminiCliProvider } from '../../../src/llm/gemini-cli.js';
 describe('CLI providers', () => {
   const providers = [
     { name: 'codex', cls: CodexProvider, binary: 'codex', stdin: true },
-    { name: 'gemini-cli', cls: GeminiCliProvider, binary: 'gemini', stdin: false },
+    { name: 'gemini-cli', cls: GeminiCliProvider, binary: 'gemini', stdin: true },
   ];
 
   for (const { name, cls, binary, stdin } of providers) {

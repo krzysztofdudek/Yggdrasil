@@ -52,21 +52,54 @@ export function isIgnoredByStack(
   return false;
 }
 
+/**
+ * The stack in force INSIDE `dir`: `stack` plus `dir`'s own `.gitignore`, when it
+ * has one. The one implementation every directory walk (the repo walk below and
+ * the mapping walk in io/hash.ts) uses to descend, so both honour exactly the
+ * same files.
+ */
+export async function withLocalGitignore(dir: string, stack: GitignoreEntry[]): Promise<GitignoreEntry[]> {
+  try {
+    const content = await readFile(join(dir, '.gitignore'), 'utf-8');
+    const ig = ignoreFactory();
+    ig.add(content);
+    return [...stack, { dir, ig }];
+  } catch (err) {
+    debugWrite(`[repo-scanner] local .gitignore not readable in ${dir}: ${(err as Error).message}`);
+    return stack;
+  }
+}
+
+/**
+ * The `.gitignore` stack a walk STARTING at `dir` must carry: the `.gitignore`
+ * of the project root and of every directory between the root and `dir`
+ * (exclusive — the walk adds `dir`'s own via {@link withLocalGitignore}). A walk
+ * that starts below the root (a directory or glob mapping such as `src/app`)
+ * therefore honours an ignore rule in `src/.gitignore` exactly as the repo walk,
+ * which descends from the root, does. A `dir` outside the root gets the root's
+ * stack alone.
+ */
+export async function gitignoreStackFor(projectRoot: string, dir: string): Promise<GitignoreEntry[]> {
+  const rel = relative(projectRoot, dir);
+  if (rel === '') return [];
+  if (rel.startsWith('..') || resolve(projectRoot, rel) !== resolve(dir)) return loadRootGitignoreStack(projectRoot);
+  let stack = await loadRootGitignoreStack(projectRoot);
+  let current = projectRoot;
+  const segments = rel.split(sep).filter((s) => s !== '');
+  for (const segment of segments.slice(0, -1)) {
+    current = join(current, segment);
+    stack = await withLocalGitignore(current, stack);
+  }
+  return stack;
+}
+
 async function collectFiles(
   dir: string,
   projectRoot: string,
   stack: GitignoreEntry[],
   nestedRoots: ReadonlySet<string>,
 ): Promise<string[]> {
-  let localStack = stack;
-  try {
-    const content = await readFile(join(dir, '.gitignore'), 'utf-8');
-    const ig = ignoreFactory();
-    ig.add(content);
-    localStack = [...stack, { dir, ig }];
-  } catch (err) {
-    debugWrite(`[repo-scanner] local .gitignore not readable in ${dir}: ${(err as Error).message}`);
-  }
+  const localStack = await withLocalGitignore(dir, stack);
 
   let entries;
   try {
@@ -490,10 +523,10 @@ export function describeExclusionCause(source: ExclusionSource): string {
  * (`mappingEntryMatchesFile` has no notion of exclusion), so a file inside an
  * excluded root that a directory or glob entry sweeps in never lands in its
  * uncovered list — it reads as node-owned even though nothing enforces it: no
- * pair, no fingerprint contribution, no rule ever runs on it. `yg check`'s
- * header corrects its node-owned/excluded split by this count at the CLI
- * boundary (`cli/check.ts`) — moved out of "node-owned" and into "excluded"
- * — so the one number an adopter reads to see how much of a node's mapping
+ * pair, no fingerprint contribution, no rule ever runs on it. `runCheck`
+ * (core/check.ts) corrects its node-owned/excluded split by this list —
+ * moved out of "node-owned" and into "excluded" — so every surface reading a
+ * check result (the CLI header, the fill report, the portal) shows it, and the one number an adopter reads to see how much of a node's mapping
  * actually enforces never reports the opposite of what `yg context --node`
  * and `yg owner --file` already say about the same files.
  */
@@ -501,6 +534,14 @@ export async function countMappedButExcludedFiles(
   graph: Graph,
   coverageVisibleFiles: string[],
 ): Promise<number> {
+  return (await listMappedButExcludedFiles(graph, coverageVisibleFiles)).length;
+}
+
+/** The files {@link countMappedButExcludedFiles} counts, POSIX and repo-relative, in input order. */
+export async function listMappedButExcludedFiles(
+  graph: Graph,
+  coverageVisibleFiles: string[],
+): Promise<string[]> {
   const projectRoot = dirname(graph.rootPath);
   const exclusion = await resolveGraphExclusionSet(projectRoot, graph.config.coverage ?? NO_COVERAGE_EXCLUDED);
   // Mirror core/check.ts's own totalFiles universe: the graph's own
@@ -511,14 +552,14 @@ export async function countMappedButExcludedFiles(
   for (const node of graph.nodes.values()) {
     allMappings.push(...normalizeMappingPaths(node.meta.mapping));
   }
-  let count = 0;
+  const out: string[] = [];
   for (const raw of coverageVisibleFiles) {
     const normalized = toPosixPath(raw.trim());
     if (normalized.startsWith(yggPrefix + '/') || normalized === yggPrefix) continue;
     if (!isExcludedFromGraph(normalized, exclusion)) continue;
-    if (allMappings.some((mp) => mappingEntryMatchesFile(mp, normalized))) count++;
+    if (allMappings.some((mp) => mappingEntryMatchesFile(mp, normalized))) out.push(normalized);
   }
-  return count;
+  return out;
 }
 
 /**

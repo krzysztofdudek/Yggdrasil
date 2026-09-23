@@ -15,6 +15,7 @@ import path from 'node:path';
 import type { Graph, GraphNode } from '../../model/graph.js';
 import type { LockFile } from '../../model/lock.js';
 import { parseLog } from '../parsing/log-parser.js';
+import { normalizeLogLineEndings } from '../log-integrity.js';
 import { readTextFile } from '../../io/graph-fs.js';
 import { computeSourceFingerprint, FileUnreadableError } from '../pairs.js';
 import { debugWrite } from '../../utils/debug-log.js';
@@ -112,15 +113,18 @@ export async function computeLogBaselineForNode(
  * Compute the append-only log baseline from already-loaded content (boundary
  * datetime + prefix hash over bytes [0..newest.offsetEnd)). Returns undefined
  * when the log has no entries. This is the byte-range the validateAppendOnly
- * contract verifies — NOT the whole file (spec §9).
+ * contract verifies — NOT the whole file (spec §9). Line endings are
+ * normalised first, exactly as validateAppendOnly does, so the baseline does
+ * not depend on whether the checkout uses LF or CRLF.
  */
 export function computeLogBaselineFromContent(
   content: string,
 ): { last_entry_datetime: string; prefix_hash: string } | undefined {
-  const entries = parseLog(content);
+  const normalized = normalizeLogLineEndings(content);
+  const entries = parseLog(normalized);
   if (entries.length === 0) return undefined;
   const newest = entries[entries.length - 1];
-  const bytes = Buffer.from(content, 'utf-8');
+  const bytes = Buffer.from(normalized, 'utf-8');
   const prefix = bytes.subarray(0, newest.offsetEnd);
   return {
     last_entry_datetime: newest.datetime,

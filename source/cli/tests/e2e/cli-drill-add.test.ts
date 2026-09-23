@@ -344,4 +344,30 @@ describe.skipIf(!distExists)('CLI E2E — yg drill add', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('8: a graph below the git root reads the case from history (run from that subdirectory)', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'yg-drilladd-subdir-'));
+    const dir = path.join(root, 'app');
+    try {
+      cpSync(FIXTURE, dir, { recursive: true });
+      git(['init', '-q'], root);
+      git(['config', 'user.email', 'drill@example.test'], root);
+      git(['config', 'user.name', 'Drill Fixture'], root);
+      git(['add', '-A'], root);
+      git(['commit', '-qm', 'the project as it was'], root);
+      const sha = commitFile(root, 'app/src/charge.ts', ESCAPED, 'the code that got past the rule');
+
+      const added = run(
+        ['drill', 'add', '--aspect', RULE, '--violates', `src/charge.ts@${sha}`, '--why', 'It shipped in a monorepo package.'],
+        dir,
+      );
+      expect(added.all).not.toContain('was not at');
+      expect(added.status).toBe(0);
+      const cases = readdirSync(corpusPath(dir));
+      expect(cases).toHaveLength(1);
+      expect(readFileSync(path.join(corpusPath(dir), cases[0], 'src', 'charge.ts'), 'utf-8')).toBe(ESCAPED);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
 });

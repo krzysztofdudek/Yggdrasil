@@ -138,6 +138,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // Deterministic-phase thread budget (injected; engine reads no system state).
   // 1 → sequential in-process; >1 → a worker-thread pool bounded by this value.
   const detConcurrency = Math.max(1, Math.floor(opts.detConcurrency ?? 1));
+  const detTaskBudgetMs = Math.max(0, Math.floor(opts.detTaskBudgetMs ?? 0));
   // Committed-events opt-in (RZ-14). Read from the resolved config once and passed
   // to the writer: when ON, LLM verification-fill events graduate to the committed
   // shared stream; every other event stays in the local sidecar.
@@ -339,7 +340,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // ── Step 5: Deterministic fills FIRST (free). ─────────────────────────────
   const det = await runDeterministicPhase({
     graph, projectRoot, detPairs, aspectById, verification, blockedNodes,
-    detConcurrency, typeCoverage: typeCoverageInput, reachCache, writer, tracker, write,
+    detConcurrency, detTaskBudgetMs, typeCoverage: typeCoverageInput, reachCache, writer, tracker, write,
   });
 
   // ── Emit grouped det runtime-error diagnostics (one message per aspect). ────

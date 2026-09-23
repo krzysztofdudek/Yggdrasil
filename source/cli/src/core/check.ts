@@ -65,7 +65,7 @@ import path from 'node:path';
 import type { Graph } from '../model/graph.js';
 import { DEFAULT_COVERAGE } from '../io/config-parser.js';
 import { FileContentCache } from '../io/file-content-cache.js';
-import { excludeNestedGraphSubtrees } from '../io/repo-scanner.js';
+import { excludeNestedGraphSubtrees, listMappedButExcludedFiles } from '../io/repo-scanner.js';
 import { toPosixPath } from '../utils/posix.js';
 import { computeTypeCoverageCached } from './type-coverage.js';
 import type { TypeCoverageResult } from './type-coverage.js';
@@ -360,8 +360,8 @@ export async function runCheck(
     coveredFiles,
     totalFiles,
     typeCoveredCount,
-    nodeOwnedFiles,
-    excludedFiles,
+    nodeOwnedFiles: phaseNodeOwnedFiles,
+    excludedFiles: phaseExcludedFiles,
     typeLevel,
     classifyingTypeCount,
   } = await runCoveragePhase({
@@ -371,6 +371,25 @@ export async function runCheck(
     coverage,
     earlyTypeCoverage,
   });
+
+  // The honest node-owned/excluded split. The coverage phase decides
+  // "node-owned" by whether a mapping entry TEXTUALLY matches a file, so a file
+  // a directory or glob entry sweeps in but the graph excludes (a nested
+  // project's boundary, a `coverage.excluded` root) would read as node-owned
+  // although nothing enforces it. Corrected HERE, in the one engine every
+  // surface calls, so `yg check`, the fill's report and the portal can never
+  // show different numbers for the same tree. Only when the flag-gated split is
+  // rendered at all (typeLevel) and there is something to count.
+  let nodeOwnedFiles = phaseNodeOwnedFiles;
+  let excludedFiles = phaseExcludedFiles;
+  let mappedExcludedFiles: string[] | undefined;
+  if (typeLevel && totalFiles > 0 && coverageVisibleFiles !== null) {
+    mappedExcludedFiles = await listMappedButExcludedFiles(graph, coverageVisibleFiles);
+    if (mappedExcludedFiles.length > 0) {
+      nodeOwnedFiles = (nodeOwnedFiles ?? 0) - mappedExcludedFiles.length;
+      excludedFiles = (excludedFiles ?? 0) + mappedExcludedFiles.length;
+    }
+  }
   if (coverageVisibleFiles !== null) {
     // Additive tracked∩gitignored anomaly detection: a git-tracked file positively
     // matched by .gitignore, independent of node mapping. INJECTED real
@@ -515,6 +534,7 @@ export async function runCheck(
     classifyingTypeCount,
     nodeOwnedFiles,
     excludedFiles,
+    ...(mappedExcludedFiles !== undefined ? { mappedExcludedFiles } : {}),
     typeVisibility,
     outsideCount,
     progressiveReference,

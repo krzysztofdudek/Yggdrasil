@@ -902,3 +902,46 @@ describe('suppress: uppercase/mixed-case extension takes the AST comment path (C
     });
   });
 });
+
+describe('suppress: a marker trailing code waives its OWN line', () => {
+  // `code(); // yg-suppress(x) reason` is the eslint-disable-line / noqa idiom:
+  // the waiver belongs to the line it sits on. It must never silently waive the
+  // unrelated line below it.
+  const code = [
+    'import fs from "node:fs";',
+    'const a = fs.readFileSync("x"); // yg-suppress(no-sync) legacy bootstrap read',
+    'const b = fs.readFileSync("y");',
+  ].join('\n');
+
+  it('the marked line is waived and the next line is not', async () => {
+    const ranges = await collectFromSource('a.ts', code, 3);
+    expect(isLineSuppressed(ranges, 'no-sync', 2)).toBe(true);
+    expect(isLineSuppressed(ranges, 'no-sync', 3)).toBe(false);
+  });
+
+  it('a marker alone on its line still waives the NEXT line', async () => {
+    const own = ['// yg-suppress(no-sync) legacy', 'const a = fs.readFileSync("x");', 'const b = 1;'].join('\n');
+    const ranges = await collectFromSource('a.ts', own, 3);
+    expect(isLineSuppressed(ranges, 'no-sync', 1)).toBe(false);
+    expect(isLineSuppressed(ranges, 'no-sync', 2)).toBe(true);
+    expect(isLineSuppressed(ranges, 'no-sync', 3)).toBe(false);
+  });
+
+  it('a trailing disable starts at its own line; a trailing enable ends at its own line', async () => {
+    const block = [
+      'const a = 1; // yg-suppress-disable(no-sync) legacy block',
+      'const b = 2;',
+      'const c = 3; // yg-suppress-enable(no-sync)',
+      'const d = 4;',
+    ].join('\n');
+    const ranges = await collectFromSource('a.ts', block, 4);
+    expect([1, 2, 3].map((l) => isLineSuppressed(ranges, 'no-sync', l))).toEqual([true, true, true]);
+    expect(isLineSuppressed(ranges, 'no-sync', 4)).toBe(false);
+  });
+
+  it('the inventory marks the trailing marker so it can report the line it waives', async () => {
+    const markers = await withParsedFile('a.ts', code, (tree) => scanSuppressionMarkersInComments(tree, 'a.ts', code));
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ line: 2, kind: 'single', trailing: true });
+  });
+});

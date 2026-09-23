@@ -37,7 +37,7 @@ import { ADVISE_JSON_SCHEMA, formatAdviseJson } from '../formatters/advise-json.
 import type { AdviseJsonDocument, AdviseJsonItem } from '../formatters/advise-json.js';
 import { readFile } from 'node:fs/promises';
 import { readDrillResults } from '../io/drill-results-reader.js';
-import { filterInCorpusDevDrills } from '../core/drill-runner.js';
+import { filterInCorpusDevDrills, countCommittedViolatesCases } from '../core/drill-runner.js';
 import type { DrillResultLine } from '../io/drill-results-store.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { countIncidents } from '../io/incidents-store.js';
@@ -595,6 +595,21 @@ async function gatherInCorpusDrillResults(
   }
 }
 
+/**
+ * Refusal-expecting drill cases committed per aspect — the drill evidence a fresh
+ * clone or CI job has even though the drill-result telemetry is local. Undefined
+ * when the corpus cannot be listed, so the caller withholds the demotion source
+ * rather than nominate a demotion on evidence it could not read.
+ */
+async function gatherCommittedViolatesCases(graph: Graph, projectRoot: string): Promise<Map<string, number> | undefined> {
+  try {
+    return await countCommittedViolatesCases(graph.aspects.map((a) => a.id), projectRoot);
+  } catch (error) {
+    debugWrite(`[advise] committed drill corpus unreadable: ${(error as Error).message}`);
+    return undefined;
+  }
+}
+
 /** `gatherNominationSources`'s result: the nomination sources, plus the C7
  *  tunnel count `gatherRelationBoundary` derives from the SAME relation pass
  *  (only the bare `yg advise` action renders it; dismiss/defer ignore it). */
@@ -621,6 +636,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   const typeCoverage = await gatherTypeCoverageForAdvise(graph, projectRoot);
   const suppressData = await gatherSuppressData(graph, projectRoot, typeCoverage);
   const drillResults = await gatherInCorpusDrillResults(graph, projectRoot);
+  const committedViolatesCasesByAspect = await gatherCommittedViolatesCases(graph, projectRoot);
   const verdictEvents = readVerdictEvents(graph.rootPath).events;
   const currentUnits = await gatherCurrentUnits(graph, typeCoverage);
   // ONE git-history fetch, shared by both churn counters below (per-node and
@@ -641,12 +657,13 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
     verdictEvents,
     typeCoverage,
   };
-  // The decorative-rule source needs BOTH the current attach sets and the suppress
-  // counts; supply them only when both resolved, so an unknown suppress state or an
+  // The decorative-rule source needs the current attach sets, the suppress counts
+  // and the committed drill corpus; supply them only when all resolved, so an unknown suppress state or an
   // unreadable graph can never let a demotion be nominated on incomplete evidence.
-  if (currentUnits !== undefined && suppressData !== undefined) {
+  if (currentUnits !== undefined && suppressData !== undefined && committedViolatesCasesByAspect !== undefined) {
     sources.currentUnitsByAspect = currentUnits.currentUnitsByAspect;
     sources.suppressCountsByAspect = suppressData.counts;
+    sources.committedViolatesCasesByAspect = committedViolatesCasesByAspect;
   }
   // The type-covered-churn class's enforcement gate needs to know which files
   // are genuinely enforced; supply it only when resolved, so a failed

@@ -296,6 +296,26 @@ export async function filterInCorpusDevDrills(
   return devLines.filter((line) => inCorpus.has(keyOf(line.aspect, line.case)));
 }
 
+/**
+ * How many refusal-expecting (`violates-*`) cases each aspect's in-repo corpus
+ * holds (aspectId → count; aspects with none are omitted). Read by the same
+ * read-only discovery `yg drill` uses — it lists the corpus, never runs a case.
+ * The corpus is committed, so this evidence exists on a fresh clone and in CI,
+ * where the gitignored drill-result telemetry does not.
+ */
+export async function countCommittedViolatesCases(
+  aspectIds: readonly string[],
+  projectRoot: string,
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  for (const aspectId of aspectIds) {
+    const cases = await discoverDrillCases({ aspectId, projectRoot });
+    const violates = cases.filter((c) => c.expect === 'refused').length;
+    if (violates > 0) counts.set(aspectId, violates);
+  }
+  return counts;
+}
+
 // ── Hashing ──
 
 /** sha256 of the concatenated case file contents (raw bytes, sorted by path). Drill-internal

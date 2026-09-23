@@ -75,6 +75,24 @@ registerPackCommand(program);
 registerMarketplaceCommand(program);
 registerPrimeCommand(program);
 
+/**
+ * A reader that closes its end of our output pipe (`yg check --approve | head`)
+ * must not abort the run: the fill keeps going, persists every verdict and
+ * exits with its own code. The first EPIPE turns further writes to that stream
+ * into no-ops (nobody is reading them); any other stream error stays fatal.
+ */
+function tolerateClosedPipe(stream: NodeJS.WriteStream): void {
+  stream.on('error', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE' || err.code === 'ERR_STREAM_DESTROYED') {
+      stream.write = (() => true) as typeof stream.write;
+      return;
+    }
+    throw err;
+  });
+}
+tolerateClosedPipe(process.stdout);
+tolerateClosedPipe(process.stderr);
+
 process.on('unhandledRejection', (reason) => {
   const msg = reason instanceof Error ? reason.message : String(reason);
   process.stderr.write(`Error: ${msg}\n`);

@@ -87,9 +87,6 @@ export class CopilotCliProvider extends CliAgentProvider {
   // large component's prompt is past what one argument may carry on Linux (128 KiB) and past a
   // whole Windows command line (32,767 characters).
   get stdinMode() { return true; }
-  // npm installs the CLI on Windows as a `.cmd` shim, which only a shell can start. The arguments
-  // are then fixed flags plus the model name, which is checked below before it can reach a shell.
-  protected get spawnShell(): boolean { return /\.(cmd|bat)$/i.test(this.binary); }
   protected get extraEnv(): Record<string, string> { return { COPILOT_HOME: copilotHome() }; }
 
   buildArgs(_prompt: string): string[] {
