@@ -142,7 +142,7 @@ export async function runLockPhase(args: {
     // `emitPairIssue` emits nothing for a verified pair, so this is the only place
     // the verified/deterministic-vs-LLM split can be tallied.
     for (const vp of verification.pairs) {
-      lockIssues.push(...emitPairIssue(vp, runtimeRows));
+      lockIssues.push(...emitPairIssue(vp, runtimeRows, { reviewerConfigured: graph.config.reviewer !== undefined }));
       if (vp.state.kind === 'verified') {
         if (vp.pair.kind === 'llm') verifiedLlm++;
         else verifiedDet++;
@@ -229,7 +229,14 @@ export async function runLockPhase(args: {
     const unreadableNodes = new Set(
       verification.unreadable.map((u) => u.nodePath).filter((p): p is string => p !== undefined),
     );
-    await classifyLogRequirement(graph, projectRoot, lock, unreadableNodes, lockIssues);
+    // Nodes with a pair still waiting (or refused): a fill will settle those and
+    // close their log cycle itself, so the open-cycle warning skips them.
+    const unsettledNodes = new Set(
+      verification.pairs
+        .filter((vp) => vp.state.kind !== 'verified' && vp.pair.nodePath !== undefined)
+        .map((vp) => vp.pair.nodePath as string),
+    );
+    await classifyLogRequirement(graph, projectRoot, lock, unreadableNodes, lockIssues, unsettledNodes);
 
     // A rule's STANDING, compared against the one the tool last saw. Also here,
     // for the same reason as the log requirement above: the memory it compares

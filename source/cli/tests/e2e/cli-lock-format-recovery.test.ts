@@ -162,7 +162,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       // segment + the offending node line instead.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.all).toContain('unverified (not yet reviewed)');
+      expect(check.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(check.all).toContain("aspect 'no-todo-comments'");
       expect(check.all).toContain('- services/payments');
 

@@ -69,6 +69,10 @@ export interface LlmPhaseResult {
   /** Infra notices (tier-unresolvable + per-tier pool failures), in dispatch
    *  order, for grouped emission by the caller. */
   poolInfraItems: InfraDiagnosticItem[];
+  /** One entry per pair whose tier's provider was unreachable — already
+   *  reported on stderr once per tier; kept per pair so the post-fill report
+   *  can name the cause on each of them (annotateFillCauses). */
+  unreachableItems: InfraDiagnosticItem[];
 }
 
 export interface LlmPhaseParams {
@@ -103,6 +107,7 @@ export async function runLlmPhase({
     infraReport: [],
     companionRuntimeItems: [],
     poolInfraItems: [],
+    unreachableItems: [],
   };
 
   // Reference bytes are cached as RAW disk Buffers (null = missing/unreadable) so
@@ -162,11 +167,15 @@ export async function runLlmPhase({
       for (const item of group) {
         writer.emitEvent(item.pair.aspectId, toPosixPath(item.pair.unitKey), 'llm', 'infra', { tier: tierName, judge: judgeIdentity(baseTier) });
       }
-      emitIssue({
+      const unreachable: IssueMessage = {
         what: `Reviewer provider '${baseTier.provider}' (tier '${tierName}') cannot run: ${probe.reason}. ${group.length} pair(s) left unverified.`,
         why: 'The reviewer failed its availability check before any pair was sent — an infrastructure problem, not a code violation. No verdict was written.',
         next: `Fix the cause above, then re-run: yg check --approve. ${REVIEWER_DEBUG_HINT}`,
-      });
+      };
+      emitIssue(unreachable);
+      for (const item of group) {
+        result.unreachableItems.push({ aspectId: item.pair.aspectId, unitKey: toPosixPath(item.pair.unitKey), messageData: unreachable });
+      }
       continue;
     }
 

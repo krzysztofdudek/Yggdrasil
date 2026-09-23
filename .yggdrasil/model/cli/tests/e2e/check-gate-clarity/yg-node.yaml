@@ -1,0 +1,17 @@
+name: E2E Tests — Check Gate Clarity
+type: test-suite
+description: "Subprocess E2E pinning that the check gate tells the truth about
+  what blocks it and names a command that actually helps: a project with no
+  reviewer still runs the free deterministic gate and the cost preview, an
+  advisory judgment rule with no reviewer never blocks, an infrastructure
+  failure is named on the report and in the machine document, an async check
+  that throws still reaches the report, a reason-less suppress marker is
+  warned about early, a log conflict met mid-merge is resolved by the command
+  the check names, retry lines keep the invoked flags, broken graph files do
+  not produce misattributed follow-ons, unusable candidate files are named,
+  unverified pairs are grouped by cause, and non-pair findings are counted as
+  issues. Real spawned binary over the lifecycle fixture."
+aspects: []
+relations: [ { target: cli/tests/support, type: uses } ]
+mapping:
+  - source/cli/tests/e2e/cli-check-gate-clarity.test.ts

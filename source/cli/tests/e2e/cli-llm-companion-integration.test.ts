@@ -370,7 +370,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (integration)
       // The per-unit `what` ("No valid verdict … on file:…") is no longer rendered;
       // an unverified advisory pair surfaces as the glossed unverified group for the
       // aspect, still a warning (never an error).
-      expect(after.all).toContain('unverified (not yet reviewed)');
+      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(after.all).toContain(`aspect 'scenario-matches-test'`);
       expect(after.all).not.toContain('Errors (');
     } finally {

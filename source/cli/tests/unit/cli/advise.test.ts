@@ -186,7 +186,7 @@ describe.skipIf(!distExists)('yg advise — Step 1: sections, precedence, proven
     writeAspect(projectRoot, 'dead-x', 'Referenced but attaches nowhere.');
     appendFileSync(
       path.join(projectRoot, '.yggdrasil', 'model', 'auth', 'yg-node.yaml'),
-      '\naspects:\n  - id: dead-x\n    when:\n      path: "no/such/nonexistent/**"\n',
+      '\naspects:\n  - id: dead-x\n    when:\n      node:\n        has_port: no-such-port\n',
       'utf-8',
     );
   });

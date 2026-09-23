@@ -22,6 +22,21 @@ export async function isMergeCommit(repoCwd: string, ref: string): Promise<boole
   }
 }
 
+/**
+ * The commit being merged in when a `git merge` is in progress (stopped on a
+ * conflict, not yet committed) — `MERGE_HEAD` — or null when no merge is under
+ * way, outside a repository, or on any git failure.
+ */
+export async function mergeInProgressHead(repoCwd: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFilep('git', ['rev-parse', '-q', '--verify', 'MERGE_HEAD'], { cwd: repoCwd });
+    const sha = stdout.trim();
+    return sha === '' ? null : sha;
+  } catch {
+    return null;
+  }
+}
+
 /** Returns parent SHAs of the merge commit at `ref`. Throws on non-merge. */
 export async function getMergeParents(repoCwd: string, ref: string): Promise<string[]> {
   const { stdout } = await execFilep('git', ['rev-list', '--parents', '-n', '1', ref], {

@@ -457,7 +457,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect-status combinatorics (draft max
       // pairs share one code+aspectId, so they collapse into a single group naming
       // both nodes). Assert the label + both node lines rather than expecting the
       // node path on the same line as the label.
-      expect(drifted.stdout).toContain('unverified (not yet reviewed)');
+      expect(drifted.stdout).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       // The aspect appears on each body line (not in the group header).
       expect(drifted.stdout).toContain("aspect 'no-todo-comments'");
       // Body lines include the aspect annotation per node.

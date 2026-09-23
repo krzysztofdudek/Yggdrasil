@@ -411,7 +411,7 @@ describe('check command', () => {
           const result = spawnSync('node', [BIN_PATH, 'check', '--top', bad], { cwd, encoding: 'utf-8' });
           expect(result.status).toBe(1);
           const out = stripAnsi(result.stdout);
-          expect(stripAnsi(result.stderr)).toContain('--top expects a non-negative whole number');
+          expect(stripAnsi(result.stderr)).toContain('--top expects a positive whole number (1 or more)');
           // The error went to stderr; stdout must NOT have dumped the full check wall.
           expect(countBlocks(out)).toBe(0);
         });

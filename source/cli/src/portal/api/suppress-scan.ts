@@ -65,7 +65,7 @@ export interface SuppressionsReport {
    * `null`. Optional for the same reason `fileLevelKeys` is.
    */
   warningRecords?: Array<{
-    code: 'unknown-aspect' | 'wildcard' | 'unbounded-range' | 'waives-under';
+    code: 'unknown-aspect' | 'wildcard' | 'unbounded-range' | 'waives-under' | 'missing-reason';
     file: string;
     line: number;
     aspect: string | null;
@@ -88,6 +88,19 @@ function isBinaryContent(buf: Buffer): boolean {
   return false;
 }
 
+
+/**
+ * The finding for a `yg-suppress` marker with no reason — shared by the
+ * `yg suppressions` inventory and the warning `yg check` raises for the same
+ * marker, so the two surfaces word it identically.
+ */
+export function reasonlessMarkerMessage(file: string, line: number, aspect: string): { what: string; why: string; next: string } {
+  return {
+    what: `yg-suppress marker at ${file}:${line} has no reason.`,
+    why: 'A reason is required. A marker without one waives nothing: as soon as the check flags a line it covers, the fill rejects the marker (malformed-suppress-marker) and leaves the pair unverified — until then nothing else reports it.',
+    next: `Add the reason after the marker (\`yg-suppress(${aspect}) <why this is acceptable>\` — the user approves the reason), or remove the marker.`,
+  };
+}
 
 // ── Comment-aware marker scan ─────────────────────────────
 
@@ -191,6 +204,10 @@ export async function runSuppressionsScan(
     if (isBinaryContent(buf)) continue;
 
     const text = buf.toString('utf-8');
+    // Every marker form contains this token, so a file without it has none —
+    // skip the parse. This is what keeps the scan cheap enough for `yg check`
+    // to run it on every mapped source.
+    if (!text.includes('yg-suppress')) continue;
     const markers = await scanMarkersForFile(relFile, text);
     if (markers.length === 0) continue;
 
@@ -249,6 +266,7 @@ export async function runSuppressionsScan(
 
   // Collect all unique (file, aspectId) combos for cross-checks
   const seenWildcard = new Set<string>(); // "file:line"
+  const seenReasonless = new Set<string>(); // "file:line"
 
   for (const { file, markers } of fileEntries) {
     for (const m of markers) {
@@ -289,6 +307,20 @@ export async function runSuppressionsScan(
         });
         warnings.push(msg);
         warningRecords.push({ code: 'waives-under', file, line: m.line, aspect: m.aspectId, message: msg });
+      }
+
+      // (e) A waiver with no reason. It suppresses nothing: the first time the
+      // check flags a line in its range, the fill refuses the marker itself and
+      // leaves the pair unverified. Until then it passes every check silently,
+      // so this is the one place the defect shows up when the marker is written.
+      // `enable` closes a range and carries no reason of its own.
+      // One warning per marker line: a marker naming several aspects is
+      // scanned as one entry per aspect, but it lacks one reason, not several.
+      if (m.kind !== 'enable' && m.reason.trim() === '' && !seenReasonless.has(`${file}:${m.line}`)) {
+        seenReasonless.add(`${file}:${m.line}`);
+        const msg = buildIssueMessage(reasonlessMarkerMessage(file, m.line, m.wildcard ? '*' : m.aspectId));
+        warnings.push(msg);
+        warningRecords.push({ code: 'missing-reason', file, line: m.line, aspect: m.wildcard ? null : m.aspectId, message: msg });
       }
     }
   }

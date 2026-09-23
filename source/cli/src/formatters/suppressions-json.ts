@@ -38,7 +38,7 @@ export interface SuppressionsJsonMarker {
 }
 
 export interface SuppressionsJsonWarning {
-  code: 'unknown-aspect' | 'wildcard' | 'unbounded-range' | 'waives-under';
+  code: 'unknown-aspect' | 'wildcard' | 'unbounded-range' | 'waives-under' | 'missing-reason';
   file: string;
   line: number;
   aspect: string | null;

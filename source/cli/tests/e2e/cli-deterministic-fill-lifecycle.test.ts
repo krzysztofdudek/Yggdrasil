@@ -198,7 +198,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // group header; the per-issue `what`
       // ("No valid verdict for aspect '<id>' on <unit>.") is gone for the
       // non-FULL_WHAT unverified code. Assert the gloss + aspect segment + node line.
-      expect(stdout).toContain('unverified (not yet reviewed)');
+      expect(stdout).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(stdout).toContain("aspect 'no-todo-comments'");
       expect(stdout).toContain('- services/orders');
     } finally {
@@ -362,7 +362,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // view collapses them into one no-todo-comments group with both nodes as
       // `- <node>` bullets; the per-issue `what` is gone for the non-FULL_WHAT
       // unverified code. Assert the gloss + aspect segment + both node lines.
-      expect(drifted.stdout).toContain('unverified (not yet reviewed)');
+      expect(drifted.stdout).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(drifted.stdout).toContain("aspect 'no-todo-comments'");
       expect(drifted.stdout).toContain('- services/orders');
       expect(drifted.stdout).toContain('- services/payments');

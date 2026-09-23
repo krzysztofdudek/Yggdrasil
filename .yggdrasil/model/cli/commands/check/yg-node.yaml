@@ -48,5 +48,7 @@ relations:
     type: calls
   - target: cli/progressive-scope-resolve
     type: calls
+  - target: cli/portal/engine-api
+    type: calls
 mapping:
   - source/cli/src/cli/check.ts

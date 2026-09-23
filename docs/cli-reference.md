@@ -269,6 +269,27 @@ structured `what` / `why` / `next`, who judged outside the configured reviewer,
 the standing floor when the project measures changes against a branch, and the
 one suggested next step.
 
+An `unverified` finding also carries `cause` — why the pair has no valid
+verdict, the same fact the text report groups it by:
+
+- `stale` — judged once, over inputs that have changed since;
+- `never-reviewed` — nothing has judged it yet;
+- `deterministic-not-run` — a deterministic pair with no result in this
+  checkout's local cache (a fresh clone, a new rule), cleared for free by
+  `yg check --approve --only-deterministic`;
+- `reviewer-missing` — a judgment rule in a project with no `reviewer:` section;
+- `reviewer-unreachable`, `reviewer-failed`, `check-failed-to-run`,
+  `suppress-marker-invalid` — the recording run that emitted the document tried
+  and failed on infrastructure: the reviewer did not answer, answered with no
+  usable verdict, a `check.mjs` did not complete, or a `yg-suppress` marker in
+  range has no reason.
+
+The infrastructure causes are ones re-running the same command cannot clear, so
+their `next` names the real fix, and once no pair a fill can settle is left,
+`suggestedNext` points there rather than back at the command that just failed. The four fill-time causes appear on the report of the
+run that witnessed them; a later plain read, which only has the lock, shows such
+a pair as `never-reviewed` or `stale` again.
+
 That floor is `progressive`, and it is `null` on a project that measures nothing.
 When present it names the branch or ref measured against (`reference`), how many
 changed paths the measurement accounted for (`changedInputs`), the enforced
@@ -286,10 +307,10 @@ reviewer kind answers for it (`kind`: `llm` or `deterministic`); the status that
 decides whether a finding blocks; what the lock currently says; who answers for
 it (`reviewer` — a local check as itself, an outside judge under their own name,
 otherwise the reviewer tier); and the hash the verdict is bound to. A pair
-refused in force also carries `report`, the violation text. Two words the report
-deliberately spends one on are separate here: `unverified` is a pair nothing has
-ever judged, `stale` is one that was judged over code that has since moved. Both
-block; they are different facts.
+refused in force also carries `report`, the violation text. `unverified` is a
+pair nothing has ever judged, `stale` is one that was judged over code that has
+since moved. Both block; they are different facts, and the text report groups
+them apart too.
 
 Each pair also names when and at which commit it was filled: `filled: { ts,
 sha }`, or `filled: null` for a pair the lock has never filled (always `null`
@@ -536,15 +557,17 @@ finding is yours: [Progressive mode](/progressive-mode).
 **Precedence:** explicit CLI flags (`--approve`, `--no-approve`,
 `--only-deterministic`) override `auto_approve` in `yg-config.yaml`. The config
 setting affects bare `yg check` only; CI scripts should always use explicit flags.
+`--only-deterministic` on its own implies `--approve`. `--approve` together with
+`--no-approve` is refused as a usage error, whatever their order.
 
 **Guardrail:** every view always prints the true aggregate `Errors (N)` /
 `Warnings (N)` header and preserves the real exit code, so a narrowed view can
 never read as a clean build. When a `--top` slice leaves a section (Errors or
 Warnings) with a true count > 0 but no chosen groups, a parenthetical note is
 printed beneath that subheader instead of leaving it dangling empty. An invalid
-`--top` value — negative, fractional, non-numeric, or an explicit `0` — is a
-guided error, never a silent full dump; for the single suggested-next group use
-bare `--top`. Use `--summary` and `--top` to orient, then drill into a specific
+`--top` value — anything but a positive whole number: `0`, negative, fractional,
+non-numeric — is a guided error, never a silent full dump; for the single
+suggested-next group use bare `--top`. Use `--summary` and `--top` to orient, then drill into a specific
 rule group with `--aspect <id>` or the full view with plain `yg check`. Note that
 "the full view" is still subject to the 12-group cap described above: plain
 `yg check` is not exhaustive either, so reach for `--top <n>` or `--aspect <id>`
@@ -562,10 +585,28 @@ above). Deterministic pairs run first,
 locally, for free; a node with an enforced deterministic refusal has its LLM
 pairs skipped this run. LLM pairs then go to the reviewer per tier and consensus.
 Each real verdict — approved or refused — is recorded in the lock; infrastructure
-failures (provider unreachable, no reviewer configured, a `check.mjs` that throws,
-or a `companion.mjs` hook that fails to assemble a companion)
-write nothing and leave the pair unverified. A refusal is cached and final for
-unchanged inputs: re-running does not re-roll it.
+failures (provider unreachable, a `check.mjs` that throws, a `yg-suppress` marker
+with no reason, or a `companion.mjs` hook that fails to assemble a companion)
+write nothing and leave the pair unverified. The report that run prints names
+each such pair's cause and its real fix (the `cause` field under `--json`), and
+its `Next:` points at that fix — never back at the command that just failed —
+once nothing a fill can still settle is left. A
+refusal is cached and final for unchanged inputs: re-running does not re-roll it.
+
+A project with no `reviewer:` section and an effective enforced judgment rule
+(`content.md`) stops a full `yg check --approve` before anything runs, with
+`config-reviewer-missing`: the fix is `yg init --provider <name> [--model <m>]`
+— the user's decision, since it sends code to that provider — or setting the
+rule to `status: draft`. Plain `yg check` points there too, ahead of the
+unverified pairs. That stop never applies to `--only-deterministic` or `--dry-run`,
+which call no reviewer (the judgment pairs stay unverified and each says why), nor
+to a project whose judgment rules are all advisory: then the finding is a warning,
+since advisory never blocks, and `--approve` fills the deterministic pairs.
+
+A `log_required` component whose source moved with no fresh log entry stops the
+run before its pre-dispatch header, so a stopped run never announces a fill. Every
+"then re-run" line names the command as it was invoked — `--only-deterministic`,
+`--dry-run` and `--full` included.
 
 `yg check --approve` prints a pre-dispatch header naming how many pairs and nodes
 it will fill and how many are deterministic (free) vs. reviewer calls. For a full
@@ -573,9 +614,11 @@ preview before committing to the cost, use `--dry-run` (below); use `yg impact` 
 predict cost before an edit, and `yg aspect-test --dry-run` to preview a single LLM
 prompt.
 
-When there was nothing to fill, the closing summary says so in full — `0 reviewer
-calls made — all expected pairs hold valid verdicts` — rather than printing a bare
-zero that could be read as a failure to run.
+When no reviewer was called and nothing failed, the closing summary says what was
+done instead of a bare zero: how many deterministic pairs were filled (approved and
+refused), and which LLM pairs were left unverified and why. It reads `0 reviewer
+calls made — all expected pairs hold valid verdicts` only when there was nothing
+to fill at all.
 
 #### Silent structural-deviation index
 
@@ -610,12 +653,16 @@ the real run would buy — and names how many reviewed rules it left outside it.
 
 The preview always exits 0, even when enforced pairs are unverified — it never
 blocks the build. The only thing that aborts a preview is a broken configuration
-(the structural gate), which surfaces the same blocker a real `--approve` would hit.
+(the structural gate), which surfaces the same blocker a real `--approve` would hit
+— except a missing reviewer, which the preview reports under its header (the
+judgment pairs it priced cannot be reviewed until one is configured) instead of
+aborting.
 A cost estimate never demands a fresh log entry, so the preview also **bypasses the
 per-node log gate** — it previews even on `log_required` nodes whose source changed
 since their last closure, where the real `--approve` would require the log entry
 first. `--dry-run` requires `--approve`; used on its own it is a usage error (plain
-`yg check` is already a free, no-write read).
+`yg check` is already a free, no-write read — or `yg check --no-approve`, when
+`auto_approve` makes a bare `yg check` fill).
 
 #### `--only-deterministic` — fill the deterministic cache only
 
@@ -625,10 +672,20 @@ and writes **only** the gitignored `.yg-lock.deterministic.json` cache; the two
 committed lock files are left untouched. Then it reports, like any other check.
 
 This is the CI / pre-commit gate for the deterministic cache. A fresh checkout has
-no deterministic cache, so plain `yg check` reports those pairs as unverified;
-running this command rematerializes the cache for free and clears them, without a
-key and without touching a committed file. Use plain `yg check --approve` (no flag)
-when you also want the LLM pairs filled.
+no deterministic cache, so plain `yg check` reports those pairs as unverified — in
+a group of their own, `deterministic check not run on this checkout — free`, whose
+fix is this command; running it rematerializes the cache for free and clears them,
+without a key and without touching a committed file. It runs in a project with no
+reviewer configured too: the judgment pairs stay unverified and name the missing
+reviewer, while every deterministic pair is filled. Use plain `yg check --approve`
+(no flag) when you also want the LLM pairs filled.
+
+A missing log entry on a `log_required` component stops this run as it stops any
+`--approve` (see above). One caveat: this run never records a component's source
+baseline — only a full `yg check --approve` does, once every rule on the component
+holds a verdict. On a project whose only recording run is this one, the newest
+log entry goes on satisfying the requirement for every later edit; plain `yg check`
+says so with the `log-cycle-open` warning until a full run closes the cycle.
 
 It is also honest about what it did not do: the header and the closing summary name
 the LLM pairs left unverified — they were skipped by design, not reviewed — and
@@ -652,7 +709,8 @@ is not governed by aspect status — it is an error whatever a rule's
 
 | Code | Severity | Meaning |
 |------|----------|---------|
-| `unverified` | error (enforced) / warning (advisory) | Expected pair has no valid verdict — new, edited, tampered, or a fill that failed on infrastructure. Next: `yg check --approve`. |
+| `unverified` | error (enforced) / warning (advisory) | Expected pair has no valid verdict. Grouped, and in `--json` tagged (`cause`), by why: stale (inputs changed since the verdict — `yg check --approve`), never reviewed (`yg check --approve`), deterministic check not run on this checkout (`yg check --approve --only-deterministic`, free), no reviewer configured (`yg init --provider <name>` or `status: draft`), or — on the report of the recording run that hit it — an infrastructure failure (reviewer unreachable, reviewer returned no verdict, `check.mjs` failed to run, `yg-suppress` marker with no reason), whose own fix is named. |
+| `config-reviewer-missing` | error / warning (all judgment rules advisory) | An effective judgment rule and no `reviewer:` section in `yg-config.yaml`. Follows the strictest status among the judgment pairs left without a judge. Stops a full `yg check --approve`; never stops `--only-deterministic` or `--dry-run`. Fix: `yg init --provider <name> [--model <m>]` (the user's decision) or `status: draft`. |
 | `aspect-violation-enforced` | error | Valid `refused` verdict on an enforced pair — blocks `yg check`. |
 | `aspect-violation-advisory` | warning | Valid `refused` verdict on an advisory pair — does not block. |
 | `prompt-too-large` | error | Assembled LLM prompt exceeds the resolved tier's `max_prompt_chars`. Takes precedence over `unverified`; `--approve` skips the pair. |
@@ -665,6 +723,8 @@ is not governed by aspect status — it is an error whatever a rule's
 | `aspect-companion-without-content` | error (structural) | An aspect ships `companion.mjs` without `content.md`. Companions are an add-on to LLM aspects; `companion.mjs` alone is invalid. |
 | `aspect-companion-with-check` | error (structural) | An aspect ships both `companion.mjs` and `check.mjs`. Companions apply to LLM aspects only. |
 | `log-entry-missing` | error | A `log_required` node changed source without a fresh log entry. Enforced read-only — a blocking error on plain `yg check`, not only at `--approve`. |
+| `log-cycle-open` | warning | A `log_required` node's source moved past its recorded baseline and its newest log entry keeps satisfying the requirement, because no full `yg check --approve` has recorded a new baseline (`--only-deterministic` never does). Never blocks. Fix: a full `yg check --approve`. |
+| `suppress-marker-missing-reason` | warning | A `yg-suppress` marker in a mapped source has no reason. It waives nothing: the first violation in its range makes the fill reject it and leave the pair unverified. Fix: add the reason (the user approves it) or remove the marker. |
 | `aspect-status-invalid` | error | Declared `status:` is not one of `draft`, `advisory`, `enforced`. |
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade would yield (bump up OK, downgrade is an error). |
 | `implies-status-inherit-invalid` | error | `status_inherit:` is not `strictest` or `own-default`. |
@@ -714,13 +774,24 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
     tolerated and skipped. If the sidecar is unexpectedly committed (git-tracked),
     the header says so and drops the "local" label — a tracked sidecar is shared
     history, not local-only telemetry.
-- `merge-resolve` — Reconcile `log.md` after a git merge. Run it on the merge commit, or,
-  for a merge that left no merge commit (a merge script, a squash, a rebase), name the two
-  sides with `--ours <ref> --theirs <ref>`; `--base <ref>` overrides their merge base.
-  Validates byte-exact ancestor portion and unions new entries from both branches, in date
-  order. `git merge-file --union` and `merge=union` join the sides without sorting, so put
-  interleaved entries in date order first. Never manually concatenate log files — integrity
-  hashes will break.
+- `merge-resolve` — Reconcile `log.md` after a git merge. Two modes:
+  - **During a merge stopped on a conflicted `log.md`** (the usual case: `git merge`
+    left conflict markers in it), run it right there. It reads the two sides from
+    `HEAD` and `MERGE_HEAD`, **writes the union** — the shared history byte-for-byte,
+    then every entry either side added, oldest first — verifies it, and records its
+    baseline. Then `git add` the log and `.yggdrasil/yg-lock.logs.json` and commit the
+    merge. If `yg-lock.logs.json` is conflicted too, take one side of it first
+    (`git checkout --ours -- .yggdrasil/yg-lock.logs.json`); merge-resolve rewrites the
+    node's baseline in it.
+  - **On a log that is already whole** — on the merge commit, or, for a merge that left
+    no merge commit (a merge script, a squash, a rebase), naming the two sides with
+    `--ours <ref> --theirs <ref>` (`--base <ref>` overrides their merge base) — it only
+    **verifies**: the ancestor portion byte-exact, every entry from both sides present
+    and unaltered, none invented, all in date order. It never rewrites that log.
+    `git merge-file --union` and `merge=union` join the sides without sorting, so put
+    interleaved entries in date order first.
+
+  Never hand-stitch conflict markers out of a log — let merge-resolve write the union.
 
 ---
 
@@ -1201,6 +1272,12 @@ yg suppressions
 ```
 
 It emits non-blocking warnings so accumulated waivers stay auditable:
+
+- **No reason** — the marker carries no reason after its closing parenthesis. It
+  waives nothing: the first time the check flags a line in its range, the fill
+  rejects the marker and leaves the pair unverified. `yg check` raises the same
+  warning (`suppress-marker-missing-reason`) for a marker in a mapped source, so
+  it surfaces when it is written rather than when it first matters.
 
 - **Unknown aspect-id** — the marker names an aspect that no known aspect matches.
 - **Wildcard suppress** (`*`) — waives every aspect in range, so any aspect added

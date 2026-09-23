@@ -5,7 +5,7 @@ import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import { statPath, fileExistsSync } from '../../io/graph-fs.js';
 import { computeEffectiveAspects, computeEffectiveAspectStatuses, getAspectStatusSources, type AttachSource } from '../graph/aspects.js';
 import { aspectStatusDowngradeMessage } from '../../formatters/aspect-status-messages.js';
-import { issueMsg } from './shared.js';
+import { issueMsg, graphLoadIncomplete } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { computeExpectedPairs } from '../pairs.js';
 import type { TypeCoverageInput } from '../pairs.js';
@@ -197,13 +197,19 @@ export async function checkReviewerPresence(
   // reviewer unconfigured and an LLM rule effective ONLY on type-covered files
   // (zero component LLM pairs) must still be caught here.
   const { pairs } = await computeExpectedPairs(graph, { typeCoverage });
-  if (!pairs.some((p) => p.kind === 'llm')) return [];
+  const llmPairs = pairs.filter((p) => p.kind === 'llm');
+  if (llmPairs.length === 0) return [];
+  // Severity follows the STRICTEST status among the judgment pairs left
+  // without a judge, exactly as each of those pairs' own finding does: an
+  // advisory rule never blocks, and a missing judge for advisory rules alone
+  // is no more blocking than the advisory pairs it leaves unverified.
+  const blocking = llmPairs.some((p) => p.status === 'enforced');
   const msgData: IssueMessage = {
     what: 'A judgment rule has no judge: yg-config.yaml has no reviewer: section.',
-    why: 'Script rules run locally for free, but a judgment rule (content.md) needs a configured model to read it — until then its pairs stay unverified.',
-    next: "Run yg init and pick 'Configure reviewer' (an installed agent CLI needs no API key), or add reviewer.tiers to .yggdrasil/yg-config.yaml — see yg knowledge read configuration.",
+    why: "Script rules run locally for free (yg check --approve --only-deterministic still fills them), but a judgment rule (content.md) needs a configured model to read it — until then its pairs stay unverified. Configuring a reviewer is the user's decision: it sends code to that provider, on their account.",
+    next: "yg init --provider <name> [--model <m>] (an installed agent CLI — claude-code, codex, gemini-cli, copilot-cli — needs no API key), or set the judgment rule to status: draft until a reviewer is chosen.",
   };
-  return [{ code: 'config-reviewer-missing', severity: 'error', rule: 'config-reviewer-missing', ...issueMsg(msgData), messageData: msgData }];
+  return [{ code: 'config-reviewer-missing', severity: blocking ? 'error' : 'warning', rule: 'config-reviewer-missing', ...issueMsg(msgData), messageData: msgData }];
 }
 
 // --- aspect-effective-nowhere: a rule source attached where cascade + when match no node ---
@@ -249,6 +255,11 @@ export function checkAspectEffectiveNowhere(graph: Graph, typeCoverage?: TypeCov
   // computing anything. A file enforced by its type alone is also code that
   // exists, so it lifts this carve-out exactly like a real node would.
   if (graph.nodes.size === 0 && (!typeCoverage || typeCoverage.covered.size === 0)) return [];
+  // A graph file that failed to load hides whatever it attached: a node that is
+  // not loaded, or an architecture that is not, cannot make a rule effective
+  // anywhere. Reporting "dead law" then blames the rule for the load error
+  // already reported above it. Say nothing until the graph loads whole.
+  if (graphLoadIncomplete(graph)) return [];
 
   const projectRoot = path.dirname(graph.rootPath);
 

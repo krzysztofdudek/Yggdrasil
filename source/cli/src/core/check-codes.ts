@@ -21,6 +21,59 @@ export const ZERO_CLASSIFYING_TYPES_NOTICE =
   "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.";
 
 /**
+ * Why a pair has no valid verdict. One `unverified` code used to cover every
+ * one of these, under one label and one fix — so a reviewer that was down, a
+ * check.mjs that crashed, a fresh clone whose free local cache was simply never
+ * built, and a pair nobody had reviewed yet all told the reader the same thing:
+ * run `yg check --approve` again. For the first two that command is certain to
+ * reproduce the same failure, and for the third it names a paid run where a
+ * free one does the job. The cause travels on the issue (and into the
+ * `yg-check/1` document) so each group can name the fix that actually works.
+ *
+ * The first five are infrastructure: the pair was never judged because
+ * something around it failed, and re-running changes nothing until that is
+ * fixed. `reviewer-missing` is known from the config alone; the other four are
+ * facts only a recording run witnesses, so they appear on that run's own
+ * report. The last three are the ordinary states of a pair waiting for a fill.
+ */
+export type UnverifiedCause =
+  | 'reviewer-missing'
+  | 'reviewer-unreachable'
+  | 'reviewer-failed'
+  | 'check-failed-to-run'
+  | 'suppress-marker-invalid'
+  | 'stale'
+  | 'never-reviewed'
+  | 'deterministic-not-run';
+
+/**
+ * The order causes are acted on in — shared by the `Next:` line and the grouped
+ * report, so the first group `--top` renders is the group `Next:` names.
+ * The pairs one `--approve` can still fill come first: a pair already proved
+ * unfillable must never displace one the next command settles. The free
+ * deterministic-only case is last among those, since the `--approve` that
+ * fills the others fills it too. Then the infrastructure causes, each naming
+ * its own fix — once nothing fillable is left, `Next:` points there, never back
+ * at the command that just failed.
+ */
+export const UNVERIFIED_CAUSE_ORDER: readonly UnverifiedCause[] = [
+  'stale',
+  'never-reviewed',
+  'deterministic-not-run',
+  'reviewer-missing',
+  'reviewer-unreachable',
+  'reviewer-failed',
+  'check-failed-to-run',
+  'suppress-marker-invalid',
+];
+
+/** Position of a cause in {@link UNVERIFIED_CAUSE_ORDER}; an absent cause reads as never-reviewed. */
+export function unverifiedCauseRank(cause: UnverifiedCause | undefined): number {
+  return UNVERIFIED_CAUSE_ORDER.indexOf(cause ?? 'never-reviewed');
+}
+
+
+/**
  * Structural validation codes — graph-shape and config errors that always block
  * `yg check` regardless of verification state. Both the summary tally and the
  * rendered grouping read this one set.

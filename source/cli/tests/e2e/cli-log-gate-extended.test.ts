@@ -824,7 +824,10 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
       expect(all).toContain('log.md still contains conflict markers');
-      expect(all).toContain('the merge conflict was not fully resolved');
+      // Committed with the markers in it: no merge in progress to write a union
+      // from, so the message gives the manual sequence instead.
+      expect(all).toContain('the merge of this log was never reconciled');
+      expect(all).toContain('order the entries by datetime');
     } finally {
       rmSync(repo, { recursive: true, force: true });
     }

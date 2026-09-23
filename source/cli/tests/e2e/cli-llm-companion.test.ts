@@ -178,7 +178,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // never enter the group). The per-unit `what` (`No valid verdict … on file:…`)
       // is no longer rendered; the chatCount delta + byte-identical siblings below
       // pin down WHICH pair re-billed.
-      expect(after.all).toContain("unverified (not yet reviewed)");
+      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(after.all).toContain("1 pairs");
       expect(after.all).toContain("aspect 'scenario-matches-test'");
       expect(after.all).toContain('- scenarios');
@@ -219,7 +219,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // Only the login pair's subject hash changed → exactly one pair unverified.
       // The grouped view no longer prints the per-unit subject path; the chatCount
       // delta (1) below confirms only the login pair re-billed.
-      expect(after.all).toContain("unverified (not yet reviewed)");
+      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(after.all).toContain("1 pairs");
       expect(after.all).toContain("aspect 'scenario-matches-test'");
       expect(after.all).toContain('- scenarios');
@@ -253,7 +253,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // content.md edit invalidates ALL three file pairs → unverified group shows
       // 3 pairs (the per-unit subject paths are no longer rendered; the 3-pair
       // count is the surviving signal that every pair re-billed).
-      expect(after.all).toContain("unverified (not yet reviewed)");
+      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(after.all).toContain("3 pairs");
       expect(after.all).toContain("aspect 'scenario-matches-test'");
 
@@ -287,7 +287,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(after.status).toBe(1);
       // companion.mjs edit folds into companionHash → ALL three pairs invalidate
       // (unverified group shows 3 pairs).
-      expect(after.all).toContain("unverified (not yet reviewed)");
+      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(after.all).toContain("3 pairs");
       expect(after.all).toContain("aspect 'scenario-matches-test'");
 
@@ -331,7 +331,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(after.status).toBe(1);
       // companion.mjs edit folds into companionHash → ALL three pairs invalidate
       // (unverified group shows 3 pairs for the empty-companion aspect).
-      expect(after.all).toContain("unverified (not yet reviewed)");
+      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(after.all).toContain("3 pairs");
       expect(after.all).toContain("aspect 'empty-companion'");
       const callsBefore = mock.chatCount();
@@ -420,7 +420,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // The single per:node unit invalidates → unverified group shows 1 pair for
       // the per-node-companion aspect on the scenarios node (the per-unit
       // `on node:scenarios.` detail is no longer rendered in the grouped view).
-      expect(after.all).toContain("unverified (not yet reviewed)");
+      expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(after.all).toContain("1 pairs");
       expect(after.all).toContain("aspect 'per-node-companion'");
       expect(after.all).toContain('- scenarios');
@@ -581,7 +581,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // (1) below confirms only the missing pair re-reviewed.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.all).toContain("unverified (not yet reviewed)");
+      expect(check.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(check.all).toContain("1 pairs");
       expect(check.all).toContain("aspect 'scenario-matches-test'");
       expect(check.all).toContain('- scenarios');

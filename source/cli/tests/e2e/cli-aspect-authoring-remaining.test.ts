@@ -472,10 +472,10 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring remaining paths (pars
       appendFileSync(guidance, '\nAdditional guidance appended to change the input.\n');
       const invalidated = run(['check'], dir);
       expect(invalidated.status).toBe(1);
-      expect(invalidated.stdout).toContain('unverified (not yet reviewed)');
+      expect(invalidated.stdout).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       // Grouped view: a single unverified group (unverified groups by code only,
       // no aspect in header); the aspect appears on each body-line instead.
-      expect(invalidated.stdout).toMatch(/unverified \(not yet reviewed\)\s+2 pairs\s+2 nodes$/m);
+      expect(invalidated.stdout).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)\s+2 pairs\s+2 nodes$/m);
       expect(invalidated.stdout).toContain("- services/orders  aspect 'has-doc-comment'");
       expect(invalidated.stdout).toContain("- services/payments  aspect 'has-doc-comment'");
 

@@ -10,7 +10,7 @@
  * names is the same group `yg check --top` renders first.
  */
 
-import { STRUCTURAL_CODES, COMPLETENESS_CODES, OUTSIDE_CODES } from './check-codes.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, OUTSIDE_CODES, unverifiedCauseRank } from './check-codes.js';
 import { countOutside } from './check-progressive.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { CheckIssue } from './check-contract.js';
@@ -58,8 +58,9 @@ function pickByAspectIdLocale(errors: CheckIssue[], code: string): CheckIssue | 
 
 /**
  * Suggest the next command based on the highest-priority error, in the §6 order:
- *   lock-invalid → unverified(enforced) → enforced refusal (three exits / fix
- *   violations, per-issue) → prompt-too-large → log conflict → log
+ *   lock-invalid → log conflict → log-entry-missing → config-reviewer-missing →
+ *   unverified(enforced, by cause) → enforced refusal (three exits / fix
+ *   violations, per-issue) → prompt-too-large → log
  *   integrity/format → structural → coverage → completeness → any other error
  *   (architecture/strict codes, tracked∩gitignored anomaly — neither has a
  *   dedicated branch; each surfaces its own `next` here).
@@ -110,15 +111,39 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   const lockInvalid = errors.find(i => i.code === 'lock-invalid');
   if (lockInvalid) return lockInvalid.messageData.next;
 
+  // 1a. log conflict — git conflict markers in a log.md. The file cannot be
+  //     read, appended to or verified until the merge is reconciled, so every
+  //     step below would fail on it first (a `yg log add` included).
+  const logConflict = errors.find(i => i.code === 'log-conflict');
+  if (logConflict) return logConflict.messageData.next;
+
   // 1b. log-entry-missing — a log_required node's source changed with no fresh
   //     entry. Outranks unverified: `--approve` is gated on the entry, so adding
   //     it is the first step before any fill can proceed.
   const logEntryMissing = errors.find(i => i.code === 'log-entry-missing');
   if (logEntryMissing) return logEntryMissing.messageData.next;
 
-  // 2. unverified (enforced) — prefer a fillable pair.
-  const unverified = errors.find(i => i.code === 'unverified' && i.messageData.next === 'yg check --approve') ?? errors.find(i => i.code === 'unverified');
-  if (unverified) return unverified.messageData.next;
+  // 1c. config-reviewer-missing — an effective judgment rule and no reviewer.
+  //     Outranks unverified: the `--approve` that would fill those pairs aborts
+  //     on it, so pointing at `--approve` would point at a certain failure.
+  const reviewerMissing = errors.find(i => i.code === 'config-reviewer-missing');
+  if (reviewerMissing) return reviewerMissing.messageData.next;
+
+  // 2. unverified (enforced) — by cause (UNVERIFIED_CAUSE_ORDER): a pair one
+  //    `--approve` can still fill first (a pair already proved unfillable never
+  //    displaces one), then the infrastructure causes, whose own `next` names
+  //    the real fix rather than the command that just failed. Ties go to the
+  //    first in emission order.
+  const unverifiedErrors = errors.filter(i => i.code === 'unverified');
+  if (unverifiedErrors.length > 0) {
+    // Within one cause, a pair whose own `next` is the fill command wins — an
+    // issue built without a cause (a caller outside the check engine) still
+    // never lets an unfillable pair's remedy displace a fillable one.
+    const fillable = (i: CheckIssue): number => (i.messageData.next.startsWith('yg check --approve') ? 0 : 1);
+    const first = [...unverifiedErrors].sort((a, b) =>
+      unverifiedCauseRank(a.unverifiedCause) - unverifiedCauseRank(b.unverifiedCause) || fillable(a) - fillable(b))[0];
+    return first.messageData.next;
+  }
 
   // 3. enforced refusal (LLM three-exit OR deterministic fix-violations — the
   //    correct text is already in each issue's messageData.next).
@@ -133,11 +158,6 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   //     its own next carries the fix (stabilize the tree / declare the relation).
   const companionError = pickByAspectIdLocale(errors, 'aspect-companion-runtime-error');
   if (companionError) return companionError.messageData.next;
-
-  // 5. log conflict — git conflict markers in log.md outrank integrity/format
-  //    (the file cannot be validated at all; reconcile structurally first).
-  const logConflict = errors.find(i => i.code === 'log-conflict');
-  if (logConflict) return logConflict.messageData.next;
 
   // 5b. log integrity / format. A log whose recorded history survived and only
   //     gained whole entries before its last one is an interleaving merge, not a

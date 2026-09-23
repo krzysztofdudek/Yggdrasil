@@ -244,8 +244,8 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       // as outside the change — and with no Fix: line repeating a command
       // that would, for this one finding, review the whole project.
       expect(warningSection(stdout)).toContain(
-        'unverified (not yet reviewed) (outside changes)  1 pairs  1 nodes\n'
-        + '            The lock holds no entry for this pair, or its inputs changed since the verdict was recorded (source edit, aspect edit, or a fill that did not complete). A verdict is valid only while its inputs hash to the stored value.\n'
+        'unverified (deterministic check not run on this checkout — free) (outside changes)  1 pairs  1 nodes\n'
+        + '            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.\n'
         + "            - beta  aspect 'no-todo-comments'\n",
       );
     });
@@ -272,8 +272,8 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       expect(errorSection(stdout)).toContain('Fix: yg check --approve');
       // …beta's inherited pair reads the same way minus that line.
       expect(warningSection(stdout)).toContain(
-        'unverified (not yet reviewed) (outside changes)  1 pairs  1 nodes\n'
-        + '            The lock holds no entry for this pair, or its inputs changed since the verdict was recorded (source edit, aspect edit, or a fill that did not complete). A verdict is valid only while its inputs hash to the stored value.\n'
+        'unverified (deterministic check not run on this checkout — free) (outside changes)  1 pairs  1 nodes\n'
+        + '            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.\n'
         + "            - beta  aspect 'no-todo-comments'\n",
       );
     });
@@ -282,7 +282,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       const fixture = scoped('unverified-outside-top');
       const { stdout } = run(['check', '--top', '5'], fixture.dir);
 
-      expect(warningSection(stdout)).toContain('unverified (not yet reviewed) (outside changes)');
+      expect(warningSection(stdout)).toContain('unverified (deterministic check not run on this checkout — free) (outside changes)');
       expect(warningSection(stdout)).toContain("- beta  aspect 'no-todo-comments'");
       expect(warningSection(stdout)).not.toContain('Fix: yg check --approve');
     });

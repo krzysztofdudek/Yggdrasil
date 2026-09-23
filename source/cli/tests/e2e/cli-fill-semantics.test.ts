@@ -339,16 +339,35 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
     try {
       const cfg = cfgPath(dir);
       const original = readFileSync(cfg, 'utf-8');
-      // Strip the entire reviewer: section — the project now has an effective
-      // enforced LLM aspect but no usable reviewer. The step-1 structural gate
-      // fires; a preview of an unrunnable --approve must surface that blocker.
-      writeFileSync(cfg, original.replace(/\nreviewer:[\s\S]*$/, '\n'), 'utf-8');
+      // Point reviewer.default at a tier that does not exist — the config is
+      // broken, not merely absent. The step-1 structural gate fires; a preview
+      // of an unrunnable --approve must surface that blocker. (A reviewer: section
+      // that is simply MISSING no longer aborts a preview — see (4d).)
+      writeFileSync(cfg, original.replace('default: standard', 'default: nosuch'), 'utf-8');
 
       const preview = run(['check', '--approve', '--dry-run'], dir);
       expect(preview.status).toBe(1); // the config gate aborts the preview.
-      expect(preview.all).toContain('no reviewer: section');
+      expect(preview.all).toContain("reviewer.default is 'nosuch'");
+      // The retry names the command as it was run.
+      expect(preview.all).toContain('then re-run: yg check --approve --dry-run');
       // FAIL-CLOSED: the gate aborts before the preview emits a budget — nothing
       // was written.
+      expect(existsSync(nondetLockPath(dir))).toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 30000);
+
+  it('(4d) dry-run with NO reviewer: section previews (exit 0), naming the missing reviewer, and writes no lock', async () => {
+    const dir = copyFixture('dry-run-no-reviewer');
+    try {
+      const cfg = cfgPath(dir);
+      writeFileSync(cfg, readFileSync(cfg, 'utf-8').replace(/\nreviewer:[\s\S]*$/, '\n'), 'utf-8');
+      const preview = run(['check', '--approve', '--dry-run'], dir);
+      // A preview calls no reviewer, so a missing one is reported, not a stop.
+      expect(preview.status).toBe(0);
+      expect(preview.all).not.toContain('aborted');
+      expect(preview.all).toContain('No reviewer is configured');
       expect(existsSync(nondetLockPath(dir))).toBe(false);
     } finally {
       rmSync(dir, { recursive: true, force: true });

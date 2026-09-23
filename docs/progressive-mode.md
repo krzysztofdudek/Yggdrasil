@@ -120,8 +120,8 @@ Findings your change reached are unchanged — same name, same severity, same
 they mirror, with one phrase added:
 
 ```text
-  unverified (not yet reviewed) (outside changes)  1 pairs  1 nodes
-            The lock holds no entry for this pair, or its inputs changed since the verdict was recorded (source edit, aspect edit, or a fill that did not complete). A verdict is valid only while its inputs hash to the stored value.
+  stale (inputs changed since the verdict) (outside changes)  1 pairs  1 nodes
+            A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.
             - beta  aspect 'no-todo-comments'
 ```
 

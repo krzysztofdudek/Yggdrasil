@@ -28,7 +28,7 @@ Scaffolding is not there to stop you falling. It is there so that the brake does
 
 ## Five minutes to your first enforced rule
 
-Requires Node.js 22+. You can start without an API key: `yg init` offers **"None for now"** as a real answer, and script rules, dependency control and the CI gate all work from there with no key and no model calls.
+Requires Node.js 22+. You can start without an API key: `yg init` offers **"None for now"** as a real answer, and script rules, dependency control and the CI gate all work from there with no key and no model calls. A judgment rule — prose that a model reads — is the one thing that needs a reviewer; the free gate keeps running script rules while it waits for one.
 
 ```bash
 npm install -g @chrisdudek/yg
@@ -61,9 +61,9 @@ Warnings (1):
             src/f17.ts
             ... +40
             Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
-            Fix: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
+            Fix: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 
-Next: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
+Next: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 ```
 
 Nothing is enforced yet, because you have not said what matters yet. Nothing is pretending otherwise. That list is your to-do, not a finding.
@@ -73,6 +73,8 @@ So say one thing to your agent:
 > "Every service that handles payments must emit audit events. Create a rule for it and apply it to the payments module."
 
 It writes the rule and maps the module. `yg check` now fails, because that rule has never been verified against your code. `yg check --approve` verifies it. From that point the rule holds, and any change that breaks it comes back to the agent as an error before it reaches you.
+
+That rule is a judgment rule, so verifying it takes a reviewer. If you answered "None for now", `yg check` says so and names the fix: `yg init --provider <name>` — an agent CLI you already run, such as Claude Code, needs no API key — or `status: draft` on the rule until you pick one.
 
 That is the whole loop, and it is the shortest honest path to seeing it.
 

@@ -2,7 +2,7 @@
 import chalk from 'chalk';
 import type { CheckIssue } from '../core/check.js';
 import { SCOPED_CODES, baseCodeOfOutsideTwin } from '../core/check-codes.js';
-import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, OUTSIDE_LABEL_SUFFIX } from './group-issues.js';
+import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, OUTSIDE_LABEL_SUFFIX, PAIR_CODES } from './group-issues.js';
 import { useEmoji } from './check-render-header.js';
 
 /** Code sets for grouping errors by category. STRUCTURAL_CODES and
@@ -263,7 +263,19 @@ const CAP_NODES = 12;
  * {@link LABEL_GLOSS} below key off this table directly without a second
  * code→label lookup.
  */
-const BASE_LABEL_GLOSS: Record<string, string> = { unverified: 'unverified (not yet reviewed)' };
+const BASE_LABEL_GLOSS: Record<string, string> = {
+  unverified: 'unverified (not yet reviewed)',
+  // The other labels an unverified pair can carry — one per cause
+  // (getIssueLabel). Each says in a few words why the pair has no verdict, so
+  // the group's Fix line reads as the answer to that, not to "not yet reviewed".
+  stale: 'unverified (stale — inputs changed since the verdict)',
+  'deterministic-not-run': 'unverified (deterministic check not run on this checkout — free)',
+  'reviewer-missing': 'unverified (no reviewer configured)',
+  'reviewer-unreachable': 'unverified (reviewer unreachable this run)',
+  'reviewer-failed': 'unverified (reviewer returned no verdict this run)',
+  'check-failed-to-run': 'unverified (check.mjs failed to run)',
+  'suppress-marker-invalid': 'unverified (yg-suppress marker has no reason)',
+};
 
 /**
  * {@link BASE_LABEL_GLOSS}, plus the twin gloss of every entry whose code has
@@ -279,10 +291,12 @@ const BASE_LABEL_GLOSS: Record<string, string> = { unverified: 'unverified (not 
  * finding is, same as every other twin label does.
  */
 const LABEL_GLOSS: Record<string, string> = Object.fromEntries(
-  Object.entries(BASE_LABEL_GLOSS).flatMap(([code, gloss]): Array<[string, string]> =>
-    SCOPED_CODES.has(code)
-      ? [[code, gloss], [`${code}${OUTSIDE_LABEL_SUFFIX}`, `${gloss}${OUTSIDE_LABEL_SUFFIX}`]]
-      : [[code, gloss]],
+  Object.entries(BASE_LABEL_GLOSS).flatMap(([label, gloss]): Array<[string, string]> =>
+    // Every label here is an `unverified` pair's label, and `unverified` is a
+    // scoped code, so each one has an outside twin to gloss as well.
+    SCOPED_CODES.has('unverified')
+      ? [[label, gloss], [`${label}${OUTSIDE_LABEL_SUFFIX}`, `${gloss}${OUTSIDE_LABEL_SUFFIX}`]]
+      : [[label, gloss]],
   ),
 );
 
@@ -384,7 +398,11 @@ export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: b
   const countSeg = group.fileCount > 0
     ? (group.nodeCount > 0 ? `${group.nodeCount} nodes, ${group.fileCount} files` : `${group.fileCount} files`)
     : `${group.nodeCount} nodes`;
-  lines.push(`  ${glossLabel(group.label)}  ${group.pairCount} pairs  ${countSeg}${aspectSeg}`);
+  // "pairs" only for verdict states; any other finding is counted as issues.
+  const countNoun = PAIR_CODES.has(group.code)
+    ? 'pairs'
+    : group.pairCount === 1 ? 'issue' : 'issues';
+  lines.push(`  ${glossLabel(group.label)}  ${group.pairCount} ${countNoun}  ${countSeg}${aspectSeg}`);
   // A `-outside` twin group's Fix line — shared or per-member, below — is
   // suppressed entirely: see isOutsideFinding's doc comment.
   const isOutside = isOutsideFinding(group.code);

@@ -74,6 +74,15 @@ identically whether or not you have a terminal:
 yg init --provider claude-code
 ```
 
+Until a judge is configured, a judgment rule does not stop the free gate:
+`yg check --approve --only-deterministic` still fills every script rule, and
+the judgment pairs stay unverified, each saying it has no reviewer.
+`yg check` names the missing judge as the first thing to fix — blocking when
+the rule is enforced, a warning when every judgment rule is advisory (advisory
+never blocks). Configuring a reviewer is your call, since it sends code to that
+provider; an agent proposes it rather than doing it unasked, or parks the rule
+at `status: draft`.
+
 `--model` defaults to `sonnet` for the `claude-code` provider only; every
 other provider requires `--model` explicitly (`copilot-cli` takes one your Copilot
 plan allows, e.g. `--model auto`). For a CLI provider init checks that the
@@ -131,9 +140,9 @@ Warnings (1):
             src/f17.ts
             ... +40
             Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
-            Fix: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
+            Fix: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 
-Next: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
+Next: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 ```
 
 `yg init` turns `coverage.type_level` on by default (see [Configuration](/configuration#coverage-config)), and the fresh architecture starts with no classifying types — hence the first notice line. Add a `when:` predicate to a type and matching files start satisfying coverage on their own, with no node required. The second notice is require-nothing mode stating its own consequence: it appears whenever `coverage.required` is empty _and_ something is still uncovered, and it stops the moment either half stops being true.
@@ -177,7 +186,7 @@ yg check: FAIL  1 nodes · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) 
 Errors (1):
 
   unverified (not yet reviewed)  1 pairs  1 nodes
-            The lock holds no entry for this pair, or its inputs changed since the verdict was recorded (source edit, aspect edit, or a fill that did not complete). A verdict is valid only while its inputs hash to the stored value.
+            The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
             Fix: yg check --approve
             - payments  aspect 'requires-audit'
 
@@ -185,7 +194,11 @@ Next: yg check --approve
 ```
 
 Check detected that the `requires-audit` rule on `src/payments/` has no recorded
-verdict. The agent runs `yg check --approve` and the reviewer reads the source
+verdict. (Once a verdict exists and the code changes, the same pair shows up as
+`stale (inputs changed since the verdict)`; a script rule with no result in this
+checkout's local cache — a fresh clone — shows up as `unverified (deterministic
+check not run on this checkout — free)`, fixed by the free
+`yg check --approve --only-deterministic`.) The agent runs `yg check --approve` and the reviewer reads the source
 code, checks it against the rules in `content.md`. The reviewer runs on stderr
 and the report is written to stdout — a clean run prints the PASS header:
 
@@ -222,7 +235,7 @@ Next: Three exits:
 The agent fixes the code and re-runs `yg check --approve` until all aspects pass.
 
 ::: tip Start new aspects at `status: advisory`
-A brand-new aspect on an existing codebase often surfaces violations across many files. Authoring it as `status: advisory` runs the reviewer and lists refusals as warnings, without blocking CI. Once the rule has been exercised across the repo and the warnings are clean (or knowingly accepted), promote to `status: enforced`. See [Aspect Status](/aspect-status) for the full lifecycle.
+A brand-new aspect on an existing codebase often surfaces violations across many files. Authoring it as `status: advisory` runs the reviewer and lists refusals as warnings, without blocking CI — and with no reviewer configured yet, its pairs and the missing-reviewer notice are warnings too. Once the rule has been exercised across the repo and the warnings are clean (or knowingly accepted), promote to `status: enforced`. See [Aspect Status](/aspect-status) for the full lifecycle.
 :::
 
 ## 4) Existing codebase (brownfield)
@@ -373,11 +386,20 @@ Tell the agent: "resolve all yg check issues" and it will run `yg check
 Yggdrasil has a lot of surface area, but you only need a few ideas to be
 productive. Learn the rest the day you actually need it.
 
-**Core — everything above this point.** Four concepts carry day-to-day work:
+**Core — everything above this point.** Six concepts carry day-to-day work:
 
 - **Node** — maps a set of source files (a `yg-node.yaml` with a `mapping:`).
 - **Aspect** — one enforceable rule (`content.md` for the LLM reviewer, or
   `check.mjs` for a deterministic one).
+- **Pair** — one aspect applied to one node (or, for a `per: file` rule, to one
+  file). It is what gets verified, cached and paid for: one verdict per pair.
+  When the report says "3 pairs", it means three such (rule, subject)
+  verdicts; findings that are not about a pair are counted as issues.
+- **Lock** — where those verdicts are recorded, each bound to a hash of
+  everything it judged: the committed `yg-lock.nondeterministic.json` (reviewer
+  verdicts) and `yg-lock.logs.json` (log baselines), plus the gitignored local
+  cache of script-rule results. A verdict counts only while its hash still
+  matches. [The Lock](/the-lock) has the mechanics.
 - **`yg check`** — the gate. By default hash-only, no LLM, no keys, runs in CI.
   Red until every changed pair is re-verified. (If `auto_approve` is set in
   `yg-config.yaml`, bare `yg check` may fill pairs automatically — see

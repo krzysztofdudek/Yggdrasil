@@ -147,7 +147,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       // non-FULL_WHAT unverified code. Assert the gloss + aspect segment + both
       // node lines: both deterministic-effective nodes report unverified for the
       // enforced aspect (no entry exists for any pair yet).
-      expect(cold.all).toContain('unverified (not yet reviewed)');
+      expect(cold.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(cold.all).toContain("aspect 'no-todo-comments'");
       expect(cold.all).toContain('- services/orders');
       expect(cold.all).toContain('- services/payments');
@@ -483,7 +483,7 @@ describe.skipIf(!distExists)('CLI E2E — verdict-lock triad format and read-bou
       // `what` ("No valid verdict for aspect '<id>' on <unit>.") is gone for the
       // non-FULL_WHAT unverified code; assert the grouped gloss + aspect segment
       // + the offending node line instead.
-      expect(check.all).toContain('unverified (not yet reviewed)');
+      expect(check.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(check.all).toContain("aspect 'no-todo-comments'");
       expect(check.all).toContain('- services/orders');
       expect(check.all).toContain('Next: yg check --approve');

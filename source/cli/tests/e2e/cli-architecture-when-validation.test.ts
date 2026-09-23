@@ -809,7 +809,7 @@ describe.skipIf(!distExists)(
         // rendered in the default view, so we assert the code + the shared
         // why/Fix that direct the agent to fix the architecture YAML.
         expect(stdout).toContain('architecture-invalid');
-        expect(stdout).toContain('yg-architecture.yaml failed to parse.');
+        expect(stdout).toContain('yg-architecture.yaml is valid YAML, but its content breaks the architecture schema');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -830,7 +830,7 @@ describe.skipIf(!distExists)(
         // rendered in the default view, so we assert the code + the shared
         // why/Fix that direct the agent to fix the architecture YAML.
         expect(stdout).toContain('architecture-invalid');
-        expect(stdout).toContain('yg-architecture.yaml failed to parse.');
+        expect(stdout).toContain('yg-architecture.yaml is valid YAML, but its content breaks the architecture schema');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -877,7 +877,7 @@ describe.skipIf(!distExists)(
         // architecture-invalid group; the specific parser message is no longer
         // rendered in the default view, so we assert the code + the shared why.
         expect(stdout).toContain('architecture-invalid');
-        expect(stdout).toContain('yg-architecture.yaml failed to parse.');
+        expect(stdout).toContain('yg-architecture.yaml is valid YAML, but its content breaks the architecture schema');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -896,7 +896,7 @@ describe.skipIf(!distExists)(
         // architecture-invalid group; the specific parser message is no longer
         // rendered in the default view, so we assert the code + the shared why.
         expect(stdout).toContain('architecture-invalid');
-        expect(stdout).toContain('yg-architecture.yaml failed to parse.');
+        expect(stdout).toContain('yg-architecture.yaml is valid YAML, but its content breaks the architecture schema');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -928,7 +928,7 @@ describe.skipIf(!distExists)(
         // architecture-invalid group; the specific parser message is no longer
         // rendered in the default view, so we assert the code + the shared why.
         expect(stdout).toContain('architecture-invalid');
-        expect(stdout).toContain('yg-architecture.yaml failed to parse.');
+        expect(stdout).toContain('yg-architecture.yaml is valid YAML, but its content breaks the architecture schema');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -948,7 +948,7 @@ describe.skipIf(!distExists)(
         // architecture-invalid group; the specific parser message is no longer
         // rendered in the default view, so we assert the code + the shared why.
         expect(stdout).toContain('architecture-invalid');
-        expect(stdout).toContain('yg-architecture.yaml failed to parse.');
+        expect(stdout).toContain('yg-architecture.yaml is valid YAML, but its content breaks the architecture schema');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
