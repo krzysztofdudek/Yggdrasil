@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolveApproveMode } from '../../../src/cli/check.js';
+import { resolveApproveMode, isCiEnvironment } from '../../../src/cli/check.js';
 import type { YggConfig } from '../../../src/model/graph.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -109,6 +109,37 @@ describe('resolveApproveMode', () => {
 
     it('config full + no flag → approve:true, onlyDeterministic:false', () => {
       expect(resolveApproveMode({}, cfg('full'))).toEqual({ approve: true, onlyDeterministic: false });
+    });
+  });
+
+  // ── CI: a committed auto_approve: full must not turn the gate into a fill ──
+
+  describe('under CI, config-driven full stays read-only', () => {
+    const CI = { CI: 'true' };
+
+    it('config full + no flag + CI=true → read-only (no reviewer call from config in CI)', () => {
+      expect(resolveApproveMode({}, cfg('full'), CI)).toEqual({ approve: false, onlyDeterministic: false });
+    });
+
+    it('config full + explicit --approve + CI=true → still fills (explicit flag wins)', () => {
+      expect(resolveApproveMode({ approve: true }, cfg('full'), CI)).toEqual({ approve: true, onlyDeterministic: false });
+    });
+
+    it('config deterministic + no flag + CI=true → deterministic fill kept (free, keyless, the CI cache rebuild)', () => {
+      expect(resolveApproveMode({}, cfg('deterministic'), CI)).toEqual({ approve: true, onlyDeterministic: true });
+    });
+
+    it('config full + no flag + CI=false → fills as configured (CI switched off)', () => {
+      expect(resolveApproveMode({}, cfg('full'), { CI: 'false' })).toEqual({ approve: true, onlyDeterministic: false });
+    });
+
+    it('isCiEnvironment reads CI: unset/empty/0/false are not CI; anything else is', () => {
+      expect(isCiEnvironment({})).toBe(false);
+      expect(isCiEnvironment({ CI: '' })).toBe(false);
+      expect(isCiEnvironment({ CI: '0' })).toBe(false);
+      expect(isCiEnvironment({ CI: 'FALSE' })).toBe(false);
+      expect(isCiEnvironment({ CI: 'true' })).toBe(true);
+      expect(isCiEnvironment({ CI: '1' })).toBe(true);
     });
   });
 });

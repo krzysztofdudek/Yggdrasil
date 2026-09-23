@@ -17,7 +17,7 @@
 // aspects use an in-process mock that speaks the Ollama protocol — no real
 // model, no real endpoint, fully reproducible.
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { existsSync, mkdtempSync, rmSync, cpSync, readFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -97,6 +97,19 @@ const readLock = (dir: string) => readTriadLock(path.join(dir, '.yggdrasil'));
 // ── Test suite ─────────────────────────────────────────────────────────────
 
 describe.skipIf(!distExists)('CLI E2E — auto_approve config feature', () => {
+  // The CLI keeps a config-driven `auto_approve: full` read-only when CI is set,
+  // and a CI runner exports CI=true to this very process — which every spawned
+  // `yg` inherits. Clear it so the local-convenience cases below exercise the
+  // local path; the CI case sets it back explicitly for its own spawn.
+  const savedCi = process.env.CI;
+  beforeAll(() => {
+    delete process.env.CI;
+  });
+  afterAll(() => {
+    if (savedCi === undefined) delete process.env.CI;
+    else process.env.CI = savedCi;
+  });
+
 
   // ── Case a: auto_approve: deterministic ─────────────────────────────────
 
@@ -268,6 +281,41 @@ describe.skipIf(!distExists)('CLI E2E — auto_approve config feature', () => {
         expect(result.stdout).toContain('PASS');
         expect(result.stdout).not.toContain('auto-filled');
       } finally {
+        await mock.close();
+        rmSync(dir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  // ── Case b-ci: auto_approve: full + bare yg check under CI ──────────────
+
+  describe('Case b-ci: auto_approve: full + bare yg check with CI set', () => {
+    it('b5: under CI=true the committed auto_approve: full does not call the reviewer; the run stays read-only and says why', async () => {
+      const dir = fixture('b5');
+      const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'looks fine' }) });
+      process.env.CI = 'true';
+      try {
+        setAutoApprove(dir, 'full');
+        pointReviewer(dir, mock.endpoint);
+
+        const result = await runAsync(['check'], dir);
+
+        // No reviewer call, no fill: a committed local convenience must not
+        // turn the CI gate into a recording run.
+        expect(mock.chatCount()).toBe(0);
+        expect(result.stderr).not.toContain("will call the reviewer");
+        expect(result.stderr).toContain('auto-approve: full ignored — CI is set');
+        expect(result.stdout).not.toContain('auto-filled');
+        // The unverified pairs stay red, exactly as `yg check --no-approve` reports them.
+        expect(result.stdout).toContain('FAIL');
+        expect(result.status).toBe(1);
+
+        // An explicit --approve still fills under CI.
+        const explicit = await runAsync(['check', '--approve'], dir);
+        expect(mock.chatCount()).toBeGreaterThanOrEqual(1);
+        expect(explicit.stderr).not.toContain('auto-approve: full ignored');
+      } finally {
+        delete process.env.CI;
         await mock.close();
         rmSync(dir, { recursive: true, force: true });
       }

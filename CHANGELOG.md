@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - A reviewer provider for the GitHub Copilot CLI, `copilot-cli`, so a prose rule can be judged on a company's Copilot plan instead of a personal API key. It takes no default model: the organisation's Copilot policy decides which models a seat may use and the CLI refuses any other, so the tier names one (`auto` lets Copilot pick). It runs the real CLI — `YG_COPILOT_BIN`, else the first `copilot` on PATH outside the VS Code extension's storage, whose `copilot` is an installer prompt — with an empty `COPILOT_HOME`, no repository instructions, no built-in MCP servers and no shell, write, network or memory tools; the sign-in is kept. The prompt goes on stdin, so a large component's prompt is not cut off by the per-argument or Windows command-line limit, and on Windows the npm `.cmd` shim is started through a shell with only fixed flags and a checked model name. `yg init` offers it, requires `--model` for it, and checks for the real CLI the same way.
+- `yg check` warns `type-undefined-pending` for each node whose type is not declared while `yg-architecture.yaml` has no node types yet. Such a type was accepted silently, and the first type anyone added turned every one of those nodes into a blocking `type-undefined` error at once
 
 ### Removed
 
@@ -36,6 +37,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The family contract register named "the offline miner" as the producer of `.family-candidates.json`. Grain's `grain propose` now writes its own file into the proposal's `.yggdrasil/`, so `yg adopt` installs it with the graph, and the register says so, including `--family-candidates <path>` for a repository that adopted earlier.
 - The family contract register now says which kinds of `grain-advice/1` each producer fills. The document declares four (`relation`, `split`, `rule`, `port`) and Grain writes two. `rule` has no producer yet, and `port` has none because Grain reads no aspects. The register also says why families of similar files have their own document instead of travelling as `rule` advice.
 - A script rule that decides from a component's file names now re-runs when a file is added to or removed from that component. Before, `yg check` kept its earlier pass when the new file was not one the rule itself checks.
+- A bare `yg check` no longer calls the reviewer in CI because someone committed `auto_approve: full`. When the `CI` variable is set, a config-driven `full` fill stays read-only and says so on stderr; an explicit `--approve` still fills, and `auto_approve: deterministic` is unchanged. The CI recipes in the README, getting started and progressive mode now run the gate as `yg check --no-approve`
+- The getting-started brownfield path no longer promises that aspect-less nodes are free and green. Mapping a directory that imports another mapped directory turns on the blocking `relation-undeclared-dependency` check, so the steps now include declaring those relations
+- A `relation-undeclared-dependency` refusal in a project with no node types yet now offers the `relations:` stanza. It said no relation type was allowed and sent the reader to edit the architecture, while declaring the relation was all it took
+- `yg simulate` prints its survivorship caveat once instead of twice, and the reference documents `--file` beside `--node` (exactly one is required)
+- `yg tree` and `yg flows` say `(no nodes yet …)` and `(no flows defined)` on an empty graph instead of printing nothing
+- The help for `yg tree`, `yg portal` and `yg init --upgrade` now states what the reference does: a flat list of full paths, the port and output defaults and that `--static` writes at the project root, and the migrations `--upgrade` runs. The reference lists how `yg aspects log read` and `yg log read` differ instead of calling them exact counterparts
 
 ## [6.0.0] - 2026-09-12
 

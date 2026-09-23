@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
@@ -478,6 +478,17 @@ describe('check command', () => {
   });
 
   describe('auto_approve config — banner and PASS (auto-filled) marker (task 3.4)', () => {
+    // A CI runner exports CI=true, which the spawned CLI inherits and which keeps
+    // a config-driven `full` read-only. These cases test the local path.
+    const savedCi = process.env.CI;
+    beforeAll(() => {
+      delete process.env.CI;
+    });
+    afterAll(() => {
+      if (savedCi === undefined) delete process.env.CI;
+      else process.env.CI = savedCi;
+    });
+
     /**
      * Write a minimal green graph (no aspects, no mapping) with auto_approve set,
      * so bare `yg check` auto-fills and produces a green (PASS) result with the

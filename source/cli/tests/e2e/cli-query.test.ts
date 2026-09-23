@@ -77,6 +77,22 @@ describe.skipIf(!distExists)('CLI E2E — query and navigation', () => {
     }
   });
 
+  it('yg tree on a graph with no nodes says so instead of printing a blank listing', () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-e2e-tree-empty-'));
+    try {
+      const init = spawnSync('node', [BIN_PATH, 'init', '--no-reviewer'], { cwd: dir, encoding: 'utf-8' });
+      expect(init.status).toBe(0);
+      const { stdout, status } = run(['tree'], dir);
+      expect(status).toBe(0);
+      expect(stdout).toContain('(no nodes yet');
+      const flows = run(['flows'], dir);
+      expect(flows.status).toBe(0);
+      expect(flows.stdout).toBe('(no flows defined)\n');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it('yg tree', () => {
     const { stdout, status } = run(['tree']);
     expect(status).toBe(0);

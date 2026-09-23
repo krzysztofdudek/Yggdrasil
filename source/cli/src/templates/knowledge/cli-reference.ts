@@ -597,11 +597,17 @@ yg simulate no-raw-sql --node data/repository
 
 # Widen (or narrow) the window of most-recent commits considered (default 20)
 yg simulate no-raw-sql --node data/repository --max-commits 50
+
+# Replay over one file its architecture type alone enforces (no owning node)
+yg simulate no-raw-sql --file src/data/query.ts
 \`\`\`
 
-The \`<candidate>\` is the id of an aspect in this project that ships a \`check.mjs\`;
-\`--node\` is the node whose files the candidate replays over at each commit. Each
-commit resolves to one of three first-class outcomes — never a silent zero:
+The \`<candidate>\` is the id of an aspect in this project that ships a \`check.mjs\`.
+Exactly one of \`--node\` / \`--file\` is required: \`--node\` is the node whose
+files the candidate replays over at each commit; \`--file\` is a type-covered
+file, replayed over its HISTORICAL content but classified against the CURRENT
+architecture. Each commit resolves to one of three first-class outcomes — never a
+silent zero:
 
 - \`ran-clean\` — the candidate ran and found nothing at that commit.
 - \`violations (N)\` — the candidate refused N of that commit's files.
@@ -720,7 +726,7 @@ new schema number.
 Browse the graph structure.
 
 \`\`\`bash
-yg tree                        # full tree from root
+yg tree                        # every node, flat: full path [type] — description, parents first
 yg tree --root orders          # subtree from orders/
 yg tree --depth 2              # limit depth
 \`\`\`
@@ -880,10 +886,12 @@ reader's resolution.
 ### \`yg aspects log\` — a rule's OWN history
 
 A component has always had a log beside it. So does a rule, in
-\`.yggdrasil/aspects/<id>/log.md\`, and these are its two commands — the exact
-counterparts of \`yg log add\` / \`yg log read\`, on the SAME entry composer and
-the same guards (an empty reason refused, a body carrying its own \`## \` header
-or an unclosed fence refused, timestamps that only move forward).
+\`.yggdrasil/aspects/<id>/log.md\`, and these are its two commands — on the SAME entry composer and the same guards
+as \`yg log add\` / \`yg log read\` (an empty reason refused, a body carrying its
+own \`## \` header or an unclosed fence refused, timestamps that only move
+forward). The READ flags differ: a rule log takes \`--limit <n>\` (default: whole
+history) and \`--json\`; a node log takes \`--top <n>\` (default 10), \`--all\` and
+\`--with-verdicts\`, and has no \`--json\`.
 
 \`\`\`bash
 yg aspects log add --aspect <id> --reason "<why the rule exists / what changed>"

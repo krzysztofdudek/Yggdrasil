@@ -12,7 +12,7 @@
 import type { IssueMessage } from '../model/validation.js';
 import type { Graph } from '../model/graph.js';
 import type { Violation } from './verifier.js';
-import { allowedRelationTypes } from './allowed-types.js';
+import { allowedRelationTypes, RELATION_TYPES } from './allowed-types.js';
 import type { TypeGateFinding } from './type-gate.js';
 
 /** The node-type of a graph node, or undefined if the node is unknown. */
@@ -46,10 +46,17 @@ export function relationRefusedMessage(
   const blocks: string[] = [];
   for (const target of targets) {
     const toType = typeOf(graph, target);
+    // An architecture with no node types constrains no relation (the
+    // relation-target-forbidden validator skips it entirely), so every relation
+    // type is sanctioned — claiming a dead-end there would send the reader to
+    // an architecture edit that declaring the relation makes unnecessary.
+    const noTypesYet = Object.keys(graph.architecture?.node_types ?? {}).length === 0;
     const allowed =
-      fromType !== undefined && toType !== undefined
-        ? allowedRelationTypes(graph.architecture, fromType, toType)
-        : [];
+      noTypesYet
+        ? [...RELATION_TYPES]
+        : fromType !== undefined && toType !== undefined
+          ? allowedRelationTypes(graph.architecture, fromType, toType)
+          : [];
 
     if (allowed.length === 0) {
       // Dead-end: no relation type connects these two node types.

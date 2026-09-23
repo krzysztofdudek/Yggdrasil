@@ -72,9 +72,9 @@ describe('formatFlowsOutput', () => {
     expect(aaaIdx).toBeLessThan(zzzIdx);
   });
 
-  it('returns empty string for no flows', () => {
+  it('says so when there are no flows, instead of printing nothing', () => {
     const graph = makeGraph([]);
     const output = formatFlowsOutput(graph);
-    expect(output).toBe('');
+    expect(output).toBe('(no flows defined)\n');
   });
 });

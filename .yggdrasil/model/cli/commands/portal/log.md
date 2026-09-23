@@ -6,3 +6,5 @@ Wired the static-emit path: with --static the command now extracts the read-only
 Wire plain `yg portal` (no static-export flag) to start the local loopback server and keep it running until interrupted, instead of erroring as not-yet-available. The static-export path is unchanged. On start the command prints the local address and whether the write action is enabled, and it shuts the server down cleanly on interrupt so the port is released. A best-effort browser open is offered but is never triggered during automated runs.
 ## [2026-07-16T06:05:52.463Z]
 The static-output confirmation line now normalizes the written file path to POSIX form before printing it, so the path shown to the agent uses forward slashes on every platform. The native path is still used for the filesystem write and for opening the browser; only the displayed string is normalized.
+## [2026-09-23T19:15:14.167Z]
+The --port and --out help omitted the defaults the reference documents, and did not say that the static page is written at the project root rather than the current directory. Both are now stated in the help, so a reader learns where the file lands before it appears in the repository.

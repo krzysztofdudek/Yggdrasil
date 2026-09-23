@@ -5,7 +5,7 @@ import { appendToDebugLog } from '../io/debug-log-writer.js';
 import type { Graph } from '../model/graph.js';
 
 export function formatFlowsOutput(graph: Graph): string {
-  if (graph.flows.length === 0) return '';
+  if (graph.flows.length === 0) return '(no flows defined)\n';
 
   const lines: string[] = [];
 

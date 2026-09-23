@@ -743,7 +743,9 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
 
 ### `yg tree`
 
-Prints all nodes with path, type, and description in a hierarchical tree.
+Prints all nodes as a flat list, one line per node: its full path, type, and
+description, each parent before its children. On a graph with no nodes yet it
+prints `(no nodes yet — …)` and points at the onboarding topic.
 
 ```bash
 yg tree [--root <path>] [--depth <n>]
@@ -962,9 +964,18 @@ already answers the same question at a reader's resolution.
 #### `yg aspects log` — a rule's own history
 
 A component has always had a log beside it saying why it is the way it is. A rule
-has one too, in `.yggdrasil/aspects/<id>/log.md`, and these are its two commands —
-the exact counterparts of [`yg log add` / `yg log read`](#yg-log), on the same
-entry rules:
+has one too, in `.yggdrasil/aspects/<id>/log.md`, and these are its two commands.
+They follow the same entry rules as [`yg log add` / `yg log read`](#yg-log), but
+their flags differ:
+
+| | `yg log` (a node) | `yg aspects log` (a rule) |
+|---|---|---|
+| Which log | `--node <path>` | `--aspect <id>` |
+| Entry text | `--reason` / `--reason-file` | `--reason` / `--reason-file` |
+| Standing change | — | `--status`, with `--evidence` and `--by` |
+| How many to read | `--top <n>` (default 10) or `--all` | `--limit <n>` (default: the whole history) |
+| Machine output | — | `--json` (one `yg-aspect-log/1` document) |
+| Verification events | `--with-verdicts` | — |
 
 ```bash
 yg aspects log add --aspect no-raw-sql --reason "Written after the outage on the 3rd: a hand-built query shipped and nothing refused it."
@@ -1149,7 +1160,7 @@ yg flows
 ```
 
 Output: a custom human-readable line format (not YAML) with fields: `name`, `nodes`
-(participants), `aspects`.
+(participants), `aspects`. With no flows defined it prints `(no flows defined)`.
 
 ### `yg owner`
 
@@ -1275,6 +1286,10 @@ yg portal --no-write             # disable the one Approve action (pure read-onl
 yg portal --static               # write a self-contained HTML file instead of serving
 yg portal --static --out x.html  # choose the static output path (default: yg-portal.html)
 ```
+
+`--static` writes to the project root, not the current directory: the default
+file is `yg-portal.html` there, and a relative `--out` path resolves against the
+project root too. Add the file to `.gitignore` if you do not want to commit it.
 
 The served view is read-only except for one clearly-labelled Approve action that
 runs the same verification as `yg check --approve`; `--no-write` removes it. The
@@ -1507,14 +1522,19 @@ per commit, strictly read-only: your working tree is left byte-for-byte unchange
 ```bash
 yg simulate <candidate> --node <node-path>                 # replay over the last 20 commits
 yg simulate <candidate> --node <node-path> --max-commits 50 # widen the window
+yg simulate <candidate> --file <path>                      # replay over one type-covered file
 ```
 
 - `<candidate>` — Required. The id of an aspect in this project that ships a
   `check.mjs`. An LLM- or companion-reviewed candidate is refused up front: a
   language-model verdict is point-in-time testimony, not a reproducible replay — use
   `yg drill` to test an LLM rule's falsifiability instead.
-- `--node <path>` — Required. The node whose files the candidate replays over at
-  each commit.
+- `--node <path>` / `--file <path>` — Exactly one is required. `--node` names the
+  node whose files the candidate replays over at each commit. `--file` names a
+  file that its architecture type alone enforces (no owning node): the replay
+  runs over that file's content at each commit, classified against the
+  architecture as it is today, so the rule and its attachment are today's and
+  only the code is history.
 - `--max-commits <n>` — How many most-recent commits to consider (default 20).
 
 Each commit resolves to one of three first-class outcomes — never a silent zero:
@@ -1528,9 +1548,9 @@ throwaway clone, and a clone-boundary guard refuses to let the graph resolver es
 the clone — so a pre-init checkout is reported `non-comparable` rather than silently
 resolving your real graph. `yg simulate` is a **report tool**: it exits `0` whatever
 it finds, never writes the lock, and never changes whether `yg check` passes. It
-prints a survivorship-bias caveat, because the old rule gate already refused code
-that never landed: a tightening replay is a **lower** bound on true catches, a
-loosening one an **upper** bound. Only a precondition failure on the real project
+prints a survivorship-bias caveat once under every report, because the old rule
+gate already refused code that never landed: a tightening replay is a **lower**
+bound on true catches, a loosening one an **upper** bound. Only a precondition failure on the real project
 (no graph, missing candidate, wrong candidate kind, or an inability to clone) exits
 non-zero.
 
@@ -1666,8 +1686,9 @@ as generated (`linguist-generated=true`), adds the gitignored deterministic cach
 (`.yg-lock.deterministic.json`) to `.yggdrasil/.gitignore`, and writes
 `max_prompt_chars: 50000` into the generated reviewer tier.
 
-`yg init --upgrade` lifts the config version to the current one and refreshes
-the agent-rules files — without prompts. Useful in scripts and CI. It also
+`yg init --upgrade` lifts the config version to the current one, running the
+migrations between the two, and refreshes the agent-rules files — without
+prompts. Useful in scripts and CI. It also
 sweeps away any file a retired per-platform installer left behind from an
 older CLI. On a project still using the older single-file `yg-lock.json`,
 `--upgrade` also splits it into the triad in place — relocating every

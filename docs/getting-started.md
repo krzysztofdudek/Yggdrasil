@@ -87,8 +87,11 @@ onboarding` and follow it."_
 The architecture file (`.yggdrasil/yg-architecture.yaml`) ships with an empty
 architecture (`node_types: {}`) and commented examples — node types are defined
 per project, not pre-configured. You add the types your project needs: define
-new types, set default aspects per type, constrain relations. Tell the agent to
-do it:
+new types, set default aspects per type, constrain relations. Until the first
+type exists, a node's `type:` is not checked, and `yg check` warns
+(`type-undefined-pending`) for every node whose type is not declared yet. Declare
+those types when you add the first one: from then on an undeclared type is a
+blocking `type-undefined` error. Tell the agent to do it:
 
 > "Add a node type 'api' with a default aspect 'requires-auth'."
 
@@ -139,9 +142,10 @@ The agent will create:
       yg-node.yaml          ← maps src/payments/, lists requires-audit aspect
 ```
 
-(A node's type must declare `when:` before the node can carry a mapping at
-all — independent of type-level coverage — so the agent also gives the
-payments module's type a `when: path: "src/payments/**"`. That is why the
+(Once the architecture declares any type, a node's type must exist there and
+declare `when:` before the node can carry a mapping at all — independent of
+type-level coverage — so the agent also gives the payments module's type a
+`when: path: "src/payments/**"`. That is why the
 zero-classifying-types notice from the first check above does not reappear
 below: the architecture now has one classifying type, even though the
 payments file itself is node-owned, not type-covered.)
@@ -253,9 +257,46 @@ Tell your agent:
 > "Create nodes without aspects for: src/legacy/, lib/, scripts/. Then create
 > a proper node for src/payments/ with the requires-audit aspect."
 
-Nodes without aspects are cheap — just a `yg-node.yaml` with a directory
-mapping. They produce no pairs, so there is nothing to verify and nothing
-to record. They count as covered for free.
+Nodes without aspects are cheap in reviewer terms — just a `yg-node.yaml` with
+a directory mapping. They produce no rule pairs, so there is nothing for the
+reviewer to verify and nothing to record, and they count as covered.
+
+They are not free of checks, though. Every mapped node takes part in the
+built-in dependency check, which runs live on every `yg check`, keyless and
+uncached: when a file in one node imports code another node owns, the importing
+node must declare that relation in its `yg-node.yaml`. An undeclared import is a
+blocking `relation-undeclared-dependency` error. It is not a rule you can set to
+advisory or suppress. An import between files that no node maps is not checked
+this way, so the moment you map a directory that imports from another mapped
+directory, the check turns red and names each import, like this:
+
+```text
+  relation-undeclared-dependency  1 pairs  1 nodes
+            Fix: Declare the missing relation(s) in .yggdrasil/model/users/yg-node.yaml (or remove the dependency if it is not legitimate):
+            payments: allowed relation type(s) [uses, calls, extends, implements, emits, listens]. Add to .yggdrasil/model/users/yg-node.yaml:
+            relations:
+              - target: payments
+                type: uses
+            - users  src/users/index.js:1 → payments
+```
+
+Paste the `relations:` stanza it prints into the importing node. Two things can
+make that harder:
+
+- If your architecture restricts which types may relate, the message says that
+  no relation type is allowed between the two node types. The fix is then to
+  change a node's type or to widen the allowed relations in
+  `yg-architecture.yaml`. That is an architecture change, which your agent must
+  confirm with you first.
+- Declared relations must not form a cycle. Two directories that import each
+  other need a different split, not two relations.
+
+So budget for declaring relations as part of mapping: the coarser your nodes,
+the fewer edges there are to declare. [Relations, flows & ports](/relations-flows-ports)
+covers the check in full. Progressive mode (see below) does not skip this step,
+because a node you map on your branch is part of your change. It helps later:
+once those nodes are merged, findings in code a change does not touch stop
+blocking it.
 
 When you start working on a covered area, add aspects to enforce rules.
 This is how coverage naturally expands into enforcement as you work.
@@ -263,18 +304,27 @@ This is how coverage naturally expands into enforcement as you work.
 Practical steps for a 200-file repo:
 
 1. Create 5-8 nodes without aspects for broad directory mappings
-2. Create 1-2 nodes with aspects for your active work area
-3. Run `yg check --approve` (aspect-less nodes produce no pairs, so the
-   only cost is the reviewer pairs on your active work area)
-4. `yg check` passes — CI is green
-5. Add aspects to more nodes as you touch more code
+2. Run `yg check` and declare the relations it asks for between those nodes
+   (`relation-undeclared-dependency`), or merge nodes whose code is too
+   entangled to separate yet
+3. Create 1-2 nodes with aspects for your active work area
+4. Run `yg check --approve` (aspect-less nodes produce no rule pairs, so the
+   only reviewer cost is the pairs on your active work area)
+5. `yg check` passes — CI is green
+6. Add aspects to more nodes as you touch more code
+
+For a large codebase with debt you cannot clear in one go, name a reference
+branch and turn on [progressive mode](/progressive-mode): after that, a change
+blocks only on what it touched, and what it inherited stays visible as warnings.
 
 ## 5) CI integration
 
-Add `yg check` to your CI pipeline. It recomputes the input hash of every
-expected pair and compares it against the verdict recorded in the lock — no
+Add `yg check --no-approve` to your CI pipeline. It recomputes the input hash of
+every expected pair and compares it against the verdict recorded in the lock — no
 LLM calls, no provider keys, runs instantly. Exit code 1 means a pair changed
-without being re-verified.
+without being re-verified. The `--no-approve` flag pins the gate read-only even
+when someone commits `auto_approve` to `yg-config.yaml`, which would otherwise
+turn a bare `yg check` into a fill (see [Configuration](/configuration#auto-approve-config)).
 
 The lock's deterministic verdicts live in a gitignored local cache
 (`.yg-lock.deterministic.json`), so a fresh CI checkout starts without them and
@@ -289,7 +339,7 @@ only the deterministic pairs and writes the gitignored cache. See
 - name: Rebuild the deterministic cache (free, no keys)
   run: npx @chrisdudek/yg check --approve --only-deterministic
 - name: Check architecture
-  run: npx @chrisdudek/yg check
+  run: npx @chrisdudek/yg check --no-approve
 ```
 
 If check fails, it means a pair's inputs changed without being re-verified.
@@ -309,8 +359,9 @@ productive. Learn the rest the day you actually need it.
 - **`yg check`** — the gate. By default hash-only, no LLM, no keys, runs in CI.
   Red until every changed pair is re-verified. (If `auto_approve` is set in
   `yg-config.yaml`, bare `yg check` may fill pairs automatically — see
-  [Configuration](/configuration#auto-approve-config). CI scripts always use
-  explicit flags and are unaffected.)
+  [Configuration](/configuration#auto-approve-config). The CI recipe above uses
+  `--no-approve`, which always wins over the config; and when the `CI`
+  variable is set, a bare `yg check` ignores a committed `auto_approve: full`.)
 - **`yg check --approve`** — verifies the unverified pairs (deterministic for
   free, then LLM) and records the verdicts in the lock so check goes green.
 

@@ -967,8 +967,18 @@ describe.skipIf(!distExists)(
         // deliberate (greenfield / pre-architecture repos must not be spammed).
         writeArch(dir, 'node_types: {}\n');
         const { stdout } = run(['check'], dir);
-        expect(stdout).not.toContain('type-undefined');
         expect(stdout).not.toContain('is not defined in yg-architecture.yaml');
+        // Held back, not hidden: each node whose type names nothing gets a
+        // non-blocking type-undefined-pending WARNING saying the requirement
+        // arrives with the first declared type — never the blocking error.
+        const json = JSON.parse(run(['check', '--json'], dir).stdout) as {
+          issues: Array<{ code: string; severity: string; nodePath?: string }>;
+        };
+        expect(json.issues.some((i) => i.code === 'type-undefined')).toBe(false);
+        const pending = json.issues.filter((i) => i.code === 'type-undefined-pending');
+        expect(pending.length).toBeGreaterThan(0);
+        expect(pending.every((i) => i.severity === 'warning')).toBe(true);
+        expect(stdout).toContain('declares no node types yet');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }

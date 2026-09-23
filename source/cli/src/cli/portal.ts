@@ -39,8 +39,8 @@ export function registerPortalCommand(program: Command): void {
     .command('portal')
     .description('Open a read-only local web portal onto the graph and its verification state')
     .option('--static', 'Emit a self-contained static page instead of serving')
-    .option('--out <path>', 'Output path for the static page (with --static)')
-    .option('--port <n>', 'Port for the local loopback server', (v) => {
+    .option('--out <path>', 'Output path for the static page (with --static), relative to the project root (default: yg-portal.html at the project root)')
+    .option('--port <n>', 'Port for the local loopback server (default: 4317)', (v) => {
       const n = parseInt(v, 10);
       if (Number.isNaN(n) || n < 0 || n > 65535) {
         throw new InvalidArgumentError('--port must be an integer between 0 and 65535.');

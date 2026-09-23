@@ -436,7 +436,7 @@ merge into asks for the whole project.
   run: npx @chrisdudek/yg check --approve --only-deterministic
 
 - name: Check
-  run: npx @chrisdudek/yg check
+  run: npx @chrisdudek/yg check --no-approve
 ```
 
 **On the branch you merge into** — the leg that answers for everything:

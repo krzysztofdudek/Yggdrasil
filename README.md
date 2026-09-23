@@ -150,10 +150,10 @@ I built it while shipping things alone, fast, which is where the wall above come
 
 ```yaml
 - run: npx @chrisdudek/yg check --approve --only-deterministic
-- run: npx @chrisdudek/yg check
+- run: npx @chrisdudek/yg check --no-approve
 ```
 
-The first line rebuilds the free local cache that a fresh checkout never has. The second is the gate: it recomputes the input hash of every rule against its recorded verdict, and fails if anything changed without being verified. No keys, no model calls.
+The first line rebuilds the free local cache that a fresh checkout never has. The second is the gate: it recomputes the input hash of every rule against its recorded verdict, and fails if anything changed without being verified. No keys, no model calls. `--no-approve` keeps it that way even if someone commits `auto_approve` to the config; when the `CI` variable is set, a bare `yg check` also ignores a committed `auto_approve: full`.
 
 If you measure changes against a branch, add `--full` to the leg that runs on the branch you merge into. A plain run there passes by construction, so it is the `--full` leg that actually answers for it.
 

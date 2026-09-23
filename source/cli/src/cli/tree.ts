@@ -17,7 +17,7 @@ import { verifyPairs } from '../core/verify-lock.js';
 export function registerTreeCommand(program: Command): void {
   program
     .command('tree')
-    .description('Display graph structure as a flat list')
+    .description('List graph nodes as a flat list of full paths with type and description (each parent before its children)')
     .option('--root <path>', 'Show only subtree rooted at this path')
     .option('--depth <n>', 'Maximum depth', (v) => {
       const n = parseInt(v, 10);
@@ -59,6 +59,11 @@ export function registerTreeCommand(program: Command): void {
 
         for (const line of lines) {
           process.stdout.write(line + '\n');
+        }
+        // An empty graph must still say it ran: a blank listing reads as a
+        // failure. (--root always names an existing node, so it never lands here.)
+        if (lines.length === 0) {
+          process.stdout.write('(no nodes yet — to map existing code, see: yg knowledge read onboarding)\n');
         }
 
         const summary = await typeCoveredSummaryLine(graph, scopedToRoot);

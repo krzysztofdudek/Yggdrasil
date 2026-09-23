@@ -385,6 +385,13 @@ describe('yg simulate — report rendering', () => {
   it('prints the verbatim Wald label', () => {
     const out = renderReport({ candidateId: 'no-console', target: NODE_TARGET, referenceSchema: '5.1.0', outcomes });
     expect(out).toContain(WALD_LABEL);
+    // The survivorship caveat is stated ONCE — one line carrying the label, not
+    // a paraphrase followed by the label saying the same thing again.
+    // eslint-disable-next-line no-control-regex
+    const plain = out.replace(/\x1b\[[0-9;]*m/g, '');
+    expect(plain.match(/Caveat:/g)).toHaveLength(1);
+    expect(plain).not.toContain('filtered sample');
+    expect(plain).toContain(`Caveat: the old rule gate already refused code that never landed, so ${WALD_LABEL}`);
     expect(WALD_LABEL).toBe(
       'history is censored by the old regime — a tightening replay is a LOWER bound on true catches, a loosening replay an UPPER bound.',
     );

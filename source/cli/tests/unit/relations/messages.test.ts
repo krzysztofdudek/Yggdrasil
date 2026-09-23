@@ -273,3 +273,18 @@ describe('allowedRelationTypes — mixed wildcard list (FIX D)', () => {
     expect(allowedRelationTypes(arch as any, 'svc', 'third')).toContain('uses');
   });
 });
+
+describe('relationRefusedMessage — architecture with no node types yet', () => {
+  it('offers the relations stanza instead of a false dead-end when node_types is empty', () => {
+    // `yg init` writes `node_types: {}`; nothing constrains any relation then
+    // (the relation-target-forbidden validator skips an empty architecture), so
+    // declaring the relation is enough — no architecture edit is needed.
+    const g = makeGraph([['users', 'made-up'], ['payments', 'made-up']]);
+    g.architecture = { node_types: {} };
+    const msg = relationRefusedMessage(g, 'users', [viol('src/users/index.js', 1, 'payments')]);
+    expect(msg.next).not.toContain('no relation type is allowed');
+    expect(msg.next).toContain('allowed relation type(s) [uses, calls, extends, implements, emits, listens]');
+    expect(msg.next).toContain('  - target: payments\n    type: uses');
+  });
+});
+
