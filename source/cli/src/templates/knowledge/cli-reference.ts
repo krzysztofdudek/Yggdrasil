@@ -1418,8 +1418,8 @@ endpoint and requires \`--endpoint\`. \`--model\`/\`--endpoint\` without
 **Credentials are env-only, never a flag.** There is no \`--api-key\` (or
 similarly-named) flag. An API provider's key is read only from its own
 environment variable (\`ANTHROPIC_API_KEY\`, \`OPENAI_API_KEY\`,
-\`GOOGLE_API_KEY\` — \`openai-compatible\` also reads \`OPENAI_API_KEY\`, and
-needs no key at all for a keyless server) at init time. A missing key is non-fatal: the config is written anyway and can be
+\`GOOGLE_API_KEY\` — \`openai-compatible\` reads its own
+\`OPENAI_COMPATIBLE_API_KEY\`, never \`OPENAI_API_KEY\`, and needs no key at all for a keyless server) at init time. A missing key is non-fatal: the config is written anyway and can be
 fixed later by exporting the variable (or editing \`yg-secrets.yaml\`) before
 \`yg check --approve\`. This keeps API keys out of shell history — there is no
 flag-based alternative to set a credential, by design.

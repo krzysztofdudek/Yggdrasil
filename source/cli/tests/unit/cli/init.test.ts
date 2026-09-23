@@ -348,18 +348,18 @@ describe('resolveReviewerConfigFromFlags — model and key messages', () => {
   });
 
   it('openai-compatible without a key is told the key is optional, not that it is required', () => {
-    const saved = process.env.OPENAI_API_KEY;
-    delete process.env.OPENAI_API_KEY;
+    const saved = process.env.OPENAI_COMPATIBLE_API_KEY;
+    delete process.env.OPENAI_COMPATIBLE_API_KEY;
     try {
       const r = resolveReviewerConfigFromFlags({ provider: 'openai-compatible', model: 'local', endpoint: 'http://127.0.0.1:8000/v1' });
       expect(r.ok).toBe(true);
       if (r.ok) {
-        expect(r.keyWarning?.what).toBe('No API key found in $OPENAI_API_KEY; the reviewer will call http://127.0.0.1:8000/v1 without one.');
+        expect(r.keyWarning?.what).toBe('No API key found in $OPENAI_COMPATIBLE_API_KEY; the reviewer will call http://127.0.0.1:8000/v1 without one.');
         expect(r.keyWarning?.why).toContain('the key is optional for this provider');
         expect(r.keyWarning?.why).not.toContain('needs a key');
       }
     } finally {
-      if (saved !== undefined) process.env.OPENAI_API_KEY = saved;
+      if (saved !== undefined) process.env.OPENAI_COMPATIBLE_API_KEY = saved;
     }
   });
 });

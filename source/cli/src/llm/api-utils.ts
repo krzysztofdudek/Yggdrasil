@@ -6,9 +6,9 @@ const ENV_VAR_MAP: Record<string, string> = {
   openai: 'OPENAI_API_KEY',
   anthropic: 'ANTHROPIC_API_KEY',
   google: 'GOOGLE_API_KEY',
-  // An OpenAI-compatible server reads the same variable as OpenAI, so a key set
-  // for one is sent to the other; config.api_key in yg-secrets.yaml keeps them apart.
-  'openai-compatible': 'OPENAI_API_KEY',
+  // Its own variable, never OPENAI_API_KEY: an OpenAI-compatible endpoint is any
+  // server the config names, and an OpenAI key must never be sent to a third party.
+  'openai-compatible': 'OPENAI_COMPATIBLE_API_KEY',
 };
 
 /** How long a hosted API call may take when the tier sets no config.timeout. */

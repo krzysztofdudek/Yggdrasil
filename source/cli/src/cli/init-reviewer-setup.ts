@@ -34,7 +34,7 @@ const API_KEY_ENV: Partial<Record<ReviewerProvider, string>> = {
   anthropic: 'ANTHROPIC_API_KEY',
   openai: 'OPENAI_API_KEY',
   google: 'GOOGLE_API_KEY',
-  'openai-compatible': 'OPENAI_API_KEY',
+  'openai-compatible': 'OPENAI_COMPATIBLE_API_KEY',
 };
 const CLAUDE_CODE_ALIASES = [
   { value: 'haiku', label: 'haiku' },
