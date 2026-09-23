@@ -861,6 +861,20 @@ describe('buildNominations — T1 decorative-rule (never violated, corroborated 
     expect(noms.find((n) => n.id === 'decorative-rule:requires-audit')).toBeUndefined();
   });
 
+  it('does NOT nominate when the rule has committed refusal drills that were not run here (a fresh clone)', async () => {
+    const graph = await loadGraph(projectRoot);
+    const events = approvedFillEvents('requires-audit', 'node:auth', 20, '2026-07-01T00:00:00.000Z');
+    const noms = buildNominations(graph, {
+      todayUtc: TODAY,
+      verdictEvents: events,
+      drillResults: [],
+      committedViolatesCasesByAspect: new Map([['requires-audit', 2]]),
+      currentUnitsByAspect: new Map([['requires-audit', new Set(['node:other-unit'])]]),
+      suppressCountsByAspect: new Map<string, number>(),
+    });
+    expect(noms.find((n) => n.id === 'decorative-rule:requires-audit')).toBeUndefined();
+  });
+
   it('does NOT nominate when the attach set is not shrinking (the checked unit is still current)', async () => {
     const graph = await loadGraph(projectRoot);
     const events = approvedFillEvents('requires-audit', 'node:auth', 20, '2026-07-01T00:00:00.000Z');

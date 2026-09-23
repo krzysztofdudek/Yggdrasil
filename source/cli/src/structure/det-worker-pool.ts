@@ -22,6 +22,12 @@
  * reply (never a silent drop); the caller lowers it to a runtime-error
  * disposition that writes nothing. The pool respawns a replacement so the
  * remaining queue keeps its parallelism.
+ *
+ * BOUNDED. A check that never returns (an endless loop, catastrophic regex
+ * backtracking in a rule copied in from a package) would otherwise hold its
+ * worker — and the whole gate — forever. With a per-task budget, a task still
+ * running when the budget elapses resolves as an `ok:false` reply naming the
+ * budget, its worker is terminated, and a fresh one takes its place.
  */
 
 import { Worker } from 'node:worker_threads';
@@ -58,6 +64,8 @@ export type DetPoolTask = Omit<DetTaskRequest, 'id'>;
 interface PendingEntry {
   req: DetTaskRequest;
   resolve: (reply: DetTaskReply) => void;
+  /** The per-task budget timer, while the task runs on a worker. */
+  timer?: ReturnType<typeof setTimeout>;
 }
 
 /**
@@ -94,10 +102,15 @@ export class DetWorkerPool {
   private nextId = 1;
   private destroyed = false;
 
+  /**
+   * @param taskBudgetMs wall-clock budget for ONE task; 0 (the default) means
+   *   unbounded. Injected by the caller, never read from the environment here.
+   */
   constructor(
     private readonly graph: Graph,
     private readonly projectRoot: string,
     size: number,
+    private readonly taskBudgetMs = 0,
   ) {
     const count = Math.max(1, Math.floor(size));
     for (let i = 0; i < count; i++) this.spawn();
@@ -128,6 +141,7 @@ export class DetWorkerPool {
     const entry = this.pending.get(worker);
     if (!entry) return; // stray message (e.g. after failure resolution) — ignore
     this.pending.delete(worker);
+    clearTimeout(entry.timer);
     entry.resolve(reply);
     if (!this.destroyed) {
       this.idle.push(worker);
@@ -145,6 +159,7 @@ export class DetWorkerPool {
     const entry = this.pending.get(worker);
     if (entry) {
       this.pending.delete(worker);
+      clearTimeout(entry.timer);
       const unitLabel = entry.req.unit.kind === 'node' ? entry.req.unit.nodePath : `file:${entry.req.unit.file}`;
       debugWrite(`[det-pool] worker exited (code ${code}) mid-task ${entry.req.aspectId} on ${unitLabel}`);
       // Fail closed: surface the crash as an error reply the caller lowers to a
@@ -167,8 +182,35 @@ export class DetWorkerPool {
       const worker = takeIdleWorker(this.idle, this.lastBucketByWorker, entry.req.bucketKey);
       if (entry.req.bucketKey !== undefined) this.lastBucketByWorker.set(worker, entry.req.bucketKey);
       this.pending.set(worker, entry);
+      if (this.taskBudgetMs > 0) {
+        entry.timer = setTimeout(() => this.onBudgetExceeded(worker, entry), this.taskBudgetMs);
+      }
       worker.postMessage(entry.req);
     }
+  }
+
+  /**
+   * A task overran its budget: settle it as a failed reply the caller lowers to
+   * a no-write runtime-error disposition, then terminate its worker. The entry
+   * leaves `pending` first, so the worker's 'exit' only respawns capacity and
+   * never resolves the task a second time.
+   */
+  private onBudgetExceeded(worker: Worker, entry: PendingEntry): void {
+    if (this.pending.get(worker) !== entry) return;
+    this.pending.delete(worker);
+    const unitLabel = entry.req.unit.kind === 'node' ? entry.req.unit.nodePath : `file:${entry.req.unit.file}`;
+    const seconds = Math.round(this.taskBudgetMs / 100) / 10;
+    debugWrite(`[det-pool] ${entry.req.aspectId} on ${unitLabel} exceeded its ${seconds}s budget; terminating the worker`);
+    entry.resolve({
+      id: entry.req.id,
+      ok: false,
+      error: {
+        message:
+          `the check did not finish within ${seconds}s and was stopped (a check that never returns — an endless loop, ` +
+          `runaway regex backtracking — or an unusually large unit; raise the limit with YG_DET_TASK_TIMEOUT_MS, in milliseconds)`,
+      },
+    });
+    void worker.terminate();
   }
 
   /**
@@ -192,6 +234,7 @@ export class DetWorkerPool {
   async destroy(): Promise<void> {
     if (this.destroyed) return;
     this.destroyed = true;
+    for (const entry of this.pending.values()) clearTimeout(entry.timer);
     const workers = [...this.workers];
     this.workers.clear();
     this.idle.length = 0;

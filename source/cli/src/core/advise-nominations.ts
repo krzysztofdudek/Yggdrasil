@@ -215,6 +215,13 @@ export interface NominationSources {
    * engine never nominates a drill the graph can no longer re-run or retire.
    */
   drillResults?: DrillResultLine[];
+  /**
+   * Refusal-expecting (`violates-*`) cases committed in each aspect's drill
+   * corpus (aspectId → count). Drill evidence that survives a clone, unlike the
+   * gitignored drill-result telemetry; a rule with any is never nominated for
+   * demotion as having "no regression drill on record".
+   */
+  committedViolatesCasesByAspect?: Map<string, number>;
   /** Verdict-event telemetry (T1 promotion / sharpen / decorative-rule). Absent → none. */
   verdictEvents?: VerdictEvent[];
   /**
@@ -696,12 +703,14 @@ function decorativeRuleNominations(
   currentUnitsByAspect: Map<string, Set<string>>,
   suppressCountsByAspect: Map<string, number>,
   todayIso: string,
+  committedViolatesCasesByAspect: Map<string, number> = new Map(),
 ): Nomination[] {
   const signals = computeAspectHealthSignals(graph, {
     verdictEvents: events,
     drillResults,
     currentUnitsByAspect,
     suppressCountsByAspect,
+    committedViolatesCasesByAspect,
   });
 
   const out: Nomination[] = [];
@@ -1096,6 +1105,7 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
         sources.currentUnitsByAspect,
         sources.suppressCountsByAspect,
         todayIso,
+        sources.committedViolatesCasesByAspect,
       ),
     );
   }

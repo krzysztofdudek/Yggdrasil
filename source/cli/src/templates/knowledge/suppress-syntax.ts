@@ -24,7 +24,10 @@ Inappropriate uses:
 
 ## Single-line
 
-The single-line form suppresses the immediately following line only.
+The single-line form suppresses exactly one line: the immediately following
+line — or, when the marker's comment trails code on the same line, that line
+itself (see "Trailing markers" below). \`yg suppressions\` prints the lines each
+marker actually waives.
 
 \`\`\`typescript
 // yg-suppress(security/input-validation) static config, no user input
@@ -151,16 +154,15 @@ comment. Prose that merely mentions the syntax mid-sentence or a backtick-quoted
 \`yg-suppress(...)\` is NOT a marker — it is neither honored by any reviewer nor
 listed by \`yg suppressions\`.
 
-One footgun: a trailing comment written AFTER code on the same physical line
-(\`doThing(); // yg-suppress(rule) reason\`) behaves DIFFERENTLY by file kind. In
-a file with a registered grammar the scanner reads the comment node's own text,
-so that trailing marker IS anchored and honored — but as a single-line marker it
-waives the line BELOW it, never the line of code it trails. In raw-scan mode (a
+Trailing markers: a comment written AFTER code on the same physical line
+(\`doThing(); // yg-suppress(rule) reason\`) applies to THAT line. In a file with
+a registered grammar the scanner reads the comment node and sees the code before
+it, so a trailing single-line marker waives the line it sits on (never the line
+below), a trailing \`yg-suppress-disable\` opens its range on its own line, and a
+trailing \`yg-suppress-enable\` closes it after its own line. In raw-scan mode (a
 file with no grammar, see "Language support" below) the whole physical line is
-scanned, so a delimiter that does not start the line is not a marker at all.
-Because the two modes disagree, NEVER rely on a trailing same-line comment to
-waive the code it sits on: always put a single-line marker on its own line,
-directly above the line it waives.
+scanned, so a delimiter that does not start the line is not a marker at all —
+there, put the marker on its own line, directly above the line it waives.
 
 For a file whose extension has a registered grammar, markers are read from the
 file's comments, so a \`yg-suppress(...)\` that merely appears inside a string

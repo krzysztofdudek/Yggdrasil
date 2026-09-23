@@ -9,6 +9,7 @@ const LOCK_LINE = '/.yggdrasil/yg-lock.*.json linguist-generated=true';
 const ADVISE_LINE = '/.yggdrasil/advise-decisions.jsonl merge=union';
 const IMPORTED_LINE = '/.yggdrasil/advise-imported.jsonl merge=union';
 const EVENTS_LINE = '/.yggdrasil/yg-events.llm.jsonl merge=union';
+const LOG_EOL_LINE = '/.yggdrasil/**/log.md text eol=lf';
 const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '.family-candidates.json', '.family-candidates.*.json', '.yg-packages-versions.json', '*.tmp'];
 
 async function scaffoldExistingYgg(projectRoot: string, version: string): Promise<string> {
@@ -385,6 +386,7 @@ describe('runVersionUpgrade', () => {
     const ga = await readFile(path.join(projectRoot, '.gitattributes'), 'utf-8');
     expect(ga).toContain(LOCK_LINE);
     expect(ga).toContain(ADVISE_LINE);
+    expect(ga).toContain(LOG_EOL_LINE);
   });
 });
 
@@ -401,13 +403,13 @@ describe('ensureGitattributes', () => {
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n`);
+    expect(ga).toBe(`${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n${LOG_EOL_LINE}\n`);
   });
 
   it('leaves the file unchanged when all managed lines are already present', async () => {
     const repoRoot = await mkdtemp(path.join(tmpdir(), 'yg-gitattr-'));
     dirsToCleanup.push(repoRoot);
-    const original = `* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n`;
+    const original = `* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n${LOG_EOL_LINE}\n`;
     await writeFile(path.join(repoRoot, '.gitattributes'), original, 'utf-8');
 
     await ensureGitattributes(repoRoot);
@@ -425,7 +427,7 @@ describe('ensureGitattributes', () => {
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n`);
+    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n${LOG_EOL_LINE}\n`);
     // The lock line is not duplicated.
     expect(ga.split('\n').filter((l) => l.trim() === LOCK_LINE)).toHaveLength(1);
   });
@@ -440,7 +442,7 @@ describe('ensureGitattributes', () => {
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n`);
+    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n${LOG_EOL_LINE}\n`);
     expect(ga.split('\n').filter((l) => l.trim() === LOCK_LINE)).toHaveLength(1);
     expect(ga.split('\n').filter((l) => l.trim() === ADVISE_LINE)).toHaveLength(1);
     expect(ga.split('\n').filter((l) => l.trim() === IMPORTED_LINE)).toHaveLength(1);
@@ -455,7 +457,7 @@ describe('ensureGitattributes', () => {
     await ensureGitattributes(repoRoot);
 
     const ga = await readFile(path.join(repoRoot, '.gitattributes'), 'utf-8');
-    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n`);
+    expect(ga).toBe(`* text=auto\n${LOCK_LINE}\n${ADVISE_LINE}\n${IMPORTED_LINE}\n${EVENTS_LINE}\n${LOG_EOL_LINE}\n`);
   });
 });
 

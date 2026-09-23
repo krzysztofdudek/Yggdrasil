@@ -42,24 +42,24 @@ async function scanFixture(name: string): Promise<SuppressionsReport> {
   );
 }
 
-// The pre-change text output for this exact fixture, captured from a real run
-// of `yg suppressions` against `portal-suppress-forms` before `ranges` and
-// `warningRecords` were added to the report — `formatSuppressionsOutput` reads
-// neither new field, so this string must stay byte-identical after the change.
+// The text output for this exact fixture, captured from a real run of
+// `yg suppressions` against `portal-suppress-forms`. Each single/disable marker
+// names the lines it actually waives (a disable's span comes from
+// `report.ranges`); `warningRecords` never reaches the text output.
 const GOLDEN_TEXT = `Active suppression markers:
 
   src/line.ts
-    line 2: single(no-todo)  — tracked in TICKET-403, single-line waiver
+    line 2: single(no-todo) → waives line 3  — tracked in TICKET-403, single-line waiver
 
   src/range.ts
-    line 5: disable(no-todo)  — intentional legacy rounding, tracked in TICKET-402
+    line 5: disable(no-todo) → waives lines 6-7  — intentional legacy rounding, tracked in TICKET-402
     line 8: enable(no-todo)
 
   src/under.ts
-    line 2: single(no-console)  — debug logging temporarily needed, tracked in TICKET-404
+    line 2: single(no-console) → waives line 3  — debug logging temporarily needed, tracked in TICKET-404
 
   src/whole.ts
-    line 1: file-level(no-todo)  — legacy file, whole-file waiver — tracked in TICKET-401
+    line 1: file-level(no-todo) → waives lines 2-end of file  — legacy file, whole-file waiver — tracked in TICKET-401
 
 Total: 5 markers across 4 files.
 
@@ -109,7 +109,7 @@ describe('suppressions --json report fields — real fixture scan (portal-suppre
     expect(doc.totals.fileLevel).toBe(1); // whole.ts's file-head unclosed disable
   });
 
-  it('formatSuppressionsOutput(report) is byte-identical to the pre-change golden — the text formatter reads neither new field', async () => {
+  it('formatSuppressionsOutput(report) is byte-identical to the golden, naming the lines each marker waives', async () => {
     const report = await scanFixture('portal-suppress-forms');
     expect(formatSuppressionsOutput(report)).toBe(GOLDEN_TEXT);
   });

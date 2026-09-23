@@ -171,9 +171,12 @@ export async function extractPortalData(
   // Deliberately excluded (never classified, never a residue gap) — the same file set
   // `counts.excludedFiles` counts, kept as its own list so the file has somewhere to be
   // found by name instead of only ever being a number (it was never dropped by accident).
-  const excludedFileList = uncovered.filter(
-    (f) => !typeCoveredPaths.has(f) && isPortalFileExcludedByCoverage(f, coverageExclusion),
-  );
+  // Plus the files a node mapping sweeps in that the graph excludes anyway —
+  // runCheck counts those as excluded too (checkResult.mappedExcludedFiles).
+  const excludedFileList = [
+    ...uncovered.filter((f) => !typeCoveredPaths.has(f) && isPortalFileExcludedByCoverage(f, coverageExclusion)),
+    ...(checkResult.mappedExcludedFiles ?? []),
+  ];
 
   // Per-file enforcement state for every type-covered file (enforced / honest pairState /
   // uncomputable-by-implies-cycle) — a self-contained derivation over `expected` and

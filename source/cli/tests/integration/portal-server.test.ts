@@ -1,5 +1,5 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { readFileSync, statSync, existsSync, cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { readFileSync, statSync, existsSync, cpSync, mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import http from 'node:http';
@@ -450,6 +450,51 @@ describe('portal loopback server — handler error surfaces as a structured 500 
     expect(res.headers.get('content-type')).toContain('text/html');
     expect(await res.text()).toContain('yg-boot');
   }, 60_000);
+});
+
+describe('portal loopback server — a graph that stops loading mid-session never kills the server', () => {
+  // An ordinary edit (a half-written flow file, a branch switch) can leave the graph
+  // unloadable while the portal is running. The server's whole job is to stay up
+  // while the graph is edited: the request fails with the loader's own diagnosis,
+  // and the next request after the fix succeeds. The load path must THROW, never
+  // reach the CLI's process.exit.
+  let handle: ServerHandle;
+  let project: string;
+  const exitSpy = vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+    throw new Error(`process.exit(${code}) called by the portal`);
+  }) as never);
+  const brokenFlowDir = () => path.join(project, '.yggdrasil', 'flows', 'half-written');
+
+  beforeAll(async () => {
+    project = freshFixture();
+    handle = await startServer({ projectRoot: project, port: 0, writeEnabled: false });
+  }, 60_000);
+
+  afterAll(async () => {
+    await handle.close();
+    exitSpy.mockRestore();
+  });
+
+  it('serves, fails with the loader diagnosis while the flow is broken, then serves again', async () => {
+    expect((await apiFetch(`${handle.url}/data`)).status).toBe(200);
+
+    mkdirSync(brokenFlowDir(), { recursive: true });
+    writeFileSync(path.join(brokenFlowDir(), 'yg-flow.yaml'), 'name: Half written\nnodes: []\n');
+
+    // The API route keeps its generic, detail-free 500; the page a person sees
+    // carries the loader's what/why/next.
+    expect((await apiFetch(`${handle.url}/data`)).status).toBe(500);
+    const page = await fetch(`${handle.url}/render`);
+    expect(page.status).toBe(500);
+    const html = await page.text();
+    expect(html).toContain('could not be loaded');
+    expect(html).not.toContain('process.exit');
+
+    expect(exitSpy).not.toHaveBeenCalled();
+
+    rmSync(brokenFlowDir(), { recursive: true, force: true });
+    expect((await apiFetch(`${handle.url}/data`)).status).toBe(200);
+  }, 120_000);
 });
 
 describe('portal loopback server — startServer rejects on a bind failure (port in use)', () => {

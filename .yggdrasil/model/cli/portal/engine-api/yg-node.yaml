@@ -29,7 +29,7 @@ aspects:
   - runcheck-injected-input-parity
   - portal/worklist-mirrors-groups
 max_direct_relations:
-  limit: 23
+  limit: 22
   reason: >-
     Reviewed architectural seam. This node is the portal's SINGLE auditable
     read-only gateway to the engine — its whole purpose is to concentrate the
@@ -54,9 +54,11 @@ max_direct_relations:
     relations/pass.ts's runProjectRelationPass instead of by hand — the extractor
     registry is reached transitively through the cli/relations/core relation this
     facade already declares, so the direct edge was dropped rather than left dead.
+    Lowered from 23 to 22: the graph is loaded through the engine's throwing loader
+    (cli/core/loader, already declared) instead of the command-line preamble, whose
+    failure path exits the process — the portal server must survive a graph that
+    briefly stops loading — so the cli/preamble edge was dropped.
 relations:
-  - target: cli/preamble
-    type: calls
   - target: cli/rules-artifacts
     type: calls
   - target: cli/io/stores
@@ -109,6 +111,7 @@ mapping:
   - source/cli/src/portal/api/suppress-adapt.ts
   - source/cli/src/portal/api/suppress-eligibility.ts
   - source/cli/src/portal/api/suppress-coverage.ts
+  - source/cli/src/portal/api/suppress-format.ts
   - source/cli/src/portal/api/type-coverage.ts
   - source/cli/src/portal/api/freshness.ts
   - source/cli/src/portal/api/source-file-counts.ts

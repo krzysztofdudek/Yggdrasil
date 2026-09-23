@@ -1,24 +1,20 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
-import { type Ignore, type Options as IgnoreOptions } from 'ignore';
-import { toPosix, toPosixPath } from '../utils/posix.js';
+import { toPosixPath } from '../utils/posix.js';
 import { isGlobPattern, globMatch, normalizeMappingPath } from '../utils/mapping-path.js';
-import { findNestedProjectRoots, filterExcludedFromGraph } from '../io/repo-scanner.js';
+import {
+  findNestedProjectRoots,
+  filterExcludedFromGraph,
+  gitignoreStackFor,
+  withLocalGitignore,
+  isIgnoredByStack,
+  type GitignoreEntry,
+} from '../io/repo-scanner.js';
 import type { CoverageConfig } from '../model/graph.js';
 
 export { loadRootGitignoreStack, isIgnoredByStack, walkRepoFiles } from '../io/repo-scanner.js';
 export type { GitignoreEntry } from '../io/repo-scanner.js';
-
-const require = createRequire(import.meta.url);
-const ignoreFactory = require('ignore') as (options?: IgnoreOptions) => Ignore;
-
-type HashPathOptions = {
-  projectRoot?: string;
-};
-
-type GitignoreEntry = { basePath: string; matcher: Ignore };
 
 const CR = 0x0d;
 const LF = 0x0a;
@@ -76,78 +72,6 @@ export async function hashFileRaw(filePath: string): Promise<string> {
   return createHash('sha256').update(content).digest('hex');
 }
 
-export async function hashPath(targetPath: string, options: HashPathOptions = {}): Promise<string> {
-  const projectRoot = options.projectRoot ? path.resolve(options.projectRoot) : undefined;
-  const gitignoreStack = await loadRootGitignoreStack(projectRoot);
-  const targetStat = await stat(targetPath);
-
-  if (targetStat.isFile()) {
-    // Mapped files are always hashed — gitignore only applies to directory scans.
-    return hashFile(targetPath);
-  }
-
-  if (targetStat.isDirectory()) {
-    const fileHashes = await collectDirectoryFileHashes(targetPath, targetPath, {
-      projectRoot,
-      gitignoreStack,
-    });
-    const digestInput = fileHashes
-      .map((entry) => `${entry.path}:${entry.hash}`)
-      .sort()
-      .join('\n');
-    return hashString(digestInput);
-  }
-
-  throw new Error(`Unsupported mapping path type: ${targetPath}`);
-}
-
-async function collectDirectoryFileHashes(
-  directoryPath: string,
-  rootDirectoryPath: string,
-  options: { projectRoot?: string; gitignoreStack?: GitignoreEntry[] },
-): Promise<Array<{ path: string; hash: string }>> {
-  const filePaths = await collectDirectoryFilePaths(directoryPath, rootDirectoryPath, options);
-  const result: Array<{ path: string; hash: string }> = [];
-  for (const entry of filePaths) {
-    result.push({ path: entry.relPath, hash: await hashFile(entry.absPath) });
-  }
-  return result;
-}
-
-async function loadRootGitignoreStack(projectRoot?: string): Promise<GitignoreEntry[]> {
-  if (!projectRoot) return [];
-  try {
-    const content = await readFile(path.join(projectRoot, '.gitignore'), 'utf-8');
-    const matcher = ignoreFactory();
-    matcher.add(content);
-    return [{ basePath: projectRoot, matcher }];
-  } catch {
-    return [];
-  }
-}
-
-function isIgnoredByStack(
-  candidatePath: string,
-  stack: GitignoreEntry[],
-  isDirectory = false,
-): boolean {
-  for (const { basePath, matcher } of stack) {
-    const relativePath = toPosix(path.relative(basePath, candidatePath));
-    if (relativePath === '' || relativePath.startsWith('..')) continue;
-    // Query the bare path always, and the directory form (trailing slash) ONLY
-    // when the candidate is actually a directory. A directory-only .gitignore
-    // pattern (e.g. `build/`) matches git-side only against directories, so
-    // querying `relativePath + '/'` for a FILE would wrongly drop a tracked file
-    // whose name collides with such a pattern (e.g. a file `scripts/build` under
-    // a `build/` rule) — excluding it from the node's hashed subject set and
-    // producing a false green. Real directories are still pruned: the
-    // isDirectory form runs the trailing-slash query for them. Mirrors the C-27
-    // fix in io/repo-scanner.ts's isIgnoredByStack.
-    if (matcher.ignores(relativePath) || (isDirectory && matcher.ignores(relativePath + '/'))) return true;
-  }
-  return false;
-}
-
 /**
  * Defense-in-depth containment guard: true iff `relPath` resolved against
  * `root` stays inside `root`. The node-parser rejects escaping mappings at parse
@@ -169,40 +93,6 @@ export function hashBytes(bytes: Buffer): string {
   return createHash('sha256').update(normalizeLineEndings(bytes)).digest('hex');
 }
 
-/** Compute per-file hashes for a mapping. Used for diagnostics (which files changed). */
-export async function perFileHashes(
-  projectRoot: string,
-  mapping: { paths?: string[] },
-): Promise<Array<{ path: string; hash: string }>> {
-  const root = path.resolve(projectRoot);
-  const paths = mapping.paths ?? [];
-  if (paths.length === 0) return [];
-
-  const result: Array<{ path: string; hash: string }> = [];
-  const gitignoreStack = await loadRootGitignoreStack(root);
-
-  for (const p of paths) {
-    const absPath = path.join(root, p);
-    const st = await stat(absPath);
-    if (st.isFile()) {
-      result.push({ path: toPosixPath(p), hash: await hashFile(absPath) });
-    } else if (st.isDirectory()) {
-      const hashes = await collectDirectoryFileHashes(absPath, absPath, {
-        projectRoot: root,
-        gitignoreStack,
-      });
-      for (const h of hashes) {
-        result.push({
-          path: toPosixPath(path.join(p, h.path)),
-          hash: h.hash,
-        });
-      }
-    }
-  }
-
-  return result;
-}
-
 /**
  * Collect file paths and mtimes from a directory without hashing.
  * Used by expandMappingPaths and pairs/fingerprint computation.
@@ -214,15 +104,10 @@ async function collectDirectoryFilePaths(
   rootDirectoryPath: string,
   options: { projectRoot?: string; gitignoreStack?: GitignoreEntry[] },
 ): Promise<Array<{ relPath: string; absPath: string; mtimeMs: number }>> {
-  let stack = options.gitignoreStack ?? [];
-  try {
-    const localContent = await readFile(path.join(directoryPath, '.gitignore'), 'utf-8');
-    const localMatcher = ignoreFactory();
-    localMatcher.add(localContent);
-    stack = [...stack, { basePath: directoryPath, matcher: localMatcher }];
-  } catch {
-    // No local .gitignore
-  }
+  // The walk descends exactly as the repo walk does (io/repo-scanner.ts): the
+  // caller hands in the stack of every ancestor (see gitignoreStackFor), and
+  // each directory adds its own .gitignore on the way down.
+  const stack = await withLocalGitignore(directoryPath, options.gitignoreStack ?? []);
 
   const entries = await readdir(directoryPath, { withFileTypes: true });
   const dirs: string[] = [];
@@ -270,8 +155,8 @@ async function collectDirectoryFilePaths(
  * Walks from the glob's base directory — the leading path segments BEFORE the
  * first segment containing a glob metachar (if the first segment is already a
  * glob, the base is projectRoot) — and keeps the entries matching the full
- * pattern (minimatch, { dot: true }, segment-aware). Honors .gitignore via the
- * supplied stack. Returns { relPath (POSIX, relative to projectRoot), absPath,
+ * pattern (minimatch, { dot: true }, segment-aware). Honors every .gitignore from
+ * the project root down (see gitignoreStackFor). Returns { relPath (POSIX, relative to projectRoot), absPath,
  * mtimeMs } so callers can both display paths and reuse the mtime without an
  * extra stat. A missing base directory yields an empty list (silent skip).
  *
@@ -281,7 +166,6 @@ async function collectDirectoryFilePaths(
 async function expandGlobEntry(
   projectRoot: string,
   glob: string,
-  gitignoreStack: GitignoreEntry[],
 ): Promise<Array<{ relPath: string; absPath: string; mtimeMs: number }>> {
   const segments = glob.split('/');
   const firstGlobIdx = segments.findIndex((s) => isGlobPattern(s));
@@ -290,7 +174,7 @@ async function expandGlobEntry(
   try {
     const dirEntries = await collectDirectoryFilePaths(baseDir, projectRoot, {
       projectRoot,
-      gitignoreStack,
+      gitignoreStack: await gitignoreStackFor(projectRoot, baseDir),
     });
     return dirEntries
       .filter((entry) => globMatch(entry.relPath, glob))
@@ -319,7 +203,6 @@ export async function expandMappingPaths(
   mappingPaths: string[],
 ): Promise<string[]> {
   const root = path.resolve(projectRoot);
-  const gitignoreStack = await loadRootGitignoreStack(projectRoot);
   const result: string[] = [];
 
   // Every returned path is funneled through the containment guard, so a resolved
@@ -330,7 +213,7 @@ export async function expandMappingPaths(
 
   for (const mp of mappingPaths) {
     if (isGlobPattern(mp)) {
-      const entries = await expandGlobEntry(projectRoot, mp, gitignoreStack);
+      const entries = await expandGlobEntry(projectRoot, mp);
       for (const entry of entries) pushContained(entry.relPath);
     } else {
       // Guard the mapping entry itself before touching the filesystem — an
@@ -342,7 +225,7 @@ export async function expandMappingPaths(
         if (st.isDirectory()) {
           const dirEntries = await collectDirectoryFilePaths(absPath, absPath, {
             projectRoot,
-            gitignoreStack,
+            gitignoreStack: await gitignoreStackFor(projectRoot, absPath),
           });
           for (const entry of dirEntries) {
             pushContained(toPosixPath(path.join(mp, entry.relPath)));

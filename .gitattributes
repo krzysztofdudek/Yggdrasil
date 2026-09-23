@@ -4,3 +4,4 @@ repos/** -text
 /.yggdrasil/advise-decisions.jsonl merge=union
 /.yggdrasil/advise-imported.jsonl merge=union
 /.yggdrasil/yg-events.llm.jsonl merge=union
+/.yggdrasil/**/log.md text eol=lf

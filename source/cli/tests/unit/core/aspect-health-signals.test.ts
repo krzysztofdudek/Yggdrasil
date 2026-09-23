@@ -533,3 +533,31 @@ describe('computeAspectFalsePositiveSignals (fp — refusals later waived or ove
     expect(sig.shrunkRate).toBeCloseTo(betaBinomialShrink(1, 1, 0), 10);
   });
 });
+
+describe('committed drill corpus that was not run here (fresh clone / CI)', () => {
+  // The drill-result telemetry is local and gitignored, so a fresh clone has
+  // none — but the committed violates-* cases are evidence the rule is meant to
+  // catch. They must never read as "no regression drill on record".
+  const decorativeEvents = manyFills('A', 'node:detached', 0, 20);
+  const currentLive = new Map([['A', new Set(['node:live'])]]);
+
+  it('computeDrillStatus reports not-run when refusal cases are committed but no result is on record', () => {
+    expect(computeDrillStatus('A', [], 2)).toBe('not-run');
+    expect(computeDrillStatus('A', [])).toBe('none');
+    // A run result still wins over the bare corpus.
+    expect(computeDrillStatus('A', [passingDrill('A')], 2)).toBe('proves-catch');
+  });
+
+  it('covenantLine says the drills exist but were not run here', () => {
+    expect(covenantLine('not-run')).toContain('regression drills exist but were not run here');
+  });
+
+  it('a committed refusal case blocks the demotion corroboration', () => {
+    const sig = computeAspectHealthSignals(
+      graphOf(aspect('A')),
+      inputs({ verdictEvents: decorativeEvents, currentUnitsByAspect: currentLive, committedViolatesCasesByAspect: new Map([['A', 1]]) }),
+    ).get('A')!;
+    expect(sig.label).toBe('decorative?');
+    expect(sig.demotionCorroborated).toBe(false);
+  });
+});

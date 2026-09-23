@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { mkdtempSync, rmSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { loadGraph } from '../../src/core/graph-loader.js';
 import { runCheck, type CheckResult } from '../../src/core/check.js';
@@ -725,4 +725,44 @@ describe('extractPortalData over a flag-off fixture with an excluded root — ex
       rmSync(dir, { recursive: true, force: true });
     }
   });
+});
+
+// ---------------------------------------------------------------------------
+// The portal and `yg check` read ONE engine result, so they show the same
+// node-owned / excluded split. A node whose directory mapping sweeps in files a
+// coverage.excluded root removes from enforcement: `yg check` prints
+// "5/5 files (1 node-owned, 1 type-covered, 3 excluded)" for this tree (pinned
+// in tests/e2e/cli-type-coverage-lattice.test.ts); the portal must say the same.
+// ---------------------------------------------------------------------------
+describe('portal coverage split equals the check engine on mapped-but-excluded files', () => {
+  it('counts the swept-in excluded files as excluded and lists them by name', async () => {
+    const dir = mkdtempSync(path.join(tmpdir(), 'yg-portal-split-'));
+    try {
+      copyFixtureTree(path.join(__dirname, '..', 'fixtures', 'type-coverage-basic-pass'), dir);
+      const archPath = path.join(dir, '.yggdrasil', 'yg-architecture.yaml');
+      writeFileSync(archPath, readFileSync(archPath, 'utf-8') + '\n  plainnode:\n    description: "Matches src/svcnode/**."\n    when:\n      path: "src/svcnode/**"\n');
+      mkdirSync(path.join(dir, '.yggdrasil', 'model', 'svcnode'), { recursive: true });
+      writeFileSync(path.join(dir, '.yggdrasil', 'model', 'svcnode', 'yg-node.yaml'), 'name: Svcnode\ndescription: x\ntype: plainnode\nmapping:\n  - src/svcnode\n');
+      mkdirSync(path.join(dir, 'src', 'svcnode', 'vendor'), { recursive: true });
+      writeFileSync(path.join(dir, 'src', 'svcnode', 'kept.ts'), 'export const kept = 1;\n');
+      writeFileSync(path.join(dir, 'src', 'svcnode', 'vendor', 'a.ts'), 'export const a = 1;\n');
+      writeFileSync(path.join(dir, 'src', 'svcnode', 'vendor', 'b.ts'), 'export const b = 1;\n');
+      const configPath = path.join(dir, '.yggdrasil', 'yg-config.yaml');
+      writeFileSync(configPath, readFileSync(configPath, 'utf-8').replace('excluded:\n    - vendor/', 'excluded:\n    - vendor/\n    - src/svcnode/vendor/'));
+
+      const graph = await loadGraph(dir);
+      const check = await runCheck(graph, await walkRepoFiles(dir));
+      expect(check.nodeOwnedFiles).toBe(1);
+      expect(check.excludedFiles).toBe(3);
+      expect(check.mappedExcludedFiles?.sort()).toEqual(['src/svcnode/vendor/a.ts', 'src/svcnode/vendor/b.ts']);
+
+      const portal = await extractPortalData(dir, { writeEnabled: false });
+      expect(portal.meta.counts.excludedFiles).toBe(check.excludedFiles);
+      expect(portal.meta.counts.typeCoveredCount).toBe(check.typeCoveredCount);
+      expect(portal.meta.counts.totalFiles).toBe(check.totalFiles);
+      expect([...portal.residue.excludedFiles].sort()).toEqual(['src/svcnode/vendor/a.ts', 'src/svcnode/vendor/b.ts', 'vendor/tool.ts']);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }, 60_000);
 });

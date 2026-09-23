@@ -593,7 +593,7 @@ Source code comments can carry a `yg-suppress` marker to waive a specific aspect
 const data = fs.readFileSync(path, 'utf-8');
 ```
 
-A single-line marker waives **exactly one line — the immediately following line — for every reviewer kind**. There is no contextual or scope inference: the marker never expands to the surrounding function, class, block, or whole file, and never shrinks. The scope is resolved once, deterministically, into a one-line range that both reviewer kinds honor identically:
+A single-line marker waives **exactly one line for every reviewer kind — the immediately following line, or, when the marker's comment trails code on the same line (`x(); // yg-suppress(<aspect-path>) <reason>`), that line itself**. The trailing form applies only in files with a registered grammar; in a raw-scanned file (`.sql`, `.sh`, …) a marker that does not begin its line is not a marker, so put it on its own line there. `yg suppressions` prints the lines every marker actually waives. There is no contextual or scope inference: the marker never expands to the surrounding function, class, block, or whole file, and never shrinks. The scope is resolved once, deterministically, into a one-line range that both reviewer kinds honor identically:
 
 - **Deterministic reviewer:** the `check.mjs` reads the resolved range directly and treats the line inside it as satisfied.
 - **LLM reviewer:** the reviewer receives the pre-resolved spans in its prompt (a `<suppressed-ranges>` block of exact `(start-line, end-line)` pairs into the source files) and is instructed to honor exactly those lines — it does not re-derive the marker's scope, widen it, or narrow it.

@@ -106,6 +106,14 @@ export interface RunFillOptions {
    *  degenerate case that keeps every existing verdict path byte-identical.
    *  Never affects verdicts, only speed. */
   detConcurrency?: number;
+  /** Wall-clock budget for ONE deterministic check, in ms; 0/absent = unbounded.
+   *  Injected from the CLI layer. When set, every deterministic check runs on a
+   *  worker thread (even a fill too small to parallelize), because only a check
+   *  off the main thread can be stopped — and only then can the progress
+   *  heartbeat keep naming the check that is still running. A check past its
+   *  budget is stopped and reported as a runtime error naming the rule and unit;
+   *  nothing is written for it. Never affects a verdict that completes. */
+  detTaskBudgetMs?: number;
   /** INJECTED change scope: which of this run's obligations the current change is
    *  accountable for, resolved by the CLI boundary from git output it read itself
    *  (core reads no git here, exactly as on the read path). Typed off

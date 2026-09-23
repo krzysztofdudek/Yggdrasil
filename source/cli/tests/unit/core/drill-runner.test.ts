@@ -9,6 +9,7 @@ import path from 'node:path';
 import {
   discoverDrillCases,
   filterInCorpusDevDrills,
+  countCommittedViolatesCases,
   runDrills,
   classifyOutcome,
   summarize,
@@ -473,5 +474,23 @@ describe('drill-runner — caseHashOf', () => {
     expect(h1).toBe(h2);
     writeFileSync(path.join(root, rel), 'CHANGED', 'utf-8');
     expect(await caseHashOf([rel], root)).not.toBe(h1);
+  });
+});
+
+describe('countCommittedViolatesCases', () => {
+  it('counts the refusal-expecting cases each aspect has on disk, and omits aspects with none', async () => {
+    const root = stageCorpus('a', {
+      'violates-one/x.ts': 'bad',
+      'violates-two/y.ts': 'bad',
+      'satisfies-ok/z.ts': 'good',
+    });
+    try {
+      mkdirSync(path.join(root, '.yggdrasil', 'aspects', 'b', 'drills', 'satisfies-only'), { recursive: true });
+      writeFileSync(path.join(root, '.yggdrasil', 'aspects', 'b', 'drills', 'satisfies-only', 'k.ts'), 'good');
+      const counts = await countCommittedViolatesCases(['a', 'b', 'c'], root);
+      expect([...counts.entries()]).toEqual([['a', 2]]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 });

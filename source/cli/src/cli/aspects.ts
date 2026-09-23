@@ -38,7 +38,7 @@ import { collectMappingEntries, collectTypeCoveredFiles } from '../portal/api/su
 import { getFirstCommitTimestamp } from '../utils/git.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import { readDrillResults } from '../io/drill-results-reader.js';
-import { filterInCorpusDevDrills, discoverDrillCases } from '../core/drill-runner.js';
+import { filterInCorpusDevDrills, discoverDrillCases, countCommittedViolatesCases } from '../core/drill-runner.js';
 import type { DrillResultLine } from '../io/drill-results-store.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { countWrongRuleIncidentsByAspect } from '../io/incidents-store.js';
@@ -1041,14 +1041,18 @@ async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<st
 
   const currentUnitsByAspect = groupUnitsByAspect(verification.pairs.map((vp) => vp.pair));
   const suppressCountsByAspect = countSuppressesByAspect(suppressReport);
+  // Committed refusal cases: drill evidence a fresh clone has even with no local
+  // drill telemetry (read-only listing of the corpus; never runs a case).
+  const committedViolatesCasesByAspect = await countCommittedViolatesCases(graph.aspects.map((a) => a.id), projectRoot);
   const signals = computeAspectHealthSignals(graph, {
     verdictEvents,
     drillResults,
     currentUnitsByAspect,
     suppressCountsByAspect,
+    committedViolatesCasesByAspect,
   });
   const drillStatuses = new Map<string, DrillStatus>(
-    graph.aspects.map((a) => [a.id, computeDrillStatus(a.id, drillResults)]),
+    graph.aspects.map((a) => [a.id, computeDrillStatus(a.id, drillResults, committedViolatesCasesByAspect.get(a.id) ?? 0)]),
   );
 
   // The fp (false-block) signal: past refusals (union event stream) joined against

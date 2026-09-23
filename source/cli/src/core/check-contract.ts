@@ -108,12 +108,23 @@ export interface CheckResult {
    */
   nodeOwnedFiles?: number;
   /**
-   * Uncovered files under a `coverage.excluded` root — the ones
-   * `partitionByCoverageTier` drops silently. `coveredFiles ===
+   * Files the graph excludes from enforcement: uncovered files under a
+   * `coverage.excluded` root (the ones `partitionByCoverageTier` drops
+   * silently) plus `mappedExcludedFiles` below. `coveredFiles ===
    * nodeOwnedFiles + excludedFiles` always holds; its own field (not derived
    * at render time) so a rendering bug can never go negative/inconsistent.
    */
   excludedFiles?: number;
+  /**
+   * Files a node mapping names (directory, glob or exact entry) that the
+   * graph nevertheless excludes — a nested project's own boundary, or a
+   * `coverage.excluded` root inside a mapped directory. No pair, fingerprint or
+   * rule ever covers them, so runCheck counts them in `excludedFiles`, never in
+   * `nodeOwnedFiles`, and every surface reading this result (the CLI header,
+   * the fill report, the portal) shows the same split. Set only when the
+   * flag-gated split is computed (`typeLevel`); POSIX, repo-relative.
+   */
+  mappedExcludedFiles?: string[];
   /** Per-file type-tier enforcement report. Undefined at flag-off. */
   typeVisibility?: TypeVisibilityReport;
   /**

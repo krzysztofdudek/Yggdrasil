@@ -11,10 +11,10 @@ import type { CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
-import { detConcurrencyForThisMachine } from './det-concurrency.js';
+import { detConcurrencyForThisMachine, detTaskBudgetMs } from './det-concurrency.js';
 import { getHeadSha } from '../utils/git.js';
 import { sweepStaleTempFiles } from '../io/atomic-write.js';
-import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import { walkRepoFiles, listGitTrackedFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { runSuppressionsScan, reasonlessMarkerMessage } from '../portal/api/suppress-scan.js';
 import { collectMappingEntries, isMappedSource } from '../portal/api/suppress-eligibility.js';
 import type { YggConfig, Graph } from '../model/graph.js';
@@ -92,32 +92,6 @@ export function isCiEnvironment(env: Readonly<Record<string, string | undefined>
   if (v === undefined) return false;
   const norm = v.trim().toLowerCase();
   return norm !== '' && norm !== '0' && norm !== 'false';
-}
-
-/**
- * Correct `CheckResult.nodeOwnedFiles`/`excludedFiles` in place before the
- * header renders. `runCheck`'s own split decides "node-owned" by whether a
- * mapping entry TEXTUALLY matches a file — the same test `scanUncoveredFiles`
- * uses to decide "covered" — so a file a directory or glob entry sweeps in
- * but the graph excludes (a nested project's own boundary, or a
- * `coverage.excluded` root) is counted node-owned even though nothing
- * enforces it: no pair, no fingerprint contribution, no rule ever runs on it.
- * Moving that count out of node-owned and into excluded here is the ONE
- * place an adopter reading the header sees the truth `yg context --node` and
- * `yg owner --file` already report for the same files. The scan below (`countMappedButExcludedFiles`)
- * is skipped only when the flag-gated split isn't even rendered (`result.typeLevel` false) or there
- * is nothing to count (`result.totalFiles === 0`) — on every OTHER flag-on run it always runs,
- * whether or not it finds anything to move; only the correction that follows it (moving the count
- * from `nodeOwnedFiles` into `excludedFiles`) is skipped when the count comes back zero. Cheap
- * either way — `findNestedProjectRoots` is memoised per root and `walkRepoFiles` already warmed it
- * earlier in the same command.
- */
-async function applyHonestCoverageSplit(result: CheckResult, graph: Graph, coverageVisibleFiles: string[]): Promise<void> {
-  if (!result.typeLevel || result.totalFiles === 0) return;
-  const mappedExcluded = await countMappedButExcludedFiles(graph, coverageVisibleFiles);
-  if (mappedExcluded === 0) return;
-  result.nodeOwnedFiles = (result.nodeOwnedFiles ?? 0) - mappedExcluded;
-  result.excludedFiles = (result.excludedFiles ?? 0) + mappedExcluded;
 }
 
 /**
@@ -594,6 +568,7 @@ export function registerCheckCommand(program: Command): void {
               // worker carries its own copy of the graph and its own ASTs. See
               // cli/det-concurrency.ts.
               detConcurrency: detConcurrencyForThisMachine(),
+              detTaskBudgetMs: detTaskBudgetMs(),
               // The dry-run budget preview is the command's RESULT on that path,
               // so it goes to stdout — except under --json, where stdout carries
               // the document alone and the preview joins the progress on stderr.
@@ -625,7 +600,6 @@ export function registerCheckCommand(program: Command): void {
               divergenceWrite: (text) => { writeFillDivergence(graph.rootPath, text); },
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
-            await applyHonestCoverageSplit(fill.checkResult, graph, repoFiles);
             await appendReasonlessSuppressWarnings(fill.checkResult, graph, projectRoot, repoFiles);
             process.stdout.write(
               asJson
@@ -687,7 +661,6 @@ export function registerCheckCommand(program: Command): void {
           // becomes its non-blocking counterpart — still named, still counted.
           changeScope: changeScope,
         });
-        await applyHonestCoverageSplit(result, graph, repoFiles);
         await appendReasonlessSuppressWarnings(result, graph, projectRoot, repoFiles);
         process.stdout.write(asJson ? formatCheckJson(buildCheckJson(result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
 

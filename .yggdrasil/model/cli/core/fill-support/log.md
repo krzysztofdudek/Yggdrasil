@@ -8,3 +8,7 @@ The fill stage can now be handed the measurement of the current change, so what 
 The fill options gain one more CLI-resolved value alongside the existing tracked-file list and change scope: the commit the run executes at, so the verdict writer can stamp it on what it fills without the engine ever calling git itself.
 ## [2026-09-23T19:41:26.111Z]
 The fill's public options now carry the command the run was invoked as. Retry lines used to hard-code a plain approve, which silently widened a free deterministic-only run or a cost preview into a paid full run — or into one certain to stop — whenever someone followed the advice literally.
+## [2026-09-23T20:24:48.589Z]
+With a per-check budget every deterministic check runs on a worker thread, even for a fill too small to parallelize, because only a check off the main thread can be stopped and only then can the progress heartbeat keep naming the check still running.
+## [2026-09-23T22:12:16.044Z]
+The environment-robustness fixes and the release work already merged met in this component: the fill options now carry a per-check wall-clock budget injected by the CLI layer, next to the options the release added before. The merged source carries both behaviours.

@@ -1,0 +1,7 @@
+name: E2E Tests — A reader that closes the output pipe
+type: test-suite
+description: "Subprocess E2E for a reader that closes its end of yg's output pipes before yg writes anything (the `| head` habit). The run must not die on EPIPE: a deterministic fill still persists every verdict and exits with its own code, and `check --json` into a closed pipe exits with the check result, never a write error."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-closed-pipe.test.ts

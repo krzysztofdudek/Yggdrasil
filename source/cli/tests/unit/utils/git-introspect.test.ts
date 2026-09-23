@@ -7,6 +7,7 @@ import {
   getMergeParents,
   getMergeBase,
   getFileAtRef,
+  readFileAtCommit,
   isMergeCommit,
   changedFilesAgainst,
   parsePorcelainZ,
@@ -808,5 +809,38 @@ describe('pathExistsAtRef', () => {
   it('returns null when repoCwd is not a git repository', async () => {
     const dir = await makeNonGitDir();
     expect(await pathExistsAtRef(dir, 'HEAD', 'a.txt')).toBeNull();
+  });
+});
+
+describe('reading a file at a ref from a graph below the git root', () => {
+  // A graph in a monorepo package runs git with cwd = the package directory and
+  // passes paths relative to it; `git show <ref>:<path>` resolves from the
+  // repository root unless the path is written `./<path>`.
+  async function subdirRepo(): Promise<{ repo: string; sub: string; sha: string }> {
+    const repo = await mkdtemp(path.join(tmpdir(), 'yg-git-sub-'));
+    dirs.push(repo);
+    const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+    r('git init -q -b main');
+    r('git config user.email t@t.test');
+    r('git config user.name Test');
+    await mkdir(path.join(repo, 'app', 'src'), { recursive: true });
+    await writeFile(path.join(repo, 'app', 'src', 'a.ts'), 'export const a = 1;\n');
+    r('git add -A && git commit -qm one');
+    const sha = execSync('git rev-parse HEAD', { cwd: repo, env: gitFixtureEnv(repo) }).toString().trim();
+    return { repo, sub: path.join(repo, 'app'), sha };
+  }
+
+  it('getFileAtRef reads a cwd-relative path', async () => {
+    const { sub } = await subdirRepo();
+    expect(await getFileAtRef(sub, 'HEAD', 'src/a.ts')).toBe('export const a = 1;\n');
+    expect(await getFileAtRef(sub, 'HEAD', 'src/missing.ts')).toBe('');
+  });
+
+  it('readFileAtCommit reads a cwd-relative path', async () => {
+    const { sub, sha } = await subdirRepo();
+    const at = await readFileAtCommit(sub, sha, 'src/a.ts');
+    expect(at.kind).toBe('found');
+    if (at.kind === 'found') expect(at.content).toBe('export const a = 1;\n');
+    expect((await readFileAtCommit(sub, sha, 'src/missing.ts')).kind).toBe('not-at-commit');
   });
 });

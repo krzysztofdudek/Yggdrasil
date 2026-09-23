@@ -13,17 +13,15 @@ import { tmpdir } from 'node:os';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { mkdtempSync, rmSync, writeFileSync, mkdirSync } from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
 
 import {
   hashFile,
   hashString,
   hashBytes,
-  hashPath,
-  perFileHashes,
   expandMappingPaths,
   expandMappingPathsWithinOwnGraph,
   normalizeLineEndings,
+  walkRepoFiles,
 } from '../../../src/io/hash.js';
 import { runGitFixture } from '../../support/git-fixture.js';
 import { readFileBytes, listDirEntries, statKind, probeUnreadable } from '../../../src/io/graph-fs.js';
@@ -101,93 +99,6 @@ describe('line-ending-insensitive content hashing', () => {
   it('normalizeLineEndings rewrites CRLF and lone CR to LF', () => {
     expect(normalizeLineEndings(Buffer.from('a\r\nb\rc', 'utf8')))
       .toEqual(Buffer.from('a\nb\nc', 'utf8'));
-  });
-});
-
-describe('hashPath', () => {
-  it('hashes a single FILE (gitignore does not apply to a directly-named file)', async () => {
-    const root = await tmpTree({ 'src/x.ts': 'export const x = 1;\n', '.gitignore': 'src/x.ts\n' });
-    const h = await hashPath(path.join(root, 'src', 'x.ts'), { projectRoot: root });
-    expect(h).toBe(await hashFile(path.join(root, 'src', 'x.ts')));
-  });
-
-  it('hashes a DIRECTORY as a stable fold over its files', async () => {
-    const root = await tmpTree({ 'src/a.ts': 'a\n', 'src/b.ts': 'b\n' });
-    const h1 = await hashPath(path.join(root, 'src'), { projectRoot: root });
-    // Re-hashing the same tree yields the same digest (order-independent fold).
-    const h2 = await hashPath(path.join(root, 'src'), { projectRoot: root });
-    expect(h1).toBe(h2);
-    // Changing a file changes the directory hash.
-    await writeFile(path.join(root, 'src', 'a.ts'), 'a-changed\n');
-    expect(await hashPath(path.join(root, 'src'), { projectRoot: root })).not.toBe(h1);
-  });
-
-  it('directory hashing honors a root .gitignore (ignored files do not contribute)', async () => {
-    const root = await tmpTree({ 'src/keep.ts': 'k\n', 'src/skip.log': 'noise\n', '.gitignore': '*.log\n' });
-    const withLog = await hashPath(path.join(root, 'src'), { projectRoot: root });
-    // Mutating the ignored file must NOT change the directory hash.
-    await writeFile(path.join(root, 'src', 'skip.log'), 'different noise\n');
-    expect(await hashPath(path.join(root, 'src'), { projectRoot: root })).toBe(withLog);
-  });
-
-  it('hashPath with no projectRoot still hashes a directory (no gitignore stack)', async () => {
-    // Known-value: the directory contains exactly one file 'one.ts' with content '1\n'.
-    // hashPath folds per-file hashes as "<relPath>:<sha256>" sorted then sha256 of that.
-    // relPath is relative to the directory root, so "one.ts".
-    const content = '1\n';
-    const root = await tmpTree({ 'd/one.ts': content });
-    const fileHash = createHash('sha256').update(Buffer.from(content, 'utf8')).digest('hex');
-    const foldInput = `one.ts:${fileHash}`;
-    const expectedHash = createHash('sha256').update(foldInput).digest('hex');
-    const h = await hashPath(path.join(root, 'd'));
-    expect(h).toBe(expectedHash);
-  });
-
-  it('rejects with a system error (ENOENT) when the target path does not exist', async () => {
-    const root = await tmpTree({});
-    const missing = path.join(root, 'does-not-exist');
-    await expect(hashPath(missing)).rejects.toMatchObject({
-      code: 'ENOENT',
-    });
-  });
-
-  it('rejects with "Unsupported mapping path type" when stat() succeeds but the entry is neither a file nor a directory', async () => {
-    // A FIFO is a real, portable (CI is Linux-only) way to reach the guard: stat()
-    // succeeds (it exists), but isFile() and isDirectory() are both false.
-    const root = await tmpTree({});
-    const fifoPath = path.join(root, 'a.fifo');
-    execFileSync('mkfifo', [fifoPath]);
-    await expect(hashPath(fifoPath)).rejects.toThrow(/Unsupported mapping path type/);
-  });
-});
-
-describe('perFileHashes', () => {
-  it('returns [] for an empty mapping', async () => {
-    const root = await tmpTree({ 'a.ts': 'a\n' });
-    expect(await perFileHashes(root, { paths: [] })).toEqual([]);
-    expect(await perFileHashes(root, {})).toEqual([]);
-  });
-
-  it('hashes a FILE mapping entry', async () => {
-    const root = await tmpTree({ 'src/a.ts': 'a\n' });
-    const out = await perFileHashes(root, { paths: ['src/a.ts'] });
-    expect(out).toHaveLength(1);
-    expect(out[0].path).toBe('src/a.ts');
-    expect(out[0].hash).toBe(await hashFile(path.join(root, 'src', 'a.ts')));
-  });
-
-  it('expands a DIRECTORY mapping entry to per-file hashes (POSIX paths)', async () => {
-    const root = await tmpTree({ 'src/a.ts': 'a\n', 'src/sub/b.ts': 'b\n' });
-    const out = await perFileHashes(root, { paths: ['src'] });
-    const paths = out.map((o) => o.path).sort();
-    expect(paths).toEqual(['src/a.ts', 'src/sub/b.ts']);
-  });
-
-  it('silently skips a mapping entry that is neither a file nor a directory (e.g. a FIFO)', async () => {
-    const root = await tmpTree({ 'src/a.ts': 'a\n' });
-    execFileSync('mkfifo', [path.join(root, 'a.fifo')]);
-    const out = await perFileHashes(root, { paths: ['src/a.ts', 'a.fifo'] });
-    expect(out.map((o) => o.path)).toEqual(['src/a.ts']);
   });
 });
 
@@ -570,5 +481,45 @@ describe('probeUnreadable', () => {
     const msg = await probeUnreadable(path.join(dir, 'nope.txt'));
     expect(msg).not.toBeNull();
     expect(msg).toMatch(/ENOENT|no such file/i);
+  });
+});
+
+describe('a .gitignore between the repo root and a mapped directory is honoured', () => {
+  // The mapping walk and the repo walk (coverage) must agree on which files
+  // exist: a .gitignore in an ANCESTOR of the mapped directory (strictly below
+  // the root) applies to the mapped files exactly as git applies it.
+  it('a directory mapping below a nested .gitignore drops the ignored files', async () => {
+    const root = await tmpTree({
+      'src/.gitignore': '*.gen.ts\n',
+      'src/app/x.gen.ts': 'generated\n',
+      'src/app/y.ts': 'y\n',
+    });
+    expect(await expandMappingPaths(root, ['src/app'])).toEqual(['src/app/y.ts']);
+    // Same answer whether the mapping is the parent or the child directory.
+    expect((await expandMappingPaths(root, ['src'])).filter((p) => p.startsWith('src/app/'))).toEqual(['src/app/y.ts']);
+  });
+
+  it('a glob mapping below a nested .gitignore drops the ignored files', async () => {
+    const root = await tmpTree({
+      'src/.gitignore': '*.gen.ts\n',
+      'src/app/x.gen.ts': 'generated\n',
+      'src/app/y.ts': 'y\n',
+    });
+    expect(await expandMappingPaths(root, ['src/app/**/*.ts'])).toEqual(['src/app/y.ts']);
+  });
+
+  it('agrees with the repo walk that coverage uses', async () => {
+    const root = await tmpTree({
+      '.gitignore': 'tmp/\n',
+      'pkg/.gitignore': 'out/\n',
+      'pkg/lib/.gitignore': '!keep.ts\n*.ts\n',
+      'pkg/lib/out/a.js': 'a\n',
+      'pkg/lib/b.ts': 'b\n',
+      'pkg/lib/c.js': 'c\n',
+      'pkg/lib/tmp/d.js': 'd\n',
+    });
+    const walked = (await walkRepoFiles(root)).filter((p) => p.startsWith('pkg/lib/')).sort();
+    expect((await expandMappingPaths(root, ['pkg/lib'])).sort()).toEqual(walked);
+    expect(walked).toEqual(['pkg/lib/.gitignore', 'pkg/lib/c.js']);
   });
 });

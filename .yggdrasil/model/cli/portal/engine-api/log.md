@@ -123,3 +123,9 @@ The per-node freshness marker claimed a recorded baseline always means a reviewe
 The suppression scan's report gained two fields, a per-disable-marker resolved span and a structured form of every warning with a stable code, built from the same disable/enable pairing and classification loops the scan already runs rather than a second pass. This lets a consumer render the waiver inventory as a machine-readable document without re-deriving facts the scan already computed.
 ## [2026-09-23T19:41:28.056Z]
 The suppression inventory now warns about a marker with no reason, and skips parsing files that contain no marker token, which keeps the same scan cheap enough for the check to run over every mapped source and surface the defect when the marker is written.
+## [2026-09-23T20:25:06.341Z]
+The portal loads the graph through the engine's throwing loader instead of the command-line preamble, whose failure path exits the process. An ordinary edit that briefly breaks the graph must fail one request, not end the server that is watching the graph.
+## [2026-09-23T22:12:20.853Z]
+The environment-robustness fixes and the release work already merged met in this component: the portal loads the graph with the throwing loader and keeps running when the graph stops loading mid-session, the suppressions inventory prints the lines each marker actually waives including trailing markers, and the scan still reports markers without a reason as the release made it do. The merged source carries both behaviours.
+## [2026-09-23T22:17:02.980Z]
+The yg suppressions text rendering moved out of the scan module into its own file in the same facade. Merging the robustness work, which taught the inventory to print the lines each marker waives, into the release that added reason-less marker reporting pushed the scan module past the portal backend file-size cap; the rendering is a separate concern from the scan, and the scan module re-exports it so every caller keeps its import.

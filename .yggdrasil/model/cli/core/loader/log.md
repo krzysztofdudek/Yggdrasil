@@ -82,9 +82,13 @@ Rules installed from another repository are read with their package's manifest i
 A schema violation in the architecture file, such as an unknown key, was described as a YAML syntax error, sending readers hunting for indentation in a file that parses fine. Syntax errors and schema violations now get their own explanation and fix, the latter pointing at the schema reference.
 ## [2026-09-23T20:03:29.421Z]
 A missing model directory now loads as an empty graph instead of failing as if the graph were not initialized. Git does not track empty directories, so a graph committed right after initialization, before its first component, reaches every clone without that directory; every command in the clone then told the user to initialize, and initializing refused because a graph was already there. The graph root and its configuration decide whether a project is initialized; an absent model directory only means there are no components yet.
+## [2026-09-23T20:24:51.325Z]
+The loader gains a throwing variant that diagnoses every failure an adopter can fix into a what, why and next. Long-lived callers such as the portal server need to survive a graph that briefly stops loading; only the command-line wrapper prints and exits.
 ## [2026-09-23T20:30:58.655Z]
 A rule of the repository's own placed under the reserved packages area is now reported by name as reserved rather than silently skipped, because the only other symptom was an undefined-rule error wherever it was attached, with no hint why.
 ## [2026-09-23T21:24:57.292Z]
 Two independent release fixes met in this component at merge: the gate-clarity work and the documentation-consistency work. The merged source carries both behaviours unchanged; this entry records that the combination is what the verdicts now answer for.
 ## [2026-09-23T21:31:04.166Z]
 The package-system fixes and the already merged gate-clarity and documentation-consistency fixes met in this component at merge. The merged source carries both sets of behaviour unchanged; this entry records that the combination is what the verdicts now answer for.
+## [2026-09-23T22:12:16.602Z]
+The environment-robustness fixes and the release work already merged met in this component. Every failure an adopter can fix is now classified here and thrown as a GraphLoadError, so the long-lived portal server fails one request instead of exiting; the release's earlier rule that an absent model directory is an empty graph came with it, so no generic 'does not exist' error is diagnosed as an uninitialized graph any more. The merged source carries both behaviours.

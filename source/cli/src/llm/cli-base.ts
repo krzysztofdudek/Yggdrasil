@@ -1,5 +1,6 @@
-import { spawn } from 'node:child_process';
+import { spawn, type ChildProcess } from 'node:child_process';
 import { tmpdir } from 'node:os';
+import path from 'node:path';
 import type { LlmProvider, AspectResponse } from './types.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { probeBinary } from '../utils/binary-check.js';
@@ -184,6 +185,74 @@ export function parseAspectResponse(output: string): AspectResponse | undefined 
 // keep yg check waiting before it is force-killed.
 const SIGKILL_GRACE_MS = 5_000;
 
+/**
+ * Whether a reviewer binary can only be started through a shell: an npm-installed
+ * CLI on Windows is a `.cmd` shim (`claude.cmd`, `codex.cmd`, `gemini.cmd`), which
+ * a bare process spawn cannot launch — the same reason the availability probe
+ * (utils/binary-check.ts) runs through a shell there. A bare name on Windows is
+ * resolved by the shell through PATHEXT; an `.exe` or any POSIX binary is spawned
+ * directly.
+ */
+export function needsShellToSpawn(binary: string, platform: NodeJS.Platform = process.platform): boolean {
+  if (/\.(cmd|bat)$/i.test(binary)) return true;
+  return platform === 'win32' && path.extname(binary) === '';
+}
+
+/** A model name safe to pass as an argument when the reviewer starts through a shell. */
+const SHELL_SAFE_MODEL = /^[A-Za-z0-9._:-]+$/;
+
+/**
+ * Reviewer process groups still running. On POSIX each reviewer is spawned as the
+ * leader of its own process group, so a timeout can end everything it started (a
+ * helper process that inherited its pipes would otherwise keep the call open).
+ * The flip side is that a terminal's Ctrl-C no longer reaches those groups, so an
+ * interrupt of this process ends them first, then takes its default course.
+ */
+const liveReviewerGroups = new Set<number>();
+
+function endReviewerGroups(): void {
+  for (const pid of liveReviewerGroups) {
+    try { process.kill(-pid, 'SIGTERM'); } catch { /* already gone */ }
+  }
+  liveReviewerGroups.clear();
+}
+
+function onInterrupt(signal: NodeJS.Signals): void {
+  endReviewerGroups();
+  process.removeListener('SIGINT', onInterrupt);
+  process.removeListener('SIGTERM', onInterrupt);
+  process.kill(process.pid, signal);
+}
+
+function trackReviewerGroup(child: ChildProcess): void {
+  if (process.platform === 'win32' || child.pid === undefined) return;
+  if (liveReviewerGroups.size === 0) {
+    process.on('SIGINT', onInterrupt);
+    process.on('SIGTERM', onInterrupt);
+    process.once('exit', endReviewerGroups);
+  }
+  liveReviewerGroups.add(child.pid);
+  child.once('exit', () => {
+    if (child.pid !== undefined) liveReviewerGroups.delete(child.pid);
+    if (liveReviewerGroups.size === 0) {
+      process.removeListener('SIGINT', onInterrupt);
+      process.removeListener('SIGTERM', onInterrupt);
+      process.removeListener('exit', endReviewerGroups);
+    }
+  });
+}
+
+/** Signal the reviewer's whole process group (POSIX), falling back to the child alone. */
+function killReviewer(child: ChildProcess, signal: NodeJS.Signals): void {
+  if (process.platform !== 'win32' && child.pid !== undefined) {
+    try {
+      process.kill(-child.pid, signal);
+      return;
+    } catch { /* the group is gone — signal the child itself */ }
+  }
+  child.kill(signal);
+}
+
 export abstract class CliAgentProvider implements LlmProvider {
   protected model: string;
   protected timeout: number;
@@ -205,10 +274,11 @@ export abstract class CliAgentProvider implements LlmProvider {
   protected get extraEnv(): Record<string, string> { return {}; }
   /**
    * Whether the binary must be started through a shell: a Windows `.cmd`/`.bat` shim cannot be
-   * spawned directly. A provider that says yes passes only fixed flags and validated values as
-   * arguments, and the prompt on stdin, so nothing a repository wrote reaches the shell.
+   * spawned directly (see needsShellToSpawn). Through a shell, the arguments are fixed flags plus
+   * the model name — checked in verifyAspect before it can reach the shell — and the prompt goes
+   * on stdin, so nothing a repository wrote reaches the shell.
    */
-  protected get spawnShell(): boolean { return false; }
+  protected get spawnShell(): boolean { return needsShellToSpawn(this.binary); }
 
   /**
    * How to get this provider's CLI, for the unavailable reason — e.g. the npm
@@ -243,16 +313,34 @@ export abstract class CliAgentProvider implements LlmProvider {
 
   async verifyAspect(prompt: string): Promise<AspectResponse> {
     const failed = (reason: string): AspectResponse => ({ satisfied: false, reason, errorSource: 'provider' });
+    const shell = this.spawnShell;
+    if (shell && !SHELL_SAFE_MODEL.test(this.model)) {
+      return failed(`${this.binary} model '${this.model}' is not a model name (letters, digits, '.', '_', ':' and '-' only)`);
+    }
 
     return new Promise((resolve) => {
       const args = this.stdinMode ? this.buildArgs('') : this.buildArgs(prompt);
-      const child = spawn(this.binary, args, {
-        shell: this.spawnShell,
-        stdio: ['pipe', 'pipe', 'pipe'],
-        timeout: this.timeout,
-        cwd: tmpdir(),
-        env: { ...process.env, ...this.extraEnv },
-      });
+      let child: ChildProcess & { stdin: NonNullable<ChildProcess['stdin']>; stdout: NonNullable<ChildProcess['stdout']>; stderr: NonNullable<ChildProcess['stderr']> };
+      try {
+        child = spawn(this.binary, args, {
+          shell,
+          stdio: ['pipe', 'pipe', 'pipe'],
+          timeout: this.timeout,
+          cwd: tmpdir(),
+          env: { ...process.env, ...this.extraEnv },
+          // Its own process group on POSIX, so the timeout below can end
+          // everything the reviewer started (see killReviewer).
+          detached: process.platform !== 'win32',
+        }) as typeof child;
+      } catch (err) {
+        // A spawn can also fail synchronously (an argument the OS rejects);
+        // that is the same provider failure as an asynchronous spawn error.
+        const msg = `'${this.binary}' could not be started (${err instanceof Error ? err.message : String(err)}) — ${this.installHint}`;
+        debugWrite(`[${this.binary}] spawn threw: ${msg}`);
+        resolve(failed(msg));
+        return;
+      }
+      trackReviewerGroup(child);
 
       let stdout = '';
       let stderr = '';
@@ -274,15 +362,16 @@ export abstract class CliAgentProvider implements LlmProvider {
       const timer = setTimeout(() => {
         killed = true;
         debugWrite(`[${this.binary}] timeout after ${this.timeout}ms; stderr tail: ${redactSecrets(stderr.slice(-500))}`);
-        child.kill('SIGTERM');
+        killReviewer(child, 'SIGTERM');
         // Escalate: a child that ignores SIGTERM would otherwise hang yg check
         // indefinitely. Give it a short grace period, then force SIGKILL so the
         // reviewer call always terminates.
         sigkillTimer = setTimeout(() => {
           debugWrite(`[${this.binary}] still alive ${SIGKILL_GRACE_MS}ms after SIGTERM; sending SIGKILL`);
-          child.kill('SIGKILL');
+          killReviewer(child, 'SIGKILL');
           // A grandchild that inherited the pipes can hold them open after the
-          // child itself is gone, so 'close' may never come: answer now.
+          // child itself is gone (outside the group, or on Windows), so 'close'
+          // may never come: answer now.
           settle(timedOut());
         }, SIGKILL_GRACE_MS);
       }, this.timeout);
@@ -320,6 +409,14 @@ export abstract class CliAgentProvider implements LlmProvider {
         settle(parseAspectResponse(stdout) ?? failed(this.describeFailure('exited 0 without a verdict', stderr, '')));
       });
 
+      // A reviewer that exits without reading its prompt (an expired login, a
+      // rejected flag) closes the pipe under this write: EPIPE. Without a
+      // listener that is an unhandled 'error' that kills the whole run; with it,
+      // the child's exit settles the call through 'close' as a provider failure
+      // that carries what the CLI printed.
+      child.stdin.on('error', (err) => {
+        debugWrite(`[${this.binary}] stdin: ${err.message} — the reviewer exited before reading the prompt`);
+      });
       if (this.stdinMode) {
         child.stdin.write(prompt);
         child.stdin.end();

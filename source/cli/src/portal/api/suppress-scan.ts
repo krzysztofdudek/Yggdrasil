@@ -1,6 +1,5 @@
 import { readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
-import chalk from 'chalk';
 import { scanSuppressionMarkers, scanSuppressionMarkersInComments } from '../../ast/suppress.js';
 import type { SuppressionMarkerInfo } from '../../ast/suppress.js';
 import { withParsedFile } from '../../ast/parser.js';
@@ -347,49 +346,12 @@ export async function runSuppressionsScan(
 }
 
 // ── Output formatting ─────────────────────────────────────
+//
+// `formatSuppressionsOutput` (report → the `yg suppressions` text inventory) lives in
+// `./suppress-format.js`, split out to keep this file within its own size boundary; re-exported
+// here so every existing caller of this module's public surface keeps working unchanged.
 
-export function formatSuppressionsOutput(report: SuppressionsReport): string {
-  const lines: string[] = [];
-
-  if (report.fileEntries.length === 0) {
-    lines.push('No active suppression markers found.');
-    return lines.join('\n') + '\n';
-  }
-
-  // Inventory section
-  lines.push('Active suppression markers:');
-  lines.push('');
-
-  for (const { file, markers } of report.fileEntries) {
-    lines.push(`  ${file}`);
-    for (const m of markers) {
-      const wildcardTag = m.wildcard ? chalk.yellow(' [wildcard]') : '';
-      // A file-head unclosed disable renders as the sanctioned whole-file form.
-      const isFileLevel = report.fileLevelKeys?.has(`${file}:${m.line}`) ?? false;
-      const kindTag = isFileLevel ? 'file-level' : m.kind === 'single' ? 'single' : m.kind === 'disable' ? 'disable' : 'enable';
-      const reasonPart = m.reason ? `  — ${m.reason}` : '';
-      lines.push(`    line ${m.line}: ${kindTag}(${m.aspectId})${wildcardTag}${reasonPart}`);
-    }
-    lines.push('');
-  }
-
-  // Tally
-  const fileCount = report.fileEntries.length;
-  lines.push(`Total: ${report.totalMarkers} marker${report.totalMarkers === 1 ? '' : 's'} across ${fileCount} file${fileCount === 1 ? '' : 's'}.`);
-
-  // Warnings
-  if (report.warnings.length > 0) {
-    lines.push('');
-    lines.push(chalk.yellow(`Warnings (${report.warnings.length}):`));
-    for (const w of report.warnings) {
-      // Indent each line of the warning message
-      const indented = w.split('\n').map(l => `  ${l}`).join('\n');
-      lines.push(chalk.yellow(indented));
-    }
-  }
-
-  return lines.join('\n') + '\n';
-}
+export { formatSuppressionsOutput } from './suppress-format.js';
 
 // ── Portal adaptation ─────────────────────────────────────
 //

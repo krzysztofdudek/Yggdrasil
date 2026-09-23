@@ -85,7 +85,7 @@ export interface AspectHealthSignal {
 }
 
 /** Drill evidence for one aspect's ability to still catch a violation. */
-export type DrillStatus = 'none' | 'proves-catch' | 'miss';
+export type DrillStatus = 'none' | 'proves-catch' | 'miss' | 'not-run';
 
 /** Plain-data telemetry + graph-derived inputs the signal needs (all resolved at the CLI boundary). */
 export interface AspectHealthSignalInputs {
@@ -97,6 +97,13 @@ export interface AspectHealthSignalInputs {
   currentUnitsByAspect: Map<string, Set<string>>;
   /** Live non-wildcard suppress-marker counts per aspect (aspectId → count). */
   suppressCountsByAspect: Map<string, number>;
+  /**
+   * Refusal-expecting (`violates-*`) drill cases committed in each aspect's
+   * corpus (aspectId → count; absent ⇒ 0). The drill-result telemetry is local
+   * and gitignored, so a fresh clone or a CI job has none of it — the committed
+   * corpus is the evidence that survives the clone.
+   */
+  committedViolatesCasesByAspect?: Map<string, number>;
 }
 
 /** Below this many exposures the raw-count range around the estimate is wide ("few observations"). */
@@ -231,12 +238,15 @@ function latestDrillPerCase(results: DrillResultLine[]): DrillResultLine[] {
  * Resolve one aspect's drill evidence about whether it can still catch a violation:
  *   'miss'         — a refusal-expecting case is no longer caught (the rule may be weakening).
  *   'proves-catch' — a refusal-expecting case is still caught (the rule demonstrably works).
- *   'none'         — no informative refusal-expecting drill outcome on record.
+ *   'not-run'      — no outcome on record here, but the aspect's corpus commits
+ *                    `committedViolates` refusal-expecting cases: drills exist and
+ *                    simply were not run in this checkout (a fresh clone, CI).
+ *   'none'         — no refusal-expecting drill at all.
  * Only refusal-expecting cases (`expect: 'refused'`) bear on deterrence; a MISS
  * dominates (worst evidence wins). Freshness against the current rule hash is a
  * concern of the drill-MISS alarm, not of this coarse status.
  */
-export function computeDrillStatus(aspectId: string, drillResults: DrillResultLine[]): DrillStatus {
+export function computeDrillStatus(aspectId: string, drillResults: DrillResultLine[], committedViolates = 0): DrillStatus {
   const latest = latestDrillPerCase(drillResults.filter((r) => r.aspect === aspectId));
   let provesCatch = false;
   for (const r of latest) {
@@ -244,7 +254,8 @@ export function computeDrillStatus(aspectId: string, drillResults: DrillResultLi
     if (r.got === 'satisfied') return 'miss';
     if (r.got === 'refused') provesCatch = true;
   }
-  return provesCatch ? 'proves-catch' : 'none';
+  if (provesCatch) return 'proves-catch';
+  return committedViolates > 0 ? 'not-run' : 'none';
 }
 
 /**
@@ -261,6 +272,8 @@ export function covenantLine(drillStatus: DrillStatus): string {
       return 'enforceable but never violated — may be deterring violations';
     case 'miss':
       return 'enforceable but never violated, and a regression case is no longer caught — the rule may be weakening rather than deterring';
+    case 'not-run':
+      return 'enforceable but never violated — committed regression drills exist but were not run here (yg drill --aspect <id> runs them), so whether it deters or is decorative is unconfirmed';
     case 'none':
     default:
       return 'enforceable but never violated — no regression drill confirms it can still catch, so whether it deters or is decorative is unconfirmed';
@@ -316,12 +329,14 @@ export function computeAspectHealthSignals(
     const pointEstimate = betaBinomialShrink(c.catch, c.exposure, baseRate);
     const label = labelFor(c.catch, c.exposure);
 
-    const drillStatus = computeDrillStatus(aspect.id, inputs.drillResults);
+    const drillStatus = computeDrillStatus(aspect.id, inputs.drillResults, inputs.committedViolatesCasesByAspect?.get(aspect.id) ?? 0);
     const shrinking = isAttachSetShrinking(aspect.id, inputs.verdictEvents, inputs.currentUnitsByAspect);
     const suppressCount = inputs.suppressCountsByAspect.get(aspect.id) ?? 0;
 
     // The catch counter alone never demotes: a demotion is proposed ONLY when the
     // rule looks decorative AND all three independent corroborating signals agree.
+    // A committed refusal drill that was not run here ('not-run') is drill
+    // evidence too — it is not "no regression drill on record".
     const demotionCorroborated =
       label === 'decorative?' && drillStatus === 'none' && shrinking && suppressCount === 0;
 

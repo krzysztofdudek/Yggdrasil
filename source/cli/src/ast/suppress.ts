@@ -39,6 +39,19 @@ interface ParsedMarker {
   aspectIds: string[];
   reason: string;
   line: number; // 1-based
+  /** The marker's comment follows code on the same line (see isTrailingComment). */
+  trailing: boolean;
+}
+
+/**
+ * True when a comment node starts AFTER code on its own first line —
+ * `const a = f(); // yg-suppress(x) reason`. Such a marker waives the line it
+ * sits on (the `eslint-disable-line` / `# noqa` idiom); a marker on a line of its
+ * own waives the line below. `sourceLines` is the file split on '\n'.
+ */
+function isTrailingComment(c: { startPosition: { row: number; column: number } }, sourceLines: string[]): boolean {
+  const lineText = sourceLines[c.startPosition.row] ?? '';
+  return lineText.slice(0, c.startPosition.column).trim() !== '';
 }
 
 // ── Anchored marker grammar (single shared matcher) ─────────────────────────
@@ -167,7 +180,7 @@ function matchMarkerLine(line: string, requireDelimiter: boolean): MarkerLineMat
   return { kind, aspectIds, reason };
 }
 
-function parseMarker(lineText: string, line: number, file: string, requireDelimiter: boolean): ParsedMarker | null {
+function parseMarker(lineText: string, line: number, file: string, requireDelimiter: boolean, trailing = false): ParsedMarker | null {
   const m = matchMarkerLine(lineText, requireDelimiter);
   if (m === null) return null;
   if (m.kind !== 'enable' && m.reason === '') {
@@ -177,7 +190,7 @@ function parseMarker(lineText: string, line: number, file: string, requireDelimi
       line,
     );
   }
-  return { kind: m.kind, aspectIds: m.aspectIds, reason: m.reason, line };
+  return { kind: m.kind, aspectIds: m.aspectIds, reason: m.reason, line, trailing };
 }
 
 // ── Markdown fenced-code mask (shared by BOTH raw-scan paths) ────────────────
@@ -290,6 +303,11 @@ export function markdownFencedLines(text: string): Set<number> {
  *   file's comment nodes, line by line, so a `yg-suppress(...)` that merely
  *   appears inside a string literal is never mistaken for a real marker, and a
  *   marker deep inside a multi-line block comment is stamped at its own row.
+ *   A marker whose comment follows code on the same line (a TRAILING marker,
+ *   `x(); // yg-suppress(id) reason`) applies to that line itself: a trailing
+ *   single marker waives its own line, a trailing disable opens on its own line,
+ *   and a trailing enable closes after its own line. A marker on a line of its
+ *   own waives from the NEXT line, as always.
  * - Text path (no registered grammar, e.g. `.sql`/`.md`/`.sh`): the parse tree
  *   cannot be produced, so markers are found by scanning the raw lines of
  *   `content`. This is what lets a content-only deterministic check suppress a
@@ -311,6 +329,7 @@ export function collectSuppressions(
   const markers: ParsedMarker[] = [];
   if (hasGrammar && tree) {
     const comments = findComments({ path: file, ast: tree });
+    const sourceLines = (content ?? tree.rootNode.text).split('\n');
     for (const c of comments) {
       // Iterate the comment's LINES so a marker on the Nth line of a multi-line
       // block comment is stamped at its own absolute file row — the same row
@@ -318,8 +337,10 @@ export function collectSuppressions(
       const commentLines = c.text.split('\n');
       for (let i = 0; i < commentLines.length; i++) {
         // Comment-isolated text: the delimiter is OPTIONAL (a block-comment
-        // interior line may have none).
-        const m = parseMarker(commentLines[i], c.startPosition.row + i + 1, file, false);
+        // interior line may have none). Only the comment's FIRST line can
+        // follow code.
+        const trailing = i === 0 && isTrailingComment(c, sourceLines);
+        const m = parseMarker(commentLines[i], c.startPosition.row + i + 1, file, false, trailing);
         if (m) markers.push(m);
       }
     }
@@ -351,13 +372,17 @@ export function collectSuppressions(
   let openWildcard: number | null = null;
 
   for (const m of markers) {
+    // First waived line after an opening marker, last waived line before a
+    // closing one: the marker's own line when it trails code, else the adjacent line.
+    const after = m.trailing ? m.line : m.line + 1;
+    const before = m.trailing ? m.line : m.line - 1;
     if (m.kind === 'single') {
       const isWildcard = m.aspectIds.includes('*');
-      ranges.push({ aspectIds: new Set(m.aspectIds), startLine: m.line + 1, endLine: m.line + 1, isWildcard });
+      ranges.push({ aspectIds: new Set(m.aspectIds), startLine: after, endLine: after, isWildcard });
     } else if (m.kind === 'disable') {
       for (const id of m.aspectIds) {
-        if (id === '*') { if (openWildcard === null) openWildcard = m.line + 1; }
-        else { if (!openSpecific.has(id)) openSpecific.set(id, m.line + 1); }
+        if (id === '*') { if (openWildcard === null) openWildcard = after; }
+        else { if (!openSpecific.has(id)) openSpecific.set(id, after); }
       }
     } else { // enable
       for (const id of m.aspectIds) {
@@ -366,16 +391,16 @@ export function collectSuppressions(
             // Guard the degenerate span an enable directly after its disable
             // produces (start = disableLine+1, end = enableLine-1, so end < start):
             // an inverted range is nonsense in the LLM prompt and empty everywhere.
-            if (m.line - 1 >= openWildcard) {
-              ranges.push({ aspectIds: new Set(['*']), startLine: openWildcard, endLine: m.line - 1, isWildcard: true });
+            if (before >= openWildcard) {
+              ranges.push({ aspectIds: new Set(['*']), startLine: openWildcard, endLine: before, isWildcard: true });
             }
             openWildcard = null;
           }
         } else {
           const start = openSpecific.get(id);
           if (start !== undefined) {
-            if (m.line - 1 >= start) {
-              ranges.push({ aspectIds: new Set([id]), startLine: start, endLine: m.line - 1, isWildcard: false });
+            if (before >= start) {
+              ranges.push({ aspectIds: new Set([id]), startLine: start, endLine: before, isWildcard: false });
             }
             openSpecific.delete(id);
           }
@@ -481,6 +506,12 @@ export interface SuppressionMarkerInfo {
    * an absent flag correctly reads as "not at the file head".
    */
   atFileHead?: boolean;
+  /**
+   * True iff the marker's comment follows code on the same line — it then waives
+   * its OWN line (see collectSuppressions). Set only by the comment scan; a raw
+   * scan never recognizes a marker after code, so it never sets it.
+   */
+  trailing?: boolean;
 }
 
 /**
@@ -490,12 +521,12 @@ export interface SuppressionMarkerInfo {
  * `parseMarker` uses, so the inventory and the honoring path cannot diverge on
  * which token counts as a marker.
  */
-function scanLineInto(raw: string, lineNum: number, out: SuppressionMarkerInfo[], requireDelimiter: boolean, headLines: Set<number>): void {
+function scanLineInto(raw: string, lineNum: number, out: SuppressionMarkerInfo[], requireDelimiter: boolean, headLines: Set<number>, trailing = false): void {
   const m = matchMarkerLine(raw, requireDelimiter);
   if (m === null) return;
   const atFileHead = headLines.has(lineNum);
   for (const id of m.aspectIds) {
-    out.push({ line: lineNum, aspectId: id, kind: m.kind, wildcard: id === '*', reason: m.reason, atFileHead });
+    out.push({ line: lineNum, aspectId: id, kind: m.kind, wildcard: id === '*', reason: m.reason, atFileHead, ...(trailing ? { trailing } : {}) });
   }
 }
 
@@ -562,13 +593,14 @@ export function scanSuppressionMarkersInComments(tree: Tree, file: string, text?
   const result: SuppressionMarkerInfo[] = [];
   const headLines = text !== undefined ? fileHeadLines(text) : new Set<number>();
   const comments = findComments({ path: file, ast: tree });
+  const sourceLines = (text ?? tree.rootNode.text).split('\n');
   for (const c of comments) {
     const startRow = c.startPosition.row; // 0-based
     const commentLines = c.text.split('\n');
     for (let i = 0; i < commentLines.length; i++) {
       // Comment-isolated text: the delimiter is OPTIONAL (a block-comment
-      // interior line may carry none).
-      scanLineInto(commentLines[i], startRow + i + 1, result, false, headLines);
+      // interior line may carry none). Only the first line can trail code.
+      scanLineInto(commentLines[i], startRow + i + 1, result, false, headLines, i === 0 && isTrailingComment(c, sourceLines));
     }
   }
   // A file may contain several comment nodes; emit markers in file order so the

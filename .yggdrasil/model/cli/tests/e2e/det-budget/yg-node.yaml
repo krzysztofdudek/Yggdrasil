@@ -1,0 +1,7 @@
+name: E2E Tests — A deterministic check that never returns
+type: test-suite
+description: "Subprocess E2E for the per-check wall-clock budget of deterministic checks: a check.mjs that spins forever is stopped once the budget (set through YG_DET_TASK_TIMEOUT_MS) elapses, reported as a runtime error naming the rule and the unit, and every other pair of the run is still recorded — the free keyless gate never hangs."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-det-budget.test.ts

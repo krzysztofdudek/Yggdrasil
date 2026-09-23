@@ -46,6 +46,8 @@ The check that tells an interleaved log merge apart from a tampered log looked f
 merge-resolve could only verify a log that someone had already merged by hand, yet the check told people to run it while the log was still conflicted, and the manual step it needed was the one the messages forbid. During a merge in progress it now writes the union of both sides — shared history byte for byte, then every added entry in date order — and verifies it, keeping the old verify-only behaviour for a log that is already whole.
 ## [2026-09-23T20:03:32.998Z]
 A status entry the tool writes for itself, the bare record of a standing changed by editing the rule's file directly, can now be told apart from one a person recorded. A person recording that same change afterwards is supplying the evidence the tool could not, so the change is measured from where the rule stood before the edit rather than refused as a change to the standing it already has.
+## [2026-09-23T20:24:55.409Z]
+The log baseline hashes the log after normalising line endings. A checkout with CRLF line endings, the Git for Windows default, otherwise reported untouched history as rewritten and the printed fix recreated the failure; existing LF baselines hash the same.
 ## [2026-09-23T20:30:59.273Z]
 A rule installed from a package keeps its history beside its adaptation rather than as a log inside the package's copy. Writing into the copy made the tool's own copy rail fail the next check over a file the tool had just written, and an update deleted the history.
 ## [2026-09-23T20:34:28.485Z]
@@ -54,3 +56,5 @@ The open-log-cycle probe now records an unreadable subject in the debug log befo
 merge-resolve now prefers a merge in progress over a merge commit at HEAD. On a branch whose tip is itself a merge, as every no-fast-forward integration leaves it, the old order read the previous merge parents, called the new entries fabricated and left the conflicted log unresolvable mid-merge. The node path it echoes is also normalised with the shared helper, which strips every trailing slash.
 ## [2026-09-23T21:31:04.641Z]
 The package-system fixes and the already merged gate-clarity and documentation-consistency fixes met in this component at merge. The merged source carries both sets of behaviour unchanged; this entry records that the combination is what the verdicts now answer for.
+## [2026-09-23T22:12:17.423Z]
+The environment-robustness fixes and the release work already merged met in this component: the append-only baseline is taken over line-ending-normalised content, so a CRLF checkout no longer fails log integrity, and the merge-resolve that writes the union during a merge in progress records its baseline through that same normalised path. The merged source carries both behaviours.

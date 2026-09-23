@@ -68,7 +68,18 @@ export async function getMergeBase(repoCwd: string, refA: string, refB: string):
 }
 
 /**
- * Returns the content of `filePath` at the given `ref`.
+ * The `<ref>:<path>` object name for a path RELATIVE TO `repoCwd`. Git resolves
+ * a bare `<ref>:<path>` from the repository's top level, while `git ls-tree` and
+ * every caller here work relative to the cwd — for a graph that lives below the
+ * git root (a monorepo package) the two name different files. The `./` form
+ * makes `git show` resolve from the cwd too, so show and ls-tree always agree.
+ */
+function refPath(ref: string, filePath: string): string {
+  return `${ref}:./${toPosixPath(filePath).replace(/^(\.\/)+/, '')}`;
+}
+
+/**
+ * Returns the content of `filePath` (relative to `repoCwd`) at the given `ref`.
  * Returns empty string if the file does not exist at that ref.
  */
 export async function getFileAtRef(
@@ -77,7 +88,7 @@ export async function getFileAtRef(
   filePath: string,
 ): Promise<string> {
   try {
-    const { stdout } = await execFilep('git', ['show', `${ref}:${filePath}`], {
+    const { stdout } = await execFilep('git', ['show', refPath(ref, filePath)], {
       cwd: repoCwd,
       maxBuffer: 100 * 1024 * 1024,
     });
@@ -119,7 +130,7 @@ export type FileAtCommit =
   | { kind: 'not-at-commit' };
 
 /**
- * Read `filePath` as it stood at `ref`, together with the commit it really
+ * Read `filePath` (relative to `repoCwd`) as it stood at `ref`, together with the commit it really
  * resolved to and the day that commit was made.
  *
  * The full sha and the day come back with the content because they are what a
@@ -158,7 +169,7 @@ export async function readFileAtCommit(
   }
 
   try {
-    const { stdout } = await execFilep('git', ['show', `${commitSha}:${filePath}`], {
+    const { stdout } = await execFilep('git', ['show', refPath(commitSha, filePath)], {
       cwd: repoCwd,
       maxBuffer: 100 * 1024 * 1024,
     });

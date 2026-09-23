@@ -9,7 +9,7 @@
 // the underlying scan already has to handle on real disk content.
 //
 //   1. two waivers + a wildcard    → one yg-suppressions/1 document, a wildcard warning
-//   2. the same fixture, no flag   → byte-identical to the pre-change golden text
+//   2. the same fixture, no flag   → byte-identical to the golden text
 //   3. no markers anywhere         → empty lists, zero totals; text says "No active..."
 //   4. unbounded disable mid-file  → kind disable, range.to null, unbounded-range warning
 //   5. the SAME marker at the file head → kind file-level, no unbounded warning
@@ -75,26 +75,25 @@ function addWildcardFile(dir: string): void {
   );
 }
 
-// The pre-change text output for the base fixture PLUS `addWildcardFile` — captured
-// from a real run before `ranges`/`warningRecords` were added to the report.
-// `formatSuppressionsOutput` reads neither new field, so this must stay byte-identical.
+// The text output for the base fixture PLUS `addWildcardFile`, captured from a
+// real run. Each single/disable marker names the lines it actually waives.
 const GOLDEN_TEXT_WITH_WILDCARD = `Active suppression markers:
 
   src/line.ts
-    line 2: single(no-todo)  — tracked in TICKET-403, single-line waiver
+    line 2: single(no-todo) → waives line 3  — tracked in TICKET-403, single-line waiver
 
   src/range.ts
-    line 5: disable(no-todo)  — intentional legacy rounding, tracked in TICKET-402
+    line 5: disable(no-todo) → waives lines 6-7  — intentional legacy rounding, tracked in TICKET-402
     line 8: enable(no-todo)
 
   src/under.ts
-    line 2: single(no-console)  — debug logging temporarily needed, tracked in TICKET-404
+    line 2: single(no-console) → waives line 3  — debug logging temporarily needed, tracked in TICKET-404
 
   src/whole.ts
-    line 1: file-level(no-todo)  — legacy file, whole-file waiver — tracked in TICKET-401
+    line 1: file-level(no-todo) → waives lines 2-end of file  — legacy file, whole-file waiver — tracked in TICKET-401
 
   src/wild.ts
-    line 2: single(*) [wildcard]  — emergency bypass, tracked in TICKET-600
+    line 2: single(*) [wildcard] → waives line 3  — emergency bypass, tracked in TICKET-600
 
 Total: 6 markers across 5 files.
 
@@ -128,7 +127,7 @@ describe.skipIf(!distExists)('CLI E2E — yg suppressions --json', () => {
     }
   });
 
-  it('2: the same fixture WITHOUT --json → byte-identical to the pre-change golden (the text formatter never moved)', () => {
+  it('2: the same fixture WITHOUT --json → byte-identical to the golden text', () => {
     const dir = copyFixture('wildcard-text');
     try {
       addWildcardFile(dir);
