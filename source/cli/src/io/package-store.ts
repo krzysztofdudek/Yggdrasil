@@ -41,6 +41,57 @@ export function aspectsRoot(projectRoot: string): string {
   return path.join(projectRoot, '.yggdrasil', 'aspects');
 }
 
+/** Thrown when an install id would address anything but one package directory. */
+export class PackagePathEscapeError extends Error {
+  constructor(public readonly installId: string) {
+    super(
+      `Refusing to touch '${installId}': an installed package lives at exactly ` +
+        `.yggdrasil/aspects/${PACKAGES_DIR}/<owner>/<repo>/<name>, and this is not that.`,
+    );
+    this.name = 'PackagePathEscapeError';
+  }
+}
+
+/** One plain directory name: no separator, no traversal, nothing empty. */
+function isPlainSegment(segment: string): boolean {
+  return (
+    segment.trim() !== '' &&
+    segment === segment.trim() &&
+    !segment.includes('/') &&
+    !segment.includes('\\') &&
+    !segment.includes('\0') &&
+    segment !== '.' &&
+    segment !== '..'
+  );
+}
+
+/**
+ * Absolute path of ONE installed package's directory, or a thrown
+ * {@link PackagePathEscapeError}.
+ *
+ * Every path this module removes or replaces recursively comes through here. The
+ * record the id is read from is validated when it is parsed, and this is the
+ * second, independent fence: the id must be exactly three plain segments, and the
+ * directory they resolve to must sit strictly inside `aspects/packages/`. A
+ * recursive delete is the one operation in this module whose mistake cannot be
+ * undone, so it never trusts a single check made somewhere else.
+ */
+export function installDirAbs(projectRoot: string, installId: string): string {
+  const parts = installId.split('/');
+  if (parts.length !== 3 || !parts.every(isPlainSegment)) throw new PackagePathEscapeError(installId);
+  const packagesAbs = path.resolve(aspectsRoot(projectRoot), PACKAGES_DIR);
+  const target = path.resolve(packagesAbs, ...parts);
+  // Containment asked of the RESOLVED path, not of the id: whatever the segments
+  // were, the target has to be exactly three levels below the packages area and
+  // never above it.
+  const rel = path.relative(packagesAbs, target);
+  const relParts = rel.split(/[\\/]/);
+  if (rel === '' || path.isAbsolute(rel) || relParts.length !== 3 || relParts.some((p) => p === '' || p === '..')) {
+    throw new PackagePathEscapeError(installId);
+  }
+  return target;
+}
+
 /** Absolute path of the consumer's package lock. */
 export function packagesLockPath(projectRoot: string): string {
   return path.join(projectRoot, '.yggdrasil', PACKAGES_LOCK_FILENAME);
@@ -231,7 +282,7 @@ export async function installPackage(
 
   const aspectsAbs = aspectsRoot(projectRoot);
   const finalRel = installDirRelative(installId);
-  const finalAbs = path.join(aspectsAbs, ...finalRel.split('/'));
+  const finalAbs = installDirAbs(projectRoot, installId);
   const stagingAbs = path.join(
     aspectsAbs,
     PACKAGES_DIR,
@@ -367,7 +418,7 @@ export async function removeDirectory(absDir: string): Promise<void> {
 export async function removePackageFiles(projectRoot: string, installId: string): Promise<void> {
   const root = aspectsRoot(projectRoot);
   const segments = installDirRelative(installId).split('/');
-  await rm(path.join(root, ...segments), { recursive: true, force: true });
+  await rm(installDirAbs(projectRoot, installId), { recursive: true, force: true });
   for (let depth = segments.length - 1; depth > 1; depth--) {
     const parent = path.join(root, ...segments.slice(0, depth));
     try {
@@ -387,7 +438,7 @@ export async function readInstalledAdapts(
   installId: string,
   aspectDirs: string[],
 ): Promise<Map<string, string>> {
-  const base = path.join(aspectsRoot(projectRoot), ...installDirRelative(installId).split('/'));
+  const base = installDirAbs(projectRoot, installId);
   const found = new Map<string, string>();
   for (const dir of aspectDirs) {
     try {

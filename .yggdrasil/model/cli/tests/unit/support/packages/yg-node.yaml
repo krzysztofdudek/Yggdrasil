@@ -9,7 +9,8 @@ description: "Unit tests for the three documents a repository needs in order to
   disk; and the local cache of what each source was last seen to publish, kept
   apart from the installation record because the two answer different questions
   and only one of them is allowed to churn. Each pins the DECISION as much as the parsing — that an absent record is
-  the empty state while a malformed one is refused loudly, that a list in an
+  the empty state while a malformed one is refused loudly, that a recorded
+  install directory is never anything but one package's own directory, that a list in an
   adaptation replaces rather than combines, that an adaptation refuses an
   unrecognised key even though a rule's own file tolerates one, and that the
   adaptation itself is never recorded and never judged."
@@ -33,3 +34,4 @@ mapping:
   - source/cli/tests/unit/core/package-implies-prefix.test.ts
   - source/cli/tests/unit/core/package-file-modified.test.ts
   - source/cli/tests/unit/io/package-versions-cache.test.ts
+  - source/cli/tests/unit/io/package-store-containment.test.ts

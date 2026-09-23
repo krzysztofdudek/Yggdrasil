@@ -65,8 +65,9 @@ function isSingleSegment(name: string): boolean {
     name.trim() !== '' &&
     !name.includes('/') &&
     !name.includes('\\') &&
-    name !== '.' &&
-    name !== '..'
+    !name.includes('\0') &&
+    name.trim() !== '.' &&
+    name.trim() !== '..'
   );
 }
 
@@ -548,7 +549,27 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
       }
     }
 
+    // The install id is the directory `yg pack remove` and `update` delete
+    // recursively, so it is validated as strictly as any path a stranger wrote —
+    // because a hand merge or a crafted pull request can put anything here. It is
+    // exactly `<owner>/<repo>/<name>`, three plain segments, the last of which is
+    // the key the record is filed under. Anything else (`../..`, an absolute
+    // path, two segments, an empty string) is refused here, where every command
+    // and the `yg check` rail read the record, before any command can act on it.
     const installId = (entry.package as string).trim();
+    const idParts = installId.split('/');
+    if (
+      !isSingleSegment(pkgName) ||
+      idParts.length !== 3 ||
+      !idParts.every((part) => isSingleSegment(part) && part === part.trim()) ||
+      idParts[2] !== pkgName
+    ) {
+      return fail('packages-lock-package-invalid', {
+        what: `${filePath}: the record for '${pkgName}' names its install directory as '${installId}', which is not <owner>/<repo>/${pkgName}.`,
+        why: 'That value is the directory under .yggdrasil/aspects/packages/ that yg pack update and yg pack remove replace and delete. Anything but three plain path segments ending in the package name could point those commands outside the installed packages — at the repository itself.',
+        next: `Restore ${filePath} from version control. If the record really is wrong, set package: to "<owner>/<repo>/${pkgName}" — the directory its copy sits in under .yggdrasil/aspects/packages/.`,
+      });
+    }
     const installPrefix = `${PACKAGES_DIR}/${installId}/`;
     const filesRaw = entry.files;
     if (filesRaw === null || typeof filesRaw !== 'object' || Array.isArray(filesRaw)) {

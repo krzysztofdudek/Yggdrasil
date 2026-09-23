@@ -594,6 +594,42 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
     }
   });
 
+  it('15b: a record whose install id climbs out is refused by remove and by check, and deletes nothing', () => {
+    // The regression this pins: `package:` was never validated, so a record of
+    // `../../..` made `yg pack remove` delete the whole repository — `.git`
+    // included — and report success.
+    const dir = consumer('escape-id');
+    try {
+      write(dir, 'src/keep.ts', 'export const keep = 1;\n');
+      for (const id of ['../../..', '../../../src']) {
+        write(
+          dir,
+          LOCK,
+          `schema: yg-packages/1\npackages:\n  helper:\n    source: "https://example.test/acme/law.git"\n    package: "${id}"\n    version: "0.1.0"\n    installed_at: "2026-09-10T00:00:00.000Z"\n    files: {}\n`,
+        );
+
+        const removed = run(['pack', 'remove', 'helper'], dir);
+        expect(removed.status).toBe(1);
+        expect(removed.all).toContain(`'${id}'`);
+        expect(removed.all).toContain('<owner>/<repo>/helper');
+        expect(removed.all).not.toContain('Removed');
+        expect(existsSync(path.join(dir, 'src', 'keep.ts'))).toBe(true);
+        expect(existsSync(path.join(dir, '.yggdrasil', 'model', 'app', 'yg-node.yaml'))).toBe(true);
+
+        expect(run(['pack', 'update', 'helper'], dir).status).toBe(1);
+        expect(existsSync(path.join(dir, 'src', 'keep.ts'))).toBe(true);
+
+        // And the gate reports the malformed record rather than passing it.
+        const checked = run(['check'], dir);
+        expect(checked.status).toBe(1);
+        expect(checked.all).toContain('package-file-modified');
+        expect(checked.all).toContain(`'${id}'`);
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   // -------------------------------------------------------------------------
   // Refusals at the boundary
   // -------------------------------------------------------------------------

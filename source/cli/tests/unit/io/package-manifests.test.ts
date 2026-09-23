@@ -475,6 +475,29 @@ packages:
     },
   );
 
+  // The install id is what `yg pack remove` and `update` delete recursively. A
+  // record naming anything but <owner>/<repo>/<key> once deleted the repository.
+  it.each([
+    ['a climb out of the packages area', '"../../.."'],
+    ['a climb that ends in a sibling', '"../../../victim"'],
+    ['an absolute path', '"/etc"'],
+    ['an empty string', '""'],
+    ['two segments', 'acme/demo'],
+    ['four segments', 'acme/law/x/demo'],
+    ['a traversal segment in the middle', 'acme/../demo'],
+    ['a last segment that is not the key', 'acme/law/other'],
+    ['a backslash', '"acme\\\\law/x/demo"'],
+  ])('refuses an install id that is %s, naming it', async (_label, value) => {
+    const p = fileWith(
+      'yg-packages.yaml',
+      `schema: yg-packages/1\npackages:\n  demo:\n    source: s\n    package: ${value}\n    version: 0.1.0\n    installed_at: 2026-09-10T00:00:00.000Z\n    files: {}\n`,
+    );
+    const r = refusal(await parsePackagesLock(p));
+    // An empty string is caught earlier, as a missing field — refused either way.
+    expect(['packages-lock-package-invalid', 'packages-lock-entry-incomplete']).toContain(r.code);
+    expect(r.what).toContain('demo');
+  });
+
   it('refuses a schema this build does not know', async () => {
     const p = fileWith('yg-packages.yaml', LOCK.replace('yg-packages/1', 'yg-packages/9'));
     expect(refusal(await parsePackagesLock(p)).code).toBe('packages-lock-schema-unknown');
