@@ -40,7 +40,7 @@ yg check
 That first check is green, and honest about why:
 
 ```text
-yg check: PASS (1 warning)  0 nodes · 0/50 files (0 node-owned, 0 type-covered, 0 excluded) · 0 aspects · 0 flows
+yg check: PASS (1 warning)  0 nodes · 4/54 files (0 node-owned, 0 type-covered, 4 excluded) · 0 aspects · 0 flows
 
 Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 

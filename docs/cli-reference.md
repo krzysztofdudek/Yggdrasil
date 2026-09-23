@@ -1584,7 +1584,10 @@ A fresh `yg init` (no `.yggdrasil/` yet) installs the same universal
 agent-rules artifacts: a summary block inside markers in `AGENTS.md`, a
 `@AGENTS.md` import line added to `CLAUDE.md`, and `.clinerules/yggdrasil.md` —
 unless the project says otherwise (see "Choosing which rules files to carry"
-below).
+below). It also writes those files, plus `.gitattributes`, into the new
+config's `coverage.excluded`: they are Yggdrasil's own plumbing, not your
+source, so the first `yg check` never lists them as uncovered. Only a fresh
+init does this; an existing project's coverage settings are left alone.
 On an already-adopted repo those artifacts are refreshed only when you ask for
 it — `yg init --upgrade` is the documented way; the interactive menu's
 "Refresh agent rules" option does the same thing. Running
@@ -1702,6 +1705,11 @@ and prints the `coverage.excluded` stanza that settles it. The stanza is built
 from the artifacts this project actually carries, so one that has switched an
 artifact off under `rules_artifacts` is shown a shorter list. It reports; it
 never edits your configuration. See [Coverage](/configuration#coverage-config).
+
+`--upgrade` names every file it touched: the rules files it rewrote, and any
+line it appended to `.yggdrasil/.gitignore` or `.gitattributes` (for example
+the family-candidates ignore lines a 6.0.0 project lacks). It says "nothing
+changed" only when that is true.
 
 ### `yg adopt`
 

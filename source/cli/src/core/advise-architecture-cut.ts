@@ -35,7 +35,7 @@ export function architectureCutNominations(cycles: ArchitectureCutCycle[]): Nomi
       why:
         `at ${provenance}, these module groups each reach the other by following declared ` +
         `dependencies — a dependency loop, not a one-way layering. Provenance: ${provenance}.`,
-      next: `Consider a cut between these module groups, or declare a contract (a port) across the boundary — requires your consent.`,
+      next: `Consider a cut between these module groups, or declare a contract (a port) across the boundary — requires the user's consent.`,
       // Bind to the depth + the exact block set: a changed loop (blocks added or a
       // cut declared) moves the hash, so a dismissed item returns when the
       // structure moves; a resolved loop stops being emitted entirely.

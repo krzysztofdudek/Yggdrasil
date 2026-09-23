@@ -10,7 +10,7 @@ function nom(id: string, evidenceHash: string, classRank = 10): Nomination {
     classRank,
     what: `what for ${id}`,
     why: `why for ${id}`,
-    next: `next for ${id} This requires your approval.`,
+    next: `next for ${id} Requires the user's approval.`,
     evidenceHash,
     evidenceTs: '2026-07-12T00:00:00.000Z',
   };

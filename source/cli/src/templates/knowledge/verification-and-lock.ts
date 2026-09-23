@@ -121,8 +121,8 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
   set (length > 0); plain LLM entries without \`companion.mjs\` omit the key
   entirely.
 - \`judge\` appears only on a verdict an earlier release recorded through its
-  external-judge channel (\`yg verdict record\`, since removed — the configured
-  reviewer is the only judge): who decided, and that the decision did not come
+  external-judge channel (since removed — the configured reviewer is the only
+  judge): who decided, and that the decision did not come
   from a configured provider. Such an entry is still read and still holds while
   its inputs do; nothing writes a new one. Absent on every
   provider-produced and every deterministic entry. NOT a hash ingredient — it

@@ -26,6 +26,7 @@ import { registerStructureCommand } from './cli/structure.js';
 import { registerPackCommand } from './cli/pack.js';
 import { registerMarketplaceCommand } from './cli/marketplace.js';
 import { registerPrimeCommand } from './cli/prime.js';
+import { registerRemovedVerdictCommand } from './cli/verdict-removed.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -74,6 +75,7 @@ registerStructureCommand(program);
 registerPackCommand(program);
 registerMarketplaceCommand(program);
 registerPrimeCommand(program);
+registerRemovedVerdictCommand(program);
 
 process.on('unhandledRejection', (reason) => {
   const msg = reason instanceof Error ? reason.message : String(reason);

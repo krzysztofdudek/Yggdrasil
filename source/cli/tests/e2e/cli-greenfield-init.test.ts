@@ -404,7 +404,9 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
       expect(check.stdout).toContain('PASS');
-      expect(check.stdout).toContain('uncovered');
+      // The files init itself wrote are excluded plumbing, never uncovered to-dos.
+      expect(check.stdout).toContain('4 excluded');
+      expect(check.stdout).not.toContain('uncovered');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

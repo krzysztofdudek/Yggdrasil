@@ -108,7 +108,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise import', () => {
       // Never restated as this graph's own finding.
       expect(feed.stdout).toContain('a proposal from outside this graph, not a finding of its own');
       // And acting on it is still the user's act.
-      expect(feed.stdout).toContain('This requires your approval.');
+      expect(feed.stdout).toContain("Requires the user's approval.");
       // The split item's next is written in the graph's own terms.
       expect(feed.stdout).toContain('grain proposes (split):');
       expect(feed.stdout).toContain('the proposal names services/orders/api and services/orders/store');
