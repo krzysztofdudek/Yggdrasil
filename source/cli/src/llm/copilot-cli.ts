@@ -21,7 +21,7 @@ import { toPosixPath } from '../utils/posix.js';
 export function resolveCopilotBinary(env: NodeJS.ProcessEnv = process.env): string | null {
   const explicit = env.YG_COPILOT_BIN;
   if (explicit && isFile(explicit)) return toPosixPath(explicit);
-  const names = process.platform === 'win32' ? ['copilot.cmd', 'copilot.exe', 'copilot'] : ['copilot'];
+  const names = process.platform === 'win32' ? ['copilot.exe', 'copilot.cmd', 'copilot'] : ['copilot'];
   for (const dir of (env.PATH ?? '').split(path.delimiter)) {
     if (!dir || isExtensionStub(dir)) continue;
     for (const name of names) {
@@ -83,11 +83,17 @@ export class CopilotCliProvider extends CliAgentProvider {
   // models a seat may use, and the CLI refuses one outside it rather than
   // substituting another, so only the configuration can name it.
   get binary() { return resolveCopilotBinary() ?? 'copilot'; }
-  get stdinMode() { return false; }
+  // The prompt goes on stdin (the CLI reads it there when no -p is given, non-interactively): a
+  // large component's prompt is past what one argument may carry on Linux (128 KiB) and past a
+  // whole Windows command line (32,767 characters).
+  get stdinMode() { return true; }
+  // npm installs the CLI on Windows as a `.cmd` shim, which only a shell can start. The arguments
+  // are then fixed flags plus the model name, which is checked below before it can reach a shell.
+  protected get spawnShell(): boolean { return /\.(cmd|bat)$/i.test(this.binary); }
   protected get extraEnv(): Record<string, string> { return { COPILOT_HOME: copilotHome() }; }
 
-  buildArgs(prompt: string): string[] {
-    return ['-p', prompt, '-s', '--model', this.model, ...ISOLATION_ARGS];
+  buildArgs(_prompt: string): string[] {
+    return ['-s', '--model', this.model, ...ISOLATION_ARGS];
   }
 
   async isAvailable(): Promise<boolean> {
@@ -96,6 +102,13 @@ export class CopilotCliProvider extends CliAgentProvider {
   }
 
   async verifyAspect(prompt: string): Promise<AspectResponse> {
+    if (!/^[A-Za-z0-9._:-]+$/.test(this.model)) {
+      return {
+        satisfied: false,
+        reason: `copilot-cli model '${this.model}' is not a model name (letters, digits, '.', '_', ':' and '-' only)`,
+        errorSource: 'provider',
+      };
+    }
     if (resolveCopilotBinary() === null) {
       return {
         satisfied: false,

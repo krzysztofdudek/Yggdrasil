@@ -136,6 +136,39 @@ describe.skipIf(!distExists)('CLI E2E — yg adopt', () => {
     }
   });
 
+  it('2c: a draft rule an attach site raises to enforced is counted — yg check runs it there', () => {
+    const repo = makeRepo('raised');
+    try {
+      stageProposal(repo);
+      const base = path.join(repo, '.yggdrasil-proposal', '.yggdrasil');
+      const yaml = path.join(base, 'aspects', 'grain', 'src', 'no-todo-comments', 'yg-aspect.yaml');
+      writeFileSync(yaml, readFileSync(yaml, 'utf-8').replace(/^status: .*$/m, 'status: draft'), 'utf-8');
+      const node = path.join(base, 'model', 'src', 'yg-node.yaml');
+      writeFileSync(node, readFileSync(node, 'utf-8').replace(/^aspects: \[\]$/m, 'aspects:\n  - id: grain/src/no-todo-comments\n    status: enforced'), 'utf-8');
+      const { stdout, status } = run(['adopt', '.yggdrasil-proposal', '--dry-run'], repo);
+      expect(status, stdout).toBe(0);
+      expect(stdout).toContain('1 site the new rules refuse in the code that is already here');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
+  it('2d: a proposal from a newer Grain is adopted, and its version is named rather than its fields read', () => {
+    const repo = makeRepo('newer');
+    try {
+      stageProposal(repo);
+      const meta = path.join(repo, '.yggdrasil-proposal', 'proposal.json');
+      const doc = JSON.parse(readFileSync(meta, 'utf-8')) as Record<string, unknown>;
+      writeFileSync(meta, JSON.stringify({ ...doc, schema: 'grain-proposal/2' }), 'utf-8');
+      const { stdout, status } = run(['adopt', '.yggdrasil-proposal', '--dry-run'], repo);
+      expect(status, stdout).toBe(0);
+      expect(stdout).toContain('from a Grain newer than this CLI reads (grain-proposal/2; this CLI reads grain-proposal/1)');
+      expect(stdout).not.toContain('mined from this repository by Grain');
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
+  });
+
   it('3: refuses a repository that already has a graph, naming what is there', () => {
     const repo = makeRepo('exists');
     try {

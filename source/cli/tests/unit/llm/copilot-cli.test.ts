@@ -44,11 +44,13 @@ describe('resolveCopilotBinary — the real CLI, never the VS Code extension stu
 });
 
 describe('CopilotCliProvider', () => {
-  it('passes the prompt as an argument, names the configured model, and switches every outside source off', () => {
+  it('sends the prompt on stdin, names the configured model, and switches every outside source off', () => {
     const p = new CopilotCliProvider({ model: 'auto' });
-    expect(p.stdinMode).toBe(false);
+    expect(p.stdinMode).toBe(true);
     const args = p.buildArgs('judge this');
-    expect(args.slice(0, 5)).toEqual(['-p', 'judge this', '-s', '--model', 'auto']);
+    expect(args).not.toContain('judge this');
+    expect(args).not.toContain('-p');
+    expect(args.slice(0, 3)).toEqual(['-s', '--model', 'auto']);
     for (const flag of ['--no-ask-user', '--no-custom-instructions', '--disable-builtin-mcps', '--no-auto-update']) {
       expect(args).toContain(flag);
     }
@@ -71,5 +73,12 @@ describe('CopilotCliProvider', () => {
       process.env.PATH = saved.PATH;
       if (saved.YG_COPILOT_BIN !== undefined) process.env.YG_COPILOT_BIN = saved.YG_COPILOT_BIN;
     }
+  });
+
+  it('refuses a model name that is not one, before anything is started', async () => {
+    const r = await new CopilotCliProvider({ model: 'auto & calc' }).verifyAspect('x');
+    expect(r.satisfied).toBe(false);
+    expect(r.errorSource).toBe('provider');
+    expect(r.reason).toContain('is not a model name');
   });
 });

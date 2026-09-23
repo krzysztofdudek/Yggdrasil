@@ -142,6 +142,9 @@ function asNumber(value: unknown): number | undefined {
  * legitimate use of this command. Unreadable metadata is treated the same way —
  * provenance is something to REPORT, never something the acceptance depends on.
  */
+/** The one proposal version this CLI reads the provenance fields of. */
+export const GRAIN_PROPOSAL_SCHEMA = 'grain-proposal/1';
+
 export async function readProvenance(proposal: ResolvedProposal): Promise<ProposalProvenance | undefined> {
   const raw = await readJson(path.join(proposal.root, PROPOSAL_METADATA_FILE));
   if (raw === undefined) return undefined;
@@ -152,7 +155,11 @@ export async function readProvenance(proposal: ResolvedProposal): Promise<Propos
     instrument: asString(raw.instrument),
     asOf: asString(raw.asOf),
     files: asNumber(raw.files),
-    mined: schema !== undefined && schema.startsWith('grain-proposal/'),
+    // Read as a mined proposal only in the version this CLI knows: a newer grain-proposal/N may
+    // mean something else by these fields, and a consumer does not guess at a version it does not
+    // read. Such a proposal is still adopted — provenance is reported, never depended on — and the
+    // summary names the version instead of the fields.
+    mined: schema === GRAIN_PROPOSAL_SCHEMA,
   };
 }
 

@@ -146,11 +146,23 @@ function readFamilyCandidatesSource(graph: Graph): FamilyCandidatesData[] | unde
     debugWrite(`[advise] family candidates omitted: ${(error as Error).message}`);
     return undefined;
   }
+  // Per-producer files first; the shared file of earlier releases last, keeping only the families
+  // no producer's own file already carries — the same family under one id twice would give two
+  // nominations with one id, and the stale copy could never be dismissed or deferred.
+  names.sort((a, b) => Number(a === '.family-candidates.json') - Number(b === '.family-candidates.json') || (a < b ? -1 : a > b ? 1 : 0));
+  const seen = new Set<string>();
   const out: FamilyCandidatesData[] = [];
   for (const name of names) {
     try {
       const parsed = parseFamilyCandidates(JSON.parse(readFileSync(path.join(graph.rootPath, name), 'utf-8')));
-      if (parsed !== undefined) out.push(name === '.family-candidates.json' ? parsed : { ...parsed, file: name });
+      if (parsed === undefined) continue;
+      if (name === '.family-candidates.json') {
+        const fresh = parsed.families.filter((f) => !seen.has(f.id));
+        if (fresh.length > 0) out.push({ ...parsed, families: fresh });
+      } else {
+        for (const f of parsed.families) seen.add(f.id);
+        out.push({ ...parsed, file: name });
+      }
     } catch (error) {
       debugWrite(`[advise] family candidates in ${name} omitted: ${(error as Error).message}`);
     }

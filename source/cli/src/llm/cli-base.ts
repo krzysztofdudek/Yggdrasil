@@ -202,6 +202,12 @@ export abstract class CliAgentProvider implements LlmProvider {
   abstract get stdinMode(): boolean;
   /** Variables a provider sets on top of the caller's environment. */
   protected get extraEnv(): Record<string, string> { return {}; }
+  /**
+   * Whether the binary must be started through a shell: a Windows `.cmd`/`.bat` shim cannot be
+   * spawned directly. A provider that says yes passes only fixed flags and validated values as
+   * arguments, and the prompt on stdin, so nothing a repository wrote reaches the shell.
+   */
+  protected get spawnShell(): boolean { return false; }
 
   async isAvailable(): Promise<boolean> {
     return binaryAvailable(this.binary);
@@ -213,6 +219,7 @@ export abstract class CliAgentProvider implements LlmProvider {
     return new Promise((resolve) => {
       const args = this.stdinMode ? this.buildArgs('') : this.buildArgs(prompt);
       const child = spawn(this.binary, args, {
+        shell: this.spawnShell,
         stdio: ['pipe', 'pipe', 'pipe'],
         timeout: this.timeout,
         cwd: tmpdir(),

@@ -1049,12 +1049,14 @@ yg advise --json     # the same feed as one machine-readable document
   weight.
 
   Below even those sit two further suggestion classes:
-  - **a candidate rule family** — a tight group of near-identical files that share no
-    rule of their own, discovered by the offline structural-clustering pass and read
-    from its local suggestions file. The item names the member files, the fitted scope
-    pattern and its tightness (all quoted as data with the analysis timestamp as
-    provenance), and proposes drafting a rule for exactly that scope — the rationale is
-    always yours to supply, never invented. It appears only while the suggestions file
+  - **a candidate rule family** — a tight group of near-identical files with no law of
+    their own, read from each producer's \`.family-candidates.<producer>.json\` (Grain's,
+    which \`yg adopt\` carries in with a proposal, and the offline structural-clustering
+    pass's). The item names the member files, the fitted scope pattern and its tightness
+    (all quoted as data, with the file and the analysis timestamp as provenance), says
+    which producer measured it and under which gate, and proposes drafting a rule for that
+    scope — the rationale is always yours to supply, never invented. Only the miner's
+    scope is checked to leave every other file out. It appears only while the suggestions file
     is fresh for the current structural-analysis format; a moved format omits it rather
     than showing a stale group.
   - **an architecture cut** — two or more module groups that depend on each other in a

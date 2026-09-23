@@ -125,6 +125,13 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // maintains (files structurally unusual among their node's same-language peers); never
   // committed. The writer (core/feature-index-write) self-ensures this same line as a backstop.
   '.feature-field.json',
+  // Family candidates: local analysis each producer writes into its own
+  // `.family-candidates.<producer>.json` (and earlier releases into the shared
+  // `.family-candidates.json`), freshness-gated when read and rebuilt by rerunning
+  // the producer; never committed, whether a miner wrote it or `yg adopt` carried
+  // it in with a proposal.
+  '.family-candidates.json',
+  '.family-candidates.*.json',
   // What each installed package's source was last seen to publish: a local,
   // rebuildable cache the package commands write while they are already talking
   // to a source, so the attention feed can mention a newer version without

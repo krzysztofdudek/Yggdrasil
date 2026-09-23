@@ -1,6 +1,6 @@
 # Family contracts
 
-Yggdrasil, Grain and Horde do not read each other's files. They exchange **machine documents** — JSON or YAML with a named, versioned shape — and every one of them is listed here. One page, because a contract that each repository describes in its own README is three descriptions that drift.
+Yggdrasil, Grain and Horde exchange **machine documents** — JSON or YAML with a named, versioned shape — and every one of them is listed here. One page, because a contract that each repository describes in its own README is three descriptions that drift.
 
 The table is a register of **every machine document the family writes**, not only the ones that cross a repository boundary. A document nothing outside its own tool reads still gets a row, with `no external consumer` in the consumer column: a list that tries to hold only the cross-repository ones goes stale the week somebody adds an internal document, and nobody notices until a consumer appears for it.
 
@@ -10,20 +10,23 @@ A check fails when this page and the code disagree — in either direction, in a
 
 | Document | Schema id | Producer | Consumers | Since | Described where |
 | --- | --- | --- | --- | --- | --- |
-| Run report (`yg check --json`) | `yg-check/1` | Yggdrasil | Horde — the quality index, `land`, `law` | before 6.0.0 | [CLI Reference](/cli-reference) |
+| Graph files (`.yggdrasil/model/**/yg-node.yaml`, `yg-architecture.yaml`) | no schema id — the graph's own format | Yggdrasil, and whoever edits the graph | Grain — `grain advise` and `grain propose` over a graph that already exists read them directly | before 6.0.0 | [Configuration](/configuration) |
+| Run report (`yg check --json`) | `yg-check/1` | Yggdrasil | Horde — the rule ladder (`node.mjs promote`, `demote`, `ladder`) and the wave close's quality index | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Context package (`yg context --json`) | `yg-context/1` | Yggdrasil | Horde — node resolution, `land` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Blast radius (`yg impact --json`) | `yg-impact/1` | Yggdrasil | Horde — port consumers | before 6.0.0 | [CLI Reference](/cli-reference) |
-| Component (`yg node --json`) | `yg-node/1` | Yggdrasil | Horde — node existence and structure; Grain — the proposal seam | before 6.0.0 | [CLI Reference](/cli-reference) |
-| Rule list (`yg aspects --json`) | `yg-aspects/1` | Yggdrasil | Horde — the quality index, `law`, `land` | before 6.0.0 | [CLI Reference](/cli-reference) |
+| Component (`yg node --json`) | `yg-node/1` | Yggdrasil | Horde — node existence and structure | before 6.0.0 | [CLI Reference](/cli-reference) |
+| Rule list (`yg aspects --json`) | `yg-aspects/1` | Yggdrasil | Horde — `init`, the rule ladder and the quality index, the legislator's brief, `law`, `land` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Attention feed (`yg advise --json`) | `yg-advise/1` | Yggdrasil | Horde — `audit` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Rule history (`yg aspects log read --json`) | `yg-aspect-log/1` | Yggdrasil | Horde — `law` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Waiver inventory (`yg suppressions --json`) | `yg-suppressions/1` | Yggdrasil | Horde — `land` | 6.0.0 | [CLI Reference](/cli-reference) |
 | Marketplace manifest (`yg-marketplace.yaml`) | `yg-marketplace/1` | the marketplace author | Yggdrasil — `yg pack add` / `update` / `list`, `yg marketplace check` | 6.0.0 | [Packages](/packages) |
 | Package manifest (`yg-package.yaml`) | `yg-package/1` | the package author | Yggdrasil — `yg pack`, `yg marketplace check` | 6.0.0 | [Packages](/packages) |
 | Installed-package lock (`.yggdrasil/yg-packages.yaml`) | `yg-packages/1` | Yggdrasil — `yg pack` | Yggdrasil — the `package-file-modified` rail and `yg advise`; no external consumer | 6.0.0 | [Packages](/packages) |
-| Verification event line (`.yg-events.jsonl`, `yg-events.llm.jsonl`) | `yg-events` — no `schema` field; versioned by `v: 1` | Yggdrasil — `yg check --approve` | Horde — `cost`, over the committed stream | before 6.0.0; the `sha` field arrived in 6.0.0 | [Configuration](/configuration) |
-| Advice (`grain advise --json`) | `grain-advice/1` | Grain | Horde — `queue quality`; Yggdrasil — `yg advise import` | before 6.0.0 | [this page](/family-contracts) |
+| Verification event line (`.yg-events.jsonl`, `yg-events.llm.jsonl`) | `yg-events` — no `schema` field; versioned by `v: 1` | Yggdrasil — `yg check --approve` | no external consumer (Horde's cost report, which read the committed stream, is gone) | before 6.0.0; the `sha` field arrived in 6.0.0 | [Configuration](/configuration) |
+| Advice (`grain advise --json`) | `grain-advice/1` | Grain | Horde — `queue quality` and the wave close's `audit`; Yggdrasil — `yg advise import` | before 6.0.0 | [this page](/family-contracts) |
 | Proposed graph (`proposal.json`) | `grain-proposal/1` | Grain — `propose` | Yggdrasil — `yg adopt` | before 6.0.0 | [this page](/family-contracts) |
+| Measured breakage per proposed rule (`aspects/<id>/provenance.json` in a proposal) | no schema id — one file per rule | Grain — `propose` | Yggdrasil — `yg adopt`, which reads `existingViolations` for its "Already broken" count | before 6.0.0 | [this page](/family-contracts) |
+| Package versions cache (`.yggdrasil/.yg-packages-versions.json`) | `yg-package-versions/1` | Yggdrasil — the package commands | Yggdrasil — `yg advise`; no external consumer | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Repository export | `grain-export/1` | Grain — `grain export` | adopter pipelines and audits; no external consumer inside the family | before 6.0.0 | [this page](/family-contracts) |
 | Convention check (`grain check --json`, `grain review --json`) | `grain-check/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Obligation (`grain obligation --json`) | `grain-obligation/1` | Grain | Horde — `tk new` | before 6.0.0 | [this page](/family-contracts) |
@@ -33,7 +36,7 @@ A check fails when this page and the code disagree — in either direction, in a
 | Oracle file list (`files.json`) | `grain-oracle-files/1` | Grain — `grain oracle record` | Grain's own scoring; no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Oracle scorecard (`grain oracle score --json`) | `grain-oracle-score/1` | Grain | no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Family candidates (`.family-candidates.<producer>.json`) | no schema id — versioned by `v: 1` | two, each in its own file and naming itself in `producer` and its test for "without a law" in `gate`: Grain — `grain propose` writes `.family-candidates.grain.json` (`producer: grain`, `gate: no-certified-convention`) into the proposal's `.yggdrasil/` so `yg adopt` installs it with the graph (`--family-candidates <path>` writes it elsewhere, for a repository that adopted earlier); Yggdrasil — the offline miner `scripts/family-without-law.mjs` in the Yggdrasil repository writes `.family-candidates.yggdrasil-miner.json` (`producer: yggdrasil-miner`, `gate: no-narrow-aspect`) into `.yggdrasil/`. One file per producer, so one producer's run never erases the other's families; the shared `.family-candidates.json` of earlier releases is still read | Yggdrasil — `yg advise`, which rejects any `v` it does not name | before 6.0.0 | [this page](/family-contracts) |
-| Law diff | `horde-law/1` | Horde — `law` | the session, and Ratatoskr | 6.0.0 | [this page](/family-contracts) |
+| Law diff | `horde-law/1` | Horde — `law` | the session | 6.0.0 | [this page](/family-contracts) |
 | Mission retrospective | `horde-retro/1` | Horde — `retro` | the session; no external consumer | 6.0.0 | [this page](/family-contracts) |
 | Mission plan | `horde-plan/1` | Horde — `queue plan` | Horde itself; no external consumer | before 6.0.0 | [this page](/family-contracts) |
 | Drill case | `horde-drill-case/1` | Horde — `drill` | Horde itself; no external consumer | before 6.0.0 | [this page](/family-contracts) |
@@ -49,7 +52,7 @@ A document can declare more than its producers write. The register says who prod
 - `rule` — no producer today. Grain could fill it and does not yet.
 - `port` — no producer. Grain reads no aspects, so it has nothing to name a contract from.
 
-Yggdrasil's `yg advise import` accepts all four kinds, because they are the graph's own vocabulary. A family of similar files does not travel in `grain-advice/1` as a `rule`: an advice item names components in `nodes`, and a family is a set of files that can cut across components, so families have their own document, `.family-candidates.json`.
+Yggdrasil's `yg advise import` accepts all four kinds, because they are the graph's own vocabulary. A family of similar files does not travel in `grain-advice/1` as a `rule`: an advice item names components in `nodes`, and a family is a set of files that can cut across components, so families have their own document, one file per producer: `.family-candidates.<producer>.json`.
 
 ## The rule
 

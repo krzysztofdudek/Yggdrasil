@@ -974,6 +974,19 @@ describe.skipIf(!distExists)('yg advise — one family-candidates file per produ
     expect(stdout).toContain('.family-candidates.grain.json:');
     expect(stdout).toContain('.family-candidates.yggdrasil-miner.json:');
   });
+
+  it('a family an earlier release left in the shared file is shown once, from the producer\'s own file', () => {
+    projectRoot = makeMinimalGraph('family-legacy');
+    const legacy = familyPayload('2026-05-01T00:00:00.000Z', 1);
+    const grain = { ...(familyPayload('2026-06-01T00:00:00.000Z', 1) as Record<string, unknown>), producer: 'grain', gate: 'no-certified-convention' };
+    writeFileSync(path.join(projectRoot, '.yggdrasil', '.family-candidates.json'), JSON.stringify(legacy));
+    writeFileSync(path.join(projectRoot, '.yggdrasil', '.family-candidates.grain.json'), JSON.stringify(grain));
+    const { status, stdout } = run(['advise', '--all', '--ids'], projectRoot);
+    expect(status).toBe(0);
+    const ids = stdout.match(/family-without-law:family-typescript-fam0/g) ?? [];
+    expect(ids.length).toBe(1);
+    expect(stdout).toContain('.family-candidates.grain.json:');
+  });
 });
 
 describe.skipIf(!distExists)('yg advise — T2 family-without-law (spawned)', () => {

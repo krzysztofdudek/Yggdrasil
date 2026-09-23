@@ -1021,11 +1021,14 @@ the last two are whole-codebase observations:
 12. **An architecture cut** — see below.
 
 The lowest-priority suggestions include two whole-codebase observations: a **candidate rule
-family** — a tight group of near-identical files sharing no rule of their own, offered with a
+family** — a tight group of near-identical files with no law of their own, offered with a
 ready-to-refine scope pattern (the rationale is always yours to supply) and shown only while its
-suggestions file is fresh. That file comes from an offline structural-clustering pass which is
-**not part of the installed package**, so this class stays silent unless you supply the file
-yourself; it is present-or-omit by design and its absence is not an error. And an
+file is fresh. Each producer writes its own `.family-candidates.<producer>.json` in `.yggdrasil/`:
+`grain propose` writes `.family-candidates.grain.json` into its proposal, so `yg adopt` carries it
+in, and Yggdrasil's offline structural-clustering pass (not part of the installed package) writes
+`.family-candidates.yggdrasil-miner.json`. Each suggestion says which producer measured it and what
+"without a law" meant to that producer; only the miner checks that the fitted scope leaves every
+other file out. The class stays silent while no such file exists; its absence is not an error. And an
 **architecture cut** — two or more module groups that depend on each other in a loop, read
 straight from the committed graph's declared dependencies (reproducible on any machine),
 proposing a cut or a contract across the boundary. Both are data with evidence, both need your

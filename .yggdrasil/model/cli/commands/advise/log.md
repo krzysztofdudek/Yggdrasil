@@ -74,3 +74,5 @@ The newer-version item now reads a local cache written by the package commands r
 advise import now tells the reader how many relation items it left out because the graph already declares them, next to how many were already recorded, so a smaller count than the document's item total is explained rather than silent.
 ## [2026-09-23T06:31:27.923Z]
 yg advise now reads every family-candidates file in the graph directory, one per producer, instead of the single shared file. Grain and the miner both wrote that one file and it holds one producer's families, so the producer that ran last erased the other's nominations without a word. Each file is gated on its own, an unreadable one is omitted alone, and the shared file earlier releases wrote is still read.
+## [2026-09-23T12:22:26.879Z]
+A family an earlier release left in the shared family-candidates file is read only when no producer's own file carries the same family: the same id twice gave two nominations with one id, and the stale copy could never be dismissed or deferred. Per-producer files are read first so the current snapshot always wins.

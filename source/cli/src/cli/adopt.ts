@@ -19,6 +19,7 @@ import {
   GRAPH_DIR,
   countRulesByStatus,
   describeExistingGraph,
+  GRAIN_PROPOSAL_SCHEMA,
   graphDirExists,
   installGraph,
   looksLikeGraph,
@@ -83,11 +84,30 @@ function count(n: number, singular: string, plural = `${singular}s`): string {
 /** What the proposal says about its own origin, or a plain statement that it says nothing. */
 function describeOrigin(provenance: ProposalProvenance | undefined): string {
   if (provenance === undefined) return 'hand-written — the proposal records no origin of its own';
+  // A newer Grain's proposal: its fields may mean something else, so only the version is named.
+  if (!provenance.mined && provenance.schema !== undefined && provenance.schema.startsWith('grain-proposal/')) {
+    return `from a Grain newer than this CLI reads (${provenance.schema}; this CLI reads ${GRAIN_PROPOSAL_SCHEMA}) — its provenance fields are not shown`;
+  }
   const parts: string[] = [provenance.mined ? 'mined from this repository by Grain' : 'generated'];
   if (provenance.schema !== undefined) parts.push(`(${provenance.schema})`);
   if (provenance.asOf !== undefined) parts.push(`taken at ${provenance.asOf.slice(0, 12)}`);
   if (provenance.files !== undefined) parts.push(`over ${count(provenance.files, 'file')}`);
   return parts.join(' ');
+}
+
+/** Every rule some attach site names with a status above draft. */
+function raisedAboveDraft(graph: Graph): Set<string> {
+  const out = new Set<string>();
+  const add = (statuses: Record<string, string> | undefined): void => {
+    for (const [id, status] of Object.entries(statuses ?? {})) if (status !== 'draft') out.add(id);
+  };
+  for (const node of graph.nodes.values()) {
+    add(node.meta.aspectStatus);
+    for (const port of Object.values(node.meta.ports ?? {})) add(port.aspectStatus);
+  }
+  for (const type of Object.values(graph.architecture?.node_types ?? {})) add(type.aspectStatus);
+  for (const flow of graph.flows) add(flow.aspectStatus);
+  return out;
 }
 
 /** The already-broken block: how much of the code that is already here the new rules refuse today. */
@@ -220,10 +240,13 @@ export function registerAdoptCommand(program: Command): void {
         const provenance = await readProvenance(proposal);
         // Only rules `yg check` will run count as already broken: a `draft` rule is left out of the
         // expected set entirely, so the sites it would refuse are not something accepting this graph
-        // turns red. (A rule raised above draft only on some components still counts here whole.)
+        // turns red. A rule whose default is draft but which an attach site raises (a component, a
+        // type, a port or a flow naming it above draft) runs there, so it counts — whole, because
+        // the per-rule count the generator records is not split by component.
+        const raised = raisedAboveDraft(proposed);
         const violations = await readExistingViolations(
           proposal.graphDir,
-          proposed.aspects.filter((a) => (a.status ?? 'enforced') !== 'draft').map((a) => a.id),
+          proposed.aspects.filter((a) => (a.status ?? 'enforced') !== 'draft' || raised.has(a.id)).map((a) => a.id),
         );
 
         // ── A preview writes nothing at all ────────────────────────────────

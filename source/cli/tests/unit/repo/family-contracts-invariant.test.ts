@@ -88,6 +88,7 @@ const NON_FORMATTER_IDS: ReadonlyArray<{ id: string; producer: string }> = [
   { id: 'yg-marketplace/1', producer: 'a marketplace author (read by `yg pack`, `yg marketplace check`)' },
   { id: 'yg-package/1', producer: 'a package author (read by `yg pack`, `yg marketplace check`)' },
   { id: 'yg-packages/1', producer: 'Yggdrasil `yg pack` — the installed-package lock' },
+  { id: 'yg-package-versions/1', producer: 'Yggdrasil — the package commands\' versions cache (src/io/package-versions-cache.ts)' },
 ];
 
 // ---------------------------------------------------------------------------
