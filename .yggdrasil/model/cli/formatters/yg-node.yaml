@@ -48,4 +48,3 @@ mapping:
   - source/cli/src/formatters/predicate-trace.ts
   - source/cli/src/formatters/suppressions-json.ts
   - source/cli/src/formatters/truncate.ts
-  - source/cli/src/formatters/verdict-json.ts

@@ -55,10 +55,10 @@ export async function fillLlmPair(
   parseCache?: ParseCache,
 ): Promise<LlmFillOutcome> {
   // ── Assemble the review package: subjects, references, companions,
-  // suppressed ranges, the prompt and its binding hash. The SAME assembly the
-  // external-judge channel prints, so a verdict recorded there and a verdict
-  // filled here are stored under the same hash by construction rather than by
-  // two implementations agreeing. Its two fail-closed dispositions arrive here
+  // suppressed ranges, the prompt and its binding hash, from the one assembly
+  // (review-package.ts), so a verdict an earlier release's external-judge
+  // channel recorded and a verdict filled here share the same hash by
+  // construction. Its two fail-closed dispositions arrive here
   // unchanged: an unreadable declared reference is infra, a companion that
   // cannot resolve is its own runtime error — neither costs a reviewer call. ──
   const assembled = await assembleReviewPackage({

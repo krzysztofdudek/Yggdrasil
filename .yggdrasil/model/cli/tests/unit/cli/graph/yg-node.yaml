@@ -23,7 +23,6 @@ relations:
     { target: cli/commands/flows, type: uses },
     { target: cli/commands/node, type: uses },
     { target: cli/commands/owner, type: uses },
-    { target: cli/commands/verdict, type: uses },
     { target: cli/impact-handlers, type: uses },
     { target: cli/model/lock, type: uses },
     { target: cli/preamble, type: uses },
@@ -46,5 +45,4 @@ mapping:
   - source/cli/tests/unit/cli/node.test.ts
   - source/cli/tests/unit/cli/machine-documents.test.ts
   - source/cli/tests/unit/cli/owner.test.ts
-  - source/cli/tests/unit/cli/verdict.test.ts
   - source/cli/tests/unit/cli/which.test.ts

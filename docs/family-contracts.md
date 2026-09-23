@@ -17,8 +17,6 @@ A check fails when this page and the code disagree — in either direction, in a
 | Rule list (`yg aspects --json`) | `yg-aspects/1` | Yggdrasil | Horde — the quality index, `law`, `land` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Attention feed (`yg advise --json`) | `yg-advise/1` | Yggdrasil | Horde — `audit` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Rule history (`yg aspects log read --json`) | `yg-aspect-log/1` | Yggdrasil | Horde — `law` | before 6.0.0 | [CLI Reference](/cli-reference) |
-| Review package (`yg verdict package`) | `yg-review/1` | Yggdrasil | Horde — `retro`; and a judge outside the configured reviewer | before 6.0.0 | [CLI Reference](/cli-reference) |
-| Recorded verdicts (`yg verdict read --json`) | `yg-verdicts/1` | Yggdrasil | Horde — `retro` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Waiver inventory (`yg suppressions --json`) | `yg-suppressions/1` | Yggdrasil | Horde — `land` | 6.0.0 | [CLI Reference](/cli-reference) |
 | Marketplace manifest (`yg-marketplace.yaml`) | `yg-marketplace/1` | the marketplace author | Yggdrasil — `yg pack add` / `update` / `list`, `yg marketplace check` | 6.0.0 | [Packages](/packages) |
 | Package manifest (`yg-package.yaml`) | `yg-package/1` | the package author | Yggdrasil — `yg pack`, `yg marketplace check` | 6.0.0 | [Packages](/packages) |

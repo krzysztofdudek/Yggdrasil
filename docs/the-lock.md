@@ -69,7 +69,7 @@ These are two different jobs.
 
 However, when `auto_approve` is configured in `yg-config.yaml`, bare `yg check` may fill pairs automatically: `auto_approve: deterministic` behaves like `yg check --approve --only-deterministic`; `auto_approve: full` behaves like `yg check --approve`. CI scripts use explicit flags (`yg check --approve --only-deterministic`) and are unaffected by `auto_approve` — the CI-is-free-and-keyless guarantee holds.
 
-`yg check --approve` is the only command that fills verdicts through the configured reviewer and the deterministic checks. (It is not the only command that writes one: `yg verdict record` records a judgement from a judge outside the CLI straight into the lock, bound to the hash `yg verdict package` printed, without running the configured reviewer — see [A verdict somebody else made](#a-verdict-somebody-else-made) below and [/cli-reference](/cli-reference).) It fills every unverified pair it answers for: deterministic checks first (they run locally, for free), then the LLM pairs. On a project that measures changes against a branch, the local checks still cover everything and the reviewer is asked only about the rules your change is accountable for. When a pair gets a real verdict — pass or refusal — the entry lands in the lock: the deterministic verdicts in the gitignored cache, the LLM verdicts in the committed `yg-lock.nondeterministic.json`. Then it reports, just like a plain check.
+`yg check --approve` is the only command that fills verdicts through the configured reviewer and the deterministic checks. Nothing else judges a prose rule: the configured reviewer is its only judge. It fills every unverified pair it answers for: deterministic checks first (they run locally, for free), then the LLM pairs. On a project that measures changes against a branch, the local checks still cover everything and the reviewer is asked only about the rules your change is accountable for. When a pair gets a real verdict — pass or refusal — the entry lands in the lock: the deterministic verdicts in the gitignored cache, the LLM verdicts in the committed `yg-lock.nondeterministic.json`. Then it reports, just like a plain check.
 
 An aspect refusal never blocks other nodes' pairs. `--approve` records every result it gets and exits non-zero if any error remains. One exception: a node carrying an enforced deterministic refusal has its own LLM pairs skipped for that run, so a known-broken node never bills the reviewer — those pairs stay unverified until the refusal is cleared.
 
@@ -117,11 +117,9 @@ Corollaries worth knowing:
 
 `yg log add` never verifies anything and never invalidates a verdict, so entries can be appended freely between code changes.
 
-## A verdict somebody else made
+## A verdict an earlier release took from outside
 
-A verdict does not have to come from the configured reviewer. When a judge outside the CLI decides a prose rule (see [Reviewers](/reviewers#a-judge-outside-the-cli)), the entry that lands here is the ordinary one — the same content hash, the same shape — with the judge's name recorded beside it.
-
-The name is provenance, not an input: it is deliberately outside the hash, so the verdict is bound to exactly what a provider's would have been bound to. That is what lets CI stand it back up by hashing alone, with no key and no judge present, and what makes it fall out of force the moment the code it judged changes. `yg check` names the judge in its report, because an approval reports nothing on its own and a green run should never carry a judgement with no visible author.
+Releases before 6.1.0 had an external-judge channel (`yg verdict record`) that wrote a verdict with a judge's name beside it. That channel is gone: the configured reviewer is the only judge of a prose rule. An entry it wrote is still read and still holds while the code it judged does not change, because the name was never part of the hash; `yg check` still names such a judge in its report, and once the code moves the pair is judged again by the reviewer.
 
 ## The relation check is not in the lock
 

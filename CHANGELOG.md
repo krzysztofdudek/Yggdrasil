@@ -10,10 +10,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - A reviewer provider for the GitHub Copilot CLI, `copilot-cli`, so a prose rule can be judged on a company's Copilot plan instead of a personal API key. It takes no default model: the organisation's Copilot policy decides which models a seat may use and the CLI refuses any other, so the tier names one (`auto` lets Copilot pick). It runs the real CLI — `YG_COPILOT_BIN`, else the first `copilot` on PATH outside the VS Code extension's storage, whose `copilot` is an installer prompt — with an empty `COPILOT_HOME`, no repository instructions, no built-in MCP servers and no shell, write, network or memory tools; the sign-in is kept. `yg init` offers it, requires `--model` for it, and checks for the real CLI the same way.
-- `yg verdict package` now prints the package for a pair whose pass is in force, marked `inForce: true` in the `yg-review/1` document; `state` keeps its two values and reads `unverified` there, the package a judge with no verdict before it would receive. Printing a package writes nothing, so a second judge can now read a pair that already passed, which is what Horde's two-judge measurement needs to stop drawing only from refused pairs. `yg verdict record` still refuses to write a second verdict over a pass in force, so the lock is unchanged.
 
 ### Removed
 
+- The external-judge channel: `yg verdict package`, `yg verdict record` and `yg verdict read`, with their `yg-review/1` and `yg-verdicts/1` documents. A prose rule is judged by the reviewer configured in `yg-config.yaml`, through `yg check --approve`, and by nothing else. A verdict an earlier release recorded through the channel is still read and still holds while the code it judged is unchanged, and `yg check` still names its judge; nothing writes a new one.
 - The `port-default-reserved` warning. Declaring a port literally named `default` is how a component hangs rules on the implicit port that every relation naming no port enters through, so the declaration is deliberate, and a warning on every run for that deliberate use only taught readers to skip the warnings. `yg check` now says nothing about the declaration itself.
 
 ### Fixed

@@ -120,16 +120,18 @@ structural error. Both are live on every \`yg check\`, no \`--approve\` needed.
   entry carries \`touched\` only when the hook observed files beyond the subject
   set (length > 0); plain LLM entries without \`companion.mjs\` omit the key
   entirely.
-- \`judge\` appears on a verdict recorded through the EXTERNAL-JUDGE channel
-  (\`yg verdict record\`, \`yg knowledge read cli-reference\`): who decided, and
-  that the decision did not come from a configured provider. Absent on every
+- \`judge\` appears only on a verdict an earlier release recorded through its
+  external-judge channel (\`yg verdict record\`, since removed — the configured
+  reviewer is the only judge): who decided, and that the decision did not come
+  from a configured provider. Such an entry is still read and still holds while
+  its inputs do; nothing writes a new one. Absent on every
   provider-produced and every deterministic entry. NOT a hash ingredient — it
   records who decided, never an input of the decision — so the verdict is bound
   to the same inputHash a provider's would have been, which is exactly what lets
   CI re-prove it by hashing with no key and no judge present.
 - \`filledAt\` and \`filledSha\` record WHEN \`--approve\` wrote the verdict (ISO
   timestamp) and the commit it ran at. Both are written on NON-deterministic
-  entries only — an LLM verdict or an external judge's — because filling a
+  entries only — an LLM verdict (or an earlier release's external judge's) — because filling a
   deterministic pair costs nothing and there is nothing to attribute;
   \`filledSha\` is independently optional on top of that, absent when no commit
   resolved (no repository, no first commit yet, git missing from \`PATH\`).

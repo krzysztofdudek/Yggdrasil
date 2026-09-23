@@ -230,31 +230,6 @@ describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
     }
   });
 
-  it('7: a verdict recorded outside the configured reviewer names its judge, in the pair and in the run', () => {
-    const dir = copyFixture('judge');
-    try {
-      const pkg = JSON.parse(
-        run(['verdict', 'package', '--aspect', 'has-doc-comment', '--node', 'services/orders'], dir).stdout,
-      ) as { hashes: { pass: string } };
-      run(
-        ['verdict', 'record', '--aspect', 'has-doc-comment', '--node', 'services/orders',
-         '--by', 'grain-verifier', '--verdict', 'pass', '--hash', pkg.hashes.pass],
-        dir,
-      );
-
-      const doc = JSON.parse(run(['check', '--json'], dir).stdout) as CheckDoc;
-      const judged = doc.pairs.find((p) => p.aspect === 'has-doc-comment' && p.node === 'services/orders');
-      expect(judged!.verdict).toBe('approved');
-      expect(judged!.reviewer).toBe('grain-verifier');
-      expect(judged!.hash).toBe(pkg.hashes.pass);
-      expect(doc.judges).toEqual([{ name: 'grain-verifier', pairs: 1 }]);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-});
-
-describe.skipIf(!distExists)('CLI E2E — yg aspects --json', () => {
   it('8: the rule inventory carries status, kind, review date, reach and drill-corpus size', () => {
     const dir = copyFixture('aspects');
     try {

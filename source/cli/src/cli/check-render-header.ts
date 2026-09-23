@@ -137,7 +137,8 @@ export function renderBaselineNoiseNotice(result: CheckResult): string | undefin
 /**
  * Who judged, when the judge was not a configured reviewer.
  *
- * A verdict recorded through the external-judge channel is re-proved here by
+ * A verdict an earlier release recorded through its external-judge channel
+ * (removed since: the configured reviewer is the only judge) is re-proved here by
  * hash like any other — that is what lets CI stand it up again with no key and
  * no judge present. But a hash says the judgement still applies, never whose it
  * was, and an approval reports no issue at all, so without this line a green run

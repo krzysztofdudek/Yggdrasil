@@ -67,7 +67,7 @@ const DOC_NODE_PATH = path.join(REPO_ROOT, '.yggdrasil', 'model', 'docs', 'guide
  * silently returning the empty set makes every containment assertion below pass
  * vacuously, which is the quietest way this guard could fail.
  */
-const MIN_CONSTANTS = 10;
+const MIN_CONSTANTS = 8;
 
 /**
  * Schema ids that are legitimately on the page but are NOT `*_JSON_SCHEMA`

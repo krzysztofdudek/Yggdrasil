@@ -160,7 +160,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | \`yg portal [--static]\` | Local read-only web view of the graph and its verification state (loopback-only; one shelled Approve). |
 | \`yg prime\` [\`--digest\`] | Re-print this manual fresh from the installed CLI (\`--digest\` prints only the committed digest block). |
 
-The table above is the working set, not the whole surface. The commands it omits — \`yg aspects\` (and \`--health\`), \`yg flows\`, \`yg owner\`, \`yg type-suggest\`, \`yg init\`, \`yg adopt\`, \`yg verdict\`, \`yg node\`, \`yg pack\`, \`yg marketplace\` — plus every option flag of every command, are in the full reference: \`yg knowledge read cli-reference\`.
+The table above is the working set, not the whole surface. The commands it omits — \`yg aspects\` (and \`--health\`), \`yg flows\`, \`yg owner\`, \`yg type-suggest\`, \`yg init\`, \`yg adopt\`, \`yg node\`, \`yg pack\`, \`yg marketplace\` — plus every option flag of every command, are in the full reference: \`yg knowledge read cli-reference\`.
 
 ### Impact and Cost
 

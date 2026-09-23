@@ -59,9 +59,10 @@ export interface VerdictEntry {
    */
   promptChars?: number;
   /**
-   * Provenance for a verdict recorded by a judge OUTSIDE the CLI's configured
-   * reviewer — a person, or another tool that read the review package and
-   * decided. Absent on every entry a configured provider produced, and on every
+   * Provenance for a verdict an earlier release recorded through its external-
+   * judge channel (`yg verdict record`, removed since: the configured reviewer is
+   * the only judge). Read and honoured while its inputs hold; nothing writes a
+   * new one. Absent on every entry a configured provider produced, and on every
    * deterministic entry.
    *
    * NOT a hash ingredient — it is a RECORD of who decided, never an input of the

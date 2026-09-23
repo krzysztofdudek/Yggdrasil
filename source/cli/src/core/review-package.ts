@@ -2,11 +2,10 @@
  * source/cli/src/core/review-package.ts — the review package for one LLM pair:
  * everything a judge is given, and the hash the judgement will be stored under.
  *
- * There is exactly ONE assembly. The fill stage sends this package to a
- * configured provider; the external-judge channel prints the same package and
- * later records a verdict against the same hash. If the two assembled it
- * separately they would drift, and a verdict recorded against a package nobody
- * else can reproduce is not bound to anything — so both go through here.
+ * There is exactly ONE assembly, and the fill stage sends it to the configured
+ * provider, the only judge of a prose rule. Verdicts an earlier release's
+ * external-judge channel recorded were bound to this same assembly's hash, which
+ * is why they still re-prove by hashing.
  *
  * Assembly only: it reads files, resolves companions and suppressed ranges,
  * builds the prompt and can compute the pair's inputHash for a given verdict
