@@ -338,6 +338,7 @@ export async function buildDrillRun(
           files: caseFiles.map((f, i) => ({ path: seenAs[i] ?? f, readFrom: f })),
           projectRoot,
           graphAccessTrap: true,
+          ...(aspect.config !== undefined && { config: aspect.config }),
         });
         return r.violations.length > 0 ? 'refused' : 'satisfied';
       } catch (e) {

@@ -25,3 +25,4 @@ relations:
     type: uses
 mapping:
   - source/cli/tests/e2e/cli-pack-lifecycle.test.ts
+  - source/cli/tests/e2e/cli-pack-versions.test.ts

@@ -10,3 +10,5 @@ The node-description helper now answers safely when there is no owning component
 Comment text referenced a planning label that only makes sense with access to material outside the repository, which conflicts with this project's own rule that a source comment must stand on its own. Reworded the affected comment to state what the code does and why in its own terms; no behavior changed.
 ## [2026-08-07T11:03:20.529Z]
 The helper that read a component's description for the prompt is gone, along with the description's presence in the prompt. Every ingredient a prompt is assembled from is now folded into the verdict hash; leaving the helper exported would have left a way for a future caller to reintroduce the one asymmetry that made a prompt's size unpredictable from its verdict.
+## [2026-09-23T20:31:00.082Z]
+The rule hash now folds in every other file in the rule's directory that its code can reach, such as a helper module the script imports, so a change to a helper re-opens the verdicts it helped produce. It is folded only when such files exist, so a rule with none hashes exactly as before and upgrading re-opens nothing by itself.

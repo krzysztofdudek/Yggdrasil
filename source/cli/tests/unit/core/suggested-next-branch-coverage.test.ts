@@ -232,3 +232,113 @@ describe('computeSuggestedNext — findings outside the change', () => {
     expect(next).toContain('Then: 2 files need coverage');
   });
 });
+
+/**
+ * The tie-breaks and fallbacks the cascade relies on when an issue arrives with
+ * a field missing. An issue built outside the check engine (or a repo-level
+ * finding) may carry no aspectId, no nodePath, no uncoveredCount, or no `next`;
+ * each branch must still produce one deterministic, readable line rather than
+ * `undefined` text or a throw.
+ */
+describe('computeSuggestedNext — issues with a field missing', () => {
+  const partial = (i: Partial<Issue> & { severity: Issue['severity']; code: string }, next?: string): Issue =>
+    ({ ...i, messageData: next === undefined ? { what: 'w', why: 'y' } : md(next) }) as Issue;
+
+  it('sorts an enforced refusal without an aspectId ahead of a named one, as groupIssues does', () => {
+    const issues: Issue[] = [
+      partial({ severity: 'error', code: 'aspect-violation-enforced', aspectId: 'alpha' }, 'NEXT-ALPHA'),
+      partial({ severity: 'error', code: 'aspect-violation-enforced' }, 'NEXT-UNNAMED'),
+    ];
+    expect(run(issues)).toBe('NEXT-UNNAMED');
+  });
+
+  it('lets prompt-too-large and a companion error each speak when nothing above them does', () => {
+    expect(run([partial({ severity: 'error', code: 'prompt-too-large', aspectId: 'r' }, 'SHRINK')])).toBe('SHRINK');
+    expect(run([partial({ severity: 'error', code: 'aspect-companion-runtime-error', aspectId: 'r' }, 'FIX-COMPANION')])).toBe('FIX-COMPANION');
+  });
+
+  it('sorts an advisory warning without an aspectId first, and reads a missing next as no line', () => {
+    const issues: Issue[] = [
+      partial({ severity: 'warning', code: 'aspect-violation-advisory', aspectId: 'alpha' }, 'NEXT-ALPHA'),
+      partial({ severity: 'warning', code: 'aspect-violation-advisory' }),
+    ];
+    expect(run(issues)).toBeNull();
+  });
+
+  it('breaks a tie between warnings of one code by node, an absent node first', () => {
+    const issues: Issue[] = [
+      partial({ severity: 'warning', code: 'high-fan-out', nodePath: 'z/n' }, 'NEXT-Z'),
+      partial({ severity: 'warning', code: 'high-fan-out', nodePath: 'a/n' }, 'NEXT-A'),
+    ];
+    expect(run(issues)).toBe('NEXT-A');
+    expect(run([...issues, partial({ severity: 'warning', code: 'high-fan-out' }, 'NEXT-REPO')])).toBe('NEXT-REPO');
+  });
+
+  it('reads a warning with no next as no line rather than printing undefined', () => {
+    expect(run([partial({ severity: 'warning', code: 'high-fan-out', nodePath: 'a/n' })])).toBeNull();
+  });
+
+  it('points an interleaving merge at merge-resolve, ahead of a log that needs restoring', () => {
+    const issues: Issue[] = [
+      partial({ severity: 'error', code: 'log-integrity', nodePath: 'a/n' }, 'git checkout HEAD -- x'),
+      partial({ severity: 'error', code: 'log-integrity', nodePath: 'b/n' }, 'yg log merge-resolve --node b/n'),
+    ];
+    expect(run(issues)).toBe('yg log merge-resolve --node b/n');
+  });
+
+  it('renders a log-format remedy for an unknown node with a plural count', () => {
+    const next = run([
+      partial({ severity: 'error', code: 'log-format' }, 'x'),
+      partial({ severity: 'error', code: 'log-format', nodePath: 'b/n' }, 'x'),
+    ]);
+    expect(next).toBe('Edit .yggdrasil/model/<unknown>/log.md to fix format violations\n  2 log format violations — post-baseline edit OR git checkout for pre-baseline');
+  });
+
+  it('surfaces an ambiguous-node-type finding\'s own two-exit guidance instead of the generic structural line', () => {
+    const issues: Issue[] = [
+      partial({ severity: 'error', code: 'ambiguous-node-type' }, 'NARROW-THE-TYPES'),
+      partial({ severity: 'error', code: 'yaml-invalid', nodePath: 'a/n' }, 'x'),
+    ];
+    expect(run(issues)).toBe('NARROW-THE-TYPES');
+  });
+
+  it('names a repo-level structural error by the graph directory, and a nodeless one by its file', () => {
+    expect(run([partial({ severity: 'error', code: 'config-invalid' }, 'x')])).toBe('Fix config-invalid in .yggdrasil\n  1 of 1 structural error');
+    const fileScoped = { ...partial({ severity: 'error', code: 'yaml-invalid' }, 'x'), unitKey: 'file:src/a.ts' } as Issue;
+    expect(run([fileScoped])).toBe('Fix yaml-invalid in src/a.ts\n  1 of 1 structural error');
+  });
+
+  it('reads an unmapped-files finding without a count as zero files in the structural rider', () => {
+    const next = run([
+      partial({ severity: 'error', code: 'yaml-invalid', nodePath: 'a/n' }, 'x'),
+      partial({ severity: 'error', code: 'unmapped-files' }, 'x'),
+    ]);
+    expect(next).toBe('Fix yaml-invalid in a/n\n  1 of 1 structural error\n  Then: 0 files need coverage');
+  });
+
+  it('agrees in number for one uncovered file, and reads a missing count as zero', () => {
+    expect(run([partial({ severity: 'error', code: 'unmapped-files', uncoveredCount: 1 }, 'x')])).toBe(
+      'yg context --file <uncovered-path>\n  1 file need coverage — bootstrap workflow',
+    );
+    expect(run([partial({ severity: 'error', code: 'unmapped-files' }, 'x')])).toBe(
+      'yg context --file <uncovered-path>\n  0 files need coverage — bootstrap workflow',
+    );
+  });
+
+  it('renders a completeness remedy with no node and a plural count', () => {
+    const next = run([
+      partial({ severity: 'error', code: 'description-missing' }, 'x'),
+      partial({ severity: 'error', code: 'description-missing', nodePath: 'b/n' }, 'x'),
+    ]);
+    expect(next).toBe('Fix description-missing for \n  1 of 2 completeness errors — post-modify workflow');
+  });
+
+  it('breaks a tie between remaining errors of one code by node, an absent node first', () => {
+    const issues: Issue[] = [
+      partial({ severity: 'error', code: 'type-undefined', nodePath: 'z/n' }, 'FIX-Z'),
+      partial({ severity: 'error', code: 'type-undefined', nodePath: 'a/n' }, 'FIX-A'),
+    ];
+    expect(run(issues)).toBe('FIX-A');
+    expect(run([...issues, partial({ severity: 'error', code: 'type-undefined' }, 'FIX-REPO')])).toBe('FIX-REPO');
+  });
+});

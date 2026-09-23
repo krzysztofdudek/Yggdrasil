@@ -145,11 +145,14 @@ function detach(dir: string): void {
   write(dir, rel, read(dir, rel).replace(/aspects:\n(?: {2}- .*\n)+/, ''));
 }
 
-/** Set a setting in rule-a's adaptation, in place. */
+/**
+ * Set a setting in rule-a's adaptation, in place — the way a person does it: the
+ * stub lists every setting commented out, so uncomment `config:` and the key.
+ */
 function setSetting(dir: string, key: string, value: string): void {
-  const text = read(dir, ADAPT_A);
-  const next = text.replace(new RegExp(`^  ${key}: .*$`, 'm'), `  ${key}: ${value}`);
-  expect(next, `adaptation should already carry '${key}'`).not.toBe(text);
+  const text = read(dir, ADAPT_A).replace(/^# config:$/m, 'config:');
+  const next = text.replace(new RegExp(`^(?:#   |  )${key}: .*$`, 'm'), `  ${key}: ${value}`);
+  expect(next, `adaptation should already list '${key}'`).not.toBe(text);
   write(dir, ADAPT_A, next);
 }
 
@@ -253,8 +256,10 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
         expect(stub).toContain('Not adaptable: name, implies, errs, when');
         expect(stub).toContain('#   status:');
       }
-      // The package's own default, live and editable, only where a rule reads one.
-      expect(read(dir, ADAPT_A)).toContain('threshold: 3');
+      // The package's own default, listed where a rule reads one — commented
+      // out, so an untouched adaptation keeps following the package.
+      expect(read(dir, ADAPT_A)).toContain('#   threshold: 3');
+      expect(read(dir, ADAPT_A)).not.toMatch(/^config:/m);
       // And the adaptation is never one of the RECORDED files — it is the
       // consumer's own writing. (The record's header names it on purpose, as the
       // place to make a change instead of editing a copy.)
@@ -428,12 +433,19 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(run(['check', '--approve', '--only-deterministic'], dir).status).toBe(0);
 
       const adaptBefore = read(dir, ADAPT_A);
-      const updated = run(['pack', 'update', 'demo'], dir);
+      const updated = run(['pack', 'update', 'demo', '--to', '0.2.0'], dir);
       expect(updated.status).toBe(0);
       expect(updated.stdout).toContain('0.1.0 → 0.2.0');
+      expect(updated.stdout).toContain('pack/demo@0.2.0');
+      // What changed about the rules is said before anyone runs them.
+      expect(updated.stdout).toContain('rule-a: changed check.mjs');
+      expect(updated.stdout).toContain('new setting countBlankLines');
 
       expect(read(dir, ADAPT_A)).toBe(adaptBefore);
       expect(read(dir, LOCK)).toContain('version: "0.2.0"');
+      expect(read(dir, LOCK)).toContain('requested: "0.2.0"');
+      expect(read(dir, LOCK)).toContain('tag: "pack/demo@0.2.0"');
+      expect(read(dir, LOCK)).toMatch(/commit: "[0-9a-f]{40}"/);
       // The rule script changed in 0.2.0, so its verdict is back for judging.
       expect(read(dir, CHECK_A)).toContain('countBlankLines');
       const after = run(['check'], dir);
@@ -536,8 +548,15 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       setSetting(dir, 'countBlankLines', 'false');
       expect(run(['check'], dir).all).not.toContain('countBlankLines');
 
-      const downgraded = run(['pack', 'update', 'demo', '--to', '0.1.0'], dir);
+      // Going back is refused unless it is asked for in so many words.
+      const refused = run(['pack', 'update', 'demo', '--to', '0.1.0'], dir);
+      expect(refused.status).toBe(1);
+      expect(refused.all).toContain('--allow-downgrade');
+      expect(read(dir, LOCK)).toContain('version: "0.2.0"');
+
+      const downgraded = run(['pack', 'update', 'demo', '--to', '0.1.0', '--allow-downgrade'], dir);
       expect(downgraded.status).toBe(0);
+      expect(downgraded.all).toContain('setting countBlankLines is gone, and your yg-aspect.adapt.yaml still sets it');
 
       const checked = run(['check'], dir);
       expect(checked.status).toBe(1);
@@ -589,6 +608,42 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(existsSync(path.join(dir, '.yggdrasil', 'aspects', 'packages', 'acme'))).toBe(false);
       expect(read(dir, LOCK)).toContain('packages: {}');
       expect(run(['check'], dir).status).toBe(0);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('15b: a record whose install id climbs out is refused by remove and by check, and deletes nothing', () => {
+    // The regression this pins: `package:` was never validated, so a record of
+    // `../../..` made `yg pack remove` delete the whole repository — `.git`
+    // included — and report success.
+    const dir = consumer('escape-id');
+    try {
+      write(dir, 'src/keep.ts', 'export const keep = 1;\n');
+      for (const id of ['../../..', '../../../src']) {
+        write(
+          dir,
+          LOCK,
+          `schema: yg-packages/1\npackages:\n  helper:\n    source: "https://example.test/acme/law.git"\n    package: "${id}"\n    version: "0.1.0"\n    installed_at: "2026-09-10T00:00:00.000Z"\n    files: {}\n`,
+        );
+
+        const removed = run(['pack', 'remove', 'helper'], dir);
+        expect(removed.status).toBe(1);
+        expect(removed.all).toContain(`'${id}'`);
+        expect(removed.all).toContain('<owner>/<repo>/helper');
+        expect(removed.all).not.toContain('Removed');
+        expect(existsSync(path.join(dir, 'src', 'keep.ts'))).toBe(true);
+        expect(existsSync(path.join(dir, '.yggdrasil', 'model', 'app', 'yg-node.yaml'))).toBe(true);
+
+        expect(run(['pack', 'update', 'helper'], dir).status).toBe(1);
+        expect(existsSync(path.join(dir, 'src', 'keep.ts'))).toBe(true);
+
+        // And the gate reports the malformed record rather than passing it.
+        const checked = run(['check'], dir);
+        expect(checked.status).toBe(1);
+        expect(checked.all).toContain('package-file-modified');
+        expect(checked.all).toContain(`'${id}'`);
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -966,6 +1021,9 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       // what a reachable source was recorded as saying, and nobody has asked yet.
       // The feed itself never reaches outside the repository — an agent runs it
       // every session, and every other signal in it is derived from here alone.
+      // (Installing already asked the source, and recorded what it said; start
+      // from a repository that never asked.)
+      rmSync(path.join(dir, VERSIONS_CACHE), { force: true });
       const beforeAsking = run(['advise', '--all'], dir);
       expect(beforeAsking.status).toBe(0);
       expect(beforeAsking.stdout).not.toContain('is installed at version');
@@ -992,7 +1050,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(feed.stdout).toContain('"0.2.0"');
       // Written as the source's own words, never as the tool's finding.
       expect(feed.stdout).toContain("that source's own words");
-      expect(feed.stdout).toContain('yg pack update demo');
+      expect(feed.stdout).toContain('yg pack update demo --to 0.2.0');
 
       // A source that stops answering keeps what was last recorded — a failed
       // reach is not evidence that anything changed — so the listing says nothing

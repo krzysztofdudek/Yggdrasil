@@ -1,0 +1,43 @@
+name: Pack Update
+type: command-support
+description: >-
+  yg pack update: replace an installed copy with another published version, or
+  put an edited one back. It runs in two phases. The first fetches, validates
+  and judges every package the run names — an edited copy, a source that no
+  longer names the recorded publisher, the version asked for against the one
+  installed, and whatever the new version would leave dangling in the graph —
+  and writes nothing, so a refusal anywhere in it truthfully says nothing was
+  changed. The second applies one atomic swap per package and, if one fails on
+  the disk, reports exactly which packages were already updated and which were
+  not. A pin is a pin: a package installed at an exact version stays there
+  until --to moves it, and going back a version needs --allow-downgrade.
+  --reinstall restores the version the record names file for file, and refuses
+  when the source no longer publishes exactly that. Before anything is
+  swapped in it says what the new version changes about each rule — rules
+  added and removed, standing, implies, scope, files, settings — because every
+  one of those takes effect on the next approving check. The consumer's
+  adaptations and rule histories are carried across byte for byte. Registers
+  no Commander subcommand.
+relations:
+  - target: cli/pack-source
+    type: calls
+  - target: cli/preamble
+    type: calls
+  - target: cli/io/parsers/packages
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/core/checks/packages
+    type: calls
+  - target: cli/core/advise
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/packages
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/cli/pack-update.ts

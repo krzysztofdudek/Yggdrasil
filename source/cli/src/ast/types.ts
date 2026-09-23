@@ -16,6 +16,14 @@ export interface SourceFile {
 
 export interface CheckContext {
   files: SourceFile[];
+  /**
+   * Set only under `yg drill`: the rule's settled configuration (its package's
+   * defaults with the consumer's adaptation over them) and the case files as the
+   * subject set — the two members a graphless run CAN supply, so a rule that
+   * reads a setting or walks its subject is drilled rather than turned away.
+   */
+  config?: Record<string, string | number | boolean>;
+  subject?: SourceFile[];
 }
 
 export interface Violation {

@@ -438,6 +438,16 @@ export interface AspectDef {
    * does read sends exactly that rule's verdicts back to unverified.
    */
   config?: Record<string, string | number | boolean>;
+  /**
+   * Every other file in the aspect's directory that its code can reach — a
+   * helper module `check.mjs` imports, a table it ships — as `[posix path
+   * relative to the aspect directory, sha256]`, sorted. Absent when there are
+   * none, which is the ordinary case. Folded into the rule hash (pair-inputs'
+   * `ruleHashFor`) ONLY when present, so an aspect with no such files hashes
+   * exactly as it always did, while an edit to a helper sends the verdicts that
+   * helper helped produce back for judging.
+   */
+  supportFiles?: Array<[string, string]>;
 }
 
 // ============================================================

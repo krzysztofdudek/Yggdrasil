@@ -1,7 +1,7 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { execSync } from 'node:child_process';
 import path from 'node:path';
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { loadGraph } from '../../../src/core/graph-loader.js';
@@ -439,5 +439,125 @@ describe('looksLikeInterleavedMerge', () => {
     const dir = await mkdtemp(path.join(tmpdir(), 'yg-merge-nogit-'));
     dirs.push(dir);
     expect(await looksLikeInterleavedMerge(dir, GIT_LOG, INTERLEAVED, expectedBaselineFromContent(SIDE_A))).toBe(false);
+  });
+});
+
+// A merge that STOPPED on the conflicted log: HEAD and MERGE_HEAD are the two
+// sides, the working-tree log.md holds git's conflict markers, and merge-resolve
+// writes the union of both sides itself before verifying it.
+async function setupConflictedMerge(ancestor: string, ours: string, theirs: string): Promise<{ projectRoot: string; logPath: string }> {
+  const repo = await mkdtemp(path.join(tmpdir(), 'yg-merge-conflict-'));
+  dirs.push(repo);
+  const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: gitFixtureEnv(repo) });
+  r('git init -q -b main');
+  r('git config user.email t@t.test');
+  r('git config user.name Test');
+  const nodeDir = path.join(repo, '.yggdrasil', 'model', 'billing');
+  await mkdir(nodeDir, { recursive: true });
+  const logPath = path.join(nodeDir, 'log.md');
+  await writeFile(path.join(nodeDir, 'yg-node.yaml'), 'name: billing\ntype: module\ndescription: x\n');
+  await writeFile(logPath, ancestor);
+  r('git add -A && git commit -qm ancestor');
+  r('git checkout -qb theirs');
+  await writeFile(logPath, theirs);
+  r('git add -A && git commit -qm theirs');
+  r('git checkout -q main && git checkout -qb ours main');
+  await writeFile(logPath, ours);
+  r('git add -A && git commit -qm ours');
+  r('git merge --no-ff theirs -q || true');
+  return { projectRoot: repo, logPath };
+}
+
+describe('logMergeResolve — a merge still in progress with log.md conflicted', () => {
+  it('writes the date-ordered union of both sides and records it as the baseline', async () => {
+    const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, PARENT2_LOG, PARENT1_LOG);
+    expect(await readFile(logPath, 'utf-8')).toMatch(/^<{7}/m);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true });
+    // Theirs (11:00) sorts ahead of ours (12:00) even though ours is HEAD.
+    expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
+    expect(readLock(path.join(projectRoot, '.yggdrasil')).nodes.billing?.log).toEqual(expectedBaselineFromContent(RESOLVED_LOG_GOOD));
+  });
+
+  it('carries an entry both sides added only once', async () => {
+    const shared = '## [2026-05-11T10:30:00.000Z]\nshared hotfix.\n';
+    const ours = ANCESTOR_LOG + shared + '## [2026-05-11T12:00:00.000Z]\nfeat2.\n';
+    const theirs = ANCESTOR_LOG + shared + '## [2026-05-11T11:00:00.000Z]\nfeat1.\n';
+    const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, ours, theirs);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(true);
+    expect(await readFile(logPath, 'utf-8')).toBe(
+      ANCESTOR_LOG + shared + '## [2026-05-11T11:00:00.000Z]\nfeat1.\n' + '## [2026-05-11T12:00:00.000Z]\nfeat2.\n',
+    );
+  });
+
+  it('refuses to write a union when one side rewrote the shared history, and leaves the file alone', async () => {
+    const rewritten = '## [2026-05-11T10:00:00.000Z]\nbase, rewritten.\n' + '## [2026-05-11T11:00:00.000Z]\nfeat1.\n';
+    const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, PARENT2_LOG, rewritten);
+    const before = await readFile(logPath, 'utf-8');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.what).toContain("do not share .yggdrasil/model/billing/log.md's history");
+      expect(result.error.next).toContain('git merge --abort');
+    }
+    expect(await readFile(logPath, 'utf-8')).toBe(before);
+  });
+
+  it('names the sides in the remedy when conflict markers remain outside a merge in progress', async () => {
+    const { projectRoot, logPath } = await setupInterleavedWorkingTree();
+    await writeFile(logPath, '<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> feat2\n');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot, sides: { ours: 'feat1', theirs: 'feat2' } });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.next).toContain('yg log merge-resolve --node billing --ours feat1 --theirs feat2.');
+  });
+
+  it('returns the lock\'s own refusal when the logs lock itself is still conflicted', async () => {
+    const { projectRoot, nodePath } = await setupMergeRepo();
+    await writeFile(
+      path.join(projectRoot, '.yggdrasil', 'yg-lock.logs.json'),
+      '<<<<<<< HEAD\n{}\n=======\n{}\n>>>>>>> feat1\n',
+    );
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath, repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.what).toContain('yg-lock.logs.json contains git conflict markers');
+      expect(result.error.next).toContain('git checkout --ours -- .yggdrasil/yg-lock.logs.json');
+    }
+  });
+});
+
+describe('looksLikeInterleavedMerge — what it refuses to call a merge', () => {
+  const GIT_LOG = '.yggdrasil/model/billing/log.md';
+
+  it('is false for a log that is not well formed, without asking git at all', async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), 'yg-merge-badformat-'));
+    dirs.push(dir);
+    expect(await looksLikeInterleavedMerge(dir, GIT_LOG, 'not a log entry at all\n', expectedBaselineFromContent(SIDE_A))).toBe(false);
+  });
+
+  it('checks both parents when HEAD is the merge commit', async () => {
+    const { projectRoot } = await setupMergeRepo();
+    // The merge commit holds RESOLVED_LOG_GOOD; the baseline was recorded on feat2
+    // (PARENT2_LOG), and an interleaved rewrite of the union keeps every one of
+    // feat2's entries — so feat2, a parent of HEAD, vouches for it.
+    const baseline = expectedBaselineFromContent(PARENT2_LOG);
+    expect(await looksLikeInterleavedMerge(projectRoot, GIT_LOG, RESOLVED_LOG_GOOD + '## [2026-05-11T12:30:00.000Z]\nlater.\n', baseline)).toBe(true);
+  });
+
+  it('is false when no version in the history matches the recorded baseline', async () => {
+    const { projectRoot } = await setupInterleavedWorkingTree();
+    const foreign = { last_entry_datetime: '2026-05-11T13:00:00.000Z', prefix_hash: '0'.repeat(64) };
+    expect(await looksLikeInterleavedMerge(projectRoot, GIT_LOG, INTERLEAVED, foreign)).toBe(false);
+  });
+
+  it('is false for a log path git has never seen', async () => {
+    const { projectRoot } = await setupInterleavedWorkingTree();
+    expect(await looksLikeInterleavedMerge(projectRoot, '.yggdrasil/model/nowhere/log.md', INTERLEAVED, expectedBaselineFromContent(SIDE_A))).toBe(false);
   });
 });

@@ -68,3 +68,7 @@ The family nominations are built from a list of candidate files, one per produce
 The approval and consent suffixes on nominations now say the action requires the user's approval or consent rather than yours. Nominations are read by agents as much as by people; the second-person form let an agent take itself to be the approver, when every advise action is a human decision.
 ## [2026-09-23T19:41:21.985Z]
 The incident counter used to cite the ledger file even when none exists yet, which sends a reader looking for a file that was never created. At zero it now names the command that records the first incident instead.
+## [2026-09-23T20:30:54.293Z]
+The newer-version item now names the exact command that takes the newest published version, because a plain update leaves a pinned package where it is and used to fetch unreleased work instead of the advertised tag.
+## [2026-09-23T21:31:02.836Z]
+The package-system fixes and the already merged gate-clarity and documentation-consistency fixes met in this component at merge. The merged source carries both sets of behaviour unchanged; this entry records that the combination is what the verdicts now answer for.

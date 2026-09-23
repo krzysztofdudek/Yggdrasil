@@ -10,7 +10,9 @@ let tmpCounter = 0;
 
 /**
  * Write `content` to `filePath` atomically via a UNIQUE temp file + rename.
- * Creates the parent directory recursively if missing.
+ * Creates the parent directory recursively if missing. A string is written as
+ * UTF-8; bytes are written exactly as given, which is how a copied file keeps
+ * the bytes its author published.
  *
  * The temp name is unique per writer (`pid-counter-random`), not a fixed
  * `<filePath>.tmp`. A fixed temp raced whenever two writers targeted the same
@@ -23,7 +25,7 @@ let tmpCounter = 0;
  * (the AST-fact cache) or single-owner (locks/logs), so last-write-wins on the
  * target is correct.
  */
-export async function atomicWriteFile(filePath: string, content: string): Promise<void> {
+export async function atomicWriteFile(filePath: string, content: string | Uint8Array): Promise<void> {
   const dir = path.dirname(filePath);
   await mkdir(dir, { recursive: true });
   tmpCounter = (tmpCounter + 1) >>> 0;

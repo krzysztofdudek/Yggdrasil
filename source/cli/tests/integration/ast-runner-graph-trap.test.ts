@@ -71,19 +71,35 @@ describe('ast runner — graph-access sentinel trap', () => {
     }
   });
 
-  it('the trap fires on every graph-context accessor of the production Ctx (minus files), each naming its accessor', async () => {
-    // Full complement of structure/types.ts `Ctx` minus `files`. A check reading
-    // subject / parseAst / parseJson / parseToml under a drill must be reported as
-    // a capability gap (AST_GRAPH_CTX_UNSUPPORTED → `unsupported`, exit 0), NOT as
-    // a check bug (AST_CHECK_THROWN → `unrun`, exit 2) which a missing trap would
-    // have produced via a plain TypeError on the absent property.
-    for (const accessor of ['node', 'subject', 'graph', 'fs', 'parseAst', 'parseYaml', 'parseJson', 'parseToml']) {
+  it('the trap fires on every graph-context accessor a drill cannot supply, each naming its accessor', async () => {
+    // The production `Ctx` (structure/types.ts) minus `files`, and minus the two a
+    // drill DOES supply — `subject` (the case files) and `config` (the rule's
+    // settings). A check reading parseAst / parseJson / parseToml under a drill
+    // must be reported as a capability gap (AST_GRAPH_CTX_UNSUPPORTED →
+    // `unsupported`, exit 0), NOT as a check bug (AST_CHECK_THROWN → `unrun`,
+    // exit 2) which a missing trap would have produced via a plain TypeError.
+    for (const accessor of ['node', 'graph', 'fs', 'parseAst', 'parseYaml', 'parseJson', 'parseToml']) {
       const src = `export function check(ctx) { const _ = ctx.${accessor}; return []; }`;
       const { projectRoot, aspectDir, file } = stage(src);
       await expect(
         runAstAspect({ aspectDir, aspectId: 'trap', files: [{ path: file }], projectRoot, graphAccessTrap: true }),
       ).rejects.toMatchObject({ code: 'AST_GRAPH_CTX_UNSUPPORTED' });
     }
+  });
+
+  it('under a drill, ctx.subject is the case files and ctx.config the settings handed in', async () => {
+    // A rule parameterized through ctx.config — the only way a package rule is —
+    // used to throw here on `ctx.config.limit` and be reported as a check bug.
+    const src = `export function check(ctx) {
+      return ctx.subject
+        .filter((f) => f.content.length > ctx.config.limit)
+        .map((f) => ({ file: f.path, line: 1, column: 0, message: 'over ' + ctx.config.limit }));
+    }`;
+    const { projectRoot, aspectDir, file } = stage(src, 'export const long = 1;\n');
+    const tight = await runAstAspect({ aspectDir, aspectId: 'cfg', files: [{ path: file }], projectRoot, graphAccessTrap: true, config: { limit: 5 } });
+    expect(tight.violations.map((v) => v.message)).toEqual(['over 5']);
+    const loose = await runAstAspect({ aspectDir, aspectId: 'cfg', files: [{ path: file }], projectRoot, graphAccessTrap: true, config: { limit: 500 } });
+    expect(loose.violations).toEqual([]);
   });
 
   it('GraphAccessTrap carries the accessor name and never escapes runAstAspect', () => {

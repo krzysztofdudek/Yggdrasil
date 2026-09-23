@@ -439,7 +439,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   // run that could not keep it would leave every later run either silent about
   // the change or repeating it forever. The memory is LOCAL — it rides with the
   // gitignored verdict cache — so the ordinary writer persists it correctly in
-  // both modes, and no committed file is touched.
+  // both modes. The log line is NOT local: a moved standing is appended to the
+  // rule's own committed log, under --only-deterministic as well — `log.md`
+  // beside a rule of this repository's own, and `yg-aspect.adapt.log.md` beside
+  // the adaptation of a rule installed from a package, never a file inside the
+  // package's copy.
   const statuses = await recordAspectStatuses(graph, lock, now());
   if (statuses.changed) await writer.persistLock();
   for (const drift of statuses.recorded) {

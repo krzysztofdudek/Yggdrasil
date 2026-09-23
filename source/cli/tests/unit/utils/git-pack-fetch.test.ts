@@ -19,16 +19,20 @@
 // =============================================================================
 
 import { describe, it, expect, afterEach, afterAll, beforeAll } from 'vitest';
-import { mkdtempSync, writeFileSync, rmSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
   clonePackageSource,
+  isGitRepositoryRoot,
   listPackageVersionTags,
+  listPublishedVersionTags,
   packageVersionTag,
+  readHeadCommit,
   readOriginUrl,
 } from '../../../src/utils/git-pack-fetch.js';
-import { runGitFixture } from '../../support/git-fixture.js';
+import { runGitFixture, gitFixtureEnv } from '../../support/git-fixture.js';
+import { execFileSync } from 'node:child_process';
 
 const tempDirs: string[] = [];
 
@@ -161,5 +165,71 @@ describe('a name that a shell would treat as a command', () => {
     );
     expect(result.ok).toBe(false);
     expect(existsSync(canary)).toBe(false);
+  });
+});
+
+describe('which tags count as a published version', () => {
+  it('ignores a tag outside pack/ and a pack/ tag with no package name or no @', async () => {
+    const repo = scratch('odd-tags');
+    runGitFixture(repo, ['init', '-q', '-b', 'main']);
+    writeFileSync(path.join(repo, 'a.txt'), 'a\n', 'utf-8');
+    runGitFixture(repo, ['add', '-A']);
+    runGitFixture(repo, ['commit', '-qm', 'one']);
+    for (const tag of ['v1.0.0', 'pack/@1.0.0', 'pack/no-version', 'pack/demo@1.0.0', 'pack/demo@2.0.0', 'pack/scoped@name@3.0.0']) {
+      runGitFixture(repo, ['tag', tag]);
+    }
+    const all = await listPublishedVersionTags(repo);
+    expect(all).not.toBeNull();
+    // Keyed by everything before the LAST @, so an @ inside a name stays in the name.
+    expect([...(all ?? new Map()).entries()].map(([k, v]) => [k, [...v].sort()]).sort()).toEqual([
+      ['demo', ['1.0.0', '2.0.0']],
+      ['scoped@name', ['3.0.0']],
+    ]);
+  });
+});
+
+describe('which commit a clone came from', () => {
+  it('reads the commit the tag points at, not a moved branch', async () => {
+    const dest = path.join(scratch('head'), 'clone');
+    expect((await clonePackageSource(source, dest, packageVersionTag('demo', '0.1.0'))).ok).toBe(true);
+    const expected = execFileSync('git', ['rev-parse', 'pack/demo@0.1.0^{commit}'], { cwd: source, env: gitFixtureEnv(source), encoding: 'utf-8' }).trim();
+    expect(await readHeadCommit(dest)).toBe(expected);
+  });
+
+  it('reads a directory that is not a checkout as having no commit', async () => {
+    expect(await readHeadCommit(scratch('no-head'))).toBeNull();
+  });
+
+  it('reads a repository with no commit yet as having none', async () => {
+    const empty = scratch('unborn');
+    runGitFixture(empty, ['init', '-q', '-b', 'main']);
+    expect(await readHeadCommit(empty)).toBeNull();
+  });
+});
+
+describe('whether a local directory is a repository in its own right', () => {
+  it('is true at the top of a working tree', async () => {
+    expect(await isGitRepositoryRoot(source)).toBe(true);
+  });
+
+  it('is true for a bare repository', async () => {
+    // Not through runGitFixture: that pins GIT_DIR to <dir>/.git, which would
+    // make the bare repository one level down. The explicit path argument is
+    // the whole target, and the test setup has already scrubbed inherited GIT_*.
+    const bare = path.join(scratch('bare'), 'law.git');
+    execFileSync('git', ['init', '-q', '--bare', bare], { stdio: 'pipe' });
+    expect(await isGitRepositoryRoot(bare)).toBe(true);
+  });
+
+  it('is false for a directory inside another repository\'s working tree', async () => {
+    const repo = scratch('nested');
+    runGitFixture(repo, ['init', '-q', '-b', 'main']);
+    const inner = path.join(repo, 'packages', 'demo');
+    mkdirSync(inner, { recursive: true });
+    expect(await isGitRepositoryRoot(inner)).toBe(false);
+  });
+
+  it('is false for a plain directory', async () => {
+    expect(await isGitRepositoryRoot(scratch('plain'))).toBe(false);
   });
 });

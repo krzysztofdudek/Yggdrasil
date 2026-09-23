@@ -20,9 +20,18 @@ import { abortOnUnexpectedError } from './preamble.js';
  * runs against them.
  */
 function packageRepoKind(cwd: string): PackageRepoKind | null {
-  if (existsSync(path.join(cwd, MARKETPLACE_FILENAME))) return 'publisher';
-  if (existsSync(path.join(cwd, '.yggdrasil', PACKAGES_LOCK_FILENAME))) return 'consumer';
-  return null;
+  // Asked of the repository, not of the directory the agent happens to be in:
+  // run from `src/sub`, the answer is the one the repository root gives. The
+  // walk stops at the first directory that holds either marker or a graph.
+  let dir = path.resolve(cwd);
+  for (;;) {
+    if (existsSync(path.join(dir, MARKETPLACE_FILENAME))) return 'publisher';
+    if (existsSync(path.join(dir, '.yggdrasil', PACKAGES_LOCK_FILENAME))) return 'consumer';
+    if (existsSync(path.join(dir, '.yggdrasil'))) return null;
+    const parent = path.dirname(dir);
+    if (parent === dir) return null;
+    dir = parent;
+  }
 }
 
 export function registerPrimeCommand(program: Command): void {

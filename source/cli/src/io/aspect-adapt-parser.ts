@@ -216,7 +216,9 @@ export function resolveAspectConfig(
   const resolved: Record<string, string | number | boolean> = {};
   for (const [key, def] of Object.entries(schema)) resolved[key] = def.default;
 
-  if (adaptConfig === undefined) return { ok: true, value: resolved };
+  // `config:` with every key under it still commented out — the stub as written,
+  // with only its header uncommented — reads as null: nothing set, not an error.
+  if (adaptConfig === undefined || adaptConfig === null) return { ok: true, value: resolved };
 
   if (adaptConfig === null || typeof adaptConfig !== 'object' || Array.isArray(adaptConfig)) {
     return {

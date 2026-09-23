@@ -1,0 +1,39 @@
+name: Pack Source
+type: command-support
+description: >-
+  Where an installed package comes from, for the yg pack commands: reading what
+  the user asked for, resolving a source for this machine and for the committed
+  record (a typed path from where it was typed, a recorded one from the
+  repository root; a URL without credentials), working out who published it,
+  and fetching exactly one published version of it. A version is a tag,
+  pack/<name>@<version>: latest is the highest such tag the source publishes, a
+  version is only ever taken from its tag and cloned, and the commit the tag
+  pointed at is recorded — never a default branch, and never a local working
+  tree nobody else could reproduce. A plain directory that is not a repository
+  publishes no versions and is read as it is on disk, and the record says so.
+  It also reads the marketplace and the package, refuses a version whose tag,
+  package manifest and marketplace entry disagree, and holds the state every
+  subcommand shares: the record, the one-command-at-a-time lock, and every
+  place in the graph that still names a rule — a component, one of its ports, a
+  type, a flow, or another rule's implies. A tag listing is asked once per
+  source and a tag cloned once per command, and every directory a fetch made is
+  removed however the command ends, because every refusal is thrown as a
+  PackRefusal the command layer prints after that cleanup has run. Registers no
+  Commander subcommand.
+relations:
+  - target: cli/io/parsers/packages
+    type: calls
+  - target: cli/io/stores
+    type: calls
+  - target: cli/utils
+    type: calls
+  - target: cli/cli-version
+    type: calls
+  - target: cli/model/graph
+    type: uses
+  - target: cli/model/packages
+    type: uses
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/cli/pack-source.ts

@@ -89,7 +89,8 @@ export function packageUpdateNominations(
         `The version numbers and the package name are that source's own words, not this graph's finding. ` +
         `Nothing is wrong with the version you have — it is a choice you have not made yet.`,
       next: asApprovalNext(
-        `Read what changed in the newer version at its source, then take it with yg pack update ${update.name} ` +
+        `Read what changed in the newer version at its source, then take it with ` +
+          `yg pack update ${update.name} --to ${update.newerVersions[update.newerVersions.length - 1]} ` +
           `(your adaptations survive; the copied rule files are replaced).`,
       ),
       evidenceHash: hashEvidence({

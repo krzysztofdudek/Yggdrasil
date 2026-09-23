@@ -12,7 +12,7 @@ import type {
   PackagesLock,
   PackagesLockEntry,
 } from '../model/packages.js';
-import { PACKAGES_DIR } from '../model/packages.js';
+import { PACKAGES_DIR, REQUESTED_LATEST } from '../model/packages.js';
 import { toPosixPath } from '../utils/posix.js';
 
 /**
@@ -65,8 +65,9 @@ function isSingleSegment(name: string): boolean {
     name.trim() !== '' &&
     !name.includes('/') &&
     !name.includes('\\') &&
-    name !== '.' &&
-    name !== '..'
+    !name.includes('\0') &&
+    name.trim() !== '.' &&
+    name.trim() !== '..'
   );
 }
 
@@ -482,6 +483,52 @@ export function checkPackageRequires(
 
 const SHA256_HEX = /^[0-9a-f]{64}$/;
 
+/** A git object id: SHA-1 (40) or SHA-256 (64) hex. */
+const COMMIT_HEX = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
+
+/**
+ * The optional provenance fields of one record — what was asked for, the tag the
+ * copy came from, the commit that tag pointed at, and whether the identity was
+ * given by hand. All four are absent in a record an earlier release wrote, which
+ * is still read; present but malformed is refused, because each one drives what
+ * `yg pack update` fetches or refuses.
+ */
+function parseLockProvenance(
+  entry: Record<string, unknown>,
+  pkgName: string,
+  filePath: string,
+): ParseResult<Pick<PackagesLockEntry, 'requested' | 'tag' | 'commit' | 'identity'>> {
+  const out: Pick<PackagesLockEntry, 'requested' | 'tag' | 'commit' | 'identity'> = {};
+  const bad = (field: string, value: unknown, expected: string): ParseResult<never> =>
+    fail('packages-lock-entry-invalid', {
+      what: `${filePath}: the record for '${pkgName}' has ${field}: '${String(value)}', which is not ${expected}.`,
+      why: `${field} is what yg pack update reads to decide what to fetch and what to refuse; a value it cannot read would make it guess.`,
+      next: `Restore ${filePath} from version control, or remove the ${field}: line so the record reads as one an earlier release wrote.`,
+    });
+
+  if (entry.requested !== undefined) {
+    const v = typeof entry.requested === 'string' ? entry.requested.trim() : '';
+    if (v !== REQUESTED_LATEST && validSemver(v) === null) return bad('requested', entry.requested, `'${REQUESTED_LATEST}' or a semver version`);
+    out.requested = v;
+  }
+  if (entry.tag !== undefined) {
+    const v = typeof entry.tag === 'string' ? entry.tag.trim() : '';
+    const version = v.startsWith(`pack/${pkgName}@`) ? v.slice(`pack/${pkgName}@`.length) : '';
+    if (validSemver(version) === null) return bad('tag', entry.tag, `pack/${pkgName}@<version>`);
+    out.tag = v;
+  }
+  if (entry.commit !== undefined) {
+    const v = typeof entry.commit === 'string' ? entry.commit.trim() : '';
+    if (!COMMIT_HEX.test(v)) return bad('commit', entry.commit, 'a full git commit id');
+    out.commit = v;
+  }
+  if (entry.identity !== undefined) {
+    if (entry.identity !== 'given') return bad('identity', entry.identity, "'given'");
+    out.identity = 'given';
+  }
+  return { ok: true, value: out };
+}
+
 /** An empty lock — what a repository with no packages installed reads as. */
 export function emptyPackagesLock(): PackagesLock {
   return { schema: 'yg-packages/1', packages: {} };
@@ -548,7 +595,27 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
       }
     }
 
+    // The install id is the directory `yg pack remove` and `update` delete
+    // recursively, so it is validated as strictly as any path a stranger wrote —
+    // because a hand merge or a crafted pull request can put anything here. It is
+    // exactly `<owner>/<repo>/<name>`, three plain segments, the last of which is
+    // the key the record is filed under. Anything else (`../..`, an absolute
+    // path, two segments, an empty string) is refused here, where every command
+    // and the `yg check` rail read the record, before any command can act on it.
     const installId = (entry.package as string).trim();
+    const idParts = installId.split('/');
+    if (
+      !isSingleSegment(pkgName) ||
+      idParts.length !== 3 ||
+      !idParts.every((part) => isSingleSegment(part) && part === part.trim()) ||
+      idParts[2] !== pkgName
+    ) {
+      return fail('packages-lock-package-invalid', {
+        what: `${filePath}: the record for '${pkgName}' names its install directory as '${installId}', which is not <owner>/<repo>/${pkgName}.`,
+        why: 'That value is the directory under .yggdrasil/aspects/packages/ that yg pack update and yg pack remove replace and delete. Anything but three plain path segments ending in the package name could point those commands outside the installed packages — at the repository itself.',
+        next: `Restore ${filePath} from version control. If the record really is wrong, set package: to "<owner>/<repo>/${pkgName}" — the directory its copy sits in under .yggdrasil/aspects/packages/.`,
+      });
+    }
     const installPrefix = `${PACKAGES_DIR}/${installId}/`;
     const filesRaw = entry.files;
     if (filesRaw === null || typeof filesRaw !== 'object' || Array.isArray(filesRaw)) {
@@ -579,10 +646,14 @@ export async function parsePackagesLock(filePath: string): Promise<ParseResult<P
       files[posix] = hashRaw;
     }
 
+    const provenance = parseLockProvenance(entry, pkgName, filePath);
+    if (!provenance.ok) return provenance;
+
     packages[pkgName] = {
       source: (entry.source as string).trim(),
       package: installId,
       version: (entry.version as string).trim(),
+      ...provenance.value,
       installed_at: (entry.installed_at as string).trim(),
       files,
     };

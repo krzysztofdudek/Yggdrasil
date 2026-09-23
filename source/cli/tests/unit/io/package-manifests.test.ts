@@ -475,6 +475,54 @@ packages:
     },
   );
 
+  // The install id is what `yg pack remove` and `update` delete recursively. A
+  // record naming anything but <owner>/<repo>/<key> once deleted the repository.
+  it.each([
+    ['a climb out of the packages area', '"../../.."'],
+    ['a climb that ends in a sibling', '"../../../victim"'],
+    ['an absolute path', '"/etc"'],
+    ['an empty string', '""'],
+    ['two segments', 'acme/demo'],
+    ['four segments', 'acme/law/x/demo'],
+    ['a traversal segment in the middle', 'acme/../demo'],
+    ['a last segment that is not the key', 'acme/law/other'],
+    ['a backslash', '"acme\\\\law/x/demo"'],
+  ])('refuses an install id that is %s, naming it', async (_label, value) => {
+    const p = fileWith(
+      'yg-packages.yaml',
+      `schema: yg-packages/1\npackages:\n  demo:\n    source: s\n    package: ${value}\n    version: 0.1.0\n    installed_at: 2026-09-10T00:00:00.000Z\n    files: {}\n`,
+    );
+    const r = refusal(await parsePackagesLock(p));
+    // An empty string is caught earlier, as a missing field — refused either way.
+    expect(['packages-lock-package-invalid', 'packages-lock-entry-incomplete']).toContain(r.code);
+    expect(r.what).toContain('demo');
+  });
+
+  it('reads what was asked for, the tag and commit the copy came from, and a given identity', async () => {
+    const commit = 'c'.repeat(40);
+    const p = fileWith(
+      'yg-packages.yaml',
+      LOCK.replace('    version: 0.1.0\n', `    version: 0.1.0\n    requested: latest\n    tag: pack/demo@0.1.0\n    commit: ${commit}\n    identity: given\n`),
+    );
+    const result = await parsePackagesLock(p);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.packages.demo).toMatchObject({ requested: 'latest', tag: 'pack/demo@0.1.0', commit, identity: 'given' });
+  });
+
+  it.each([
+    ['requested', 'someday'],
+    ['tag', 'v0.1.0'],
+    ['tag', 'pack/other@0.1.0'],
+    ['commit', 'abc123'],
+    ['identity', 'derived'],
+  ])('refuses a malformed %s, naming it', async (field, value) => {
+    const p = fileWith('yg-packages.yaml', LOCK.replace('    version: 0.1.0\n', `    version: 0.1.0\n    ${field}: ${value}\n`));
+    const r = refusal(await parsePackagesLock(p));
+    expect(r.code).toBe('packages-lock-entry-invalid');
+    expect(r.what).toContain(field);
+  });
+
   it('refuses a schema this build does not know', async () => {
     const p = fileWith('yg-packages.yaml', LOCK.replace('yg-packages/1', 'yg-packages/9'));
     expect(refusal(await parsePackagesLock(p)).code).toBe('packages-lock-schema-unknown');
