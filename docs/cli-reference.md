@@ -1676,13 +1676,19 @@ that used to pass `--platform x` to refresh the rules keeps working unchanged.
 longer requires naming a platform.
 
 **Defaults:** `--model` defaults to `sonnet` only for `claude-code`; every
-other provider requires `--model` explicitly. `--endpoint` defaults to
+other provider requires `--model` explicitly (`copilot-cli` takes one the
+Copilot plan allows, e.g. `--model auto`). `--endpoint` defaults to
 `http://localhost:11434` for `ollama` only; `openai-compatible` has no default
 and requires `--endpoint`. Credentials are never a flag — an API provider's
 key is read only from its own environment variable
-(`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`) at init time,
+(`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`; `openai-compatible`
+also reads `OPENAI_API_KEY`, and needs no key for a keyless server) at init time,
 keeping keys out of shell history; a missing key is non-fatal and can be set
-later before `yg check --approve`.
+later before `yg check --approve`. For a CLI provider, init checks that the CLI
+runs on this machine (the same check the interactive menu makes) and prints a
+warning naming the cause when it does not; the configuration is still written
+and the exit code is 0. No network call is made. An existing `yg-config.yaml`
+keeps its comments and formatting: only the `reviewer:` section is written.
 
 `yg init` also maintains a `.gitattributes` entry marking the committed lock files
 as generated (`linguist-generated=true`), adds the gitignored deterministic cache

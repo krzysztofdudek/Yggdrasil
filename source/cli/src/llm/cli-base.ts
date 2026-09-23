@@ -2,7 +2,8 @@ import { spawn } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import type { LlmProvider, AspectResponse } from './types.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { binaryAvailable } from '../utils/binary-check.js';
+import { probeBinary } from '../utils/binary-check.js';
+import { redactedTail, redactSecrets } from '../utils/redact.js';
 
 /**
  * Coerce a verdict value: a JSON boolean OR a quoted "true"/"false" string
@@ -209,12 +210,39 @@ export abstract class CliAgentProvider implements LlmProvider {
    */
   protected get spawnShell(): boolean { return false; }
 
+  /**
+   * How to get this provider's CLI, for the unavailable reason — e.g. the npm
+   * package that installs it. Each concrete provider names its own.
+   */
+  protected get installHint(): string { return `install '${this.binary}' and put it on PATH`; }
+
+  /** Why the last isAvailable() said no, as the binary probe worded it. */
+  protected lastProbeFailure = '';
+
   async isAvailable(): Promise<boolean> {
-    return binaryAvailable(this.binary);
+    const probe = await probeBinary(this.binary);
+    this.lastProbeFailure = probe.ok ? '' : probe.detail;
+    return probe.ok;
+  }
+
+  async unavailableReason(): Promise<string> {
+    return `${this.lastProbeFailure || `'${this.binary}' could not be run`} — ${this.installHint}`;
+  }
+
+  /**
+   * The reason a failed run reports: which way it failed (timed out, exit code,
+   * killed by a signal, exited cleanly with no verdict) and the last few hundred
+   * characters of what the CLI printed, credentials masked. The CLI's own words
+   * are usually the diagnosis — "please run /login", "unknown model", a policy
+   * refusal — so they go into the reason, not only into the debug log.
+   */
+  private describeFailure(how: string, stderr: string, stdout: string): string {
+    const said = redactedTail(stderr) || redactedTail(stdout);
+    return `'${this.binary}' ${how}${said ? `: ${said}` : ' and printed nothing'}`;
   }
 
   async verifyAspect(prompt: string): Promise<AspectResponse> {
-    const fallback: AspectResponse = { satisfied: false, reason: 'Reviewer unavailable', errorSource: 'provider' };
+    const failed = (reason: string): AspectResponse => ({ satisfied: false, reason, errorSource: 'provider' });
 
     return new Promise((resolve) => {
       const args = this.stdinMode ? this.buildArgs('') : this.buildArgs(prompt);
@@ -229,11 +257,23 @@ export abstract class CliAgentProvider implements LlmProvider {
       let stdout = '';
       let stderr = '';
       let killed = false;
+      let settled = false;
+      const started = Date.now();
       let sigkillTimer: ReturnType<typeof setTimeout> | undefined;
+      const settle = (r: AspectResponse): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        clearTimeout(sigkillTimer);
+        resolve(r);
+      };
+      const timedOut = (): AspectResponse => failed(this.describeFailure(
+        `timed out after ${Math.round(this.timeout / 1000)}s (config.timeout, in seconds; default 300)`, stderr, stdout,
+      ));
 
       const timer = setTimeout(() => {
         killed = true;
-        debugWrite(`[${this.binary}] timeout after ${this.timeout}ms; stderr tail: ${stderr.slice(-500)}`);
+        debugWrite(`[${this.binary}] timeout after ${this.timeout}ms; stderr tail: ${redactSecrets(stderr.slice(-500))}`);
         child.kill('SIGTERM');
         // Escalate: a child that ignores SIGTERM would otherwise hang yg check
         // indefinitely. Give it a short grace period, then force SIGKILL so the
@@ -241,34 +281,43 @@ export abstract class CliAgentProvider implements LlmProvider {
         sigkillTimer = setTimeout(() => {
           debugWrite(`[${this.binary}] still alive ${SIGKILL_GRACE_MS}ms after SIGTERM; sending SIGKILL`);
           child.kill('SIGKILL');
+          // A grandchild that inherited the pipes can hold them open after the
+          // child itself is gone, so 'close' may never come: answer now.
+          settle(timedOut());
         }, SIGKILL_GRACE_MS);
       }, this.timeout);
 
       child.stdout.on('data', (data: Buffer) => { stdout += data.toString(); });
       // Drain stderr too. With stdio stderr piped but unread, a child that writes
       // more than the ~64KB pipe buffer blocks on its stderr write and never exits —
-      // a deadlock that presents as a spurious timeout / "Reviewer unavailable" on
-      // large prompts. Reading it keeps the pipe flowing and preserves diagnostics.
+      // a deadlock that presents as a spurious timeout on large prompts. Reading it
+      // keeps the pipe flowing and preserves diagnostics.
       child.stderr.on('data', (data: Buffer) => { stderr += data.toString(); });
       child.on('error', (err) => {
-        clearTimeout(timer);
-        clearTimeout(sigkillTimer);
         const isE2BIG = (err as NodeJS.ErrnoException).code === 'E2BIG';
+        const isENOENT = (err as NodeJS.ErrnoException).code === 'ENOENT';
         const msg = isE2BIG
           ? 'Prompt too large for CLI arg mode'
-          : `spawn error — is '${this.binary}' installed and on PATH?`;
+          : isENOENT
+            ? `'${this.binary}' was not found on PATH — ${this.installHint}`
+            : `'${this.binary}' could not be started (${err.message}) — ${this.installHint}`;
         debugWrite(`[${this.binary}] ${msg}`);
-        resolve({ satisfied: false, reason: msg, errorSource: 'provider' });
+        settle(failed(msg));
       });
-      child.on('close', (code) => {
-        clearTimeout(timer);
-        clearTimeout(sigkillTimer);
-        if (killed || code !== 0) {
-          if (!killed && code !== 0) debugWrite(`[${this.binary}] exit_code=${code}`);
-          resolve(fallback);
+      child.on('close', (code, signal) => {
+        // The spawn's own timeout option can kill the child a moment before our
+        // timer marks it, so a signal at or past the deadline is a timeout too.
+        if (killed || (signal !== null && Date.now() - started >= this.timeout)) {
+          settle(timedOut());
           return;
         }
-        resolve(parseAspectResponse(stdout) ?? fallback);
+        if (code !== 0) {
+          // The whole stderr goes to the debug log; the reason carries its tail.
+          debugWrite(`[${this.binary}] exit_code=${code} signal=${signal ?? 'none'}; stderr: ${redactSecrets(stderr)}`);
+          settle(failed(this.describeFailure(code === null ? `was killed by ${signal ?? 'a signal'}` : `exited with code ${code}`, stderr, stdout)));
+          return;
+        }
+        settle(parseAspectResponse(stdout) ?? failed(this.describeFailure('exited 0 without a verdict', stderr, '')));
       });
 
       if (this.stdinMode) {

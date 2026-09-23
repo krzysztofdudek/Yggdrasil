@@ -190,10 +190,10 @@ reviewer:
 | `provider` | yes | One of the supported providers (see below) |
 | `consensus` | yes | Positive odd integer. `1` = single call. `3` = majority vote. |
 | `max_prompt_chars` | no | Positive integer. Caps the assembled-prompt length for LLM pairs on this tier (see [Prompt-size gate](#prompt-size-gate)). Absent defaults to 50000. `yg init` writes `50000`. |
-| `config.model` | required for `ollama` / `openai` / `anthropic` / `google` / `openai-compatible`; optional for the CLI providers | Provider-specific model identifier. Omitted on a CLI provider it defaults to: `claude-code` → `haiku`, `codex` → `o4-mini`, `gemini-cli` → `gemini-2.5-flash`; `copilot-cli` has no default and must name one. |
+| `config.model` | required for `ollama` / `openai` / `anthropic` / `google` / `openai-compatible` / `copilot-cli`; optional for the other CLI providers | Provider-specific model identifier. Two different defaults exist. `yg init` always writes a model into the file: `sonnet` for `claude-code` when `--model` is omitted, and whatever `--model` names for every other provider (init requires it). Only when a tier in the file has no `config.model` does the run-time fallback apply: `claude-code` → `haiku`, `codex` → `o4-mini`, `gemini-cli` → `gemini-2.5-flash`. `copilot-cli` has no default and must name one (`auto` lets Copilot pick). |
 | `config.temperature` | no | Sampling temperature. Defaults to `0`. |
 | `config.endpoint` | required for `openai-compatible` (ollama defaults to `http://localhost:11434`) | API endpoint URL |
-| `config.timeout` | no | Per-call timeout in seconds. Defaults to `300`. Honored by CLI providers and the `ollama` provider; other hosted API providers ignore it. |
+| `config.timeout` | no | Per-call timeout in seconds, honored by every provider. Defaults to `300` for the CLI providers and `ollama`, and to `60` for the hosted APIs (`anthropic`, `openai`, `google`, `openai-compatible`). A call that runs past it is reported as timed out, naming this setting. |
 | `config.api_key` | no | Provider API key. Takes precedence over the provider's environment variable. Do not put it in `yg-config.yaml` — supply it through the gitignored `yg-secrets.yaml` overlay (see the Secrets section below). |
 
 Unknown `config.*` keys are silently ignored (no error, no warning) — only the
@@ -207,7 +207,7 @@ keys listed above are read.
 | `anthropic` | API | Requires `ANTHROPIC_API_KEY` or `yg-secrets.yaml` |
 | `openai` | API | Requires `OPENAI_API_KEY` |
 | `google` | API | Requires `GOOGLE_API_KEY` |
-| `openai-compatible` | API | Any OpenAI-compatible endpoint |
+| `openai-compatible` | API | Any OpenAI-compatible endpoint. The key is optional: `config.api_key`, else `OPENAI_API_KEY`; with neither, requests go out with no `Authorization` header, which suits a keyless local server (vLLM, LM Studio, llama.cpp). `OPENAI_API_KEY` is the same variable the `openai` provider reads, so a key set for one is sent to the other — give the compatible tier its own `config.api_key` in `yg-secrets.yaml` when both are in use. |
 | `claude-code` | CLI | Delegates to the installed `claude` CLI |
 | `codex` | CLI | Delegates to the installed `codex` CLI |
 | `gemini-cli` | CLI | Delegates to the installed `gemini` CLI |
@@ -217,6 +217,10 @@ CLI providers (claude-code, codex, gemini-cli, copilot-cli) require no API key �
 installed CLI tool.
 
 `copilot-cli` has no default model: the organisation's Copilot policy decides which models a seat may use, and the CLI refuses a model outside it instead of substituting another, so `config.model` must name one the plan allows (`auto` lets Copilot pick). The provider runs the real CLI, never the `copilot` stub the VS Code Copilot extension puts on PATH (an installer prompt): it takes `YG_COPILOT_BIN` when set, otherwise the first `copilot` on PATH outside the extension's storage. Each review runs with the user's configuration and MCP servers out of reach (an empty `COPILOT_HOME`), with no repository instructions, no built-in MCP servers and no shell, write, network or memory tools; the sign-in is kept.
+
+### When the reviewer cannot run
+
+`yg check --approve` names the cause in the provider's own terms and writes no verdict for the pairs it could not review. A CLI provider whose binary is missing says so and names the package that installs it (for `copilot-cli`, also `YG_COPILOT_BIN` and the VS Code stub). A CLI that fails reports its exit code, or the timeout it ran past, with the last few hundred characters it printed, credentials masked — which is where "please run /login" or an unknown-model error shows up. A hosted API with no key says which variable to set, and a refused request gives its HTTP status with what it usually means: 401/403 the key or its permissions, 404 or 400 the model name or endpoint path, 429 the rate limit (after one retry), 5xx the provider's own servers. The full output behind that line — a CLI's whole stderr, the raw unparseable reply — goes to `.yggdrasil/.debug.log` when `debug: true` is set in `yg-config.yaml`. `yg init --provider` runs the same binary check for a CLI provider and warns when it fails; the configuration is written either way.
 
 ---
 
@@ -251,8 +255,8 @@ never invalidates recorded baselines: the committed config names a canonical
 reviewer, and each machine points the same named tier at its own provider, model,
 or key.
 
-API providers also check environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
-`GOOGLE_API_KEY`. If the env var is set, the key is not needed in `yg-secrets.yaml`.
+API providers also check environment variables: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`
+(read by both `openai` and `openai-compatible`), `GOOGLE_API_KEY`. If the env var is set, the key is not needed in `yg-secrets.yaml`.
 
 `yg-config.yaml` itself must never contain credentials. Commit it to the repository.
 

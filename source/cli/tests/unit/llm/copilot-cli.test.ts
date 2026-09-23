@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:f
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { CopilotCliProvider, resolveCopilotBinary, isExtensionStub } from '../../../src/llm/copilot-cli.js';
+import { copilotNotFoundReason } from '../../../src/llm/copilot-cli.js';
 
 const dirs: string[] = [];
 afterEach(() => { for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true }); });
@@ -80,5 +81,42 @@ describe('CopilotCliProvider', () => {
     expect(r.satisfied).toBe(false);
     expect(r.errorSource).toBe('provider');
     expect(r.reason).toContain('is not a model name');
+  });
+});
+
+describe('copilot-cli — the unavailable reason reaches the reader', () => {
+  it('with no copilot at all, names the install and YG_COPILOT_BIN', () => {
+    const reason = copilotNotFoundReason({ PATH: '' });
+    expect(reason).toContain('GitHub Copilot CLI not found on PATH');
+    expect(reason).toContain('npm i -g @github/copilot');
+    expect(reason).toContain('YG_COPILOT_BIN');
+  });
+
+  it('with only the VS Code stub on PATH, says that is what it found', () => {
+    const root = mkdtempSync(path.join(tmpdir(), 'yg-copilot-'));
+    dirs.push(root);
+    const stubDir = path.join(root, 'Code', 'User', 'globalStorage', 'github.copilot-chat', 'copilotCli');
+    exe(stubDir);
+    const reason = copilotNotFoundReason({ PATH: stubDir });
+    expect(reason).toContain("the only 'copilot' on PATH is the VS Code Copilot extension's");
+    expect(reason).toContain('installer prompt');
+  });
+
+  it('with YG_COPILOT_BIN pointing at nothing, names the variable', () => {
+    expect(copilotNotFoundReason({ PATH: '', YG_COPILOT_BIN: '/nowhere/copilot' })).toContain("YG_COPILOT_BIN is set to '/nowhere/copilot', which is not a file");
+  });
+
+  it('the provider gives that reason after isAvailable() says no — the path yg check --approve takes', async () => {
+    const saved = { PATH: process.env.PATH, BIN: process.env.YG_COPILOT_BIN };
+    process.env.PATH = '';
+    delete process.env.YG_COPILOT_BIN;
+    try {
+      const p = new CopilotCliProvider({ model: 'auto' });
+      expect(await p.isAvailable()).toBe(false);
+      expect(await p.unavailableReason()).toContain('GitHub Copilot CLI not found on PATH');
+    } finally {
+      process.env.PATH = saved.PATH;
+      if (saved.BIN !== undefined) process.env.YG_COPILOT_BIN = saved.BIN;
+    }
   });
 });

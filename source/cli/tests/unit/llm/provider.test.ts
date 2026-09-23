@@ -56,6 +56,8 @@ describe('OllamaProvider', () => {
       temperature: 0, consensus: 1,     });
     const result = await provider.verifyAspect('test aspect prompt');
     expect(result.satisfied).toBe(false);
-    expect(result.reason).toContain('could not be parsed');
+    // The reason names the transport failure, not a parse failure that never happened.
+    expect(result.reason).toContain('Ollama request failed: could not reach');
+    expect(result.reason).toContain('check config.endpoint');
   });
 });

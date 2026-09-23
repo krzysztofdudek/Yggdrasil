@@ -90,6 +90,14 @@ vi.mock('../../../src/core/tier-selection.js', async (importOriginal) => {
 import { selectTierForAspect } from '../../../src/core/tier-selection.js';
 const mockSelectTierForAspect = vi.mocked(selectTierForAspect);
 
+// ── Pass-through spy on the closing summary, to read the infra reasons it is handed ──
+vi.mock('../../../src/core/fill-report.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../src/core/fill-report.js')>();
+  return { ...actual, reportFillTotals: vi.fn(actual.reportFillTotals) };
+});
+import { reportFillTotals } from '../../../src/core/fill-report.js';
+const mockReportFillTotals = vi.mocked(reportFillTotals);
+
 function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
   return {
     verifyAspect: async () => ({ satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }),
@@ -585,7 +593,48 @@ describe('fill — fail-closed edge branches', () => {
     const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     expect(readLock(graph.rootPath).verdicts['llm-a']?.['node:svc']).toBeUndefined();
     expect(result.infraFailures).toBeGreaterThan(0);
-    expect(w.text()).toContain('is unreachable');
+    // The thrown cause reaches the reader instead of a generic "unreachable".
+    expect(w.text()).toContain("cannot run: the availability check for 'ollama' failed: dns failure");
+  });
+
+  it('an unavailable provider is reported with its own reason and the debug hint', async () => {
+    const { projectRoot } = await setupProject({
+      aspects: [{ id: 'llm-a', kind: 'llm', status: 'enforced', rule: 'rule a' }],
+    });
+    const graph = await loadGraph(projectRoot);
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider({
+      isAvailable: async () => false,
+      unavailableReason: async () => "'claude' was not found on PATH — install Claude Code",
+    }));
+    mockReportFillTotals.mockClear();
+    const w = makeWriter();
+    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const text = w.text();
+    expect(text).toContain("Reviewer provider 'ollama' (tier 'standard') cannot run: 'claude' was not found on PATH — install Claude Code. 1 pair(s) left unverified.");
+    expect(text).not.toContain('endpoint did not respond');
+    expect(text).toContain('set `debug: true` in .yggdrasil/yg-config.yaml');
+    // The reason travels with the infra report, for the closing summary to show.
+    expect(mockReportFillTotals.mock.calls[0][0].infraReport).toEqual([
+      { provider: 'ollama', tier: 'standard', reason: "'claude' was not found on PATH — install Claude Code" },
+    ]);
+  });
+
+  it('a provider error during review carries the provider reason into the report and the infra record', async () => {
+    const { projectRoot } = await setupProject({
+      aspects: [{ id: 'llm-a', kind: 'llm', status: 'enforced', rule: 'rule a' }],
+    });
+    const graph = await loadGraph(projectRoot);
+    mockCreateLlmProvider.mockReturnValue(makeMockProvider({
+      verifyAspect: async () => ({ satisfied: false, reason: "'claude' exited with code 1: Invalid API key · Please run /login", errorSource: 'provider' as const }),
+    }));
+    mockReportFillTotals.mockClear();
+    const w = makeWriter();
+    await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const text = w.text();
+    expect(text).toContain("returned a provider error: 'claude' exited with code 1: Invalid API key · Please run /login");
+    expect(text).not.toContain('Check the provider endpoint, network, and credentials');
+    expect(text).toContain('set `debug: true` in .yggdrasil/yg-config.yaml');
+    expect((mockReportFillTotals.mock.calls[0][0].infraReport[0] as { reason?: string }).reason).toContain('Invalid API key · Please run /login');
   });
 
   it('an LLM aspect with NO reviewer configured aborts the fill (gating) — nothing written', async () => {

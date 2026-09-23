@@ -12,6 +12,15 @@ export interface LlmProvider {
 
   /** Check if provider is available (binary on PATH / endpoint reachable) */
   isAvailable(): Promise<boolean>;
+
+  /**
+   * Why the last isAvailable() answered false, worded for the person who has to
+   * fix it: the binary that is missing and how to install it, the environment
+   * variable a missing API key is read from, the server that did not answer.
+   * Asked only after isAvailable() returned false; a provider without one is
+   * reported with a generic sentence.
+   */
+  unavailableReason?(): Promise<string>;
 }
 
 export interface AspectResponse {

@@ -1,18 +1,13 @@
 import type { ReviewerProvider } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { binaryAvailable } from '../utils/binary-check.js';
-import { createLlmProvider } from './provider.js';
+import { createLlmProvider, probeProvider } from './provider.js';
 
 export interface ReviewerTestResult {
   ok: boolean;
   error?: string;
 }
 
-const CLI_BINARIES: Partial<Record<ReviewerProvider, string>> = {
-  'claude-code': 'claude',
-  'codex': 'codex',
-  'gemini-cli': 'gemini',
-};
+const CLI_PROVIDERS: ReviewerProvider[] = ['claude-code', 'codex', 'gemini-cli', 'copilot-cli'];
 
 export async function testApiProvider(
   provider: ReviewerProvider,
@@ -41,25 +36,27 @@ export async function testApiProvider(
   }
 }
 
+/**
+ * Whether a CLI provider can run here, and if not why — asked of the provider
+ * itself through the registry, so the answer is the one `yg check --approve`
+ * would give: the binary probe's cause plus that CLI's install hint, and for
+ * copilot-cli the real CLI found past the VS Code extension's `copilot` stub.
+ */
 export async function testCliProvider(provider: ReviewerProvider): Promise<ReviewerTestResult> {
-  if (provider === 'copilot-cli') {
-    // Asked through the registry, not by name: the provider finds the real CLI itself, past the
-    // VS Code extension's `copilot` stub, and a plain binary probe would take the stub for it.
-    try {
-      if (await createLlmProvider({ provider, model: 'auto', temperature: 0, consensus: 1 }).isAvailable()) return { ok: true };
-    } catch (err) {
-      debugWrite(`[reviewer-test] copilot-cli probe: ${(err as Error).message}`);
-    }
-    return { ok: false, error: "no GitHub Copilot CLI found — install it (npm i -g @github/copilot) or set YG_COPILOT_BIN; the copilot inside the VS Code extension is an installer prompt, not the CLI" };
-  }
-  const binary = CLI_BINARIES[provider];
-  if (!binary) {
+  if (!CLI_PROVIDERS.includes(provider)) {
     return { ok: false, error: `Unsupported CLI provider: ${provider}` };
   }
-  if (await binaryAvailable(binary)) {
-    return { ok: true };
+  // The model is irrelevant to the availability probe; the registry needs one to build the provider.
+  let probe;
+  try {
+    probe = await probeProvider(createLlmProvider({ provider, model: 'auto', temperature: 0, consensus: 1 }), provider);
+  } catch (err) {
+    debugWrite(`[reviewer-test] testCliProvider(${provider}): ${(err as Error).message}`);
+    return { ok: false, error: (err as Error).message };
   }
-  return { ok: false, error: `'${binary}' could not be run — is it installed and on PATH?` };
+  if (probe.available) return { ok: true };
+  debugWrite(`[reviewer-test] testCliProvider(${provider}): ${probe.reason}`);
+  return { ok: false, error: probe.reason };
 }
 
 async function testAnthropic(apiKey: string, model: string, endpoint: string): Promise<ReviewerTestResult> {
@@ -90,7 +87,7 @@ async function testOpenAI(apiKey: string, model: string, endpoint: string): Prom
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      ...(apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {}),
     },
     body: JSON.stringify({
       model,

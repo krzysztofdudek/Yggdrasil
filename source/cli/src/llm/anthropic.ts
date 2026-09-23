@@ -1,6 +1,6 @@
 import type { LlmProvider, AspectResponse } from './types.js';
 import type { LlmConfig } from '../model/graph.js';
-import { resolveApiKey, apiFetch } from './api-utils.js';
+import { resolveApiKey, apiFetch, describeHttpFailure, describeFetchFailure, missingKeyReason, DEFAULT_API_TIMEOUT_MS } from './api-utils.js';
 import { parseAspectResponse } from './cli-base.js';
 import { registerProvider } from './provider.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -10,18 +10,23 @@ export class AnthropicProvider implements LlmProvider {
   private model: string;
   private temperature: number;
   private apiKey: string;
+  private timeout: number;
+  private providerName: string;
 
   constructor(config: LlmConfig) {
     this.endpoint = config.endpoint ?? 'https://api.anthropic.com/v1';
     this.model = config.model;
     this.temperature = config.temperature;
     this.apiKey = resolveApiKey(config) ?? '';
+    this.timeout = config.timeout ?? DEFAULT_API_TIMEOUT_MS;
+    this.providerName = config.provider;
   }
 
   async verifyAspect(prompt: string): Promise<AspectResponse> {
-    const fallback: AspectResponse = { satisfied: false, reason: 'Anthropic request failed', errorSource: 'provider' };
+    const fail = (why: string): AspectResponse => ({ satisfied: false, reason: `Anthropic request failed: ${why}`, errorSource: 'provider' });
+    const url = `${this.endpoint}/messages`;
     try {
-      const res = await apiFetch(`${this.endpoint}/messages`, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -38,24 +43,32 @@ export class AnthropicProvider implements LlmProvider {
           max_tokens: 8192,
           temperature: this.temperature,
         }),
-      }, 'anthropic');
+      }, 'anthropic', this.timeout);
       if (!res.ok) {
         // Surface the HTTP status (never the body — that could carry response
         // content). Without this a 4xx/5xx is parsed as if it were a verdict,
         // losing the one diagnostic that explains the failure. Fail closed.
         debugWrite(`[anthropic] verifyAspect HTTP ${res.status} ${res.statusText}`);
-        return fallback;
+        return fail(describeHttpFailure(this.providerName, res.status, res.statusText, this.model));
       }
-      const data = await res.json() as { content?: Array<{ text?: string }> };
+      let data: { content?: Array<{ text?: string }> };
+      try {
+        data = await res.json() as { content?: Array<{ text?: string }> };
+      } catch (err) {
+        debugWrite(`[anthropic] verifyAspect: reply is not JSON: ${(err as Error).message}`);
+        return fail(`HTTP ${res.status} but the reply was not JSON — config.endpoint may not be this provider's API`);
+      }
       const content = data.content?.[0]?.text ?? '';
-      return parseAspectResponse(content) ?? fallback;
+      return parseAspectResponse(content) ?? fail('the reply held no verdict text');
     } catch (err) {
       debugWrite(`[anthropic] verifyAspect: ${(err as Error).message}`);
-      return fallback;
+      return fail(describeFetchFailure(err, url, this.timeout));
     }
   }
 
   async isAvailable(): Promise<boolean> { return !!this.apiKey; }
+
+  async unavailableReason(): Promise<string> { return missingKeyReason(this.providerName); }
 }
 
 registerProvider('anthropic', (c) => new AnthropicProvider(c));

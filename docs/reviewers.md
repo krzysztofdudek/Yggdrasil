@@ -91,7 +91,7 @@ If the reviewer rejects compliant code, the fix is improving the aspect's `conte
 
 ### Cost
 
-Cost is counted per pair. A `per: node` aspect on a node with 5 source files is one pair — one LLM call (times consensus). A typical fill for a node with 3 `per: node` aspects makes 3 LLM calls. A `per: file` aspect over those 5 files is 5 pairs — 5 calls. Using a fast model (Haiku, GPT-4o-mini, Gemini Flash) keeps cost under a few cents per call. Deterministic pairs are free regardless of scope. For local review, Ollama runs on your machine with no API cost. See [Configuration](/configuration) for provider setup.
+Cost is counted per pair. A `per: node` aspect on a node with 5 source files is one pair — one LLM call (times consensus). A typical fill for a node with 3 `per: node` aspects makes 3 LLM calls. A `per: file` aspect over those 5 files is 5 pairs — 5 calls. Using a fast model (Haiku, GPT-4o-mini, Gemini Flash) keeps cost under a few cents per call. The model is your choice: `yg init --provider claude-code` writes `sonnet` unless you pass `--model haiku`, and a tier's `config.model` can be changed at any time (see [Configuration](/configuration)). Deterministic pairs are free regardless of scope. For local review, Ollama runs on your machine with no API cost. See [Configuration](/configuration) for provider setup.
 
 ### Consensus
 
