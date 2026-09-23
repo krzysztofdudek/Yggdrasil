@@ -38,9 +38,10 @@
  * taint) writes NOTHING — the prior baseline stays intact, the pair stays
  * unverified, and the run ends red.
  *
- * Interruption-safety: the lock is mutated in memory and re-serialized through a
- * single serialized promise chain after EACH completed pair, so a killed run
- * keeps every finished pair and the next run resumes.
+ * Interruption-safety: the lock is mutated in memory and written in coalesced
+ * flushes (fill-writer.ts), so a killed run keeps every flushed pair — a bounded
+ * few free verdicts at most are lost — and the next run resumes. The whole run
+ * holds the repository's approval lock, so two approvals never overlap.
  *
  * This module is the orchestrator: it owns the ORDER above and nothing else.
  * The cohesive stages live in sibling files and are wired in here:
@@ -94,7 +95,7 @@ import type { RunFillOptions, RunFillResult } from './fill-contract.js';
 import { FillGatingError, detGateKey } from './fill-contract.js';
 import { classifyFillPairs } from './fill-classify.js';
 import { backfillPromptSizes } from './fill-prompt-size-backfill.js';
-import { createVerdictWriter } from './fill-writer.js';
+import { acquireFillExclusion, createVerdictWriter, type FillExclusion } from './fill-writer.js';
 import { previewPruneSummary, writeDryRunBreakdown } from './fill-dry-run.js';
 import {
   emitDetGateSkips,
@@ -128,6 +129,19 @@ export { FillGatingError, detGateKey } from './fill-contract.js';
 // ============================================================
 
 export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFillResult> {
+  // A cost preview writes nothing, so it takes no lock and never waits on one.
+  if (opts.dryRun === true) return runFillHoldingLock(graph, opts);
+  // One approval per repository at a time, from its lock read to its last
+  // write — a second one fails fast instead of overwriting this one's verdicts.
+  const exclusion = acquireFillExclusion(graph.rootPath, (opts.now ?? Date.now.bind(Date))());
+  try {
+    return await runFillHoldingLock(graph, opts, exclusion);
+  } finally {
+    await exclusion.release();
+  }
+}
+
+async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?: FillExclusion): Promise<RunFillResult> {
   const write = opts.write ?? ((s: string) => { process.stdout.write(s); });
   const emitIssue = opts.emitIssue ?? ((): void => {});
   const projectRoot = path.dirname(graph.rootPath);
@@ -266,7 +280,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   }
 
   // ── Serialized lock writer (interruption-safe, §7) + verdict telemetry. ────
-  const writer = createVerdictWriter({ graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha: opts.sha });
+  const writer = createVerdictWriter({ graph, lock, now, onlyDeterministic, committedLlm, deterministicAspectIds, sha: opts.sha, exclusion });
 
   // Record the assembled prompt's size on any still-valid verdict that predates
   // the field. Placed BEFORE the log gate below on purpose: this writes no

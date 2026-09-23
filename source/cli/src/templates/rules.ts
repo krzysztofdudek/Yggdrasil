@@ -17,7 +17,7 @@ const SYSTEM = `## SYSTEM
 
 Yggdrasil is continuous architecture enforcement. A graph in \`.yggdrasil/\` describes the architecture. A reviewer verifies source code against it. If code violates a rule, the reviewer refuses it. Every verdict — an LLM reviewer's judgment and a deterministic check's result alike — is stored as a content-addressed entry in the lock; a verdict holds exactly while the inputs that produced it are unchanged. (The lock is a committed/gitignored triad — see Graph Elements.)
 
-The CLI (\`yg\`) never modifies your source files, and during normal review it never modifies your graph files either — you create and edit those manually. Two commands are the deliberate exception: \`yg adopt\` installs an entire proposed \`.yggdrasil/\` graph as a transaction (moving any graph already here aside to \`.yggdrasil.replaced-*\` first), and \`yg drill add\` writes case files into a rule's own \`aspects/<rule>/drills/<case>/\` directory. The lock is written by \`yg check --approve\`, \`yg log merge-resolve\`, and \`yg verdict record\` (the external-judge channel — a judgement recorded straight into the committed lock, bound to a content hash); the one-time 5.1.0 lock-split migration that \`yg init --upgrade\` runs also rewrites it, once, on upgrade. Logs are written by \`yg log add\` (a component's) and \`yg aspects log add\` (a rule's) — plus one entry an approving run writes by itself, into a rule's log, when that rule's status was changed by hand and nobody recorded why. The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run. \`suggestedNext\` at the end of \`yg check\` gives one concrete step. Follow it.
+The CLI (\`yg\`) never modifies your source files, and during normal review it never modifies your graph files either — you create and edit those manually. Two commands are the deliberate exception: \`yg adopt\` installs an entire proposed \`.yggdrasil/\` graph as a transaction (moving any graph already here aside to \`.yggdrasil.replaced-*\` first), and \`yg drill add\` writes case files into a rule's own \`aspects/<rule>/drills/<case>/\` directory. The lock is written by \`yg check --approve\` (the only writer of verdicts — a prose rule is judged by the reviewer configured in \`yg-config.yaml\` and by nothing else) and \`yg log merge-resolve\` (a node's log baseline); the one-time 5.1.0 lock-split migration that \`yg init --upgrade\` runs also rewrites it, once, on upgrade. Logs are written by \`yg log add\` (a component's) and \`yg aspects log add\` (a rule's) — plus one entry an approving run writes by itself, into a rule's log, when that rule's status was changed by hand and nobody recorded why. The CLI guides you: every error message says WHAT happened, WHY it matters, and the NEXT command to run. \`suggestedNext\` at the end of \`yg check\` gives one concrete step. Follow it.
 
 ### Graph Elements
 
@@ -33,7 +33,7 @@ The CLI (\`yg\`) never modifies your source files, and during normal review it n
   .yg-lock.deterministic.json ← gitignored cache: deterministic verdicts. Rebuilt free by \`yg check --approve --only-deterministic\`. Never commit/hand-edit. (yg knowledge read verification-and-lock)
 \`\`\`
 
-**Nodes** — components. \`model/<path>/yg-node.yaml\`. Nodes nest by directory — children inherit parent aspects. Schema: \`yg schemas read node\`. Node \`mapping:\` entries and architecture \`when.path\` both accept minimatch glob patterns — \`*\` matches within a single path segment, \`**\` matches across segments (e.g. \`src/db/*Repository.cs\` maps only repository files in that directory; \`src/**/*.ts\` maps all TypeScript files under src). Mapping a node into the \`.yggdrasil/\` graph directory itself is allowed — that is meta-modeling (the graph verifying its own rules: aspect checks, requirement docs), with specific consequences (the relation check parses mapped rule code; never map \`.yggdrasil/**\` wholesale): \`yg knowledge read meta-modeling\`. Mapping expansion is a disk walk that skips anything \`.gitignore\` excludes — it never consults the git index — so a directory/glob entry never includes a gitignored file. A file that is both git-tracked and gitignored (e.g. force-added) is therefore invisible to coverage and mapping alike, UNLESS it is named directly (not via a directory or glob) in a mapping entry — a literal entry is always hashed and reviewed regardless of gitignore status, so that file was never actually invisible. \`yg check\` catches the invisible case as \`tracked-file-gitignored\`, mirroring the coverage tiers exactly: error under a \`coverage.required\` root, warning otherwise, no issue at all under a \`coverage.excluded\` root. The mirror case, a mapping entry naming a gitignored file directly (tracked or not — the entry claims a file \`.gitignore\` excludes), is \`file-mapping-gitignored\`. A file needs no node at all to be enforced: with \`coverage.type_level\` on, a file matching exactly one classifying type's \`when\` is enforced by that type's \`per: file\` rules from the first commit that adds it — no \`yg-node.yaml\`, ever, for that file (\`yg knowledge read conditional-aspects\`). Write a node anyway where you have something to say beyond the type — a curated relation, a log of *why*, participation in a flow — or wherever the machine refuses to guess for you: a file matching two classifying types at once, or one whose type's inherited chain forks between two parents.
+**Nodes** — components. \`model/<path>/yg-node.yaml\`. Nodes nest by directory — children inherit parent aspects. Schema: \`yg schemas read node\`. Node \`mapping:\` entries and architecture \`when.path\` both accept minimatch glob patterns — \`*\` matches within a single path segment, \`**\` matches across segments (e.g. \`src/db/*Repository.cs\` maps only repository files in that directory; \`src/**/*.ts\` maps all TypeScript files under src). Mapping a node into the \`.yggdrasil/\` graph directory itself is allowed — that is meta-modeling (the graph verifying its own rules: aspect checks, requirement docs), with specific consequences (the relation check parses mapped rule code; never map \`.yggdrasil/**\` wholesale): \`yg knowledge read meta-modeling\`. Mapping expansion is a disk walk that skips anything \`.gitignore\` excludes, so a directory/glob entry never includes a gitignored file (a force-added tracked file under an ignore rule is caught as \`tracked-file-gitignored\`; a literal mapping entry naming a gitignored file as \`file-mapping-gitignored\` — details: \`yg knowledge read verification-and-lock\`). A file needs no node at all to be enforced: with \`coverage.type_level\` on, a file matching exactly one classifying type's \`when\` is enforced by that type's \`per: file\` rules from the first commit that adds it — no \`yg-node.yaml\`, ever, for that file (\`yg knowledge read conditional-aspects\`). Write a node anyway where you have something to say beyond the type — a curated relation, a log of *why*, participation in a flow — or wherever the machine refuses to guess for you: a file matching two classifying types at once, or one whose type's inherited chain forks between two parents.
 
 **Aspects** — enforceable rules. \`aspects/<id>/yg-aspect.yaml\` + zero or one rule source. Kind is inferred from the rule source: \`content.md\` → LLM; \`check.mjs\` → deterministic; neither (but \`implies:\` declared) → aggregating aspect (a named bundle, no own reviewer). The \`reviewer:\` block is optional; an explicit \`reviewer.type\`, if present, must match the inferred kind. LLM aspects may set \`reviewer.tier:\` (a named tier from \`yg-config.yaml\`; else the default). \`implies: [other-aspect]\` includes aspects recursively (must be acyclic). LLM aspects may declare \`references:\` (supporting files added to the prompt and exposed under \`read:\`), and may ship an optional \`companion.mjs\` beside \`content.md\` — a per-unit hook returning relation-reachable paths the runner injects into the prompt (not a kind; invalid without \`content.md\` or alongside \`check.mjs\`; the hook never judges — assembly failure is infra, leaving the pair unverified). An aspect with a rule source may declare \`scope:\` — \`per: node\` (default, one verdict per node) or \`per: file\` (one per subject file), with an optional \`files:\` filter. Schema: \`yg schemas read aspect\`. Aspects carry \`status:\` (default \`enforced\`; \`draft / advisory / enforced\`) — rendering only (how a verdict shows and whether it blocks), except \`draft\`, which removes the aspect's verdicts from the expected set entirely. Two optional labels never fold into a verdict, so setting either re-verifies nothing: \`review_by:\` (a bare \`YYYY-MM-DD\` standing review date — once past, \`yg check\` warns without blocking; never change it yourself) and, on a deterministic aspect only, \`errs: over | under | exact\` (the check's honest error direction — \`under\` means it fires only on provable violations, which is also what makes a waiver against it suspicious).
 
@@ -93,15 +93,15 @@ Verification runs per \`(aspect, unit)\` pair. A **unit** is the subject of one 
 
 Verification is all-or-nothing: \`yg check --approve\` fills every unverified pair it is answering for (deterministic first, free; then LLM). By default that is the whole project. When progressive mode is on (the project names a branch in \`progressive.reference\`), a recording run still runs every free deterministic check project-wide but buys reviewer work ONLY for the rules your change is accountable for, and says how many it left outside it — \`yg check --full --approve\` reviews those. \`--only-deterministic\` is the free, keyless CI gate (no reviewer at all); \`yg impact\` is the pre-edit cost predictor. Deterministic checks run first; a node with an enforced deterministic refusal has its LLM pairs skipped that run, so a known-broken node never bills the reviewer. Refusals are cached like approvals.
 
-Interrupting \`yg check --approve\` is safe: finished verdicts are already committed to the lock; only in-flight pairs are lost and the next run resumes them. Read the raw output — never pipe it through \`| grep\`, \`| head\`, or \`| tail\`: those silently drop lines and the count you act on stops matching the count the build enforces. The default \`yg check\` output is **grouped**: issues with the same rule are collapsed into one block (shared why+fix shown once, affected nodes listed beneath). When a rule's fix is NODE-SPECIFIC (the next command names the node — e.g. a per-node log entry, or declaring a dependency in one node's file), the block instead prints EACH affected node's own fix beneath its line, so following the block clears every node, not just the first. The triage and narrowing flags are READ-ONLY views over that same result and never combine with a fill flag (\`--approve\` / \`--only-deterministic\`). When the output is still large, the SANCTIONED way to narrow it further is \`yg check --summary\` (per-node counts only) or \`yg check --top [N]\` (the N highest-priority GROUPS; bare \`--top\` shows just the single suggested-next group) — both always print the TRUE aggregate \`Errors (N)\`/\`Warnings (N)\` header and preserve the real exit code, so a narrowed view can never read as a clean build. To drill into one rule: \`yg check --aspect <id>\`. For the old ungrouped per-pair view: \`yg check --details\`. Orient with \`--summary\`/\`--top\`, then drill with \`--aspect\` or plain \`yg check\`. On the OTHER axis — how much the run enumerates rather than which issues it renders — \`yg check --coverage\` ADDS the per-type coverage listing (which files each type covers, what enforces, what is attached but does not, and what nothing runs on). It is not a view: it combines with any of them AND with \`--approve\`, and it never changes a count, a verdict, or the exit code. Plain \`yg check\` does not print it. The reviewer already ran; the output is the return on that cost.
+Interrupting \`yg check --approve\` is safe: finished verdicts are already committed to the lock; only in-flight pairs are lost and the next run resumes them.
 
-A draft aspect produces no expected pairs — nothing is verified, nothing recorded. Advisory refusals render as warnings (never block \`yg check\`); enforced refusals render as errors (block \`yg check\`). Verdicts survive status flips, including a \`draft\` round-trip: an entry for unchanged inputs stays valid when the aspect returns to enforced.
+Read the raw output — never pipe it through \`| grep\`, \`| head\`, or \`| tail\`: those silently drop lines and the count you act on stops matching the count the build enforces. The default output is **grouped**: issues with the same rule collapse into one block (shared why+fix once, affected nodes beneath); when the fix is NODE-SPECIFIC, each node's own fix is printed beneath its line, so following the block clears every node. To narrow a large output use the sanctioned read-only views in the table below (\`--summary\`, \`--top\`, \`--aspect\`, \`--details\`) — they never combine with a fill flag, and \`--summary\`/\`--top\` always print the TRUE aggregate \`Errors (N)\`/\`Warnings (N)\` header and the real exit code, so a narrowed view can never read as a clean build. Orient with \`--summary\`/\`--top\`, then drill with \`--aspect\` or plain \`yg check\`. \`--coverage\` is not a view: it ADDS the per-type coverage listing and combines with anything. The reviewer already ran; the output is the return on that cost.
 
 ### Built-in relation-conformance check
 
 Independently of the aspect reviewers, every \`yg check\` (with or without \`--approve\`) runs ONE built-in, deterministic check LIVE over every node: it parses each mapped source file (TypeScript/JS/TSX, Python, Go, Java, PHP, Kotlin, Rust, C, C++, C#, Ruby), finds each statically-resolvable dependency on ANOTHER node's code, and REFUSES the node if it depends on a node it does not declare a relation to (issue code \`relation-undeclared-dependency\`). The graph's relation edges must match the code's real dependencies.
 
-This is NOT an aspect. It has no \`content.md\`/\`check.mjs\`, it is not attached via any of the 7 channels, \`status:\` does not apply (no draft/advisory/enforced — it is ALWAYS \`error\`, and with no reference branch configured it blocks \`yg check\` unconditionally, like the built-in architecture and mapping validators), and it is NOT \`yg-suppress\`-able. ONE exception to the blocking, and only when progressive mode is on (\`progressive.reference\` set in \`yg-config.yaml\`): a refusal the current change did not reach renders as a warning, and \`yg check --full\` blocks on it again — the same carve-out enforced aspect pairs get, applied to a check that has no status. It stays an error the moment a change reaches the code carrying it. Unlike aspect verdicts, its result is NOT cached — every \`yg check\` recomputes it live (parse + resolve + verify), so it is always the current truth of the code against the graph, at zero LLM cost, like the built-in architecture and mapping validators.
+This is NOT an aspect: no \`content.md\`/\`check.mjs\`, not attached via any of the 7 channels, no \`status:\` (it is ALWAYS \`error\` and blocks \`yg check\`), NOT \`yg-suppress\`-able, and NOT cached — every \`yg check\` recomputes it live at zero LLM cost. The one carve-out is progressive mode's: a refusal your change did not reach renders as a warning (\`yg check --full\` blocks on it again), exactly as for enforced aspect pairs.
 
 Two properties keep it false-positive-free:
 - **One-directional.** A detected code dependency MUST be declared. A declared relation needs NO code backing — reflection, dependency injection, HTTP, and event edges are legitimately declared without any static call, and the check never complains about a relation with no matching code.
@@ -113,13 +113,13 @@ One trap when you take the declare-the-relation exit: the four STRUCTURAL relati
 
 ### Verification and the lock
 
-A verdict is valid exactly while the inputs that produced it hash to the stored value. Any input change — an edited subject file, an edited \`content.md\` / \`check.mjs\`, an edited \`scope\`, or a change to which named tier the aspect uses — makes the pair **unverified**, and \`yg check --approve\` re-verifies it. For \`companion.mjs\` aspects: editing \`companion.mjs\` re-bills all pairs (like \`content.md\`); a resolved companion edit re-bills only its readers (fold-in covers every file the hook reads to decide — see Impact and Cost). Plain LLM aspects are unaffected. (A status flip is NOT an input, and neither is a tier's underlying config — only the tier NAME folds in, so swapping the model or provider behind a named tier never invalidates a verdict.) States are: **verified / unverified / refused**.
+A verdict is valid exactly while the inputs that produced it hash to the stored value. Any input change — an edited subject file, an edited \`content.md\` / \`check.mjs\`, an edited \`scope\`, or a change to which named tier the aspect uses — makes the pair **unverified**, and \`yg check --approve\` re-verifies it (\`companion.mjs\` specifics: Impact and Cost below). (A status flip is NOT an input, and neither is a tier's underlying config — only the tier NAME folds in, so swapping the model or provider behind a named tier never invalidates a verdict.) States are: **verified / unverified / refused**.
 
-\`yg check\` writes no verdicts and makes no LLM calls by default — it never touches the committed lock, your source, or your graph files (it does quietly maintain its own gitignored caches and attention index under \`.yggdrasil/\`): it re-hashes each lock verdict and reports (on plain \`yg check\` it never runs an aspect reviewer or a deterministic \`check.mjs\`), and it runs the built-in relation-conformance check live (parse + resolve). (Exception: if \`auto_approve\` is set in \`yg-config.yaml\`, bare \`yg check\` auto-fills — \`deterministic\` behaves like \`--approve --only-deterministic\`, \`full\` like \`--approve\`. Explicit CLI flags \`--approve\`/\`--no-approve\`/\`--only-deterministic\` ALWAYS override \`auto_approve\`.) \`yg check --approve\` fills the unverified pairs and then reports; CI / pre-commit run \`yg check --approve --only-deterministic\` (cheap, keyless — rebuilds the gitignored cache, re-hashes the committed verdicts).
+\`yg check\` writes no verdicts and makes no LLM calls by default — it never touches the committed lock, your source, or your graph files (it does quietly maintain its own gitignored caches and attention index under \`.yggdrasil/\`): it re-hashes each lock verdict and reports (it never runs an aspect reviewer or a deterministic \`check.mjs\`), and it runs the built-in relation-conformance check live (parse + resolve). Exception: if \`auto_approve\` is set in \`yg-config.yaml\`, bare \`yg check\` auto-fills — \`deterministic\` behaves like \`--approve --only-deterministic\`, \`full\` like \`--approve\`. Explicit CLI flags \`--approve\`/\`--no-approve\`/\`--only-deterministic\` ALWAYS override \`auto_approve\`.
 
 If you modify code without reading the aspect content files (\`yg context --file\` → follow the \`read:\` paths), you will likely write code that violates rules you didn't know about. The reviewer will refuse it. You will have to read the aspects anyway, then rewrite. Double cost.
 
-Status governs blocking uniformly. An advisory pair never blocks \`yg check\` — whether it is refused OR unverified, it renders as a warning. An enforced pair always blocks when refused or unverified — with one exception, and only when progressive mode is on: an enforced finding your change did not reach renders as a warning, and \`yg check --full\` blocks on it again. Status itself is untouched by that — the pair stays enforced and blocks the moment a change reaches it. Only \`draft\` removes a pair from the expected set, so flipping an aspect to advisory does NOT make an unverified enforced pair go green — the pair is still unverified, just now a warning; \`yg check --approve\` is what fills it. To park an aspect, use \`status: draft\`, never a \`when\` edit (a \`when\` edit drops the pairs and garbage-collection prunes their verdicts; a \`draft\` round-trip keeps them). When \`yg check\` emits both errors AND warnings, \`suggestedNext\` points at the highest-priority error (a fixed priority cascade, not output order). Fix errors before warnings. When only warnings remain, it surfaces an advisory next-step so a warnings-only run still points somewhere.
+Status governs blocking uniformly. A draft aspect produces no expected pairs — nothing is verified, nothing recorded. An advisory pair never blocks \`yg check\` — whether it is refused OR unverified, it renders as a warning. An enforced pair always blocks when refused or unverified — with one exception, and only when progressive mode is on: an enforced finding your change did not reach renders as a warning, and \`yg check --full\` blocks on it again. Status itself is untouched by that — the pair stays enforced and blocks the moment a change reaches it. Only \`draft\` removes a pair from the expected set, so flipping an aspect to advisory does NOT make an unverified enforced pair go green — the pair is still unverified, just now a warning; \`yg check --approve\` is what fills it. Verdicts survive status flips, including a \`draft\` round-trip: an entry for unchanged inputs stays valid when the aspect returns to enforced. To park an aspect, use \`status: draft\`, never a \`when\` edit (a \`when\` edit drops the pairs and garbage-collection prunes their verdicts; a \`draft\` round-trip keeps them). When \`yg check\` emits both errors AND warnings, \`suggestedNext\` points at the highest-priority error (a fixed priority cascade, not output order). Fix errors before warnings. When only warnings remain, it surfaces an advisory next-step so a warnings-only run still points somewhere.
 
 Full lock format, hash ingredients, caching policy, merge procedure, garbage-collection, and the revert recipe: \`yg knowledge read verification-and-lock\`.
 
@@ -128,7 +128,7 @@ Full lock format, hash ingredients, caching policy, merge procedure, garbage-col
 | Command | Purpose |
 |---|---|
 | \`yg check\` | By default: writes no verdicts, no LLM calls — re-hash lock verdicts, run the relation check live, validate coverage. Blocks CI. Behavior changes if \`auto_approve\` is set (see below). |
-| \`yg check --approve\` | Fill every unverified pair the run answers for (deterministic first, then LLM), then report. Overrides \`auto_approve\`. (The one other writer of verdicts is \`yg verdict record\`, the external-judge channel: it records a judgement straight into the lock without running the configured reviewer, and \`yg check\` re-proves it by hashing and names the judge in its report.) |
+| \`yg check --approve\` | Fill every unverified pair the run answers for (deterministic first, then LLM), then report. Overrides \`auto_approve\`. The only writer of verdicts. |
 | \`yg check --approve --only-deterministic\` | Fill ONLY deterministic pairs (free, keyless), writing the gitignored cache (plus a port's contract baseline when one is missing); then report. The CI / pre-commit gate. Overrides \`auto_approve\`. |
 | \`yg check --approve --dry-run\` | Free cost preview — print the reviewer-call budget (an upper bound) + per-node breakdown, then exit 0 WITHOUT writing or calling the reviewer. |
 | \`yg check --top [N]\` | Read-only: show only the N highest-priority GROUPS (bare \`--top\` = single suggested-next group). True aggregate header always shown. |
@@ -164,9 +164,9 @@ The table above is the working set, not the whole surface. The commands it omits
 
 ### Impact and Cost
 
-Cost is counted per PAIR. \`yg impact\` shows which pairs an edit invalidates. For an LLM pair, re-verification is one reviewer request × the tier's consensus count × the number of units — so editing an LLM aspect that touches 20 single-unit nodes is at least 20 reviewer calls. A source-code edit re-verifies every effective non-draft pair whose subject set includes that file. Deterministic pairs run locally and cost zero LLM calls regardless of how many they touch. A \`scope\` edit (\`per\` or \`files\`) invalidates every pair of the aspect — it cascades exactly like a \`content.md\` edit; run \`yg impact --aspect <id>\` first. For \`companion.mjs\` aspects: editing \`companion.mjs\` re-bills all pairs; a resolved companion edit re-bills only its readers — and because the verdict folds every file the hook reads to decide (not only the paths it returns), editing any read-to-decide file re-bills its readers too; \`yg impact --file\` previews this precisely, including companion pairs not yet in the lock. Plain LLM aspects are unaffected.
+Cost is counted per PAIR. \`yg impact\` shows which pairs an edit invalidates. For an LLM pair, re-verification is one reviewer request × the tier's consensus count × the number of units — so editing an LLM aspect that touches 20 single-unit nodes is at least 20 reviewer calls. A source-code edit re-verifies every effective non-draft pair whose subject set includes that file. Deterministic pairs run locally and cost zero LLM calls regardless of how many they touch. A \`scope\` edit (\`per\` or \`files\`) invalidates every pair of the aspect — it cascades exactly like a \`content.md\` edit; run \`yg impact --aspect <id>\` first. For \`companion.mjs\` aspects: editing \`companion.mjs\` re-bills all pairs; editing any file the hook reads to decide re-bills only that file's readers — \`yg impact --file\` previews it precisely.
 
-Before a fill, preview the bill for free: \`yg check --approve --dry-run\` runs the same classification and budget computation a real \`--approve\` would, prints the reviewer-call budget plus a per-node / per-aspect breakdown (deterministic pairs are free; each LLM pair shows its consensus call count), then exits 0 WITHOUT calling the reviewer or writing anything. Treat the number as an UPPER BOUND — a node with an enforced deterministic refusal has its LLM fills skipped, and a fresh refusal or infra disposition can leave a pair unfilled, so the real run bills at most that many calls. \`yg impact\` predicts the blast radius of one edit; \`--dry-run\` totals the bill for exactly what the real run would buy right before you commit to it — every currently-unverified pair, or, when progressive mode is on, the ones your change is accountable for.
+Before a fill, preview the bill for free with \`yg check --approve --dry-run\`: the same classification and budget a real \`--approve\` would compute, per node and per aspect, written nowhere. The number is an UPPER BOUND (a node with an enforced deterministic refusal has its LLM fills skipped). \`yg impact\` predicts the blast radius of one edit; \`--dry-run\` totals the bill for exactly what the real run would buy.
 
 When code doesn't match an aspect, five options:
 
@@ -185,7 +185,7 @@ const DECISIONS = `## DECISIONS
 
 ### Workflow
 
-**Start of conversation:** \`yg check\`. If errors — fix before any other work. \`yg check\` failures block commits and CI. Nothing passes until check is clean.
+**Start of conversation:** \`yg check\`. If errors — fix before any other work. \`yg check\` failures block commits and CI. Nothing passes until check is clean. One exception to "fix it yourself": an error about a change you did not make — most often a \`log-entry-missing\` for source someone else edited — goes to the user. Report it and ask for the reason; never write a log entry that invents a WHY for somebody else's change.
 
 **When the project measures changes against a branch** (progressive mode — the project sets \`progressive.reference\` in \`yg-config.yaml\`): \`yg check\`'s header ends with how many obligations sit outside your change and what it was measured against, and those findings are listed as \`(outside changes)\` warnings. Read that line, then get on with the task — the run is clean when nothing of YOURS is red. If the header says nothing about changes, the project is not measuring and none of the following applies. Findings outside your change are inherited debt, not a work list:
 
@@ -206,123 +206,48 @@ const DECISIONS = `## DECISIONS
 
 **Unmapped files:** \`yg context --file\` will say if a file has no owner and suggest candidates. Either add it to an existing node's mapping or create a new node. Code without graph coverage works but is not verified — inform the user and propose options.
 
-**Greenfield (no nodes yet):** Graph before code. Create architecture types, aspects, and nodes first — they are the specification. Then implement code that satisfies the aspects. \`yg check\` will guide you through coverage gaps.
+**Greenfield (no nodes and no code yet):** Graph before code. Create architecture types, aspects, and nodes first — they are the specification. Then implement code that satisfies the aspects. \`yg check\` will guide you through coverage gaps.
+
+**Brownfield (existing code, no or few nodes):** the code already exists, so the graph describes it rather than specifying it. A fresh \`yg init\` requires nothing (\`coverage.required: []\`) and excludes its own plumbing files, so the first \`yg check\` is green and lists the rest as non-blocking \`uncovered\` warnings — a map of what exists, not a to-do list to clear in one go. Do not design a whole architecture up front. Propose to the user: a few broad nodes for the areas nobody is working on, one proper node (with its rules) for the area the current task touches, and coverage tightened (\`coverage.required\`) only where they want enforcement. Every mapped node is checked live for undeclared dependencies on other mapped nodes, so broad nodes may need \`relations:\` declared. The confirmation points are the usual ones: node types in \`yg-architecture.yaml\` and new rules are the user's decisions.
 
 ### Working with architecture
 
-The graph already organizes existing code into nodes with established types
-and aspects. When you're EDITING existing files, you don't need to consult
-architecture — those files already belong to a node. Use \`yg context --file\`
-to see which node owns a file and what aspects apply.
-
-When you're CREATING something new (new file that doesn't fit any existing
-node's mapping, or new functionality that needs a new node), you need a
-pre-flight check against architecture FIRST.
-
-When pre-flight applies:
-- Creating a new file in a location not covered by any existing node's mapping
-- Creating a new node (yg-node.yaml) for new functionality
-- Adding a new module/feature area to the codebase
-
-When pre-flight does NOT apply:
-- Editing existing source files (their node and aspects are already established)
-- Adding source code to an existing node's mapping pattern
-- Refactoring within a node's scope
+When you EDIT existing files you don't need to consult architecture — those files already belong to a node (or a type); \`yg context --file\` shows which, and what rules apply. When you CREATE something new — a file no existing mapping covers, a new node, a new module or feature area — do a pre-flight check against architecture FIRST. Adding code inside an existing node's mapping, or refactoring within a node's scope, needs none.
 
 Pre-flight procedure (only for new creation):
 
 1. Read \`yg-architecture.yaml\` to see what node types exist
 2. Pick the type that matches what you're creating (read the type's description)
-3. Use the type's allowed parents, allowed relations, default aspects, and
-   mapping convention to place the file correctly
-4. Create the file in the right location AND the corresponding \`yg-node.yaml\`
-   with the matching type
+3. Use the type's allowed parents, allowed relations, default aspects, and mapping convention to place the file correctly
+4. Create the file in the right location AND the corresponding \`yg-node.yaml\` with the matching type
 
-Skipping pre-flight when it applies leads to aspect violations that block
-your commit. Pre-flight read is one file. Retry after rejection is many
-cycles.
+Skipping pre-flight leads to refusals: a file created under \`src/ui/\` that imports the DB client trips the \`ui-no-direct-db\` rule on \`yg check --approve\`, and you move it, re-run, and possibly hit the next rule — many cycles against one file read.
 
-Example fail-flow (skipping pre-flight when creating new files):
+When no type fits the user's request (a new source file matching no type's \`when\`), do not create files ad-hoc or silently off-graph. Present the situation: either extend the architecture (a new type, or a broader \`when\`), or accept the file as "uncovered" (warning, no enforcement). Architecture is the user's decision.
 
-  You create src/api/billing/cancel.ts without checking architecture
-    ↓
-  yg check --approve
-    ↓
-  Aspect \`ui-no-direct-db\` fires: file is under ui/ pattern but imports the DB client
-    ↓
-  The pair is refused: "UI components cannot directly import database clients."
-    ↓
-  You retry: move file, re-run, possibly hit another aspect
-    ↓
-  Multiple iterations versus one pre-flight read.
+BEFORE editing \`yg-architecture.yaml\`:
+1. Run \`yg schemas read architecture\` — full field reference and \`when\` predicate grammar.
+2. Check impact: \`yg impact --type <id>\` for existing types.
+3. Present the proposed change to the user and wait for confirmation before writing it.
 
-When no type fits the user's request, do not create files ad-hoc. Push back
-to user explaining that architecture lacks a fitting type and consultation
-with engineer is needed.
-
-For type selection details (\`when\` grammar, \`enforce: strict\`,
-organizational types, pitfalls): \`yg knowledge read working-with-architecture\`.
+A node_type with \`when\` classifies files (forward — and optionally backward with \`enforce: strict\`). A node_type without \`when\` is organizational — usable as a parent in the hierarchy, but nodes of such types cannot have a non-empty \`mapping:\`. Type selection details (\`when\` grammar, \`enforce: strict\`, organizational types, pitfalls): \`yg knowledge read working-with-architecture\`.
 
 ### Working with business-language requests
 
-User requests come in natural language (any language). Yggdrasil artifacts
-are in English. Translate keywords before searching the graph.
-
-Translation flow:
-
-1. Read user request — what user-visible behavior do they want?
-2. Identify keywords, translate to English
-3. Run \`yg find "<english keywords>"\` to locate entry points
-4. Examine the top result's \`Kind\` line:
-   - \`Kind: node\` → take path from \`model/<...>\` portion as \`--node\` argument
-     (strip the \`model/\` prefix). Example: \`model/billing/cancel/\` → \`--node billing/cancel\`
-   - \`Kind: aspect\` → do NOT use as \`--node\`. Read aspect file directly (Read
-     tool on path). Look for next \`Kind: node\` result for entry point.
-5. If user request uses cross-cutting words ("all", "every", "across",
-   "everywhere"), treat top results as candidate SET, not ranked options.
-   Verify each via \`yg impact\`. Consider whether the change is an aspect
-   (cross-cutting concern) rather than per-node edit.
-6. Run \`yg context --node <path>\` for aspects, mapping, relations
-7. Read log.md (use \`yg log read --node <path> --top 10\` for recent context)
-8. Make the technical decision
-9. Implement
+User requests come in natural language (any language). Yggdrasil artifacts are in English: translate the user's keywords to English, then locate the entry point as in "Finding entry points" below, read the node's context and recent log, make the technical decision, implement.
 
 When responding to user:
-- Describe changes as user-visible features
-  ("Added cancellation that takes effect at end of billing cycle")
-- Never use system terms (aspect, node, pair, lock, unverified) in user-facing text
-- When a rule blocks a change: translate why into business consequence
-
-When reviewer rejects:
-- Read its technical message (it's for you, not the user)
-- Translate to user-facing explanation if surfaced to user
+- Describe changes as user-visible features ("Added cancellation that takes effect at end of billing cycle"), not in system terms (aspect, node, pair, lock, unverified).
+- When a rule blocks a change: translate why into business consequence. The reviewer's technical message is for you, not the user.
+- Exception — authorization requests: when you ask the user to approve something that needs their signature (a \`yg-suppress\`, an architecture change, a rule's status or \`review_by\`, an advise action), name the exact rule id, node, and file involved alongside the plain-language explanation. The user cannot authorize what they cannot identify.
 
 Status terms \`draft / advisory / enforced\` are English graph syntax. Translate user phrases ('na razie sugestią' → \`advisory\`, 'jeszcze nie gotowe' → \`draft\`, 'krytyczne' → \`enforced\`) before editing graph YAML.
 
 ### Per-node artifacts: what they are for
 
-Each node may have:
+**\`yg-node.yaml\`** — identity and scope: type, mapping, aspects, relations, ports. \`yg context\` loads it; consult it to know what rules apply and what files the node owns.
 
-**\`yg-node.yaml\`** — identity and scope. Type, mapping, aspects, relations,
-ports. Loaded by \`yg context\`. You consult this to know what aspects apply
-and what files this node owns.
-
-**\`log.md\`** — append-only history of WHY things happened in this node.
-Read this BEFORE editing the node's source files. It contains:
-- Business decisions with reasoning
-- Constraints from external sources (regulations, contracts, SLA)
-- Gotchas the next agent must know
-- Why a feature is implemented the way it is
-
-The log is for YOU (the agent). It is NOT visible to the reviewer that
-verifies your code against aspects. Reviewer sees aspect content + source
-files only. So log captures business context for agent decisions, but
-enforcement remains aspect-based.
-
-\`yg context\` does NOT include log content. Read it explicitly:
-- \`yg log read --node <path> --top 10\` for recent entries (ergonomic, default top 10)
-- \`yg log read --node <path> --all\` when you need the full history
-- Read tool on \`.yggdrasil/model/<path>/log.md\` for full content when needed
+**\`log.md\`** — append-only history of WHY things happened in this node: business decisions with reasoning, external constraints (regulations, contracts, SLA), gotchas, why a feature is built the way it is. Read it BEFORE editing the node's source files. It is for YOU — the reviewer never sees it (it sees rule content + source only), so enforcement stays aspect-based. \`yg context\` does NOT include it: read it with \`yg log read --node <path>\` (top 10, newest first; \`--all\` for everything).
 
 ### Log management — workflow
 
@@ -393,18 +318,15 @@ the moment you wrote it.
   plus a brief inline summary of the relevant rule, so the entry remains
   understandable without fetching the source.
 
-The log carries WHY a change was made — the motivation that does not
-decay when code or planning artifacts evolve. WHAT changed is already
-in the diff and aspect content; do not duplicate it.
+**Past entries are not a template.** Older entries may predate these rules
+and cite plans, phase numbers, section markers, or file paths. Do NOT mirror
+their pattern; take the WHY from the diff and the conversation.
 
-**Past entries are not a template.** Older entries in this log may have
-been written before these rules existed, or under conventions that have
-been retired. If \`yg log read\` shows entries that reference plans, tasks,
-phase numbers (e.g., "R0.3", "Phase 4.7"), section markers (e.g.,
-"Spec §9", "design §12.1"), or file paths in their bodies, those entries
-violate the self-containment rule above. Do NOT mirror their pattern
-when you write yours. Take the WHY from the diff and the conversation;
-ignore the prior entries' surface style.
+**Only whoever knows the WHY writes the entry.** When \`yg check\` asks for an
+entry on a node whose source changed in a way you did not make (a teammate's
+commit, an earlier session, a merge), you do not know why it changed — ask
+the user for the reason and record their answer. Never infer a motive from
+the diff and present it as the reason.
 
 After a git merge: if both branches added log entries to the same node,
 run \`yg log merge-resolve --node <path>\` from the merge commit. The tool
@@ -452,32 +374,12 @@ only for source files in node mappings.
 
 ### Coordinated changes across multiple nodes
 
-For changes that span multiple nodes (cross-cutting rename, schema migration,
-shared concept update):
+For changes that span multiple nodes (cross-cutting rename, schema migration, shared concept update):
 
-  1. Edit ALL affected source files first. Verification is all-or-nothing, so
-     there is nothing to batch by hand — one \`yg check --approve\` at the end
-     fills every pair the run answers for, across every node it reaches.
-
-  2. Add a log entry per affected node whose type opts into the gate
-     (\`yg log add --node X --reason "..."\` for each). One entry per node,
-     even if the same business reason applies to many.
-
-  3. Run \`yg check --approve\` once. Each pair is verified independently —
-     one node's refusal does not abort the others; the output lists every
-     result and exit code 1 if any error remains.
-
-  4. On partial failure: fix the per-node errors and re-run \`yg check --approve\`
-     (it re-fills only the still-unverified pairs).
-
-  5. For node renames specifically:
-     - Update \`mapping:\` in \`yg-node.yaml\` of affected nodes
-     - Update \`flows/<name>/yg-flow.yaml\` \`nodes:\` lists referencing old names
-     - \`yg check\` catches broken references; fix proactively
-
-If the user request is a rename, the rationale in \`--reason\` should
-explicitly identify it as a cross-cutting rename to give future agents
-context.
+  1. Edit ALL affected source files first — one \`yg check --approve\` at the end fills every pair the run answers for, across every node it reaches.
+  2. Add a log entry per affected node whose type opts into the gate — one per node, even when the same business reason applies to many (for a rename, say it is a cross-cutting rename).
+  3. Run \`yg check --approve\` once. Each pair is verified independently — one node's refusal does not abort the others. On partial failure, fix and re-run; it re-fills only the still-unverified pairs.
+  4. For node renames: update \`mapping:\` in the affected \`yg-node.yaml\` files and every flow \`nodes:\` list naming the old path (\`yg flows\`); \`yg check\` catches broken references.
 
 ### When to Create Graph Elements
 
@@ -485,11 +387,11 @@ context.
 
 **Flow** — when you see a sequence of steps toward a business goal. Not code call sequences — real-world processes. "User places an order" = flow. "Handler calls service" = relation between nodes. Run \`yg schemas read flow\` and \`yg knowledge read flows\` before creating.
 
-**Node** — one per cohesive feature area. Not per directory, not per file. If a node covers >3 distinct workflows, split into children. Size is bounded by the reviewer prompt, not the node: an LLM aspect assembles its content.md, references, subject files, and any resolved companion files into one prompt, checked against the resolved tier's \`max_prompt_chars\`. Exceeding it is a blocking \`prompt-too-large\` error naming the pair, with remedies in safety order: narrow \`scope.files\` (when the overflow is non-target payload), switch the aspect to \`per: file\` (ONLY if the rule is file-local), split the node, or raise the limit / move to a higher-capability tier (re-pointing an aspect to a different named tier re-verifies that aspect's pairs; editing a tier's own config does not — only the tier name is a verdict input). Deterministic checks read files programmatically with no prompt and are never subject to the gate. Run \`yg schemas read node\` before creating.
+**Node** — one per cohesive feature area. Not per directory, not per file. If a node covers >3 distinct workflows, split into children. Size is bounded by the reviewer prompt, not the node: an LLM aspect assembles its content.md, references, subject files, and any resolved companion files into one prompt, checked against the resolved tier's \`max_prompt_chars\`. Exceeding it is a blocking \`prompt-too-large\` error whose fix lists the remedies in safety order (\`yg knowledge read writing-llm-aspects\`); deterministic checks have no prompt and never hit it. Run \`yg schemas read node\` before creating.
 
 **Port / relation** — when a critical aspect must cross a node boundary, or when a new typed dependency is needed. Bare relations do NOT propagate aspects; ports do. Six relation types exist (\`calls\`, \`uses\`, \`extends\`, \`implements\`, \`emits\`, \`listens\`); event relations must be paired. Deep dive: \`yg knowledge read ports-and-relations\`.
 
-**Architecture change** — when existing types don't fit the project structure. Always confirm with the user. Never silently modify \`yg-architecture.yaml\`. If a relation between types is forbidden, present the constraint and let the user decide: use an allowed relation type, change the node type, or update the architecture.
+**Architecture change** — when existing types don't fit the project structure. Always confirm with the user (see "Working with architecture"). If a relation between types is forbidden, present the constraint and let the user decide: use an allowed relation type, change the node type, or update the architecture.
 
 **\`when\` predicate on an aspect or attach site** — when the aspect applies to only a subset of nodes under a common attach channel. Prefer \`when\` over splitting node types (proliferation of types). Prefer \`when\` over leaving the decision to the reviewer textually inside \`content.md\`; \`when\` is deterministic, has zero LLM cost, and keeps the graph as the source of truth for applicability. Grammar: \`yg knowledge read conditional-aspects\`.
 
@@ -532,11 +434,12 @@ Subagents don't inherit Yggdrasil knowledge. First instruction in every subagent
 BEFORE doing anything else: run \`yg prime\` and follow its protocol.
 DELIVERABLES — all required, incomplete work will be rejected:
   1. Working source code
-  2. Graph nodes for every new/modified source file
+  2. Every new/modified source file covered — mapped to a node or covered by
+     its architecture type; a new node only for a new feature area
   3. \`yg check\` passing
 \`\`\`
 
-Code without graph updates = incomplete work.
+Code without the graph updates it needs = incomplete work.
 
 ### \`yg-suppress\` — Inline Aspect Waiver
 
@@ -567,27 +470,6 @@ Before writing a suppress: confirm the aspect's effective status is \`advisory\`
 ### Escape Hatch
 
 If the user explicitly requests a code-only change without graph updates: comply, but warn that it leaves the affected pairs unverified. \`yg check\` will catch them — and CI will block until they are filled. Do not run \`yg check --approve\` — and where \`auto_approve\` is set in \`yg-config.yaml\`, bare \`yg check\` fills verdicts too, so run \`yg check --no-approve\` to leave the pairs unverified.
-
-### Working with architecture file
-
-The architecture file (\`.yggdrasil/yg-architecture.yaml\`) defines node types,
-allowed parents, default aspects, and the \`when\` predicate that classifies which
-source files belong to each type.
-
-BEFORE editing this file:
-1. Run \`yg schemas read architecture\` — full field reference and \`when\` predicate grammar.
-2. Check impact: \`yg impact --type <id>\` for existing types.
-3. Present the proposed change to the user and wait for confirmation before writing it.
-
-If a new source file does not fit any type's \`when\`:
-- Present the situation to the user — either extend the architecture (new type or
-  broaden existing \`when\`), or accept the file as "uncovered" (warning, no enforcement).
-  Do not silently create off-graph files.
-
-Note: a node_type with \`when\` classifies files (forward — and optionally backward
-with \`enforce: strict\`). A node_type without \`when\` is organizational — usable as a
-parent in the hierarchy, but nodes of such types cannot have a non-empty \`mapping:\`.
-Deep dive: \`yg knowledge read working-with-architecture\`.
 
 ### Where to find more
 
@@ -624,7 +506,6 @@ When you need to do X, run/read Y:
 
 - English only for all files in \`.yggdrasil/\`. Conversation can be any language.
 - Read the relevant schema via \`yg schemas read <name>\` before creating any YAML file.
-- When renaming or splitting a node: run \`yg flows\` and update any flow \`nodes\` lists that reference the old path. \`yg check\` will catch broken references but it's faster to fix them proactively.
 - When unsure about anything: ask the user. Do not guess. Do not assume.
 - Never invent rationale for aspects. If you don't know why a requirement exists, ask.`;
 

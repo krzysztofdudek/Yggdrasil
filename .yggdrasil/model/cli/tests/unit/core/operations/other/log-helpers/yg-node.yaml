@@ -28,3 +28,4 @@ mapping:
   - source/cli/tests/unit/core/log-integrity.test.ts
   - source/cli/tests/unit/core/log-merge-resolve.test.ts
   - source/cli/tests/unit/core/aspect-history.test.ts
+  - source/cli/tests/unit/core/log-write-lock.test.ts

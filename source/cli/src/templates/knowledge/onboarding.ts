@@ -16,6 +16,12 @@ no progress state, no separate tool — you, this playbook, and the repository
 you are both in. Goal: fluency in one loop — *they speak → you change code and
 map → the check guards → the log remembers* — reached pleasantly.
 
+This playbook governs STYLE. It never relaxes the protocol: every invariant in
+the committed digest and \`yg prime\` still holds while you tutor — an
+architecture change, a \`yg-suppress\`, a \`review_by\` date, an advise
+decision and an incident each still need the user's explicit yes. Where a line
+below seems to say otherwise, the protocol wins.
+
 ## Activation
 
 Become the tutor when the user: is new to Yggdrasil; asks what it is; asks to
@@ -162,8 +168,9 @@ this on later?"
 - **C2 — repo, no Yggdrasil**: guided adoption. \`yg init\` starts
   require-nothing (nothing blocks). First covered area and first rule come
   from the user's own words about their own code. C2 scaffolding notes:
-  author the first node type + node yourself, silently, narrating only the
-  outcome. Mapping entries may be file globs (\`src/emails/**/*.ts\`) or bare
+  draft the first node type + node yourself and narrate the outcome, not the
+  YAML — but the node type is an edit to \`yg-architecture.yaml\`, so show it
+  in one sentence and get one yes before writing it. Mapping entries may be file globs (\`src/emails/**/*.ts\`) or bare
   directories (\`src/emails/\`) — both classify by the files they own. If you
   export \`yg portal --static\`, gitignore the emitted file.
 - **C3 — no repo**: scaffold the practice project yourself (recipe below).
@@ -171,8 +178,9 @@ this on later?"
 
 **Session setup (any context) — fresh clone or worktree:** the deterministic
 verdict cache is local and gitignored, so a fresh checkout opens RED for
-cache reasons. NEVER open with plain \`yg check\` there (on a large graph
-this is hundreds of lines). Run \`yg check --summary\` or \`--top\` to orient,
+cache reasons. Run the session's opening check as \`yg check --summary\` or
+\`--top\` there — the same check, with the true totals and exit code, but
+counts instead of hundreds of lines on a large graph — to orient,
 say "the repo is fine — its local receipt cache isn't built yet", rebuild
 free with \`yg check --approve --only-deterministic\`, and frame all of it as
 setup, not a lesson.
@@ -324,23 +332,13 @@ record a refusal.
    whatever they know). ~5 tiny plausible files, never executed.
 3. \`yg init --provider <their CLI provider> --model <its default>\` (agent
    rules install the same universal way for every agent, so there's no
-   platform to name) — or keyless, config by hand (\`yg schemas read
-   config\`); in the hand-config path also write \`.yggdrasil/.gitignore\`
-   with the lines \`yg init\` ships (\`yg-secrets.yaml\`, \`.symbols-cache/\`,
-   \`.ast-cache/\`, \`.type-class-cache/\`, \`.debug.log\`,
-   \`.yg-lock.deterministic.json\`, \`.yg-events.jsonl*\`,
-   \`.yg-fill-divergence.log*\`, \`.feature-field.json\`,
-   \`.yg-packages-versions.json\`, \`*.tmp\` — the two rotation globs keep
-   their trailing \`*\`)
-   so the derived caches the demos generate never surface as untracked files
-   and break the porcelain proof. Add the scaffold's side files (the
-   agent-rules artifacts this repo actually carries — by default all three:
-   \`AGENTS.md\`, the \`CLAUDE.md\` import, \`.clinerules/yggdrasil.md\`; fewer
-   when \`rules_artifacts\` in \`.yggdrasil/yg-config.yaml\` has switched one
-   off, e.g. after \`yg init --no-clinerules\` — plus \`.gitattributes\`,
-   which is always written) to
-   \`coverage.excluded\` so the learner's first green isn't blemished by a
-   setup warning. A learner asking whether they can skip one of the three
+   platform to name) — or keyless: \`yg init --no-reviewer\`. Never hand-write
+   the config or \`.yggdrasil/.gitignore\`: init writes the complete ignore
+   list (so the caches the demos generate never surface as untracked files
+   and break the porcelain proof) and already excludes its own side files
+   (the agent-rules artifacts it wrote, plus \`.gitattributes\`) from
+   coverage, so the learner's first green isn't blemished by a setup warning.
+   A learner asking whether they can skip one of the three agent-rules
    files: yes — \`yg knowledge read configuration\`, \`rules_artifacts\`.
 4. Graph by hand per \`yg schemas read node|aspect|architecture\`: two nodes,
    one deterministic aspect, one OBVIOUS planted violation. Mapping entries

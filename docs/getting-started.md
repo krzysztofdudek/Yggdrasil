@@ -105,7 +105,7 @@ blocking error:
 ```text
 $ yg check
 
-yg check: PASS (1 warning)  0 nodes · 0/50 files (0 node-owned, 0 type-covered, 0 excluded) · 0 aspects · 0 flows
+yg check: PASS (1 warning)  0 nodes · 4/54 files (0 node-owned, 0 type-covered, 4 excluded) · 0 aspects · 0 flows
 
 Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 
@@ -220,6 +220,11 @@ on — until they match exactly one classifying type; files outside required
 are silent. Subtrees with their own nested `.yggdrasil/` are auto-skipped. See
 [Configuration](/configuration) for details.
 
+The handful of files `yg init` itself writes at your repo root — `AGENTS.md`,
+`CLAUDE.md`, `.clinerules/yggdrasil.md`, `.gitattributes` — are repository
+plumbing, not project source, so a fresh `yg init` already lists them under
+`coverage.excluded`. Your first `uncovered` list is your own code only.
+
 ::: info Whole-repo default
 An _absent_ coverage block — or a repo initialized before this became the
 default — requires the **whole** repo (every file is a blocking error until
@@ -228,8 +233,8 @@ require-nothing.
 
 That default also applies to the handful of files Yggdrasil itself maintains at
 your repo root — `AGENTS.md`, `CLAUDE.md`, `.clinerules/`, `.gitattributes` — so
-on such a project they show up as unmapped errors right after `yg init
---upgrade` adds them. They're repository plumbing, not project source; exclude
+on such a project (one initialized before `yg init` began excluding them) they
+show up as unmapped errors right after `yg init --upgrade` adds them. They're repository plumbing, not project source; exclude
 them. `yg init --upgrade` prints the exact stanza for your project, built from
 whichever of these files it actually wrote on that run — on a repo that installs
 all of them it looks like this:

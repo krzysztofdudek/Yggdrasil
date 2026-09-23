@@ -183,8 +183,8 @@ export function familyNominations(data: FamilyCandidatesData): Nomination[] {
         `— the fingerprint of a convention with no rule of its own. A ` +
         `fitted scope \`${predQ}\` ${fits}; scope skeleton ${scopeList}.${measuredBy} Provenance: ${provenance}.`,
       // NEXT names the exact human action and ends with the literal consent suffix
-      // (T2 uses "requires your consent", never the T0/T1 approval phrasing).
-      next: `Create a draft aspect scoped to \`${predQ}\` for these ${n} files, then supply the rationale — never invent it — requires your consent.`,
+      // (T2 uses "requires the user's consent", never the T0/T1 approval phrasing).
+      next: `Create a draft aspect scoped to \`${predQ}\` for these ${n} files, then supply the rationale — never invent it — requires the user's consent.`,
       // Bind to the family identity + fitted reach + member set + provenance: a
       // re-mine that changes members or the predicate moves the hash, so a
       // dismissed family returns as new evidence. The producer joins the hash only

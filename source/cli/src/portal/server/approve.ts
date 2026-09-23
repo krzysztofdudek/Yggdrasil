@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
-import { existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
+import { hostname } from 'node:os';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -72,11 +73,52 @@ function spawnCli(args: string[], cwd: string): Promise<ApproveResult> {
 }
 
 /**
+ * The approval lock file the CLI holds for the length of `yg check --approve`. Spelled
+ * here rather than imported: the server declares no relation to the engine's stores (a
+ * test pins this spelling to the store's own constant).
+ */
+export const APPROVE_LOCK_PATH = path.join('.yggdrasil', '.yg-approve.lock');
+
+/** Approvals this server has spawned and not yet seen finish, per project root. */
+const approvesInFlight = new Set<string>();
+
+/**
+ * Whether an approval is running in `projectRoot` right now: one this server spawned, or
+ * one started anywhere else (a terminal, an agent) that holds the CLI's approval lock.
+ * A lock whose holder process is gone on this machine does not count — the CLI replaces
+ * such a lock itself. This is the early answer for the button; the spawned CLI's own
+ * lock remains the guard that cannot race.
+ */
+export function approveInProgress(projectRoot: string): boolean {
+  if (approvesInFlight.has(projectRoot)) return true;
+  let holder: { pid?: unknown; host?: unknown };
+  try {
+    holder = JSON.parse(readFileSync(path.join(projectRoot, APPROVE_LOCK_PATH), 'utf-8')) as { pid?: unknown; host?: unknown };
+  } catch {
+    return false;
+  }
+  if (typeof holder.pid !== 'number' || holder.host !== hostname()) return true;
+  try {
+    process.kill(holder.pid, 0);
+    return true;
+  } catch (e) {
+    return (e as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
  * Run the ONE write — shell `yg check --approve` (with `--only-deterministic` when `llm`
  * is false) in `projectRoot`. The spawned CLI fills the unverified pairs and owns secrets.
+ * The caller checks {@link approveInProgress} first; this marks the run in flight until the
+ * child exits, so a second click while it runs is refused rather than queued.
  */
 export async function runApproveViaCli(projectRoot: string, llm: boolean): Promise<ApproveResult> {
-  return spawnCli(approveArgs(llm), projectRoot);
+  approvesInFlight.add(projectRoot);
+  try {
+    return await spawnCli(approveArgs(llm), projectRoot);
+  } finally {
+    approvesInFlight.delete(projectRoot);
+  }
 }
 
 /** The dry-run cost preview, parsed from the CLI's own budget output. */

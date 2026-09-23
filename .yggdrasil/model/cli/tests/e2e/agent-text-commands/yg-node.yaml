@@ -1,0 +1,7 @@
+name: E2E Tests — Agent Text Names Only Registered Commands
+type: test-suite
+description: "Subprocess E2E that reads the registered command surface from the built binary's own --help output (hidden commands excluded) and fails when yg prime, yg prime --digest, the knowledge index, or any knowledge topic names a yg command or subcommand the CLI does not register — so agent-facing text can never keep teaching a removed command."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-agent-text-commands.test.ts

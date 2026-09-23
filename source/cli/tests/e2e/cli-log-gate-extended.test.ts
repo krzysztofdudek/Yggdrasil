@@ -267,6 +267,8 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain(GATE_FIRED);
       expect(all).toContain("Node type 'service' has log_required: true");
       expect(all).toContain('yg log add --node services/orders');
+      // The fix must not push an agent into inventing a WHY for a change it did not make.
+      expect(all).toContain("if you did not make this change, ask the user for the reason");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -345,6 +347,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain("has log_required: true — every source change needs a log entry");
       expect(all).toContain('yg log add --node services/orders');
       expect(all).toContain('- services/orders');
+      expect(all).toContain("if you did not make this change, ask the user for the reason");
       // Fill progress goes to STDERR; final report to STDOUT.
       expect(stderr).toContain('Filling 0 unverified pairs across 0 nodes');
     } finally {

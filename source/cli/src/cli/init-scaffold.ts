@@ -6,7 +6,7 @@ import { installRules } from '../templates/platform.js';
 import type { RulesArtifactsConfig } from '../model/graph.js';
 import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { FILL_DIVERGENCE_GITIGNORE_LINE } from '../io/debug-log-writer.js';
+import { FILL_DIVERGENCE_GITIGNORE_LINE, RUN_LOCK_GITIGNORE_LINE } from '../io/debug-log-writer.js';
 import { PACKAGE_VERSIONS_CACHE_FILENAME } from '../io/package-versions-cache.js';
 
 // ---------------------------------------------------------------------------
@@ -50,9 +50,10 @@ const GITATTRIBUTES_LINES = [
  * missing line(s), once each, when the file exists without them (preserving any
  * other content and ensuring a separating newline); no-op when every line is
  * already present. Run on fresh init AND every --upgrade so existing adopters
- * pick up the complete set.
+ * pick up the complete set. Returns the lines it wrote (empty on a no-op), so an
+ * upgrade can say what it changed instead of claiming it changed nothing.
  */
-export async function ensureGitattributes(repoRoot: string): Promise<void> {
+export async function ensureGitattributes(repoRoot: string): Promise<string[]> {
   const gaPath = path.join(repoRoot, '.gitattributes');
   let existing: string | undefined;
   try {
@@ -65,16 +66,17 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
 
   if (existing === undefined) {
     await writeFile(gaPath, `${GITATTRIBUTES_LINES.join('\n')}\n`, 'utf-8');
-    return;
+    return [...GITATTRIBUTES_LINES];
   }
 
   const presentLines = new Set(existing.split('\n').map((line) => line.trim()));
   const missing = GITATTRIBUTES_LINES.filter((line) => !presentLines.has(line));
-  if (missing.length === 0) return;
+  if (missing.length === 0) return [];
 
   // Append each missing line once, guaranteeing a newline boundary before and after.
   const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
   await writeFile(gaPath, `${existing}${sep}${missing.join('\n')}\n`, 'utf-8');
+  return missing;
 }
 
 // ---------------------------------------------------------------------------
@@ -94,6 +96,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<void> {
  *    - `.feature-field.json` — `yg check`'s silent structural-deviation attention index
  *    - `.yg-packages-versions.json` — what each installed package's source was last seen to publish
  *    - `*.tmp`            — an atomic write's half-finished temp file, orphaned by a hard kill
+ *    - `.yg-*.lock`       — the run-exclusion lock files held while an approval or a log write runs
  *  This is the single source of truth for what init writes into the local
  *  gitignore (both fresh init and every --upgrade). Paths are relative to the
  *  `.yggdrasil/` directory the file lives in. */
@@ -147,6 +150,12 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // keeps one from showing up as untracked noise in the window before that, and covers
   // any left by a run of an older CLI.
   '*.tmp',
+  // Run-exclusion lock files: `.yg-approve.lock`, held by `yg check --approve` from its
+  // lock read to its last write so a second approval cannot overwrite its verdicts, and
+  // `.yg-log.lock`, held for the moment a log entry is read, composed and replaced. They
+  // exist only while a command runs (or after a crash, until the next run replaces
+  // them); never committed.
+  RUN_LOCK_GITIGNORE_LINE,
 ] as const;
 
 /**
@@ -160,9 +169,10 @@ const YGGDRASIL_GITIGNORE_LINES = [
  * missing line(s), once each, when the file exists without them (preserving any
  * other existing content and ensuring a separating newline); no-op when every
  * line is already present. Run on fresh init AND every --upgrade so existing
- * adopters pick up the complete set.
+ * adopters pick up the complete set. Returns the lines it wrote (empty on a
+ * no-op), so an upgrade can report a top-up rather than "nothing changed".
  */
-export async function ensureYggdrasilGitignore(yggRoot: string): Promise<void> {
+export async function ensureYggdrasilGitignore(yggRoot: string): Promise<string[]> {
   const giPath = path.join(yggRoot, '.gitignore');
   let existing: string | undefined;
   try {
@@ -175,16 +185,17 @@ export async function ensureYggdrasilGitignore(yggRoot: string): Promise<void> {
 
   if (existing === undefined) {
     await writeFile(giPath, `${YGGDRASIL_GITIGNORE_LINES.join('\n')}\n`, 'utf-8');
-    return;
+    return [...YGGDRASIL_GITIGNORE_LINES];
   }
 
   const presentLines = new Set(existing.split('\n').map((line) => line.trim()));
   const missing = YGGDRASIL_GITIGNORE_LINES.filter((line) => !presentLines.has(line));
-  if (missing.length === 0) return;
+  if (missing.length === 0) return [];
 
   // Append each missing line once, guaranteeing a newline boundary before and after.
   const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
   await writeFile(giPath, `${existing}${sep}${missing.join('\n')}\n`, 'utf-8');
+  return missing;
 }
 
 // ---------------------------------------------------------------------------
@@ -224,7 +235,28 @@ export async function createYggdrasilStructure(
   // produces the same config it always has, byte for byte.
   await writeRulesArtifactsConfig(yggRoot, artifacts);
 
-  await installRules(projectRoot, cliVersionStr, artifacts);
+  const report = await installRules(projectRoot, cliVersionStr, artifacts);
+  await excludeScaffoldPlumbing(yggRoot, [...report.managed, '.gitattributes']);
+}
+
+/**
+ * Write the repository plumbing a fresh init installs at the project root —
+ * the agent-rules files it actually wrote, plus `.gitattributes` — into the
+ * new config's `coverage.excluded`. These files are Yggdrasil's own, not
+ * project source: left in coverage, the very first `yg check` lists them as
+ * uncovered to-dos and every hint says to map or move them, which is the wrong
+ * first move on every adoption. Only a FRESH scaffold does this — an existing
+ * project's coverage settings are its owner's, and `yg init --upgrade` only
+ * reports the stanza, never edits it.
+ *
+ * Edits the YAML document (not a re-serialized object) so the scaffold's
+ * explanatory comments survive, exactly as writeRulesArtifactsConfig does.
+ */
+async function excludeScaffoldPlumbing(yggRoot: string, paths: string[]): Promise<void> {
+  const configPath = path.join(yggRoot, 'yg-config.yaml');
+  const doc = parseDocument(await readFile(configPath, 'utf-8'));
+  doc.setIn(['coverage', 'excluded'], doc.createNode(paths));
+  await writeFile(configPath, doc.toString(), 'utf-8');
 }
 
 /**

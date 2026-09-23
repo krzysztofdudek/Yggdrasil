@@ -92,10 +92,15 @@ describe('descriptions match what exists and how rules behave', () => {
     return typeof doc?.description === 'string' ? doc.description : '';
   }
 
-  it('no node or rule description describes the removed external-judge channel', () => {
+  it('no node or rule description describes the removed external-judge channel as if it still existed', () => {
     expect(describedFiles.length).toBeGreaterThan(400);
     const REMOVED = [/external[- ]judge/i, /\byg verdict\b/i];
-    const offenders = describedFiles.filter((rel) => REMOVED.some((re) => re.test(descriptionOf(rel))));
+    // A description that documents the removal itself (the hidden stub left in
+    // the command's place, its tests) names the channel on purpose and says so.
+    const offenders = describedFiles.filter((rel) => {
+      const description = descriptionOf(rel);
+      return REMOVED.some((re) => re.test(description)) && !/\bremoved\b/i.test(description);
+    });
     expect(offenders, `descriptions still naming the removed external-judge channel: ${offenders.join(', ')}`).toEqual([]);
   });
 

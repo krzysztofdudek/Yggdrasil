@@ -12,3 +12,4 @@ mapping:
   - source/cli/tests/e2e/cli-check-grouped-output.test.ts
   - source/cli/tests/e2e/cli-check-quiet.test.ts
   - source/cli/tests/e2e/cli-check-views.test.ts
+  - source/cli/tests/e2e/cli-approve-exclusion.test.ts

@@ -16,7 +16,12 @@ description: "Fill stage behind yg check --approve — the single producer of
   out loud. GCs detached verdict entries and writes the lock canonically. No
   write ever happens on an infra disposition (provider unreachable,
   tier-resolution error, reference-load failure, unparseable response) or a
-  tainted/failed deterministic result. One orchestrator owns the ORDER of those
+  tainted/failed deterministic result. The verdict writer coalesces its lock
+  writes (a paid verdict is written before its slot moves on, free ones in
+  bounded batches, and a signal flushes what is pending), a failed write is
+  carried by the next one instead of failing every later verdict, and the whole
+  read-fill-write cycle holds the repository approval lock so a second
+  approval fails fast instead of overwriting this one. One orchestrator owns the ORDER of those
   steps and nothing else; each step is a module of its own — pair classification
   and cost budgeting, the serialized lock writer and its verdict telemetry, the
   deterministic phase, the cost preview, and everything the stage says out loud.

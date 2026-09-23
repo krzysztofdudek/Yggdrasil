@@ -12,3 +12,4 @@ relations:
 mapping:
   - source/cli/tests/unit/io/lock-store.test.ts
   - source/cli/tests/unit/io/lock-store-migration.test.ts
+  - source/cli/tests/unit/io/lock-store-write-cache.test.ts

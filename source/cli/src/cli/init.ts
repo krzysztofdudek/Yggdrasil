@@ -199,7 +199,10 @@ function renderPlannedArtifacts(artifacts: RulesArtifactsConfig): string {
  * no-op re-run — rendered as "already up to date", never as a failure.
  */
 function renderArtifactSummary(
-  report: Pick<InstallReport, 'written' | 'removed'> & Partial<Pick<InstallReport, 'skipped' | 'leftover'>>,
+  report: Pick<InstallReport, 'written' | 'removed'> & Partial<Pick<InstallReport, 'skipped' | 'leftover'>> & {
+    /** Lines this run appended to the git housekeeping files it maintains, per file. */
+    housekeeping?: HousekeepingTopUp[];
+  },
 ): string {
   const lines: string[] = [];
   if (report.written.length > 0) {
@@ -208,8 +211,15 @@ function renderArtifactSummary(
   if (report.removed.length > 0) {
     lines.push(`Legacy per-platform artifacts cleaned up: ${report.removed.join(', ')}`);
   }
+  const topUps = (report.housekeeping ?? []).filter((h) => h.added.length > 0);
   if (lines.length === 0) {
-    lines.push('Agent rules already up to date — nothing changed.');
+    // "nothing changed" is said only when it is true: a run that appended a
+    // line to .yggdrasil/.gitignore or .gitattributes changed a file the user
+    // will see in git diff, and must say which.
+    lines.push(topUps.length === 0 ? 'Agent rules already up to date — nothing changed.' : 'Agent rules already up to date.');
+  }
+  for (const h of topUps) {
+    lines.push(`Added to ${h.file}: ${h.added.join(', ')}`);
   }
   // The opt-out is stated on every run that honors it, not only the run that
   // set it: an artifact silently absent is exactly the confusion the config
@@ -408,6 +418,12 @@ export async function freshInitKeyless(
 // Version upgrade — shared between the version-mismatch branch and --upgrade flag path
 // ---------------------------------------------------------------------------
 
+/** Lines one run appended to one git housekeeping file (`.yggdrasil/.gitignore`, `.gitattributes`). */
+export interface HousekeepingTopUp {
+  file: string;
+  added: string[];
+}
+
 export interface VersionUpgradeResult {
   /** Rules artifacts written/updated this run (empty on a no-op re-run). */
   rulesPaths: string[];
@@ -419,6 +435,8 @@ export interface VersionUpgradeResult {
   rulesLeftover: string[];
   migrationActions: string[];
   migrationWarnings: string[];
+  /** Lines this run appended to `.yggdrasil/.gitignore` and `.gitattributes` (empty entries on a no-op). */
+  housekeeping: HousekeepingTopUp[];
   /** True when a migration withheld the version bump (incomplete upgrade). */
   withheld: boolean;
   /**
@@ -566,11 +584,11 @@ export async function runVersionUpgrade(
   // Maintain the lock's .gitattributes line on every upgrade so existing
   // adopters pick it up (both the interactive and non-interactive --upgrade
   // paths route through here). Idempotent.
-  await ensureGitattributes(projectRoot);
+  const gitattributesAdded = await ensureGitattributes(projectRoot);
   // Likewise ensure `.yggdrasil/.gitignore` carries the full set of local
   // rebuildable/secret state (secrets, the relation symbol-index cache, the
   // debug log) so existing adopters pick up the complete set. Idempotent.
-  await ensureYggdrasilGitignore(yggRoot);
+  const gitignoreAdded = await ensureYggdrasilGitignore(yggRoot);
 
   const excludedCount = await currentExcludedCount(projectRoot);
 
@@ -581,6 +599,10 @@ export async function runVersionUpgrade(
     rulesLeftover: report.leftover,
     migrationActions,
     migrationWarnings,
+    housekeeping: [
+      { file: '.yggdrasil/.gitignore', added: gitignoreAdded },
+      { file: '.gitattributes', added: gitattributesAdded },
+    ],
     withheld,
     coverageBlocked: await predictCoverageBlockers(projectRoot, managedRootFiles(report)),
     exclusionNotice: crossedExclusionBoundary(fromVersion, excludedCount)
@@ -681,7 +703,7 @@ async function existingInit(projectRoot: string): Promise<void> {
     p.outro(
       chalk.green(
         `Migrated from ${currentVersion} to ${landedVersion}.\n` +
-        renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover }),
+        renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping }),
       ),
     );
     return;
@@ -705,7 +727,7 @@ async function existingInit(projectRoot: string): Promise<void> {
       if (result.exclusionNotice) {
         p.log.warning(result.exclusionNotice);
       }
-      p.outro(chalk.green(renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover })));
+      p.outro(chalk.green(renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping })));
       break;
     }
     case 'reviewer': {
@@ -851,7 +873,7 @@ export function registerInitCommand(program: Command): void {
           }
 
           process.stdout.write(
-            `${renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover })}\n`,
+            `${renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping })}\n`,
           );
           // An upgrading project that requires its whole tree gets these files
           // as new blocking errors on its very next check. Say so here, where

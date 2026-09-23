@@ -1,0 +1,9 @@
+name: CLI Removed Verdict Command Tests
+type: test-suite
+description: "Unit tests for the hidden stub left in place of the removed yg verdict command family: it exits 1, points at yg check --approve whatever arguments the old subcommands took, and stays out of the help listing."
+aspects: []
+relations:
+  - target: cli/commands/verdict-removed
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/verdict-removed.test.ts

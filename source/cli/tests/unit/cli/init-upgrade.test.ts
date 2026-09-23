@@ -9,7 +9,7 @@ const LOCK_LINE = '/.yggdrasil/yg-lock.*.json linguist-generated=true';
 const ADVISE_LINE = '/.yggdrasil/advise-decisions.jsonl merge=union';
 const IMPORTED_LINE = '/.yggdrasil/advise-imported.jsonl merge=union';
 const EVENTS_LINE = '/.yggdrasil/yg-events.llm.jsonl merge=union';
-const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '.family-candidates.json', '.family-candidates.*.json', '.yg-packages-versions.json', '*.tmp'];
+const GITIGNORE_LINES = ['yg-secrets.yaml', '.symbols-cache/', '.ast-cache/', '.type-class-cache/', '.debug.log', '.yg-lock.deterministic.json', '.yg-events.jsonl*', '.yg-fill-divergence.log*', '.feature-field.json', '.family-candidates.json', '.family-candidates.*.json', '.yg-packages-versions.json', '*.tmp', '.yg-*.lock'];
 
 async function scaffoldExistingYgg(projectRoot: string, version: string): Promise<string> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
@@ -85,6 +85,35 @@ describe('registerInitCommand action — non-interactive dispatch', () => {
     expect(stdout).not.toContain('--platform');
     const agentsMd = await readFile(path.join(projectRoot, 'AGENTS.md'), 'utf-8');
     expect(agentsMd).toContain('<!-- yggdrasil:start -->');
+  });
+
+  it('--upgrade that only tops up .yggdrasil/.gitignore says so instead of "nothing changed"', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-topup-'));
+    dirsToCleanup.push(projectRoot);
+    const yggRoot = await scaffoldExistingYgg(projectRoot, '5.1.0');
+    // First run brings the project fully up to date.
+    await runInitCommand(projectRoot, ['--upgrade']);
+    // An older CLI's gitignore: everything but the per-producer family line.
+    const giPath = path.join(yggRoot, '.gitignore');
+    const gi = await readFile(giPath, 'utf-8');
+    await writeFile(giPath, gi.split('\n').filter((l) => l !== '.family-candidates.*.json').join('\n'), 'utf-8');
+
+    const { stdout, exitCode } = await runInitCommand(projectRoot, ['--upgrade']);
+
+    expect(exitCode).toBeUndefined();
+    expect(stdout).not.toContain('nothing changed');
+    expect(stdout).toContain('.yggdrasil/.gitignore');
+    expect(stdout).toContain('.family-candidates.*.json');
+  });
+
+  it('--upgrade with truly nothing to do still says nothing changed', async () => {
+    const projectRoot = await mkdtemp(path.join(tmpdir(), 'yg-init-cli-noop-'));
+    dirsToCleanup.push(projectRoot);
+    await scaffoldExistingYgg(projectRoot, '5.1.0');
+    await runInitCommand(projectRoot, ['--upgrade']);
+    const { stdout } = await runInitCommand(projectRoot, ['--upgrade']);
+    expect(stdout).toContain('nothing changed');
+    expect(stdout).not.toContain('.gitignore');
   });
 
   // The review's own repro: a project with a populated coverage.excluded,
@@ -495,6 +524,15 @@ describe('ensureYggdrasilGitignore', () => {
 
     const gi = await readFile(path.join(yggRoot, '.gitignore'), 'utf-8');
     expect(gi).toBe(original);
+  });
+
+  it('returns the lines it appended, and nothing when the file was complete', async () => {
+    const yggRoot = await mkdtemp(path.join(tmpdir(), 'yg-gitignore-'));
+    dirsToCleanup.push(yggRoot);
+    await writeFile(path.join(yggRoot, '.gitignore'), `${GITIGNORE_LINES.filter((l) => l !== '*.tmp').join('\n')}\n`, 'utf-8');
+
+    expect(await ensureYggdrasilGitignore(yggRoot)).toEqual(['*.tmp']);
+    expect(await ensureYggdrasilGitignore(yggRoot)).toEqual([]);
   });
 
   it('inserts a separating newline when the existing file lacks a trailing one', async () => {

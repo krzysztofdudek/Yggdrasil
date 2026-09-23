@@ -103,7 +103,7 @@ describe('an imported proposal on the feed', () => {
   it('ends every next step by noting that acting on it is the user’s own act', () => {
     // Importing was never accepting.
     for (const kind of ['relation', 'split', 'port', 'rule'] as const) {
-      expect(one({ kind }).next).toContain('This requires your approval.');
+      expect(one({ kind }).next).toContain("Requires the user's approval.");
     }
   });
 });

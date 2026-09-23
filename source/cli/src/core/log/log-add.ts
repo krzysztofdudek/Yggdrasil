@@ -2,7 +2,7 @@ import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 import type { IssueMessage } from '../../model/validation.js';
 import { validateNodePath } from '../../utils/node-path-validator.js';
-import { readLogSafe, statLogFile, writeLogFile } from '../../io/log-store.js';
+import { readLogSafe, statLogFile, withLogWriteLock, writeLogFile } from '../../io/log-store.js';
 import { composeLogEntry } from './log-entry.js';
 import { toPosixPath } from '../../utils/posix.js';
 
@@ -70,13 +70,17 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
     }
   }
 
-  const existing = await readLogSafe(logPath);
-  // One composer for every log this tool keeps: entry shape, the guards against a
-  // body that would destroy the entry boundary, and the forward-only timestamp.
-  const composed = composeLogEntry(existing, reasonText, nowMs);
-  if (!composed.ok) return { ok: false, error: composed.error };
-
-  await writeLogFile(logPath, composed.content);
-
-  return { ok: true, datetime: composed.datetime, nodePath };
+  // Read → compose → replace under the repository's log-write lock: without it,
+  // two concurrent adds both read the same log and the later rename silently
+  // drops the earlier entry while both report success.
+  const locked = await withLogWriteLock(graph.rootPath, async (): Promise<LogAddResult> => {
+    const existing = await readLogSafe(logPath);
+    // One composer for every log this tool keeps: entry shape, the guards against a
+    // body that would destroy the entry boundary, and the forward-only timestamp.
+    const composed = composeLogEntry(existing, reasonText, nowMs);
+    if (!composed.ok) return { ok: false, error: composed.error };
+    await writeLogFile(logPath, composed.content);
+    return { ok: true, datetime: composed.datetime, nodePath };
+  });
+  return locked.ok ? locked.value : { ok: false, error: locked.error };
 }

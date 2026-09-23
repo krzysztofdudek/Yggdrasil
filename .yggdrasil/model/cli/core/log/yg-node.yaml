@@ -19,6 +19,10 @@ description: >-
   the tool saw is remembered beside the verdicts so that a status changed by hand
   is noticed and written down ONCE rather than passing unrecorded or being
   reported again on every run.
+  Every log append — a component's or a rule's — reads, composes and replaces
+  the file under a short repository-wide log-write lock, so two concurrent
+  writers take turns instead of the later one silently dropping the earlier
+  entry.
 aspects:
   - what-why-next
   - posix-paths-output

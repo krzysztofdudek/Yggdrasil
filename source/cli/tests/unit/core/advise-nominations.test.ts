@@ -47,7 +47,7 @@ describe('buildNominations — live sources', () => {
     const overdue = noms.find((n) => n.id === 'overdue-review-by:requires-logging');
     expect(overdue).toBeDefined();
     expect(overdue!.evidenceHash).toMatch(HEX64);
-    expect(overdue!.next).toContain('requires your approval');
+    expect(overdue!.next).toContain("Requires the user's approval");
 
     // Same graph + same clock → identical evidence hash (deterministic).
     const again = buildNominations(graph, { todayUtc: TODAY });
@@ -242,7 +242,7 @@ describe('buildNominations — T0-local drill MISS', () => {
     expect(miss!.why).toContain('local diagnostic result since 2026-07-01T00:00:00.000Z');
     expect(miss!.why).toContain('expects a refusal but the current rule returned satisfied');
     expect(miss!.why).not.toContain('stale');
-    expect(miss!.next).toContain('requires your approval');
+    expect(miss!.next).toContain("Requires the user's approval");
   });
 
   it('renders a STALE MISS (ruleHash no longer matches) as a benign re-run note', async () => {
@@ -312,7 +312,7 @@ describe('buildNominations — T1 promotion + sharpen (below all T0)', () => {
     expect(promo!.why).toContain('2 approved and 0 refused');
     expect(promo!.why).toContain('small-N');
     expect(promo!.why).toContain('local telemetry since 2026-07-01T00:00:00.000Z');
-    expect(promo!.next).toContain('requires your approval');
+    expect(promo!.next).toContain("Requires the user's approval");
   });
 
   it('labels an LLM promotion "regime unknown" when the judge identity is missing', async () => {
@@ -357,7 +357,7 @@ describe('buildNominations — T1 promotion + sharpen (below all T0)', () => {
     expect(sharpen!.classRank).toBe(70);
     expect(sharpen!.why).toContain('reviewed 5 times');
     expect(sharpen!.why).toContain('2 satisfied and 3 refused');
-    expect(sharpen!.next).toContain('requires your approval');
+    expect(sharpen!.next).toContain("Requires the user's approval");
   });
 
   it('does NOT nominate sharpen when every repeat run agreed (unanimous)', async () => {
@@ -822,7 +822,7 @@ describe('buildNominations — T1 decorative-rule (never violated, corroborated 
     expect(decorative!.why).toContain('caught 0 of 20 recorded checks');
     expect(decorative!.why).toContain('attach set is shrinking');
     expect(decorative!.next).toContain('demoting rule');
-    expect(decorative!.next).toContain('requires your approval');
+    expect(decorative!.next).toContain("Requires the user's approval");
     expect(decorative!.evidenceHash).toMatch(HEX64);
     // The other fixture aspect (requires-logging) has no telemetry at all here, so
     // it must NOT be nominated (label 'quiet', not 'decorative?').
