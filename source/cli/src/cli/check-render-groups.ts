@@ -1,9 +1,11 @@
-// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
+// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import chalk from 'chalk';
 import type { CheckIssue } from '../core/check.js';
 import { SCOPED_CODES, baseCodeOfOutsideTwin } from '../core/check-codes.js';
-import { groupIssues, type IssueGroup, getIssueLabel, FULL_WHAT_CODES, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, OUTSIDE_LABEL_SUFFIX, PAIR_CODES } from './group-issues.js';
+import { groupIssues, type IssueGroup, getIssueLabel, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, OUTSIDE_LABEL_SUFFIX, PAIR_CODES } from './group-issues.js';
 import { useEmoji } from './check-render-header.js';
+import { count, MEMBER_CAP } from './output.js';
+import { toPosixPath } from '../utils/posix.js';
 
 /** Code sets for grouping errors by category. STRUCTURAL_CODES and
  *  COMPLETENESS_CODES are shared with the check engine via core/check-codes.ts
@@ -39,6 +41,16 @@ function isOutsideFinding(code: string): boolean {
 // ── Details view: ungrouped, one block per issue ──────────
 
 /**
+ * How much of a group a view shows. `capMembers` cuts each member list at
+ * MEMBER_CAP rows and ends it with a runnable drill line; it is the VIEW's
+ * decision (the drill-in and per-issue views show everything), never the
+ * terminal's — a pipe gets the same bounded report a terminal does.
+ */
+export interface GroupRenderOptions {
+  capMembers: boolean;
+}
+
+/**
  * Render every issue as an individual block (no (code,aspectId) collapsing).
  * Coverage issues (`unmapped-files` / `uncovered-advisory`) render via
  * `renderUnmappedBlock`; all others via `renderIssueBlock`. Produces a flat
@@ -55,7 +67,7 @@ export function renderDetailsSection(issues: CheckIssue[], mode: 'error' | 'warn
     // the whole content of the finding in THIS view while rendering fine in
     // the others.
     if (COVERAGE_GROUP_EXCLUDED_CODES.has(issue.code)) {
-      renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code));
+      renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code), { capMembers: false });
     } else {
       renderIssueBlock(issue, lines, mode);
     }
@@ -81,7 +93,7 @@ const GROUP_CAP = 12;
  * Group cap: at most GROUP_CAP (12) groups rendered; if more, an overflow hint
  * line is appended after the 12th.
  */
-export function renderErrorSection(errors: CheckIssue[], opts: { isTTY: boolean }, emoji = useEmoji): string {
+export function renderErrorSection(errors: CheckIssue[], opts: GroupRenderOptions, emoji = useEmoji): string {
   const unmapped = errors.filter(i => COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
   const rest = errors.filter(i => !COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
   const groups = groupIssues(rest);
@@ -106,7 +118,7 @@ export function renderErrorSection(errors: CheckIssue[], opts: { isTTY: boolean 
   // Unmapped files — compact block with file list (unchanged)
   for (const issue of unmapped) {
     lines.push('');
-    renderUnmappedBlock(issue, lines);
+    renderUnmappedBlock(issue, lines, 'unmapped', opts);
   }
 
   return lines.join('\n');
@@ -124,7 +136,7 @@ export function renderErrorSection(errors: CheckIssue[], opts: { isTTY: boolean 
  *   - M > 1 → `Warnings (N) in M groups:` (N = total warnings including coverage)
  *   - M === 1 (or zero non-coverage warnings) → `Warnings (N):`
  */
-export function renderWarningSection(warnings: CheckIssue[], opts: { isTTY: boolean }, emoji = useEmoji): string {
+export function renderWarningSection(warnings: CheckIssue[], opts: GroupRenderOptions, emoji = useEmoji): string {
   const coverage = warnings.filter(i => COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
   const rest = warnings.filter(i => !COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
   const groups = groupIssues(rest);
@@ -153,7 +165,7 @@ export function renderWarningSection(warnings: CheckIssue[], opts: { isTTY: bool
   // would merge two different facts under one word.
   for (const issue of coverage) {
     lines.push('');
-    renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code));
+    renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code), opts);
   }
 
   return lines.join('\n');
@@ -173,11 +185,10 @@ const BLOCK_INDENT = '            ';
  *            Fix: <next>
  * plus an (advisory — not blocking) note for advisory warnings.
  *
- * For refusal codes (FULL_WHAT_CODES) the complete multi-line `what` is shown:
- * the first line as the block header, every subsequent line indented under it —
- * this is where the reviewer reason / violation list lives. All other codes show
- * only line 1 (terse one-line format preserved for unverified / prompt-too-large
- * / structural issues).
+ * The complete multi-line `what` is shown for every code: the first line as the
+ * block header, every subsequent line indented under it — the reviewer reason
+ * or violation list of a refusal, the file list of a mapping finding, a parser's
+ * own message. A line of `what` is never dropped in this view.
  *
  * Accesses issue.messageData.{what,why,next} directly — the structured renderer
  * pattern permitted by the what-why-next aspect for CLI renderers that need
@@ -192,13 +203,12 @@ function renderIssueBlock(issue: CheckIssue, lines: string[], mode: 'error' | 'w
   const nodeSeg = issue.nodePath ? `  ${issue.nodePath}` : '';
 
   lines.push(`  ${label}${nodeSeg}  ${whatLines[0]}`);
-  // Refusal codes: render the remaining `what` lines (reviewer reason /
-  // violation list) indented under the header so the agent sees the full
-  // refusal detail in plain `yg check`, not only via `yg aspect-test`.
-  if (FULL_WHAT_CODES.has(issue.code)) {
-    for (const extra of whatLines.slice(1)) {
-      lines.push(`${BLOCK_INDENT}${extra}`);
-    }
+  // Every remaining `what` line (reviewer reason, violation list, file list,
+  // parser message), indented under the header — the per-issue view is the one
+  // that shows a finding whole.
+  for (const extra of whatLines.slice(1)) {
+    if (extra.trim() === '') continue;
+    lines.push(`${BLOCK_INDENT}${extra}`);
   }
   if (md.why) {
     lines.push(`${BLOCK_INDENT}Why: ${md.why}`);
@@ -227,33 +237,42 @@ function renderIssueBlock(issue: CheckIssue, lines: string[], mode: 'error' | 'w
  * by the what-why-next aspect. The terse format uses the count from messageData.what
  * and lists files from issue.uncoveredFiles (the structured data parallel to what).
  */
-export function renderUnmappedBlock(issue: CheckIssue, lines: string[], label = 'unmapped'): void {
+export function renderUnmappedBlock(
+  issue: CheckIssue,
+  lines: string[],
+  label = 'unmapped',
+  opts: GroupRenderOptions = { capMembers: true },
+): void {
   const md = issue.messageData;
   const files = issue.uncoveredFiles ?? [];
   // Use the authoritative structured count; fall back to file list length only
   // if uncoveredCount was never set (should not happen in practice).
-  const count = issue.uncoveredCount ?? files.length;
-  const countLabel = String(count);
-  lines.push(`  ${label} (${countLabel})`);
-  // Show file list derived from messageData.what body lines (same data as uncoveredFiles).
-  const shown = files.slice(0, 10);
+  const fileCount = issue.uncoveredCount ?? files.length;
+  lines.push(`  ${label} (${fileCount})`);
+  // The file list (the same data as messageData.what's body lines). A capped
+  // view shows the first FILE_CAP and names the view that shows every one.
+  const shown = opts.capMembers ? files.slice(0, FILE_CAP) : files;
   for (const f of shown) {
     lines.push(`            ${f}`);
   }
-  if (files.length > 10) {
-    lines.push(`            ... +${files.length - 10}`);
+  if (files.length > shown.length) {
+    lines.push(`            ... +${files.length - shown.length} (yg check --details)`);
   }
   if (md.why) {
     lines.push(`            Why: ${md.why}`);
   }
   if (md.next && !isOutsideFinding(issue.code)) {
-    lines.push(`            Fix: ${md.next.split('\n')[0]}`);
+    // Every line of the remedy: a second line (a follow-up step) is part of it.
+    const nextLines = md.next.split('\n');
+    lines.push(`            Fix: ${nextLines[0]}`);
+    for (const extra of nextLines.slice(1)) lines.push(`            ${extra.trim()}`);
   }
 }
 
 // ── Grouped block render ───────────────────────────────────
 
-const CAP_NODES = 12;
+/** Files a coverage block lists before it elides the rest (the per-issue view lists all). */
+const FILE_CAP = 10;
 
 /**
  * Jargon glosses: machine token first, human gloss in parentheses (parseable by
@@ -360,142 +379,210 @@ function renderRepoLevelGroup(group: IssueGroup, lines: string[]): void {
 }
 
 /**
+ * The shared text of a per-member field whose members differ ONLY by their own
+ * node path — `yg log add --node <node> …` for every node of a log gate, say.
+ * Returns the text with each member's path replaced by `<node>` when that makes
+ * every member's text identical, else undefined (a genuinely divergent field,
+ * which keeps its per-member lines). One templated line instead of N copies
+ * that differ by one token.
+ */
+function memberTemplate(members: CheckIssue[], field: (m: CheckIssue) => string | undefined): string | undefined {
+  let template: string | undefined;
+  for (const m of members) {
+    const text = field(m);
+    if (text === undefined || text === '' || m.nodePath === undefined) return undefined;
+    const node = toPosixPath(m.nodePath);
+    if (!text.includes(node)) return undefined;
+    const t = text.split(node).join('<node>');
+    if (template === undefined) template = t;
+    else if (t !== template) return undefined;
+  }
+  return template;
+}
+
+/**
+ * What the fill a group's Fix names will cost, when that Fix is a recording
+ * run over unverified pairs: script pairs are free, reviewer pairs are paid.
+ * Empty for every other group.
+ */
+function costSuffix(group: IssueGroup): string {
+  if (group.code !== 'unverified' || !group.sharedNext.startsWith('yg check --approve')) return '';
+  const script = group.members.filter((m) => m.pairKind === 'deterministic').length;
+  const reviewer = group.members.filter((m) => m.pairKind === 'llm').length;
+  if (script > 0 && reviewer > 0) return `  (${count(script, 'script pair')} free, ${count(reviewer, 'reviewer pair')} paid)`;
+  if (script > 0) return `  (${count(script, 'script pair')}, free)`;
+  if (reviewer > 0) return `  (${count(reviewer, 'reviewer pair')}, paid)`;
+  return '';
+}
+
+/**
+ * The command that shows every member of a group whose list was cut: the
+ * group's own rule, or the one rule all its members share, drilled into with
+ * `--aspect` (a view that never cuts); failing both, the per-issue view.
+ */
+function drillFor(group: IssueGroup): string {
+  if (group.aspectId !== undefined) return `yg check --aspect ${group.aspectId}`;
+  const aspects = new Set(group.members.map((m) => m.aspectId));
+  const [only] = [...aspects];
+  if (aspects.size === 1 && only !== undefined) return `yg check --aspect ${only}`;
+  return 'yg check --details';
+}
+
+/** One rendered member row: its lines, how many members it stands for, and the member whose detail follows it. */
+interface MemberRow {
+  lines: string[];
+  members: number;
+  first: CheckIssue;
+}
+
+/**
  * Render a single IssueGroup as a unified block:
  *   <glossLabel(label)>  <P> pairs  <M> nodes[  aspect '<id>']
- *   <sharedWhy>                         (only when `why` is shared across members)
- *   Fix: <sharedNext>                   (only when `next` is shared across members)
- *   - <node> (one per member; perMemberReason: includes first detail line from messageData.what)
- *       Why: <member why>              (only when group.divergentWhy)
- *       Fix: <member next>             (only when group.divergentNext)
- *   ... and K more (yg check --aspect <id>)  [TTY-only, when members > CAP_NODES]
+ *   <sharedWhy>                         (shared, or templated over the node path)
+ *   Fix: <sharedNext>[  (cost)]         (shared, or templated: "(for each node below)")
+ *   - <node>  <what>  (one row per member; same (node, rule) file pairs collapse
+ *       <continuation lines>             into one row naming how many files)
+ *       Why: <member why>              (only when the why genuinely diverges)
+ *       Fix: <member next>             (only when the fix genuinely diverges)
+ *   ... and K more (<drill>)            (when the view caps and rows > MEMBER_CAP)
  *
- * Divergence handling (Fix 4): when the members carry node-specific `next`
- * (and/or `why`) — `log-entry-missing`, `relation-undeclared-dependency`,
- * architecture errors — a SINGLE shared `Fix:`/`Why:` would name only the
- * alphabetically-first node and mislead the agent. In that case the shared line
- * is suppressed and each member's own command/rationale is rendered beneath its
- * bullet. Shared-fix groups (LLM refusals, unverified, …) keep the collapsed
- * single block.
+ * Divergence handling: when the members carry node-specific `next` (and/or
+ * `why`) — `log-entry-missing`, `relation-undeclared-dependency`, architecture
+ * errors — a SINGLE shared line would name only the first node. If the members
+ * differ only by their own node path, one templated line with `<node>` stands
+ * for all of them; otherwise each member's own line is rendered beneath its row.
+ *
+ * The member list is capped by the VIEW (opts.capMembers), in every sink —
+ * never by whether the output is a terminal — and a cut list always ends with
+ * the command that shows the rest.
  */
-export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: boolean }): void {
+export function renderGroup(group: IssueGroup, lines: string[], opts: GroupRenderOptions): void {
   const aspectSeg = group.aspectId ? `  aspect '${group.aspectId}'` : '';
   // A repo-level group names no node AND no type-covered file (the committed
   // agent-rules digest, an unreadable lock). Pair/node counts would both be
-  // fabrications there — the finding is about repository files in general, not
-  // about any component or a specific type-covered file — so the header
-  // carries just the label, and the members render as plain detail lines with
-  // no bullet to leave empty. A group that is ALL file-level (nodeCount === 0
-  // but fileCount > 0) is NOT repo-level — it has real per-file bullets to
-  // render, just no component among them.
+  // fabrications there, so the header carries just the label, and the members
+  // render as plain detail lines with no bullet to leave empty. A group that is
+  // ALL file-level (nodeCount === 0 but fileCount > 0) is NOT repo-level.
   if (group.nodeCount === 0 && group.fileCount === 0) {
     renderRepoLevelGroup(group, lines);
     return;
   }
-  // Byte-identical to the plain node-only rendering when fileCount === 0 (this
-  // repo's own flag stays off, so that is always true here): "N pairs M
-  // nodes". Only a group that genuinely mixes or is all files gets the
-  // combined/files-only wording.
   const countSeg = group.fileCount > 0
-    ? (group.nodeCount > 0 ? `${group.nodeCount} nodes, ${group.fileCount} files` : `${group.fileCount} files`)
-    : `${group.nodeCount} nodes`;
+    ? (group.nodeCount > 0 ? `${count(group.nodeCount, 'node')}, ${count(group.fileCount, 'file')}` : count(group.fileCount, 'file'))
+    : count(group.nodeCount, 'node');
   // "pairs" only for verdict states; any other finding is counted as issues.
-  const countNoun = PAIR_CODES.has(group.code)
-    ? 'pairs'
-    : group.pairCount === 1 ? 'issue' : 'issues';
-  lines.push(`  ${glossLabel(group.label)}  ${group.pairCount} ${countNoun}  ${countSeg}${aspectSeg}`);
+  const countNoun = PAIR_CODES.has(group.code) ? 'pair' : 'issue';
+  lines.push(`  ${glossLabel(group.label)}  ${count(group.pairCount, countNoun)}  ${countSeg}${aspectSeg}`);
   // A `-outside` twin group's Fix line — shared or per-member, below — is
   // suppressed entirely: see isOutsideFinding's doc comment.
   const isOutside = isOutsideFinding(group.code);
-  // Shared why/fix render once ABOVE the member list — but only when they are
-  // genuinely shared. A divergent why/next belongs per-member (below), so the
-  // shared line is suppressed here to avoid naming only the first node.
-  if (group.sharedWhy && !group.divergentWhy) lines.push(`${BLOCK_INDENT}${group.sharedWhy}`);
-  if (group.sharedNext && !group.divergentNext && !isOutside) {
-    const nextLines = group.sharedNext.split('\n');
-    lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}`);
+  const whyTemplate = group.divergentWhy ? memberTemplate(group.members, (m) => m.messageData.why) : undefined;
+  const nextTemplate = group.divergentNext ? memberTemplate(group.members, (m) => m.messageData.next) : undefined;
+  const perMemberWhy = group.divergentWhy && whyTemplate === undefined;
+  const perMemberNext = group.divergentNext && nextTemplate === undefined;
+  const sharedWhy = group.divergentWhy ? whyTemplate : group.sharedWhy;
+  const sharedNext = group.divergentNext ? nextTemplate : group.sharedNext;
+  if (sharedWhy) lines.push(`${BLOCK_INDENT}${sharedWhy}`);
+  if (sharedNext && !isOutside) {
+    const nextLines = sharedNext.split('\n');
+    const suffix = nextTemplate !== undefined ? '  (for each node below)' : costSuffix(group);
+    lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}${suffix}`);
     for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);
   }
-  // Per-member why/fix continuation, emitted under each bullet when divergent.
+  // Per-member why/fix continuation, emitted under each row when divergent.
   // Indented one level (two spaces) deeper than the bullet so it reads as a
-  // child of that node, matching the perMemberReason `what`-tail indentation.
+  // child of that node, matching the continuation indentation.
   const MEMBER_DETAIL_INDENT = `${BLOCK_INDENT}  `;
-  const emitDivergentDetail = (m: CheckIssue): void => {
-    if (group.divergentWhy && m.messageData.why) {
-      lines.push(`${MEMBER_DETAIL_INDENT}Why: ${m.messageData.why.split('\n')[0]}`);
-    }
-    if (group.divergentNext && m.messageData.next && !isOutside) {
+  const divergentDetail = (m: CheckIssue): string[] => {
+    const out: string[] = [];
+    if (perMemberWhy && m.messageData.why) out.push(`${MEMBER_DETAIL_INDENT}Why: ${m.messageData.why.split('\n')[0]}`);
+    if (perMemberNext && m.messageData.next && !isOutside) {
       const nextLines = m.messageData.next.split('\n');
-      lines.push(`${MEMBER_DETAIL_INDENT}Fix: ${nextLines[0]}`);
-      for (const extra of nextLines.slice(1)) lines.push(`${MEMBER_DETAIL_INDENT}${extra}`);
+      out.push(`${MEMBER_DETAIL_INDENT}Fix: ${nextLines[0]}`);
+      for (const extra of nextLines.slice(1)) out.push(`${MEMBER_DETAIL_INDENT}${extra}`);
     }
+    return out;
   };
+
   /**
-   * Render one member's bullet + divergent detail. `subject` is what appears
-   * where the node path would — the real nodePath for a component member, or
-   * the FILE (never an empty bullet) for a nodeless one.
+   * The rows for one block of members. `subjectFor` is what appears where the
+   * node path would — the real nodePath for a component member, or the FILE
+   * (never an empty bullet) for a nodeless one.
    */
-  const renderMemberBullet = (m: CheckIssue, subject: string): void => {
+  const buildRows = (blockMembers: CheckIssue[], subjectFor: (m: CheckIssue) => string): MemberRow[] => {
+    const rows: MemberRow[] = [];
     if (group.perMemberReason) {
-      // Full what tail: every line AFTER line 0 (line 0 is the generic
-      // "Aspect X refused on UNIT" header already conveyed by the group header).
-      // For LLM refusals line 1 is "Reviewer reason: ..."; for deterministic
-      // refusals line 1 is "Violations:" and lines 2+ are the file:line entries.
-      // Truncating to line 1 silently drops the actionable violation lines.
-      const whatTail = m.messageData.what.split('\n').slice(1).map((l) => l.replace(/\s+$/, ''));
-      if (whatTail.length === 0) {
-        lines.push(`${BLOCK_INDENT}- ${subject}`);
-      } else {
-        lines.push(`${BLOCK_INDENT}- ${subject}  ${whatTail[0].trim()}`);
-        for (const extra of whatTail.slice(1)) {
-          lines.push(`${BLOCK_INDENT}  ${extra}`);   // continuation, indented one level under the bullet
-        }
+      for (const m of blockMembers) {
+        // Every line AFTER line 0 (line 0 is the generic "Aspect X refused on
+        // UNIT" header the group header already conveys): the reviewer's reason,
+        // or the violation list under its "Violations:" heading.
+        const whatTail = m.messageData.what.split('\n').slice(1).map((l) => l.replace(/\s+$/, ''));
+        const rowLines = whatTail.length === 0
+          ? [`${BLOCK_INDENT}- ${subjectFor(m)}`]
+          : [`${BLOCK_INDENT}- ${subjectFor(m)}  ${whatTail[0].trim()}`, ...whatTail.slice(1).map((extra) => `${BLOCK_INDENT}  ${extra}`)];
+        rows.push({ lines: rowLines, members: 1, first: m });
       }
-      // Divergent per-member why/fix (e.g. relation-undeclared-dependency, whose
-      // `what` is the violation list AND whose `next` names the node's stanza).
-      emitDivergentDetail(m);
-    } else {
-      // For code-only groups (e.g. `unverified`) group.aspectId is undefined
-      // because the group spans multiple aspects. Annotate each member line
-      // with the member's own aspectId so the agent can see which aspect is
-      // unverified on each subject without repeating the shared why+fix.
-      const memberAspectSeg =
-        group.aspectId === undefined && m.aspectId !== undefined
-          ? `  aspect '${m.aspectId}'`
-          : '';
-      // For non-aspect structural/graph issues (e.g. when-predicate-invalid,
-      // log-entry-missing) the member has no aspectId to annotate — instead
-      // surface the first line of `what`, which carries the specific diagnostic
-      // detail (e.g. "Invalid regex in content when:" or "No fresh log entry for
-      // node '...'"). Without this, all members in the group look identical and
-      // the agent cannot distinguish which node/file/predicate is broken.
-      const whatSeg =
-        !memberAspectSeg && m.messageData.what
-          ? `  ${m.messageData.what.split('\n')[0]}`
-          : '';
-      lines.push(`${BLOCK_INDENT}- ${subject}${memberAspectSeg || whatSeg}`);
-      // Divergent per-member why/fix (e.g. log-entry-missing → `yg log add --node X`,
-      // relation-target-forbidden → allow-list vs default-deny). Without this the
-      // group would render only the first member's command/rationale.
-      emitDivergentDetail(m);
+      return rows;
     }
+    // Members that name the same subject and the same rule — one pair per FILE
+    // of a per-file rule — collapse into one row that says how many files; a
+    // single such pair names its file. Everything else is a row of its own.
+    const byKey = new Map<string, CheckIssue[]>();
+    for (const m of blockMembers) {
+      const namesRule = group.aspectId === undefined && m.aspectId !== undefined;
+      const key = namesRule ? `${subjectFor(m)}\u0000${m.aspectId}` : `${subjectFor(m)}\u0000\u0000${m.messageData.what}`;
+      const list = byKey.get(key) ?? [];
+      list.push(m);
+      byKey.set(key, list);
+    }
+    for (const members of byKey.values()) {
+      const m = members[0];
+      const subject = subjectFor(m);
+      // For code-only groups (e.g. `unverified`) group.aspectId is undefined
+      // because the group spans multiple aspects: each row names its own rule.
+      const memberAspectSeg = group.aspectId === undefined && m.aspectId !== undefined ? `  aspect '${m.aspectId}'` : '';
+      const fileUnits = members.filter((x) => x.nodePath !== undefined && x.unitKey?.startsWith('file:'));
+      const unitSeg = members.length > 1
+        ? `  ${count(members.length, fileUnits.length === members.length ? 'file' : 'pair')}`
+        : fileUnits.length === 1 ? `  ${toPosixPath(fileUnits[0].unitKey!.slice('file:'.length))}` : '';
+      if (memberAspectSeg !== '') {
+        rows.push({ lines: [`${BLOCK_INDENT}- ${subject}${memberAspectSeg}${unitSeg}`], members: members.length, first: m });
+        continue;
+      }
+      // A finding with no rule: its own `what` says which node/file/predicate
+      // is broken — every line of it, the first beside the bullet and the rest
+      // (a file list, a parser message) beneath it.
+      const whatLines = (m.messageData.what ?? '').split('\n').map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim() !== '');
+      const head = whatLines.length > 0 ? `  ${whatLines[0]}` : '';
+      const repeat = members.length > 1 ? `  (${count(members.length, 'issue')})` : '';
+      rows.push({
+        lines: [`${BLOCK_INDENT}- ${subject}${head}${repeat}`, ...whatLines.slice(1).map((l) => `${BLOCK_INDENT}  ${l}`)],
+        members: members.length,
+        first: m,
+      });
+    }
+    return rows;
   };
-  /** Render one block of members (its own bullets, its own truncation cap). */
+
+  /** Render one block of members (its own rows, its own cap). */
   const renderMemberBlock = (blockMembers: CheckIssue[], subjectFor: (m: CheckIssue) => string): void => {
-    const truncate = opts.isTTY && blockMembers.length > CAP_NODES;
-    const shown = truncate ? blockMembers.slice(0, CAP_NODES) : blockMembers;
-    for (const m of shown) renderMemberBullet(m, subjectFor(m));
+    const rows = buildRows(blockMembers, subjectFor);
+    const truncate = opts.capMembers && rows.length > MEMBER_CAP;
+    const shown = truncate ? rows.slice(0, MEMBER_CAP) : rows;
+    for (const row of shown) {
+      lines.push(...row.lines);
+      lines.push(...divergentDetail(row.first));
+    }
     if (truncate) {
-      const drill = group.aspectId ? ` (yg check --aspect ${group.aspectId})` : '';
-      lines.push(`${BLOCK_INDENT}... and ${blockMembers.length - CAP_NODES} more${drill}`);
+      const hidden = rows.slice(MEMBER_CAP).reduce((sum, r) => sum + r.members, 0);
+      lines.push(`${BLOCK_INDENT}... and ${hidden} more (${drillFor(group)})`);
     }
   };
 
   if (group.fileCount === 0) {
-    // Byte-identical to the plain node-only rendering: one block, one cap,
-    // over every member (a stray member with neither nodePath nor a file:
-    // unitKey — never produced by any known issue path — still renders via
-    // the empty-subject fallback exactly as it always has, rather than
-    // silently vanishing).
+    // One block, one cap, over every member (a stray member with neither
+    // nodePath nor a file: unitKey — never produced by any known issue path —
+    // still renders via the empty-subject fallback rather than vanishing).
     renderMemberBlock(group.members, (m) => m.nodePath ?? '');
   } else {
     // Two blocks — components first, then files — each with its OWN cap, so a
@@ -508,7 +595,7 @@ export function renderGroup(group: IssueGroup, lines: string[], opts: { isTTY: b
     );
     renderMemberBlock([...nodeMembers, ...otherMembers], (m) => m.nodePath ?? '');
     if (fileMembers.length > 0) {
-      renderMemberBlock(fileMembers, (m) => m.unitKey!.slice('file:'.length));
+      renderMemberBlock(fileMembers, (m) => toPosixPath(m.unitKey!.slice('file:'.length)));
     }
   }
 }

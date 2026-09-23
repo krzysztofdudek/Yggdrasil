@@ -1,6 +1,16 @@
 $ yg check --json --top
 exit: 1
 --- stdout
+{
+  "schema": "yg-error/1",
+  "code": "usage",
+  "what": "--top cannot be combined with --json.",
+  "why": "--top narrows the TEXT report — fewer blocks, same counts. --json emits one machine document that always carries the whole run, so there is nothing for a narrowing flag to narrow, and a document trimmed to a few findings would read as a smaller problem instead of a smaller rendering.",
+  "next": {
+    "command": null,
+    "text": "Run: yg check --json (the whole run as a document), or yg check --top <n> (the narrowed text view)."
+  }
+}
 --- stderr
 Error: --top cannot be combined with --json.
 --top narrows the TEXT report — fewer blocks, same counts. --json emits one machine document that always carries the whole run, so there is nothing for a narrowing flag to narrow, and a document trimmed to a few findings would read as a smaller problem instead of a smaller rendering.

@@ -200,7 +200,8 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
       const { status, all } = run(['check', '--approve'], dir);
       expect(status).toBe(1);
       // what/why/next of the mandatory-log gate (code log-entry-missing).
-      expect(all).toContain("No fresh log entry for node 'services/orders' — mandatory before recording verdicts when its source drifted.");
+      // A component never verified before owes its FIRST entry — it drifted from nothing.
+      expect(all).toContain("No log entry for node 'services/orders' — mandatory before its first verdicts are recorded.");
       expect(all).toContain('log_required: true');
       expect(all).toContain('yg log add --node services/orders');
     } finally {

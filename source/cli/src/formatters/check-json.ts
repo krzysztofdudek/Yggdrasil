@@ -89,6 +89,56 @@ export interface CheckJsonIssue {
    * `deterministic-not-run` are pairs waiting for a fill.
    */
   cause?: string;
+  /** The heading a text report groups this finding under (`enforced`, `unmapped`, the code itself, …). */
+  label?: string;
+  /** `unit` as a structured subject, the same shape as a pair's `unit`. */
+  unitRef?: { kind: 'node' | 'file'; path: string };
+  /** A script rule's violations, one per reported location, never cut. */
+  violations?: CheckJsonViolation[];
+  /** The dependency edges a relation finding is about, never cut. */
+  edges?: CheckJsonEdge[];
+  /** Every file a coverage finding names, never cut (its `what` may list fewer). */
+  files?: string[];
+}
+
+/** One location a script rule reported. `line` is null when the rule named none. */
+export interface CheckJsonViolation {
+  file: string;
+  line: number | null;
+  message: string;
+}
+
+/** One dependency edge: the importing file (and line, when known) and what it reaches. */
+export interface CheckJsonEdge {
+  file: string;
+  line: number | null;
+  target: string;
+}
+
+/**
+ * One text-report group: the findings that share a code (and a rule, for a
+ * per-rule code), with the rationale and remedy they share stated once —
+ * `members` indexes into `issues`. The per-issue `why` stays in each issue for
+ * compatibility; a consumer that wants each rationale once reads it here.
+ */
+export interface CheckJsonGroup {
+  code: string;
+  label: string;
+  aspect: string | null;
+  severity: 'error' | 'warning';
+  /** The shared rationale, or null when the members' rationales differ. */
+  why: string | null;
+  /** The shared remedy, or null when the members' remedies differ. */
+  next: string | null;
+  members: number[];
+}
+
+/** Why a recording run stopped before recording anything, and what stopped it. */
+export interface CheckJsonAbort {
+  /** `log-gate`: components owe a justification entry; `structural`: a problem leaves the run unsafe. */
+  stage: 'structural' | 'log-gate';
+  /** The findings that stopped the run, in the same shape as `issues`. */
+  issues: CheckJsonIssue[];
 }
 
 /** Who judged outside the configured reviewer, and how many pairs in force are theirs. */
@@ -121,7 +171,7 @@ export interface CheckJsonDocument {
   schema: typeof CHECK_JSON_SCHEMA;
   project: { name: string; nodes: number; aspects: number; flows: number };
   /** Whether the run blocks, and the exit code it leaves — the same one the text run leaves. */
-  exit: { code: 0 | 1; status: 'pass' | 'fail'; reason: string };
+  exit: { code: 0 | 1; status: 'pass' | 'fail' | 'aborted'; reason: string };
   coverage: {
     files: number;
     covered: number;
@@ -156,6 +206,15 @@ export interface CheckJsonDocument {
    * cost, as numbers — the same counts the human budget header on stderr states.
    */
   dryRunBudget?: { pairs: number; nodes: number; files: number; deterministic: number; reviewerCalls: number };
+  /** The text report's groups, in its order (added by the command layer). */
+  groups?: CheckJsonGroup[];
+  /**
+   * The text report's partial-result banner, or null: set when part of the graph
+   * did not load as written, so every other number here describes a fallback.
+   */
+  banner?: string | null;
+  /** Present only when a recording run stopped at a gate (exit.status `aborted`). */
+  aborted?: CheckJsonAbort;
 }
 
 /** Render one check document as pretty-printed JSON with a trailing newline. */

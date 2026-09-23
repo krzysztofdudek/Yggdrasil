@@ -7,7 +7,7 @@ Errors (34) in 3 groups:
 
   unverified (not yet reviewed)  24 pairs  24 nodes
             The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
+            Fix: yg check --approve  (24 reviewer pairs, paid)
             - app/svc-01  aspect 'readable-names'
             - app/svc-02  aspect 'readable-names'
             - app/svc-03  aspect 'readable-names'
@@ -20,18 +20,7 @@ Errors (34) in 3 groups:
             - app/svc-10  aspect 'readable-names'
             - app/svc-11  aspect 'readable-names'
             - app/svc-12  aspect 'readable-names'
-            - app/svc-13  aspect 'readable-names'
-            - app/svc-14  aspect 'readable-names'
-            - app/svc-15  aspect 'readable-names'
-            - app/svc-16  aspect 'readable-names'
-            - app/svc-17  aspect 'readable-names'
-            - app/svc-18  aspect 'readable-names'
-            - app/svc-19  aspect 'readable-names'
-            - app/svc-20  aspect 'readable-names'
-            - app/svc-21  aspect 'readable-names'
-            - app/svc-22  aspect 'readable-names'
-            - app/svc-23  aspect 'readable-names'
-            - app/svc-24  aspect 'readable-names'
+            ... and 12 more (yg check --aspect readable-names)
 
   enforced  8 pairs  8 nodes  aspect 'no-todo'
             A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
@@ -53,11 +42,9 @@ Errors (34) in 3 groups:
             - app/svc-24  Violations:
               src/svc-24/index.ts:2: TODO marker left in shipped code — move it to the tracker
 
-  relation-broken  1 issue  1 nodes
-            This node declares a dependency that cannot be resolved.
-     Existing nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, svc-13, svc-14, svc-15, svc-16, svc-17, svc-18, svc-19, svc-20, svc-21, svc-22, svc-23, svc-24
-            Fix: Fix the target path in yg-node.yaml relations.
-                 Did you mean 'app'?
+  relation-broken  1 issue  1 node
+            This node declares a dependency on a node the graph does not contain, so the relation cannot be checked. Nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, … (24 in all).
+            Fix: Correct the target in .yggdrasil/model/app/svc-05/yg-node.yaml relations, or remove the relation.
             - app/svc-05  Relation target 'app/svc-99' does not exist.
 
   unmapped (1)

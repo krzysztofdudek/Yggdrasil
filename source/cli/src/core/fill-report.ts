@@ -135,6 +135,8 @@ export interface FillTotals {
   reviewerConfigured?: boolean;
   /** The command the run was invoked as, for every "then re-run" line. */
   retry?: string;
+  /** Refusals the lock held for unchanged inputs before this run (they still stand). */
+  cachedRefusals?: number;
 }
 
 /**
@@ -164,6 +166,7 @@ export function reportFillTotals(
       detRefused: totals.detRefused ?? 0,
       skippedByDetGate: totals.skippedByDetGate ?? 0,
       ...(totals.reviewerConfigured !== undefined ? { reviewerConfigured: totals.reviewerConfigured } : {}),
+      ...(totals.cachedRefusals !== undefined ? { cachedRefusals: totals.cachedRefusals } : {}),
     },
   });
   if (totals.infraFailures > 0) {

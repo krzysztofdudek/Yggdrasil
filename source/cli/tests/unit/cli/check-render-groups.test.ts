@@ -82,7 +82,7 @@ describe('check render — refusal detail (full what)', () => {
     const out = stripAnsi(formatOutput(baseResult([issue])));
 
     // Grouped grammar: group header with label, pair/node counts, aspect id.
-    expect(out).toContain("enforced  1 pairs  1 nodes  aspect 'audit-logging'");
+    expect(out).toContain("enforced  1 pair  1 node  aspect 'audit-logging'");
     // perMemberReason: the first detail line of `what` (line 1) appears on the member.
     expect(out).toContain('Reviewer reason: The handler does not emit an audit-log entry on the failure branch.');
     // The three-exits Fix block must reach the agent — including the yg-suppress exit.
@@ -111,7 +111,7 @@ describe('check render — refusal detail (full what)', () => {
     const out = stripAnsi(formatOutput(baseResult([issue])));
 
     // Group header present.
-    expect(out).toContain("enforced  1 pairs  1 nodes  aspect 'ui-no-direct-db'");
+    expect(out).toContain("enforced  1 pair  1 node  aspect 'ui-no-direct-db'");
     // perMemberReason: what line 1 ('Violations:') appears on the member.
     expect(out).toContain('Violations:');
     // The actual violation file:line entries must appear — the fix ensures lines 2+ of
@@ -142,7 +142,7 @@ describe('check render — refusal detail (full what)', () => {
 
     const out = stripAnsi(formatOutput(baseResult([issue])));
     // Group header present with correct label and aspect.
-    expect(out).toContain("prompt-too-large  1 pairs  1 nodes  aspect 'some-aspect'");
+    expect(out).toContain("prompt-too-large  1 pair  1 node  aspect 'some-aspect'");
     // The safety-ordered remedies from `next` still reach the agent.
     expect(out).toContain('Narrow scope.files');
     // Member line for the node.
@@ -167,7 +167,7 @@ describe('check render — advisory warning hints', () => {
 
     const out = stripAnsi(formatOutput(baseResult([issue])));
     // Grouped grammar: group header with advisory label and aspect.
-    expect(out).toContain("advisory  1 pairs  1 nodes  aspect 'audit-logging'");
+    expect(out).toContain("advisory  1 pair  1 node  aspect 'audit-logging'");
     // Reason appears in member detail (perMemberReason: true for aspect-violation-advisory).
     expect(out).toContain('missing audit entry');
     // Fix block must include the three-exits next.
@@ -189,11 +189,11 @@ describe('check render — advisory warning hints', () => {
 
     const out = stripAnsi(formatOutput(baseResult([issue])));
     // Grouped grammar: unverified groups by CODE ONLY — no aspect in the header.
-    expect(out).toContain("unverified (not yet reviewed)  1 pairs  1 nodes");
+    expect(out).toContain("unverified (not yet reviewed)  1 pair  1 node");
     // The aspect appears on the member body line, not the header.
     expect(out).toContain("- orders/handler  aspect 'audit-logging'");
     // The header does NOT carry an aspect segment (unverified spans aspects).
-    expect(out).not.toContain("unverified (not yet reviewed)  1 pairs  1 nodes  aspect 'audit-logging'");
+    expect(out).not.toContain("unverified (not yet reviewed)  1 pair  1 node  aspect 'audit-logging'");
     // The next pointer must be present so the agent knows how to clear it.
     expect(out).toContain('yg check --approve');
   });
@@ -243,16 +243,16 @@ describe('check render — -outside twins: gloss and Fix suppression', () => {
   it('glosses the twin exactly like its mirror, plus the outside marker', () => {
     const [g] = groupIssues([outsideUnverified('orders/handler')]);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
-    expect(out).toContain('unverified (not yet reviewed) (outside changes)  1 pairs  1 nodes');
+    expect(out).toContain('unverified (not yet reviewed) (outside changes)  1 pair  1 node');
   });
 
   it('omits the Fix: line for a grouped twin (code-only group, shared next)', () => {
     const [g] = groupIssues([outsideUnverified('a'), outsideUnverified('b')]);
     expect(g.sharedNext).toBe('yg check --approve'); // the mirrored finding's own remedy
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     expect(out).not.toContain('Fix:');
     expect(out).not.toContain('yg check --approve');
@@ -279,7 +279,7 @@ describe('check render — -outside twins: gloss and Fix suppression', () => {
     const [g] = groupIssues([divergent('svc-a'), divergent('svc-b')]);
     expect(g.divergentNext).toBe(true);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     expect(out).not.toContain('Fix:');
     expect(out).not.toContain('yg-node.yaml');
@@ -341,7 +341,7 @@ describe('check render — renderGroup', () => {
     } as CheckIssue));
     const [g] = groupIssues(issues);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     // Unverified collapses by CODE ONLY: no aspect in group header.
     expect(out).toContain("unverified (not yet reviewed)  3 pairs  3 nodes");
@@ -365,14 +365,14 @@ describe('check render — renderGroup', () => {
     } as CheckIssue));
     const [g] = groupIssues(issues);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     // Refused groups group by (code, aspectId) — aspect still in header.
     expect(out).toContain("enforced  2 pairs  2 nodes  aspect 'audit-logging'");
   });
 
   // A finding about repository files, not about any component. Counting a
-  // missing node as one printed "1 pairs  1 nodes" and an empty `- ` bullet,
+  // missing node as one printed "1 pair  1 node" and an empty `- ` bullet,
   // reporting a component the graph does not contain and, in the web view,
   // linking to a page that cannot exist.
   it('a repo-level issue (no nodePath) renders with no pair/node counts and no node bullet', () => {
@@ -389,7 +389,7 @@ describe('check render — renderGroup', () => {
     const [g] = groupIssues(issues);
     expect(g.nodeCount).toBe(0);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     expect(out).not.toMatch(/\d+ pairs/);
     expect(out).not.toMatch(/\d+ nodes/);
@@ -404,7 +404,7 @@ describe('check render — renderGroup', () => {
 
 // ── Fix 4: divergent per-node `next`/`why` renders per-member ──────────────────
 describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s command', () => {
-  it('a log-entry-missing group of 2 nodes renders BOTH yg log add commands (not just the first)', () => {
+  it('a log-entry-missing group of 2 nodes names a command for EACH node (one templated line), never only the first', () => {
     const issues: CheckIssue[] = [
       {
         severity: 'error', code: 'log-entry-missing', rule: 'log-entry-missing', nodePath: 'billing/charge',
@@ -424,13 +424,14 @@ describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s c
       } as CheckIssue,
     ];
     const out = stripAnsi(formatOutput(baseResult(issues)));
-    // BOTH nodes' own commands must appear — not just the alphabetically-first one.
-    expect(out).toContain('yg log add --node billing/charge');
-    expect(out).toContain('yg log add --node orders/handler');
+    // The two commands differ only by the node path, so ONE templated line
+    // stands for both — and says it applies to each node listed under it.
+    expect(out).toContain("Fix: yg log add --node <node> --reason '<justification>', then re-run: yg check --approve  (for each node below)");
+    expect(out).toMatch(/^ {12}- billing\/charge {2}/m);
+    expect(out).toMatch(/^ {12}- orders\/handler {2}/m);
     // The misleading SINGLE shared "Fix:" line naming only the first node must NOT appear.
-    // (A single shared Fix line would render exactly one of the two commands.)
-    const sharedFixLines = out.split('\n').filter((l) => /^ {12}Fix: yg log add/.test(l));
-    expect(sharedFixLines.length).toBe(0);
+    expect(out).not.toContain('Fix: yg log add --node billing/charge');
+    expect(out).not.toContain('Fix: yg log add --node orders/handler');
   });
 
   it('a relation-target-forbidden group with divergent why surfaces BOTH why variants', () => {
@@ -501,7 +502,7 @@ describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s c
     expect(g.nodeCount).toBe(0); // confirms the repo-level render path is the one under test
     expect(g.divergentNext).toBe(true); // each pair's Fix names its own fromType/toType
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     expect(out).toContain("'svc' -> 'owner-type'");
     expect(out).toContain("'web' -> 'db'");
@@ -544,7 +545,7 @@ describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s c
     expect(g.divergentNext).toBe(true);
     expect(g.perMemberReason).toBe(false); // type-strict-orphan is not a FULL_WHAT_CODES code
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     // No Why:/Fix: line anywhere — matches the pre-existing (pre-release)
     // rendering for this divergent case exactly; only the shared-block guards
@@ -661,7 +662,7 @@ describe('renderGroup — nodeless members', () => {
   it('a nodeless member renders its FILE, never an empty bullet or the literal word "undefined"', () => {
     const [g] = groupIssues([fileIssue('file:src/leaf/a.ts')]);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     expect(out).toContain('- src/leaf/a.ts');
     expect(out).not.toMatch(/undefined/);
@@ -678,7 +679,7 @@ describe('renderGroup — nodeless members', () => {
     expect(g.nodeCount).toBe(2);
     expect(g.fileCount).toBe(2);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     const svcAIdx = out.indexOf('- svc-a');
     const svcBIdx = out.indexOf('- svc-b');
@@ -692,9 +693,9 @@ describe('renderGroup — nodeless members', () => {
   it('the group header names BOTH components and files when the group mixes them', () => {
     const [g] = groupIssues([nodeIssue('svc-a'), fileIssue('file:src/leaf/a.ts')]);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
-    expect(out).toContain('2 pairs  1 nodes, 1 files');
+    expect(out).toContain('2 pairs  1 node, 1 file');
   });
 
   it('a group that is ALL file-level (zero real components) is not treated as repo-level — it still gets per-file bullets', () => {
@@ -702,19 +703,19 @@ describe('renderGroup — nodeless members', () => {
     expect(g.nodeCount).toBe(0);
     expect(g.fileCount).toBe(2);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: false });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     expect(out).toContain('2 pairs  2 files');
     expect(out).toContain('- src/leaf/a.ts');
     expect(out).toContain('- src/leaf/b.ts');
   });
 
-  it('a file member never consumes the component block’s cap (independent caps, TTY truncation)', () => {
+  it('a file member never consumes the component block’s cap (independent caps, in every sink)', () => {
     const nodeMembers = Array.from({ length: 13 }, (_, i) => nodeIssue(`svc-${i}`));
     const fileMembers = [fileIssue('file:src/leaf/only-file.ts')];
     const [g] = groupIssues([...nodeMembers, ...fileMembers]);
     const lines: string[] = [];
-    renderGroup(g, lines, { isTTY: true });
+    renderGroup(g, lines, { capMembers: true });
     const out = stripAnsi(lines.join('\n'));
     // 13 components > CAP_NODES(12) → component block truncates ("... and 1 more").
     expect(out).toContain('... and 1 more');

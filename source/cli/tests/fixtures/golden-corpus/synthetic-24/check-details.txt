@@ -150,10 +150,8 @@ Errors (34):
             Fix: yg check --approve
 
   relation-broken  app/svc-05  Relation target 'app/svc-99' does not exist.
-            Why: This node declares a dependency that cannot be resolved.
-     Existing nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, svc-13, svc-14, svc-15, svc-16, svc-17, svc-18, svc-19, svc-20, svc-21, svc-22, svc-23, svc-24
-            Fix: Fix the target path in yg-node.yaml relations.
-                 Did you mean 'app'?
+            Why: This node declares a dependency on a node the graph does not contain, so the relation cannot be checked. Nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, … (24 in all).
+            Fix: Correct the target in .yggdrasil/model/app/svc-05/yg-node.yaml relations, or remove the relation.
 
   unmapped (1)
             src/tools/gen.ts

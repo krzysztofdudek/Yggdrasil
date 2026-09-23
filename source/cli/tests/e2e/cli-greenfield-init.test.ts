@@ -298,7 +298,7 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
       expect(refused.stderr).toContain('[det] no-todo-comments on node:widgets/widget — refused');
       // Grouped view: an enforced refusal group for the aspect; the per-member
       // `Violations:` tail (FULL_WHAT detail) is retained and names the TODO site.
-      expect(refused.stdout).toContain("enforced  1 pairs  1 nodes  aspect 'no-todo-comments'");
+      expect(refused.stdout).toContain("enforced  1 pair  1 node  aspect 'no-todo-comments'");
       expect(refused.stdout).toContain('A deterministic check recorded these violations');
       expect(refused.stdout).toContain('- widgets/widget  Violations:');
       expect(refused.stdout).toContain('TODO found.');

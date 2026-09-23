@@ -245,7 +245,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check --json', () => {
       for (const flag of [['--summary'], ['--top', '2'], ['--details'], ['--aspect', 'has-doc-comment']]) {
         const result = run(['check', '--json', ...flag], dir);
         expect(result.status).toBe(1);
-        expect(result.stdout).toBe('');
+        // A refusal under --json also answers on stdout: the yg-error/1 document.
+        expect(JSON.parse(result.stdout).schema).toBe('yg-error/1');
         expect(result.stderr).toContain(`${flag[0]} cannot be combined with --json.`);
         expect(result.stderr).toContain('always carries the whole run');
       }

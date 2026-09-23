@@ -225,9 +225,9 @@ function unmappedIssue(): CheckIssue {
 }
 
 describe('bare --top group === the rule Next names (F3 invariant)', () => {
-  it('within-structural: the alphabetically-first structural code wins BOTH surfaces (event-unpaired < yaml-invalid); coverage never jumps ahead', () => {
+  it('within-structural: the alphabetically-first structural code wins BOTH surfaces (event-unpaired < type-invalid); coverage never jumps ahead', () => {
     const errors: CheckIssue[] = [
-      structuralIssue('yaml-invalid', 'nodeB'),    // 'y'
+      structuralIssue('type-invalid', 'nodeB'),    // 't'
       unmappedIssue(),                              // 'unmapped-files' — coverage
       structuralIssue('event-unpaired', 'nodeA'),  // 'e' — alphabetically first
     ];
@@ -301,12 +301,12 @@ describe('computeSuggestedNext — nodeless structural fallback', () => {
   it('still falls back to .yggdrasil for a genuinely repo-level structural issue (neither nodePath nor a file unitKey)', () => {
     const errors: CheckIssue[] = [{
       severity: 'error',
-      code: 'config-invalid',
-      rule: 'config-invalid',
-      messageData: { what: 'bad config', why: 'y', next: 'fix it' },
+      code: 'duplicate-aspect-id',
+      rule: 'duplicate-aspect-id',
+      messageData: { what: 'two rules share an id', why: 'y', next: 'fix it' },
     } as CheckIssue];
     const next = computeSuggestedNext(errors);
-    expect(next).toContain('Fix config-invalid in .yggdrasil');
+    expect(next).toContain('Fix duplicate-aspect-id in .yggdrasil');
   });
 });
 

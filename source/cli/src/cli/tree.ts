@@ -13,10 +13,53 @@ import { readLock } from '../io/lock-store.js';
 import { verifyPairs } from '../core/verify-lock.js';
 import { fail } from './output.js';
 
+/** Schema id of `yg tree --json`. */
+export const TREE_JSON_SCHEMA = 'yg-tree/1';
+
+/** One node of the tree, as `yg tree --json` reports it. */
+export interface TreeJsonNode {
+  path: string;
+  type: string;
+  /** The whole description, or null when the node has none. */
+  description: string | null;
+  parent: string | null;
+  /** 0 for a root of the listing, one more per level below it. */
+  depth: number;
+}
+
+/** The whole `yg tree --json` document. */
+export interface TreeJsonDocument {
+  schema: typeof TREE_JSON_SCHEMA;
+  root: string | null;
+  maxDepth: number | null;
+  nodes: TreeJsonNode[];
+  /** Files covered by their architecture type alone, repo-wide; null when type-level coverage is off. */
+  typeCovered: TypeCoveredCounts | null;
+}
+
+/** Longest a listing line's description runs before it is cut (the whole text is under --long / --json). */
+const SHORT_DESCRIPTION_MAX = 120;
+
+/**
+ * A description as one listing line shows it: its first sentence, whitespace
+ * collapsed onto one line, cut at a word boundary past SHORT_DESCRIPTION_MAX
+ * with an ellipsis. A long, multi-paragraph description used to print whole —
+ * hundreds of kilobytes on a large graph, most of it spilled lines that no
+ * longer started with a path.
+ */
+export function shortDescription(description: string): string {
+  const flat = description.replace(/\s+/g, ' ').trim();
+  const firstSentence = /^(.+?[.!?])(\s|$)/.exec(flat)?.[1] ?? flat;
+  if (firstSentence.length <= SHORT_DESCRIPTION_MAX) return firstSentence;
+  const slice = firstSentence.slice(0, SHORT_DESCRIPTION_MAX);
+  const lastSpace = slice.lastIndexOf(' ');
+  return `${(lastSpace > 0 ? slice.slice(0, lastSpace) : slice).trimEnd()}…`;
+}
+
 export function registerTreeCommand(program: Command): void {
   program
     .command('tree')
-    .description('List graph nodes as a flat list of full paths with type and description (each parent before its children)')
+    .description('List graph nodes, one line each: path, type, first sentence of the description (each parent before its children)')
     .option('--root <path>', 'Show only subtree rooted at this path')
     .option('--depth <n>', 'Maximum depth', (v) => {
       const n = parseInt(v, 10);
@@ -25,23 +68,25 @@ export function registerTreeCommand(program: Command): void {
       }
       return n;
     })
-    .action(async (options: { root?: string; depth?: number }) => {
+    .option('--long', 'Print each description whole instead of its first sentence')
+    .option('--json', 'Print the tree as a yg-tree/1 JSON document (whole descriptions)')
+    .action(async (options: { root?: string; depth?: number; long?: boolean; json?: boolean }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
 
         let roots: GraphNode[];
         const scopedToRoot = Boolean(options.root?.trim());
+        const rootPath = scopedToRoot ? (options.root as string).trim().replace(/\/$/, '') : null;
 
-        if (scopedToRoot) {
-          const rootPath = (options.root as string).trim().replace(/\/$/, '');
+        if (rootPath !== null) {
           const node = graph.nodes.get(rootPath);
           if (!node) {
             fail({
               what: `Node '${rootPath}' not found.`,
               why: `The --root path must be a valid node path in the graph.`,
               next: `Run yg tree (no --root) to list all nodes, then pick a valid path.`,
-            });
+            }, 'node-not-found');
             process.exit(1);
           }
           roots = [node];
@@ -51,21 +96,35 @@ export function registerTreeCommand(program: Command): void {
             .sort((a, b) => a.path.localeCompare(b.path));
         }
 
-        const lines: string[] = [];
+        const nodes: TreeJsonNode[] = [];
         for (const root of roots) {
-          collectNodes(root, lines, 0, options.depth);
+          collectNodes(root, nodes, 0, options.depth);
+        }
+        const counts = await typeCoveredCounts(graph);
+
+        if (options.json === true) {
+          const doc: TreeJsonDocument = {
+            schema: TREE_JSON_SCHEMA,
+            root: rootPath,
+            maxDepth: options.depth ?? null,
+            nodes,
+            typeCovered: counts ?? null,
+          };
+          process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`);
+          return;
         }
 
-        for (const line of lines) {
-          process.stdout.write(line + '\n');
+        for (const n of nodes) {
+          const desc = n.description === null ? '' : options.long === true ? n.description : shortDescription(n.description);
+          process.stdout.write(desc !== '' ? `${n.path} [${n.type}] — ${desc}\n` : `${n.path} [${n.type}]\n`);
         }
         // An empty graph must still say it ran: a blank listing reads as a
         // failure. (--root always names an existing node, so it never lands here.)
-        if (lines.length === 0) {
+        if (nodes.length === 0) {
           process.stdout.write('(no nodes yet — to map existing code, see: yg knowledge read onboarding)\n');
         }
 
-        const summary = await typeCoveredSummaryLine(graph, scopedToRoot);
+        const summary = counts !== undefined ? typeCoveredSummaryLine(counts, scopedToRoot) : undefined;
         if (summary) process.stdout.write(summary + '\n');
       } catch (error) {
         abortOnUnexpectedError(error, 'building the tree');
@@ -73,44 +132,29 @@ export function registerTreeCommand(program: Command): void {
     });
 }
 
-/**
- * The optional type-covered summary line, printed AFTER the node listing.
- * `undefined` when the flag is off — byte-identical to today in that case.
- * The tree's node listing renders NODES only (no synthetic entry for a
- * type-covered file); this is the one place their count is surfaced.
- *
- * A type-covered file has no place in the graph hierarchy `--root` scopes —
- * unlike a node, it carries no parent/child structure to narrow. Rather than
- * fabricate a scoped count from a heuristic that could silently be wrong for
- * a real project's source layout, the count is always repo-wide, and an
- * explicit "repo-wide" qualifier is added whenever `--root` narrowed the node
- * listing above it — so the line can never be misread as "these files are
- * under the subtree you asked for".
- *
- * The total is split the same way the portal's own residue chips split it —
- * checked (at least one applicable rule), unenforced (matched a type with
- * nothing that applies), and, when it occurs, uncomputable (an aspect
- * `implies` cycle stopped the type's rules from ever being resolved for the
- * file — the honest answer there is unknown, never folded into "nothing
- * applies"). Bare "N files satisfied" would read as a single, undifferentiated
- * pass; a reader cannot tell "checked" from "matched but unguarded" from a
- * count alone, which is exactly the ambiguity `yg owner --file` and the
- * portal's own ledger already resolve per file.
- */
-async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Promise<string | undefined> {
+/** Files covered by their architecture type alone, split by what runs on them. */
+export interface TypeCoveredCounts {
+  total: number;
+  /** Checked by at least one rule. */
+  enforced: number;
+  /** Of `enforced`: files with no recorded verdict for at least one of their rules. */
+  unverifiedEnforced: number;
+  /** Matched a type with nothing that applies. */
+  unenforced: number;
+  /** Whose rules could not be worked out (an aspect implies cycle). */
+  uncomputable: number;
+}
+
+/** The type-covered counts, repo-wide; undefined when type-level coverage is off. */
+async function typeCoveredCounts(graph: Graph): Promise<TypeCoveredCounts | undefined> {
   if (!graph.config.coverage?.typeLevel) return undefined;
   const projectRoot = path.dirname(graph.rootPath);
   const files = await walkRepoFiles(projectRoot);
   const uncovered = scanUncoveredFiles(graph, files);
   const coverage = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
-  const count = coverage.covered.size;
-  const noun = count === 1 ? 'file is' : 'files are';
-  const scopeNote = scopedToRoot ? ' (repo-wide — the type-level lattice has no subtree of its own to scope this to)' : '';
-  const head = `\n${count} ${noun} satisfied by the type-level lattice, no component of their own${scopeNote}`;
-  if (count === 0) return `${head}.`;
+  const total = coverage.covered.size;
+  if (total === 0) return { total, enforced: 0, unverifiedEnforced: 0, unenforced: 0, uncomputable: 0 };
 
-  // The SAME nodeless expected-pair computation `yg check` and the portal both read this split
-  // from — never a re-implementation of "what counts as enforced".
   const typeCoverageInput: TypeCoverageInput = {
     covered: coverage.covered,
     ambiguousPaths: coverage.ambiguous.map((a) => a.file),
@@ -130,22 +174,7 @@ async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Prom
     else if (enforcedFiles.has(file)) enforced += 1;
     else unenforced += 1;
   }
-  // "checked by at least one rule" names architecture-level status, never a
-  // recorded verdict — name how many of those files have at least one
-  // nodeless pair the lock holds no CURRENT valid entry for. This re-verifies
-  // (core/verify-lock.ts#verifyPairs, the same engine `yg check` itself runs)
-  // scoped to just the nodeless pairs already enumerated above, rather than a
-  // second whole-project `computeExpectedPairs` walk on top of the one that
-  // built `expected` — measured upper bound on a 37-aspect fixture is a few
-  // tens of milliseconds, well under `yg check`'s own full-project pass. This
-  // catches a pair the lock has never recorded at all AND one whose recorded
-  // verdict has gone stale since a source edit — the same "no valid verdict
-  // on record" fact `yg check`, `yg owner --file`, and `yg context --file`
-  // already name for the identical pair, so the tree's qualifier can never
-  // read clean on a pair those surfaces would call unverified. A garbled lock
-  // is `yg check`'s own error to report; the tree still renders without this
-  // qualifier rather than failing an unrelated listing.
-  let unverifiedEnforcedFiles = 0;
+  let unverifiedEnforced = 0;
   try {
     const lock = readLock(graph.rootPath);
     const nodelessPairs = expected.pairs.filter((p) => p.nodePath === undefined);
@@ -155,36 +184,53 @@ async function typeCoveredSummaryLine(graph: Graph, scopedToRoot: boolean): Prom
       if (vp.state.kind === 'verified' || vp.state.kind === 'refused') continue;
       for (const f of vp.pair.subjectFiles) unverifiedFiles.add(f);
     }
-    for (const f of unverifiedFiles) if (enforcedFiles.has(f)) unverifiedEnforcedFiles += 1;
+    for (const f of unverifiedFiles) if (enforcedFiles.has(f)) unverifiedEnforced += 1;
   } catch (e: unknown) {
-    // Garbled lock: yg check reports it separately; this line just skips the
-    // qualifier rather than failing an unrelated listing.
     debugWrite(`[tree] lock read failed while building the unverified qualifier: ${e instanceof Error ? e.message : String(e)}`);
   }
-  const enforcedNote = unverifiedEnforcedFiles > 0 ? ` (${unverifiedEnforcedFiles} with no recorded verdict for at least one of its rules)` : '';
-  const parts = [`${enforced} checked by at least one rule${enforcedNote}`, `${unenforced} with nothing that applies`];
-  if (uncomputable > 0) {
-    parts.push(`${uncomputable} whose rules could not be worked out (aspect implies cycle)`);
+  return { total, enforced, unverifiedEnforced, unenforced, uncomputable };
+}
+
+/**
+ * The type-covered summary line, printed AFTER the node listing. The listing
+ * renders NODES only; this is the one place type-covered files are counted.
+ * Always repo-wide — a type-covered file has no place in the hierarchy `--root`
+ * scopes — and says so whenever `--root` narrowed the listing above it. The
+ * total is split into checked, matched-but-unenforced and (when it occurs)
+ * uncomputable, because a bare "N files covered" cannot tell those apart.
+ */
+function typeCoveredSummaryLine(c: TypeCoveredCounts, scopedToRoot: boolean): string {
+  const noun = c.total === 1 ? 'file is' : 'files are';
+  const scopeNote = scopedToRoot ? ' (repo-wide — type coverage has no subtree of its own to scope this to)' : '';
+  const head = `\n${c.total} ${noun} covered by their architecture type alone, with no component of their own${scopeNote}`;
+  if (c.total === 0) return `${head}.`;
+  const enforcedNote = c.unverifiedEnforced > 0 ? ` (${c.unverifiedEnforced} with no recorded verdict for at least one of its rules)` : '';
+  const parts = [`${c.enforced} checked by at least one rule${enforcedNote}`, `${c.unenforced} with nothing that applies`];
+  if (c.uncomputable > 0) {
+    parts.push(`${c.uncomputable} whose rules could not be worked out (aspect implies cycle)`);
   }
   return `${head}: ${parts.join(', ')}.`;
 }
 
 function collectNodes(
   node: GraphNode,
-  lines: string[],
+  out: TreeJsonNode[],
   depth: number,
   maxDepth: number | undefined,
 ): void {
   const desc = node.meta.description?.trim();
-  const line = desc
-    ? `${node.path} [${node.meta.type}] — ${desc}`
-    : `${node.path} [${node.meta.type}]`;
-  lines.push(line);
+  out.push({
+    path: node.path,
+    type: node.meta.type,
+    description: desc !== undefined && desc !== '' ? desc : null,
+    parent: node.parent?.path ?? null,
+    depth,
+  });
 
   if (maxDepth !== undefined && depth >= maxDepth) return;
 
   const children = [...node.children].sort((a, b) => a.path.localeCompare(b.path));
   for (const child of children) {
-    collectNodes(child, lines, depth + 1, maxDepth);
+    collectNodes(child, out, depth + 1, maxDepth);
   }
 }

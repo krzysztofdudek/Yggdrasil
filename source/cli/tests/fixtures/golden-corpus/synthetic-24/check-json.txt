@@ -730,7 +730,19 @@ exit: 1
       "next": "Fix the listed violations, then: yg check --approve",
       "aspect": "no-todo",
       "node": "app/svc-03",
-      "unit": "node:app/svc-03"
+      "unit": "node:app/svc-03",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "violations": [
+        {
+          "file": "src/svc-03/index.ts",
+          "line": 2,
+          "message": "TODO marker left in shipped code — move it to the tracker"
+        }
+      ],
+      "label": "enforced"
     },
     {
       "code": "aspect-violation-enforced",
@@ -740,7 +752,19 @@ exit: 1
       "next": "Fix the listed violations, then: yg check --approve",
       "aspect": "no-todo",
       "node": "app/svc-06",
-      "unit": "node:app/svc-06"
+      "unit": "node:app/svc-06",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-06"
+      },
+      "violations": [
+        {
+          "file": "src/svc-06/index.ts",
+          "line": 2,
+          "message": "TODO marker left in shipped code — move it to the tracker"
+        }
+      ],
+      "label": "enforced"
     },
     {
       "code": "aspect-violation-enforced",
@@ -750,7 +774,19 @@ exit: 1
       "next": "Fix the listed violations, then: yg check --approve",
       "aspect": "no-todo",
       "node": "app/svc-09",
-      "unit": "node:app/svc-09"
+      "unit": "node:app/svc-09",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-09"
+      },
+      "violations": [
+        {
+          "file": "src/svc-09/index.ts",
+          "line": 2,
+          "message": "TODO marker left in shipped code — move it to the tracker"
+        }
+      ],
+      "label": "enforced"
     },
     {
       "code": "aspect-violation-enforced",
@@ -760,7 +796,19 @@ exit: 1
       "next": "Fix the listed violations, then: yg check --approve",
       "aspect": "no-todo",
       "node": "app/svc-12",
-      "unit": "node:app/svc-12"
+      "unit": "node:app/svc-12",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-12"
+      },
+      "violations": [
+        {
+          "file": "src/svc-12/index.ts",
+          "line": 2,
+          "message": "TODO marker left in shipped code — move it to the tracker"
+        }
+      ],
+      "label": "enforced"
     },
     {
       "code": "aspect-violation-enforced",
@@ -770,7 +818,19 @@ exit: 1
       "next": "Fix the listed violations, then: yg check --approve",
       "aspect": "no-todo",
       "node": "app/svc-15",
-      "unit": "node:app/svc-15"
+      "unit": "node:app/svc-15",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-15"
+      },
+      "violations": [
+        {
+          "file": "src/svc-15/index.ts",
+          "line": 2,
+          "message": "TODO marker left in shipped code — move it to the tracker"
+        }
+      ],
+      "label": "enforced"
     },
     {
       "code": "aspect-violation-enforced",
@@ -780,7 +840,19 @@ exit: 1
       "next": "Fix the listed violations, then: yg check --approve",
       "aspect": "no-todo",
       "node": "app/svc-18",
-      "unit": "node:app/svc-18"
+      "unit": "node:app/svc-18",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-18"
+      },
+      "violations": [
+        {
+          "file": "src/svc-18/index.ts",
+          "line": 2,
+          "message": "TODO marker left in shipped code — move it to the tracker"
+        }
+      ],
+      "label": "enforced"
     },
     {
       "code": "aspect-violation-enforced",
@@ -790,7 +862,19 @@ exit: 1
       "next": "Fix the listed violations, then: yg check --approve",
       "aspect": "no-todo",
       "node": "app/svc-21",
-      "unit": "node:app/svc-21"
+      "unit": "node:app/svc-21",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-21"
+      },
+      "violations": [
+        {
+          "file": "src/svc-21/index.ts",
+          "line": 2,
+          "message": "TODO marker left in shipped code — move it to the tracker"
+        }
+      ],
+      "label": "enforced"
     },
     {
       "code": "aspect-violation-enforced",
@@ -800,7 +884,19 @@ exit: 1
       "next": "Fix the listed violations, then: yg check --approve",
       "aspect": "no-todo",
       "node": "app/svc-24",
-      "unit": "node:app/svc-24"
+      "unit": "node:app/svc-24",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-24"
+      },
+      "violations": [
+        {
+          "file": "src/svc-24/index.ts",
+          "line": 2,
+          "message": "TODO marker left in shipped code — move it to the tracker"
+        }
+      ],
+      "label": "enforced"
     },
     {
       "code": "unverified",
@@ -811,7 +907,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-01",
       "unit": "node:app/svc-01",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -822,7 +923,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-02",
       "unit": "node:app/svc-02",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-02"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -833,7 +939,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-03",
       "unit": "node:app/svc-03",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -844,7 +955,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-04",
       "unit": "node:app/svc-04",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-04"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -855,7 +971,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-05",
       "unit": "node:app/svc-05",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-05"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -866,7 +987,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-06",
       "unit": "node:app/svc-06",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-06"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -877,7 +1003,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-07",
       "unit": "node:app/svc-07",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-07"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -888,7 +1019,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-08",
       "unit": "node:app/svc-08",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-08"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -899,7 +1035,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-09",
       "unit": "node:app/svc-09",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-09"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -910,7 +1051,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-10",
       "unit": "node:app/svc-10",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-10"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -921,7 +1067,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-11",
       "unit": "node:app/svc-11",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-11"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -932,7 +1083,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-12",
       "unit": "node:app/svc-12",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-12"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -943,7 +1099,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-13",
       "unit": "node:app/svc-13",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-13"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -954,7 +1115,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-14",
       "unit": "node:app/svc-14",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-14"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -965,7 +1131,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-15",
       "unit": "node:app/svc-15",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-15"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -976,7 +1147,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-16",
       "unit": "node:app/svc-16",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-16"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -987,7 +1163,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-17",
       "unit": "node:app/svc-17",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-17"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -998,7 +1179,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-18",
       "unit": "node:app/svc-18",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-18"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -1009,7 +1195,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-19",
       "unit": "node:app/svc-19",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-19"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -1020,7 +1211,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-20",
       "unit": "node:app/svc-20",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-20"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -1031,7 +1227,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-21",
       "unit": "node:app/svc-21",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-21"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -1042,7 +1243,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-22",
       "unit": "node:app/svc-22",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-22"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -1053,7 +1259,12 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-23",
       "unit": "node:app/svc-23",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-23"
+      },
+      "label": "unverified"
     },
     {
       "code": "unverified",
@@ -1064,33 +1275,138 @@ exit: 1
       "aspect": "readable-names",
       "node": "app/svc-24",
       "unit": "node:app/svc-24",
-      "cause": "never-reviewed"
+      "cause": "never-reviewed",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-24"
+      },
+      "label": "unverified"
     },
     {
       "code": "relation-broken",
       "severity": "error",
       "what": "Relation target 'app/svc-99' does not exist.",
-      "why": "This node declares a dependency that cannot be resolved.\n     Existing nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, svc-13, svc-14, svc-15, svc-16, svc-17, svc-18, svc-19, svc-20, svc-21, svc-22, svc-23, svc-24",
-      "next": "Fix the target path in yg-node.yaml relations.\n     Did you mean 'app'?",
-      "node": "app/svc-05"
+      "why": "This node declares a dependency on a node the graph does not contain, so the relation cannot be checked. Nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, … (24 in all).",
+      "next": "Correct the target in .yggdrasil/model/app/svc-05/yg-node.yaml relations, or remove the relation.",
+      "node": "app/svc-05",
+      "label": "relation-broken"
     },
     {
       "code": "unmapped-files",
       "severity": "error",
       "what": "1 source file not covered by any node.\n  src/tools/gen.ts",
       "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
-      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners."
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "files": [
+        "src/tools/gen.ts"
+      ],
+      "label": "unmapped"
     },
     {
       "code": "uncovered-advisory",
       "severity": "warning",
       "what": "4 coverage-visible files outside any required coverage root.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md",
       "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
-      "next": "Map these files to a node, or add their root to coverage.required to make this an error."
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "files": [
+        ".clinerules/yggdrasil.md",
+        ".gitattributes",
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "label": "uncovered"
     }
   ],
   "judges": [],
   "progressive": null,
-  "suggestedNext": "yg check --approve"
+  "suggestedNext": "yg check --approve",
+  "groups": [
+    {
+      "code": "unverified",
+      "label": "unverified",
+      "aspect": null,
+      "severity": "error",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "members": [
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        26,
+        27,
+        28,
+        29,
+        30,
+        31
+      ]
+    },
+    {
+      "code": "aspect-violation-enforced",
+      "label": "enforced",
+      "aspect": "no-todo",
+      "severity": "error",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "members": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7
+      ]
+    },
+    {
+      "code": "relation-broken",
+      "label": "relation-broken",
+      "aspect": null,
+      "severity": "error",
+      "why": "This node declares a dependency on a node the graph does not contain, so the relation cannot be checked. Nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, … (24 in all).",
+      "next": "Correct the target in .yggdrasil/model/app/svc-05/yg-node.yaml relations, or remove the relation.",
+      "members": [
+        32
+      ]
+    },
+    {
+      "code": "unmapped-files",
+      "label": "unmapped",
+      "aspect": null,
+      "severity": "error",
+      "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "members": [
+        33
+      ]
+    },
+    {
+      "code": "uncovered-advisory",
+      "label": "uncovered",
+      "aspect": null,
+      "severity": "warning",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "members": [
+        34
+      ]
+    }
+  ],
+  "banner": null
 }
 --- stderr

@@ -94,7 +94,12 @@ exit: 1
       "aspect": "no-todo-comments",
       "node": "alpha",
       "unit": "node:alpha",
-      "cause": "stale"
+      "cause": "stale",
+      "unitRef": {
+        "kind": "node",
+        "path": "alpha"
+      },
+      "label": "stale"
     },
     {
       "code": "aspect-violation-enforced-outside",
@@ -104,14 +109,27 @@ exit: 1
       "next": "Fix the listed violations, then: yg check --approve",
       "aspect": "no-todo-comments",
       "node": "beta",
-      "unit": "node:beta"
+      "unit": "node:beta",
+      "unitRef": {
+        "kind": "node",
+        "path": "beta"
+      },
+      "violations": [
+        {
+          "file": "src/beta/beta.ts",
+          "line": 1,
+          "message": "TODO comment found — remove it or track the work in the issue tracker."
+        }
+      ],
+      "label": "enforced (outside changes)"
     },
     {
       "code": "rules-digest-stale",
       "severity": "warning",
       "what": "Committed agent-rules digest is out of sync: AGENTS.md digest block is missing; .clinerules/yggdrasil.md is missing; CLAUDE.md @AGENTS.md import is missing.",
       "why": "Agents read the committed digest before running yg prime; a stale, hand-edited, or missing digest means agents may follow outdated rules or none at all.",
-      "next": "yg init --upgrade"
+      "next": "yg init --upgrade",
+      "label": "rules-digest-stale"
     }
   ],
   "judges": [],
@@ -126,6 +144,42 @@ exit: 1
       "enforcedOutside": 1
     }
   },
-  "suggestedNext": "yg check --approve"
+  "suggestedNext": "yg check --approve",
+  "groups": [
+    {
+      "code": "unverified",
+      "label": "stale",
+      "aspect": null,
+      "severity": "error",
+      "why": "A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.",
+      "next": "yg check --approve",
+      "members": [
+        0
+      ]
+    },
+    {
+      "code": "rules-digest-stale",
+      "label": "rules-digest-stale",
+      "aspect": null,
+      "severity": "warning",
+      "why": "Agents read the committed digest before running yg prime; a stale, hand-edited, or missing digest means agents may follow outdated rules or none at all.",
+      "next": "yg init --upgrade",
+      "members": [
+        2
+      ]
+    },
+    {
+      "code": "aspect-violation-enforced-outside",
+      "label": "enforced (outside changes)",
+      "aspect": "no-todo-comments",
+      "severity": "warning",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "members": [
+        1
+      ]
+    }
+  ],
+  "banner": null
 }
 --- stderr

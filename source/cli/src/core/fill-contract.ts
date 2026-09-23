@@ -11,7 +11,7 @@
  * orchestrator back.
  */
 
-import type { CheckResult, RunCheckOptions } from './check.js';
+import type { CheckResult, CheckIssue, RunCheckOptions } from './check.js';
 import type { ExpectedPair } from './pairs.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { FillEventSink } from '../model/fill-event.js';
@@ -42,6 +42,12 @@ export interface RunFillOptions {
    *  emits structured data and never formats it. Defaults to a no-op, so a
    *  caller that wants diagnostics surfaced must provide a sink. */
   emitIssue?: (msg: IssueMessage) => void;
+  /** When true, a gate that stops the run does NOT send its findings to
+   *  `emitIssue`: they travel only on the FillGatingError (`gatingIssues`), for
+   *  a caller that reports the abort itself — `yg check` renders it as a report
+   *  and a yg-check/1 document. Default false: every gating finding is emitted
+   *  as it always was (a caller like `yg adopt` relies on that stream). */
+  gateIssuesOnError?: boolean;
   /** Fill ONLY deterministic pairs (skip LLM fills + positive closure) and write
    *  ONLY the gitignored deterministic file — the committed locks are never touched.
    *  Keyless and free; powers `yg check --approve --only-deterministic` and the CI pipeline. */
@@ -193,9 +199,25 @@ export interface RunFillResult {
   runtimeDispositions: Array<{ file: string; aspectId: string; code: string }>;
 }
 
-/** Abort sentinel — the structural gate failed; no fills ran. */
+/**
+ * Abort sentinel — a gate stopped the run before anything was filled: the
+ * structural gate (a problem that leaves it unclear what would be checked or
+ * how), or the mandatory-log gate (components that owe a justification entry).
+ *
+ * `issues` is the one-line summary per gating problem, as it always was.
+ * `stage` says which gate stopped the run, and `gatingIssues` carries every
+ * gating finding as a whole check issue (code, severity, node, what/why/next),
+ * so a caller can report the abort through the same renderer — and the same
+ * machine document — as any other finding instead of a raw text stream.
+ */
 export class FillGatingError extends Error {
-  constructor(public readonly issues: Array<{ code: string; what: string; why: string; next: string }>) {
+  constructor(
+    public readonly issues: Array<{ code: string; what: string; why: string; next: string }>,
+    public readonly stage: 'structural' | 'log-gate' = 'structural',
+    public readonly gatingIssues: CheckIssue[] = [],
+    /** The command the run was invoked as — what to re-run once the gate is cleared. */
+    public readonly retry: string = 'yg check --approve',
+  ) {
     super('fill aborted before running anything — see the listed problems');
     this.name = 'FillGatingError';
   }

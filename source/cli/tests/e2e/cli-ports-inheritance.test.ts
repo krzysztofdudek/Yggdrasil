@@ -300,7 +300,7 @@ mapping:
       expect(fill.stderr).toContain('[det] diagnostic-logging on node:services/orders — refused');
       // The grouped enforced refusal names the implied aspect in its header and
       // lists the consumer node it refuses on.
-      expect(fill.stdout).toMatch(/enforced\s+1 pairs\s+1 nodes\s+aspect 'diagnostic-logging'/);
+      expect(fill.stdout).toMatch(/enforced\s+1 pair\s+1 node\s+aspect 'diagnostic-logging'/);
       expect(fill.stdout).toContain('- services/orders');
 
       // The recorded Violation[] detail (file + message) surfaces through the

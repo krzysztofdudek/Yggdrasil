@@ -46,11 +46,29 @@ exit: 0
       "severity": "warning",
       "what": "1 coverage-visible file outside any required coverage root.\n  src/app.ts",
       "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.",
-      "next": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>."
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.",
+      "files": [
+        "src/app.ts"
+      ],
+      "label": "uncovered"
     }
   ],
   "judges": [],
   "progressive": null,
-  "suggestedNext": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>."
+  "suggestedNext": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.",
+  "groups": [
+    {
+      "code": "uncovered-advisory",
+      "label": "uncovered",
+      "aspect": null,
+      "severity": "warning",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.",
+      "members": [
+        0
+      ]
+    }
+  ],
+  "banner": null
 }
 --- stderr

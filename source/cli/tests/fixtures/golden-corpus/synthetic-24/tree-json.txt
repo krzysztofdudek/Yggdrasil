@@ -1,0 +1,19 @@
+$ yg tree --json --root app/svc-01
+exit: 0
+--- stdout
+{
+  "schema": "yg-tree/1",
+  "root": "app/svc-01",
+  "maxDepth": null,
+  "nodes": [
+    {
+      "path": "app/svc-01",
+      "type": "service",
+      "description": "Service svc-01 handles one slice of the application. It owns its directory under src and nothing else. It depends on no other service today, and a later split may give it one. This sentence exists to make the description long enough to show how a listing treats a description of several sentences.",
+      "parent": "app",
+      "depth": 0
+    }
+  ],
+  "typeCovered": null
+}
+--- stderr

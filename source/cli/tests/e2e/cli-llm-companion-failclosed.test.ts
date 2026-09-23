@@ -193,7 +193,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
       expect(after.all).toContain('aspect-companion-runtime-error');
       expect(after.all).toContain("aspect 'throwing-companion'");
       expect(after.all).toContain('boom: deliberate hook failure');
-      expect(after.all).toContain('1 pairs');
+      expect(after.all).toContain('1 pair  ');
       expect(after.all).toContain('- scenarios');
     } finally {
       await mock.close();

@@ -18,9 +18,10 @@ import { runSuppressionsScan, reasonlessMarkerMessage } from '../portal/api/supp
 import { collectMappingEntries, isMappedSource } from '../portal/api/suppress-eligibility.js';
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
-import { formatOutput, type CheckView, resolveTopValue } from './check-render-views.js';
+import { formatOutput, type CheckView, resolveTopValue, enrichCheckJson, formatAbort, abortCheckJson } from './check-render-views.js';
+import { renderErrorSection } from './check-render-groups.js';
 import { CHECK_JSON_SCHEMA, formatCheckJson } from '../formatters/check-json.js';
-import { buildCheckJson } from '../core/check-json.js';
+import { buildCheckJson, checkJsonIssueOf } from '../core/check-json.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';
 import { fail, notice } from './output.js';
 import { textFillSink } from '../formatters/fill-text.js';
@@ -187,7 +188,7 @@ export function registerCheckCommand(program: Command): void {
             what: '--approve cannot be combined with --no-approve.',
             why: '--approve asks for a fill (it writes verdicts); --no-approve forces a read-only check. Both set the same switch, so whichever came last would silently win — the run would depend on argument order.',
             next: 'Run: yg check --approve (fill), or yg check --no-approve (read-only).',
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -240,7 +241,7 @@ export function registerCheckCommand(program: Command): void {
             what: `${viewFlag} cannot be combined with --json.`,
             why: `${viewFlag} narrows the TEXT report — fewer blocks, same counts. --json emits one machine document that always carries the whole run, so there is nothing for a narrowing flag to narrow, and a document trimmed to a few findings would read as a smaller problem instead of a smaller rendering.`,
             next: `Run: yg check --json (the whole run as a document), or yg check ${viewFlag}${opts.aspect !== undefined ? ' <id>' : wantsTop ? ' <n>' : ''} (the narrowed text view).`,
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -255,7 +256,7 @@ export function registerCheckCommand(program: Command): void {
             what: '--coverage cannot be combined with --json.',
             why: '--coverage adds the per-type coverage LISTING to the text report. The --json document reports coverage as aggregate counts (files, covered, node-owned, type-covered, excluded) and has never carried the per-type breakdown, so there is nothing for --coverage to add — accepting it would silently do nothing.',
             next: 'Run: yg check --coverage (the text report with the per-type listing), or yg check --json (the machine document with the coverage counts).',
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -264,7 +265,7 @@ export function registerCheckCommand(program: Command): void {
             what: '--top and --summary cannot be combined.',
             why: 'Both are read-only triage VIEWS of the same `yg check` result — --top renders the N highest-priority blocks, --summary renders per-node counts only. Asking for both at once is ambiguous; pick one lens.',
             next: 'Run: yg check --top <n> (priority blocks), or yg check --summary (per-node counts).',
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -281,7 +282,7 @@ export function registerCheckCommand(program: Command): void {
             what: `${wantsTop ? '--top' : '--summary'} cannot be combined with --approve.`,
             why: '--top and --summary triage the READ-ONLY check wall (they narrow the output of plain `yg check`, which writes nothing). --approve is the writer path; its own free cost preview is --dry-run. Mixing a read-only triage view with the writer is contradictory.',
             next: `Run: yg check ${wantsTop ? '--top <n>' : '--summary'} (read-only triage), or yg check --approve --dry-run (preview the writer's cost).`,
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -299,7 +300,7 @@ export function registerCheckCommand(program: Command): void {
             what: `${viewFlag} cannot be combined with --only-deterministic.`,
             why: `${viewFlag} is a READ-ONLY view of the plain \`yg check\` result (it narrows output and writes nothing). --only-deterministic is a FILL flag (it implies --approve, writing the deterministic verdict cache). Mixing a read-only view with the writer would silently drop the fill — the deterministic pairs would NOT be filled.`,
             next: `Run: yg check ${viewFlag}${opts.aspect !== undefined ? ' <id>' : wantsTop ? ' <n>' : ''} (read-only view), or yg check --approve --only-deterministic (deterministic fill).`,
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -308,7 +309,7 @@ export function registerCheckCommand(program: Command): void {
             what: '--details cannot be combined with --top or --summary.',
             why: '--details, --top, and --summary are all mutually exclusive read-only views of the same `yg check` result — each presents the issue set through a different lens. Asking for more than one at once is ambiguous; pick one.',
             next: 'Run: yg check --details (ungrouped per-issue), yg check --top <n> (priority blocks), or yg check --summary (per-node counts).',
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -317,7 +318,7 @@ export function registerCheckCommand(program: Command): void {
             what: '--details cannot be combined with --approve.',
             why: '--details is a read-only view of the plain `yg check` result (it writes nothing). --approve is the writer path. Mixing a read-only view with the writer is contradictory.',
             next: 'Run: yg check --details (read-only ungrouped view), or yg check --approve (fill unverified pairs).',
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -326,7 +327,7 @@ export function registerCheckCommand(program: Command): void {
             what: '--no-approve cannot be combined with --only-deterministic.',
             why: '--no-approve forces a read-only check (no fill); --only-deterministic asks for a deterministic FILL. The two are contradictory.',
             next: 'Run: yg check --no-approve (read-only), or yg check --approve --only-deterministic (deterministic fill).',
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -337,7 +338,7 @@ export function registerCheckCommand(program: Command): void {
               what: '--aspect cannot be combined with --approve.',
               why: '--aspect is a read-only drill-in view (it writes nothing). --approve is the writer path. Mixing a read-only view with the writer is contradictory.',
               next: 'Run: yg check --aspect <id> (read-only drill-in), or yg check --approve (fill unverified pairs).',
-            });
+            }, 'usage');
             await exitAfterFlush(1);
             return;
           }
@@ -347,7 +348,7 @@ export function registerCheckCommand(program: Command): void {
               what: `--aspect cannot be combined with ${conflicting}.`,
               why: '--aspect, --top, --summary, and --details are all mutually exclusive read-only views of the same `yg check` result. Asking for more than one at once is ambiguous; pick one.',
               next: `Run: yg check --aspect <id> (drill-in view), or yg check ${conflicting} (that view alone).`,
-            });
+            }, 'usage');
             await exitAfterFlush(1);
             return;
           }
@@ -369,7 +370,7 @@ export function registerCheckCommand(program: Command): void {
               what: `Unknown aspect '${opts.aspect}'.`,
               why: `--aspect drills into ONE rule by its aspect id, but '${opts.aspect}' is not an aspect defined in this graph — so the filter would match nothing and render a misleading "0 of N errors" view. ${known}`,
               next: 'Run: yg aspects (list every aspect id), then yg check --aspect <id> with a real id; or yg check (full wall).',
-            });
+            }, 'aspect-not-found');
             await exitAfterFlush(1);
             return;
           }
@@ -392,7 +393,7 @@ export function registerCheckCommand(program: Command): void {
               what: `--top expects a positive whole number (1 or more); got "${String(opts.top)}".`,
               why: '--top N prints the N highest-priority issue blocks. Zero, a negative, fractional, or non-numeric value is meaningless, and printing the full wall instead would silently hide that the flag was ignored — masking the very output you tried to narrow.',
               next: 'Run: yg check --top 5 (top 5 blocks), yg check --top (the single suggested-next group), or yg check (full output).',
-            });
+            }, 'usage');
             await exitAfterFlush(1);
             return;
           }
@@ -435,7 +436,7 @@ export function registerCheckCommand(program: Command): void {
             what: '--dry-run requires --approve.',
             why: `--dry-run previews what \`yg check --approve\` would fill (the reviewer-call budget and per-node breakdown) without writing or calling the reviewer; it is a mode of --approve, not a variant of the plain read. ${autoApproveOn ? `This project sets auto_approve: ${String(graph.config.auto_approve)}, so a bare \`yg check\` fills; \`yg check --no-approve\` is the free, no-write read.` : 'Plain `yg check` is already a free, no-write read.'}`,
             next: `Run: yg check --approve --dry-run (cost preview), or ${plainRead} (plain read).`,
-          });
+          }, 'usage');
           await exitAfterFlush(1);
           return;
         }
@@ -588,6 +589,10 @@ export function registerCheckCommand(program: Command): void {
               // line instead of wrapping into a new row on every redraw.
               columns: process.stderr.columns,
               emitIssue: (m) => { process.stderr.write(buildIssueMessage(m) + '\n'); },
+              // A gate that stops the run hands its findings back on the error
+              // instead of streaming them to stderr: the abort is reported
+              // below as a report (and, under --json, a yg-check/1 document).
+              gateIssuesOnError: true,
               // The measurement above, or undefined for a run answering for the
               // whole project. Present, it narrows the reviewer work this run
               // pays for to the change's own obligations — the free
@@ -602,9 +607,23 @@ export function registerCheckCommand(program: Command): void {
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
             await appendReasonlessSuppressWarnings(fill.checkResult, graph, projectRoot, repoFiles);
+            // A text preview's deliverable is the budget it already printed: the
+            // report of the unchanged tree below it headed "FAIL" over a run that
+            // exits 0 and fills nothing, which read as the preview failing. The
+            // JSON form keeps the document (the preview itself goes to stderr).
+            if (isDryRun && !asJson) {
+              // What a recording run would stop on before spending this budget
+              // is part of the preview: the log entries it owes first.
+              const owed = fill.checkResult.issues.filter((i) => i.code === 'log-entry-missing' && i.severity === 'error');
+              if (owed.length > 0) {
+                process.stdout.write(`\nA recording run stops before spending this budget until these exist:\n\n${renderErrorSection(owed, { capMembers: true })}\n`);
+              }
+              await exitAfterFlush(0);
+              return;
+            }
             process.stdout.write(
               asJson
-                ? formatCheckJson({ ...buildCheckJson(fill.checkResult), ...(fill.dryRunBudget ? { dryRunBudget: fill.dryRunBudget } : {}) })
+                ? formatCheckJson({ ...enrichCheckJson(buildCheckJson(fill.checkResult), fill.checkResult), ...(fill.dryRunBudget ? { dryRunBudget: fill.dryRunBudget } : {}) })
                 // `undefined` for the emoji gate keeps formatOutput's own
                 // chalk-derived default; the writer path carries --coverage
                 // exactly as the read path does, which is the whole point of
@@ -630,8 +649,26 @@ export function registerCheckCommand(program: Command): void {
             return;
           } catch (err) {
             if (err instanceof FillGatingError) {
-              // The structural gate already printed the gating details.
-              debugWrite(`[check] fill aborted by structural gate: ${err instanceof Error ? err.message : String(err)}`);
+              // A gate stopped the run before anything was recorded. Report it
+              // like any other result, on stdout: the gating findings through
+              // the grouped renderer under an ABORTED verdict line, or — under
+              // --json — the yg-check/1 document of the same tree with
+              // exit.status "aborted" and the gating findings, so a machine
+              // reader never gets zero bytes for the most common first failure.
+              debugWrite(`[check] fill aborted by the ${err.stage} gate: ${err.message}`);
+              const abort = { stage: err.stage, issues: err.gatingIssues, retry: err.retry };
+              if (asJson) {
+                const read = await runCheck(graph, repoFiles, {
+                  nowUtc: () => new Date(),
+                  trackedFiles: tracked,
+                  rulesArtifacts: await readRulesArtifacts(projectRoot),
+                  changeScope: changeScope,
+                });
+                await appendReasonlessSuppressWarnings(read, graph, projectRoot, repoFiles);
+                process.stdout.write(formatCheckJson(abortCheckJson(enrichCheckJson(buildCheckJson(read), read), abort, checkJsonIssueOf)));
+              } else {
+                process.stdout.write(formatAbort(abort));
+              }
               await exitAfterFlush(1);
               return;
             }
@@ -663,7 +700,7 @@ export function registerCheckCommand(program: Command): void {
           changeScope: changeScope,
         });
         await appendReasonlessSuppressWarnings(result, graph, projectRoot, repoFiles);
-        process.stdout.write(asJson ? formatCheckJson(buildCheckJson(result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
+        process.stdout.write(asJson ? formatCheckJson(enrichCheckJson(buildCheckJson(result), result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and
         // independent of the chosen view — a truncated --top/--summary render must

@@ -355,7 +355,7 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel aspect propagation (ancestor
       // unrelated to the aspect under test, so we assert its presence
       // explicitly rather than let it silently inflate the count.
       expect(fill.all).toContain('Warnings (2) in 2 groups:');
-      expect(fill.all).toContain("advisory  1 pairs  1 nodes  aspect 'no-banned-word'");
+      expect(fill.all).toContain("advisory  1 pair  1 node  aspect 'no-banned-word'");
       expect(fill.all).toContain('- services/orders');
       expect(fill.all).toContain('rules-digest-stale');
 

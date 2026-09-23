@@ -28,6 +28,8 @@ export interface FillDispatchCounts {
   skippedOutsideLlmPairs: number;
   /** False when yg-config.yaml has no reviewer section at all. */
   reviewerConfigured?: boolean;
+  /** True for a cost preview (`--dry-run`), which fills nothing. */
+  preview?: boolean;
 }
 
 /** One pair a cost preview prices. `unit` is the POSIX unit key, or the file for a nodeless pair. */
@@ -60,6 +62,8 @@ export interface FillOutcomeTotals {
   detRefused: number;
   skippedByDetGate: number;
   reviewerConfigured?: boolean;
+  /** Refusals already recorded for unchanged code, which this run left standing. */
+  cachedRefusals?: number;
 }
 
 /** Running tallies the progress events carry. */

@@ -34,3 +34,5 @@ A verdict event keyed by file: was attributed to a node by testing whether the p
 The merge-resolve command gained flags to name the two sides of a merge that left no merge commit, and an optional base for sides that share no merge base. Naming only one side, or a base without the sides, is refused up front, because the merged log is verified against both sides and one of them alone names no merge.
 ## [2026-09-23T19:41:18.471Z]
 merge-resolve now works where people actually meet a conflicted log: during a merge that stopped on it. With a merge in progress it reads the two sides from HEAD and MERGE_HEAD and writes their union itself, so the check's advice to run it is followable and nobody is pushed into hand-stitching conflict markers, which breaks the integrity hashes.
+## [2026-09-23T23:00:39.903Z]
+yg log read --json prints the yg-log/1 document of a node's entries (with --with-verdicts, the fill events attributed to it). Every refusal the log commands print now goes through the shared CLI output layer, so it carries the same Error: prefix as every other command error instead of none, and reaches a JSON reader as a yg-error/1 document.

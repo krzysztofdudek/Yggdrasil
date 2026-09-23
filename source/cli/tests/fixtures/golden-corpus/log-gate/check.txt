@@ -1,64 +1,30 @@
 $ yg check
 exit: 1
 --- stdout
-yg check: FAIL  25 nodes · 24/28 files (86%) · 1 aspects · 0 flows
+yg check: FAIL  25 nodes · 24/28 files (86%) · 1 aspect · 0 flows
 
 Errors (48) in 2 groups:
 
   log-entry-missing  24 issues  24 nodes
             Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.
+            Fix: yg log add --node <node> --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one  (for each node below)
             - app/svc-01  No fresh log entry for node 'app/svc-01' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-01 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-02  No fresh log entry for node 'app/svc-02' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-02 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-03  No fresh log entry for node 'app/svc-03' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-03 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-04  No fresh log entry for node 'app/svc-04' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-04 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-05  No fresh log entry for node 'app/svc-05' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-05 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-06  No fresh log entry for node 'app/svc-06' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-06 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-07  No fresh log entry for node 'app/svc-07' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-07 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-08  No fresh log entry for node 'app/svc-08' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-08 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-09  No fresh log entry for node 'app/svc-09' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-09 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-10  No fresh log entry for node 'app/svc-10' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-10 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-11  No fresh log entry for node 'app/svc-11' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-11 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
             - app/svc-12  No fresh log entry for node 'app/svc-12' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-12 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-13  No fresh log entry for node 'app/svc-13' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-13 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-14  No fresh log entry for node 'app/svc-14' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-14 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-15  No fresh log entry for node 'app/svc-15' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-15 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-16  No fresh log entry for node 'app/svc-16' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-16 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-17  No fresh log entry for node 'app/svc-17' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-17 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-18  No fresh log entry for node 'app/svc-18' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-18 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-19  No fresh log entry for node 'app/svc-19' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-19 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-20  No fresh log entry for node 'app/svc-20' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-20 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-21  No fresh log entry for node 'app/svc-21' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-21 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-22  No fresh log entry for node 'app/svc-22' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-22 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-23  No fresh log entry for node 'app/svc-23' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-23 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
-            - app/svc-24  No fresh log entry for node 'app/svc-24' — its source changed but no justification entry exists.
-              Fix: yg log add --node app/svc-24 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
+            ... and 12 more (yg check --details)
 
   unverified (deterministic check not run on this checkout — free)  24 pairs  24 nodes
             Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
-            Fix: yg check --approve --only-deterministic
+            Fix: yg check --approve --only-deterministic  (24 script pairs, free)
             - app/svc-01  aspect 'no-todo'
             - app/svc-02  aspect 'no-todo'
             - app/svc-03  aspect 'no-todo'
@@ -71,18 +37,7 @@ Errors (48) in 2 groups:
             - app/svc-10  aspect 'no-todo'
             - app/svc-11  aspect 'no-todo'
             - app/svc-12  aspect 'no-todo'
-            - app/svc-13  aspect 'no-todo'
-            - app/svc-14  aspect 'no-todo'
-            - app/svc-15  aspect 'no-todo'
-            - app/svc-16  aspect 'no-todo'
-            - app/svc-17  aspect 'no-todo'
-            - app/svc-18  aspect 'no-todo'
-            - app/svc-19  aspect 'no-todo'
-            - app/svc-20  aspect 'no-todo'
-            - app/svc-21  aspect 'no-todo'
-            - app/svc-22  aspect 'no-todo'
-            - app/svc-23  aspect 'no-todo'
-            - app/svc-24  aspect 'no-todo'
+            ... and 12 more (yg check --aspect no-todo)
 
 Warnings (1):
 

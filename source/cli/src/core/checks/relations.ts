@@ -1,6 +1,7 @@
 import type { Graph } from '../../model/graph.js';
 import type { ValidationIssue } from '../../model/validation.js';
 import { issueMsg } from './shared.js';
+import { toPosixPath } from '../../utils/posix.js';
 
 // --- Rule 1: Relation targets exist ---
 
@@ -46,19 +47,26 @@ export function checkRelationTargets(graph: Graph): ValidationIssue[] {
           .filter((v, i, a) => a.indexOf(v) === i)
           .sort();
         const parentDisplay = (parentPrefix || 'model/').replace(/\/$/, '');
-        const existingLine =
-          existingInParent.length > 0
-            ? `\n     Existing nodes under ${parentDisplay}: ${existingInParent.join(', ')}`
-            : '';
-        const hint = suggestion ? `\n     Did you mean '${suggestion}'?` : '';
+        // Plain sentences, no layout: the renderer decides indentation. The
+        // sibling list is capped so a wide parent cannot turn one finding into
+        // a paragraph of names.
+        const SIBLING_CAP = 12;
+        const siblings = existingInParent.length > SIBLING_CAP
+          ? `${existingInParent.slice(0, SIBLING_CAP).join(', ')}, … (${existingInParent.length} in all)`
+          : existingInParent.join(', ');
+        const existingSentence = existingInParent.length > 0 ? ` Nodes under ${parentDisplay}: ${siblings}.` : '';
+        // A suggestion that is only the target's own parent (the closest match
+        // for any missing child) is no suggestion; offer a real near-miss only.
+        const parentPath = parentPrefix.replace(/\/$/, '');
+        const hint = suggestion && suggestion !== parentPath ? ` (did you mean '${suggestion}'?)` : '';
         issues.push({
           severity: 'error',
           code: 'relation-broken',
           rule: 'broken-relation',
           ...issueMsg({
             what: `Relation target '${rel.target}' does not exist.`,
-            why: `This node declares a dependency that cannot be resolved.${existingLine}`,
-            next: `Fix the target path in yg-node.yaml relations.${hint}`,
+            why: `This node declares a dependency on a node the graph does not contain, so the relation cannot be checked.${existingSentence}`,
+            next: `Correct the target in .yggdrasil/model/${toPosixPath(nodePath)}/yg-node.yaml relations${hint}, or remove the relation.`,
           }),
           nodePath,
         });
@@ -130,15 +138,25 @@ export function checkBrokenFlowRefs(graph: Graph): ValidationIssue[] {
   for (const flow of graph.flows) {
     for (const n of flow.nodes) {
       if (!nodePaths.has(n)) {
+        // A participant whose yg-node.yaml did not parse is not missing — it
+        // failed to load. Name that, and send the reader to the file that
+        // actually needs fixing, never to "create the missing node".
+        const failedToLoad = (graph.nodeParseErrors ?? []).some((e) => e.nodePath === n);
         issues.push({
           severity: 'error',
           code: 'flow-node-broken',
           rule: 'broken-flow-ref',
-          ...issueMsg({
-            what: `Flow '${flow.name}' references non-existent node '${n}'.`,
-            why: `Flow participants must exist in the graph.`,
-            next: `Fix the nodes list in yg-flow.yaml or create the missing node.`,
-          }),
+          ...issueMsg(failedToLoad
+            ? {
+                what: `Flow '${flow.name}' names node '${n}', whose yg-node.yaml did not parse.`,
+                why: `The component was not loaded, so the flow cannot resolve it — a symptom of the yaml-invalid error on '${n}', not a missing node.`,
+                next: `Fix the YAML in .yggdrasil/model/${n}/yg-node.yaml; the flow resolves once the component loads.`,
+              }
+            : {
+                what: `Flow '${flow.name}' references non-existent node '${n}'.`,
+                why: `Flow participants must exist in the graph.`,
+                next: `Fix the nodes list in yg-flow.yaml or create the missing node.`,
+              }),
         });
       }
     }

@@ -57,7 +57,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const configIssue = result.issues.find((i) => i.rule === 'invalid-config');
     expect(configIssue).toBeDefined();
-    expect(msgOf(configIssue!)).toContain('yg-config.yaml failed to parse.');
+    expect(msgOf(configIssue!)).toContain('yg-config.yaml does not parse');
     expect(msgOf(configIssue!)).toContain('Config parse failed');
   });
 
@@ -394,7 +394,7 @@ describe('validator', () => {
     const result = await validate(graph);
     const issues = result.issues.filter((i) => i.rule === 'broken-relation');
     expect(issues).toHaveLength(1);
-    expect(msgOf(issues[0])).toContain('Did you mean');
+    expect(msgOf(issues[0])).toContain("did you mean 'orders/order-service'");
     expect(msgOf(issues[0])).toContain('orders/order-service');
   });
 

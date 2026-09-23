@@ -253,7 +253,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       // under test, so we assert its presence explicitly rather than let it
       // silently inflate the count.
       expect(fill.stdout).toContain('Warnings (2) in 2 groups:');
-      expect(fill.stdout).toContain("advisory  1 pairs  1 nodes  aspect 'no-banned-word'");
+      expect(fill.stdout).toContain("advisory  1 pair  1 node  aspect 'no-banned-word'");
       expect(fill.stdout).toContain('rules-digest-stale');
 
       // `yg check` renders it as a non-blocking warning and PASSES.
@@ -344,7 +344,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       // (`rules-digest-stale`) is always present too — see the comment on the
       // CH3 case above.
       expect(fill.stdout).toContain('Warnings (2) in 2 groups:');
-      expect(fill.stdout).toContain("advisory  1 pairs  1 nodes  aspect 'no-banned-word'");
+      expect(fill.stdout).toContain("advisory  1 pair  1 node  aspect 'no-banned-word'");
       expect(fill.stdout).toContain('rules-digest-stale');
 
       const check = run(['check'], dir);
@@ -446,7 +446,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       // Fill-time line names the refused deterministic pair on the node.
       expect(fill.stderr).toContain('[det] no-banned-word on node:services/orders — refused');
       // The grouped error body lists the node under the enforced group.
-      expect(fill.stdout).toContain("enforced  1 pairs  1 nodes  aspect 'no-banned-word'");
+      expect(fill.stdout).toContain("enforced  1 pair  1 node  aspect 'no-banned-word'");
       expect(fill.stdout).toContain('- services/orders');
 
       const check = run(['check'], dir);

@@ -418,7 +418,7 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       expect(check.status).toBe(0);
       expect(check.stdout).toContain('PASS');
       // Still exactly one flow — the stray file was not counted.
-      expect(check.stdout).toContain('1 flows');
+      expect(check.stdout).toContain('1 flow');
       const flows = run(['flows'], dir);
       expect(flows.status).toBe(0);
       const participantLines = flows.stdout
@@ -538,7 +538,7 @@ describe.skipIf(!distExists)('CLI E2E — flow definition + filesystem error pat
       const second = run(['check', '--approve'], dir);
       expect(second.status).toBe(1);
       // Fill progress (including "0 reviewer calls made" notice) goes to STDERR.
-      expect(second.stderr).toContain('0 reviewer calls made — all expected pairs hold valid verdicts');
+      expect(second.stderr).toContain('0 reviewer calls made — nothing to fill; 1 recorded refusal still stands.');
 
       // Fixing the source changes the inputs → the pair goes unverified again →
       // the next fill re-runs the now-clean check and approves it.

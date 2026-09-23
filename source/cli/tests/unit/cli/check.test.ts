@@ -261,11 +261,12 @@ describe('check command', () => {
         expect(result.stdout).toContain('Filling');
         expect(result.stdout).toContain('reviewer calls (consensus included)');
         // Per-node / per-aspect breakdown: each LLM pair labelled with its call count.
-        expect(result.stdout).toMatch(/\[llm\] .+ reviewer call\(s\)/);
+        expect(result.stdout).toMatch(/\[llm\] .+ reviewer calls?/);
         // The honest upper-bound caveat.
         expect(result.stdout).toContain('UPPER BOUND');
-        // It still ran the read and printed the check report.
-        expect(result.stdout).toMatch(/yg check: (PASS|FAIL)/);
+        // The preview is the deliverable: no report of the unchanged tree under
+        // it (whose FAIL header over an exit-0 preview read as the preview failing).
+        expect(result.stdout).not.toMatch(/yg check: (PASS|FAIL)/);
 
         // STRUCTURAL no-write guarantee: committed lock files are byte-identical
         // and no new committed lock file was created.

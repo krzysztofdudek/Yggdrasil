@@ -79,7 +79,12 @@ exit: 1
       "aspect": "no-todo",
       "node": "app/svc-01",
       "unit": "node:app/svc-01",
-      "cause": "deterministic-not-run"
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "label": "deterministic-not-run"
     },
     {
       "code": "unverified",
@@ -90,40 +95,117 @@ exit: 1
       "aspect": "no-todo",
       "node": "app/svc-03",
       "unit": "node:app/svc-03",
-      "cause": "deterministic-not-run"
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "label": "deterministic-not-run"
     },
     {
       "code": "yaml-invalid",
       "severity": "error",
-      "what": "yg-node.yaml parse error in app/svc-02.",
-      "why": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 7, column 1:\n\nbad: [unclosed\n\n^\n",
+      "what": "yg-node.yaml in app/svc-02 does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 7, column 1:\nbad: [unclosed\n^",
+      "why": "The file is not valid YAML, so component 'app/svc-02' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it parses.",
       "next": "Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml.",
-      "node": "app/svc-02"
+      "node": "app/svc-02",
+      "label": "yaml-invalid"
     },
     {
       "code": "flow-node-broken",
       "severity": "error",
-      "what": "Flow 'Checkout' references non-existent node 'app/svc-02'.",
-      "why": "Flow participants must exist in the graph.",
-      "next": "Fix the nodes list in yg-flow.yaml or create the missing node."
+      "what": "Flow 'Checkout' names node 'app/svc-02', whose yg-node.yaml did not parse.",
+      "why": "The component was not loaded, so the flow cannot resolve it — a symptom of the yaml-invalid error on 'app/svc-02', not a missing node.",
+      "next": "Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml; the flow resolves once the component loads.",
+      "label": "flow-node-broken"
     },
     {
       "code": "unmapped-files",
       "severity": "error",
       "what": "1 source file not covered by any node.\n  src/svc-02/index.ts",
       "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
-      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners."
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "files": [
+        "src/svc-02/index.ts"
+      ],
+      "label": "unmapped"
     },
     {
       "code": "uncovered-advisory",
       "severity": "warning",
       "what": "4 coverage-visible files outside any required coverage root.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md",
       "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
-      "next": "Map these files to a node, or add their root to coverage.required to make this an error."
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "files": [
+        ".clinerules/yggdrasil.md",
+        ".gitattributes",
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "label": "uncovered"
     }
   ],
   "judges": [],
   "progressive": null,
-  "suggestedNext": "yg check --approve --only-deterministic"
+  "suggestedNext": "Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml.",
+  "groups": [
+    {
+      "code": "yaml-invalid",
+      "label": "yaml-invalid",
+      "aspect": null,
+      "severity": "error",
+      "why": "The file is not valid YAML, so component 'app/svc-02' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it parses.",
+      "next": "Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml.",
+      "members": [
+        2
+      ]
+    },
+    {
+      "code": "unverified",
+      "label": "deterministic-not-run",
+      "aspect": null,
+      "severity": "error",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "members": [
+        0,
+        1
+      ]
+    },
+    {
+      "code": "flow-node-broken",
+      "label": "flow-node-broken",
+      "aspect": null,
+      "severity": "error",
+      "why": "The component was not loaded, so the flow cannot resolve it — a symptom of the yaml-invalid error on 'app/svc-02', not a missing node.",
+      "next": "Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml; the flow resolves once the component loads.",
+      "members": [
+        3
+      ]
+    },
+    {
+      "code": "unmapped-files",
+      "label": "unmapped",
+      "aspect": null,
+      "severity": "error",
+      "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "members": [
+        4
+      ]
+    },
+    {
+      "code": "uncovered-advisory",
+      "label": "uncovered",
+      "aspect": null,
+      "severity": "warning",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "members": [
+        5
+      ]
+    }
+  ],
+  "banner": "Partial result: 1 component file did not parse (app/svc-02), so that component was left out. The findings below were computed without it and may be symptoms of it — fix it first."
 }
 --- stderr

@@ -10,10 +10,10 @@
  * on live in output-diagnostic.ts.
  *
  * Two sinks, one grammar: text (stderr for errors and progress, stdout for
- * reports) and JSON (a versioned document on stdout). A command asks for JSON
- * once, at startup ({@link setJsonOutput}); from then on {@link fail} also
- * writes the `yg-error/1` document, so a consumer reading stdout never gets
- * zero bytes for a failed command.
+ * reports) and JSON (a versioned document on stdout). When the invocation
+ * answers in JSON ({@link isJsonOutput}), {@link fail} also writes the
+ * `yg-error/1` document, so a consumer reading stdout never gets zero bytes for
+ * a failed command.
  */
 
 import chalk from 'chalk';
@@ -134,19 +134,25 @@ export interface ErrorDocument {
   next: { command: string | null; text: string };
 }
 
-let jsonOutput = false;
+let jsonOutput: boolean | undefined;
 
 /**
- * Declare that this invocation answers in JSON (`--json`). Set once, by the
- * command dispatcher, before any command action runs.
+ * Declare whether this invocation answers in JSON, overriding what the command
+ * line says. For a caller that runs a command in-process (a test); the CLI
+ * itself never needs it.
  */
-export function setJsonOutput(on: boolean): void {
+export function setJsonOutput(on: boolean | undefined): void {
   jsonOutput = on;
 }
 
-/** Whether this invocation answers in JSON. */
+/**
+ * Whether this invocation answers in JSON: `--json` on its command line. Only a
+ * command that declares `--json` gets as far as reporting an error through this
+ * layer — the argument parser rejects the flag on every other command first —
+ * so reading it here is reading the command's own option.
+ */
 export function isJsonOutput(): boolean {
-  return jsonOutput;
+  return jsonOutput ?? process.argv.slice(2).includes('--json');
 }
 
 /** The yg-error/1 document for a diagnostic. */
@@ -175,12 +181,15 @@ function asDiagnostic(d: Diagnostic | IssueMessage, code: string): Diagnostic {
  * red, and — when this invocation answers in JSON — the yg-error/1 document on
  * stdout. Does not exit: the caller owns the exit (most await exitAfterFlush so
  * a long stdout drains first). `code` names the error for machines; it
- * defaults to `command-error`.
+ * defaults to `command-error`. With `document: false` the JSON document is
+ * left to the caller, whose own document answers this outcome.
  */
-export function fail(d: Diagnostic | IssueMessage, code = 'command-error'): void {
+export function fail(d: Diagnostic | IssueMessage, code = 'command-error', opts: { document?: boolean } = {}): void {
   const diag = asDiagnostic(d, code);
   process.stderr.write(chalk.red(`Error: ${block(diag)}`) + '\n');
-  if (jsonOutput) writeJsonDocument(errorDocument(diag));
+  // `document: false` for a command whose JSON answer to this outcome is its
+  // own document (written next), so stdout still carries exactly one.
+  if (isJsonOutput() && opts.document !== false) writeJsonDocument(errorDocument(diag));
 }
 
 /** {@link fail}, then exit 1 at once. For a command that has written nothing else to stdout. */

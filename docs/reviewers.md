@@ -75,11 +75,11 @@ $ yg check --approve
 
 Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
 
-yg check: FAIL  1 nodes · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspects · 0 flows
+yg check: FAIL  1 node · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspect · 0 flows
 
 Errors (1):
 
-  enforced  1 pairs  1 nodes  aspect 'requires-audit'
+  enforced  1 pair  1 node  aspect 'requires-audit'
             A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
             Fix: Three exits:
               1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve

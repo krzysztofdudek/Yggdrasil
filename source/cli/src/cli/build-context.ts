@@ -561,14 +561,14 @@ export function registerBuildCommand(program: Command): void {
                 what: `${displayFile} has no graph coverage.`,
                 why: uncoveredWhy,
                 next: 'Use: yg context --node <node-path>',
-              });
+              }, 'no-coverage', { document: false });
             } else {
               uncoveredWhy = 'File is not mapped to any node and no candidate nodes found in the same directory.';
               fail({
                 what: `${displayFile} has no graph coverage.`,
                 why: uncoveredWhy,
                 next: 'Add the file to an existing node mapping, or create a new node.',
-              });
+              }, 'no-coverage', { document: false });
             }
             // The machine view still gets an ANSWER on stdout — "nothing in this
             // graph governs this file" is a fact a caller must be able to read

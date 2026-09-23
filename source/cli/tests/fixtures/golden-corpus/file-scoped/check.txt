@@ -7,17 +7,11 @@ Errors (10):
 
   unverified (deterministic check not run on this checkout — free)  10 pairs  2 nodes
             Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
-            Fix: yg check --approve --only-deterministic
+            Fix: yg check --approve --only-deterministic  (10 script pairs, free)
             - app/svc-01  aspect 'no-todo'
-            - app/svc-01  aspect 'self-contained'
-            - app/svc-01  aspect 'self-contained'
-            - app/svc-01  aspect 'self-contained'
-            - app/svc-01  aspect 'self-contained'
+            - app/svc-01  aspect 'self-contained'  4 files
             - app/svc-02  aspect 'no-todo'
-            - app/svc-02  aspect 'self-contained'
-            - app/svc-02  aspect 'self-contained'
-            - app/svc-02  aspect 'self-contained'
-            - app/svc-02  aspect 'self-contained'
+            - app/svc-02  aspect 'self-contained'  4 files
 
 Warnings (1):
 

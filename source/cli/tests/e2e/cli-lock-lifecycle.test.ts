@@ -193,7 +193,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       // First verification of a non-empty mapping with log_required → gate fires.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.all).toContain('No fresh log entry for node');
+      expect(fill.all).toMatch(/No (fresh )?log entry for node/);
       expect(fill.all).toContain('services/orders');
       // The blocked node's pairs were NOT verified — no lock entry written for it.
       // readLock merges the triad and tolerates absent files (empty sections),

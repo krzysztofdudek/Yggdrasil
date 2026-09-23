@@ -83,9 +83,13 @@ export async function validate(
   const issues: ValidationIssue[] = [];
 
   if (graph.configError) {
+    // The parser's own message is WHAT happened (its first line, then any
+    // excerpt it quotes); WHY is what a config that does not parse costs the
+    // rest of the run — every setting falls back to its default.
+    const [reason, ...excerpt] = graph.configError.split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() !== '');
     const msgData: IssueMessage = graph.configErrorMessage ?? {
-      what: 'yg-config.yaml failed to parse.',
-      why: graph.configError,
+      what: [`yg-config.yaml does not parse: ${reason ?? 'unknown error'}`, ...excerpt].join('\n'),
+      why: 'Until it parses, every setting in it falls back to its default — coverage roots, the reviewer, quality limits — so the rest of this report describes the default configuration, not this project\'s.',
       next: 'Fix the syntax error in .yggdrasil/yg-config.yaml.',
     };
     const errorCode = graph.configErrorCode ?? 'config-invalid';

@@ -305,7 +305,7 @@ describe.skipIf(!distExists)('CLI E2E — conditional aspects (`when` predicate)
       expect(check.status).toBe(1);
       // Grouped view: a single enforced refusal group for the aspect, exactly one
       // node (orders) listed — payments was gated FALSE and is absent.
-      expect(check.all).toContain("enforced  1 pairs  1 nodes  aspect 'no-todo-comments'");
+      expect(check.all).toContain("enforced  1 pair  1 node  aspect 'no-todo-comments'");
       expect(check.all).toContain('- services/orders  Violations:');
       expect(check.all).not.toContain('- services/payments');
     } finally {

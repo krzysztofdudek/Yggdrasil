@@ -100,7 +100,7 @@ describe.skipIf(!distExists)('CLI E2E — architecture relation rules, event pai
       expect(status).toBe(1);
       expect(stdout).toContain('relation-broken');
       // The grouped block carries the shared unresolvable-dependency WHY.
-      expect(stdout).toContain('This node declares a dependency that cannot be resolved.');
+      expect(stdout).toContain('This node declares a dependency on a node the graph does not contain');
       // It is attributed to the node that declares the broken relation.
       expect(stdout).toContain('orders/broken-service');
     } finally {

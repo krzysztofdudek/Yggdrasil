@@ -1,0 +1,17 @@
+$ yg node nope --json
+exit: 1
+--- stdout
+{
+  "schema": "yg-error/1",
+  "code": "node-not-found",
+  "what": "Node 'nope' does not exist in the graph.",
+  "why": "The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.",
+  "next": {
+    "command": null,
+    "text": "Browse the graph with yg tree, or locate one with yg find \"<keywords>\", then retry with a valid path."
+  }
+}
+--- stderr
+Error: Node 'nope' does not exist in the graph.
+The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.
+Browse the graph with yg tree, or locate one with yg find "<keywords>", then retry with a valid path.

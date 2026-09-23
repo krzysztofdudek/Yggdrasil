@@ -1,0 +1,17 @@
+$ yg log read --node nope --json
+exit: 1
+--- stdout
+{
+  "schema": "yg-error/1",
+  "code": "command-error",
+  "what": "Node not found: nope",
+  "why": "Node must exist in the graph before its log can be read.",
+  "next": {
+    "command": null,
+    "text": "Check the --node argument, or create the node first."
+  }
+}
+--- stderr
+Error: Node not found: nope
+Node must exist in the graph before its log can be read.
+Check the --node argument, or create the node first.

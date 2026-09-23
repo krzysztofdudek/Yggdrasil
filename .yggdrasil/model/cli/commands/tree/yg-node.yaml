@@ -16,6 +16,7 @@ description: >-
   identical pair), how many matched a type with nothing that applies, and —
   only when it occurs — how many had their matched type's rules blocked from
   ever being worked out by an aspect implies cycle.
+  Each node is one line by default — its description cut to the first sentence, whitespace collapsed, at most 120 characters — because a graph with long descriptions printed hundreds of kilobytes of spilled lines; --long prints each description whole, and --json prints the yg-tree/1 document (every node's path, type, whole description, parent and depth, plus the type-covered counts).
 aspects: []
 relations:
   - target: cli/output

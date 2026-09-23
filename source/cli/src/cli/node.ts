@@ -75,7 +75,7 @@ export function registerNodeCommand(program: Command): void {
                 what: `Node '${nodePath}' does not exist in the graph.`,
                 why: 'The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.',
                 next: 'Browse the graph with yg tree, or locate one with yg find "<keywords>", then retry with a valid path.',
-              });
+              }, 'node-not-found');
           process.exit(1);
         }
 

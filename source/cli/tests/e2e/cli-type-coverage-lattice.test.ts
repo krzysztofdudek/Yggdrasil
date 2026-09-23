@@ -284,7 +284,7 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
       const flagOff = run(['tree'], offDir);
       expect(flagOff.status).toBe(0);
       expect(flagOff.out).toContain('owner [owner-type]');
-      expect(flagOff.out).not.toMatch(/satisfied by the type-level lattice/);
+      expect(flagOff.out).not.toMatch(/covered by their architecture type alone/);
 
       // Flipping the flag back on is the ONLY difference this pin permits —
       // proving flag-off is not merely "the fixture has no type-covered files"
@@ -307,7 +307,7 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
       // svc/handler.ts (type svc) and util/plain-util.ts (type util) are the
       // fixture's two cleanly type-covered files; ambiguous.ts is excluded from
       // the covered bucket by the lattice itself.
-      expect(out).toMatch(/2 files? .*satisfied by (the )?type-level/i);
+      expect(out).toMatch(/2 files? .*covered by their architecture type alone/i);
       // The tree's own node listing renders NODES only — no synthetic entry for
       // a type-covered file appears in the flat list above the summary line.
       expect(out).not.toContain('handler.ts');
@@ -323,7 +323,7 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
       const { status, out } = run(['tree', '--root', 'owner'], dir);
       expect(status).toBe(0);
       expect(out).toContain('owner [owner-type]');
-      expect(out).toMatch(/2 files? .*satisfied by (the )?type-level/i);
+      expect(out).toMatch(/2 files? .*covered by their architecture type alone/i);
       expect(out).toMatch(/repo-wide/i);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -342,7 +342,7 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
     try {
       const { status, out } = run(['tree'], dir);
       expect(status).toBe(0);
-      expect(out).toMatch(/2 files? .*satisfied by (the )?type-level/i);
+      expect(out).toMatch(/2 files? .*covered by their architecture type alone/i);
       expect(out).toMatch(/1 checked by at least one rule/);
       expect(out).toMatch(/1 with nothing that applies/);
     } finally {

@@ -1,0 +1,29 @@
+$ yg tree --long --depth 1
+exit: 0
+--- stdout
+app [module] — The application: every service lives under it.
+app/svc-01 [service] — Service svc-01 handles one slice of the application. It owns its directory under src and nothing else. It depends on no other service today, and a later split may give it one. This sentence exists to make the description long enough to show how a listing treats a description of several sentences.
+app/svc-02 [service] — Service svc-02.
+app/svc-03 [service] — Service svc-03.
+app/svc-04 [service] — Service svc-04.
+app/svc-05 [service] — Service svc-05.
+app/svc-06 [service] — Service svc-06.
+app/svc-07 [service] — Service svc-07 handles one slice of the application. It owns its directory under src and nothing else. It depends on no other service today, and a later split may give it one. This sentence exists to make the description long enough to show how a listing treats a description of several sentences.
+app/svc-08 [service] — Service svc-08.
+app/svc-09 [service] — Service svc-09.
+app/svc-10 [service] — Service svc-10.
+app/svc-11 [service] — Service svc-11.
+app/svc-12 [service] — Service svc-12.
+app/svc-13 [service] — Service svc-13 handles one slice of the application. It owns its directory under src and nothing else. It depends on no other service today, and a later split may give it one. This sentence exists to make the description long enough to show how a listing treats a description of several sentences.
+app/svc-14 [service] — Service svc-14.
+app/svc-15 [service] — Service svc-15.
+app/svc-16 [service] — Service svc-16.
+app/svc-17 [service] — Service svc-17.
+app/svc-18 [service] — Service svc-18.
+app/svc-19 [service] — Service svc-19 handles one slice of the application. It owns its directory under src and nothing else. It depends on no other service today, and a later split may give it one. This sentence exists to make the description long enough to show how a listing treats a description of several sentences.
+app/svc-20 [service] — Service svc-20.
+app/svc-21 [service] — Service svc-21.
+app/svc-22 [service] — Service svc-22.
+app/svc-23 [service] — Service svc-23.
+app/svc-24 [service] — Service svc-24.
+--- stderr

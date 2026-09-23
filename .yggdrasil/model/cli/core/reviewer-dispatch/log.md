@@ -12,3 +12,5 @@ A reviewer that could not run, or failed mid-review, was reported with one gener
 When a reviewer tier is unreachable, the fill reported it once per tier on stderr and nowhere else. It now also keeps the diagnostic per pair, so the post-fill report and the machine document can say which pairs failed for that reason and point at fixing the provider instead of repeating the fill.
 ## [2026-09-23T20:10:06.099Z]
 The description justified the single review-package assembly by the removed external-judge channel. The reason that still holds is that the verdict is stored under the hash of exactly the prompt the reviewer was sent, so the description now gives that one.
+## [2026-09-23T23:00:43.603Z]
+The reviewer phase reports each pair's start and outcome to the progress tracker as fill events instead of a text sink, following the fill stage's move from finished sentences to data that a formatter words.

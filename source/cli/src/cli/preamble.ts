@@ -1,5 +1,4 @@
 import { stat } from 'node:fs/promises';
-import chalk from 'chalk';
 import { loadGraphOrThrow, GraphLoadError } from '../core/graph-loader.js';
 import { LockEnvironmentError, LockInvalidError } from '../io/lock-store.js';
 import type { Graph } from '../model/graph.js';
@@ -18,13 +17,15 @@ export function abortOnUnexpectedError(error: unknown, context: string): never {
   // version / conflict-markered lock, fail-closed) is the verdict-lock engine's
   // fail-closed gate for corrupted or unrecognized lock files.
   if (error instanceof LockInvalidError) {
-    process.stderr.write(chalk.red(`Error: ${error.message}\n`));
+    // The whole what/why/next the lock reader built — its message alone is only
+    // the `what`, which left the reader without the recovery steps.
+    fail(error.messageData, 'lock-invalid');
     process.exit(1);
   }
   // An ENVIRONMENT problem around the lock — another approval holds it, or the
   // file system refused the write — is not a bug and says what to do about it.
   if (error instanceof LockEnvironmentError) {
-    fail(error.messageData);
+    fail(error.messageData, 'lock-environment');
     process.exit(1);
   }
   const message = error instanceof Error ? error.message : String(error);
@@ -32,7 +33,7 @@ export function abortOnUnexpectedError(error: unknown, context: string): never {
     what: `Unexpected error while ${context}: ${message}`,
     why: 'The CLI encountered an error it does not classify.',
     next: 'This is a bug — please file an issue with the command you ran and the full error output.',
-  });
+  }, 'internal');
   process.exit(1);
 }
 
@@ -56,7 +57,7 @@ export async function loadGraphOrAbort(
     return await loadGraphOrThrow(rootPath, options);
   } catch (err) {
     if (err instanceof GraphLoadError) {
-      fail(err.issue);
+      fail(err.issue, err.issue.what.startsWith('No .yggdrasil/') ? 'graph-missing' : 'graph-load-failed');
       process.exit(1);
     }
     throw err;
@@ -80,7 +81,7 @@ export async function abortUnlessYggdrasilExists(yggRoot: string): Promise<void>
       what: 'No .yggdrasil/ directory found in the current project.',
       why: '`yg init --upgrade` operates on an existing graph; the bootstrap form (without --upgrade) creates one.',
       next: "Run 'yg init' to bootstrap a fresh graph, then re-run --upgrade.",
-    });
+    }, 'graph-missing');
     process.exit(1);
   }
 }

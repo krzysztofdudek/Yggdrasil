@@ -16,6 +16,10 @@ description: "Renders grouped and --details issue output for yg check: the
 mapping:
   - source/cli/src/cli/check-render-groups.ts
 relations:
+  - target: cli/utils
+    type: calls
+  - target: cli/output
+    type: calls
   - target: cli/group-issues
     type: calls
   - target: cli/check-render-header

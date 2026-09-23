@@ -1,0 +1,7 @@
+name: E2E Tests — Read Commands in JSON and Errors as Documents
+type: test-suite
+description: "Subprocess E2E for the machine forms of the read commands and of a failed command: yg tree prints one line per node by default (the first sentence of the description) and the whole description under --long, and --json gives the yg-tree/1 document with every node's path, type, whole description, parent and depth; yg owner --json gives the yg-owner/1 document (which kind of owner, the node or type, whether a mapping names the file itself, the command that shows its rules), including for a file that does not exist; yg find --json gives the yg-find/1 ranked results with their scores relative to the best and the command each one is passed on by; yg log read --json gives the yg-log/1 document of a node's entries; a failed command answering in JSON writes the yg-error/1 document (code, what, why, next) to stdout while its text still goes to stderr — a missing node, and a directory with no graph at all — and without --json writes nothing to stdout."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-read-json.test.ts

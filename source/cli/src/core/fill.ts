@@ -88,6 +88,7 @@ import path from 'node:path';
 
 import type { Graph } from '../model/graph.js';
 import { runCheck, scanUncoveredFiles } from './check.js';
+import type { CheckIssue } from './check.js';
 import { readLock } from '../io/lock-store.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { verifyLock } from './verify-lock.js';
@@ -233,14 +234,26 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   );
   if (gating.length > 0) {
     const single = gating.length === 1;
-    emitIssue({
-      what: `yg check --approve aborted — ${gating.length} ${single ? 'problem' : 'problems'} must be fixed before anything runs.`,
-      why: `Approval records verdicts, and ${single ? 'this problem leaves' : 'these problems leave'} it unclear what would be checked, how it would be judged, or whether doing so is safe; nothing ran and nothing was written.`,
-      next: `Fix the errors below, then re-run: ${retry}`,
-    });
-    for (const i of gating) emitIssue(i.messageData);
+    if (opts.gateIssuesOnError !== true) {
+      emitIssue({
+        what: `yg check --approve aborted — ${gating.length} ${single ? 'problem' : 'problems'} must be fixed before anything runs.`,
+        why: `Approval records verdicts, and ${single ? 'this problem leaves' : 'these problems leave'} it unclear what would be checked, how it would be judged, or whether doing so is safe; nothing ran and nothing was written.`,
+        next: `Fix the errors below, then re-run: ${retry}`,
+      });
+      for (const i of gating) emitIssue(i.messageData);
+    }
     throw new FillGatingError(
       gating.map((i) => ({ code: i.code!, what: i.messageData.what, why: i.messageData.why, next: i.messageData.next })),
+      'structural',
+      gating.map((i) => ({
+        code: i.code!,
+        severity: 'error',
+        rule: i.rule,
+        messageData: i.messageData,
+        ...(i.nodePath !== undefined ? { nodePath: i.nodePath } : {}),
+        ...(i.aspectId !== undefined ? { aspectId: i.aspectId } : {}),
+      })),
+      retry,
     );
   }
 
@@ -272,6 +285,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
         skippedLlmPairs,
         skippedOutsideLlmPairs,
         reviewerConfigured,
+        preview: dryRun,
       },
     });
     // Judgment pairs in the fill set with no reviewer to call: only a preview or
@@ -346,11 +360,15 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // entry, --approve approves NOTHING this run and stops (no fill, no report) —
   // the per-node messages tell the user which entries to add, then re-run.
   const blockedNodes = new Set<string>();
+  const logGateIssues: CheckIssue[] = [];
   for (const nodePath of nodeSet) {
     const node = graph.nodes.get(nodePath);
     if (!node) continue;
-    const blocked = await logGateBlocks(graph, projectRoot, node, lock, emitIssue, retry);
-    if (blocked) blockedNodes.add(nodePath);
+    const blocked = await logGateBlocks(graph, projectRoot, node, lock, retry);
+    if (blocked === null) continue;
+    blockedNodes.add(nodePath);
+    logGateIssues.push({ code: 'log-entry-missing', severity: 'error', rule: 'log-entry-missing', messageData: blocked, nodePath });
+    if (opts.gateIssuesOnError !== true) emitIssue(blocked);
   }
   if (blockedNodes.size > 0) {
     throw new FillGatingError([{
@@ -358,7 +376,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
       what: `${blockedNodes.size} node(s) need a fresh log entry before --approve.`,
       why: 'Their source has drifted from the state their recorded verdicts were written over — by earlier commits as easily as by anything in progress now — and log_required nodes owe a justification entry for that. Nothing was approved this run.',
       next: `Add the log entries listed above (yg log add), then re-run: ${retry}`,
-    }]);
+    }], 'log-gate', logGateIssues, retry);
   }
 
   // ── Step 4: Pre-dispatch header (EXACT). ──────────────────────────────────
@@ -501,6 +519,9 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     skippedByDetGate: llmSkippedByDetGate.size,
     reviewerConfigured,
     retry,
+    // Refusals the lock already held for unchanged inputs: they stand after
+    // this run, so its closing line must not claim every pair is valid.
+    cachedRefusals: verification.pairs.filter((vp) => vp.state.kind === 'refused').length,
   }, emit, emitIssue);
 
   // Drain all queued progress writes first, then stop the timer and clear the TTY line.

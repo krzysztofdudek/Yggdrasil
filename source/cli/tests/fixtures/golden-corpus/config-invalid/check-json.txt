@@ -93,7 +93,12 @@ exit: 1
       "aspect": "no-todo",
       "node": "app/svc-01",
       "unit": "node:app/svc-01",
-      "cause": "deterministic-not-run"
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "label": "deterministic-not-run"
     },
     {
       "code": "unverified",
@@ -104,7 +109,12 @@ exit: 1
       "aspect": "no-todo",
       "node": "app/svc-02",
       "unit": "node:app/svc-02",
-      "cause": "deterministic-not-run"
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-02"
+      },
+      "label": "deterministic-not-run"
     },
     {
       "code": "unverified",
@@ -115,25 +125,77 @@ exit: 1
       "aspect": "no-todo",
       "node": "app/svc-03",
       "unit": "node:app/svc-03",
-      "cause": "deterministic-not-run"
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "label": "deterministic-not-run"
     },
     {
       "code": "config-invalid",
       "severity": "error",
-      "what": "yg-config.yaml failed to parse.",
-      "why": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 15, column 1:\n\nquality: [\n\n^\n",
-      "next": "Fix the syntax error in .yggdrasil/yg-config.yaml."
+      "what": "yg-config.yaml does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 15, column 1:\nquality: [\n^",
+      "why": "Until it parses, every setting in it falls back to its default — coverage roots, the reviewer, quality limits — so the rest of this report describes the default configuration, not this project's.",
+      "next": "Fix the syntax error in .yggdrasil/yg-config.yaml.",
+      "label": "config-invalid"
     },
     {
       "code": "unmapped-files",
       "severity": "error",
       "what": "5 source files not covered by any node.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md\n  src/tools/gen.ts",
       "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
-      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners."
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "files": [
+        ".clinerules/yggdrasil.md",
+        ".gitattributes",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "src/tools/gen.ts"
+      ],
+      "label": "unmapped"
     }
   ],
   "judges": [],
   "progressive": null,
-  "suggestedNext": "yg check --approve --only-deterministic"
+  "suggestedNext": "Fix the syntax error in .yggdrasil/yg-config.yaml.",
+  "groups": [
+    {
+      "code": "config-invalid",
+      "label": "config-invalid",
+      "aspect": null,
+      "severity": "error",
+      "why": "Until it parses, every setting in it falls back to its default — coverage roots, the reviewer, quality limits — so the rest of this report describes the default configuration, not this project's.",
+      "next": "Fix the syntax error in .yggdrasil/yg-config.yaml.",
+      "members": [
+        3
+      ]
+    },
+    {
+      "code": "unverified",
+      "label": "deterministic-not-run",
+      "aspect": null,
+      "severity": "error",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "members": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "code": "unmapped-files",
+      "label": "unmapped",
+      "aspect": null,
+      "severity": "error",
+      "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "members": [
+        4
+      ]
+    }
+  ],
+  "banner": "Partial result: yg-config.yaml did not load, so its defaults were used. The findings below were computed without it and may be symptoms of it — fix it first."
 }
 --- stderr

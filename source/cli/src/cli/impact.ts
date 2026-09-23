@@ -55,7 +55,7 @@ export function registerImpactCommand(program: Command): void {
                   what: '--node and --file are mutually exclusive.',
                   why: 'yg impact accepts at most one of these target forms per invocation.',
                   next: 'Re-run with only --node <path> OR --file <path>.',
-                });
+                }, 'usage');
             process.exit(1);
           }
 
@@ -65,7 +65,7 @@ export function registerImpactCommand(program: Command): void {
                   what: 'No target specified.',
                   why: 'yg impact needs exactly one of --node, --file, --aspect, --flow, or --type.',
                   next: 'Pass one of: --node <path>, --file <path>, --aspect <id>, --flow <name>, --type <id>.',
-                });
+                }, 'usage');
             process.exit(1);
           }
           if (modeCount > 1) {
@@ -247,7 +247,7 @@ export function registerImpactCommand(program: Command): void {
               what: `Node not found: ${nodePath}`,
               why: 'The node path must match a node in the graph.',
               next: 'Run: yg tree — to list all nodes.',
-            });
+            }, 'node-not-found');
             process.exit(1);
           }
 

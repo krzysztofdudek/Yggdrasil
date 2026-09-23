@@ -10,10 +10,12 @@ description: "Top-level yg check render dispatcher (formatOutput) and the
   same change-scope segment the plain header would have shown (via
   check-render-header's exported renderChangeScope, same true error count) so
   drilling into one aspect never silently drops the fact that the project
-  measures changes against a reference branch."
+  measures changes against a reference branch. Member lists are capped by the view, never by whether stdout is a terminal: the default and --top views cap each group in every sink (the drill-in and per-issue views show everything), and --summary is bounded to its busiest rows with one counted line naming the view that lists the rest. When a configuration, architecture, component or lock file did not load as written, every view opens with a partial-result banner saying what was left out. It also renders a recording run a gate stopped as a report of its own — an ABORTED verdict line (keeping the `yg check:` anchor), the gating findings through the grouped renderer, and the first step with the re-run naming the user's own flags — and adds to the yg-check/1 document what only this layer knows: each finding's report label, the report's groups (shared rationale and remedy stated once, members as indexes into the findings), the banner, and for an aborted run exit status aborted with the gating findings."
 mapping:
   - source/cli/src/cli/check-render-views.ts
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/check-render-header
     type: calls
   - target: cli/check-render-groups

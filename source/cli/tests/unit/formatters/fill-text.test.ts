@@ -46,18 +46,43 @@ describe('renderFillEvent', () => {
     expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, reviewerCallsMade: 4 } })).toBe('');
   });
 
-  it('dry run and prune', () => {
+  it('dry run: headed as a preview, lists only what costs something, counts the free pairs', () => {
+    const header = renderFillEvent({ type: 'dispatch', counts: { fillPairs: 2, nodeCount: 1, fileCount: 0, detPairs: 1, reviewerCallBudget: 2, skippedLlmPairs: 0, skippedOutsideLlmPairs: 0, preview: true } });
+    expect(header.split('\n')[0]).toBe('Dry run — a cost preview: nothing below is filled or written.');
+    // The budget sentence keeps the shape a budget parser reads.
+    expect(header).toContain('Filling 2 unverified pairs across 1 nodes — 1 deterministic (no cost), 2 reviewer calls (consensus included)');
     const dry = renderFillEvent({
       type: 'dry-run',
-      nodes: [{ nodePath: 'app', pairs: [{ lane: 'det', aspectId: 'a', unit: 'node:app' }, { lane: 'llm', aspectId: 'b', unit: 'node:app', reviewerCalls: 2 }] }],
+      nodes: [
+        { nodePath: 'app', pairs: [{ lane: 'det', aspectId: 'a', unit: 'node:app' }, { lane: 'llm', aspectId: 'b', unit: 'node:app', reviewerCalls: 2 }] },
+        { nodePath: 'lib', pairs: [{ lane: 'det', aspectId: 'a', unit: 'node:lib' }] },
+      ],
       files: [],
       reviewerCallBudget: 2,
     });
-    expect(dry).toContain('  app\n    [det] a on node:app — free\n    [llm] b on node:app — 2 reviewer call(s)\n');
-    expect(dry).toContain('2 reviewer call(s) is an UPPER BOUND');
+    expect(dry).toContain('  app\n    [llm] b on node:app — 2 reviewer calls\n');
+    expect(dry).not.toContain('[det]');
+    expect(dry).not.toContain('  lib\n');
+    expect(dry).toContain('  2 deterministic pairs — free, not listed\n');
+    expect(dry).toContain('This budget of 2 reviewer calls is an UPPER BOUND');
+  });
+
+  it('a preview with nothing to price still says it is a preview, over the zero budget', () => {
+    expect(renderFillEvent({ type: 'dispatch', counts: { fillPairs: 0, nodeCount: 0, fileCount: 0, detPairs: 0, reviewerCallBudget: 0, skippedLlmPairs: 0, skippedOutsideLlmPairs: 0, preview: true } }))
+      .toBe('Dry run — a cost preview: nothing below is filled or written.\nFilling 0 unverified pairs across 0 nodes — 0 deterministic (no cost), 0 reviewer calls (consensus included)\n');
+  });
+
+  it('the closing line never claims every pair valid while a recorded refusal still stands', () => {
+    expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, cachedRefusals: 1 } }))
+      .toBe('0 reviewer calls made — nothing to fill; 1 recorded refusal still stands.\n');
+    expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, cachedRefusals: 3 } }))
+      .toBe('0 reviewer calls made — nothing to fill; 3 recorded refusals still stand.\n');
+  });
+
+  it('prune: nothing when nothing was pruned, the noun agreeing with the count otherwise', () => {
     expect(renderFillEvent({ type: 'prune', entries: [], billedCount: 0, freeCount: 0, unknownCount: 0 })).toBe('');
     expect(renderFillEvent({ type: 'prune', entries: [{ aspectId: 'a', unitKey: 'node:x', kind: 'llm', reason: 'detached' }], billedCount: 1, freeCount: 0, unknownCount: 0 }))
-      .toBe('Pruned 1 stale verdict(s) — 1 billed, 0 free:\n  [llm] a on node:x — detached\n');
+      .toBe('Pruned 1 stale verdict — 1 billed, 0 free:\n  [llm] a on node:x — detached\n');
   });
 
   it('textFillSink writes nothing for an event that reads as nothing', () => {

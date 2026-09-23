@@ -245,6 +245,29 @@ what the lock says about each of those units is [`yg check
 may appear within `yg-impact/1`; only a change to an existing field's shape takes
 a new schema number.
 
+### Errors under `--json` {#yg-error-json}
+
+A command that answers in JSON and fails still answers on stdout: besides its
+`Error:` text on stderr, it writes one `yg-error/1` document —
+
+```json
+{
+  "schema": "yg-error/1",
+  "code": "node-not-found",
+  "what": "Node 'nope' does not exist in the graph.",
+  "why": "The path must name an existing component …",
+  "next": { "command": null, "text": "Browse the graph with yg tree, or locate one with yg find \"<keywords>\", then retry with a valid path." }
+}
+```
+
+— so a machine reader never gets zero bytes for a failed command. `code` names
+the error (`usage` for a flag combination the command refuses, `node-not-found`,
+`graph-missing` in a directory with no graph, `lock-invalid`, `internal`, …;
+`command-error` for the rest). `next.command` is set only when the remedy is one
+runnable command, whole. The exit code is unchanged (1). A command whose own JSON
+document answers the failure — `yg context --json` on a file no component owns —
+writes that document instead, never both.
+
 ### `yg check --json` {#yg-check-json}
 
 The same run as one `yg-check/1` document instead of the report, for anything
@@ -283,6 +306,30 @@ verdict, the same fact the text report groups it by:
   and failed on infrastructure: the reviewer did not answer, answered with no
   usable verdict, a `check.mjs` did not complete, or a `yg-suppress` marker in
   range has no reason.
+
+Beside the prose, each finding carries what a consumer would otherwise have to
+parse out of it (every field additive, present only where it applies):
+
+- `label` — the heading the text report groups it under (`enforced`,
+  `unmapped`, the code itself, …);
+- `unitRef: { kind, path }` — its subject in the same shape as a pair's `unit`;
+- `violations: [{ file, line, message }]` — a script refusal's locations, never cut;
+- `edges: [{ file, line, target }]` — the dependency edges a relation finding is about;
+- `files` — every file a coverage finding names, never cut (its `what` may list fewer).
+
+The document also carries the report's `groups` (`code`, `label`, `aspect`,
+`severity`, the shared `why` and `next` — `null` where members differ — and
+`members` as indexes into `issues`), so a consumer can read each rationale once,
+and `banner`: the partial-result line when a configuration, architecture,
+component or lock file did not load as written (every other number then
+describes a fallback), else `null`.
+
+When a recording run stops at a gate before recording anything — the
+mandatory-log gate, or the structural gate — the document is still written:
+`exit.status` is `aborted` (exit code 1), `exit.reason` says which gate and how
+much it is waiting on, `aborted: { stage: 'log-gate' | 'structural', issues }`
+carries the findings that stopped it, and the rest of the document is the
+read-only report of the same tree.
 
 The infrastructure causes are ones re-running the same command cannot clear, so
 their `next` names the real fix, and once no pair a fill can settle is left,
@@ -403,13 +450,37 @@ result (PASS/FAIL with group counts), and suggested next command. On color-capab
 terminals, verdict and error/warning headers include emoji decoration (stripped
 under `NO_COLOR` and in CI).
 
-The grouped view caps itself, so it is not an exhaustive dump. At most 12 rule
-groups are rendered per section (Errors, Warnings); past that an overflow line
-appears — `... in M groups — showing 12; run yg check --top <n> or --aspect <id>`.
-Within a rendered group, on a TTY at most 12 affected nodes are listed before an
-`... and K more (yg check --aspect <id>)` line. The header's aggregate counts and
-the exit code are always the true ones, so a capped view can never read as a
-smaller problem — it just renders less of it.
+The grouped view caps itself, so it is not an exhaustive dump — and the view
+decides the volume, not the terminal: a pipe (an agent, CI) gets exactly the
+report a terminal gets. At most 12 rule groups are rendered per section (Errors,
+Warnings); past that an overflow line appears — `... in M groups — showing 12;
+run yg check --top <n> or --aspect <id>`. Within a rendered group at most 12
+member rows are listed before an `... and K more (<command>)` line naming the view
+that lists the rest: `yg check --aspect <id>` for a group of one rule,
+`yg check --details` otherwise. `--top` caps the same way; `--summary` lists its
+24 busiest rows and counts the rest in one line. `--aspect` and `--details` list
+every member. The header's aggregate counts and the exit code are always the true
+ones, so a capped view can never read as a smaller problem — it just renders less
+of it.
+
+A per-file rule's pairs on one component collapse into one row that counts them
+(`- app/a  aspect 'self-contained'  3 files`); a single such pair names its file.
+A group whose members' fixes differ only by the node prints one templated fix
+(`yg log add --node <node> …  (for each node below)`), and the unverified group's
+fix names what the fill costs (`(24 reviewer pairs, paid)`, `(10 script pairs,
+free)`).
+
+When part of the graph did not load as written — `yg-config.yaml`,
+`yg-architecture.yaml`, a component's `yg-node.yaml` or the lock — the report
+opens with a `Partial result:` line saying what was left out, that finding's
+group comes first, and `Next:` names its fix: every other finding in such a run
+may be a symptom of it.
+
+When `yg check --approve` stops at a gate before recording anything, the stop is
+reported on stdout like any result: a `yg check: ABORTED` verdict line, the
+gating findings through the same grouped view, and a `Next:` whose re-run keeps
+the flags you ran it with (under `--json`, the document described above with
+`exit.status: aborted`).
 
 When at least one pair is verified, the header appends `N verified (D
 deterministic, L LLM)` — splitting the green count into pairs machine-checked
@@ -647,8 +718,11 @@ calls.
 
 `yg check --approve --dry-run` is a cost preview. It runs the same structural gate,
 pair classification, and budget computation as a real fill, prints the pre-dispatch
-header plus a per-node / per-aspect breakdown — each deterministic pair labelled
-free, each LLM pair labelled with its consensus call count — then exits 0 **without
+header (under a first line saying it is a dry run) plus a per-node breakdown of
+the pairs that cost something — each LLM pair labelled with its consensus call
+count, the free deterministic pairs counted in one line rather than listed — and,
+when a recording run would first stop on missing log entries, those findings; it
+prints no report of the tree under it. Then it exits 0 **without
 calling the reviewer, running any `check.mjs`, or writing a single byte to any lock
 file**. The reviewer-call total is an **upper bound**: a node with an enforced
 deterministic refusal has its LLM pairs skipped, and a fresh refusal or an
@@ -764,7 +838,9 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
   on that node.
 - `read` — Print entries newest-first. Default: top 10. `--top N` shows N entries.
   `--all` shows the full history. `--top` and `--all` are mutually exclusive. Use this
-  before editing a node to understand past decisions.
+  before editing a node to understand past decisions. `--json` prints the `yg-log/1`
+  document instead: `node` and `entries` (each `datetime` and `body`); with
+  `--with-verdicts` also `verdictEvents: { since, sharedHistory, events }`.
   - `--with-verdicts` — Interleave the node's own recent verification events with its
     log entries, newest first, under a `local telemetry since <timestamp>` header. The
     events come from a local, gitignored telemetry sidecar written during
@@ -824,14 +900,19 @@ description, each parent before its children. On a graph with no nodes yet it
 prints `(no nodes yet — …)` and points at the onboarding topic.
 
 ```bash
-yg tree [--root <path>] [--depth <n>]
+yg tree [--root <path>] [--depth <n>] [--long] [--json]
 ```
 
 - `--root <path>` — Show only subtree rooted at this path
 - `--depth <n>` — Maximum depth
+- `--long` — Print each description whole (by default a line carries its first
+  sentence, whitespace collapsed, at most 120 characters)
+- `--json` — Print the `yg-tree/1` document: `root`, `maxDepth`, `nodes` (each
+  `path`, `type`, whole `description`, `parent`, `depth`) and `typeCovered` (the
+  counts below as numbers, `null` when the flag is off)
 
 With `coverage.type_level` on, a summary line follows the node listing naming
-how many files are satisfied by the type-level lattice with no component of
+how many files are covered by their architecture type alone, with no component of
 their own (never a synthetic tree entry — the listing above still renders
 nodes only). The count is always repo-wide: a type-covered file has no place
 in the graph hierarchy for `--root` to scope it to, so narrowing `--root` adds
@@ -852,7 +933,7 @@ one the lock has never recorded at all. Absent entirely when the flag is off.
 ```text
 $ yg tree
 ...
-6 files are satisfied by the type-level lattice, no component of their own: 3 checked by at least one rule (3 with no recorded verdict for at least one of its rules), 3 with nothing that applies.
+6 files are covered by their architecture type alone, with no component of their own: 3 checked by at least one rule (3 with no recorded verdict for at least one of its rules), 3 with nothing that applies.
 ```
 
 ### `yg structure`
@@ -910,7 +991,14 @@ first few, with a `(+N more)` suffix when the full set is longer).
 ```bash
 yg find "order cancellation"
 yg find "authentication middleware"
+yg find "order cancellation" --json
 ```
+
+`--json` prints the `yg-find/1` document: `query` and `results`, each with its
+`kind`, the `id` it is passed on by (a node path without `model/`, a rule id, a
+file path), `type`, a rule's default `status`, `description`, `score` (relative to
+the best match), the `matched` terms and `next` (the command that shows its
+context; `null` for a rule).
 
 Use this when you know the feature you want to work on but not the node path.
 The `score` is **relative to the best match in this query** — the top result is
@@ -1255,7 +1343,13 @@ as "already verified."
 
 ```bash
 yg owner --file <path>
+yg owner --file <path> --json
 ```
+
+`--json` prints the `yg-owner/1` document instead of the sentence: `file`, `kind`
+(`node`, `type`, `unmapped`, `missing` or `excluded`), `node`, `type`, `direct`
+(whether a mapping names the file itself rather than an ancestor directory),
+`mappingPath`, `enforced` (for a type owner), `excludedBecause` and `next`.
 
 ```text
 $ yg owner --file src/handlers/capturePayment.ts

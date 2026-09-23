@@ -128,9 +128,11 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
       try {
         const r = run(['check', '--approve'], dir);
         expect(r.status).toBe(1);
-        expect(r.stderr).toContain('aborted');
-        expect(r.stderr).toContain('yg init --provider <name>');
-        expect(r.stderr).not.toContain("pick 'Configure reviewer'");
+        // The abort is reported like any result, on stdout: an ABORTED verdict
+        // line over the gating findings.
+        expect(r.stdout).toContain('yg check: ABORTED');
+        expect(r.stdout).toContain('yg init --provider <name>');
+        expect(r.all).not.toContain("pick 'Configure reviewer'");
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -329,7 +331,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const r = run(['check', '--approve', '--only-deterministic'], dir);
         expect(r.status).toBe(1);
         expect(r.stderr).not.toContain('Filling ');
-        expect(r.stderr).toContain('then re-run: yg check --approve --only-deterministic');
+        expect(r.stdout).toContain('then re-run: yg check --approve --only-deterministic');
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }

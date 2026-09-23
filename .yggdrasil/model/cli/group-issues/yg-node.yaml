@@ -11,7 +11,7 @@ description: "Command-layer helper that collapses a flat CheckIssue list into
   every ordinary warning (never merely tied and left to alphabetical label
   order), so a run whose only warnings are inherited debt cannot bury a
   genuine advisory finding beneath it in the grouped Warnings section or a
-  --top slice."
+  --top slice. issuePriorityRank puts a configuration, architecture or component file that did not load (config-invalid, architecture-invalid, yaml-invalid) ahead of everything, the lock next, because every other finding in such a run may be a symptom of it."
 mapping:
   - source/cli/src/cli/group-issues.ts
 relations:

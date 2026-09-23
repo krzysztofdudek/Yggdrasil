@@ -14,6 +14,9 @@
 import type { FillEvent, FillDispatchCounts, FillOutcomeTotals, DryRunPair, FillProgressCounts } from '../model/fill-event.js';
 import { toPosixPath } from '../utils/posix.js';
 
+/** `n` and its noun, agreeing (the formatter's own copy of the CLI's count, which it cannot import). */
+const count = (n: number, noun: string): string => `${n} ${n === 1 ? noun : `${noun}s`}`;
+
 /** ANSI: return to column 0 and erase the whole line. */
 const CLEAR_LINE = '\r\u001b[2K';
 
@@ -45,10 +48,17 @@ function truncateToWidth(text: string, width: number): string {
  * appears only when a nodeless pair exists this run.
  */
 function renderDispatch(counts: FillDispatchCounts): string {
+  // The header sentence keeps its exact shape — "Filling N unverified pairs
+  // across M nodes — D deterministic (no cost), R reviewer calls" — because a
+  // reader parses the budget out of it (the portal's cost preview). A preview
+  // says what it is on the line before instead, so it no longer reads as a
+  // run that fills.
+  const preface = counts.preview === true ? 'Dry run — a cost preview: nothing below is filled or written.\n' : '';
   const acrossLabel = counts.fileCount > 0
     ? `${counts.nodeCount} components and ${counts.fileCount} files`
     : `${counts.nodeCount} nodes`;
   let out =
+    preface +
     `Filling ${counts.fillPairs} unverified pairs across ${acrossLabel} — ` +
     `${counts.detPairs} deterministic (no cost), ${counts.reviewerCallBudget} reviewer calls (consensus included)\n`;
   if (counts.skippedLlmPairs > 0) {
@@ -60,31 +70,41 @@ function renderDispatch(counts: FillDispatchCounts): string {
   }
   if (counts.skippedOutsideLlmPairs > 0) {
     out +=
-      `  ${counts.skippedOutsideLlmPairs} LLM pair(s) outside this change — ` +
+      `  ${count(counts.skippedOutsideLlmPairs, 'LLM pair')} outside this change — ` +
       `${reviewThemWith(counts.skippedOutsideLlmPairs, 'yg check --full --approve')}.\n`;
   }
   return out;
 }
 
-function dryRunLine(p: DryRunPair): string {
-  return p.lane === 'det'
-    ? `    [det] ${p.aspectId} on ${toPosixPath(p.unit)} — free\n`
-    : `    [llm] ${p.aspectId} on ${toPosixPath(p.unit)} — ${p.reviewerCalls ?? 0} reviewer call(s)\n`;
+function billedLine(p: DryRunPair): string {
+  return `    [llm] ${p.aspectId} on ${toPosixPath(p.unit)} — ${count(p.reviewerCalls ?? 0, 'reviewer call')}\n`;
 }
 
-/** A cost preview's per-subject breakdown, then the upper-bound caveat. */
+/**
+ * A cost preview: the pairs that cost something (reviewer pairs), per subject,
+ * then one line counting the free script pairs, then the upper-bound caveat.
+ * Listing every free pair made a preview of a large backlog thousands of lines
+ * long to say "this costs nothing".
+ */
 function renderDryRun(e: Extract<FillEvent, { type: 'dry-run' }>): string {
   let out = '';
+  let free = 0;
   for (const node of e.nodes) {
+    const billed = node.pairs.filter((p) => p.lane === 'llm');
+    free += node.pairs.length - billed.length;
+    if (billed.length === 0) continue;
     out += `  ${toPosixPath(node.nodePath)}\n`;
-    for (const p of node.pairs) out += dryRunLine(p);
+    for (const p of billed) out += billedLine(p);
   }
-  if (e.files.length > 0) {
+  const billedFiles = e.files.filter((p) => p.lane === 'llm');
+  free += e.files.length - billedFiles.length;
+  if (billedFiles.length > 0) {
     out += `  Files enforced by their type\n`;
-    for (const p of e.files) out += dryRunLine(p);
+    for (const p of billedFiles) out += billedLine(p);
   }
+  if (free > 0) out += `  ${count(free, 'deterministic pair')} — free, not listed\n`;
   out +=
-    `${e.reviewerCallBudget} reviewer call(s) is an UPPER BOUND — a node with an enforced ` +
+    `This budget of ${count(e.reviewerCallBudget, 'reviewer call')} is an UPPER BOUND — a node with an enforced ` +
     `deterministic refusal has its LLM fills skipped this run, and a fresh refusal or ` +
     `infra disposition can leave a pair unfilled. Nothing was written; run yg check --approve to fill.\n`;
   return out;
@@ -98,7 +118,7 @@ function renderDryRun(e: Extract<FillEvent, { type: 'dry-run' }>): string {
 function renderPrune(e: Extract<FillEvent, { type: 'prune' }>): string {
   if (e.entries.length === 0) return '';
   const unknownClause = e.unknownCount > 0 ? `, ${e.unknownCount} unknown` : '';
-  let out = `Pruned ${e.entries.length} stale verdict(s) — ${e.billedCount} billed, ${e.freeCount} free${unknownClause}:\n`;
+  let out = `Pruned ${count(e.entries.length, 'stale verdict')} — ${e.billedCount} billed, ${e.freeCount} free${unknownClause}:\n`;
   for (const entry of e.entries) out += `  [${entry.kind}] ${entry.aspectId} on ${toPosixPath(entry.unitKey)} — ${entry.reason}\n`;
   return out;
 }
@@ -159,7 +179,7 @@ function renderTotals(t: FillOutcomeTotals): string {
   }
   if (t.skippedOutsideLlmPairs > 0) {
     return (
-      `0 reviewer calls made — ${t.skippedOutsideLlmPairs} LLM pair(s) outside this change left unverified. ` +
+      `0 reviewer calls made — ${count(t.skippedOutsideLlmPairs, 'LLM pair')} outside this change left unverified. ` +
       `Run \`yg check --full --approve\` to review ${t.skippedOutsideLlmPairs === 1 ? 'it' : 'them'}.${detTail}\n`
     );
   }
@@ -168,6 +188,11 @@ function renderTotals(t: FillOutcomeTotals): string {
     return `0 reviewer calls made — LLM review skipped on ${n} unit${n === 1 ? '' : 's'} a deterministic check refuses.${detTail}\n`;
   }
   if (detFilled > 0) return `0 reviewer calls made — ${detClause}.\n`;
+  // Nothing was filled. Say every pair holds a valid verdict only when that is
+  // so: a refusal recorded earlier for unchanged code still stands, and a
+  // closing line claiming "all valid" above a FAIL report contradicted it.
+  const standing = t.cachedRefusals ?? 0;
+  if (standing > 0) return `0 reviewer calls made — nothing to fill; ${count(standing, 'recorded refusal')} still ${standing === 1 ? 'stands' : 'stand'}.\n`;
   return '0 reviewer calls made — all expected pairs hold valid verdicts\n';
 }
 

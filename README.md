@@ -59,7 +59,7 @@ Warnings (1):
             src/f15.ts
             src/f16.ts
             src/f17.ts
-            ... +40
+            ... +40 (yg check --details)
             Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
             Fix: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 

@@ -180,7 +180,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // is no longer rendered; the chatCount delta + byte-identical siblings below
       // pin down WHICH pair re-billed.
       expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain("1 pairs");
+      expect(after.all).toContain("1 pair  ");
       expect(after.all).toContain("aspect 'scenario-matches-test'");
       expect(after.all).toContain('- scenarios');
       expect(after.all).toContain('Fix: yg check --approve');
@@ -221,7 +221,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // The grouped view no longer prints the per-unit subject path; the chatCount
       // delta (1) below confirms only the login pair re-billed.
       expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain("1 pairs");
+      expect(after.all).toContain("1 pair  ");
       expect(after.all).toContain("aspect 'scenario-matches-test'");
       expect(after.all).toContain('- scenarios');
 
@@ -422,7 +422,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       // the per-node-companion aspect on the scenarios node (the per-unit
       // `on node:scenarios.` detail is no longer rendered in the grouped view).
       expect(after.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(after.all).toContain("1 pairs");
+      expect(after.all).toContain("1 pair  ");
       expect(after.all).toContain("aspect 'per-node-companion'");
       expect(after.all).toContain('- scenarios');
       const callsBefore = mock.chatCount();
@@ -583,7 +583,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
       expect(check.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(check.all).toContain("1 pairs");
+      expect(check.all).toContain("1 pair  ");
       expect(check.all).toContain("aspect 'scenario-matches-test'");
       expect(check.all).toContain('- scenarios');
 

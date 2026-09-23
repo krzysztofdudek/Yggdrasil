@@ -409,6 +409,8 @@ async function lastLogFacts(graph: Graph, aspect: AspectDef): Promise<AspectsJso
 }
 
 export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInput): string {
+  // An empty listing must still say it ran: a blank line reads as a failure.
+  if (graph.aspects.length === 0) return '(no aspects defined — a rule is a directory under .yggdrasil/aspects/; see yg knowledge read aspects-overview)';
   const usage = computeAspectUsage(graph, typeCoverage);
   const lines: string[] = [];
 

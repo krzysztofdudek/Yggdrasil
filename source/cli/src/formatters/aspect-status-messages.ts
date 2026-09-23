@@ -69,6 +69,48 @@ export function describeAttachSite(origin: string): string {
   }
 }
 
+/**
+ * The downgrade finding reported ONCE per declaring site: the site that
+ * declares the lower status, the status the rule already reaches the nodes
+ * with and where that comes from, and which nodes it concerns — never one copy
+ * per node, which blamed each node for a declaration made in one place (a type,
+ * a flow, a port, an ancestor) and repeated one fault as many times as that
+ * place reaches.
+ */
+export function aspectStatusDowngradeSiteMessage(params: {
+  aspectId: string;
+  declared: AspectStatus;
+  anchor: AspectStatus;
+  /** Origin token of the attach site that declares the lower status. */
+  declaringOrigin: string;
+  /** Origin tokens of the other explicit sites that declare the anchor status. */
+  anchorOrigins: string[];
+  aspectDefault: AspectStatus;
+  aspectDeclaresStatus: boolean;
+  /** Every node the declaration reaches with the downgrade. */
+  nodePaths: string[];
+}): IssueMessage {
+  const site = describeAttachSite(params.declaringOrigin);
+  const fromDefault = params.aspectDefault === params.anchor;
+  const defaultLabel = params.aspectDeclaresStatus
+    ? `the aspect default (status: ${params.aspectDefault} in the aspect's yg-aspect.yaml)`
+    : `the aspect default (${params.aspectDefault}, because the aspect's yg-aspect.yaml sets no status:)`;
+  const sources = [...(fromDefault ? [defaultLabel] : []), ...params.anchorOrigins.map(describeAttachSite)];
+  const fixes = [
+    ...(fromDefault ? [`set a lower status: in the aspect's yg-aspect.yaml`] : []),
+    ...params.anchorOrigins.map((o) => `lower the status on ${describeAttachSite(o)}`),
+  ];
+  const nodes = params.nodePaths.map(posixPath);
+  const reach = nodes.length === 1
+    ? `node '${nodes[0]}'`
+    : `the ${nodes.length} nodes it attaches to there (${nodes.slice(0, 3).join(', ')}${nodes.length > 3 ? ', …' : ''})`;
+  return {
+    what: `Aspect '${params.aspectId}': ${site} declares status '${params.declared}', but the aspect already reaches ${reach} as '${params.anchor}' from ${sources.join(' and ')}.`,
+    why: 'An explicit attach-site status cannot relax (downgrade) what already cascades — that would silently weaken enforcement. An attach site can only raise the status above the aspect default and the other sites, never lower it.',
+    next: `Remove the explicit status from ${site} (let the cascade win), or, to weaken the rule everywhere, ${fixes.join(' and ')}. See: yg knowledge read aspect-status.`,
+  };
+}
+
 export function aspectStatusDowngradeMessage(params: {
   nodePath: string;
   aspectId: string;

@@ -189,6 +189,13 @@ export function coverageBlockLabel(code: string): string {
  * same order. Lower rank = higher priority. Errors always outrank warnings.
  */
 const ERROR_CODE_PRIORITY: string[] = [
+  // The graph did not load as written: a configuration, architecture or
+  // component file that does not parse (or does not validate). Every finding
+  // below may be a symptom of one of these — a component that failed to load
+  // reads as "non-existent" to a flow, its files as unmapped — so they lead.
+  'config-invalid',
+  'architecture-invalid',
+  'yaml-invalid',
   'lock-invalid',
   // A conflicted log.md cannot be read, appended to or verified until the merge
   // is reconciled — every step below it would fail on it first.

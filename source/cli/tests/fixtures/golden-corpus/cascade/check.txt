@@ -1,30 +1,29 @@
 $ yg check
 exit: 1
 --- stdout
-yg check: FAIL  3 nodes · 2/7 files (29%) · 1 aspects · 1 flows
+yg check: FAIL  3 nodes · 2/7 files (29%) · 1 aspect · 1 flow
+
+Partial result: 1 component file did not parse (app/svc-02), so that component was left out. The findings below were computed without it and may be symptoms of it — fix it first.
 
 Errors (5) in 3 groups:
 
+  yaml-invalid  1 issue  1 node
+            The file is not valid YAML, so component 'app/svc-02' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it parses.
+            Fix: Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml.
+            - app/svc-02  yg-node.yaml in app/svc-02 does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 7, column 1:
+              bad: [unclosed
+              ^
+
   unverified (deterministic check not run on this checkout — free)  2 pairs  2 nodes
             Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
-            Fix: yg check --approve --only-deterministic
+            Fix: yg check --approve --only-deterministic  (2 script pairs, free)
             - app/svc-01  aspect 'no-todo'
             - app/svc-03  aspect 'no-todo'
 
   flow-node-broken
-            Flow 'Checkout' references non-existent node 'app/svc-02'.
-            Why: Flow participants must exist in the graph.
-            Fix: Fix the nodes list in yg-flow.yaml or create the missing node.
-
-  yaml-invalid  1 issue  1 nodes
-            Flow sequence in block collection must be sufficiently indented and end with a ] at line 7, column 1:
-
-bad: [unclosed
-
-^
-
-            Fix: Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml.
-            - app/svc-02  yg-node.yaml parse error in app/svc-02.
+            Flow 'Checkout' names node 'app/svc-02', whose yg-node.yaml did not parse.
+            Why: The component was not loaded, so the flow cannot resolve it — a symptom of the yaml-invalid error on 'app/svc-02', not a missing node.
+            Fix: Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml; the flow resolves once the component loads.
 
   unmapped (1)
             src/svc-02/index.ts
@@ -41,5 +40,5 @@ Warnings (1):
             Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
             Fix: Map these files to a node, or add their root to coverage.required to make this an error.
 
-Next: yg check --approve --only-deterministic  (fills 2 unverified; 3 errors remain — need code/graph fixes)
+Next: Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml.
 --- stderr

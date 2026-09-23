@@ -197,7 +197,7 @@ describe('check --approve --dry-run --quiet: budget still reaches stdout', () =>
     const stdoutCalls = stdoutSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
     const stderrCalls = stderrSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
     // The budget MUST reach stdout even with --quiet.
-    expect(stdoutCalls).toContain('3 reviewer call(s) is an UPPER BOUND');
+    expect(stdoutCalls).toContain('This budget of 3 reviewer calls is an UPPER BOUND');
     // And it must NOT have been routed to stderr.
     expect(stderrCalls).not.toContain('UPPER BOUND');
   });
@@ -205,7 +205,7 @@ describe('check --approve --dry-run --quiet: budget still reaches stdout', () =>
   it('--approve --dry-run (no --quiet) emits the budget on STDOUT', async () => {
     await runFlags(['--approve', '--dry-run']);
     const stdoutCalls = stdoutSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
-    expect(stdoutCalls).toContain('3 reviewer call(s) is an UPPER BOUND');
+    expect(stdoutCalls).toContain('This budget of 3 reviewer calls is an UPPER BOUND');
   });
 });
 

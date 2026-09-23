@@ -1227,8 +1227,8 @@ export function buildAttention(sources: AttentionSources): string[] {
   // starts it instead.
   lines.push(
     sources.incidentCount === 0
-      ? '0 incidents on record — the only external oracle; record one with yg incident add when something escapes enforcement'
-      : `${sources.incidentCount} incident${sources.incidentCount === 1 ? '' : 's'} on record — the only external oracle; see .yggdrasil/incidents.md`,
+      ? '0 incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement'
+      : `${sources.incidentCount} incident${sources.incidentCount === 1 ? '' : 's'} on record — the only evidence from outside the graph that a rule missed something; see .yggdrasil/incidents.md`,
   );
   // wrong-rule-tagged incidents are evidence the rules themselves may be
   // miscalibrated — the external counterpart to the catch/exposure health story.
