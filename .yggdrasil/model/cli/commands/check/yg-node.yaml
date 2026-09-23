@@ -16,6 +16,8 @@ description: >-
 aspects:
   - runcheck-injected-input-parity
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/det-concurrency
     type: calls
   - target: cli/io/atomic-write

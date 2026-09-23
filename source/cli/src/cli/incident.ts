@@ -2,7 +2,6 @@ import type { Command } from 'commander';
 import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import { quoteData } from '../core/advise-nominations.js';
 import {
   appendIncident,
@@ -11,16 +10,11 @@ import {
   INCIDENT_TAGS,
   INCIDENTS_FILENAME,
 } from '../io/incidents-store.js';
+import { failAndExit } from './output.js';
 
 function handleError(error: unknown): never {
   debugWrite(`[incident] command failed: ${(error as Error).message}`);
   abortOnUnexpectedError(error, 'running incident command');
-}
-
-/** Emit a blocking what/why/next error to stderr and exit(1) — nothing is written. */
-function failWith(msg: { what: string; why: string; next: string }): never {
-  process.stderr.write(chalk.red(`Error: ${buildIssueMessage(msg)}`) + '\n');
-  process.exit(1);
 }
 
 export function registerIncidentCommand(program: Command): void {
@@ -47,7 +41,7 @@ export function registerIncidentCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
 
         if (!isValidIncidentTag(opts.tag)) {
-          failWith({
+          failAndExit({
             what: `--tag '${opts.tag}' is not a recognized incident cause.`,
             why: 'Each incident is tagged by CAUSE so the shape of what enforcement misses stays legible; an unknown tag would make that record meaningless.',
             next: `Re-run with one of: ${INCIDENT_TAGS.join(', ')}.`,
@@ -55,7 +49,7 @@ export function registerIncidentCommand(program: Command): void {
         }
 
         if (opts.reason.trim() === '') {
-          failWith({
+          failAndExit({
             what: 'An incident needs a non-empty --reason.',
             why: 'The ledger is human testimony: the entry must say WHAT escaped and HOW it surfaced, or it records nothing worth committing.',
             next: 'Re-run with --reason "<what escaped enforcement and how it surfaced>".',
@@ -67,7 +61,7 @@ export function registerIncidentCommand(program: Command): void {
         // rule that does not exist would poison the per-rule health signal, so it is
         // rejected before anything is written.
         if (opts.aspect !== undefined && !graph.aspects.some((a) => a.id === opts.aspect)) {
-          failWith({
+          failAndExit({
             what: `--aspect '${opts.aspect}' is not an aspect declared in this graph.`,
             why: 'Per-rule attribution names the miscalibrated rule so per-rule health can surface it against the right rule; an unknown id would attribute the escape to a rule that does not exist.',
             next: 'List the declared rules with yg aspects, then re-run with --aspect <existing-aspect-id> — or omit --aspect to record an unattributed incident.',

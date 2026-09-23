@@ -1,0 +1,29 @@
+$ yg check --aspect no-todo
+exit: 1
+--- stdout
+FAIL  (aspect 'no-todo' — 8 of 34 errors)
+
+Errors (8):
+
+  enforced  8 pairs  8 nodes  aspect 'no-todo'
+            A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
+            Fix: Fix the listed violations, then: yg check --approve
+            - app/svc-03  Violations:
+              src/svc-03/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-06  Violations:
+              src/svc-06/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-09  Violations:
+              src/svc-09/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-12  Violations:
+              src/svc-12/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-15  Violations:
+              src/svc-15/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-18  Violations:
+              src/svc-18/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-21  Violations:
+              src/svc-21/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-24  Violations:
+              src/svc-24/index.ts:2: TODO marker left in shipped code — move it to the tracker
+
+Next (this group): Fix the listed violations, then: yg check --approve
+--- stderr

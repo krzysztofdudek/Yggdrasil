@@ -1,0 +1,7 @@
+$ yg log add --node nope --reason x
+exit: 1
+--- stdout
+--- stderr
+Node not found: nope
+Node must exist in the graph before log entries can be added.
+Create yg-node.yaml first, or fix the --node argument.

@@ -1,7 +1,24 @@
 import { walk, report, inFile, closest } from '@chrisdudek/yg/ast';
 
-// Approved error-emission helpers that wrap buildIssueMessage internally.
-const ALLOWED_HELPERS = new Set(['loadGraphOrAbort', 'abortOnUnexpectedError']);
+// Approved error-emission helpers that wrap buildIssueMessage internally: the
+// graph-load / unexpected-error funnels, and the CLI output layer's error,
+// notice and block renderers (cli/output.ts), which every command now reports
+// a failure through. Matched against the callee of a real call expression in
+// the enclosing scope — never as a substring — so a function merely NAMED
+// `fail`, a `failAndExit` read as `fail`, or an unrelated `detail(` can never
+// pass for a call to one of them.
+const ALLOWED_HELPERS = new Set(['loadGraphOrAbort', 'abortOnUnexpectedError', 'fail', 'failAndExit', 'notice', 'block']);
+
+/** True when `scope` contains a call whose callee is one of ALLOWED_HELPERS. */
+function callsAllowedHelper(scope) {
+  let found = false;
+  walk(scope, (n) => {
+    if (found || n.type !== 'call_expression') return;
+    const callee = n.childForFieldName('function');
+    if (callee !== null && callee.type === 'identifier' && ALLOWED_HELPERS.has(callee.text)) found = true;
+  });
+  return found;
+}
 
 // The function/method kinds whose body scopes an error write. A stderr.write is
 // compliant when its ENCLOSING function constructs its message via
@@ -62,15 +79,13 @@ export function check(ctx) {
 
       if (scopeText.includes('buildIssueMessage(')) return;
 
-      for (const h of ALLOWED_HELPERS) {
-        if (scopeText.includes(`${h}(`)) return;
-      }
+      if (enclosing ? callsAllowedHelper(enclosing) : [...ALLOWED_HELPERS].some((h) => scopeText.includes(`${h}(`))) return;
 
       violations.push(
         report(
           file,
           node,
-          'raw stderr error write — command errors must be constructed via buildIssueMessage or routed through loadGraphOrAbort / abortOnUnexpectedError',
+          'raw stderr error write — command errors must go through the output layer (fail / failAndExit / notice / block), buildIssueMessage, or loadGraphOrAbort / abortOnUnexpectedError',
         ),
       );
     });

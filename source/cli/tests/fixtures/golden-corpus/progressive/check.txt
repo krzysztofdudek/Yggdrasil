@@ -1,0 +1,28 @@
+$ yg check
+exit: 1
+--- stdout
+yg check: FAIL  3 nodes · 3/3 files · 1 aspects · 0 flows · 1 verified (1 deterministic, 0 LLM) · 1 obligation outside your changes vs main (1 changed input)
+
+1 enforced finding held outside it stands on code this change did not touch — that is the baseline this repository already had, not a result of your change.
+
+Errors (1):
+
+  unverified (stale — inputs changed since the verdict)  1 pairs  1 nodes
+            A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.
+            Fix: yg check --approve
+            - alpha  aspect 'no-todo-comments'
+
+Warnings (2) in 2 groups:
+
+  rules-digest-stale
+            Committed agent-rules digest is out of sync: AGENTS.md digest block is missing; .clinerules/yggdrasil.md is missing; CLAUDE.md @AGENTS.md import is missing.
+            Why: Agents read the committed digest before running yg prime; a stale, hand-edited, or missing digest means agents may follow outdated rules or none at all.
+            Fix: yg init --upgrade
+
+  enforced (outside changes)  1 pairs  1 nodes  aspect 'no-todo-comments'
+            A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
+            - beta  Violations:
+              src/beta/beta.ts:1: TODO comment found — remove it or track the work in the issue tracker.
+
+Next: yg check --approve
+--- stderr

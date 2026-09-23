@@ -11,7 +11,6 @@ import { readTextFile } from '../io/graph-fs.js';
 import { toPosixPath } from '../utils/posix.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import {
   ADAPT_FILENAME,
   MARKETPLACE_FILENAME,
@@ -60,6 +59,7 @@ import {
 import { runUpdate } from './pack-update.js';
 import type { UpdateOptions } from './pack-update.js';
 import { cliVersion } from './cli-version.js';
+import { fail } from './output.js';
 
 /**
  * `yg pack` — install law published by someone else, keep it as they published
@@ -107,18 +107,14 @@ async function runPackAction(body: () => Promise<number>): Promise<void> {
       debugWrite(`[pack] command refused: ${error.message}`);
     }
     if (error instanceof PackRefusal) {
-      process.stderr.write(chalk.red(`Error: ${buildIssueMessage(error.messageData)}`) + '\n');
+      fail(error.messageData);
       code = 1;
     } else if (error instanceof PackCommandBusyError) {
-      process.stderr.write(
-        chalk.red(
-          `Error: ${buildIssueMessage({
+      fail({
             what: `Another yg pack command${error.holderPid === null ? '' : ` (process ${error.holderPid})`} is changing this repository's packages right now.`,
             why: `Two commands changing .yggdrasil/${PACKAGES_LOCK_FILENAME} at once would each write back the record they read, and one package would silently drop out of it. Nothing was changed.`,
             next: `Wait for it to finish and run this again. If no pack command is running, delete ${toPosixPath(error.lockPath)} and run this again.`,
-          })}`,
-        ) + '\n',
-      );
+          });
       code = 1;
     } else {
       handleError(error);

@@ -21,6 +21,7 @@ import type { Graph, AspectDef } from '../model/graph.js';
 import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import type { LockVerification } from './verify-lock.js';
 import type { ProgressTracker } from './fill-progress.js';
+import type { FillEventSink } from '../model/fill-event.js';
 import type { VerdictWriter } from './fill-writer.js';
 import type { InfraDiagnosticItem } from './fill-report.js';
 import { detGateKey, isNodeBlocked } from './fill-contract.js';
@@ -86,12 +87,13 @@ export interface DetPhaseParams {
   reachCache: Map<string, Set<string>>;
   writer: VerdictWriter;
   tracker: ProgressTracker;
-  write: (s: string) => void;
+  /** Where progress events go (see model/fill-event.ts). */
+  emit: FillEventSink;
 }
 
 export async function runDeterministicPhase({
   graph, projectRoot, detPairs, aspectById, verification, blockedNodes,
-  detConcurrency, detTaskBudgetMs = 0, typeCoverage, reachCache, writer, tracker, write,
+  detConcurrency, detTaskBudgetMs = 0, typeCoverage, reachCache, writer, tracker, emit,
 }: DetPhaseParams): Promise<DetPhaseResult> {
   const result: DetPhaseResult = {
     detEnforcedRefusedNodes: new Set<string>(),
@@ -136,7 +138,7 @@ export async function runDeterministicPhase({
       result.runtimeErrors += 1;
       // No write — pair stays unverified, reported as aspect-check-runtime-error.
       writer.emitEvent(pair.aspectId, toPosixPath(pair.unitKey), 'deterministic', 'runtime-error');
-      tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', write);
+      tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', emit);
       // A component-free pair is the ONLY case core/type-visibility.ts's report
       // can ever attribute a disposition to (there is no type-covered "file" to
       // name for a component's own pair) — collect the raw code for the
@@ -152,14 +154,14 @@ export async function runDeterministicPhase({
       // No write — a fault in the source file's marker, not check.mjs; a DISTINCT
       // disposition never reported as aspect-check-runtime-error.
       writer.emitEvent(pair.aspectId, toPosixPath(pair.unitKey), 'deterministic', 'malformed-suppress');
-      tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', write);
+      tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), 'infra', emit);
       return { kind: 'suppress', item: { aspectId: pair.aspectId, unitKey: toPosixPath(pair.unitKey), messageData: outcome.messageData } };
     }
     // Real verdict — write the entry (setEntry emits the verdict telemetry event).
     await writer.setEntry(pair, outcome.entry);
     if (outcome.entry.verdict === 'refused') result.refused += 1;
     else result.approved += 1;
-    tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), outcome.entry.verdict, write);
+    tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), outcome.entry.verdict, emit);
     if (outcome.entry.verdict === 'refused' && pair.status === 'enforced') {
       result.detEnforcedRefusedNodes.add(detGateKey(pair));
     }
@@ -236,7 +238,7 @@ export async function runDeterministicPhase({
         const wave = activeDetPairs.slice(start, start + detPoolSize);
         await Promise.all(
           wave.map(async ({ pair, aspect }, offset) => {
-            tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
+            tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), emit);
             const outcome = await fillDetPair(
               graph, projectRoot, pair, aspect, runViaPool(parseCacheBucketKey(pair)), typeCoverage, reachCache,
             );
@@ -262,7 +264,7 @@ export async function runDeterministicPhase({
     const parseCacheBuckets = buildParseCacheBuckets(activeDetPairs.map(({ pair }) => pair));
     try {
       for (const { pair, aspect } of activeDetPairs) {
-        tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), write);
+        tracker.onPairStart('det', pair.aspectId, toPosixPath(pair.unitKey), emit);
         const bucket = parseCacheBuckets.get(parseCacheBucketKey(pair));
         try {
           const outcome = await fillDetPair(graph, projectRoot, pair, aspect, runStructureAspect, typeCoverage, reachCache, bucket?.cache);

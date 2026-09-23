@@ -1,0 +1,10 @@
+$ yg init
+exit: 0
+--- stdout
+Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.
+  Working now, free: script rules, dependency control, yg check in CI.
+  Add a judge for judgment rules any time: yg init --provider <name> [--model <m>].
+  Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
+  All changes are plain files — review them with git diff before committing.
+  Run yg check to get started.
+--- stderr

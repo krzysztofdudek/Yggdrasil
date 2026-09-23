@@ -1,6 +1,4 @@
-import chalk from 'chalk';
 import { join } from 'node:path';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import { collectAncestors } from '../core/context-builder.js';
 import { computeEffectiveAspects, computeEffectiveAspectStatuses } from '../core/graph/aspects.js';
 import {
@@ -21,6 +19,7 @@ import { resolveCompanionsForPair } from '../core/companion-resolve.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import type { Graph } from '../model/graph.js';
 import type { LockFile } from '../model/lock.js';
+import { fail } from './output.js';
 
 /**
  * The type-level classification lattice (coverage.type_level), classified for
@@ -126,11 +125,11 @@ export async function handleAspectImpact(
 ): Promise<void> {
   const aspect = graph.aspects.find((a) => a.id === aspectId);
   if (!aspect) {
-    process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+    fail({
       what: `Aspect not found: ${aspectId}`,
       why: 'The aspect id must match a directory name under .yggdrasil/aspects/.',
       next: 'Run: yg aspects — to list all defined aspects.',
-    })}\n`));
+    });
     process.exit(1);
   }
 
@@ -545,11 +544,11 @@ export async function handleFlowImpact(
 ): Promise<void> {
   const flow = graph.flows.find((f) => f.name === flowName || f.path === flowName);
   if (!flow) {
-    process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+    fail({
       what: `Flow not found: ${flowName}`,
       why: 'The flow name must match a directory name under .yggdrasil/flows/.',
       next: 'Run: yg flows — to list all defined flows.',
-    })}\n`));
+    });
     process.exit(1);
   }
 
@@ -662,11 +661,11 @@ export async function handleTypeImpact(graph: Graph, typeId: string, lock: LockF
   // Object.prototype members (constructor, toString, valueOf, hasOwnProperty),
   // fabricating a zero-impact report for a type that does not exist.
   if (!Object.keys(graph.architecture.node_types).includes(typeId)) {
-    process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+    fail({
       what: `Type '${typeId}' not found in architecture.`,
       why: 'The type id must match a node_types key in .yggdrasil/yg-architecture.yaml.',
       next: 'Read .yggdrasil/yg-architecture.yaml to see defined types.',
-    })}\n`));
+    });
     process.exit(1);
   }
   const def = graph.architecture.node_types[typeId];

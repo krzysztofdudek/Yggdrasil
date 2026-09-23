@@ -1,0 +1,7 @@
+$ yg log add --node app/svc-01
+exit: 1
+--- stdout
+--- stderr
+Exactly one of --reason or --reason-file is required
+Cannot provide both, cannot provide neither.
+Pass --reason "<text>" OR --reason-file <path>.

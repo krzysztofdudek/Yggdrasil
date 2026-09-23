@@ -1,0 +1,129 @@
+$ yg check --json
+exit: 1
+--- stdout
+{
+  "schema": "yg-check/1",
+  "project": {
+    "name": "<ROOT-NAME>",
+    "nodes": 3,
+    "aspects": 1,
+    "flows": 1
+  },
+  "exit": {
+    "code": 1,
+    "status": "fail",
+    "reason": "5 blocking findings and 1 warning."
+  },
+  "coverage": {
+    "files": 7,
+    "covered": 2,
+    "nodeOwned": null,
+    "typeCovered": null,
+    "excluded": null,
+    "requiresNothing": false
+  },
+  "totals": {
+    "errors": 5,
+    "warnings": 1,
+    "draftSkipped": 0,
+    "verdicts": {
+      "approved": 0,
+      "refused": 0,
+      "unverified": 2,
+      "stale": 0,
+      "prompt-too-large": 0,
+      "companion-error": 0
+    },
+    "verified": {
+      "deterministic": 0,
+      "llm": 0
+    }
+  },
+  "pairs": [
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "node": "app/svc-01",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "node": "app/svc-03",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    }
+  ],
+  "issues": [
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'no-todo' on node:app/svc-01.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "no-todo",
+      "node": "app/svc-01",
+      "unit": "node:app/svc-01",
+      "cause": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'no-todo' on node:app/svc-03.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "no-todo",
+      "node": "app/svc-03",
+      "unit": "node:app/svc-03",
+      "cause": "deterministic-not-run"
+    },
+    {
+      "code": "yaml-invalid",
+      "severity": "error",
+      "what": "yg-node.yaml parse error in app/svc-02.",
+      "why": "Flow sequence in block collection must be sufficiently indented and end with a ] at line 7, column 1:\n\nbad: [unclosed\n\n^\n",
+      "next": "Fix the YAML in .yggdrasil/model/app/svc-02/yg-node.yaml.",
+      "node": "app/svc-02"
+    },
+    {
+      "code": "flow-node-broken",
+      "severity": "error",
+      "what": "Flow 'Checkout' references non-existent node 'app/svc-02'.",
+      "why": "Flow participants must exist in the graph.",
+      "next": "Fix the nodes list in yg-flow.yaml or create the missing node."
+    },
+    {
+      "code": "unmapped-files",
+      "severity": "error",
+      "what": "1 source file not covered by any node.\n  src/svc-02/index.ts",
+      "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners."
+    },
+    {
+      "code": "uncovered-advisory",
+      "severity": "warning",
+      "what": "4 coverage-visible files outside any required coverage root.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error."
+    }
+  ],
+  "judges": [],
+  "progressive": null,
+  "suggestedNext": "yg check --approve --only-deterministic"
+}
+--- stderr

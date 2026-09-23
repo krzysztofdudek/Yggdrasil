@@ -1,0 +1,7 @@
+$ yg log read --node nope
+exit: 1
+--- stdout
+--- stderr
+Node not found: nope
+Node must exist in the graph before its log can be read.
+Check the --node argument, or create the node first.

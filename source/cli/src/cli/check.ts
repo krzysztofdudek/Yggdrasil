@@ -1,6 +1,5 @@
 // yg-suppress-disable(deterministic) the inherent --approve LLM writer call; the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import { Command, Option } from 'commander';
-import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
@@ -23,6 +22,8 @@ import { formatOutput, type CheckView, resolveTopValue } from './check-render-vi
 import { CHECK_JSON_SCHEMA, formatCheckJson } from '../formatters/check-json.js';
 import { buildCheckJson } from '../core/check-json.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';
+import { fail, notice } from './output.js';
+import { textFillSink } from '../formatters/fill-text.js';
 
 /**
  * Resolve the effective approve mode from explicit CLI flags and graph config.
@@ -182,11 +183,11 @@ export function registerCheckCommand(program: Command): void {
         // rawArgs is set by commander on parse but absent from its typings.
         const rawArgs = (cmd.parent as unknown as { rawArgs?: string[] } | null)?.rawArgs ?? process.argv;
         if (rawArgs.includes('--approve') && rawArgs.includes('--no-approve')) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--approve cannot be combined with --no-approve.',
             why: '--approve asks for a fill (it writes verdicts); --no-approve forces a read-only check. Both set the same switch, so whichever came last would silently win — the run would depend on argument order.',
             next: 'Run: yg check --approve (fill), or yg check --no-approve (read-only).',
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
@@ -235,11 +236,11 @@ export function registerCheckCommand(program: Command): void {
         // are themselves written to avoid.
         if (asJson && (wantsTop || opts.summary || opts.details || opts.aspect !== undefined)) {
           const viewFlag = wantsTop ? '--top' : opts.summary ? '--summary' : opts.details ? '--details' : '--aspect';
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: `${viewFlag} cannot be combined with --json.`,
             why: `${viewFlag} narrows the TEXT report — fewer blocks, same counts. --json emits one machine document that always carries the whole run, so there is nothing for a narrowing flag to narrow, and a document trimmed to a few findings would read as a smaller problem instead of a smaller rendering.`,
             next: `Run: yg check --json (the whole run as a document), or yg check ${viewFlag}${opts.aspect !== undefined ? ' <id>' : wantsTop ? ' <n>' : ''} (the narrowed text view).`,
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
@@ -250,20 +251,20 @@ export function registerCheckCommand(program: Command): void {
         // per-type listing, so --coverage would have nothing to add to it and
         // would be silently ignored. Say so instead.
         if (asJson && opts.coverage) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--coverage cannot be combined with --json.',
             why: '--coverage adds the per-type coverage LISTING to the text report. The --json document reports coverage as aggregate counts (files, covered, node-owned, type-covered, excluded) and has never carried the per-type breakdown, so there is nothing for --coverage to add — accepting it would silently do nothing.',
             next: 'Run: yg check --coverage (the text report with the per-type listing), or yg check --json (the machine document with the coverage counts).',
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
         if (wantsTop && opts.summary) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--top and --summary cannot be combined.',
             why: 'Both are read-only triage VIEWS of the same `yg check` result — --top renders the N highest-priority blocks, --summary renders per-node counts only. Asking for both at once is ambiguous; pick one lens.',
             next: 'Run: yg check --top <n> (priority blocks), or yg check --summary (per-node counts).',
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
@@ -276,11 +277,11 @@ export function registerCheckCommand(program: Command): void {
         // the plain "no confirmed verdict" COUNT here (that fact costs
         // nothing extra: result.issues already has it regardless of view).
         if ((wantsTop || opts.summary) && opts.approve) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: `${wantsTop ? '--top' : '--summary'} cannot be combined with --approve.`,
             why: '--top and --summary triage the READ-ONLY check wall (they narrow the output of plain `yg check`, which writes nothing). --approve is the writer path; its own free cost preview is --dry-run. Mixing a read-only triage view with the writer is contradictory.',
             next: `Run: yg check ${wantsTop ? '--top <n>' : '--summary'} (read-only triage), or yg check --approve --dry-run (preview the writer's cost).`,
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
@@ -294,59 +295,59 @@ export function registerCheckCommand(program: Command): void {
         // read-only flag; this covers the implicit read-only of a triage view.)
         if (opts.onlyDeterministic && (wantsTop || opts.summary || opts.details || opts.aspect !== undefined)) {
           const viewFlag = wantsTop ? '--top' : opts.summary ? '--summary' : opts.details ? '--details' : '--aspect';
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: `${viewFlag} cannot be combined with --only-deterministic.`,
             why: `${viewFlag} is a READ-ONLY view of the plain \`yg check\` result (it narrows output and writes nothing). --only-deterministic is a FILL flag (it implies --approve, writing the deterministic verdict cache). Mixing a read-only view with the writer would silently drop the fill — the deterministic pairs would NOT be filled.`,
             next: `Run: yg check ${viewFlag}${opts.aspect !== undefined ? ' <id>' : wantsTop ? ' <n>' : ''} (read-only view), or yg check --approve --only-deterministic (deterministic fill).`,
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
         if (opts.details && (wantsTop || opts.summary)) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--details cannot be combined with --top or --summary.',
             why: '--details, --top, and --summary are all mutually exclusive read-only views of the same `yg check` result — each presents the issue set through a different lens. Asking for more than one at once is ambiguous; pick one.',
             next: 'Run: yg check --details (ungrouped per-issue), yg check --top <n> (priority blocks), or yg check --summary (per-node counts).',
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
         if (opts.details && opts.approve) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--details cannot be combined with --approve.',
             why: '--details is a read-only view of the plain `yg check` result (it writes nothing). --approve is the writer path. Mixing a read-only view with the writer is contradictory.',
             next: 'Run: yg check --details (read-only ungrouped view), or yg check --approve (fill unverified pairs).',
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
         if (opts.approve === false && opts.onlyDeterministic) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--no-approve cannot be combined with --only-deterministic.',
             why: '--no-approve forces a read-only check (no fill); --only-deterministic asks for a deterministic FILL. The two are contradictory.',
             next: 'Run: yg check --no-approve (read-only), or yg check --approve --only-deterministic (deterministic fill).',
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
         if (opts.aspect !== undefined) {
           // --aspect is a read-only drill-in view and cannot combine with writer or other views.
           if (opts.approve) {
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            fail({
               what: '--aspect cannot be combined with --approve.',
               why: '--aspect is a read-only drill-in view (it writes nothing). --approve is the writer path. Mixing a read-only view with the writer is contradictory.',
               next: 'Run: yg check --aspect <id> (read-only drill-in), or yg check --approve (fill unverified pairs).',
-            })}`) + '\n');
+            });
             await exitAfterFlush(1);
             return;
           }
           if (wantsTop || opts.summary || opts.details) {
             const conflicting = wantsTop ? '--top' : opts.summary ? '--summary' : '--details';
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            fail({
               what: `--aspect cannot be combined with ${conflicting}.`,
               why: '--aspect, --top, --summary, and --details are all mutually exclusive read-only views of the same `yg check` result. Asking for more than one at once is ambiguous; pick one.',
               next: `Run: yg check --aspect <id> (drill-in view), or yg check ${conflicting} (that view alone).`,
-            })}`) + '\n');
+            });
             await exitAfterFlush(1);
             return;
           }
@@ -364,11 +365,11 @@ export function registerCheckCommand(program: Command): void {
                 : idList.length <= 30
                   ? `Known aspect ids: ${idList.join(', ')}.`
                   : `The graph defines ${idList.length} aspects.`;
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            fail({
               what: `Unknown aspect '${opts.aspect}'.`,
               why: `--aspect drills into ONE rule by its aspect id, but '${opts.aspect}' is not an aspect defined in this graph — so the filter would match nothing and render a misleading "0 of N errors" view. ${known}`,
               next: 'Run: yg aspects (list every aspect id), then yg check --aspect <id> with a real id; or yg check (full wall).',
-            })}`) + '\n');
+            });
             await exitAfterFlush(1);
             return;
           }
@@ -387,11 +388,11 @@ export function registerCheckCommand(program: Command): void {
         } else if (wantsTop) {
           const n = resolveTopValue(opts.top);
           if (n === null) {
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            fail({
               what: `--top expects a positive whole number (1 or more); got "${String(opts.top)}".`,
               why: '--top N prints the N highest-priority issue blocks. Zero, a negative, fractional, or non-numeric value is meaningless, and printing the full wall instead would silently hide that the flag was ignored — masking the very output you tried to narrow.',
               next: 'Run: yg check --top 5 (top 5 blocks), yg check --top (the single suggested-next group), or yg check (full output).',
-            })}`) + '\n');
+            });
             await exitAfterFlush(1);
             return;
           }
@@ -415,11 +416,11 @@ export function registerCheckCommand(program: Command): void {
           graph.config?.auto_approve === 'full' &&
           isCiEnvironment(process.env)
         ) {
-          process.stderr.write(chalk.yellow(`Notice: ${buildIssueMessage({
+          notice({
             what: "auto-approve: full ignored — CI is set, so bare 'yg check' stays read-only and calls no reviewer.",
             why: 'auto_approve lives in the committed yg-config.yaml, so a local convenience reaches every pipeline; in CI a config-driven fill would record fresh verdicts over a change nobody re-verified. Verdicts are recorded where the change is made, and CI only re-proves them.',
             next: 'Nothing, for the gate: the read-only result below is the CI answer. To record verdicts in this run anyway, pass --approve explicitly.',
-          })}`) + '\n');
+          });
         }
 
         // --dry-run is a preview MODE of --approve, not a standalone alias for the
@@ -430,11 +431,11 @@ export function registerCheckCommand(program: Command): void {
           // only `--no-approve` names the free read there.
           const autoApproveOn = graph.config.auto_approve === 'deterministic' || graph.config.auto_approve === 'full';
           const plainRead = autoApproveOn ? 'yg check --no-approve' : 'yg check';
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--dry-run requires --approve.',
             why: `--dry-run previews what \`yg check --approve\` would fill (the reviewer-call budget and per-node breakdown) without writing or calling the reviewer; it is a mode of --approve, not a variant of the plain read. ${autoApproveOn ? `This project sets auto_approve: ${String(graph.config.auto_approve)}, so a bare \`yg check\` fills; \`yg check --no-approve\` is the free, no-write read.` : 'Plain `yg check` is already a free, no-write read.'}`,
             next: `Run: yg check --approve --dry-run (cost preview), or ${plainRead} (plain read).`,
-          })}`) + '\n');
+          });
           await exitAfterFlush(1);
           return;
         }
@@ -472,7 +473,7 @@ export function registerCheckCommand(program: Command): void {
           : decision.kind === 'scoped' ? decision.notice
           : undefined;
         if (scopeNotice !== undefined) {
-          process.stderr.write(chalk.yellow(`Notice: ${buildIssueMessage(scopeNotice)}`) + '\n');
+          notice(scopeNotice);
         }
         const changeScope =
           decision.kind === 'scoped'
@@ -572,13 +573,15 @@ export function registerCheckCommand(program: Command): void {
               // --dry-run is tested FIRST, before --quiet, on both branches: the
               // preview outranks --quiet whether or not --json moved it (the JSON
               // document carries the same budget as numbers in dryRunBudget).
-              write: isDryRun
+              // Every fill event is worded by the fill-text formatter; only the
+              // stream it lands on is decided here.
+              onEvent: isDryRun
                 ? asJson
-                  ? (s: string) => { process.stderr.write(s); }
-                  : (s: string) => { process.stdout.write(s); }
+                  ? textFillSink((s: string) => { process.stderr.write(s); })
+                  : textFillSink((s: string) => { process.stdout.write(s); })
                 : isQuiet
                   ? () => {}
-                  : (s: string) => { process.stderr.write(s); },
+                  : textFillSink((s: string) => { process.stderr.write(s); }),
               isTTY: !isQuiet && (process.stderr.isTTY ?? false),
               now: Date.now,
               // Width for the single rewritten progress line, so it stays one

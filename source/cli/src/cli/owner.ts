@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { access } from 'node:fs/promises';
-import chalk from 'chalk';
 import { Command } from 'commander';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
@@ -29,6 +28,7 @@ import { readLock } from '../io/lock-store.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
+import { fail } from './output.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -116,15 +116,11 @@ export function registerOwnerCommand(program: Command): void {
         if (!options.file) {
           // Emit a structured what/why/next error instead of Commander's bare
           // "required option not specified" line.
-          process.stderr.write(
-            chalk.red(
-              `Error: ${buildIssueMessage({
+          fail({
                 what: '--file is required.',
                 why: 'yg owner resolves which graph node owns a specific source file, so it needs that file path.',
                 next: 'Re-run as: yg owner --file <path>',
-              })}\n`,
-            ),
-          );
+              });
           process.exit(1);
         }
         const graph = await loadGraphOrAbort(process.cwd());
@@ -209,12 +205,11 @@ export function registerOwnerCommand(program: Command): void {
             // via describeCascadeCycle, so the surfaces cannot disagree.
             const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId, edges).cycle;
             if (cascadeCycle) {
-              const cycleMsg = buildIssueMessage({
+              fail({
                 what: `${result.file} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
                 why: describeCascadeCycle(cascadeCycle),
                 next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
               });
-              process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));
               process.exit(1);
             }
             // Enumerates pairs scoped to THIS ONE FILE (a single-entry covered
@@ -306,11 +301,11 @@ export function registerOwnerCommand(program: Command): void {
         const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
         if (outsideRoot) {
           debugWrite(`[owner] file arg outside project root: ${msg}`);
-          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+          fail({
             what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
             why: `yg owner resolves ownership only for files tracked inside the project.`,
             next: `Pass a path inside the project root (relative to the repo).`,
-          }) + '\n'));
+          });
           process.exit(1);
         }
         abortOnUnexpectedError(error, 'resolving file owner');

@@ -5,7 +5,6 @@ import path from 'node:path';
 import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import {
   buildNominations,
   buildAttention,
@@ -60,6 +59,7 @@ import {
 import { isValidReviewByDate } from '../io/aspect-parser.js';
 import { countLiveDeviationFiles } from '../core/feature-index-read.js';
 import type { Graph } from '../model/graph.js';
+import { failAndExit } from './output.js';
 
 /** The hard cap on rendered nominations (spec §7.2). `--all` removes it. */
 const NOMINATION_CAP = 10;
@@ -82,12 +82,6 @@ const CHURN_WINDOW = 200;
 function handleError(error: unknown): never {
   debugWrite(`[advise] command failed: ${(error as Error).message}`);
   abortOnUnexpectedError(error, 'running advise command');
-}
-
-/** Emit a blocking what/why/next error to stderr and exit(1) — nothing is written. */
-function failWith(msg: { what: string; why: string; next: string }): never {
-  process.stderr.write(chalk.red(`Error: ${buildIssueMessage(msg)}`) + '\n');
-  process.exit(1);
 }
 
 // ---------------------------------------------------------------------------
@@ -921,7 +915,7 @@ function resolveNominationOrFail(noms: Nomination[], id: string): Nomination {
   const nomination = noms.find((n) => n.id === id);
   if (nomination === undefined) {
     const knownIds = noms.map((n) => quoteData(n.id));
-    failWith({
+    failAndExit({
       what: `No current attention item has id '${quoteData(id)}'.`,
       why:
         knownIds.length > 0
@@ -951,7 +945,7 @@ async function readImportSource(source: string): Promise<string> {
     return await readFile(path.resolve(process.cwd(), source), 'utf-8');
   } catch (err) {
     debugWrite(`[advise] import source unreadable: ${err instanceof Error ? err.message : String(err)}`);
-    failWith({
+    failAndExit({
       what: `The proposal document '${quoteData(source)}' could not be read.`,
       why: 'An import reads one whole document; without it there is nothing to bring into the feed.',
       next: `Check the path, or pipe the producer's own output in with: yg advise import -`,
@@ -962,7 +956,7 @@ async function readImportSource(source: string): Promise<string> {
 /** Reject an empty (or whitespace-only) reason before anything is written. */
 function requireNonEmptyReason(reason: string, action: 'dismiss' | 'defer'): void {
   if (reason.trim() !== '') return;
-  failWith({
+  failAndExit({
     what: `A ${action} needs a non-empty --reason.`,
     why: 'Each recorded decision is committed precedent, so it must carry a human-signed justification; an empty reason records nothing meaningful.',
     next: `Re-run with --reason "<why you are choosing to ${action} this item>".`,
@@ -999,7 +993,7 @@ export function registerAdviseCommand(program: Command): void {
           const passed = [opts.all === true ? '--all' : null, opts.ids === true ? '--ids' : null]
             .filter((f): f is string => f !== null)
             .join(' and ');
-          failWith({
+          failAndExit({
             what: `${passed} cannot be combined with --json.`,
             why: 'Both shape the feed for a reader: --all lifts the ten-item display cap and --ids prints an id under each item. The machine document already carries every visible item, uncapped, each with its id — so neither flag could change it, and accepting one would suggest it had.',
             next: 'Run: yg advise --json (the whole feed as one document), or drop --json for the reader view.',
@@ -1067,7 +1061,7 @@ export function registerAdviseCommand(program: Command): void {
         // parser keeps none of its own.
         const nowIso = new Date().toISOString();
         const parsed = parseGrainAdvice(text, nowIso);
-        if (!parsed.ok) failWith(parsed.error);
+        if (!parsed.ok) failAndExit(parsed.error);
 
         const existing = readImported(graph.rootPath).imported;
         const { fresh, alreadyHeld } = partitionNewImports(parsed.records, existing);
@@ -1132,7 +1126,7 @@ export function registerAdviseCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         requireNonEmptyReason(opts.reason, 'defer');
         if (!isValidReviewByDate(opts.until)) {
-          failWith({
+          failAndExit({
             what: `--until '${quoteData(opts.until)}' is not a valid calendar date.`,
             why: 'A defer window is a bare ISO calendar day (YYYY-MM-DD); a mis-shaped or impossible date has no defined return point.',
             next: 'Re-run with --until in YYYY-MM-DD form, e.g. --until 2027-01-31.',

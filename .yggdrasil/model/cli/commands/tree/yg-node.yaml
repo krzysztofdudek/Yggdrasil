@@ -18,6 +18,8 @@ description: >-
   ever being worked out by an aspect implies cycle.
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/model/graph

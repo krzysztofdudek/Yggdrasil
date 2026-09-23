@@ -61,8 +61,11 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // edge to every command it registers, so it gains exactly one with each new
     // command — which is the routine growth its own recorded fan-out allowance
     // exists to absorb. That broke the tie it previously held with cli/core/fill
-    // at 25 and put it above, level with nothing. cli/core/fill is unchanged at
-    // 25 and cli/core/check at 24. cli/portal/engine-api dropped from 23 to 22
+    // at 25 and put it above, level with nothing. cli/core/fill moved from 25 to
+    // 26 when the fill stage stopped writing its own sentences: it emits events,
+    // and on behalf of a caller that passes only a plain-text sink it hands them
+    // to the formatters' fill-text renderer — a real edge, reviewed on the node's
+    // own allowance. cli/core/check is at 24. cli/portal/engine-api dropped from 23 to 22
     // when it stopped loading the graph through the command-line preamble (whose
     // failure path exits the process) and started using the engine's throwing
     // loader, an edge it already declared; it is pinned by PATH rather than by index for the same reason aspect-test
@@ -80,7 +83,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // dispatcher working, and its own node carries a reviewed allowance saying so.
     expect(data.hubs.fanOut[1].count).toBe(27);
     expect(data.hubs.fanOut[2].path).toBe('cli/core/fill');
-    expect(data.hubs.fanOut[2].count).toBe(25);
+    expect(data.hubs.fanOut[2].count).toBe(26);
     expect(data.hubs.fanOut[3].path).toBe('cli/core/check');
     expect(data.hubs.fanOut[3].count).toBe(24);
     const engineApi = data.hubs.fanOut.find((h) => h.path === 'cli/portal/engine-api');
@@ -94,7 +97,8 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // failure mode a past dogfood entry recorded for this same test file.
     const aspectTest = data.hubs.fanOut.find((h) => h.path === 'cli/commands/aspect-test');
     expect(aspectTest).toBeDefined();
-    expect(aspectTest!.count).toBe(20);
+    // 21 since its errors go through the shared CLI output layer, one more edge.
+    expect(aspectTest!.count).toBe(21);
     expect(aspectTest!.count).toBeLessThan(23);
     // descending order invariant.
     for (let i = 1; i < data.hubs.fanOut.length; i++) {

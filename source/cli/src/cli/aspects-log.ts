@@ -1,10 +1,8 @@
 import type { Command } from 'commander';
-import chalk from 'chalk';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { readLock } from '../io/lock-store.js';
 import {
@@ -26,7 +24,7 @@ import {
   type AspectLogJsonEntry,
 } from '../formatters/aspect-log-json.js';
 import type { AspectDef, Graph } from '../model/graph.js';
-import type { IssueMessage } from '../model/validation.js';
+import { failAndExit } from './output.js';
 
 /**
  * `yg aspects log add` / `yg aspects log read` — a rule's own history, written
@@ -86,7 +84,7 @@ export function registerAspectsLogCommand(aspects: Command): void {
           reasonText: body,
           nowMs: Date.now(),
         });
-        if (!result.ok) failWith(result.error);
+        if (!result.ok) failAndExit(result.error);
 
         process.stdout.write(
           `Added a log entry to rule '${aspect.id}'.\nTimestamp: ${result.datetime}\n`,
@@ -114,7 +112,7 @@ export function registerAspectsLogCommand(aspects: Command): void {
         // history, because the rule history document is read by other tools that
         // expect every entry unless they ask for fewer.
         if (opts.top !== undefined && opts.limit !== undefined && opts.top !== opts.limit) {
-          failWith({
+          failAndExit({
             what: `--top ${opts.top} and --limit ${opts.limit} disagree.`,
             why: '--limit is another name for --top; given both with different values, the number of entries shown would be a guess.',
             next: 'Pass one of them: --top <n> (or --limit <n>).',
@@ -123,14 +121,14 @@ export function registerAspectsLogCommand(aspects: Command): void {
         const count = opts.top ?? opts.limit;
         const flag = opts.top !== undefined ? '--top' : '--limit';
         if (count !== undefined && opts.all === true) {
-          failWith({
+          failAndExit({
             what: `${flag} and --all cannot both be given.`,
             why: `${flag} asks for the newest few entries and --all for every one; the two answers differ.`,
             next: `Pass ${flag} <n> for the newest entries, or --all for the whole history.`,
           });
         }
         if (count !== undefined && (!Number.isInteger(count) || count <= 0)) {
-          failWith({
+          failAndExit({
             what: `${flag} '${count}' is not a positive whole number of entries.`,
             why: 'The limit selects how many of the newest entries to show; zero or a fraction selects nothing anybody asked for.',
             next: `Re-run with ${flag} 5, or drop the flag to see the whole history.`,
@@ -138,7 +136,7 @@ export function registerAspectsLogCommand(aspects: Command): void {
         }
 
         const result = await readAspectLog(graph.rootPath, aspect.id, count);
-        if (!result.ok) failWith(result.error);
+        if (!result.ok) failAndExit(result.error);
 
         if (opts.json === true) {
           process.stdout.write(formatAspectLogJson(buildDocument(aspect, result.entries)));
@@ -151,17 +149,11 @@ export function registerAspectsLogCommand(aspects: Command): void {
     });
 }
 
-/** Print a what / why / next block on stderr and exit non-zero. */
-function failWith(msg: IssueMessage): never {
-  process.stderr.write(chalk.red(`Error: ${buildIssueMessage(msg)}`) + '\n');
-  process.exit(1);
-}
-
 /** The rule the entry is about, or a refusal naming how to find the right id. */
 function resolveAspect(graph: Graph, id: string): AspectDef {
   const aspect = graph.aspects.find((a) => a.id === id);
   if (aspect === undefined) {
-    failWith({
+    failAndExit({
       what: `No rule '${id}' in this graph.`,
       why: "A log belongs to the rule it is about, so the rule has to exist before anything can be written to or read from its history.",
       next: 'List the rules with yg aspects, then re-run with --aspect <id>.',
@@ -173,7 +165,7 @@ function resolveAspect(graph: Graph, id: string): AspectDef {
 /** The entry text, from the flag or the file, with exactly one of them required. */
 async function resolveReason(reason: string | undefined, reasonFile: string | undefined): Promise<string> {
   if (reason !== undefined && reasonFile !== undefined) {
-    failWith({
+    failAndExit({
       what: '--reason and --reason-file cannot both be given.',
       why: 'They are two ways to supply the same text; with both, the entry that would be written is whichever one the tool happened to prefer, and the caller cannot tell which.',
       next: 'Pass the text with --reason, or the file that holds it with --reason-file.',
@@ -181,7 +173,7 @@ async function resolveReason(reason: string | undefined, reasonFile: string | un
   }
   if (reason !== undefined) return reason;
   if (reasonFile === undefined) {
-    failWith({
+    failAndExit({
       what: 'The entry has no text.',
       why: "A log entry exists to say why something is the way it is; an entry with nothing in it records that something happened and hides what.",
       next: 'Re-run with --reason "<why>" or --reason-file <path>.',
@@ -191,7 +183,7 @@ async function resolveReason(reason: string | undefined, reasonFile: string | un
     return await readFile(path.resolve(process.cwd(), reasonFile), 'utf-8');
   } catch (err) {
     debugWrite(`[aspects log] reason file unreadable: ${err instanceof Error ? err.message : String(err)}`);
-    failWith({
+    failAndExit({
       what: `The file '${reasonFile}' could not be read.`,
       why: 'It was named as the source of the entry text, so without it there is nothing to record.',
       next: 'Check the path, or pass the text directly with --reason "<why>".',
@@ -214,7 +206,7 @@ async function statusPrefixFor(
 ): Promise<string> {
   const to = opts.status as string;
   if (!(ASPECT_STATUSES as readonly string[]).includes(to)) {
-    failWith({
+    failAndExit({
       what: `'${to}' is not a standing a rule can have.`,
       why: `A rule stands at one of ${ASPECT_STATUSES.join(', ')} — draft enforces nothing, advisory reports without blocking, enforced refuses. Anything else names no authority at all.`,
       next: `Re-run with --status ${ASPECT_STATUSES.join(' | --status ')}.`,
@@ -223,7 +215,7 @@ async function statusPrefixFor(
 
   const actual = currentStatus(aspect);
   if (actual !== to) {
-    failWith({
+    failAndExit({
       what: `Rule '${aspect.id}' stands at ${actual}, not ${to}.`,
       why: "This records a change; it does not make one. The rule's own file is yours to edit, and a history that claimed a change nobody made would be worse than no history at all.",
       next: `Set status: ${to} in .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml, then record it here.`,
@@ -231,7 +223,7 @@ async function statusPrefixFor(
   }
 
   if (opts.evidence === undefined || opts.evidence.trim() === '') {
-    failWith({
+    failAndExit({
       what: 'A change of standing was recorded with no evidence.',
       why: "A rule's standing is the whole of its authority, so what justified moving it is the part of the record that matters most a year later — and the part nobody can reconstruct.",
       next: 'Re-run with --evidence "<what justified it>", e.g. --evidence "two waves clean, no new violations".',
@@ -240,7 +232,7 @@ async function statusPrefixFor(
 
   const previous = await previousStatus(graph, aspect);
   if (previous === to) {
-    failWith({
+    failAndExit({
       what: `Rule '${aspect.id}' already stood at ${to} before this entry, so there is no change of standing to record.`,
       why: "A status entry records a move from one standing to another. Writing one where nothing moved would put a promotion into the rule's history that never happened.",
       next: `Record the note without --status (yg aspects log add --aspect ${aspect.id} --reason "..."), or set a different status: in the rule's yg-aspect.yaml first and record that change.`,

@@ -7,12 +7,12 @@ import { abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
-import type { IssueMessage } from '../model/validation.js';
 import { MARKETPLACE_FILENAME, PACKAGES_DIR } from '../model/packages.js';
 import { atomicWriteFile } from '../io/atomic-write.js';
 import { checkMarketplace } from '../core/marketplace-check.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { MarketplaceIssue } from '../core/marketplace-check.js';
+import { failAndExit } from './output.js';
 
 /**
  * `yg marketplace` — start a repository that publishes law, and ask it whether it
@@ -26,12 +26,6 @@ import type { MarketplaceIssue } from '../core/marketplace-check.js';
  * case, and a refusal asking the author to run `yg init` would be sending them to
  * build the wrong thing.
  */
-
-/** Emit a blocking what/why/next error to stderr and exit(1) — nothing is written. */
-function failWith(msg: IssueMessage): never {
-  process.stderr.write(chalk.red(`Error: ${buildIssueMessage(msg)}`) + '\n');
-  process.exit(1);
-}
 
 /**
  * Walk up from `startDir` looking for a directory that holds `marker`.
@@ -114,7 +108,7 @@ async function runMarketplaceInit(): Promise<void> {
   const cwd = process.cwd();
   const gitRoot = findUpwards(cwd, '.git');
   if (gitRoot === null) {
-    failWith({
+    failAndExit({
       what: `${toPosixPath(cwd)} is not inside a git repository.`,
       why: 'A marketplace IS a git repository: consumers install from its URL and pin a version by its tags, so there is nowhere for a package to be published from until one exists.',
       next: 'Run `git init` here (or change to a repository you have already created), then run `yg marketplace init` again.',
@@ -123,7 +117,7 @@ async function runMarketplaceInit(): Promise<void> {
 
   const manifestPath = path.join(gitRoot, MARKETPLACE_FILENAME);
   if (existsSync(manifestPath)) {
-    failWith({
+    failAndExit({
       what: `${toPosixPath(gitRoot)} already has a ${MARKETPLACE_FILENAME}.`,
       why: 'That file is the whole record of what this repository publishes. Rewriting it would drop every entry in it, and nothing else here would notice.',
       next: `Add a package with \`yg pack new <name>\`, or check what is there with \`yg marketplace check\`. To start over, delete ${MARKETPLACE_FILENAME} first.`,

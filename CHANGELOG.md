@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mapping entries are normalized before any comparison: `src//app`, `src/./app` and `src/lib/../app` all mean `src/app`. Such an entry used to be reviewed as the directory while `yg owner` and coverage said no node mapped its files.
 - `yg aspects` and `yg aspects --json` count a rule reached through an ancestor as `inherited` and one required by a consumed port as `port`. Both used to be counted as `implied`, which now means only another rule's `implies`.
 - The predicate trace of a `content:` match on a file longer than 256 KiB says that only the first 256 KiB was scanned when nothing matched there.
+- Every command reports an error through one shared output layer instead of its own copy of the `Error:` block, and `yg check --approve` no longer has its fill write finished sentences: the fill reports what it did as events and one formatter words them. The text is unchanged; the one visible difference is that `yg aspect-test`, `yg drill` and `yg drill add` now print their errors in red on a colour terminal, like every other command.
 
 ### Removed
 

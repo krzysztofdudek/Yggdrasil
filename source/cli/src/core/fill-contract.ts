@@ -14,6 +14,7 @@
 import type { CheckResult, RunCheckOptions } from './check.js';
 import type { ExpectedPair } from './pairs.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { FillEventSink } from '../model/fill-event.js';
 
 export interface RunFillOptions {
   /** Coverage-visible files (the `walkRepoFiles` disk walk, gitignore-aware/
@@ -27,9 +28,15 @@ export interface RunFillOptions {
    *  absent, or the CLI's git probe having failed) skips that one check only;
    *  every other coverage check is unaffected. */
   trackedFiles?: string[] | null;
-  /** Sink for agent-facing fill PROGRESS (plain status lines). Required: the
-   *  engine writes to no stream of its own — the CLI decides where progress goes. */
-  write: (s: string) => void;
+  /** Sink for everything the fill says while it runs — the pre-dispatch header,
+   *  progress, the prune summary, the closing line — as FillEvent data. The CLI
+   *  command layer supplies it and owns the words (formatters/fill-text.ts); the
+   *  engine never formats one of these sentences, and writes to no stream of its
+   *  own. When absent, events are rendered by that same formatter into `write`. */
+  onEvent?: FillEventSink;
+  /** Plain-text sink used only when `onEvent` is absent: each event is rendered
+   *  by formatters/fill-text.ts and written here. With neither, the run says nothing. */
+  write?: (s: string) => void;
   /** Sink for structured DIAGNOSTICS ({ what, why, next }). The CLI command
    *  layer supplies the renderer — it owns formatting; this engine module only
    *  emits structured data and never formats it. Defaults to a no-op, so a

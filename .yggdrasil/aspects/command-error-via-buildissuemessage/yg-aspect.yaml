@@ -1,5 +1,5 @@
 name: CommandErrorViaBuildIssueMessage
-description: "CLI command handlers must construct user-visible error messages via buildIssueMessage, or route them through the loadGraphOrAbort / abortOnUnexpectedError helpers. Raw stderr.write of 'Error: ...' strings (constant text, .message concatenation) is forbidden in command files."
+description: "CLI command handlers must construct user-visible error messages through the CLI output layer (fail / failAndExit for a command error, notice for a non-fatal notice, block to render a diagnostic — each renders the structured what/why/next through buildIssueMessage), through buildIssueMessage directly, or route them through the loadGraphOrAbort / abortOnUnexpectedError helpers. Raw stderr.write of 'Error: ...' strings (constant text, .message concatenation) is forbidden in command files."
 review_by: 2026-11-29
 errs: over
 reviewer:

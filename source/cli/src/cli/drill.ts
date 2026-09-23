@@ -6,7 +6,6 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { runAstAspect, AstRunnerError } from '../ast/runner.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import { verifyWithConsensus } from '../llm/aspect-verifier.js';
 import { createLlmProvider } from '../llm/index.js';
 import { probeProvider, REVIEWER_DEBUG_HINT } from '../llm/provider.js';
@@ -24,6 +23,7 @@ import {
   type DrillRunSetup,
 } from '../core/drill-runner.js';
 import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
+import { fail } from './output.js';
 
 /**
  * `yg drill` — re-run an aspect's REAL reviewer over its per-aspect corpus of
@@ -66,32 +66,32 @@ export function registerDrillCommand(program: Command): void {
         // parent is enforced before a subcommand is even reached, which would
         // make `yg drill add --aspect x` refuse the very flag it was given.
         if (typeof opts.aspect !== 'string' || opts.aspect.trim() === '') {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
               what: 'yg drill needs the rule whose case corpus to run.',
               why: 'A drill replays ONE rule over its own cases; without naming the rule there is no corpus to run and no rule to run it with.',
               next: 'List the rules with yg aspects, then run: yg drill --aspect <id>.',
-            })}\n`);
+            });
           process.exit(1);
           return;
         }
 
         const aspect = graph.aspects.find((a) => a.id === opts.aspect);
         if (!aspect) {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
               what: `yg drill requires an aspect declared in .yggdrasil/aspects/ (got '${opts.aspect}').`,
               why: `yg drill runs an aspect's rule over its violates-*/satisfies-* case corpus.`,
               next: `List aspects with yg aspects, then retry with --aspect <id>.`,
-            })}\n`);
+            });
           process.exit(1);
           return;
         }
 
         if (aspect.reviewer.type === 'aggregate') {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
               what: `aspect '${aspect.id}' is an aggregate (no rule source), so it has no reviewer to drill.`,
               why: `yg drill re-runs a deterministic check.mjs or an LLM content.md over a case corpus; an aggregate only bundles other aspects.`,
               next: `Drill one of its implied atomic aspects instead (each ships its own check.mjs or content.md).`,
-            })}\n`);
+            });
           process.exit(1);
           return;
         }
@@ -115,7 +115,7 @@ export function registerDrillCommand(program: Command): void {
 
         const setup = await buildDrillRun(graph, aspect, projectRoot, opts.nodeless === true);
         if (!setup.ok) {
-          process.stderr.write(`Error: ${buildIssueMessage(setup.error)}\n`);
+          fail(setup.error);
           process.exit(1);
           return;
         }
@@ -132,7 +132,7 @@ export function registerDrillCommand(program: Command): void {
         debugWrite(`[drill] run failed: ${e instanceof Error ? e.message : String(e)}`);
         // A deterministic runner error already carries a fully-formed what/why/next.
         if (e instanceof AstRunnerError) {
-          process.stderr.write(`Error: ${buildIssueMessage(e.messageData)}\n`);
+          fail(e.messageData);
           await exitAfterFlush(1);
           return;
         }

@@ -24,6 +24,8 @@ description: "CLI commands for the attention feed and for acting on its items â€
   the user's own recorded act."
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/io/parsers/packages
     type: calls
   - target: cli/core/advise

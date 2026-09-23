@@ -1,10 +1,8 @@
 import path from 'node:path';
 import { Command, InvalidArgumentError } from 'commander';
-import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { GraphNode, Graph } from '../model/graph.js';
 import { walkRepoFiles } from '../io/repo-scanner.js';
 import { scanUncoveredFiles } from '../core/check.js';
@@ -13,6 +11,7 @@ import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyPairs } from '../core/verify-lock.js';
+import { fail } from './output.js';
 
 export function registerTreeCommand(program: Command): void {
   program
@@ -38,11 +37,11 @@ export function registerTreeCommand(program: Command): void {
           const rootPath = (options.root as string).trim().replace(/\/$/, '');
           const node = graph.nodes.get(rootPath);
           if (!node) {
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            fail({
               what: `Node '${rootPath}' not found.`,
               why: `The --root path must be a valid node path in the graph.`,
               next: `Run yg tree (no --root) to list all nodes, then pick a valid path.`,
-            })}\n`));
+            });
             process.exit(1);
           }
           roots = [node];

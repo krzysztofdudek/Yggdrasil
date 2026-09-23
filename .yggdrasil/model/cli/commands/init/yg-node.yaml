@@ -17,6 +17,8 @@ description: Bootstraps Yggdrasil graph structure in a project or refreshes
 aspects:
   - reviewer-secrets-not-from-flags
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/templates
     type: calls
   - target: cli/core/check-coverage-tiers

@@ -166,10 +166,12 @@ describe('check --approve --dry-run --quiet: budget still reaches stdout', () =>
   });
 
   async function runFlags(extra: string[]): Promise<void> {
-    // runFill is mocked: it invokes the supplied write sink with a sentinel
-    // budget line (as the real dry-run path does), then resolves a clean result.
-    mockRunFill.mockImplementation((async (_graph: unknown, opts: { write: (s: string) => void }) => {
-      opts.write('BUDGET-LINE: 3 reviewer calls\n');
+    // runFill is mocked: it emits a dry-run budget event into the supplied
+    // event sink (as the real dry-run path does), then resolves a clean result.
+    // The sink words it — the budget line ends in the preview's upper-bound
+    // caveat, which names the sentinel budget below.
+    mockRunFill.mockImplementation((async (_graph: unknown, opts: { onEvent: (e: unknown) => void }) => {
+      opts.onEvent({ type: 'dry-run', nodes: [], files: [], reviewerCallBudget: 3 });
       return {
         checkResult: makeCheckResult([]),
         reviewerCallsMade: 0,
@@ -195,15 +197,15 @@ describe('check --approve --dry-run --quiet: budget still reaches stdout', () =>
     const stdoutCalls = stdoutSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
     const stderrCalls = stderrSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
     // The budget MUST reach stdout even with --quiet.
-    expect(stdoutCalls).toContain('BUDGET-LINE: 3 reviewer calls');
+    expect(stdoutCalls).toContain('3 reviewer call(s) is an UPPER BOUND');
     // And it must NOT have been routed to stderr.
-    expect(stderrCalls).not.toContain('BUDGET-LINE');
+    expect(stderrCalls).not.toContain('UPPER BOUND');
   });
 
   it('--approve --dry-run (no --quiet) emits the budget on STDOUT', async () => {
     await runFlags(['--approve', '--dry-run']);
     const stdoutCalls = stdoutSpy.mock.calls.map((c: unknown[]) => String(c[0])).join('');
-    expect(stdoutCalls).toContain('BUDGET-LINE: 3 reviewer calls');
+    expect(stdoutCalls).toContain('3 reviewer call(s) is an UPPER BOUND');
   });
 });
 

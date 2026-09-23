@@ -1,0 +1,5 @@
+$ yg check --message
+exit: 1
+--- stdout
+--- stderr
+error: unknown option '--message'

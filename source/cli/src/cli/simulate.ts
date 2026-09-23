@@ -5,11 +5,11 @@ import { statSync, existsSync, mkdtempSync, mkdirSync, rmSync, cpSync, readFileS
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { findYggRoot, getPackageRoot, resolveFileArg, projectRootFromGraph } from '../io/paths.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { parseSchemaVersionText } from '../io/config-parser.js';
 import { loadGraphOrAbort } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
+import { fail } from './output.js';
 
 /**
  * yg simulate — replay a candidate DETERMINISTIC rule over the history it can
@@ -557,11 +557,6 @@ export function renderReport(params: {
 // Orchestration.
 // ---------------------------------------------------------------------------
 
-/** Emit a structured what/why/next error to stderr (never touches the real tree). */
-function emitError(msg: { what: string; why: string; next: string }): void {
-  process.stderr.write(chalk.red(`Error: ${buildIssueMessage(msg)}`) + '\n');
-}
-
 export interface SimulateArgs {
   candidateId: string;
   target: SimulateTarget;
@@ -594,7 +589,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
   // the graph load (below) still owns the missing-graph error.
   for (const [label, value] of [['candidate id', candidateId], [targetLabel, targetValue]] as const) {
     if (!isPlainRelativeName(value)) {
-      emitError({
+      fail({
         what: `The ${label} '${value}' is not a plain relative name.`,
         why: 'simulate writes the candidate only inside an isolated clone and must never resolve a path outside it; a value with a `..`, absolute, or drive-letter component could escape onto the real tree.',
         next: `Pass a plain aspect id and a plain ${target.kind === 'node' ? '--node' : '--file'} path with no \`..\` segments and no absolute or drive-letter components.`,
@@ -617,7 +612,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
   // Belt-and-suspenders: even after the plain-name check above, hard-assert the
   // candidate directory stays within the graph's aspects tree before we read it.
   if (!pathIsWithin(realYggRoot, candidateDir)) {
-    emitError({
+    fail({
       what: `The candidate id '${candidateId}' resolves outside the graph's aspects directory.`,
       why: 'simulate reads and overlays the candidate only inside the project graph and its clone; a path that escapes that boundary is refused.',
       next: 'Pass a plain aspect id with no `..` or absolute components.',
@@ -626,7 +621,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
   }
   const candidateStat = statSync(candidateDir, { throwIfNoEntry: false });
   if (!candidateStat || !candidateStat.isDirectory()) {
-    emitError({
+    fail({
       what: `Candidate rule '${candidateId}' was not found.`,
       why: 'simulate replays an existing aspect from this project as the candidate; there is no aspect with that id to replay.',
       next: 'Pass the id of an existing deterministic aspect (a directory under .yggdrasil/aspects/ with a check.mjs).',
@@ -636,7 +631,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
 
   const kind = detectCandidateKind(candidateDir);
   if (kind === 'llm' || kind === 'companion') {
-    emitError({
+    fail({
       what: `Candidate '${candidateId}' is an ${kind === 'llm' ? 'LLM' : 'LLM companion'}-reviewed rule, which simulate cannot replay.`,
       why: 'A replay must be deterministic and reproducible; an LLM verdict is a point-in-time testimony of a reviewer, not a value a rerun over history can reproduce.',
       next: 'Supply a deterministic (check.mjs) candidate to replay here, or use `yg drill` to test an LLM rule\'s falsifiability against a case corpus.',
@@ -644,7 +639,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
     return 1;
   }
   if (kind === 'none') {
-    emitError({
+    fail({
       what: `Candidate '${candidateId}' has no deterministic check to replay.`,
       why: 'simulate replays a deterministic rule\'s check.mjs; this aspect ships no check.mjs (it may be an aggregate that only bundles other aspects).',
       next: 'Pass a deterministic aspect that ships a check.mjs, or one of an aggregate\'s atomic children.',
@@ -654,7 +649,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
 
   const referenceSchema = readConfigVersion(realYggRoot);
   if (referenceSchema === null) {
-    emitError({
+    fail({
       what: 'The current graph declares no readable schema version in yg-config.yaml.',
       why: 'The replay horizon is the set of commits sharing this graph\'s schema; without a current version there is nothing to compare a commit\'s schema against.',
       next: 'Ensure .yggdrasil/yg-config.yaml has a `version:` field, then re-run.',
@@ -673,7 +668,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
     ? target
     : { kind: 'file', file: resolveFileArg(projectRoot, target.file) };
   if (resolvedTarget.kind === 'file' && !isPlainRelativeName(resolvedTarget.file)) {
-    emitError({
+    fail({
       what: `The --file path '${resolvedTarget.file}' resolves outside the project root.`,
       why: 'simulate resolves --file the same way every other --file-accepting command does (relative to the graph root, not the current directory) — a value that escapes the project root cannot be a subject in this project\'s history.',
       next: 'Pass a --file path inside the project root.',
@@ -686,7 +681,7 @@ export async function runSimulation(args: SimulateArgs): Promise<number> {
   try {
     const cloned = git(['clone', '--quiet', projectRoot, cloneDir], projectRoot);
     if (cloned.status !== 0) {
-      emitError({
+      fail({
         what: 'yg simulate could not make an isolated clone of this project.',
         why: `Replay runs in a throwaway clone so the real tree is never touched; the clone failed (${firstErrorLine(cloned.stderr) ?? 'git clone did not succeed'}). Git and a committed history are required.`,
         next: 'Ensure git is installed and this project is a git repository with at least one commit, then re-run.',
@@ -815,7 +810,7 @@ export function registerSimulateCommand(program: Command): void {
         const hasNode = typeof opts.node === 'string';
         const hasFile = typeof opts.file === 'string';
         if (hasNode === hasFile) {
-          emitError({
+          fail({
             what: hasNode
               ? 'Both --node and --file were provided.'
               : 'Neither --node nor --file was provided.',
@@ -831,7 +826,7 @@ export function registerSimulateCommand(program: Command): void {
           : { kind: 'file', file: opts.file!.trim() };
         const maxCommits = parseMaxCommits(opts.maxCommits);
         if (maxCommits === null) {
-          emitError({
+          fail({
             what: `--max-commits must be a positive whole number (got '${opts.maxCommits}').`,
             why: 'The value bounds how many recent commits the replay considers; a non-positive or non-numeric value has no meaning.',
             next: 'Re-run with --max-commits <n> where n is 1 or greater.',
@@ -853,7 +848,7 @@ export function registerSimulateCommand(program: Command): void {
         await exitAfterFlush(code);
       } catch (error) {
         debugWrite(`[simulate] command failed: ${(error as Error).message}`);
-        emitError({
+        fail({
           what: `yg simulate could not complete: ${(error as Error).message}`,
           why: 'The replay hit an error it does not classify; nothing in the real repository was modified — all work happens in an isolated clone.',
           next: 'Re-run the command; if it recurs, this is a bug — report it with the command you ran.',

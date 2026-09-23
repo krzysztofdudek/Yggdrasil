@@ -1,0 +1,1096 @@
+$ yg check --json
+exit: 1
+--- stdout
+{
+  "schema": "yg-check/1",
+  "project": {
+    "name": "<ROOT-NAME>",
+    "nodes": 25,
+    "aspects": 2,
+    "flows": 0
+  },
+  "exit": {
+    "code": 1,
+    "status": "fail",
+    "reason": "34 blocking findings and 1 warning."
+  },
+  "coverage": {
+    "files": 29,
+    "covered": 24,
+    "nodeOwned": null,
+    "typeCovered": null,
+    "excluded": null,
+    "requiresNothing": false
+  },
+  "totals": {
+    "errors": 34,
+    "warnings": 1,
+    "draftSkipped": 0,
+    "verdicts": {
+      "approved": 16,
+      "refused": 8,
+      "unverified": 24,
+      "stale": 0,
+      "prompt-too-large": 0,
+      "companion-error": 0
+    },
+    "verified": {
+      "deterministic": 16,
+      "llm": 0
+    }
+  },
+  "pairs": [
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "node": "app/svc-01",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "17547bd4c950d7ceff0f9e9a35991dfa495ffdc7b1a4dca5f03357883c358502",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-02"
+      },
+      "node": "app/svc-02",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "8119542fb5b71162b72a0698fd3b176247a6608a5198f84b908a039532acce43",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "node": "app/svc-03",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "refused",
+      "reviewer": "deterministic",
+      "hash": "194b533be9100f61ed3ed3d405598c51b102db7b9b34fe2366fc76d084de25c2",
+      "filled": null,
+      "report": "src/svc-03/index.ts:2: TODO marker left in shipped code — move it to the tracker"
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-04"
+      },
+      "node": "app/svc-04",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "d08a11a2c31e7afdf3504fc5b46b5ccd45ffdbf53ca2897b797c1936b90021c8",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-05"
+      },
+      "node": "app/svc-05",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "6adb9f19529269d4f38bdf08f05ce282dbecceb542240816f2911b4ded60d7a3",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-06"
+      },
+      "node": "app/svc-06",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "refused",
+      "reviewer": "deterministic",
+      "hash": "c7852fe9d731126e158cfa58820f80472396f7e08f5baed5a4d922b685fd6e75",
+      "filled": null,
+      "report": "src/svc-06/index.ts:2: TODO marker left in shipped code — move it to the tracker"
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-07"
+      },
+      "node": "app/svc-07",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "1a888fb144f2cef29be1dbf45ab8c88f8b7d2796bb68d55308bb8b6dbb56c27e",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-08"
+      },
+      "node": "app/svc-08",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "f73d2eddde9a3bf5d9533e9741a061357a3ecb8e9e07d550400cc6652de5e667",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-09"
+      },
+      "node": "app/svc-09",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "refused",
+      "reviewer": "deterministic",
+      "hash": "57cf32bcaf43786eb442e8014343a0732ba4045651ae7a3448b276f3c6b4751b",
+      "filled": null,
+      "report": "src/svc-09/index.ts:2: TODO marker left in shipped code — move it to the tracker"
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-10"
+      },
+      "node": "app/svc-10",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "fa4622e684e1b966277266975eab99f54da6781aea1a97c71380e9f5e04ea214",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-11"
+      },
+      "node": "app/svc-11",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "f8e80bde5925d3c994af8fa26c77cee51ea780bc8fb4242554b3a8b0facf2ef4",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-12"
+      },
+      "node": "app/svc-12",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "refused",
+      "reviewer": "deterministic",
+      "hash": "266f52d0b922c9bb97ec0b4f4f905d3933316158ecec7e17ef8ba2e7fc49a22b",
+      "filled": null,
+      "report": "src/svc-12/index.ts:2: TODO marker left in shipped code — move it to the tracker"
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-13"
+      },
+      "node": "app/svc-13",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "6471cff2c52faf360b9f5cfb8a412c5d354f2e96c74f28468ba4031b51c1290c",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-14"
+      },
+      "node": "app/svc-14",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "2a2c67d9310dea52c13f0ef4c49a074330194aa9056eedeb46519eaf4ea504cc",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-15"
+      },
+      "node": "app/svc-15",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "refused",
+      "reviewer": "deterministic",
+      "hash": "76df190bd3e0e93abfe5124aa729c204369607e7d018cefa826461736c1166cb",
+      "filled": null,
+      "report": "src/svc-15/index.ts:2: TODO marker left in shipped code — move it to the tracker"
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-16"
+      },
+      "node": "app/svc-16",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "fbe92ccf9140717a11c26bb4b5e415b8fdde5fdd9aec3cdbb5e944fea522c887",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-17"
+      },
+      "node": "app/svc-17",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "39645d344d0b6d7a90914d144f255d648c063bb555765f5d83630305e285be31",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-18"
+      },
+      "node": "app/svc-18",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "refused",
+      "reviewer": "deterministic",
+      "hash": "3f158e00a7e5a5e085e32ca518f691c2ba4dd9362b10b66dbe543edce2360831",
+      "filled": null,
+      "report": "src/svc-18/index.ts:2: TODO marker left in shipped code — move it to the tracker"
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-19"
+      },
+      "node": "app/svc-19",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "efba39118cf27b86949047c310b2aeacf08f5b7e27d142020d6a7ad9dc0a5f99",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-20"
+      },
+      "node": "app/svc-20",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "037aabbb82821d5442c6bf71d4764064cb7a654345e9c6a80df00aa353daffa0",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-21"
+      },
+      "node": "app/svc-21",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "refused",
+      "reviewer": "deterministic",
+      "hash": "25abb46a00ff505095a329b936ea0de83739b6d911e4fe5489b835b45a3631a9",
+      "filled": null,
+      "report": "src/svc-21/index.ts:2: TODO marker left in shipped code — move it to the tracker"
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-22"
+      },
+      "node": "app/svc-22",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "12693b95772f39d889da92b34b0440db564da48e17f1de00e67cf495eee8c039",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-23"
+      },
+      "node": "app/svc-23",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "54aa25aef2d8f38dd2d11169992edf0ea5ce4e8883623eaf8a34f4118389e9df",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-24"
+      },
+      "node": "app/svc-24",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "refused",
+      "reviewer": "deterministic",
+      "hash": "895c0ea717e17b250eea04e607dd3d18a1012d2c70fba2486dcead7340054f71",
+      "filled": null,
+      "report": "src/svc-24/index.ts:2: TODO marker left in shipped code — move it to the tracker"
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "node": "app/svc-01",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-02"
+      },
+      "node": "app/svc-02",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "node": "app/svc-03",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-04"
+      },
+      "node": "app/svc-04",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-05"
+      },
+      "node": "app/svc-05",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-06"
+      },
+      "node": "app/svc-06",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-07"
+      },
+      "node": "app/svc-07",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-08"
+      },
+      "node": "app/svc-08",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-09"
+      },
+      "node": "app/svc-09",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-10"
+      },
+      "node": "app/svc-10",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-11"
+      },
+      "node": "app/svc-11",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-12"
+      },
+      "node": "app/svc-12",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-13"
+      },
+      "node": "app/svc-13",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-14"
+      },
+      "node": "app/svc-14",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-15"
+      },
+      "node": "app/svc-15",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-16"
+      },
+      "node": "app/svc-16",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-17"
+      },
+      "node": "app/svc-17",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-18"
+      },
+      "node": "app/svc-18",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-19"
+      },
+      "node": "app/svc-19",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-20"
+      },
+      "node": "app/svc-20",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-21"
+      },
+      "node": "app/svc-21",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-22"
+      },
+      "node": "app/svc-22",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-23"
+      },
+      "node": "app/svc-23",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "readable-names",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-24"
+      },
+      "node": "app/svc-24",
+      "kind": "llm",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "standard",
+      "hash": null,
+      "filled": null
+    }
+  ],
+  "issues": [
+    {
+      "code": "aspect-violation-enforced",
+      "severity": "error",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-03 by a deterministic check.\nViolations:\nsrc/svc-03/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "aspect": "no-todo",
+      "node": "app/svc-03",
+      "unit": "node:app/svc-03"
+    },
+    {
+      "code": "aspect-violation-enforced",
+      "severity": "error",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-06 by a deterministic check.\nViolations:\nsrc/svc-06/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "aspect": "no-todo",
+      "node": "app/svc-06",
+      "unit": "node:app/svc-06"
+    },
+    {
+      "code": "aspect-violation-enforced",
+      "severity": "error",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-09 by a deterministic check.\nViolations:\nsrc/svc-09/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "aspect": "no-todo",
+      "node": "app/svc-09",
+      "unit": "node:app/svc-09"
+    },
+    {
+      "code": "aspect-violation-enforced",
+      "severity": "error",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-12 by a deterministic check.\nViolations:\nsrc/svc-12/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "aspect": "no-todo",
+      "node": "app/svc-12",
+      "unit": "node:app/svc-12"
+    },
+    {
+      "code": "aspect-violation-enforced",
+      "severity": "error",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-15 by a deterministic check.\nViolations:\nsrc/svc-15/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "aspect": "no-todo",
+      "node": "app/svc-15",
+      "unit": "node:app/svc-15"
+    },
+    {
+      "code": "aspect-violation-enforced",
+      "severity": "error",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-18 by a deterministic check.\nViolations:\nsrc/svc-18/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "aspect": "no-todo",
+      "node": "app/svc-18",
+      "unit": "node:app/svc-18"
+    },
+    {
+      "code": "aspect-violation-enforced",
+      "severity": "error",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-21 by a deterministic check.\nViolations:\nsrc/svc-21/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "aspect": "no-todo",
+      "node": "app/svc-21",
+      "unit": "node:app/svc-21"
+    },
+    {
+      "code": "aspect-violation-enforced",
+      "severity": "error",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-24 by a deterministic check.\nViolations:\nsrc/svc-24/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "aspect": "no-todo",
+      "node": "app/svc-24",
+      "unit": "node:app/svc-24"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-01.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-01",
+      "unit": "node:app/svc-01",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-02.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-02",
+      "unit": "node:app/svc-02",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-03.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-03",
+      "unit": "node:app/svc-03",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-04.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-04",
+      "unit": "node:app/svc-04",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-05.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-05",
+      "unit": "node:app/svc-05",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-06.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-06",
+      "unit": "node:app/svc-06",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-07.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-07",
+      "unit": "node:app/svc-07",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-08.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-08",
+      "unit": "node:app/svc-08",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-09.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-09",
+      "unit": "node:app/svc-09",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-10.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-10",
+      "unit": "node:app/svc-10",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-11.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-11",
+      "unit": "node:app/svc-11",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-12.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-12",
+      "unit": "node:app/svc-12",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-13.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-13",
+      "unit": "node:app/svc-13",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-14.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-14",
+      "unit": "node:app/svc-14",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-15.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-15",
+      "unit": "node:app/svc-15",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-16.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-16",
+      "unit": "node:app/svc-16",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-17.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-17",
+      "unit": "node:app/svc-17",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-18.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-18",
+      "unit": "node:app/svc-18",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-19.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-19",
+      "unit": "node:app/svc-19",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-20.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-20",
+      "unit": "node:app/svc-20",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-21.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-21",
+      "unit": "node:app/svc-21",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-22.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-22",
+      "unit": "node:app/svc-22",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-23.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-23",
+      "unit": "node:app/svc-23",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No verdict yet for aspect 'readable-names' on node:app/svc-24.",
+      "why": "The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.",
+      "next": "yg check --approve",
+      "aspect": "readable-names",
+      "node": "app/svc-24",
+      "unit": "node:app/svc-24",
+      "cause": "never-reviewed"
+    },
+    {
+      "code": "relation-broken",
+      "severity": "error",
+      "what": "Relation target 'app/svc-99' does not exist.",
+      "why": "This node declares a dependency that cannot be resolved.\n     Existing nodes under app: svc-01, svc-02, svc-03, svc-04, svc-05, svc-06, svc-07, svc-08, svc-09, svc-10, svc-11, svc-12, svc-13, svc-14, svc-15, svc-16, svc-17, svc-18, svc-19, svc-20, svc-21, svc-22, svc-23, svc-24",
+      "next": "Fix the target path in yg-node.yaml relations.\n     Did you mean 'app'?",
+      "node": "app/svc-05"
+    },
+    {
+      "code": "unmapped-files",
+      "severity": "error",
+      "what": "1 source file not covered by any node.\n  src/tools/gen.ts",
+      "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners."
+    },
+    {
+      "code": "uncovered-advisory",
+      "severity": "warning",
+      "what": "4 coverage-visible files outside any required coverage root.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error."
+    }
+  ],
+  "judges": [],
+  "progressive": null,
+  "suggestedNext": "yg check --approve"
+}
+--- stderr

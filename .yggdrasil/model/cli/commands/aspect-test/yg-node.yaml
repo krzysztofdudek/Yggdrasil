@@ -35,6 +35,8 @@ max_direct_relations:
     genuine future addition here does not immediately require another graph
     edit.
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/ast/runtime
     type: calls
   - target: cli/structure

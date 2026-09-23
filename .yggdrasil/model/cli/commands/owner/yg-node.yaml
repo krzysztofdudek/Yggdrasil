@@ -31,6 +31,8 @@ description: "Resolves a file path to its owning graph node via yg owner. For
 aspects:
   - posix-paths-output
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/utils

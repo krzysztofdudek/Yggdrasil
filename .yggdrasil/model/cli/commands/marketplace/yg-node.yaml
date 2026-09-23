@@ -23,6 +23,8 @@ description: "Starts a repository that publishes rules for other repositories to
   rather than a root they never mentioned."
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/marketplace-check
     type: calls
   - target: cli/io/atomic-write

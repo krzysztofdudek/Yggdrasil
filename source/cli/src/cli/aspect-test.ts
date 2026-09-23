@@ -37,6 +37,7 @@ import {
 import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, LlmConfig } from '../model/graph.js';
+import { fail } from './output.js';
 
 /**
  * The report for one stability-mode run that produced no verdict: infrastructure,
@@ -184,11 +185,11 @@ export function registerAspectTestCommand(program: Command): void {
 
         const aspect = graph.aspects.find((a) => a.id === opts.aspect);
         if (!aspect) {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
               what: `Aspect '${opts.aspect}' not found.`,
               why: `yg aspect-test requires an aspect declared in .yggdrasil/aspects/.`,
               next: `Run 'yg aspects' to list available aspects, or check the spelling of '${opts.aspect}'.`,
-            })}\n`);
+            });
           process.exit(1);
           return;
         }
@@ -204,11 +205,11 @@ export function registerAspectTestCommand(program: Command): void {
         // the three may be given — each refusal names the other flags by name
         // so a confusion between --file and --files is never silent.
         if ([hasNode, hasFile, hasFiles].filter(Boolean).length > 1) {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
               what: `More than one of --node, --file, --files was provided.`,
               why: `yg aspect-test addresses exactly one unit per run: --node (a component), --file (a file enforced by its architecture type alone, no component), or --files (ad-hoc, no graph attachment). Combining them is ambiguous — which one is under test?`,
               next: `Re-run with exactly one of --node <path>, --file <path>, or --files <path...>.`,
-            })}\n`);
+            });
           process.exit(1);
           return;
         }
@@ -224,38 +225,38 @@ export function registerAspectTestCommand(program: Command): void {
           const raw = String(opts.repeat).trim();
           const parsed = /^[0-9]+$/.test(raw) ? Number.parseInt(raw, 10) : NaN;
           if (!Number.isInteger(parsed) || parsed < 2) {
-            process.stderr.write(`Error: ${buildIssueMessage({
+            fail({
                 what: `--repeat must be an integer of at least 2 (got '${opts.repeat}').`,
                 why: `--repeat re-runs each unit N times to measure how consistently the reviewer judges the same prompt; a value below 2 measures nothing.`,
                 next: `Pass --repeat 2 (or higher) with an LLM aspect and --node.`,
-              })}\n`);
+              });
             process.exit(1);
             return;
           }
           if (opts.dryRun) {
-            process.stderr.write(`Error: ${buildIssueMessage({
+            fail({
                 what: `--repeat cannot be combined with --dry-run.`,
                 why: `--dry-run makes no reviewer call, so there is nothing to repeat — the two flags are mutually exclusive.`,
                 next: `Drop --dry-run to run the reviewer N times, or drop --repeat to preview the prompt once.`,
-              })}\n`);
+              });
             process.exit(1);
             return;
           }
           if (hasFiles) {
-            process.stderr.write(`Error: ${buildIssueMessage({
+            fail({
                 what: `--repeat cannot be combined with --files.`,
                 why: `--repeat measures reviewer self-consistency, which applies only to LLM aspects; --files runs a deterministic check that returns the same result every time.`,
                 next: `Use --repeat with an LLM aspect and --node <node-path>.`,
-              })}\n`);
+              });
             process.exit(1);
             return;
           }
           if (aspect.reviewer.type !== 'llm') {
-            process.stderr.write(`Error: ${buildIssueMessage({
+            fail({
                 what: `--repeat is not supported for ${aspect.reviewer.type} aspect '${opts.aspect}'.`,
                 why: `A deterministic check is exactly reproducible — repeating it measures nothing. --repeat measures how consistently an LLM reviewer judges the same prompt.`,
                 next: `Run --repeat against an LLM aspect (content.md), or use --check-determinism to re-run a deterministic aspect.`,
-              })}\n`);
+              });
             process.exit(1);
             return;
           }
@@ -273,20 +274,20 @@ export function registerAspectTestCommand(program: Command): void {
         // runLlmAspectTest (direct reviewer.tiers lookup, unknown-tier error).
         if (typeof opts.tier === 'string') {
           if (hasFiles) {
-            process.stderr.write(`Error: ${buildIssueMessage({
+            fail({
                 what: `--tier cannot be combined with --files.`,
                 why: `--tier re-runs LLM pairs under a named reviewer tier, which requires graph context (node mapping, effective aspects); --files runs a deterministic check with no tier.`,
                 next: `Use --tier with an LLM aspect and --node <node-path>.`,
-              })}\n`);
+              });
             process.exit(1);
             return;
           }
           if (aspect.reviewer.type !== 'llm') {
-            process.stderr.write(`Error: ${buildIssueMessage({
+            fail({
                 what: `--tier is not supported for ${aspect.reviewer.type} aspect '${opts.aspect}'.`,
                 why: `A deterministic check runs locally with no reviewer tier — there is no tier to swap. --tier re-runs an LLM aspect under a named reviewer tier.`,
                 next: `Run --tier against an LLM aspect (content.md) with --node, or drop --tier for a deterministic aspect.`,
-              })}\n`);
+              });
             process.exit(1);
             return;
           }
@@ -296,20 +297,20 @@ export function registerAspectTestCommand(program: Command): void {
         if (aspect.reviewer.type === 'llm') {
           // --files is not supported for LLM aspects: they need graph context.
           if (hasFiles) {
-            process.stderr.write(`Error: ${buildIssueMessage({
+            fail({
                 what: `--files cannot be used with LLM aspect '${opts.aspect}'.`,
                 why: `LLM reviews require graph context (node mapping or an architecture-derived read allowance, effective aspects, tier config). Ad-hoc file lists have none of these.`,
                 next: `Use --node <node-path> or --file <path> instead, or switch to a deterministic aspect for --files mode.`,
-              })}\n`);
+              });
             process.exit(1);
             return;
           }
           if (!hasNode && !hasFile) {
-            process.stderr.write(`Error: ${buildIssueMessage({
+            fail({
                 what: `Neither --node nor --file was provided for LLM aspect '${opts.aspect}'.`,
                 why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a file enforced by its architecture type alone), or --files (ad-hoc, deterministic only).`,
                 next: `Pass --node <node-path> or --file <path> to run an LLM aspect.`,
-              })}\n`);
+              });
             process.exit(1);
             return;
           }
@@ -318,7 +319,7 @@ export function registerAspectTestCommand(program: Command): void {
           if (hasFile) {
             const resolved = await resolveAspectTestFileTarget(graph, opts.file as string);
             if (resolved.kind === 'refused') {
-              process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
+              fail(resolved.messageData);
               process.exit(1);
               return;
             }
@@ -327,11 +328,11 @@ export function registerAspectTestCommand(program: Command): void {
             const nodePath = (opts.node as string).trim().replace(/\/$/, '');
             const node = graph.nodes.get(nodePath);
             if (!node) {
-              process.stderr.write(`Error: ${buildIssueMessage({
+              fail({
                   what: `Node '${nodePath}' not found.`,
                   why: `--node requires an existing node path in the graph.`,
                   next: `Run 'yg tree' to list nodes.`,
-                })}\n`);
+                });
               process.exit(1);
               return;
             }
@@ -348,34 +349,34 @@ export function registerAspectTestCommand(program: Command): void {
 
         // ── Deterministic aspect path ────────────────────────────────────────
         if (aspect.reviewer.type !== 'deterministic') {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
               what: `Aspect '${opts.aspect}' has reviewer '${aspect.reviewer.type}', not 'deterministic' or 'llm'.`,
               why: `yg aspect-test supports deterministic aspects (check.mjs) and LLM aspects (content.md).`,
               next: `Pick an aspect with a supported reviewer type, or run 'yg aspects' to list available aspects.`,
-            })}\n`);
+            });
           process.exit(1);
           return;
         }
 
         // --dry-run on a deterministic aspect is not meaningful.
         if (opts.dryRun) {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
               what: `--dry-run is not supported for deterministic aspect '${opts.aspect}'.`,
               why: `Deterministic checks run locally without any provider calls — there is no prompt to print.`,
               next: `Remove --dry-run to run the deterministic check, or use --node / --files as normal.`,
-            })}\n`);
+            });
           process.exit(1);
           return;
         }
 
         if ([hasNode, hasFile, hasFiles].filter(Boolean).length !== 1) {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
               what: [hasNode, hasFile, hasFiles].filter(Boolean).length > 1
                 ? `More than one of --node, --file, --files was provided.`
                 : `None of --node, --file, --files was provided.`,
               why: `yg aspect-test runs in exactly one mode: --node (a component), --file (a file enforced by its architecture type alone, no component), or --files (ad-hoc, no graph attachment).`,
               next: `Pass exactly one of --node <node-path>, --file <path>, or --files <path...>.`,
-            })}\n`);
+            });
           process.exit(1);
           return;
         }
@@ -388,11 +389,11 @@ export function registerAspectTestCommand(program: Command): void {
           const nodePath = (opts.node as string).trim().replace(/\/$/, '');
           const node = graph.nodes.get(nodePath);
           if (!node) {
-            process.stderr.write(`Error: ${buildIssueMessage({
+            fail({
                 what: `Node '${nodePath}' not found.`,
                 why: `--node requires an existing node path in the graph.`,
                 next: `Run 'yg tree' to list nodes.`,
-              })}\n`);
+              });
             process.exit(1);
             return;
           }
@@ -435,7 +436,7 @@ export function registerAspectTestCommand(program: Command): void {
         if (hasFile) {
           const resolved = await resolveAspectTestFileTarget(graph, opts.file as string);
           if (resolved.kind === 'refused') {
-            process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
+            fail(resolved.messageData);
             process.exit(1);
             return;
           }
@@ -461,38 +462,38 @@ export function registerAspectTestCommand(program: Command): void {
         const probed = filePaths.map((f) => ({ f, reason: probeUnusablePath(path.resolve(projectRoot, f)) }));
         const missingFiles = probed.filter((p) => p.reason?.kind === 'missing').map((p) => p.f);
         if (missingFiles.length > 0) {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
             what: missingFiles.length === 1
               ? `'${missingFiles[0]}' does not exist.`
               : `${missingFiles.length} of the given paths do not exist: ${missingFiles.map((f) => `'${f}'`).join(', ')}.`,
             why: `--files addresses real, on-disk files — there is nothing to read or check for a path that is not there.`,
             next: `Check the path${missingFiles.length === 1 ? '' : 's'} for typos, or pass only existing files.`,
-          })}\n`);
+          });
           process.exit(1);
           return;
         }
         const notFiles = probed.filter((p) => p.reason?.kind === 'not-a-file');
         if (notFiles.length > 0) {
           const [first] = notFiles;
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
             what: notFiles.length === 1
               ? `'${first.f}' is ${(first.reason as { kind: 'not-a-file'; noun: string }).noun}.`
               : `${notFiles.length} of the given paths are not files: ${notFiles.map((p) => `'${p.f}'`).join(', ')}.`,
             why: `--files reads each path's own content to check it — a directory (or any other non-regular path) has no single file's content of its own.`,
             next: `Pass the individual file path${notFiles.length === 1 ? '' : 's'} instead, or expand a directory with a shell glob.`,
-          })}\n`);
+          });
           process.exit(1);
           return;
         }
         const unreadableFiles = probed.filter((p) => p.reason?.kind === 'unreadable').map((p) => p.f);
         if (unreadableFiles.length > 0) {
-          process.stderr.write(`Error: ${buildIssueMessage({
+          fail({
             what: unreadableFiles.length === 1
               ? `'${unreadableFiles[0]}' exists but cannot be read (permission denied).`
               : `${unreadableFiles.length} of the given paths exist but cannot be read (permission denied): ${unreadableFiles.map((f) => `'${f}'`).join(', ')}.`,
             why: `--files reads each file's content to check it — a file this process cannot open has nothing to read.`,
             next: `Fix the read permission${unreadableFiles.length === 1 ? '' : 's'}, or pass only readable files.`,
-          })}\n`);
+          });
           process.exit(1);
           return;
         }
@@ -535,7 +536,7 @@ export function registerAspectTestCommand(program: Command): void {
         // throws a runner error, the user sees the real cause, not a CLI-bug
         // message.
         if (e instanceof StructureRunnerError || e instanceof AstRunnerError) {
-          process.stderr.write(`Error: ${buildIssueMessage(e.messageData)}\n`);
+          fail(e.messageData);
           await exitAfterFlush(1);
           return;
         }
@@ -653,11 +654,11 @@ async function resolveSuppressedRangesForTest(
     if (e instanceof SuppressMarkerError) {
       const where = `${toPosixPath(e.file)}:${e.line}`;
       debugWrite(`[aspect-test] suppress marker missing reason for ${aspectId} at ${where}`);
-      process.stderr.write(`Error: ${buildIssueMessage({
+      fail({
           what: `A yg-suppress marker at ${where} (subject of aspect '${aspectId}') is missing its required reason.`,
           why: `A reasonless suppress marker cannot be resolved into a line range, so the prompt's suppressed-line set is undefined. The live yg check --approve path treats this as a fail-closed infrastructure error.`,
           next: `Add a reason after the marker's closing parenthesis at ${where}, then retry.`,
-        })}\n`);
+        });
       return null;
     }
     throw e;
@@ -799,11 +800,11 @@ async function runLlmAspectTest(
   // Resolve the tier for this aspect.
   const reviewer = graph.config.reviewer;
   if (!reviewer) {
-    process.stderr.write(`Error: ${buildIssueMessage({
+    fail({
         what: `No reviewer is configured for aspect '${aspect.id}'.`,
         why: `LLM aspects need a reviewer tier in .yggdrasil/yg-config.yaml.`,
         next: `Add a reviewer tier, then retry.`,
-      })}\n`);
+      });
     process.exit(1);
     return 1;
   }
@@ -817,11 +818,11 @@ async function runLlmAspectTest(
     const direct = reviewer.tiers[tierOverride];
     if (!direct) {
       const tierNames = Object.keys(reviewer.tiers);
-      process.stderr.write(`Error: ${buildIssueMessage({
+      fail({
           what: `Tier '${tierOverride}' is not defined in .yggdrasil/yg-config.yaml.`,
           why: `--tier re-runs the same pairs under a named reviewer tier from the merged config (yg-secrets included); an unknown tier has no provider or model to call.`,
           next: `Use one of: ${tierNames.join(', ')}, or add the tier to yg-config.yaml (or yg-secrets).`,
-        })}\n`);
+        });
       process.exit(1);
       return 1;
     }
@@ -830,7 +831,7 @@ async function runLlmAspectTest(
   } else {
     const tierResult = selectTierForAspect(aspect, reviewer);
     if (!tierResult.ok) {
-      process.stderr.write(`Error: ${buildIssueMessage(tierResult.error)}\n`);
+      fail(tierResult.error);
       process.exit(1);
       return 1;
     }
@@ -867,11 +868,11 @@ async function runLlmAspectTest(
       content = await readTextFile(absRef);
     } catch (e) {
       debugWrite(`[aspect-test] reference file read failed for ${absRef}: ${e instanceof Error ? e.message : String(e)}`);
-      process.stderr.write(`Error: ${buildIssueMessage({
+      fail({
           what: `Reference '${toPosixPath(ref.path)}' for aspect '${aspect.id}' could not be read.`,
           why: `The file does not exist or is not readable.`,
           next: `Check the reference path in yg-aspect.yaml.`,
-        })}\n`);
+        });
       process.exit(1);
       return 1;
     }
@@ -893,11 +894,11 @@ async function runLlmAspectTest(
     const probe = await probeProvider(provider, mergedTier.provider);
     if (!probe.available) {
       debugWrite(`[aspect-test] tier ${tierName} provider ${mergedTier.provider} unavailable: ${probe.reason}`);
-      process.stderr.write(`Error: ${buildIssueMessage({
+      fail({
           what: `Reviewer provider '${mergedTier.provider}' (tier '${tierName}') cannot run: ${probe.reason}.`,
           why: `The reviewer failed its availability check. No provider calls were made.`,
           next: `Fix the cause above, then retry. ${REVIEWER_DEBUG_HINT}`,
-        })}\n`);
+        });
       process.exit(1);
       return 1;
     }
@@ -967,7 +968,7 @@ async function runLlmAspectTest(
         const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect, typeCoverage);
         if (resolved.kind === 'infra') {
           debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
-          process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
+          fail(resolved.messageData);
           skippedCount++;
           continue;
         }
@@ -1055,11 +1056,11 @@ async function runLlmAspectTest(
       } catch (e) {
         debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
         emitDiag(pair.unitKey, 'infra');
-        process.stderr.write(`Error: ${buildIssueMessage({
+        fail({
             what: `Reviewer threw an error for aspect '${aspect.id}' on ${pair.unitKey}.`,
             why: `The reviewer returned an unparseable or errored response: ${e instanceof Error ? e.message : String(e)}`,
             next: `Check the reviewer configuration and retry.`,
-          })}\n`);
+          });
         skippedCount++;
         continue;
       }
@@ -1073,11 +1074,11 @@ async function runLlmAspectTest(
       if (!response.satisfied && response.errorSource === 'provider') {
         debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey}: ${response.reason}`);
         emitDiag(pair.unitKey, 'infra');
-        process.stderr.write(`Error: ${buildIssueMessage({
+        fail({
             what: `Reviewer for aspect '${aspect.id}' on ${pair.unitKey} returned a provider error: ${response.reason}`,
             why: `A provider-sourced failure is infrastructure, not a code violation — the unit was not verified.`,
             next: `Fix the cause named above, then retry. ${REVIEWER_DEBUG_HINT}`,
-          })}\n`);
+          });
         skippedCount++;
         continue;
       }
@@ -1136,7 +1137,7 @@ async function runLlmAspectTest(
         const resolved = await resolveCompanionsForTest(graph, projectRoot, pair, aspect, typeCoverage);
         if (resolved.kind === 'infra') {
           debugWrite(`[aspect-test] companion resolution failed for ${aspect.id} on ${pair.unitKey}: ${resolved.messageData.what}`);
-          process.stderr.write(`Error: ${buildIssueMessage(resolved.messageData)}\n`);
+          fail(resolved.messageData);
           // Continue so the user sees the rest of the dry-run output (no reviewer calls made).
           continue;
         }
@@ -1192,11 +1193,11 @@ function determinismMatches(a: AnyViolation[], b: AnyViolation[]): boolean {
 function writeNonDeterministicError(aspectId: string, run1: AnyViolation[], run2: AnyViolation[]): void {
   const sorted1 = [...run1].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
   const sorted2 = [...run2].sort((a, b) => sortKey(a).localeCompare(sortKey(b)));
-  process.stderr.write(`Error: ${buildIssueMessage({
+  fail({
       what: `Deterministic aspect '${aspectId}' produced non-deterministic results.`,
       why: `Two consecutive runs returned different violations. This indicates the check.mjs has side effects or depends on non-deterministic state.`,
       next: `Review check.mjs to ensure it depends only on its inputs and produces stable output.`,
-    })}\n`);
+    });
   process.stderr.write('Run 1:\n');
   process.stderr.write(JSON.stringify(sorted1, null, 2) + '\n');
   process.stderr.write('Run 2:\n');

@@ -1,0 +1,14 @@
+name: CLI Output Layer Tests
+type: test-suite
+description: "Unit tests for the CLI's output layer and for the words of the fill stage. For the output layer: that a count and its noun always agree (zero included); that a capped list announces what it hid, with the drill command when one is given; that the three-part block keeps a multi-line what whole; the verdict and Next line shapes; that a fix keeps a heading-introduced list whole; that the code registry labels the refusal and coverage codes as a report does, puts every graph-invalid code in the first tier and cannot land on an inherited Object.prototype key; that a fix is recorded as a runnable command only when its first line is one, whole; and the command-error path — the Error: block on stderr, nothing on stdout unless the invocation answers in JSON, and then exactly the yg-error/1 document. For the fill words: what each fill event reads as — the dispatch header with its skipped-paid-work line, a pair's outcome, the periodic tally, the nothing-finished line, the in-place status line cleared and cut to the width with one column spare, a closing line that claims every pair valid only when nothing was filled or skipped, the cost preview and the prune summary."
+aspects: []
+relations:
+  - target: cli/output
+    type: uses
+  - target: cli/formatters
+    type: uses
+  - target: cli/model/fill-event
+    type: uses
+mapping:
+  - source/cli/tests/unit/cli/output.test.ts
+  - source/cli/tests/unit/formatters/fill-text.test.ts

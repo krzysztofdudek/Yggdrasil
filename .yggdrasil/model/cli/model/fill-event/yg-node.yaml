@@ -1,0 +1,9 @@
+name: FillEventTypes
+type: types
+description: "The fill stage's events — what `yg check --approve` has to say while it runs, as data: the pre-dispatch header's counts, the judgment pairs no configured reviewer can judge, a cost preview's per-subject breakdown, the verdicts the garbage collector removed, a rule whose standing moved, a pair that finished with something other than an approval, the periodic tally, the nothing-finished-for-a-while line, the single in-place status line with the width it must fit, the clear of that line, and the closing totals. The engine emits them and never words them; the command layer renders them."
+aspects: []
+relations:
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/model/fill-event.ts

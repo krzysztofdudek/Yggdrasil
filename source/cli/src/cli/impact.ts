@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
@@ -33,6 +32,7 @@ import { toPosixPath } from '../utils/posix.js';
 import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { IMPACT_JSON_SCHEMA, formatImpactJson } from '../formatters/impact-json.js';
 import { buildImpactDocument } from '../core/graph/machine-documents.js';
+import { fail } from './output.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
@@ -51,54 +51,38 @@ export function registerImpactCommand(program: Command): void {
         try {
           const asJson = options.json === true;
           if (options.node && options.file) {
-            process.stderr.write(
-              chalk.red(
-                `Error: ${buildIssueMessage({
+            fail({
                   what: '--node and --file are mutually exclusive.',
                   why: 'yg impact accepts at most one of these target forms per invocation.',
                   next: 'Re-run with only --node <path> OR --file <path>.',
-                })}\n`,
-              ),
-            );
+                });
             process.exit(1);
           }
 
           const modeCount = [options.node || options.file, options.aspect, options.flow, options.type].filter(Boolean).length;
           if (modeCount === 0) {
-            process.stderr.write(
-              chalk.red(
-                `Error: ${buildIssueMessage({
+            fail({
                   what: 'No target specified.',
                   why: 'yg impact needs exactly one of --node, --file, --aspect, --flow, or --type.',
                   next: 'Pass one of: --node <path>, --file <path>, --aspect <id>, --flow <name>, --type <id>.',
-                })}\n`,
-              ),
-            );
+                });
             process.exit(1);
           }
           if (modeCount > 1) {
-            process.stderr.write(
-              chalk.red(
-                `Error: ${buildIssueMessage({
+            fail({
                   what: 'Multiple targets specified.',
                   why: 'yg impact accepts only one of --node/--file, --aspect, --flow, or --type per invocation.',
                   next: 'Re-run with a single target form.',
-                })}\n`,
-              ),
-            );
+                });
             process.exit(1);
           }
 
           if (asJson && (options.aspect || options.flow || options.type)) {
-            process.stderr.write(
-              chalk.red(
-                `Error: ${buildIssueMessage({
+            fail({
                   what: `--json is not available for --aspect, --flow, or --type.`,
                   why: `A ${IMPACT_JSON_SCHEMA} document describes the blast radius of ONE component — its subject is a component path, and an aspect, a flow, or a type has no such subject. Emitting one for them would mean a second document shape hiding behind the same schema tag.`,
                   next: `For a component's blast radius as a document, run yg impact --node <path> --json (or --file <path> --json). For one rule's reach as a document — every unit it judges, with the effective status there — run yg aspects --json --reach; for what the lock says about each of those units, yg check --json, whose pairs join to it on the same unit. Otherwise drop --json for the aspect/flow/type report.`,
-                })}\n`,
-              ),
-            );
+                });
             process.exit(1);
           }
 
@@ -114,7 +98,7 @@ export function registerImpactCommand(program: Command): void {
           } catch (err) {
             if (err instanceof LockInvalidError) {
               debugWrite(`[impact] readLock failed: ${err.message}`);
-              process.stderr.write(chalk.red(`Error: ${buildIssueMessage(err.messageData)}\n`));
+              fail(err.messageData);
               await exitAfterFlush(1);
             }
             throw err;
@@ -185,11 +169,11 @@ export function registerImpactCommand(program: Command): void {
 
             // No coverage at all — not mapped, not referenced, not observed.
             if (!ownerResult.nodePath && set!.pairs.length === 0 && set!.unresolved.length === 0) {
-              process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+              fail({
                 what: `${repoRelative} -> no graph coverage`,
                 why: 'file is not mapped to any node, is not referenced by any aspect, and is not observed by any deterministic or companion-backed aspect in the graph.',
                 next: 'Add the file to an existing node mapping, or create a new node.',
-              })}\n`));
+              });
               await exitAfterFlush(1);
               return;
             }
@@ -259,11 +243,11 @@ export function registerImpactCommand(program: Command): void {
           const nodePath = options.node!.trim().replace(/\/$/, '');
 
           if (!graph.nodes.has(nodePath)) {
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            fail({
               what: `Node not found: ${nodePath}`,
               why: 'The node path must match a node in the graph.',
               next: 'Run: yg tree — to list all nodes.',
-            })}\n`));
+            });
             process.exit(1);
           }
 
@@ -489,11 +473,11 @@ export function registerImpactCommand(program: Command): void {
           const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
           if (outsideRoot) {
             debugWrite(`[impact] file arg outside project root: ${msg}`);
-            process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+            fail({
               what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
               why: 'yg impact resolves impact only for files tracked inside the project.',
               next: 'Pass a path inside the project root (relative to the repo).',
-            }) + '\n'));
+            });
             process.exit(1);
           }
           debugWrite(`[impact] command failed: ${(error as Error).message}`);
