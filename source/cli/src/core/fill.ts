@@ -255,10 +255,13 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     // Judgment pairs in the fill set with no reviewer to call: only a preview or
     // an all-advisory project gets here (the structural gate stops the rest).
     if (!reviewerConfigured && llmPairs.length > 0) {
-      write(
-        `  No reviewer is configured — the ${llmPairs.length} judgment pair${llmPairs.length === 1 ? '' : 's'} counted here cannot be reviewed until one is: ` +
-          `yg init --provider <name> [--model <m>] (the user's decision), or set the judgment rule to status: draft.\n`,
-      );
+      // Structured what / why / next, rendered as the indented lines the header uses.
+      const noReviewer = {
+        what: `No reviewer is configured — the ${llmPairs.length} judgment pair${llmPairs.length === 1 ? '' : 's'} counted here cannot be reviewed.`,
+        why: 'Judgment rules are decided only by the configured reviewer; this run fills the script rules and leaves these pairs unverified.',
+        next: "yg init --provider <name> [--model <m>] (the user's decision), or set the judgment rule to status: draft.",
+      };
+      write(`  ${noReviewer.what}\n  ${noReviewer.why}\n  ${noReviewer.next}\n`);
     }
   };
 

@@ -90,7 +90,10 @@ export async function logCycleOpen(
   try {
     fingerprint = await computeSourceFingerprint(graph, node.path);
   } catch (e) {
-    if (e instanceof FileUnreadableError) return false;
+    if (e instanceof FileUnreadableError) {
+      debugWrite(`[log-gate] logCycleOpen fingerprint for ${toPosixPath(node.path)}: ${e.message}`);
+      return false;
+    }
     throw e;
   }
   if (fingerprint === undefined || fingerprint === lock.nodes[node.path]?.source) return false;
