@@ -1,14 +1,16 @@
 name: Templates Unit Tests
 type: test-suite
 description: "Unit tests for template generation: commands, default-config,
-  platform rules, and project name resolution"
+  platform rules, and project name resolution; and the .yggdrasil/.gitignore
+  list, compared on every surface that prints it with the one list init writes"
 aspects: []
 relations:
   [
     { target: cli/knowledge-concepts, type: uses },
     { target: cli/schemas, type: uses },
     { target: cli/templates, type: uses },
-    { target: cli/templates-platform, type: uses }
+    { target: cli/templates-platform, type: uses },
+    { target: cli/init-scaffold, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/templates/commands.test.ts
@@ -19,3 +21,4 @@ mapping:
   - source/cli/tests/unit/templates/rules-sections.test.ts
   - source/cli/tests/unit/templates/rules.test.ts
   - source/cli/tests/unit/templates/digest.test.ts
+  - source/cli/tests/unit/templates/gitignore-list-sync.test.ts

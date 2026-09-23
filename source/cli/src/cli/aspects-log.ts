@@ -15,6 +15,7 @@ import {
 import {
   ASPECT_STATUSES,
   currentStatus,
+  isDriftEntry,
   parseStatusEntry,
   statusLine,
 } from '../core/log/aspect-status.js';
@@ -99,22 +100,44 @@ export function registerAspectsLogCommand(aspects: Command): void {
     .command('read')
     .description("Print a rule's log entries newest-first")
     .requiredOption('--aspect <id>', 'rule id whose log to read')
-    .option('--limit <n>', 'show only the N newest entries', (v) => parseInt(v, 10))
+    .option('--top <n>', 'show only the N newest entries (the same flag yg log read takes)', (v) => parseInt(v, 10))
+    .option('--limit <n>', 'alias of --top', (v) => parseInt(v, 10))
+    .option('--all', 'show the whole history (the default here; cannot combine with --top)')
     .option('--json', `Machine-readable output: one ${ASPECT_LOG_JSON_SCHEMA} document on stdout instead of the entries.`)
-    .action(async (opts: { aspect: string; limit?: number; json?: boolean }) => {
+    .action(async (opts: { aspect: string; top?: number; limit?: number; all?: boolean; json?: boolean }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         const aspect = resolveAspect(graph, opts.aspect);
 
-        if (opts.limit !== undefined && (!Number.isInteger(opts.limit) || opts.limit <= 0)) {
+        // One flag vocabulary with `yg log read`: --top N or --all. --limit stays
+        // as the name this command shipped with. The default stays the whole
+        // history, because the rule history document is read by other tools that
+        // expect every entry unless they ask for fewer.
+        if (opts.top !== undefined && opts.limit !== undefined && opts.top !== opts.limit) {
           failWith({
-            what: `--limit '${opts.limit}' is not a positive whole number of entries.`,
+            what: `--top ${opts.top} and --limit ${opts.limit} disagree.`,
+            why: '--limit is another name for --top; given both with different values, the number of entries shown would be a guess.',
+            next: 'Pass one of them: --top <n> (or --limit <n>).',
+          });
+        }
+        const count = opts.top ?? opts.limit;
+        const flag = opts.top !== undefined ? '--top' : '--limit';
+        if (count !== undefined && opts.all === true) {
+          failWith({
+            what: `${flag} and --all cannot both be given.`,
+            why: `${flag} asks for the newest few entries and --all for every one; the two answers differ.`,
+            next: `Pass ${flag} <n> for the newest entries, or --all for the whole history.`,
+          });
+        }
+        if (count !== undefined && (!Number.isInteger(count) || count <= 0)) {
+          failWith({
+            what: `${flag} '${count}' is not a positive whole number of entries.`,
             why: 'The limit selects how many of the newest entries to show; zero or a fraction selects nothing anybody asked for.',
-            next: 'Re-run with --limit 5, or drop the flag to see the whole history.',
+            next: `Re-run with ${flag} 5, or drop the flag to see the whole history.`,
           });
         }
 
-        const result = await readAspectLog(graph.rootPath, aspect.id, opts.limit);
+        const result = await readAspectLog(graph.rootPath, aspect.id, count);
         if (!result.ok) failWith(result.error);
 
         if (opts.json === true) {
@@ -216,6 +239,13 @@ async function statusPrefixFor(
   }
 
   const previous = await previousStatus(graph, aspect);
+  if (previous === to) {
+    failWith({
+      what: `Rule '${aspect.id}' already stood at ${to} before this entry, so there is no change of standing to record.`,
+      why: "A status entry records a move from one standing to another. Writing one where nothing moved would put a promotion into the rule's history that never happened.",
+      next: `Record the note without --status (yg aspects log add --aspect ${aspect.id} --reason "..."), or set a different status: in the rule's yg-aspect.yaml first and record that change.`,
+    });
+  }
   return statusLine({
     from: previous,
     to,
@@ -240,7 +270,11 @@ async function previousStatus(graph: Graph, aspect: AspectDef): Promise<string> 
   if (log.ok) {
     for (const entry of log.entries) {
       const parsed = parseStatusEntry(entry.body);
-      if (parsed !== null) return parsed.to;
+      if (parsed === null) continue;
+      // The tool's own record of an edit made directly in the file carries no
+      // evidence. Recording that change now is the person supplying it, so the
+      // change runs from where the rule stood before that edit.
+      return isDriftEntry(entry.body) ? parsed.from : parsed.to;
     }
   }
   try {

@@ -14,7 +14,9 @@ description: "Repo-wide meta-tests (in-process, no spawned binary) that guard
   schema id on that page is either such a constant or a whitelisted document
   produced elsewhere — so neither a new machine document nor a retired one can
   leave the page saying something a consumer in another repository would
-  believe."
+  believe. A fourth fails when an adopter-facing surface (the docs site, the
+  READMEs, the templates the CLI prints, the examples) describes a removed
+  feature, such as the port contract baseline, as if it still existed."
 aspects: []
 relations:
   [
@@ -33,3 +35,4 @@ mapping:
   - source/cli/tests/unit/repo/false-green-invariant.test.ts
   - source/cli/tests/unit/repo/git-fixture-isolation-invariant.test.ts
   - source/cli/tests/unit/repo/family-contracts-invariant.test.ts
+  - source/cli/tests/unit/repo/no-retired-features-in-docs.test.ts

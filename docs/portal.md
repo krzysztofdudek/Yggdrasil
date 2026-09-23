@@ -56,7 +56,9 @@ exported it. Add `--open` to either form to launch your browser straight at it.
 By default the served form uses a fixed local port (4317) — pass
 `yg portal --port <n>` to choose another — and the static form writes to
 `yg-portal.html` in the project root — pass `yg portal --static --out <path>` to
-write it elsewhere.
+write it elsewhere. The file is ordinary project content to `yg check`: until you
+add it to `.gitignore` (or map it to a component), it is counted as an uncovered
+file, which blocks under a whole-repo `coverage.required`.
 
 ## What you see
 

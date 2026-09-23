@@ -47,7 +47,7 @@ coverage:
   excluded:
     - AGENTS.md
     - CLAUDE.md
-    - .clinerules/
+    - .clinerules/yggdrasil.md
     - .gitattributes
 ```
 

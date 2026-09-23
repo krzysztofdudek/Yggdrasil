@@ -340,9 +340,13 @@ yg-secrets.yaml               # provider API keys
 .type-class-cache/            # the type-level classification lattice's path-and-content-keyed cache
 .debug.log                    # the opt-in command debug log
 .yg-lock.deterministic.json   # the free deterministic-verdict cache (rebuilt keyless)
-.yg-events.jsonl              # the local verdict-events telemetry sidecar
-.yg-fill-divergence.log       # forensic dump written only on a fill convergence divergence
+.yg-events.jsonl*             # the local verdict-events telemetry sidecar (and its .1 rotation)
+.yg-fill-divergence.log*      # forensic dump written only on a fill convergence divergence (and its .1 rotation)
 .feature-field.json           # the local structural-deviation attention index
+.family-candidates.json       # family-candidate analysis, the shared file earlier releases wrote
+.family-candidates.*.json     # family-candidate analysis, one file per producer
+.yg-packages-versions.json    # what each installed package's source was last seen to publish
+*.tmp                         # an atomic write's half-finished temp file, orphaned by a hard kill
 \`\`\`
 
 It is written idempotently on fresh \`yg init\` AND on every \`yg init --upgrade\`

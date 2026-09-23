@@ -120,7 +120,10 @@ For each (node, aspect):
 3. If a channel's EXPLICIT declaration on channels 1–6 is lower than the
    cascade would yield without that declaration, the validator emits
    \`aspect-status-downgrade\` — downgrade attempts are validator errors.
-   This is the "bump up OK, downgrade is error" rule.
+   This is the "bump up OK, downgrade is error" rule. The aspect-level
+   default is part of that cascade, so an attach site can only raise status
+   above the aspect default, never lower it: to soften a rule, lower the
+   aspect default and raise it where it must stay strict.
 
 \`yg check\` computes effective status live each run, so the SAME stored verdict
 renders at whatever status is effective now.

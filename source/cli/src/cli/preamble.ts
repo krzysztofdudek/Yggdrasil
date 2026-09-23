@@ -92,8 +92,8 @@ export async function loadGraphOrAbort(
     const msg = (err as Error).message ?? '';
     const code = (err as NodeJS.ErrnoException).code;
     // Only the graph-root/.yggdrasil probe means "not initialized". `findYggRoot`
-    // and the model/ check convert a genuinely-missing graph into the descriptive
-    // messages matched below; a RAW ENOENT is limited to the `.yggdrasil` probe
+    // converts a genuinely-missing graph into the descriptive message matched
+    // below (an absent model/ is an empty graph, not a missing one); a RAW ENOENT is limited to the `.yggdrasil` probe
     // itself (matched by path basename) so a downstream stray ENOENT no longer
     // masquerades as "run yg init".
     const enoentPath = (err as NodeJS.ErrnoException).path;
@@ -101,11 +101,7 @@ export async function loadGraphOrAbort(
       code === 'ENOENT' &&
       typeof enoentPath === 'string' &&
       path.basename(enoentPath) === '.yggdrasil';
-    if (
-      isGraphRootProbe ||
-      msg.includes('No .yggdrasil/ directory found') ||
-      msg.includes('does not exist')
-    ) {
+    if (isGraphRootProbe || msg.includes('No .yggdrasil/ directory found')) {
       const formatted = buildIssueMessage({
         what: 'No .yggdrasil/ directory found in the current project.',
         why: 'Yggdrasil commands require an initialized graph at the project root.',

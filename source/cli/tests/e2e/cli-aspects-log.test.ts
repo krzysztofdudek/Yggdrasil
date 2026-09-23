@@ -268,4 +268,60 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('7: a standing that did not move is refused, so the history never gains a phantom promotion', () => {
+    const dir = project('noop');
+    try {
+      approve(dir); // the tool remembers advisory
+      setStatus(dir, 'enforced');
+      approve(dir); // it notices the edit and writes the bare fact into the log
+      const drift = readFileSync(logPath(dir), 'utf-8');
+      expect(drift).toContain('Status: advisory → enforced, changed outside the CLI');
+
+      // Recording that same change after the tool noted it is the person adding
+      // the evidence: it runs from where the rule stood before the edit.
+      const evidence = run(
+        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'a month advisory', '--reason', 'Promoted.'],
+        dir,
+      );
+      expect(evidence.status, evidence.all).toBe(0);
+      expect(readFileSync(logPath(dir), 'utf-8')).toContain('Status: advisory → enforced, decided by the user');
+
+      // A second record of the same standing is a change nobody made.
+      const again = run(
+        ['aspects', 'log', 'add', '--aspect', RULE, '--status', 'enforced', '--evidence', 'still clean', '--by', 'the architect', '--reason', 'Promoted again.'],
+        dir,
+      );
+      expect(again.status).toBe(1);
+      expect(again.stderr).toContain('already stood at enforced before this entry');
+      expect(readFileSync(logPath(dir), 'utf-8')).not.toContain('enforced → enforced');
+      expect(readFileSync(logPath(dir), 'utf-8').match(/^## \[/gm)).toHaveLength(2);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('8: log read takes the same --top / --all flags as yg log read, with --limit as an alias', () => {
+    const dir = project('topall');
+    try {
+      for (const n of ['first', 'second', 'third']) {
+        expect(run(['aspects', 'log', 'add', '--aspect', RULE, '--reason', `Entry ${n} about this rule.`], dir).status).toBe(0);
+      }
+      const count = (args: string[]): number =>
+        (JSON.parse(run(['aspects', 'log', 'read', '--aspect', RULE, '--json', ...args], dir).stdout) as LogDoc).entries.length;
+      expect(count([])).toBe(3); // the whole history by default
+      expect(count(['--top', '2'])).toBe(2);
+      expect(count(['--limit', '2'])).toBe(2);
+      expect(count(['--all'])).toBe(3);
+
+      const both = run(['aspects', 'log', 'read', '--aspect', RULE, '--top', '2', '--all'], dir);
+      expect(both.status).toBe(1);
+      expect(both.stderr).toContain('--top and --all cannot both be given');
+      const disagree = run(['aspects', 'log', 'read', '--aspect', RULE, '--top', '2', '--limit', '3'], dir);
+      expect(disagree.status).toBe(1);
+      expect(disagree.stderr).toContain('disagree');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

@@ -62,9 +62,21 @@ export function statusLine(args: {
   return `${STATUS_PREFIX} ${args.from} → ${args.to}, decided by ${args.by}. Evidence: ${args.evidence}`;
 }
 
+const DRIFT_MARKER = 'changed outside the CLI';
+
 /** The line the tool writes for itself when it finds a standing changed behind its back. */
 export function driftLine(from: string, to: string): string {
-  return `${STATUS_PREFIX} ${from} → ${to}, changed outside the CLI. Evidence: none was recorded — the rule's file was edited directly, and this entry is the tool writing down what it found so the change is not lost.`;
+  return `${STATUS_PREFIX} ${from} → ${to}, ${DRIFT_MARKER}. Evidence: none was recorded — the rule's file was edited directly, and this entry is the tool writing down what it found so the change is not lost.`;
+}
+
+/**
+ * Whether a status entry is one the tool wrote for itself (see `driftLine`):
+ * the bare fact of a change, with no evidence. A person recording that same
+ * change afterwards is adding the evidence, not claiming a second change.
+ */
+export function isDriftEntry(body: string): boolean {
+  const line = body.split('\n').find((l) => l.trimStart().startsWith(STATUS_PREFIX));
+  return line !== undefined && line.includes(`, ${DRIFT_MARKER}.`);
 }
 
 /**

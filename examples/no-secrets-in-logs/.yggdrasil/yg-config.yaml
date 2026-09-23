@@ -11,16 +11,6 @@ coverage:
   required: ["src"]
   excluded: ["README.md", "AGENTS.md", "CLAUDE.md", ".clinerules/", ".gitattributes"]
 
-# This example is KEYLESS: its only rule is a deterministic check.mjs, which
-# runs locally at zero cost with no API key. The reviewer tier below is NOT
-# required — a script-only project may omit the whole `reviewer:` section, and
-# nothing asks for one until a judgment (LLM) rule is actually effective. It is
-# kept here only so adding such a rule later needs no config edit, and it is
-# never invoked as things stand.
-reviewer:
-  tiers:
-    standard:
-      provider: claude-code
-      consensus: 1
-      config:
-        model: haiku
+# This example is KEYLESS: its only rules are deterministic, and a script-only
+# project needs no reviewer: section at all. Add one (yg init --provider ...)
+# when you add the first judgment rule.

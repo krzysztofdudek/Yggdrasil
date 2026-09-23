@@ -53,6 +53,9 @@ describe('registerAspectsLogCommand', () => {
     const read = Object.fromEntries(sub('read').options.map((o) => [o.long, o]));
     expect(read['--aspect'].mandatory).toBe(true);
     expect(read['--limit'].required).toBe(true);
+    // The same vocabulary yg log read takes: --top <n> or --all.
+    expect(read['--top'].required).toBe(true);
+    expect(read['--all'].required).toBe(false);
     expect(read['--json'].required).toBe(false);
   });
 });

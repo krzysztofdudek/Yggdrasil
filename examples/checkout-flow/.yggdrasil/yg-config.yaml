@@ -11,13 +11,6 @@ coverage:
   required: ["src"]
   excluded: ["README.md", "AGENTS.md", "CLAUDE.md", ".clinerules/", ".gitattributes"]
 
-# This example is KEYLESS: its only aspect is deterministic (check.mjs), which
-# runs locally at zero cost. The reviewer tier below is required boilerplate so
-# the project could add LLM aspects later; no LLM call is made by this example.
-reviewer:
-  tiers:
-    standard:
-      provider: claude-code
-      consensus: 1
-      config:
-        model: haiku
+# This example is KEYLESS: its only rules are deterministic, and a script-only
+# project needs no reviewer: section at all. Add one (yg init --provider ...)
+# when you add the first judgment rule.

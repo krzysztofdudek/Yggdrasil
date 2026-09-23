@@ -18,10 +18,6 @@ coverage:
     - .clinerules/
     - .gitattributes
 
-reviewer:
-  tiers:
-    standard:
-      provider: claude-code
-      consensus: 1
-      config:
-        model: haiku
+# This example is KEYLESS: its only rules are deterministic, and a script-only
+# project needs no reviewer: section at all. Add one (yg init --provider ...)
+# when you add the first judgment rule.

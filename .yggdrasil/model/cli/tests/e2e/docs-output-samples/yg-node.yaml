@@ -1,0 +1,7 @@
+name: E2E Tests — Docs Output Samples
+type: test-suite
+description: "Subprocess E2E that regenerates the terminal output samples the docs show and compares them with every page that shows them: the first yg check after yg init (README and getting started), the first rule's unverified check and the one-component summary line (getting started and the reviewers page), the cached refusal from examples/failing (reviewers and getting started), and the coverage stanza yg init --upgrade prints (getting started, platforms, configuration). A change to any of those outputs fails here until the pages are updated with it."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/docs-output-samples.test.ts

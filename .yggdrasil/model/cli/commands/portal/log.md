@@ -8,3 +8,5 @@ Wire plain `yg portal` (no static-export flag) to start the local loopback serve
 The static-output confirmation line now normalizes the written file path to POSIX form before printing it, so the path shown to the agent uses forward slashes on every platform. The native path is still used for the filesystem write and for opening the browser; only the displayed string is normalized.
 ## [2026-09-23T19:15:14.167Z]
 The --port and --out help omitted the defaults the reference documents, and did not say that the static page is written at the project root rather than the current directory. Both are now stated in the help, so a reader learns where the file lands before it appears in the repository.
+## [2026-09-23T20:03:22.673Z]
+The command's one-line description no longer calls the portal read-only without qualification. By default the served page carries one Approve button that runs a real, possibly billed, approving check; the description now says so and names the flag that removes it, matching what the portal's own page and the reference already said.

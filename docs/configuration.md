@@ -300,7 +300,7 @@ Controls which coverage-visible files must be mapped to a node in `yg check`.
     excluded:
       - AGENTS.md
       - CLAUDE.md
-      - .clinerules/
+      - .clinerules/yggdrasil.md
       - .gitattributes
   ```
 
@@ -420,6 +420,8 @@ separately.
 | `.yg-events.jsonl*` | The verdict-events telemetry sidecar (see [Verdict-events sidecar](/reviewers#verdict-events-sidecar)). The trailing `*` also covers its `.1` rotation. |
 | `.yg-fill-divergence.log*` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run (see [Running in parallel](/concurrency)). The trailing `*` also covers its `.1` rotation. |
 | `.feature-field.json` | The silent structural-deviation index behind the [structural-attention](/feature-field) hint. |
+| `.family-candidates.json` | Family-candidate analysis in the shared file earlier releases wrote; rebuilt by rerunning the producer. |
+| `.family-candidates.*.json` | Family-candidate analysis, one file per producer (`.family-candidates.<producer>.json`); freshness-gated when read and rebuilt by rerunning the producer. |
 | `.yg-packages-versions.json` | What each installed package's source was last seen to publish — a local cache the `yg pack` commands write while they are already talking to a source. |
 | `*.tmp` | An atomic write's half-finished temp file, orphaned by a hard kill. `yg check` sweeps stale ones on startup; this keeps one from showing up as untracked noise before that. |
 
@@ -430,8 +432,9 @@ verdict cache: those pairs read as unverified until
 
 The committed side is the graph itself — `yg-config.yaml`, `yg-architecture.yaml`,
 the `model/`, `aspects/` and `flows/` trees, the two committed lock files, the
-incident ledger, the attention-decision record, and (when opted in) the shared
-events stream.
+incident ledger, the attention-decision record (`advise-decisions.jsonl`), the
+imported attention record (`advise-imported.jsonl`), and (when opted in) the
+shared events stream.
 
 ---
 
@@ -478,7 +481,7 @@ repository root only. Review the diff before committing.
 | Value | Behavior |
 | --- | --- |
 | `false` (default) | Read-only: recomputes hashes, validates, reports. Writes nothing, makes no LLM calls, needs no keys. |
-| `deterministic` | Behaves like `yg check --approve --only-deterministic` — fills only deterministic pairs (free, keyless), writes the gitignored cache (and a port's contract baseline when one is missing). |
+| `deterministic` | Behaves like `yg check --approve --only-deterministic` — fills only deterministic pairs (free, keyless), writes the gitignored cache. |
 | `full` | Behaves like `yg check --approve` — fills the unverified pairs that run answers for, LLM pairs included. |
 
 **Precedence:** explicit CLI flags always override `auto_approve`. Passing

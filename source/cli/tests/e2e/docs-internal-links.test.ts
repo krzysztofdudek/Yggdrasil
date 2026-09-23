@@ -42,7 +42,7 @@ afterAll(() => {
 describe.skipIf(!distExists)('docs-internal-links — e2e over real .md fixtures', () => {
   it('cross-page links that resolve to existing pages pass', () => {
     const a = F('a.md', '# A\nSee [B](/b) and the [relative form](./b.md#part).\n');
-    const b = F('b.md', '# B\nBack to [A](/a) and [home](/).\n');
+    const b = F('b.md', '# B\nBack to [A](/a) and [home](/).\n\n## Part\n');
     const home = F('index.md', '# Home\nGo to [A](/a).\n');
     const out = checkLinks([a, b, home]).stdout;
     expect(out).toContain('satisfied');
@@ -77,6 +77,7 @@ describe.skipIf(!distExists)('docs-internal-links — e2e over real .md fixtures
       '---',
       'title: Home',
       '---',
+      '# Home',
       'Titled: [S](/settings "The Settings Page"). Angle+title: [x](</settings> "Config").',
       'Root: [Home](/). Index alias: [idx](/index).',
       'Images: ![arch](/diagram.jpeg) ![logo](/brand/logo) ![up](/L.SVG).',
@@ -100,6 +101,42 @@ describe.skipIf(!distExists)('docs-internal-links — e2e over real .md fixtures
     const out = checkLinks([home, settings]).stdout;
     expect(out).toContain('satisfied');
     expect(out).not.toContain('refused');
+  });
+
+  it('a #fragment must name an anchor the target page renders (VitePress slugs, {#id}, repeats)', () => {
+    const ref = F('ref.md', [
+      '# Reference',
+      '#### `yg aspects --json`',
+      '### `yg check --json` {#check-json}',
+      '## Setup',
+      '## Setup',
+      '<a id="legacy-anchor"></a>',
+      '### reviewer.tiers.\\<name\\>',
+    ].join('\n') + '\n');
+    const good = F('good.md', [
+      '# Good',
+      'VitePress slug: [a](/ref#yg-aspects-json). Explicit id: [c](/ref#check-json).',
+      'Repeat: [s](/ref#setup) [s1](/ref#setup-1). Literal id: [l](/ref#legacy-anchor).',
+      'Escaped heading: [t](/ref#reviewer-tiers-name). Same page: [top](#good).',
+    ].join('\n') + '\n');
+    const ok = checkLinks([ref, good]).stdout;
+    expect(ok).toContain('satisfied');
+    expect(ok).not.toContain('refused');
+
+    // GitHub-style slugs the published site never renders, a heading whose
+    // explicit id replaced its slug, and a dead same-page anchor.
+    const bad = F('bad.md', [
+      '# Bad',
+      'GitHub slug: [a](/ref#yg-aspects---json).',
+      'Replaced slug: [c](/ref#yg-check-json).',
+      'Same page: [x](#nowhere).',
+    ].join('\n') + '\n');
+    const { stdout, status } = checkLinks([ref, bad]);
+    expect(stdout).toContain('refused');
+    expect(stdout).toContain('#yg-aspects---json');
+    expect(stdout).toContain('#yg-check-json');
+    expect(stdout).toContain('#nowhere');
+    expect(status).not.toBe(0);
   });
 
   it('resolves a real repo doc set clean (no broken links ship)', () => {

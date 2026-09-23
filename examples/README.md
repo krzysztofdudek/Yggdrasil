@@ -98,14 +98,16 @@ yg tree     # see the graph
 ### `failing/` — deliberate violation
 
 Same project, but the payment service is missing audit logging — a violation of
-the `requires-audit` aspect. The reviewer defaults to Claude Code; run
-`yg init` to switch providers.
+the `requires-audit` aspect. The reviewer's refusal is already recorded in the
+committed lock, so you see it with no key.
 
 ```bash
 cd examples/failing
-yg check                     # FAIL — payments never approved
-yg check --approve           # reviewer rejects: audit logging missing
+yg check                     # FAIL — the committed lock holds the reviewer's refusal
+yg check --approve           # still FAIL, 0 reviewer calls: a recorded refusal is not re-rolled
 ```
 
-Fix `src/payments.ts` by adding audit logging, then re-run `yg check --approve`
-to see it pass.
+A refusal is final for unchanged inputs. The ways out are to fix the code, sharpen
+the rule, or propose a `yg-suppress`. Fix `src/payments.ts` by adding audit
+logging, then run `yg check --approve` with a configured reviewer (the example
+uses Claude Code; `yg init` switches providers) to see it pass.

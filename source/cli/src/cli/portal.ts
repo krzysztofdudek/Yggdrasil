@@ -37,7 +37,7 @@ export interface PortalOptions {
 export function registerPortalCommand(program: Command): void {
   program
     .command('portal')
-    .description('Open a read-only local web portal onto the graph and its verification state')
+    .description('Open a local web portal onto the graph and its verification state — read-only apart from one Approve button that runs yg check --approve (--no-write removes it)')
     .option('--static', 'Emit a self-contained static page instead of serving')
     .option('--out <path>', 'Output path for the static page (with --static), relative to the project root (default: yg-portal.html at the project root)')
     .option('--port <n>', 'Port for the local loopback server (default: 4317)', (v) => {

@@ -32,10 +32,13 @@ provider, then a model, and — for an API provider — checks for a key). If yo
 already run an agent CLI — **Claude Code, Codex, Gemini CLI, or GitHub Copilot CLI** — pick it: it
 needs **no API key** and adds no separate API bill, only a check that the
 tool is on your PATH. Ollama runs locally with no API cost either. The API
-providers (Anthropic, OpenAI, Google) need a key, read only from an environment
-variable (`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY` — never a
-flag, so it never lands in shell history) and stored in
-`.yggdrasil/yg-secrets.yaml` (automatically gitignored).
+providers (Anthropic, OpenAI, Google) need a key. Export it first
+(`ANTHROPIC_API_KEY` / `OPENAI_API_KEY` / `GOOGLE_API_KEY`) and init uses it
+when you press Enter at the key prompt, without copying it to disk; the reviewer
+reads the same variable at run time. Without the variable, init asks for the key
+in a masked prompt (the input is never shown) and stores it in
+`.yggdrasil/yg-secrets.yaml` (automatically gitignored). No command takes the
+key as a flag, so it never lands in shell history.
 
 Each of the three agent-rules files is optional. Skip any of them with
 `--no-agents-md`, `--no-claude-md`, or `--no-clinerules` — the choice is
@@ -116,9 +119,21 @@ Nothing is required to be covered, so the 50 uncovered files this run lists can 
 Warnings (1):
 
   uncovered (50)
-            src/…  (first 10 paths, then "... +40")
+            package.json
+            src/f1.ts
+            src/f10.ts
+            src/f11.ts
+            src/f12.ts
+            src/f13.ts
+            src/f14.ts
+            src/f15.ts
+            src/f16.ts
+            src/f17.ts
+            ... +40
             Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
             Fix: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
+
+Next: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
 ```
 
 `yg init` turns `coverage.type_level` on by default (see [Configuration](/configuration#coverage-config)), and the fresh architecture starts with no classifying types — hence the first notice line. Add a `when:` predicate to a type and matching files start satisfying coverage on their own, with no node required. The second notice is require-nothing mode stating its own consequence: it appears whenever `coverage.required` is empty _and_ something is still uncovered, and it stops the moment either half stops being true.
@@ -157,7 +172,7 @@ Now run `yg check`:
 ```text
 $ yg check
 
-yg check: FAIL  1 nodes · 1/1 files (1 node-owned, 0 type-covered, 0 excluded) · 1 aspects · 0 flows
+yg check: FAIL  1 nodes · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspects · 0 flows
 
 Errors (1):
 
@@ -179,14 +194,14 @@ $ yg check --approve
 
 Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
 
-yg check: PASS  1 nodes · 1/1 files (1 node-owned, 0 type-covered, 0 excluded) · 1 aspects · 0 flows · 1 verified (0 deterministic, 1 LLM)
+yg check: PASS  1 nodes · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspects · 0 flows · 1 verified (0 deterministic, 1 LLM)
 ```
 
 If the code didn't satisfy the aspect, the pair is refused and the report shows
 the enforced refusal block with the reviewer's reason:
 
 ```text
-yg check: FAIL  1 nodes · 1/1 files (1 node-owned, 0 type-covered, 0 excluded) · 1 aspects · 0 flows
+yg check: FAIL  1 nodes · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspects · 0 flows
 
 Errors (1):
 
@@ -246,7 +261,7 @@ coverage:
   excluded:
     - AGENTS.md
     - CLAUDE.md
-    - .clinerules/
+    - .clinerules/yggdrasil.md
     - .gitattributes
 ```
 

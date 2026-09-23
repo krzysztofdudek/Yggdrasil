@@ -20,7 +20,7 @@ Every command here reads the graph of the directory it runs in, never a commit n
 | `yg node <path>` | One component's structure — what it owns, what it depends on, the ports it publishes (`--json` for the machine-readable form) |
 | `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)). `--json` for the machine-readable form |
 | `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
-| `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes the gitignored cache, plus a port's contract baseline when one is missing |
+| `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes the gitignored cache |
 | `yg log add` / `read` / `merge-resolve` | Per-node append-only business log |
 
 ### `yg context`
@@ -239,13 +239,13 @@ the text report's job, not the document's.
 `--json` is refused for `--aspect`, `--flow` and `--type`: their subject is not a
 component, and a second document shape must not hide behind the same schema tag.
 The same facts are documents elsewhere: one rule's reach — every unit it judges,
-with the status there — is [`yg aspects --json --reach`](#yg-aspects---json), and
+with the status there — is [`yg aspects --json --reach`](#yg-aspects-json), and
 what the lock says about each of those units is [`yg check
---json`](#yg-check---json), whose pairs join to it on the same `unit`. New fields
+--json`](#yg-check-json), whose pairs join to it on the same `unit`. New fields
 may appear within `yg-impact/1`; only a change to an existing field's shape takes
 a new schema number.
 
-### `yg check --json`
+### `yg check --json` {#yg-check-json}
 
 The same run as one `yg-check/1` document instead of the report, for anything
 that reads it programmatically — a build step deciding what to schedule, a
@@ -474,11 +474,10 @@ yg check --summary --coverage                       # per-type counts only
 `--quiet` / `-q` silences the `--approve` fill-progress on stderr, leaving only the
 final report on stdout. With `--dry-run` the budget preview is the command's
 deliverable, so `--dry-run` wins over `--quiet` — the budget still prints on
-stdout; `--quiet` only suppresses the non-dry-run progress. That precedence holds
-without `--json`. Under `--json` stdout carries the document alone and the budget
-preview moves to stderr with the progress, where `--quiet` does silence it: `yg
-check --approve --dry-run --json --quiet` therefore drops the preview entirely,
-from both streams.
+stdout; `--quiet` only suppresses the non-dry-run progress. The precedence holds
+under `--json` too, where stdout carries the document alone and the budget preview
+moves to stderr: `yg check --approve --dry-run --json --quiet` still prints the
+preview, on stderr, beside the document on stdout.
 
 #### `--full` — answer for the whole project
 
@@ -739,7 +738,7 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
 | `yg owner --file <path>` | Quick ownership lookup |
 | `yg suppressions` | Inventory of active `yg-suppress` markers (`--json` for the machine-readable form) |
 | `yg type-suggest --file <path>` | Suggest architecture type for a file |
-| `yg portal` [`--static`] | Read-only web view of the graph and its verification state |
+| `yg portal` [`--static`] | Web view of the graph and its verification state; read-only apart from one Approve button (`--no-write` removes it) |
 
 ### `yg tree`
 
@@ -913,7 +912,7 @@ unavailable (a shallow clone or no repository), never a fabricated `0`. These lo
 only in this view — the plain `yg aspects` listing stays unchanged. The view is read-only and
 never calls a reviewer.
 
-#### `yg aspects --json`
+#### `yg aspects --json` {#yg-aspects-json}
 
 The rule inventory as one `yg-aspects/1` document: each rule's id, name and
 description, its reviewer kind and tier, its status, its standing review date,
@@ -961,7 +960,7 @@ the document is unchanged and costs what it always did. `--reach` without
 `--json` is refused — the enumeration is machine input, and the plain listing
 already answers the same question at a reader's resolution.
 
-#### `yg aspects log` — a rule's own history
+#### `yg aspects log` — a rule's own history {#yg-aspects-log}
 
 A component has always had a log beside it saying why it is the way it is. A rule
 has one too, in `.yggdrasil/aspects/<id>/log.md`, and these are its two commands.
@@ -973,7 +972,7 @@ their flags differ:
 | Which log | `--node <path>` | `--aspect <id>` |
 | Entry text | `--reason` / `--reason-file` | `--reason` / `--reason-file` |
 | Standing change | — | `--status`, with `--evidence` and `--by` |
-| How many to read | `--top <n>` (default 10) or `--all` | `--limit <n>` (default: the whole history) |
+| How many to read | `--top <n>` (default 10) or `--all` | `--top <n>` (alias `--limit <n>`) or `--all` (default: the whole history, which is what other tools reading `--json` expect) |
 | Machine output | — | `--json` (one `yg-aspect-log/1` document) |
 | Verification events | `--with-verdicts` | — |
 
@@ -982,7 +981,7 @@ yg aspects log add --aspect no-raw-sql --reason "Written after the outage on the
 yg aspects log add --aspect no-raw-sql --status enforced \
   --evidence "a month advisory, no false alarms" --by "the architect" \
   --reason "Promoted once it had run clean long enough to trust."
-yg aspects log read --aspect no-raw-sql --limit 5
+yg aspects log read --aspect no-raw-sql --top 5
 yg aspects log read --aspect no-raw-sql --json   # one yg-aspect-log/1 document
 ```
 
@@ -1274,7 +1273,7 @@ non-match, since the rule was never applied rather than applied and failed.
 
 ### `yg portal`
 
-Opens a read-only web view of the graph and its verification state on a
+Opens a web view of the graph and its verification state on a
 loopback-only address (default port 4317) and prints the link. Every component,
 every rule, and each one's honest state as of right now.
 
@@ -1289,7 +1288,9 @@ yg portal --static --out x.html  # choose the static output path (default: yg-po
 
 `--static` writes to the project root, not the current directory: the default
 file is `yg-portal.html` there, and a relative `--out` path resolves against the
-project root too. Add the file to `.gitignore` if you do not want to commit it.
+project root too. Until it is gitignored or mapped, `yg check` counts it as an
+uncovered file like any other (a blocking unmapped file under a whole-repo
+`coverage.required`), so add it to `.gitignore` if you do not want to commit it.
 
 The served view is read-only except for one clearly-labelled Approve action that
 runs the same verification as `yg check --approve`; `--no-write` removes it. The
@@ -1320,7 +1321,8 @@ yg knowledge read <name>
 Available topics include: `working-with-architecture`, `aspects-overview`, `aspect-status`,
 `writing-llm-aspects`, `writing-deterministic-aspects`,
 `conditional-aspects`, `suppress-syntax`, `verification-and-lock`, `configuration`,
-`cli-reference`, `log-management`, `ports-and-relations`, `flows`, `meta-modeling`, `onboarding`.
+`cli-reference`, `log-management`, `ports-and-relations`, `flows`, `meta-modeling`, `onboarding`,
+`packages-and-marketplaces`.
 
 Run `yg knowledge list` to see the current list with one-line descriptions.
 
@@ -1384,7 +1386,7 @@ LLM case stamped `unsupported`, emit no verdict event. Keeping a corpus for ever
 enforced rule is a convention, not a requirement — a missing corpus never blocks
 `yg check`.
 
-#### `yg drill add` — a real escape becomes a permanent case
+#### `yg drill add` — a real escape becomes a permanent case {#yg-drill-add}
 
 The best case a rule can hold is the code that actually got past it. `yg drill
 add` takes that code straight out of history:
@@ -1394,10 +1396,15 @@ yg drill add --aspect no-direct-minimatch \
   --violates src/search/query.ts@a1b2c3d \
   --why "shipped in the incident on the 3rd; nothing refused it"
 
-# add the fix alongside it, so the rule is pinned from both sides
+# or, instead: the escape and its fix in one go, so the rule is pinned from both sides
 yg drill add --aspect no-direct-minimatch \
   --violates src/search/query.ts@a1b2c3d --satisfies src/search/query.ts@e4f5g6h
 ```
+
+The two commands are alternatives, not a sequence: `--violates` is required on
+every call, and a second call naming the same file at the same commit is refused
+because that exact content is already a case. To pin the fix, pass `--satisfies`
+on the call that adds the escape.
 
 It reads the file as it stood at that commit, writes it into the rule's corpus
 under the usual `violates-*` / `satisfies-*` convention with a name that carries

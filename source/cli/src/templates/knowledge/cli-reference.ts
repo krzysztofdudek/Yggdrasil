@@ -897,7 +897,7 @@ history) and \`--json\`; a node log takes \`--top <n>\` (default 10), \`--all\` 
 yg aspects log add --aspect <id> --reason "<why the rule exists / what changed>"
 yg aspects log add --aspect <id> --status <draft|advisory|enforced> \\
   --evidence "<what justified it>" --by "<who decided>" --reason "<why>"
-yg aspects log read --aspect <id> [--limit <n>] [--json]
+yg aspects log read --aspect <id> [--top <n> | --all] [--json]   # --limit <n> is an alias of --top
 \`\`\`
 
 \`--status\` RECORDS a change of standing; it does NOT make one. The rule's file
