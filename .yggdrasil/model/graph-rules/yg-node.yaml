@@ -1,7 +1,15 @@
 name: Graph Rule Scripts
 type: rule-script
-description: "The deterministic check.mjs implementation for every aspect this graph defines. Governed like any other first-party source under this same repository's own rules, closing the gap where the rule scripts that enforce the graph were themselves outside the graph's coverage."
+description: "The deterministic check.mjs implementation for every aspect this graph defines, at whatever depth its aspect id nests (portal/<id>, reference/relations/<id>), never the fake rule scripts inside drill cases. Governed like any other first-party source under this same repository's own rules, closing the gap where the rule scripts that enforce the graph were themselves outside the graph's coverage."
 aspects: []
 relations: []
 mapping:
+  # One entry per nesting depth an aspect id can have (a top-level aspect, a
+  # grouped one such as portal/<id>, and a twice-grouped one such as
+  # reference/relations/<id>). A single recursive glob would also sweep in the
+  # fake rule scripts that drill cases carry under their own nested .yggdrasil/,
+  # and a mapping entry cannot subtract. A unit test fails the moment a rule
+  # script appears that none of these entries reaches.
   - .yggdrasil/aspects/*/check.mjs
+  - .yggdrasil/aspects/*/*/check.mjs
+  - .yggdrasil/aspects/*/*/*/check.mjs

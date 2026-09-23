@@ -81,7 +81,7 @@
     "cli/core/verify-lock": {"log":{"last_entry_datetime":"2026-09-21T11:40:37.205Z","prefix_hash":"0768d6032bcdbe045934ab5cd2824119813c55426b60ef2f72ef81fda068806f"},"source":"46708e4db4d3e817cb4aaf59cdaedac0d0c8e60ce6891bf250a8c710f68941aa"},
     "cli/entry": {"log":{"last_entry_datetime":"2026-07-12T11:42:31.387Z","prefix_hash":"6cdee37a456aa1bd7a1d84866bbf7b89b82482f8bbbe6e8d8765cf551b90c062"}},
     "cli/exit-after-flush": {"log":{"last_entry_datetime":"2026-06-13T05:33:58.184Z","prefix_hash":"ce29c216b853ac07259af9c4462c6ee5c8da7ccbff904420d3f1ec544462be96"}},
-    "cli/formatters": {"log":{"last_entry_datetime":"2026-05-31T16:03:34.603Z","prefix_hash":"8712a6d98df4f5f4e0332ce8a580dc61a18e330f870ffa177ea420291c4c75f0"}},
+    "cli/formatters": {"log":{"last_entry_datetime":"2026-09-23T20:10:10.458Z","prefix_hash":"c839ab7dfba9a737a142291f25ea864fb1826acee89c0045765f16a41b4ca006"}},
     "cli/impact-handlers": {"log":{"last_entry_datetime":"2026-08-03T00:22:24.350Z","prefix_hash":"970b12b86e8432d972abce08ea7aa424fcc5076120e25a49d8b5baa6c3118152"}},
     "cli/init-scaffold": {"log":{"last_entry_datetime":"2026-09-10T16:19:47.407Z","prefix_hash":"651226b40893f664aa66d54d950bf80896cef836b7fcccb8517c455f8bc7c16c"}},
     "cli/io": {"log":{"last_entry_datetime":"2026-05-15T12:47:31.361Z","prefix_hash":"38bf5cdff7ff07668925997ec13c9d20c181db85820df8732dafc2ec2e05a985"}},
@@ -158,7 +158,7 @@
     "cli/tests/unit/bounty4/conditional-aspects": {"log":{"last_entry_datetime":"2026-06-12T13:19:23.786Z","prefix_hash":"3bbdae561cbb8973bd850b45d9688e86d4210313ff224f27ad881c0a93536baf"}},
     "cli/tests/unit/cli": {"log":{"last_entry_datetime":"2026-05-15T08:46:12.723Z","prefix_hash":"3567d21a93afc6e149dc361f4bbf9eb79fa3b9f997ebbf33789d2cbd20562d53"}},
     "cli/tests/unit/cli/general": {"log":{"last_entry_datetime":"2026-05-31T06:24:49.143Z","prefix_hash":"91996a06aca0711ba49fd5cb1b73e71a0755f5f0f4136c3a36afbf45e763847a"}},
-    "cli/tests/unit/cli/graph": {"log":{"last_entry_datetime":"2026-05-30T18:08:11.973Z","prefix_hash":"c551d1af296d4b3f0b93e8c81d214048f788954659d4011a89abb748de61add3"}},
+    "cli/tests/unit/cli/graph": {"log":{"last_entry_datetime":"2026-09-23T20:10:27.186Z","prefix_hash":"2c2ec9dc2b0a53374bda8e10b43d6afa65c2ebfc8ab6558bfea72c7426ebb9d3"}},
     "cli/tests/unit/cli/inspect": {"log":{"last_entry_datetime":"2026-05-30T22:31:37.101Z","prefix_hash":"f83717ca5672c705800d8c5a5baa85b9d124fe0d5ee201a361b2ff4fdaad5e8d"}},
     "cli/tests/unit/core/context": {"log":{"last_entry_datetime":"2026-05-31T21:42:03.007Z","prefix_hash":"829ec1d9117d7821c6d351419c90f4ee838cc539b71e20d0a4d5b3e47eda4fb5"}},
     "cli/tests/unit/core/graph": {"log":{"last_entry_datetime":"2026-05-28T12:10:03.435Z","prefix_hash":"38d28ac36dddb56213dc9e5cd172dbc525b1b4fcd917bb29d25a6e34dcbcc2eb"}},
@@ -176,6 +176,7 @@
     "cli/tests/unit/helpers": {"log":{"last_entry_datetime":"2026-06-03T08:20:28.695Z","prefix_hash":"26cdff9c922265b68660aa317c2b7697e214c3d3f3f50183ee330f63beb0d3f6"}},
     "cli/tests/unit/llm/infra": {"log":{"last_entry_datetime":"2026-05-30T21:54:06.090Z","prefix_hash":"047a4aa4dead26c1f601d3478288064be65d5443015fee1b3515cc307ecba510"}},
     "cli/tests/unit/model": {"log":{"last_entry_datetime":"2026-05-13T05:28:56.818Z","prefix_hash":"c2a6ac25c6d5403942603a4b996afa7920a6901c35ab0b365ff47592fb09ab66"}},
+    "cli/tests/unit/repo": {"log":{"last_entry_datetime":"2026-09-23T20:09:58.726Z","prefix_hash":"64ae2e2c2f0f22694762c1be2312b2daaee43b656f0389a90b46c8cbac3832a2"}},
     "cli/tests/unit/structure": {"log":{"last_entry_datetime":"2026-05-29T18:15:44.596Z","prefix_hash":"1d4d8202925d03e458b3c7410efeb3b07138a8232e9e584dabd23d3c242a125e"}},
     "cli/tests/unit/structure/allowed-reads-and-runner": {"log":{"last_entry_datetime":"2026-05-30T12:46:26.639Z","prefix_hash":"18164e65d0739660f22291953aaa88ba4be67a674b067638de23ee4d2651faec"}},
     "cli/tests/unit/structure/observation-recording": {"log":{"last_entry_datetime":"2026-06-12T15:15:19.638Z","prefix_hash":"e8991225783b6631623a922a27f25163eaf042946a46e3a9d608ac63e659b879"}},
@@ -189,7 +190,9 @@
     "cli/tests/unit/support/parsers/structural": {"log":{"last_entry_datetime":"2026-06-12T13:14:26.169Z","prefix_hash":"5e91e1ee3a0e81b5a6aaa18eb3c5cef6588d5c21dd660222f4bf4c35db2de1c8"}},
     "cli/tests/unit/support/parsers/structural/node": {"log":{"last_entry_datetime":"2026-05-31T06:24:49.983Z","prefix_hash":"f980af0de0d6c35c0f61f4cee0f113afc396ed8e26c48bf0edddbccb10ef6187"}},
     "cli/tests/unit/support/templates": {"log":{"last_entry_datetime":"2026-05-30T20:06:21.887Z","prefix_hash":"6ae44eee849793da36817162c7aed8712a3714cbd9489ab018861f58e4e34231"}},
-    "cli/utils": {"log":{"last_entry_datetime":"2026-06-12T13:31:52.779Z","prefix_hash":"27477b96795a81d13af681d2eec40cb5c75102e1b1a861c5961c97f61b2758ef"}},
-    "root": {"log":{"last_entry_datetime":"2026-05-15T11:05:58.272Z","prefix_hash":"3183f15df80dcc84c2e60d5b4bff7c641dd5f1b72a92a50c1ce78dff5d704db7"}}
+    "cli/utils": {"log":{"last_entry_datetime":"2026-09-23T20:09:52.142Z","prefix_hash":"2c79d43ff7d3ec3098d7f6e8e31acab38c3585ac3b5e13d1c98735cdec5636eb"}},
+    "graph-rules": {"log":{"last_entry_datetime":"2026-09-23T20:09:45.974Z","prefix_hash":"a0d354290fd63f36eda6677e002124784143e3882970e160600fee563c648f4b"}},
+    "root": {"log":{"last_entry_datetime":"2026-05-15T11:05:58.272Z","prefix_hash":"3183f15df80dcc84c2e60d5b4bff7c641dd5f1b72a92a50c1ce78dff5d704db7"}},
+    "root/ci": {"log":{"last_entry_datetime":"2026-09-23T20:09:49.031Z","prefix_hash":"435717e9988acfe37d8330994136843cac79d14ed912a6bd7716bc933b1a38ac"}}
   }
 }

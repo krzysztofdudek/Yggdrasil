@@ -9,9 +9,10 @@ description: >-
   self-containment concept (JS/TS-family relative specifiers only; Python
   relative imports and non-static references are out of scope for now), so
   every violation it reports is a provable cross-directory reference and it has
-  no false positives by design. Advisory: it warns when an example folder
-  reaches outside itself, and never blocks. Exit path is a promotion nomination
-  on evidence once it has run FP-clean across the corpus.
+  no false positives by design. Enforced: an example folder that reaches
+  outside itself fails the check. It was promoted from advisory once it had a
+  clean record and a drill corpus, because a rule that fires only on provable
+  violations cannot block correct code.
 errs: under
 status: enforced
 review_by: 2027-02-13

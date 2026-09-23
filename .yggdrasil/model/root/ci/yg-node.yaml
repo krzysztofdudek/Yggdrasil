@@ -1,7 +1,8 @@
 name: CI Config
 type: ci-config
 description: "CI/CD pipeline definitions and lint configuration: GitHub Actions workflows (including the CodeQL code-scanning workflow) and markdownlint settings"
-aspects: []
+aspects:
+  - ci-actions-pinned
 relations: []
 mapping:
   - .github/workflows/ci.yml

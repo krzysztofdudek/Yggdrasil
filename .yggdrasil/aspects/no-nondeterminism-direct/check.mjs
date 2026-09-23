@@ -5,12 +5,14 @@ const NONDETERMINISM_CALLS = new Set(['Date.now', 'Math.random']);
 
 // The two homes a direct-nondeterminism failure can occur in: the CLI's own
 // engine layer (core/**/*.ts) and this repo's own rule-script implementations
-// (.yggdrasil/aspects/*/check.mjs, wherever they sit — including nested under
-// a drill corpus, which is why both globs carry a leading '**/'). A rule
-// script that reads the clock or a random source is exactly the same failure,
-// just running as a graph rule instead of shipped CLI source.
+// (check.mjs under .yggdrasil/aspects/ at any depth, because an aspect id can
+// nest as <group>/<id> or <group>/<sub>/<id>; and wherever the graph itself
+// sits — including under a drill corpus, which is why both globs carry a
+// leading '**/'). A rule script that reads the clock or a random source is
+// exactly the same failure, just running as a graph rule instead of shipped
+// CLI source.
 function isCheckedFile(file) {
-  return inFile(file, { glob: '**/src/core/**/*.ts' }) || inFile(file, { glob: '**/.yggdrasil/aspects/*/check.mjs' });
+  return inFile(file, { glob: '**/src/core/**/*.ts' }) || inFile(file, { glob: '**/.yggdrasil/aspects/**/check.mjs' });
 }
 
 export function check(ctx) {

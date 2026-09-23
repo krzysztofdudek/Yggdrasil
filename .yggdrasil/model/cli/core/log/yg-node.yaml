@@ -1,8 +1,12 @@
 name: Core Log
 type: engine
 description: >-
-  Pure log-entry orchestration — logAdd, logRead, logMergeResolve return
-  structured IssueMessage-shaped results with no presentation concerns. One
+  Log-entry orchestration — logAdd, logRead, logMergeResolve return
+  structured IssueMessage-shaped results with no presentation concerns. It does
+  no I/O of its own: log files are read and written through the persistence
+  layer's stores, and logMergeResolve reads both sides of a conflicted merge
+  from git history through the utility layer's git adapter and then rewrites
+  the lock's logs partition through the lock store. One
   composition step is shared by every log this tool appends to, whichever thing
   the log belongs to: the same entry shape, the same guards against text that
   would destroy the entry boundary for later readers, and the same rule that a

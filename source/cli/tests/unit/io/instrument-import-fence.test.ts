@@ -16,7 +16,7 @@
  * repo (so the guard globs are not dead entries).
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAstAspect } from '../../../src/ast/runner.js';
@@ -189,6 +189,42 @@ describe('instrument-import-fence — feature-field clause (c)', () => {
         'source/cli/src/cli/check-render-views.ts',
       ]),
     );
+  });
+
+  it('gating clause (a) follows every stage of the check engine in the REAL repo, not a hand-kept list', async () => {
+    // The gating set is derived from file-name globs, so a new stage split out of
+    // the check engine (core/check-*.ts, cli/check-*.ts) or out of progressive
+    // scoping (core/progressive-*.ts) is fenced the moment it exists. Enumerate the
+    // real repo's files for those globs and plant a forbidden import in each copy:
+    // every one must be flagged.
+    const gating: string[] = [];
+    for (const [dir, re] of [
+      ['source/cli/src/core', /^(check|check-[^/]+|progressive-[^/]+)\.ts$/],
+      ['source/cli/src/cli', /^(check|check-[^/]+|group-issues)\.ts$/],
+    ] as const) {
+      for (const name of readdirSync(path.join(REPO_ROOT, dir))) {
+        if (re.test(name) && !name.endsWith('.test.ts')) gating.push(`${dir}/${name}`);
+      }
+    }
+    expect(gating).toContain('source/cli/src/core/check-progressive.ts');
+    expect(gating).toContain('source/cli/src/core/progressive-scope.ts');
+    const IMPORT_METRICS = `import { computeMetrics } from '../core/graph-metrics.js';\nexport const m = computeMetrics;\n`;
+    for (const rel of gating) writeSource(rel, IMPORT_METRICS);
+    const flagged = await runGuard(gating);
+    expect([...gating].filter((g) => !flagged.has(g))).toEqual([]);
+  });
+
+  it('presentation clause (b) covers both files of the aspects command and the log command', async () => {
+    const IMPORT_STRINGIFY = `import { stringify } from 'yaml';\nexport const s = stringify;\n`;
+    const files = [
+      'source/cli/src/cli/structure.ts',
+      'source/cli/src/cli/aspects.ts',
+      'source/cli/src/cli/aspects-log.ts',
+      'source/cli/src/cli/log.ts',
+    ];
+    for (const rel of files) writeSource(rel, IMPORT_STRINGIFY);
+    const flagged = await runGuard(files);
+    expect(flagged).toEqual(new Set(files));
   });
 
   it('self-test: BOTH guarded modules exist in this repo (the guard globs are not dead)', () => {

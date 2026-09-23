@@ -84,7 +84,7 @@ node_types:
       default: deny
 
   engine:
-    description: "Core domain logic — algorithms, validation, assembly, drift detection. No I/O, no console output, no LLM calls."
+    description: "Core domain logic — algorithms, validation, assembly, drift detection. No direct I/O: an engine module never imports node:fs (no-direct-fs) or node:child_process (no-child-process) itself. It reaches the file system only by calling persistence-adapter helpers (the fill writes the lock through the lock store, log add appends through the log store) and git only by calling utility's process adapters (log merge-resolve reads both sides of a conflicted merge from git history). No console output, no LLM calls."
     enforce: strict
     when:
       all_of:
@@ -102,6 +102,7 @@ node_types:
         status: enforced
       - deterministic
       - no-direct-fs
+      - no-child-process
       - no-direct-console
       - no-nondeterminism-direct
       - source-hygiene
@@ -176,7 +177,7 @@ node_types:
       default: deny
 
   persistence-adapter:
-    description: "Every filesystem-touching helper lives here: stores, caches, scanners, graph I/O, atomic writes."
+    description: "The filesystem-touching helpers for the layers that may not import node:fs themselves (engine and utility, held to that by no-direct-fs): stores, caches, scanners, graph I/O, atomic writes. It is not the only place fs is used: the CLI commands, the AST loader and parser, the structure sandbox, the portal's API and server, an LLM provider and the platform templates import node:fs directly where they need it."
     enforce: strict
     when:
       any_of:
@@ -352,7 +353,7 @@ node_types:
       default: deny
 
   utility:
-    description: "Pure helper utilities — no I/O, no side effects on import, no direct filesystem access (fs-touching helpers live in persistence-adapter). It is the only type reachable from both the template layer and the engine — a consequence of the allowed relations below, not a preference — which makes it the sole legal home for logic those two must share."
+    description: "Helper utilities — no side effects on import, no direct filesystem access (fs-touching helpers live in persistence-adapter). Pure, except the process adapters, the only utility modules allowed to start a child process (no-child-process): utils/git*.ts, which run git — git-pack-fetch.ts clones a package remote over the network — and utils/binary-check.ts, which runs `<binary> --version` to probe for a reviewer CLI. It is the only type reachable from both the template layer and the engine — a consequence of the allowed relations below, not a preference — which makes it the sole legal home for logic those two must share."
     enforce: strict
     when:
       all_of:
@@ -364,6 +365,7 @@ node_types:
         status: enforced
       - no-side-effects-on-import
       - no-direct-fs
+      - no-child-process
       - source-hygiene
     parents: [module]
     relations:
@@ -480,9 +482,10 @@ node_types:
         - path: "source/cli/vitest*.config.ts"
         - path: "source/cli/tsup.config.ts"
         - path: "source/cli/playwright.config.ts"
-    aspects:
-      - id: ci-actions-pinned
-        status: advisory
+    # ci-actions-pinned is a content scan of GitHub Actions workflow YAML, so it is
+    # attached to the node that maps the workflows (root/ci), not to this type: on
+    # the TypeScript and JSON tooling configs the type also classifies it could
+    # never refuse, and would only add pairs that count as verified.
     parents: [project, module]
     relations:
       default: deny
@@ -498,10 +501,11 @@ node_types:
         - path: ".editorconfig"
         - path: ".gitattributes"
         - path: ".gitignore"
-        # .github/** EXCEPT workflow files — .github/workflows/*.yml and
-        # .markdownlint* belong to ci-config (CI/lint gate). Excluding them here
-        # keeps the two types' classifications disjoint, so a workflow or lint
-        # config misfiled into a repo-config node is caught by type-when-mismatch.
+        # .github/** EXCEPT workflow files — .github/workflows/*.yml belong to
+        # ci-config (CI gate), as do .markdownlint* and the CLI's eslint, vitest,
+        # tsup and playwright configs, none of which is listed here. Keeping the
+        # two types' classifications disjoint means a workflow or lint config
+        # misfiled into a repo-config node is caught by type-when-mismatch.
         - all_of:
             - path: ".github/**"
             - not:
@@ -528,13 +532,14 @@ node_types:
         - path: "source/cli/README.md"
         - path: "source/cli/.prettierrc"
         - path: "source/cli/.prettierignore"
-        - path: "source/cli/eslint.config.js"
-        - path: "source/cli/tsup.config.ts"
-        - path: "source/cli/vitest.config.ts"
-        - path: "source/cli/vitest.external.config.ts"
         - path: "source/cli/scripts/**"
         - path: "source/cli/src/**/.gitkeep"
-        - path: "source/cli/tests/**/.gitkeep"
+        # A .gitkeep inside a test fixture belongs to test-fixture with the rest
+        # of that fixture's files.
+        - all_of:
+            - path: "source/cli/tests/**/.gitkeep"
+            - not:
+                path: "source/cli/tests/fixtures/**"
     parents: [project, module]
     relations:
       default: deny
@@ -548,9 +553,16 @@ node_types:
       default: deny
 
   rule-script:
-    description: "This repository's own deterministic rule implementations (check.mjs) under .yggdrasil/aspects/*/check.mjs — the graph's own enforcement code, held to the graph's own rules like any other first-party source. A curated subset of the general source-hygiene/safety baseline plus the checks that protect the two properties a rule script must have above all: it runs the SAME way every time — covered from both directions, the judgement-based deterministic aspect AND its mechanical counterpart no-nondeterminism-direct (no Date.now(), no Math.random(), no direct process.env — the free, provable half of the same property) — and it never reads outside what the sandboxed ctx it receives already grants (no-direct-fs). Excludes every CLI-product-surface aspect (command contracts, engine layering, provider/parser conventions, portal rules) — check.mjs is not CLI source, cannot import any of the internal modules those rules police, and is tested through its own drills/ convention rather than a sibling *.test.ts file."
+    description: "This repository's own deterministic rule implementations (check.mjs) under .yggdrasil/aspects/, at every depth an aspect id nests (<id>, <group>/<id>, <group>/<sub>/<id>) and never the fake rule scripts inside drill cases — the graph's own enforcement code, held to the graph's own rules like any other first-party source. A curated subset of the general source-hygiene/safety baseline plus the checks that protect the two properties a rule script must have above all: it runs the SAME way every time — covered from both directions, the judgement-based deterministic aspect AND its mechanical counterpart no-nondeterminism-direct (no Date.now(), no Math.random(), no direct process.env — the free, provable half of the same property) — and it never reads outside what the sandboxed ctx it receives already grants (no-direct-fs). Excludes every CLI-product-surface aspect (command contracts, engine layering, provider/parser conventions, portal rules) — check.mjs is not CLI source, cannot import any of the internal modules those rules police, and is tested through its own drills/ convention rather than a sibling *.test.ts file."
+    # Same three depths as the graph-rules node's mapping. Everything under
+    # .yggdrasil/ is exempt from type classification, so this predicate never
+    # auto-classifies a file; it states which files a rule-script node may map
+    # (type-when-mismatch), and must therefore agree with that mapping.
     when:
-      path: ".yggdrasil/aspects/*/check.mjs"
+      any_of:
+        - path: ".yggdrasil/aspects/*/check.mjs"
+        - path: ".yggdrasil/aspects/*/*/check.mjs"
+        - path: ".yggdrasil/aspects/*/*/*/check.mjs"
     aspects:
       - source-hygiene
       - source-no-raw-control-chars

@@ -1,27 +1,31 @@
 name: InstrumentImportFence
 description: >-
-  Keeps the read-only structural instrument (yg structure) off the gating path
-  and keeps the read-only presentation commands read-only (G2/G6). Two AST-based,
-  alias-proof bans, both fired only on a provable static import- or export-from:
+  Keeps the read-only instruments (yg structure's metrics, the verdict-events
+  reader, node churn, the feature-field attention index) off the gating path, and
+  keeps a YAML serializer out of the presentation commands (G2/G6). AST-based,
+  alias-proof bans, each fired only on a provable static import- or export-from:
   (a) the modules that shape the build's exit code, issue emission, and
-  suggestedNext — cli/check.ts, core/check.ts, cli/group-issues.ts, and the check
-  command's three render units (cli/check-render-header.ts,
-  cli/check-render-groups.ts, cli/check-render-views.ts) — must NOT
-  import the structural-metrics core (core/graph-metrics), the verdict-events
-  reader (io/events-reader), or the node-churn instrument (core/node-churn);
-  pulling ranking, telemetry, or churn into the gate would let an instrument
-  influence whether the build passes. (b) The read-only presentation
-  commands — cli/structure.ts, cli/aspects.ts, cli/log.ts — must NOT import a
-  YAML serializer; the codebase has no dedicated YAML-writer io helper, so the
-  only YAML-write capability is the `yaml` package's serializer (stringify /
-  stringifyDocument / Document, or a namespace/default import of `yaml`). These
-  commands report on the graph; they never rewrite it. (c) The feature-field
-  attention index: its READER (core/feature-index-read) is importable only by
-  cli/build-context.ts and cli/advise.ts, and its WRITER (core/feature-index-write)
-  only by core/check.ts — no other module, and no issue-emission / exit-code /
-  suggestedNext path, may pull either in, so read-only structural attention never
-  reaches a verdict. Test code is exempt. errs: under — it fires only on a
-  provable static import.
+  suggestedNext — matched by file-name glob so a newly split stage is fenced the
+  moment it exists: core/check.ts and every core/check-*.ts, every
+  core/progressive-*.ts, cli/check.ts and every cli/check-*.ts, and
+  cli/group-issues.ts — must NOT import the structural-metrics core
+  (core/graph-metrics), the verdict-events reader (io/events-reader), or the
+  node-churn instrument (core/node-churn); pulling ranking, telemetry, or churn
+  into the gate would let an instrument influence whether the build passes.
+  (b) The presentation commands — cli/structure.ts, cli/aspects.ts,
+  cli/aspects-log.ts, cli/log.ts — must NOT import or re-export a YAML
+  serializer (stringify / stringifyDocument / Document, or a namespace/default
+  import of `yaml`); the codebase has no dedicated YAML-writer io helper, so that
+  is the only YAML-write capability. structure and aspects only report on the
+  graph; log does write (log add appends to log.md, log merge-resolve rewrites
+  the lock's logs partition), but only through core helpers, never by
+  serializing YAML. (c) The feature-field attention index: its READER
+  (core/feature-index-read) is importable only by cli/build-context.ts and
+  cli/advise.ts, and its WRITER (core/feature-index-write) only by core/check.ts
+  — no other module, and no issue-emission / exit-code / suggestedNext path, may
+  pull either in, so read-only structural attention never reaches a verdict.
+  Test code is exempt. errs: under — it fires only on a provable static import,
+  never on a transitive one.
 errs: under
 status: enforced
 review_by: 2027-01-19

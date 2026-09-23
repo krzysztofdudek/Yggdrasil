@@ -1,0 +1,2 @@
+## [2026-09-23T20:02:38.225Z]
+The rule was promoted from advisory to enforced in July 2026 on a clean record across the example corpus, a drill corpus with violating and satisfying cases, and errs: under (every refusal is a provable cross-directory reference, so enforcing it cannot block correct code). That promotion was never recorded here, and the description kept saying the rule warns and never blocks. The description now says an example folder that reaches outside itself fails the check, so an agent reading it is not surprised when it blocks.

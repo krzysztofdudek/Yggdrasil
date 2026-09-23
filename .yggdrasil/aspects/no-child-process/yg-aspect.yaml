@@ -1,0 +1,17 @@
+name: NoChildProcess
+description: >-
+  Engine and utility files must not start a child process themselves. Only the
+  utility layer's process adapters may import node:child_process: utils/git*.ts
+  (git queries, and a package fetch that clones a remote over the network) and
+  utils/binary-check.ts (the `<binary> --version` probe for a reviewer CLI).
+  Every other engine or utility module that needs git or another program calls
+  one of those adapters, so the places that spawn a process — and the one that
+  reaches the network — stay few and named. A value import, re-export,
+  require() or dynamic import() of node:child_process or child_process is a
+  hit; a statement-level type-only import is not. errs: under — a process
+  started through some other module (for example an LLM provider) is not seen.
+errs: under
+reviewer:
+  type: deterministic
+status: enforced
+review_by: 2027-09-23

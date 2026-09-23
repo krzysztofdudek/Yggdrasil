@@ -5,10 +5,9 @@ description: "The reviewer-facing half of the fill stage — the only place a
   resolved tier so availability is probed once per tier instead of once per
   pair, stands up one provider per tier, and runs the group through a bounded
   pool while a single pair's consensus votes stay sequential in-slot. Per pair
-  it assembles the review package through the single module that owns it — the
-  same one the external-judge channel prints, so a filled verdict and a recorded
-  one are stored under the same hash by construction rather than by two
-  implementations agreeing — measures the assembled prompt against the tier's
+  it assembles the review package through the single module that owns it, so the
+  verdict is stored under the hash of exactly the prompt the reviewer was sent —
+  measures the assembled prompt against the tier's
   ceiling, casts the consensus votes, and folds the result into a
   content-addressed verdict entry.
   Fail-closed throughout: an unresolvable tier, an unreachable provider, an

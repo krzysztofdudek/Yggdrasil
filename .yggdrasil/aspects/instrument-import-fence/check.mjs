@@ -1,10 +1,10 @@
-import { walk, report } from '@chrisdudek/yg/ast';
+import { walk, report, inFile } from '@chrisdudek/yg/ast';
 
 /**
  * Instrument import fence (G2/G6) — AST-based, alias-proof import bans that keep
  * the read-only instruments (structural metrics; the feature-field attention
- * index) from ever reaching the build's gating decision, and keep the read-only
- * presentation commands from ever acquiring graph-write capability.
+ * index) from ever reaching the build's gating decision, and keep the
+ * presentation commands from ever acquiring a YAML serializer.
  *
  * This aspect cascades from the cli root node onto every descendant, so each
  * mapped source file is a subject of exactly one pair and EVERY potential
@@ -24,7 +24,7 @@ import { walk, report } from '@chrisdudek/yg/ast';
  *       all read-only instruments; letting any of them into the gate would let an
  *       instrument decide whether the build passes.
  *
- *   (b) The read-only PRESENTATION commands must not import OR re-export a YAML
+ *   (b) The PRESENTATION commands must not import OR re-export a YAML
  *       serializer. There is no dedicated YAML-writer io helper in this codebase
  *       (verified: the `yaml` package is imported only as `parse` in io/*), so the
  *       only YAML-write capability is the `yaml` package's serializer — a named
@@ -44,34 +44,35 @@ import { walk, report } from '@chrisdudek/yg/ast';
  */
 
 /**
- * Files whose imports decide the build outcome (exit code / issues / suggestedNext).
- * check-render-header.ts / check-render-groups.ts / check-render-views.ts are the
- * check command's render units (split out of cli/check.ts) — check-render-views.ts
- * in particular owns nextPointer/residualAfterNext and consumes issuePriorityRank,
- * the same suggestedNext-shaping role that puts group-issues.ts on this list, so
- * all three are gated for the same reason.
+ * Files whose imports decide the build outcome (exit code / issues / suggestedNext),
+ * as file-name globs rather than a hand-kept list, so the fence follows the code:
  *
- * The core/check-*.ts entries are the check engine's own stages, split out of
- * core/check.ts. Each one produces issues the run's exit code is computed from,
- * or (check-suggested-next.ts) owns the single next step a finished check points
- * at — the same outcome-deciding role that gates the orchestrator itself, so the
- * fence has to follow the code rather than stay behind on the file it left.
+ *   - core/check.ts and every core/check-*.ts stage split out of it. Each stage
+ *     produces issues the run's exit code is computed from, re-codes them
+ *     (check-progressive.ts turns an out-of-scope finding into its `-outside`
+ *     warning twin), or owns the single next step a finished check points at.
+ *   - core/progressive-*.ts, which decides which findings are in scope at all.
+ *   - cli/check.ts and every cli/check-*.ts render unit split out of it
+ *     (check-render-views.ts owns nextPointer/residualAfterNext and consumes
+ *     issuePriorityRank), and cli/group-issues.ts, which orders the issues the
+ *     suggested next step is picked from.
+ *
+ * A new stage named after the module it was split from is fenced the moment it
+ * exists; a unit test enumerates the real repo's files for these globs and plants
+ * a forbidden import in each.
  */
-const GATING_MODULES = new Set([
-  'source/cli/src/cli/check.ts',
+const GATING_GLOBS = [
   'source/cli/src/core/check.ts',
+  'source/cli/src/core/check-*.ts',
+  'source/cli/src/core/progressive-*.ts',
+  'source/cli/src/cli/check.ts',
+  'source/cli/src/cli/check-*.ts',
   'source/cli/src/cli/group-issues.ts',
-  'source/cli/src/cli/check-render-header.ts',
-  'source/cli/src/cli/check-render-groups.ts',
-  'source/cli/src/cli/check-render-views.ts',
-  'source/cli/src/core/check-contract.ts',
-  'source/cli/src/core/check-coverage-phase.ts',
-  'source/cli/src/core/check-coverage-scan.ts',
-  'source/cli/src/core/check-lock-phase.ts',
-  'source/cli/src/core/check-log-state.ts',
-  'source/cli/src/core/check-pair-issues.ts',
-  'source/cli/src/core/check-suggested-next.ts',
-]);
+];
+
+function isGating(file) {
+  return GATING_GLOBS.some((glob) => inFile(file, { glob }));
+}
 
 /** Module specifiers no gating module may import (resolved, alias-proof). */
 const FORBIDDEN_ON_GATING = [
@@ -80,10 +81,17 @@ const FORBIDDEN_ON_GATING = [
   { re: /(^|\/)node-churn(\.js)?$/, label: 'the node-churn instrument (core/node-churn)' },
 ];
 
-/** Read-only presentation commands that must never gain YAML-write capability. */
+/**
+ * Presentation commands that must never gain YAML-write capability. structure and
+ * aspects only report on the graph (aspects-log.ts is the second file of the
+ * aspects command). log does write — `log add` appends to a node's log.md and
+ * `log merge-resolve` rewrites the lock's logs partition, both through core
+ * helpers — but it never serializes YAML, so none of them may hold a serializer.
+ */
 const PRESENTATION_COMMANDS = new Set([
   'source/cli/src/cli/structure.ts',
   'source/cli/src/cli/aspects.ts',
+  'source/cli/src/cli/aspects-log.ts',
   'source/cli/src/cli/log.ts',
 ]);
 
@@ -217,7 +225,7 @@ export function check(ctx) {
     // key on fixed non-test src paths, so exempting tests here never affects them.
     if (isTestFile(file.path)) continue;
 
-    const onGating = GATING_MODULES.has(file.path);
+    const onGating = isGating(file);
     const isPresentation = PRESENTATION_COMMANDS.has(file.path);
 
     walk(file.ast.rootNode, (node) => {
@@ -257,9 +265,10 @@ export function check(ctx) {
             report(
               file,
               node,
-              `${file.path} is a read-only presentation command and may not import or re-export a YAML ` +
-                `serializer (${surface}). These commands report on the graph; they never rewrite it. Use ` +
-                `only read helpers (e.g. \`parse\`), never the write side of the \`yaml\` package.`,
+              `${file.path} is a presentation command and may not import or re-export a YAML ` +
+                `serializer (${surface}). These commands never serialize YAML: they report on the graph, or ` +
+                `write only through core helpers. Use only read helpers (e.g. \`parse\`), never the write ` +
+                `side of the \`yaml\` package.`,
             ),
           );
         }
