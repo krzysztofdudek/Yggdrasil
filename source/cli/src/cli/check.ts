@@ -6,6 +6,7 @@ import { exitAfterFlush } from './exit-after-flush.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog, writeFillDivergence } from '../io/debug-log-writer.js';
 import { runCheck, runAttentionDump } from '../core/check.js';
+import { computeSuggestedNext } from '../core/check-suggested-next.js';
 import type { CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
@@ -13,7 +14,9 @@ import path from 'node:path';
 import { detConcurrencyForThisMachine } from './det-concurrency.js';
 import { getHeadSha } from '../utils/git.js';
 import { sweepStaleTempFiles } from '../io/atomic-write.js';
-import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles } from '../io/repo-scanner.js';
+import { walkRepoFiles, listGitTrackedFiles, countMappedButExcludedFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
+import { runSuppressionsScan, reasonlessMarkerMessage } from '../portal/api/suppress-scan.js';
+import { collectMappingEntries, isMappedSource } from '../portal/api/suppress-eligibility.js';
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
 import { formatOutput, type CheckView, resolveTopValue } from './check-render-views.js';
@@ -117,13 +120,62 @@ async function applyHonestCoverageSplit(result: CheckResult, graph: Graph, cover
   result.excludedFiles = (result.excludedFiles ?? 0) + mappedExcluded;
 }
 
+/**
+ * Warn, on the report, about every `yg-suppress` marker in a mapped source that
+ * carries no reason. Such a marker waives nothing and nothing else notices it:
+ * the check passes until the day a violation lands in its range, and only then
+ * does the fill reject the marker and leave the pair unverified. Surfacing it
+ * here, as a warning, is what lets it be fixed when it is written instead of
+ * when it first matters. The scan is the `yg suppressions` inventory's own,
+ * limited to mapped sources (the only files a marker can waive in), and skips
+ * any file that does not contain the marker token at all, so it costs one read
+ * of each mapped file and nothing more.
+ */
+async function appendReasonlessSuppressWarnings(
+  result: CheckResult,
+  graph: Graph,
+  projectRoot: string,
+  repoFiles: string[],
+): Promise<void> {
+  // Best effort: a warning about a marker must never be what fails a check.
+  let report: Awaited<ReturnType<typeof runSuppressionsScan>>;
+  try {
+    const mappingEntries = collectMappingEntries(graph);
+    if (mappingEntries.length === 0) return;
+    report = await runSuppressionsScan(
+      projectRoot,
+      repoFiles.filter((f) => isMappedSource(f, mappingEntries)),
+      new Set(graph.aspects.map((a) => a.id)),
+      mappingEntries,
+      new Set(),
+      new Set(),
+      graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
+    );
+  } catch (error) {
+    debugWrite(`[check] reason-less marker scan skipped: ${error instanceof Error ? error.message : String(error)}`);
+    return;
+  }
+  const reasonless = (report.warningRecords ?? []).filter((w) => w.code === 'missing-reason');
+  if (reasonless.length === 0) return;
+  for (const w of reasonless) {
+    result.issues.push({
+      severity: 'warning',
+      code: 'suppress-marker-missing-reason',
+      rule: 'suppress-marker-missing-reason',
+      messageData: reasonlessMarkerMessage(w.file, w.line, w.aspect ?? '*'),
+      unitKey: `file:${w.file}`,
+    });
+  }
+  result.suggestedNext = computeSuggestedNext(result.issues);
+}
+
 export function registerCheckCommand(program: Command): void {
   program
     .command('check')
     .description('Unified graph gate — verification, coverage, completeness')
     .option('--approve', 'Fill every unverified pair (deterministic first, then LLM), then report')
     .option('--no-approve', 'Force read-only mode even when auto_approve is configured (overrides config)')
-    .option('--only-deterministic', 'With --approve: fill ONLY deterministic pairs (keyless, free); committed locks stay untouched. For CI and pre-commit.')
+    .option('--only-deterministic', 'Fill ONLY deterministic pairs (implies --approve; keyless, free — runs even with no reviewer configured); committed locks stay untouched. For CI and pre-commit.')
     .option('--dry-run', 'With --approve: free cost preview — print the budget + per-node/per-aspect breakdown, then exit 0 WITHOUT writing anything or calling the reviewer.')
     .option('--top [n]', 'Read-only triage: print only the N highest-priority issue blocks (bare --top = just the single suggested-next group). Header counts + exit code stay TRUE.')
     .option('--summary', 'Read-only triage: print per-node counts only (no per-issue blocks). Header counts + exit code stay TRUE.')
@@ -147,8 +199,23 @@ export function registerCheckCommand(program: Command): void {
     // Hidden calibration instrument: print the raw per-file structural measurements grouped by
     // family, with the outliers marked, then exit 0. Writes nothing, makes no LLM calls.
     .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
-    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; coverage?: boolean; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }) => {
+    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; coverage?: boolean; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }, cmd: Command) => {
       try {
+        // --approve and --no-approve set ONE option, so commander silently keeps
+        // whichever came last: `--approve --no-approve` read, `--no-approve
+        // --approve` filled. A contradiction must not depend on argument order —
+        // refuse it, like every other contradictory pair on this command.
+        // rawArgs is set by commander on parse but absent from its typings.
+        const rawArgs = (cmd.parent as unknown as { rawArgs?: string[] } | null)?.rawArgs ?? process.argv;
+        if (rawArgs.includes('--approve') && rawArgs.includes('--no-approve')) {
+          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            what: '--approve cannot be combined with --no-approve.',
+            why: '--approve asks for a fill (it writes verdicts); --no-approve forces a read-only check. Both set the same switch, so whichever came last would silently win — the run would depend on argument order.',
+            next: 'Run: yg check --approve (fill), or yg check --no-approve (read-only).',
+          })}`) + '\n');
+          await exitAfterFlush(1);
+          return;
+        }
         const asJson = opts.json === true;
         const cwd = process.cwd();
         const graph = await loadGraphOrAbort(cwd, { tolerateInvalidConfig: true });
@@ -347,8 +414,8 @@ export function registerCheckCommand(program: Command): void {
           const n = resolveTopValue(opts.top);
           if (n === null) {
             process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
-              what: `--top expects a non-negative whole number; got "${String(opts.top)}".`,
-              why: '--top N prints the N highest-priority issue blocks. A negative, fractional, or non-numeric value is meaningless, and printing the full wall instead would silently hide that the flag was ignored — masking the very output you tried to narrow.',
+              what: `--top expects a positive whole number (1 or more); got "${String(opts.top)}".`,
+              why: '--top N prints the N highest-priority issue blocks. Zero, a negative, fractional, or non-numeric value is meaningless, and printing the full wall instead would silently hide that the flag was ignored — masking the very output you tried to narrow.',
               next: 'Run: yg check --top 5 (top 5 blocks), yg check --top (the single suggested-next group), or yg check (full output).',
             })}`) + '\n');
             await exitAfterFlush(1);
@@ -385,10 +452,14 @@ export function registerCheckCommand(program: Command): void {
         // plain read. Without an effective approve mode it is a usage error: steer
         // the agent to the intended command rather than silently behaving like `yg check`.
         if (opts.dryRun && !mode.approve) {
+          // Under a committed auto_approve, a bare `yg check` is itself a fill, so
+          // only `--no-approve` names the free read there.
+          const autoApproveOn = graph.config.auto_approve === 'deterministic' || graph.config.auto_approve === 'full';
+          const plainRead = autoApproveOn ? 'yg check --no-approve' : 'yg check';
           process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
             what: '--dry-run requires --approve.',
-            why: '--dry-run previews what `yg check --approve` would fill (the reviewer-call budget and per-node breakdown) without writing or calling the reviewer; it is a mode of --approve, not a variant of the plain read. Plain `yg check` is already a free, no-write read.',
-            next: 'Run: yg check --approve --dry-run (cost preview), or yg check (plain read).',
+            why: `--dry-run previews what \`yg check --approve\` would fill (the reviewer-call budget and per-node breakdown) without writing or calling the reviewer; it is a mode of --approve, not a variant of the plain read. ${autoApproveOn ? `This project sets auto_approve: ${String(graph.config.auto_approve)}, so a bare \`yg check\` fills; \`yg check --no-approve\` is the free, no-write read.` : 'Plain `yg check` is already a free, no-write read.'}`,
+            next: `Run: yg check --approve --dry-run (cost preview), or ${plainRead} (plain read).`,
           })}`) + '\n');
           await exitAfterFlush(1);
           return;
@@ -480,12 +551,23 @@ export function registerCheckCommand(program: Command): void {
             // is a harmless no-op (no progress to suppress).
             const isDryRun = opts.dryRun ?? false;
             const isQuiet = opts.quiet ?? false;
+            // The command every retry line names: the run as the user invoked
+            // it, so "then re-run" never drops --only-deterministic or
+            // --dry-run (a config-driven fill is re-run as the bare command
+            // that triggered it).
+            const retryCommand = [
+              'yg check',
+              isConfigDrivenFill ? '' : mode.onlyDeterministic ? '--approve --only-deterministic' : '--approve',
+              opts.full === true ? '--full' : '',
+              isDryRun ? '--dry-run' : '',
+            ].filter((part) => part.length > 0).join(' ');
             const fill = await runFill(graph, {
               coverageVisibleFiles: repoFiles,
               trackedFiles: tracked, // mirrors reviewNowUtc/rulesArtifacts below
               sha, // resolved above, alongside trackedFiles — core calls no git of its own
               onlyDeterministic: mode.onlyDeterministic,
               dryRun: isDryRun,
+              retryCommand,
               // Maintain the silent feature-field index on the REAL post-fill report (the
               // `--approve` reporting path); the fill returns before that report on --dry-run,
               // so a cost preview writes nothing. Injected clock for the index's generatedAt.
@@ -539,6 +621,7 @@ export function registerCheckCommand(program: Command): void {
             });
             const autoFilled = isConfigDrivenFill && !opts.dryRun;
             await applyHonestCoverageSplit(fill.checkResult, graph, repoFiles);
+            await appendReasonlessSuppressWarnings(fill.checkResult, graph, projectRoot, repoFiles);
             process.stdout.write(
               asJson
                 ? formatCheckJson(buildCheckJson(fill.checkResult))
@@ -600,6 +683,7 @@ export function registerCheckCommand(program: Command): void {
           changeScope: changeScope,
         });
         await applyHonestCoverageSplit(result, graph, repoFiles);
+        await appendReasonlessSuppressWarnings(result, graph, projectRoot, repoFiles);
         process.stdout.write(asJson ? formatCheckJson(buildCheckJson(result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and

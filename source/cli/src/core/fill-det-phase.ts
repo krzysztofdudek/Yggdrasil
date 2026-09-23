@@ -50,6 +50,9 @@ export interface DetPhaseResult {
   detEnforcedRefusedNodes: Set<string>;
   /** Deterministic pairs whose check.mjs failed to run / tainted (no write). */
   runtimeErrors: number;
+  /** Deterministic verdicts written this run, by outcome — for the closing summary. */
+  approved: number;
+  refused: number;
   /** Deterministic pairs left unverified by a malformed yg-suppress marker (no write). */
   malformedSuppressErrors: number;
   /** Component-free pairs whose check.mjs THIS run watched fail with a named
@@ -91,6 +94,8 @@ export async function runDeterministicPhase({
   const result: DetPhaseResult = {
     detEnforcedRefusedNodes: new Set<string>(),
     runtimeErrors: 0,
+    approved: 0,
+    refused: 0,
     malformedSuppressErrors: 0,
     runtimeDispositions: [],
     runtimeItems: [],
@@ -150,6 +155,8 @@ export async function runDeterministicPhase({
     }
     // Real verdict — write the entry (setEntry emits the verdict telemetry event).
     await writer.setEntry(pair, outcome.entry);
+    if (outcome.entry.verdict === 'refused') result.refused += 1;
+    else result.approved += 1;
     tracker.onPairComplete('det', pair.aspectId, toPosixPath(pair.unitKey), outcome.entry.verdict, write);
     if (outcome.entry.verdict === 'refused' && pair.status === 'enforced') {
       result.detEnforcedRefusedNodes.add(detGateKey(pair));

@@ -9,8 +9,9 @@ import { firstParentAncestors,
   getMergeParents,
   getMergeBase,
   getFileAtRef,
+  mergeInProgressHead,
 } from '../../utils/git-introspect.js';
-import { readTextFile } from '../../io/graph-fs.js';
+import { readTextFile, writeTextFile } from '../../io/graph-fs.js';
 import { debugWrite } from '../../utils/debug-log.js';
 import { toPosix } from '../../utils/posix.js';
 import { readLock, writeLock, LockInvalidError } from '../../io/lock-store.js';
@@ -32,8 +33,48 @@ export interface LogMergeResolveInput {
 }
 
 export type LogMergeResolveResult =
-  | { ok: true; nodePath: string }
+  /** `wroteUnion`: the merge was still in progress with log.md conflicted, and
+   *  merge-resolve wrote the union of both sides into it (to be staged and
+   *  committed with the rest of the merge). */
+  | { ok: true; nodePath: string; wroteUnion?: boolean }
   | { ok: false; error: IssueMessage };
+
+/** Git conflict markers at line start — see the note at the check below. */
+const hasConflictMarkers = (text: string): boolean => /^<{7}/m.test(text) || /^>{7}/m.test(text);
+
+/**
+ * The union a conflicted log resolves to: the history both sides share, then
+ * every entry either side added after it, oldest first, each byte-for-byte as
+ * its side wrote it. An entry both sides carry (same datetime and body) appears
+ * once. Null when a side does not start with the shared history — a rewritten
+ * log is not something a union can repair.
+ */
+function unionOfSides(ancestorLog: string, oursLog: string, theirsLog: string): string | null {
+  const ancestorBytes = Buffer.from(ancestorLog, 'utf-8');
+  const sideBytes = [Buffer.from(oursLog, 'utf-8'), Buffer.from(theirsLog, 'utf-8')];
+  for (const b of sideBytes) {
+    if (b.length < ancestorBytes.length || !b.subarray(0, ancestorBytes.length).equals(ancestorBytes)) return null;
+  }
+  const ancestorCount = parseLog(ancestorLog).length;
+  const seen = new Set<string>();
+  const added: Array<{ datetime: string; raw: Buffer }> = [];
+  for (const [i, text] of [oursLog, theirsLog].entries()) {
+    for (const e of parseLog(text).slice(ancestorCount)) {
+      const key = `${e.datetime}\n${e.body}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      let raw = sideBytes[i].subarray(e.offsetStart, e.offsetEnd);
+      // The last entry of a side may end without a newline; it may not be last here.
+      if (raw.length > 0 && raw[raw.length - 1] !== 0x0a) raw = Buffer.concat([raw, Buffer.from('\n')]);
+      added.push({ datetime: e.datetime, raw });
+    }
+  }
+  // Stable sort: equal datetimes keep ours-then-theirs order.
+  added.sort((a, b) => (a.datetime < b.datetime ? -1 : a.datetime > b.datetime ? 1 : 0));
+  let prefix = ancestorBytes;
+  if (prefix.length > 0 && added.length > 0 && prefix[prefix.length - 1] !== 0x0a) prefix = Buffer.concat([prefix, Buffer.from('\n')]);
+  return Buffer.concat([prefix, ...added.map((a) => a.raw)]).toString('utf-8');
+}
 
 export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogMergeResolveResult> {
   const { graph, repoRoot } = input;
@@ -63,18 +104,30 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     };
   }
 
-  if (input.sides === undefined && !(await isMergeCommit(repoRoot, 'HEAD'))) {
-    return {
-      ok: false,
-      error: {
-        what: 'HEAD is not a merge commit',
-        why: 'yg log merge-resolve verifies the merged log against the two sides of the merge, and with no merge commit at HEAD it has no sides to read.',
-        next: `Run it on the merge commit (git merge --no-ff), or, for a merge that left no merge commit, name the two sides: yg log merge-resolve --node ${nodePath} --ours <ref> --theirs <ref>.`,
-      },
-    };
+  // A merge still in progress (stopped on a conflict, not yet committed) has
+  // its two sides on record: HEAD and MERGE_HEAD. That is exactly when a
+  // conflicted log.md is met, so it is resolved right there — no merge commit
+  // needed, and no hand-editing.
+  let sides = input.sides;
+  let midMerge = false;
+  if (sides === undefined && !(await isMergeCommit(repoRoot, 'HEAD'))) {
+    const mergeHead = await mergeInProgressHead(repoRoot);
+    if (mergeHead === null) {
+      return {
+        ok: false,
+        error: {
+          what: 'HEAD is not a merge commit, and no merge is in progress',
+          why: 'yg log merge-resolve reconciles a log against the two sides of a merge. It reads them from a merge in progress (HEAD and MERGE_HEAD) or from the merge commit at HEAD; here there is neither.',
+          next: `Run it while the merge is in progress or on the merge commit, or, for a merge that left no merge commit, name the two sides: yg log merge-resolve --node ${nodePath} --ours <ref> --theirs <ref>.`,
+        },
+      };
+    }
+    sides = { ours: 'HEAD', theirs: mergeHead };
+    midMerge = true;
   }
 
   const logPath = path.join(yggRoot, 'model', nodePath, 'log.md');
+  const gitLogPath = `.yggdrasil/model/${nodePath}/log.md`;
   let currentLog: string;
   try {
     currentLog = await readTextFile(logPath);
@@ -97,27 +150,27 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
   // H1 underline / horizontal rule and would false-positive. A real git
   // conflict always also emits the `<<<<<<<`/`>>>>>>>` markers, so dropping the
   // `=` alternative loses no true-positive detection.
-  if (/^<{7}/m.test(currentLog) || /^>{7}/m.test(currentLog)) {
+  const conflicted = hasConflictMarkers(currentLog);
+  if (conflicted && !midMerge) {
     return {
       ok: false,
       error: {
         what: 'log.md still contains conflict markers',
-        why: 'Conflict markers indicate the merge conflict was not fully resolved.',
-        next: 'Resolve all conflicts in log.md, then run yg log merge-resolve again.',
+        why: 'Conflict markers mean the merge of this log was never reconciled. merge-resolve writes the union itself only while the merge is still in progress; here it is not, so it can only verify a log that is already whole.',
+        next: `Keep every entry from both sides, remove the markers, order the entries by datetime (oldest first), then run: yg log merge-resolve --node ${nodePath}${input.sides !== undefined ? ` --ours ${input.sides.ours} --theirs ${input.sides.theirs}` : ''}.`,
       },
     };
   }
 
-  const gitLogPath = `.yggdrasil/model/${nodePath}/log.md`;
   let ancestorLog: string;
   let parent1Log: string;
   let parent2Log: string;
   try {
     const [parent1, parent2] =
-      input.sides === undefined
+      sides === undefined
         ? await getMergeParents(repoRoot, 'HEAD')
-        : [input.sides.ours, input.sides.theirs];
-    const ancestorSha = input.sides?.base ?? (await getMergeBase(repoRoot, parent1, parent2));
+        : [sides.ours, sides.theirs];
+    const ancestorSha = sides?.base ?? (await getMergeBase(repoRoot, parent1, parent2));
     ancestorLog = await getFileAtRef(repoRoot, ancestorSha, gitLogPath);
     parent1Log = await getFileAtRef(repoRoot, parent1, gitLogPath);
     parent2Log = await getFileAtRef(repoRoot, parent2, gitLogPath);
@@ -131,6 +184,26 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
         next: 'Check the refs with git rev-parse, then re-run with --ours and --theirs naming the two branches that were merged (and --base when they share no merge base).',
       },
     };
+  }
+
+  // Mid-merge with the log conflicted: write the union of both sides, then
+  // verify it like any other resolution.
+  let wroteUnion = false;
+  if (conflicted) {
+    const union = unionOfSides(ancestorLog, parent1Log, parent2Log);
+    if (union === null) {
+      return {
+        ok: false,
+        error: {
+          what: `The two sides of the merge do not share ${gitLogPath}'s history`,
+          why: 'A union keeps the shared history byte-for-byte and adds what each side appended. One side here rewrote that shared part, so there is no union to write — the rewrite has to be undone on that side.',
+          next: `Abort the merge (git merge --abort), restore the shared entries on the side that changed them, and merge again.`,
+        },
+      };
+    }
+    await writeTextFile(logPath, union);
+    currentLog = union;
+    wroteUnion = true;
   }
 
   const ancestorBytes = Buffer.from(ancestorLog, 'utf-8');
@@ -230,7 +303,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
     await writeLock(yggRoot, lock, { scope: 'logs' });
   }
 
-  return { ok: true, nodePath };
+  return { ok: true, nodePath, ...(wroteUnion ? { wroteUnion } : {}) };
 }
 
 /**

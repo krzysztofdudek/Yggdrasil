@@ -255,7 +255,7 @@ describe.skipIf(!distExists)('CLI E2E — greenfield / init / platform-install',
       // `unverified` with guidance pointing at the fill.
       const before = run(['check'], dir);
       expect(before.status).toBe(1);
-      expect(before.stdout).toContain('unverified (not yet reviewed)');
+      expect(before.stdout).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(before.stdout).toContain('widgets/widget');
       // Grouped view: the unverified pair surfaces as a group for the aspect with
       // the node listed and the fill command as the fix.

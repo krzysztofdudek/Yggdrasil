@@ -504,14 +504,23 @@ describe('spec note: the inventory scanner does not enforce the reason requireme
     expect(markers[0]).toMatchObject({ aspectId: 'rule-a', kind: 'single', reason: '' });
   });
 
-  it('runSuppressionsScan emits NO "missing reason" warning for an empty-reason marker', async () => {
+  it('runSuppressionsScan warns ONCE about an empty-reason marker (it waives nothing until fixed)', async () => {
     const root = freshDir('noreason');
     write(root, 'r.ts', '// yg-suppress(known)\nx();\n');
     const report = await runSuppressionsScan(root, ['r.ts'], new Set(['known']));
-    // The three documented warning kinds are unknown-id / wildcard / unbounded.
-    // None of them is "missing reason", so the inventory stays silent on it.
-    expect(report.warnings.some(w => /reason/i.test(w))).toBe(false);
+    // A reason-less marker passes every check silently until a violation lands
+    // in its range, and only then fails the fill — so the inventory is where it
+    // must surface, when it is written.
+    expect(report.warnings.filter(w => /has no reason/.test(w))).toHaveLength(1);
+    expect(report.warningRecords?.filter(w => w.code === 'missing-reason')).toHaveLength(1);
     expect(report.totalMarkers).toBe(1);
+  });
+
+  it('runSuppressionsScan does not warn about a reason-less ENABLE (it closes a range and carries none)', async () => {
+    const root = freshDir('enable-noreason');
+    write(root, 'r.ts', '// yg-suppress-disable(known) legacy block\nx();\n// yg-suppress-enable(known)\n');
+    const report = await runSuppressionsScan(root, ['r.ts'], new Set(['known']));
+    expect(report.warnings.some(w => /has no reason/.test(w))).toBe(false);
   });
 });
 

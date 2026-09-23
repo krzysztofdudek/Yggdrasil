@@ -24,7 +24,7 @@ import { readTextFile } from '../io/graph-fs.js';
 import { validateAppendOnly } from './log-integrity.js';
 import { validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
-import { logGateBlocksNode } from './log/log-gate.js';
+import { logGateBlocksNode, logCycleOpen } from './log/log-gate.js';
 import { looksLikeInterleavedMerge } from './log/log-merge-resolve.js';
 import type { CheckIssue } from './check-contract.js';
 
@@ -72,7 +72,7 @@ export async function classifyLogStateFromLock(
         rule: 'log-conflict',
         messageData: {
           what: `Log contains git conflict markers at ${logRel}`,
-          why: 'A conflict-markered log.md cannot be validated; hand-stitching the two sides breaks the append-only integrity hashes — the merge must be reconciled structurally.',
+          why: 'A conflict-markered log.md cannot be validated. While the merge is still in progress, merge-resolve writes the union of both sides (every entry, in date order) and records its baseline — nothing to edit by hand.',
           next: `yg log merge-resolve --node ${nodePathPosix}`,
         },
         nodePath,
@@ -166,10 +166,14 @@ export async function classifyLogRequirement(
   lock: LockFile,
   unreadableNodes: Set<string>,
   issues: CheckIssue[],
+  unsettledNodes: Set<string> = new Set(),
 ): Promise<void> {
   for (const [nodePath, node] of graph.nodes) {
     if (unreadableNodes.has(nodePath)) continue;
-    if (!(await logGateBlocksNode(graph, projectRoot, node, lock))) continue;
+    if (!(await logGateBlocksNode(graph, projectRoot, node, lock))) {
+      await classifyOpenLogCycle(graph, projectRoot, lock, nodePath, unsettledNodes, issues);
+      continue;
+    }
     issues.push({
       severity: 'error',
       code: 'log-entry-missing',
@@ -182,6 +186,46 @@ export async function classifyLogRequirement(
       nodePath,
     });
   }
+}
+
+/**
+ * The one state in which `log_required` quietly stops asking: a node whose
+ * source has moved past its recorded baseline (or that never had one), whose
+ * newest log entry satisfies the gate, and that nothing is left to fill for.
+ * Only a full `yg check --approve` records a new baseline ("closes the cycle");
+ * `--only-deterministic` never writes the committed logs file. So on a project
+ * whose only recording run is that free gate, the cycle never closes, and the
+ * same entry goes on answering for every later edit — the gate is not measuring
+ * changes at all, and nothing said so.
+ *
+ * A WARNING, never an error: nothing is wrong with the code, and the
+ * requirement itself is not violated. A node with any pair still waiting (or
+ * refused) is skipped — the fill that settles it is the one that will close the
+ * cycle, so the ordinary edit → log → approve loop never sees this.
+ */
+async function classifyOpenLogCycle(
+  graph: Graph,
+  projectRoot: string,
+  lock: LockFile,
+  nodePath: string,
+  unsettledNodes: Set<string>,
+  issues: CheckIssue[],
+): Promise<void> {
+  const node = graph.nodes.get(nodePath);
+  if (node === undefined || unsettledNodes.has(nodePath)) return;
+  if (!(await logCycleOpen(graph, projectRoot, node, lock))) return;
+  const p = toPosixPath(nodePath);
+  issues.push({
+    severity: 'warning',
+    code: 'log-cycle-open',
+    rule: 'log-cycle-open',
+    messageData: {
+      what: `The log requirement on node '${p}' is not measuring changes: its source moved past the last recorded baseline, and its newest entry keeps answering for every edit since.`,
+      why: `Node type '${node.meta.type}' has log_required: true, but only a full \`yg check --approve\` records a new baseline once every rule on the node holds a verdict; \`--only-deterministic\` never writes it. Until one runs, a later unexplained edit is not asked for a new entry.`,
+      next: 'yg check --approve (a full run: it records the baseline, and needs a reviewer only if the project has judgment rules)',
+    },
+    nodePath,
+  });
 }
 
 /** Minimal shape of the lock needed by the check live path. */

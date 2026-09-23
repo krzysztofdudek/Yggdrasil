@@ -28,6 +28,48 @@ export function unverifiedMessage(params: {
 }
 
 /**
+ * The `unverified` message for a pair whose cause plain check can read off the
+ * lock and the config alone (see UnverifiedCause). A cause only a recording run
+ * witnesses (the reviewer did not answer, a check.mjs crashed) is written by
+ * that run from its own diagnostic instead — see annotateFillCauses.
+ *
+ * Each says what actually happened and names the command that actually
+ * clears it.
+ */
+export function unverifiedCauseMessage(params: {
+  aspectId: string;
+  unitKey: string;
+  cause: 'stale' | 'never-reviewed' | 'deterministic-not-run' | 'reviewer-missing';
+}): IssueMessage {
+  switch (params.cause) {
+    case 'stale':
+      return {
+        what: `The verdict for aspect '${params.aspectId}' on ${params.unitKey} is stale.`,
+        why: 'A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.',
+        next: 'yg check --approve',
+      };
+    case 'deterministic-not-run':
+      return {
+        what: `No local result for deterministic aspect '${params.aspectId}' on ${params.unitKey}.`,
+        why: 'Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.',
+        next: 'yg check --approve --only-deterministic',
+      };
+    case 'reviewer-missing':
+      return {
+        what: `Judgment aspect '${params.aspectId}' on ${params.unitKey} has no reviewer to judge it.`,
+        why: 'yg-config.yaml has no reviewer: section, so nothing can read this content.md rule. Re-running --approve cannot change that; it stays unverified until a reviewer is configured or the rule is set to status: draft.',
+        next: `yg init --provider <name> [--model <m>] — the user's decision, since it sends code to that provider — or set the judgment aspect to status: draft`,
+      };
+    case 'never-reviewed':
+      return {
+        what: `No verdict yet for aspect '${params.aspectId}' on ${params.unitKey}.`,
+        why: 'The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.',
+        next: 'yg check --approve',
+      };
+  }
+}
+
+/**
  * Cached LLM refusal: the lock holds a valid `refused` entry. The reviewer is
  * NOT re-run — the stored reason is rendered as-is. The three exits are the only
  * ways out (there is no command that re-rolls a cached refusal).

@@ -112,6 +112,7 @@ function issueOf(issue: CheckIssue): CheckJsonIssue {
   if (issue.aspectId !== undefined) row.aspect = issue.aspectId;
   if (issue.nodePath !== undefined) row.node = toPosixPath(issue.nodePath);
   if (issue.unitKey !== undefined) row.unit = toPosixPath(issue.unitKey);
+  if (issue.unverifiedCause !== undefined) row.cause = issue.unverifiedCause;
   return row;
 }
 

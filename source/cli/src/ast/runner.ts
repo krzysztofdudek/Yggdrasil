@@ -225,6 +225,11 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
   }
 
   if (raw !== null && typeof raw === 'object' && typeof (raw as Record<string, unknown>).then === 'function') {
+    // The returned promise is refused, not awaited — so its rejection must be
+    // caught here. Left unhandled, an async check that throws takes the whole
+    // process down with a bare `Error:` line and no report, after the refusal
+    // below was already on its way to the caller.
+    Promise.resolve(raw).catch(() => {});
     throw new AstRunnerError('AST_CHECK_ASYNC', {
       what: `check.mjs returned a Promise; only synchronous returns are supported in v1.`,
       why: `The runner does not await check's return value.`,

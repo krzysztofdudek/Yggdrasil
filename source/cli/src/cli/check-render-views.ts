@@ -107,7 +107,9 @@ function nextPointer(next: string): string {
 function residualAfterNext(result: CheckResult): string {
   if (!result.suggestedNext?.startsWith('yg check --approve')) return '';
   const errors = result.issues.filter(i => i.severity === 'error');
-  const N = errors.filter(i => i.code === 'unverified' && i.messageData.next === 'yg check --approve').length;
+  // A deterministic pair with no local result names the free
+  // `--approve --only-deterministic`, which the suggested `--approve` fills too.
+  const N = errors.filter(i => i.code === 'unverified' && i.messageData.next.startsWith('yg check --approve')).length;
   const K = errors.length - N;
   if (K === 0) return '';
   return `  (fills ${N} unverified; ${K} error${K === 1 ? '' : 's'} remain — need code/graph fixes)`;
@@ -124,8 +126,11 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   const header = renderHeader(result, errors.length, warnings.length, autoFilled, emoji);
   const sections: string[] = [header];
 
-  // Standing config fact, not an issue — printed ahead of every view.
-  if (result.typeLevel && (result.classifyingTypeCount ?? 0) === 0) {
+  // Standing config fact, not an issue — printed ahead of every view. Withheld
+  // while yg-architecture.yaml failed to load: its types were not read at all,
+  // so "no type declares when:" would be a claim about a file nobody looked at.
+  const architectureUnloaded = result.issues.some((i) => i.code === 'architecture-invalid');
+  if (result.typeLevel && (result.classifyingTypeCount ?? 0) === 0 && !architectureUnloaded) {
     sections.push('');
     sections.push(chalk.dim(ZERO_CLASSIFYING_TYPES_NOTICE));
   }

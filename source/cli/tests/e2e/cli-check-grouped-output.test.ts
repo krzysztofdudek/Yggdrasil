@@ -240,9 +240,10 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
       // ONE relation-undeclared-dependency group block. It carries no aspect
       // segment (built-in check, not an aspect) and DOES retain the per-node
       // detail (FULL_WHAT code): the importer's undeclared edge to dep.
-      const relationHeaders = out.match(/^ {2}relation-undeclared-dependency {2}(\d+) pairs {2}(\d+) nodes$/gm) ?? [];
+      const relationHeaders = out.match(/^ {2}relation-undeclared-dependency {2}(\d+) issues? {2}(\d+) nodes$/gm) ?? [];
       expect(relationHeaders.length).toBe(1);
-      expect(relationHeaders[0]).toContain('1 pairs');
+      // Not a pair's verdict — counted as an issue.
+      expect(relationHeaders[0]).toContain('1 issue');
       // The affected-node line keeps the file:line → target detail for relations.
       expect(out).toMatch(/^ {12}- importer {2}src\/importer\.ts:\d+ → dep$/m);
 

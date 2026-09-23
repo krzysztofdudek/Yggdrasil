@@ -63,7 +63,7 @@ function enrichNoTypeMessage(issue: CheckIssue | null): CheckIssue | null {
   // only next.split('\n')[0] — a later line would never reach the terminal.
   const nextLines = issue.messageData.next.split('\n');
   nextLines[0] =
-    `${nextLines[0]} yg type-suggest --file <path> can help design one before you decide where it belongs.`;
+    `${nextLines[0]} Or design an architecture type that covers files like it: yg type-suggest --file <path>.`;
   return {
     ...issue,
     messageData: {

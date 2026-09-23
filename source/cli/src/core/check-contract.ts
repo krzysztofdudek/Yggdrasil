@@ -17,6 +17,7 @@ import type { ValidationIssue } from '../model/validation.js';
 import type { TypeVisibilityReport } from './type-visibility.js';
 import type { VerifiedPair } from './verify-lock.js';
 import type { BaselineNoise } from './check-progressive.js';
+import type { UnverifiedCause } from './check-codes.js';
 
 export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
   /** All issues have a code -- override optional from ValidationIssue */
@@ -33,6 +34,12 @@ export interface CheckIssue extends Omit<ValidationIssue, 'code'> {
    * structural), which the summary buckets as "other".
    */
   pairKind?: 'llm' | 'deterministic';
+  /**
+   * For `unverified` (and its outside twin): WHY the pair has no valid verdict
+   * — see {@link UnverifiedCause}. Decides the group it renders in, its label,
+   * and the fix it names; carried into the `yg-check/1` document as `cause`.
+   */
+  unverifiedCause?: UnverifiedCause;
   // `aspectId` / `unitKey` / `flowName` / `relationEdges` are inherited from
   // `ValidationIssue` (model/validation.ts) — every non-pair emit site that
   // stamps them (ambiguous-node-type, type-relation-forbidden,

@@ -106,7 +106,7 @@ Every node declares a `type`, and every type is defined once in `.yggdrasil/yg-a
 - **classify files** — a `when` predicate says which source files belong to this type, so your agent can place new files correctly. It is also enforced forward: every file a node of this type maps must match the type's `when`, or `yg check` reports a `type-when-mismatch`.
 - **set default rules** — list aspects every node of the type must satisfy, so you attach a cross-cutting rule once instead of on every node.
 - **constrain structure** — `parents` limits where a node of this type may nest; `relations` limits which types it may depend on, and through which relation type.
-- **opt into the log gate** — `log_required: true` makes a change to a node of this type record a short note on *why* before it is verified — your agent writes it with `yg log add`. See [the log gate](/the-lock#the-log-gate).
+- **opt into the log gate** — `log_required: true` makes a change to a node of this type record a short note on *why* before it is verified — your agent writes it with `yg log add`. The requirement is measured from the last full `yg check --approve`; a project that only ever runs `--only-deterministic` never advances that baseline, so one entry keeps covering every later edit (plain `yg check` warns with `log-cycle-open`). See [the log gate](/the-lock#the-log-gate).
 - **close the type-shopping gap** — `enforce: strict` makes the classification bite in *both* directions. See below.
 
 A compact example:

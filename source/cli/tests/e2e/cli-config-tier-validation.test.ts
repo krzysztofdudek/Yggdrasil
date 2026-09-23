@@ -460,7 +460,8 @@ describe.skipIf(!distExists)('CLI E2E — yg-config.yaml reviewer/tier + global-
       // The per-issue `what` ("yg-config.yaml has no reviewer: section") is gone from the
       // grouped view; assert the now-visible shared why + Fix.
       expect(stdout).toContain('Script rules run locally for free');
-      expect(stdout).toContain("Fix: Run yg init and pick 'Configure reviewer'");
+      // The fix leads with the non-interactive command an agent can run.
+      expect(stdout).toContain('Fix: yg init --provider <name> [--model <m>]');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

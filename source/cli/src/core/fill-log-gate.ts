@@ -38,6 +38,7 @@ export async function logGateBlocks(
   node: GraphNode,
   lock: LockFile,
   emitIssue: (msg: IssueMessage) => void,
+  retry = 'yg check --approve',
 ): Promise<boolean> {
   const blocked = await logGateBlocksNode(graph, projectRoot, node, lock);
   if (!blocked) return false;
@@ -45,7 +46,7 @@ export async function logGateBlocks(
   emitIssue({
     what: `No fresh log entry for node '${toPosixPath(node.path)}' — mandatory before recording verdicts when its source drifted.`,
     why: `Node type '${node.meta.type}' has log_required: true — every source change needs a justification entry capturing WHY. This component's source has drifted from the state its recorded verdicts were written over, which earlier commits can be as much the cause of as anything in progress now. Recording answers for the code as it stands, so it stops here and approves nothing this run until a fresh entry exists.`,
-    next: `yg log add --node ${toPosixPath(node.path)} --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one`,
+    next: `yg log add --node ${toPosixPath(node.path)} --reason '<why this change was made>', then re-run: ${retry} — if you did not make this change, ask the user for the reason; never invent one`,
   });
   return true;
 }

@@ -39,7 +39,10 @@ A verdict already recorded for a pair survives a `draft` round-trip and stays in
 the lock — see [Status and verdicts](#status-and-verdicts). `advisory` and
 `enforced` pairs are both verified and cached the same way; the level only changes
 severity. Severity follows status with one exception: **advisory never blocks**
-(whether a pair is refused or merely unverified) and **enforced always blocks** —
+(whether a pair is refused or merely unverified — and a missing `reviewer:`
+section is reported at the strictest status among the judgment pairs it leaves
+without a judge, so advisory judgment rules alone never make it block) and
+**enforced always blocks** —
 but a `prompt-too-large` failure is an error regardless of status, so an advisory
 pair can still block `yg check` if its assembled prompt exceeds the resolved
 tier's `max_prompt_chars`. Status is the only thing that cannot soften it: like

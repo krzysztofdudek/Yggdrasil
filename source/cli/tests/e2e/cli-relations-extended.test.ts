@@ -308,8 +308,9 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The four forbidden relations collapse into one grouped block keyed by
       // the code, listing every offending pair under the declaring node.
       expect(stdout).toContain('relation-target-forbidden');
-      // Grouped header carries the pair/node counts (4 pairs, 1 node).
-      expect(stdout).toMatch(/relation-target-forbidden\s+4 pairs\s+1 nodes/);
+      // Grouped header carries the finding/node counts (4 issues, 1 node) —
+      // issues, not pairs: a forbidden relation is not a rule's verdict.
+      expect(stdout).toMatch(/relation-target-forbidden\s+4 issues\s+1 nodes/);
       // The WHY enumerates the allowed targets for the relation type.
       expect(stdout).toContain("Allowed targets for 'calls' from type 'producer': [consumer]");
       // The declaring node is named in the group's node list.

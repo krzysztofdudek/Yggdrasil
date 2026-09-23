@@ -231,11 +231,22 @@ async function loadArchitecture(
       };
     }
     const msg = (error as Error).message;
-    const archInvalidMsg: IssueMessage = {
-      what: msg,
-      why: `yg-architecture.yaml failed to parse. No architecture-level rules can be checked until this is fixed.`,
-      next: `Fix the YAML syntax in yg-architecture.yaml. Run yg check again to verify.`,
-    };
+    // A YAML syntax error and a schema violation (an unknown key, a missing
+    // description) are different faults with different fixes; calling the second
+    // a "YAML syntax" problem sends the reader hunting for an indentation error
+    // in a file that parses fine.
+    const isSyntaxError = (error as Error).name === 'YAMLParseError';
+    const archInvalidMsg: IssueMessage = isSyntaxError
+      ? {
+          what: msg,
+          why: `yg-architecture.yaml failed to parse. No architecture-level rules can be checked until this is fixed.`,
+          next: `Fix the YAML syntax in yg-architecture.yaml. Run yg check again to verify.`,
+        }
+      : {
+          what: msg,
+          why: `yg-architecture.yaml is valid YAML, but its content breaks the architecture schema, so it was not loaded. No architecture-level rules can be checked until this is fixed.`,
+          next: `Correct what the message above names in yg-architecture.yaml (yg schemas read architecture lists the allowed shape), then run yg check again.`,
+        };
     return { architecture: emptyArch, error: { code: 'architecture-invalid', messageData: archInvalidMsg } };
   }
 }
@@ -268,7 +279,9 @@ async function scanModelDirectory(
         messageData: {
           what: `yg-node.yaml parse error in ${graphPath}.`,
           why: (err as Error).message,
-          next: `Fix the YAML in .yggdrasil/model/${graphPath}/yg-node.yaml.`,
+          next: (err as Error).name === 'YAMLParseError'
+            ? `Fix the YAML in .yggdrasil/model/${graphPath}/yg-node.yaml.`
+            : `Correct what the reason above names in .yggdrasil/model/${graphPath}/yg-node.yaml (yg schemas read node lists the allowed fields).`,
         },
       });
       return;

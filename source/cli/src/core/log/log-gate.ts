@@ -71,6 +71,32 @@ export async function logGateBlocksNode(
 }
 
 /** Read a node's log.md content; empty string when absent. */
+/**
+ * True when a `log_required` node's source has moved past its recorded
+ * baseline (or it never had one) while its log holds at least one entry — the
+ * log cycle is OPEN. Paired with {@link logGateBlocksNode} returning false, it
+ * means the newest entry is what satisfies the gate for the edit; if no full
+ * recording run ever closes the cycle, that same entry keeps answering for
+ * every later edit. Unreadable subjects answer false (reported elsewhere).
+ */
+export async function logCycleOpen(
+  graph: Graph,
+  projectRoot: string,
+  node: GraphNode,
+  lock: LockFile,
+): Promise<boolean> {
+  if (graph.architecture.node_types[node.meta.type]?.log_required !== true) return false;
+  let fingerprint: string | undefined;
+  try {
+    fingerprint = await computeSourceFingerprint(graph, node.path);
+  } catch (e) {
+    if (e instanceof FileUnreadableError) return false;
+    throw e;
+  }
+  if (fingerprint === undefined || fingerprint === lock.nodes[node.path]?.source) return false;
+  return parseLog(await readLogContent(projectRoot, node.path)).length > 0;
+}
+
 export async function readLogContent(projectRoot: string, nodePath: string): Promise<string> {
   const logAbs = path.join(projectRoot, '.yggdrasil', 'model', nodePath, 'log.md');
   try {

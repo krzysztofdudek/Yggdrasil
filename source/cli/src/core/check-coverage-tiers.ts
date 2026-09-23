@@ -122,8 +122,8 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
     // Small count: files listed directly, guidance after
     coverageMd = {
       what: `${uncoveredFiles.length} source file${uncoveredFiles.length === 1 ? '' : 's'} not covered by any node.\n${sample.map(f => '  ' + f).join('\n')}`,
-      why: 'Files without graph coverage cannot be modified under the protocol.',
-      next: `Check ownership candidates: yg context --file <path>\nThen: add to existing node mapping, or create a new node.`,
+      why: 'No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).',
+      next: `Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.`,
     };
   } else {
     // Large count: guidance BEFORE examples (per CLI messages spec)
@@ -132,8 +132,8 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
       : 'Add to an existing node mapping, or create a new node.';
     coverageMd = {
       what: `${uncoveredFiles.length} source files have no graph coverage.\nExamples:\n${sample.map(f => '  ' + f).join('\n')}\n... and ${remaining} more`,
-      why: 'Files without graph coverage cannot be modified under the protocol.',
-      next: `${guidance}\nCheck ownership candidates: yg context --file <path>`,
+      why: 'No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).',
+      next: `${guidance} yg context --file <path> lists candidate owners.`,
     };
   }
 

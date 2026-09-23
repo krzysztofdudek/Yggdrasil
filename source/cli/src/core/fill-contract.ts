@@ -45,6 +45,11 @@ export interface RunFillOptions {
    *  — the early-return precedes the serialized writer's construction, so the
    *  no-write guarantee is structural. Powers `yg check --approve --dry-run`. */
   dryRun?: boolean;
+  /** The command this run was invoked as (e.g. `yg check --approve
+   *  --only-deterministic`, or bare `yg check` under auto_approve), named by
+   *  every "then re-run" line the fill prints, so a retry repeats the same run
+   *  instead of silently widening it. Defaults to `yg check --approve`. */
+  retryCommand?: string;
   /** When true, maintain the silent feature-field deviation index on the REAL post-fill
    *  report — the reporting path of `yg check --approve`. Threaded ONLY to the final report
    *  runCheck; the dry-run re-check (which returns before that report) and every other caller

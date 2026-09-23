@@ -241,7 +241,7 @@ export function registerLogCommand(program: Command): void {
   log
     .command('merge-resolve')
     .description(
-      'Reconcile log.md after a git merge: on the merge commit, or with --ours/--theirs naming the two sides of a merge that left no merge commit',
+      'Reconcile log.md after a git merge: during a merge stopped on a conflicted log.md (writes the union of both sides), on the merge commit, or with --ours/--theirs naming the two sides of a merge that left no merge commit',
     )
     .requiredOption('--node <path>', 'Node path (relative to .yggdrasil/model/)')
     .option('--ours <ref>', 'one side of a merge that left no merge commit (with --theirs)')
@@ -249,19 +249,19 @@ export function registerLogCommand(program: Command): void {
     .option('--base <ref>', 'the log both sides started from (default: the merge base of --ours and --theirs)')
     .action(async (opts: { node: string; ours?: string; theirs?: string; base?: string }) => {
       try {
+        const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         if ((opts.ours === undefined) !== (opts.theirs === undefined) || (opts.base !== undefined && opts.ours === undefined)) {
           process.stderr.write(
             chalk.red(
               buildIssueMessage({
                 what: '--ours and --theirs go together, and --base only with them.',
                 why: 'A merge has two sides; the merged log is verified against both, so naming one of them names no merge.',
-                next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only when they share no merge base), or none of them on a merge commit.',
+                next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only when they share no merge base), or none of them (during a merge in progress, or on the merge commit).',
               }),
             ) + '\n',
           );
           process.exit(1);
         }
-        const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         const repoRoot = path.dirname(graph.rootPath);
         const nodePath = opts.node.trim().replace(/\/$/, '');
         const sides =
@@ -275,7 +275,10 @@ export function registerLogCommand(program: Command): void {
         }
         process.stdout.write(
           chalk.green(
-            `Merge-resolve verified for .yggdrasil/model/${result.nodePath}/log.md\nLog baseline updated.\n`,
+            result.wroteUnion === true
+              ? `Merge-resolve wrote the union of both sides into .yggdrasil/model/${result.nodePath}/log.md and verified it.\nLog baseline updated.\n` +
+                `Next: git add .yggdrasil/model/${result.nodePath}/log.md .yggdrasil/yg-lock.logs.json, finish the merge (git commit), then run yg check.\n`
+              : `Merge-resolve verified for .yggdrasil/model/${result.nodePath}/log.md\nLog baseline updated.\n`,
           ),
         );
       } catch (error) {

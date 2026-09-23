@@ -8,21 +8,27 @@
  * Order (spec §7):
  *   1. Structural gate — validate(graph); a gating code (tier/reviewer config
  *      broken, an aspect-implies cycle, or an escaping mapping) aborts the
- *      whole fill (no fills, no LLM calls).
+ *      whole fill (no fills, no LLM calls). One exception: a missing reviewer
+ *      does not gate a run that would never call one (--only-deterministic),
+ *      a preview (--dry-run), or a project whose judgment rules are all
+ *      advisory — the deterministic pairs still fill, and the judgment pairs
+ *      stay unverified with the missing reviewer named as the cause.
  *   2. Classify pairs through the SAME engine plain check uses (verifyLock) —
  *      one implementation, so a verdict fill writes here verifies there.
  *      prompt-too-large pairs are SKIPPED (gate precedence, §4). When the caller
  *      supplies a change scope, the PAID half of the fill set is narrowed to the
  *      obligations that change is accountable for; the free deterministic half
  *      is always the whole project.
- *   3. Pre-dispatch header: counts — of what will actually be filled, plus what
- *      was deliberately left alone and why.
- *   4. Log gate (§9), ALL-OR-NOTHING and deliberately UNNARROWED: if ANY
+ *   3. Log gate (§9), ALL-OR-NOTHING and deliberately UNNARROWED: if ANY
  *      log_required node's source fingerprint drifted with no fresh entry, the
  *      run fills NOTHING (throws FillGatingError before any deterministic or LLM
  *      fill) and stays red — including for a component the current change never
  *      reached, since a recorded verdict must not rest on an unexplained edit
- *      whoever made it.
+ *      whoever made it. It runs BEFORE the header, so a run it stops never
+ *      announces a fill it is not going to make.
+ *   4. Pre-dispatch header: counts — of what will actually be filled, plus what
+ *      was deliberately left alone and why. (A --dry-run prints it and its
+ *      preview without passing the log gate.)
  *   5. Deterministic fills FIRST (free) → deterministic gate (a node with an
  *      enforced det refusal skips its LLM fills this run).
  *   6. LLM fills (grouped by tier; one provider per tier; run-scoped caches).
@@ -30,7 +36,8 @@
  *      this run, or deliberately left unbought by a change-scoped run — records
  *      its source fingerprint + log baseline.
  *   8. GC + canonical rewrite (§3.2).
- *   9. Re-run the read (runCheck) and return its result.
+ *   9. Re-run the read (runCheck), name on it the cause of every pair this run
+ *      could not fill (annotateFillCauses), and return it.
  *
  * Fail-closed (§3.2): an entry is written only on a REAL verdict. Every infra
  * disposition (provider unreachable, no reviewer, tier-resolution failure,
@@ -97,6 +104,7 @@ import { backfillPromptSizes } from './fill-prompt-size-backfill.js';
 import { createVerdictWriter } from './fill-writer.js';
 import { previewPruneSummary, writeDryRunBreakdown } from './fill-dry-run.js';
 import {
+  annotateFillCauses,
   emitDetGateSkips,
   emitGroupedDiagnostics,
   reportFillTotals,
@@ -133,6 +141,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   const projectRoot = path.dirname(graph.rootPath);
   const onlyDeterministic = opts.onlyDeterministic ?? false;
   const dryRun = opts.dryRun ?? false;
+  // The command every "then re-run" line names — the one the user actually ran,
+  // so a retry never silently drops --only-deterministic or --dry-run and turns
+  // a free run into a paid one (or into one that aborts).
+  const retry = opts.retryCommand ?? 'yg check --approve';
+  const reviewerConfigured = graph.config.reviewer !== undefined;
   const isTTY = opts.isTTY ?? (process.stderr.isTTY ?? false);
   const now = opts.now ?? Date.now.bind(Date);
   // Deterministic-phase thread budget (injected; engine reads no system state).
@@ -189,15 +202,22 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
 
   // ── Step 1: Structural gate. A gating code aborts the whole fill. ──────────
   const validation = await validate(graph, 'all', undefined, typeCoverageInput);
+  // A missing reviewer leaves nothing unclear for a run that calls none: a
+  // deterministic-only fill and a preview go ahead (each says what it could not
+  // do), and so does a run whose judgment rules are all advisory — the check
+  // reports that at warning severity, since advisory never blocks. The judgment
+  // pairs stay unverified, named as having no reviewer.
+  const reviewerMissingIsNoGate = (i: { code?: string; severity: string }): boolean =>
+    i.code === 'config-reviewer-missing' && (onlyDeterministic || dryRun || i.severity !== 'error');
   const gating = validation.issues.filter(
-    (i) => i.code !== undefined && APPROVE_GATING_CODES.has(i.code),
+    (i) => i.code !== undefined && APPROVE_GATING_CODES.has(i.code) && !reviewerMissingIsNoGate(i),
   );
   if (gating.length > 0) {
     const single = gating.length === 1;
     emitIssue({
       what: `yg check --approve aborted — ${gating.length} ${single ? 'problem' : 'problems'} must be fixed before anything runs.`,
       why: `Approval records verdicts, and ${single ? 'this problem leaves' : 'these problems leave'} it unclear what would be checked, how it would be judged, or whether doing so is safe; nothing ran and nothing was written.`,
-      next: 'Fix the errors below, then re-run: yg check --approve',
+      next: `Fix the errors below, then re-run: ${retry}`,
     });
     for (const i of gating) emitIssue(i.messageData);
     throw new FillGatingError(
@@ -219,24 +239,37 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     reportNodeSet, reportFileSet, reviewerCallBudget,
   } = classification;
 
-  // ── Step 3: Pre-dispatch header (EXACT). ──────────────────────────────────
-  writeDispatchHeader({
-    fillPairs: detPairs.length + llmPairs.length,
-    nodeCount: reportNodeSet.size,
-    fileCount: reportFileSet.size,
-    detPairs: detPairs.length,
-    reviewerCallBudget,
-    skippedLlmPairs,
-    skippedOutsideLlmPairs,
-  }, write);
+  // ── Pre-dispatch header (EXACT) — printed by the preview below, or after the
+  //    log gate for a real run, so a gated run never announces a fill. ──────
+  const writeHeader = (): void => {
+    writeDispatchHeader({
+      fillPairs: detPairs.length + llmPairs.length,
+      nodeCount: reportNodeSet.size,
+      fileCount: reportFileSet.size,
+      detPairs: detPairs.length,
+      reviewerCallBudget,
+      skippedLlmPairs,
+      skippedOutsideLlmPairs,
+      reviewerConfigured,
+    }, write);
+    // Judgment pairs in the fill set with no reviewer to call: only a preview or
+    // an all-advisory project gets here (the structural gate stops the rest).
+    if (!reviewerConfigured && llmPairs.length > 0) {
+      write(
+        `  No reviewer is configured — the ${llmPairs.length} judgment pair${llmPairs.length === 1 ? '' : 's'} counted here cannot be reviewed until one is: ` +
+          `yg init --provider <name> [--model <m>] (the user's decision), or set the judgment rule to status: draft.\n`,
+      );
+    }
+  };
 
   // ── Dry-run: cost preview, no writes. ──────────────────────────────────────
-  // Placed AFTER the step-3 budget header and BEFORE the serialized writer is
+  // Prints the budget header itself, and is placed BEFORE the serialized writer is
   // constructed, so the no-write guarantee is STRUCTURAL — there is no writer to
-  // invoke and no fill loop is reached. This INTENTIONALLY bypasses the step-4
+  // invoke and no fill loop is reached. This INTENTIONALLY bypasses the step-3
   // log gate below (a cost preview must not require a fresh log entry); only the
   // step-1 structural/config gate, which already ran above, can abort a preview.
   if (dryRun) {
+    writeHeader();
     writeDryRunBreakdown(graph, { detPairs, llmPairs, aspectById, reviewerCallBudget }, write);
     const prunePreview = await previewPruneSummary(graph, lock, {
       typeCoverage: typeCoverageInput,
@@ -281,7 +314,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     await backfillPromptSizes(lock, verification.pairs, writer.persistLock);
   }
 
-  // ── Step 4: Log gate per node (§9). A node owning unverified pairs whose
+  // ── Step 3: Log gate per node (§9). A node owning unverified pairs whose
   // log_required type drifted (or first verification) with no fresh entry needs
   // a justification entry first. The gate is all-or-nothing: if ANY node needs an
   // entry, --approve approves NOTHING this run and stops (no fill, no report) —
@@ -290,7 +323,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
   for (const nodePath of nodeSet) {
     const node = graph.nodes.get(nodePath);
     if (!node) continue;
-    const blocked = await logGateBlocks(graph, projectRoot, node, lock, emitIssue);
+    const blocked = await logGateBlocks(graph, projectRoot, node, lock, emitIssue, retry);
     if (blocked) blockedNodes.add(nodePath);
   }
   if (blockedNodes.size > 0) {
@@ -298,9 +331,12 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       code: 'log-entry-required',
       what: `${blockedNodes.size} node(s) need a fresh log entry before --approve.`,
       why: 'Their source has drifted from the state their recorded verdicts were written over — by earlier commits as easily as by anything in progress now — and log_required nodes owe a justification entry for that. Nothing was approved this run.',
-      next: 'Add the log entries listed above (yg log add), then re-run: yg check --approve',
+      next: `Add the log entries listed above (yg log add), then re-run: ${retry}`,
     }]);
   }
+
+  // ── Step 4: Pre-dispatch header (EXACT). ──────────────────────────────────
+  writeHeader();
 
   // ── Progress tracker — covers all fill pairs (det + LLM). ─────────────────
   // The tracker is created here (after pair counts are known) so it can
@@ -358,7 +394,7 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       llmSkippedByDetGate.add(detGateKey(pair));
     }
   }
-  emitDetGateSkips(llmSkippedByDetGate, emitIssue);
+  emitDetGateSkips(llmSkippedByDetGate, emitIssue, retry);
 
   // ── Step 6: LLM fills — grouped by resolved tier; one provider per tier. ───
   const llm = await runLlmPhase({
@@ -432,6 +468,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     skippedLlmPairs,
     skippedOutsideLlmPairs,
     infraReport: llm.infraReport,
+    detApproved: det.approved,
+    detRefused: det.refused,
+    skippedByDetGate: llmSkippedByDetGate.size,
+    reviewerConfigured,
+    retry,
   }, write, emitIssue);
 
   // Drain all queued progress writes first, then stop the timer and clear the TTY line.
@@ -469,6 +510,20 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
     // failing report pointed at was the one that answered for everything.
     changeScope: opts.changeScope,
   });
+
+  // The report above is rebuilt from the lock, which records verdicts and never
+  // failures — so every pair this run could not fill would read as merely "not
+  // yet reviewed", pointing back at the command that just failed on it. Name
+  // each one's cause and its real fix on the report (and so in --json) instead.
+  annotateFillCauses(checkResult, [
+    ...det.runtimeItems.map((item) => ({ ...item, cause: 'check-failed-to-run' as const })),
+    ...det.malformedSuppressItems.map((item) => ({ ...item, cause: 'suppress-marker-invalid' as const })),
+    ...llm.unreachableItems.map((item) => ({ ...item, cause: 'reviewer-unreachable' as const })),
+    ...llm.poolInfraItems.map((item) => ({
+      ...item,
+      cause: reviewerConfigured ? 'reviewer-failed' as const : 'reviewer-missing' as const,
+    })),
+  ]);
 
   // ── Convergence sentinel (C15) — READ-ONLY over the fill's own state. ──────
   // Detect the exact 0-fill divergence: the pre-fill classification reported ZERO

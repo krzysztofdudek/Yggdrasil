@@ -1,5 +1,5 @@
 import type { CheckIssue } from '../core/check.js';
-import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin } from '../core/check-codes.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin, unverifiedCauseRank, UNVERIFIED_CAUSE_ORDER } from '../core/check-codes.js';
 
 /**
  * The same codes, plus the `-outside` twin of every one of them that a change
@@ -98,6 +98,21 @@ export interface IssueGroup {
  */
 export const CODE_ONLY_GROUP_CODES = withOutsideTwins(['unverified']);
 
+/**
+ * Codes whose every instance IS one (rule, unit) pair's verdict state — the
+ * only findings a group header may count as "pairs". Everything else (a broken
+ * YAML file, an undeclared dependency, an undefined type) is about the graph or
+ * the code, not about a pair, and counting it as "1 pairs" taught a word the
+ * reader had not been given for a thing it does not mean.
+ */
+export const PAIR_CODES = withOutsideTwins([
+  'unverified',
+  'aspect-violation-enforced',
+  'aspect-violation-advisory',
+  'prompt-too-large',
+  'aspect-companion-runtime-error',
+]);
+
 // ── Shared code-set constants ────────────────────────────────
 
 /** Architecture-rule issue codes (relation, parent, type, port violations). */
@@ -175,18 +190,30 @@ export function coverageBlockLabel(code: string): string {
  */
 const ERROR_CODE_PRIORITY: string[] = [
   'lock-invalid',
+  // A conflicted log.md cannot be read, appended to or verified until the merge
+  // is reconciled — every step below it would fail on it first.
+  'log-conflict',
   'log-entry-missing',
+  // No reviewer configured for an effective judgment rule: every --approve that
+  // would fill its pairs stops here, so it comes before the pairs themselves.
+  'config-reviewer-missing',
   'unverified',
   'aspect-violation-enforced',
   'prompt-too-large',
   'aspect-companion-runtime-error',
-  'log-conflict',
   'log-integrity',
   'log-format',
 ];
 
 export function issuePriorityRank(issue: CheckIssue): number {
   const idx = ERROR_CODE_PRIORITY.indexOf(issue.code);
+  // Unverified pairs sub-rank by cause (UNVERIFIED_CAUSE_ORDER), the SAME order
+  // computeSuggestedNext picks by — fillable first, infrastructure after — so the
+  // unverified group `--top` renders first is the one `Next:` names. The
+  // fraction stays strictly below the next code's rank.
+  if (idx >= 0 && issue.code === 'unverified') {
+    return idx + unverifiedCauseRank(issue.unverifiedCause) / (UNVERIFIED_CAUSE_ORDER.length + 1);
+  }
   if (idx >= 0) return idx;
   // Unranked errors sub-rank by the SAME category cascade computeSuggestedNext
   // uses (core/check.ts §6 steps 6→8): structural → coverage → completeness →
@@ -232,8 +259,14 @@ export function getIssueLabel(issue: CheckIssue): string {
     return getIssueLabel({ ...issue, code: baseCode }) + OUTSIDE_LABEL_SUFFIX;
   }
 
-  // Verdict-lock states (spec §10).
-  if (issue.code === 'unverified') return 'unverified';
+  // Verdict-lock states (spec §10). An unverified pair is labelled by WHY it
+  // has no verdict — the cause decides the fix, so pairs with different causes
+  // must never share one group and one Fix line. A never-reviewed pair (or one
+  // with no recorded cause) keeps the plain label.
+  if (issue.code === 'unverified') {
+    const cause = issue.unverifiedCause;
+    return cause === undefined || cause === 'never-reviewed' ? 'unverified' : cause;
+  }
   if (issue.code === 'prompt-too-large') return 'prompt-too-large';
   if (issue.code === 'lock-invalid') return 'lock-invalid';
   if (issue.code === 'aspect-violation-advisory') return 'advisory';
@@ -251,8 +284,10 @@ export function getIssueLabel(issue: CheckIssue): string {
 export function groupIssues(issues: CheckIssue[]): IssueGroup[] {
   const byKey = new Map<string, CheckIssue[]>();
   for (const i of issues) {
+    // Code-only groups still split by label: an unverified pair's label is its
+    // cause, and one cause's fix is wrong for another's.
     const key = CODE_ONLY_GROUP_CODES.has(i.code)
-      ? i.code
+      ? `${i.code} ${getIssueLabel(i)}`
       : (i.aspectId !== undefined ? `${i.code} ${i.aspectId}` : i.code);
     const arr = byKey.get(key) ?? [];
     arr.push(i);

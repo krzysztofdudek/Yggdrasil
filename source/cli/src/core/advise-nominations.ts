@@ -1212,8 +1212,13 @@ export function buildAttention(sources: AttentionSources): string[] {
   // an empty ledger is honest, not hidden, and its very presence keeps the tower
   // aware it has an outside reference at all. RZ-5 quoted-data: a count plus a fixed
   // sentence, with the ledger's own provenance — never a narrator-voice instruction.
+  // With none recorded there is usually no ledger file at all, so pointing at it
+  // would send the reader to a file that does not exist; name the command that
+  // starts it instead.
   lines.push(
-    `${sources.incidentCount} incident${sources.incidentCount === 1 ? '' : 's'} on record — the only external oracle; see .yggdrasil/incidents.md`,
+    sources.incidentCount === 0
+      ? '0 incidents on record — the only external oracle; record one with yg incident add when something escapes enforcement'
+      : `${sources.incidentCount} incident${sources.incidentCount === 1 ? '' : 's'} on record — the only external oracle; see .yggdrasil/incidents.md`,
   );
   // wrong-rule-tagged incidents are evidence the rules themselves may be
   // miscalibrated — the external counterpart to the catch/exposure health story.

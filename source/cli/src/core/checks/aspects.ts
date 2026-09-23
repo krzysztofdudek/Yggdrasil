@@ -7,7 +7,7 @@ import type {
   DescendantsClause,
   NodeClause,
 } from '../../model/when.js';
-import { issueMsg } from './shared.js';
+import { issueMsg, graphLoadIncomplete } from './shared.js';
 
 // Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
 // a value import: importing the value would add this module's first real
@@ -219,6 +219,9 @@ export function checkImpliesNoCycles(graph: Graph): ValidationIssue[] {
  */
 export function checkOrphanedAspects(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+  // A node or architecture file that failed to load may be exactly what
+  // references the aspect — see graphLoadIncomplete. Withhold until it loads.
+  if (graphLoadIncomplete(graph)) return issues;
   const referenced = new Set<string>();
 
   // Collect direct references from nodes (aspects field and port aspects)

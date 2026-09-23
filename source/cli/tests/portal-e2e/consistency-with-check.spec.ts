@@ -106,7 +106,7 @@ function parseCheckRuleGroups(out: string): Array<{ label: string; severity: 'er
     if (/^\S*\s*Errors \(\d+\)/.test(line)) { section = 'error'; continue; }
     if (/^\S*\s*Warnings \(\d+\)/.test(line)) { section = 'warning'; continue; }
     if (section === null) continue;
-    const scoped = line.match(/^ {2}(\S.*?)\s{2,}\d+ pairs\s+(?:\d+ nodes(?:, \d+ files)?|\d+ files)(?:\s{2,}aspect '[^']*')?\s*$/);
+    const scoped = line.match(/^ {2}(\S.*?)\s{2,}\d+ (?:pairs|issues?)\s+(?:\d+ nodes(?:, \d+ files)?|\d+ files)(?:\s{2,}aspect '[^']*')?\s*$/);
     if (scoped) { groups.push({ label: scoped[1], severity: section }); continue; }
     const repoLevel = line.match(/^ {2}([a-z][a-z0-9-]*)\s*$/);
     if (repoLevel) groups.push({ label: repoLevel[1], severity: section });
@@ -151,11 +151,11 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     // be reading greener than the command line).
     const cliGroups = parseCheckRuleGroups(check.out);
     const labels = cliGroups.map((g) => g.label);
-    expect(labels).toContain('unverified (not yet reviewed)');
+    expect(labels).toContain('unverified (deterministic check not run on this checkout — free)');
     expect(labels).toContain('rules-digest-stale');
     // The two groups carry DIFFERENT severities — the blocking finding is an error, the
     // agent-rules gap is a warning — never folded together under one severity.
-    const unverifiedGroup = cliGroups.find((g) => g.label === 'unverified (not yet reviewed)');
+    const unverifiedGroup = cliGroups.find((g) => g.label === 'unverified (deterministic check not run on this checkout — free)');
     const digestGroup = cliGroups.find((g) => g.label === 'rules-digest-stale');
     expect(unverifiedGroup?.severity).toBe('error');
     expect(digestGroup?.severity).toBe('warning');
@@ -165,7 +165,9 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     const firstRow = page.locator('.cov-worow').first();
     await expect(firstRow.locator('.cov-worow-meta')).toContainText('2 nodes');
     await expect(firstRow.locator('.cov-pill')).toContainText('error');
-    await expect(page.locator('.cov-worow')).toContainText(['unverified', 'rules-digest-stale']);
+    // The row id is the group label: an unverified pair is labelled by its cause —
+    // here a deterministic check that has not run on this fresh checkout.
+    await expect(page.locator('.cov-worow')).toContainText(['deterministic-not-run', 'rules-digest-stale']);
   });
 
   test('after a real Approve the page follows the CLI to green (0 errors, all verified)', async ({ page, t }) => {
@@ -383,21 +385,21 @@ test.describe('the page counts EQUAL `yg check` on the same fixture', () => {
     // severities at once — one node×aspect pair enforced, one advisory — and must render as
     // two SEPARATE groups, never folded into one (the round's central defect).
     expect(errorGroups).toHaveLength(1);
-    expect(errorGroups[0].label).toBe('unverified (not yet reviewed)');
-    expect(warningGroups.map((g) => g.label)).toContain('unverified (not yet reviewed)');
+    expect(errorGroups[0].label).toBe('unverified (deterministic check not run on this checkout — free)');
+    expect(warningGroups.map((g) => g.label)).toContain('unverified (deterministic check not run on this checkout — free)');
 
     await page.goto(url + '#/view/coverage');
     await expect(page.locator('.cov-worow')).toHaveCount(cliGroups.length);
     // The error group leads (errors always sort before warnings in the worklist).
     await expect(page.locator('.cov-worow').nth(0).locator('.cov-pill')).toContainText('error');
-    await expect(page.locator('.cov-worow').nth(0).locator('.cov-worow-id')).toContainText('unverified');
+    await expect(page.locator('.cov-worow').nth(0).locator('.cov-worow-id')).toContainText('deterministic-not-run');
     // The FIRST warning group is the SAME 'unverified' code, now advisory severity — proof the
     // page renders it as its own distinct row, not merged with the error row above. Checking
     // the pill alone would not prove this: 'rules-digest-stale' is ALSO a warning-severity
     // group on this fixture, so a pill-only check would still pass if the two warning rows'
     // order ever swapped. Asserting the row's own id/label closes that gap.
     await expect(page.locator('.cov-worow').nth(1).locator('.cov-pill')).toContainText('warning');
-    await expect(page.locator('.cov-worow').nth(1).locator('.cov-worow-id')).toContainText('unverified');
+    await expect(page.locator('.cov-worow').nth(1).locator('.cov-worow-id')).toContainText('deterministic-not-run');
 
     // The overview's plain-language split sentence agrees with the CLI's own counts.
     await page.goto(url + '#/view/overview');

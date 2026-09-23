@@ -163,7 +163,7 @@ describe.skipIf(!distExists)('CLI E2E — scope (LLM-side): per:file / content-a
       // "...on file:src/services/orders/a.ts." what) is no longer rendered in the
       // grouped view; the 1-pair count + the chatCount delta (1) below prove only
       // a.ts's pair re-billed, with b.ts/c.ts untouched.
-      expect(afterEdit.all).toContain('unverified (not yet reviewed)');
+      expect(afterEdit.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(afterEdit.all).toContain('1 pairs');
       expect(afterEdit.all).toContain("aspect 'has-doc-comment'");
       expect(afterEdit.all).toContain('- services/orders');
@@ -274,7 +274,7 @@ describe.skipIf(!distExists)('CLI E2E — scope (LLM-side): per:file / content-a
       // changes → it goes unverified. The per-unit `what` ("...on node:services/
       // orders.") is no longer rendered; the unverified group names the aspect and
       // the node member line instead.
-      expect(afterMark.all).toContain('unverified (not yet reviewed)');
+      expect(afterMark.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       expect(afterMark.all).toContain("aspect 'marker-rule'");
       expect(afterMark.all).toContain('- services/orders');
     } finally {

@@ -79,6 +79,16 @@ export interface CheckJsonIssue {
   what: string;
   why: string;
   next: string;
+  /**
+   * On an `unverified` finding (or its outside twin): why the pair has no
+   * valid verdict. `reviewer-missing`, `reviewer-unreachable`,
+   * `reviewer-failed`, `check-failed-to-run` and `suppress-marker-invalid` are
+   * infrastructure — re-running the same fill cannot clear them, and `next`
+   * names what does; the four fill-time ones appear on the report of the
+   * recording run that witnessed them. `stale`, `never-reviewed` and
+   * `deterministic-not-run` are pairs waiting for a fill.
+   */
+  cause?: string;
 }
 
 /** Who judged outside the configured reviewer, and how many pairs in force are theirs. */

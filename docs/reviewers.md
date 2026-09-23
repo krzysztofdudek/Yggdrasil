@@ -575,7 +575,7 @@ Source code comments can carry a `yg-suppress` marker to waive a specific aspect
 **Format:** `yg-suppress(<aspect-path>) <reason>`
 
 - `<aspect-path>` — full aspect path (e.g., `cqrs/single-responsibility`). Several ids may share one marker, comma-separated — `yg-suppress(a, b) <reason>` (likewise `yg-suppress-disable(a, b)` / `yg-suppress-enable(a, b)`). They share the same waived range. This is not the wildcard: it waives exactly the ids you name and nothing added later.
-- `<reason>` — required free-text explanation. Empty or whitespace-only reasons fail with `SUPPRESS_MARKER_MISSING_REASON`.
+- `<reason>` — required free-text explanation. A marker with an empty or whitespace-only reason waives nothing: once the check flags a line in its range, the fill fails that pair with `SUPPRESS_MARKER_MISSING_REASON` and leaves it unverified. So that the defect shows up when the marker is written rather than when it first matters, `yg suppressions` and `yg check` both warn about a reason-less marker (`missing-reason` / `suppress-marker-missing-reason`).
 - Markers must live inside **comment nodes** — string literals are not matched.
 - The marker must begin its comment line (after the comment delimiter). A mid-sentence mention of `yg-suppress(...)` in a comment is not a marker.
 - In a **Markdown** file, a marker inside a fenced code block (like the examples below) is documentation, not a live waiver — it is not honored and not listed by `yg suppressions`. To place a genuine waiver in Markdown, use an HTML comment **outside** any fence: `<!-- yg-suppress(<aspect-path>) <reason> -->`.

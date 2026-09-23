@@ -118,7 +118,9 @@ function diagEvent(aspectId: string, satisfied: 0 | 1, ts: string): VerdictEvent
 
 /** The always-on incident reality-counter line (only N varies; singular at N=1). */
 const INC = (n: number) =>
-  `${n} incident${n === 1 ? '' : 's'} on record — the only external oracle; see .yggdrasil/incidents.md`;
+  n === 0
+    ? '0 incidents on record — the only external oracle; record one with yg incident add when something escapes enforcement'
+    : `${n} incident${n === 1 ? '' : 's'} on record — the only external oracle; see .yggdrasil/incidents.md`;
 /** The wrong-rule miscalibration-evidence line (only K varies; singular at K=1). */
 const WRONG = (k: number) =>
   `${k} wrong-rule incident${k === 1 ? '' : 's'} recorded — rules may be miscalibrated; see incidents.md`;

@@ -15,13 +15,14 @@
 
 import type { VerifiedPair } from './verify-lock.js';
 import {
-  unverifiedMessage,
+  unverifiedCauseMessage,
   llmRefusedMessage,
   detRefusedMessage,
   promptTooLargeMessage,
 } from '../formatters/lock-issue-messages.js';
-import { unverifiedIssueMessage, type TypeVisibilityReport } from './type-visibility.js';
+import { cannotRunReasonFor, unverifiedIssueMessage, type TypeVisibilityReport } from './type-visibility.js';
 import type { CheckIssue } from './check-contract.js';
+import type { UnverifiedCause } from './check-codes.js';
 
 /** Fallback text when a refused verdict carries no stored reason. Single source of truth. */
 const NO_REASON_FALLBACK = 'no violation details recorded';
@@ -31,7 +32,9 @@ const NO_REASON_FALLBACK = 'no violation details recorded';
  *   - verified            → no issue.
  *   - refused (enforced)  → aspect-violation-enforced (error).
  *   - refused (advisory)  → aspect-violation-advisory (warning).
- *   - unverified          → unverified (error if enforced, warning if advisory).
+ *   - unverified          → unverified (error if enforced, warning if advisory),
+ *                           carrying its cause (stale / never reviewed / local
+ *                           deterministic result missing / no reviewer).
  *   - prompt-too-large    → prompt-too-large (error); REPLACES unverified (gate
  *                           precedence) — no duplicate unverified is emitted.
  *   - valid + oversized   → the verdict issue PLUS a prompt-too-large error
@@ -39,7 +42,11 @@ const NO_REASON_FALLBACK = 'no violation details recorded';
  *
  * Severity follows the pair's EFFECTIVE status, recomputed live in pair.status.
  */
-export function emitPairIssue(vp: VerifiedPair, rtRows: TypeVisibilityReport['rows']): CheckIssue[] {
+export function emitPairIssue(
+  vp: VerifiedPair,
+  rtRows: TypeVisibilityReport['rows'],
+  ctx: { reviewerConfigured?: boolean } = {},
+): CheckIssue[] {
   const { pair, state } = vp;
   const issues: CheckIssue[] = [];
   const enforced = pair.status === 'enforced';
@@ -65,18 +72,31 @@ export function emitPairIssue(vp: VerifiedPair, rtRows: TypeVisibilityReport['ro
       });
       break;
     }
-    case 'unverified':
+    case 'unverified': {
+      // Why the pair has no valid verdict, read off the lock and the config
+      // alone — see UnverifiedCause. A judgment rule with no reviewer to read
+      // it outranks the lock state: no fill can clear it, whatever the lock
+      // holds. A nodeless pair THIS run watched fail to run is that failure.
+      const cause: UnverifiedCause =
+        cannotRunReasonFor(rtRows, pair.aspectId, pair.unitKey) !== undefined ? 'check-failed-to-run'
+        : pair.kind === 'llm' && ctx.reviewerConfigured === false ? 'reviewer-missing'
+        : vp.stale === true ? 'stale'
+        : pair.kind === 'deterministic' ? 'deterministic-not-run'
+        : 'never-reviewed';
       issues.push({
         severity: enforced ? 'error' : 'warning',
         code: 'unverified',
         rule: 'unverified',
-        messageData: unverifiedIssueMessage(rtRows, pair, unverifiedMessage),
+        messageData: unverifiedIssueMessage(rtRows, pair, (p) =>
+          unverifiedCauseMessage({ ...p, cause: cause === 'check-failed-to-run' ? 'never-reviewed' : cause })),
+        unverifiedCause: cause,
         nodePath: pair.nodePath,
         aspectId: pair.aspectId,
         pairKind: pair.kind,
         unitKey: pair.unitKey,
       });
       break;
+    }
     case 'prompt-too-large':
       issues.push({
         severity: 'error',

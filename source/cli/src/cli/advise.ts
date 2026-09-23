@@ -11,6 +11,7 @@ import {
   buildAttention,
   quoteData,
   parseFamilyCandidates,
+  SUPPORTED_CANDIDATES_V,
   type Nomination,
   type NominationSources,
   type SuppressAnomaly,
@@ -137,7 +138,35 @@ function collectDeclaredRelations(graph: Graph): DeclaredRelation[] {
 // still read. Every file is gated on its own, and a file that cannot be read is omitted alone.
 const FAMILY_CANDIDATES_FILE = /^\.family-candidates(\.[a-z0-9][a-z0-9-]*)?\.json$/;
 
-function readFamilyCandidatesSource(graph: Graph): FamilyCandidatesData[] | undefined {
+/**
+ * A candidates file that was present but not used, and why. Skipping it keeps
+ * `yg advise` from ever failing on telemetry — but skipping it SILENTLY meant a
+ * producer newer than this CLI (or a truncated write) made its families vanish
+ * with no trace, so the skip is named on the Attention section instead.
+ */
+interface SkippedCandidatesFile {
+  file: string;
+  why: string;
+}
+
+/** Why a candidates file that parsed as JSON was still not usable. */
+function candidatesSkipReason(raw: unknown): string {
+  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) return 'it is not a JSON object';
+  const v = (raw as Record<string, unknown>).v;
+  if (v !== SUPPORTED_CANDIDATES_V) {
+    return `its format version is ${JSON.stringify(v) ?? 'missing'}, and this yg reads version ${SUPPORTED_CANDIDATES_V}`;
+  }
+  return 'it has no usable timestamp (ts)';
+}
+
+/** The Attention line for the candidates files this run could not use (empty when none). */
+function skippedCandidatesAttention(skipped: SkippedCandidatesFile[]): string[] {
+  return skipped.map(
+    (s) => `Candidate families in .yggdrasil/${s.file} were not read — ${s.why}. Upgrade yg if the producer that wrote it is newer, or re-run that producer (or delete the file).`,
+  );
+}
+
+function readFamilyCandidatesSource(graph: Graph, skipped: SkippedCandidatesFile[] = []): FamilyCandidatesData[] | undefined {
   let names: string[];
   try {
     if (!existsSync(graph.rootPath)) return undefined;
@@ -154,8 +183,19 @@ function readFamilyCandidatesSource(graph: Graph): FamilyCandidatesData[] | unde
   const out: FamilyCandidatesData[] = [];
   for (const name of names) {
     try {
-      const parsed = parseFamilyCandidates(JSON.parse(readFileSync(path.join(graph.rootPath, name), 'utf-8')));
-      if (parsed === undefined) continue;
+      let raw: unknown;
+      try {
+        raw = JSON.parse(readFileSync(path.join(graph.rootPath, name), 'utf-8'));
+      } catch (error) {
+        debugWrite(`[advise] family candidates in ${name} omitted: ${(error as Error).message}`);
+        skipped.push({ file: name, why: 'it is not valid JSON (a truncated or interrupted write?)' });
+        continue;
+      }
+      const parsed = parseFamilyCandidates(raw);
+      if (parsed === undefined) {
+        skipped.push({ file: name, why: candidatesSkipReason(raw) });
+        continue;
+      }
       if (name === '.family-candidates.json') {
         const fresh = parsed.families.filter((f) => !seen.has(f.id));
         if (fresh.length > 0) out.push({ ...parsed, families: fresh });
@@ -167,7 +207,7 @@ function readFamilyCandidatesSource(graph: Graph): FamilyCandidatesData[] | unde
       debugWrite(`[advise] family candidates in ${name} omitted: ${(error as Error).message}`);
     }
   }
-  return out.length > 0 ? out : undefined; // present-or-omit — absence is silent
+  return out.length > 0 ? out : undefined; // present-or-omit — an ABSENT file is silent; a skipped one is named via `skipped`
 }
 
 /**
@@ -601,6 +641,8 @@ async function gatherInCorpusDrillResults(
 interface NominationSourcesResult {
   sources: NominationSources;
   tunnelCount: number;
+  /** Candidates files present but unusable — named on the Attention section. */
+  skippedCandidates: SkippedCandidatesFile[];
 }
 
 /**
@@ -631,7 +673,8 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   // ONE relation pass serves BOTH the C7 tunnel count and the type-covered-churn
   // cluster edges — see gatherRelationBoundary's own doc.
   const { tunnelCount, typeCoveredEdges } = await gatherRelationBoundary(graph, projectRoot, typeCoverage);
-  const familyCandidates = readFamilyCandidatesSource(graph);
+  const skippedCandidates: SkippedCandidatesFile[] = [];
+  const familyCandidates = readFamilyCandidatesSource(graph, skippedCandidates);
   const architectureCutCycles = computeArchitectureCutCycles(graph);
 
   const sources: NominationSources = {
@@ -693,7 +736,7 @@ async function gatherNominationSources(graph: Graph, todayUtc: Date): Promise<No
   if (packageUpdates.length > 0) {
     sources.packageUpdates = packageUpdates;
   }
-  return { sources, tunnelCount };
+  return { sources, tunnelCount, skippedCandidates };
 }
 
 /**
@@ -948,7 +991,7 @@ export function registerAdviseCommand(program: Command): void {
         // Injected UTC clock at the boundary (Task 1 pattern) — the engine keeps
         // no Date.now of its own.
         const now = new Date();
-        const { sources, tunnelCount } = await gatherNominationSources(graph, now);
+        const { sources, tunnelCount, skippedCandidates } = await gatherNominationSources(graph, now);
         const noms = buildNominations(graph, sources);
         const { visible, hidden } = applyDecisions(noms, readDecisions(graph.rootPath).decisions, now);
 
@@ -966,12 +1009,15 @@ export function registerAdviseCommand(program: Command): void {
         const { total: incidentCount, wrongRule: wrongRuleIncidentCount } = countIncidents(
           graph.rootPath,
         );
-        const attention = buildAttention({
-          tunnelCount,
-          deviationCount,
-          incidentCount,
-          wrongRuleIncidentCount,
-        });
+        const attention = [
+          ...buildAttention({
+            tunnelCount,
+            deviationCount,
+            incidentCount,
+            wrongRuleIncidentCount,
+          }),
+          ...skippedCandidatesAttention(skippedCandidates),
+        ];
 
         if (opts.json === true) {
           process.stdout.write(formatAdviseJson(buildAdviseJson(attention, visible, hidden)));

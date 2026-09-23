@@ -730,14 +730,15 @@ describe.skipIf(!distExists)('CLI E2E — F3: bare --top group === the rule Next
     // Sanity: BOTH structural codes AND coverage are present in the full wall.
     // flow-node-broken names a FLOW, not a node — it carries no node path, so
     // its header is the bare label with no pair/node counts (those would be
-    // fabricated). relation-broken does name a node and keeps its counts.
+    // fabricated). relation-broken does name a node and keeps its counts —
+    // counted as issues, since it is not a pair's verdict.
     expect(fullOut).toMatch(/^ {2}flow-node-broken$/m);
-    expect(fullOut).toMatch(/^ {2}relation-broken {2}\d+ pairs/m);
+    expect(fullOut).toMatch(/^ {2}relation-broken {2}\d+ issues? /m);
     expect(fullOut).toMatch(/^ {2}unmapped \(/m);
 
     // The rule bare --top renders: the FIRST group header line's label token,
     // whether or not that group's header carries node-scoped counts.
-    const topGroupMatch = topOut.match(/^ {2}(\S+)(?: {2}\d+ pairs {2}\d+ nodes.*)?$/m);
+    const topGroupMatch = topOut.match(/^ {2}(\S+)(?: {2}\d+ (?:pairs|issues?) {2}\d+ nodes.*)?$/m);
     expect(topGroupMatch).not.toBeNull();
     const topGroupRule = topGroupMatch![1];
 
