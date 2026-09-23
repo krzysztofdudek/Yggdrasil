@@ -84,7 +84,8 @@ describe('loadGraph — a port without aspects does not cascade-drop its subtree
       expect(graph.nodeParseErrors).toHaveLength(1);
       expect(graph.nodeParseErrors?.[0].nodePath).toBe('parent');
       expect(graph.nodeParseErrors?.[0].messageData.what).toContain('parent');
-      expect(graph.nodeParseErrors?.[0].messageData.why).toContain('ports.charge.aspects');
+      // The loader's own reason is part of WHAT happened; WHY is what not loading costs.
+      expect(graph.nodeParseErrors?.[0].messageData.what).toContain('ports.charge.aspects');
 
       expect(graph.nodes.has('parent')).toBe(false);
       // Known/inherited behavior: scanModelDirectory returns as soon as its OWN

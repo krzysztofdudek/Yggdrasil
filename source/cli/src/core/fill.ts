@@ -88,6 +88,7 @@ import path from 'node:path';
 
 import type { Graph } from '../model/graph.js';
 import { runCheck, scanUncoveredFiles } from './check.js';
+import type { CheckIssue } from './check.js';
 import { readLock } from '../io/lock-store.js';
 import type { TypeCoverageInput } from './pairs.js';
 import { verifyLock } from './verify-lock.js';
@@ -103,14 +104,12 @@ import { FillGatingError, detGateKey } from './fill-contract.js';
 import { classifyFillPairs } from './fill-classify.js';
 import { backfillPromptSizes } from './fill-prompt-size-backfill.js';
 import { acquireFillExclusion, createVerdictWriter, type FillExclusion } from './fill-writer.js';
-import { previewPruneSummary, writeDryRunBreakdown } from './fill-dry-run.js';
+import { previewPruneSummary, dryRunBreakdown } from './fill-dry-run.js';
 import {
   annotateFillCauses,
   emitDetGateSkips,
   emitGroupedDiagnostics,
   reportFillTotals,
-  writeDispatchHeader,
-  writePruneSummary,
 } from './fill-report.js';
 import { runDeterministicPhase } from './fill-det-phase.js';
 import { runLlmPhase } from './fill-llm-phase.js';
@@ -120,6 +119,8 @@ import { garbageCollectAndRewrite } from './fill-gc.js';
 import { recordAspectStatuses } from './log/aspect-status.js';
 import { countPostUnverified, reportDivergenceIfDetected } from './fill-divergence.js';
 import { ProgressTracker } from './fill-progress.js';
+import type { FillEventSink } from '../model/fill-event.js';
+import { textFillSink } from '../formatters/fill-text.js';
 // ── Relation pass (parse + resolve) — same index runCheck's own pass builds,
 //    so a `relations:` applicability atom is answered identically here. ──
 import { runProjectRelationPass } from '../relations/pass.js';
@@ -150,7 +151,11 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
 }
 
 async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?: FillExclusion): Promise<RunFillResult> {
-  const write = opts.write;
+  // Everything this run says goes out as FillEvent data. A caller that supplies
+  // no event sink gets the events worded by the fill-text formatter into its
+  // plain-text `write` sink — the engine itself never composes one of those
+  // sentences, and writes to no stream of its own.
+  const emit: FillEventSink = opts.onEvent ?? textFillSink(opts.write ?? ((): void => {}));
   const emitIssue = opts.emitIssue ?? ((): void => {});
   const projectRoot = path.dirname(graph.rootPath);
   const onlyDeterministic = opts.onlyDeterministic ?? false;
@@ -229,14 +234,26 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   );
   if (gating.length > 0) {
     const single = gating.length === 1;
-    emitIssue({
-      what: `yg check --approve aborted — ${gating.length} ${single ? 'problem' : 'problems'} must be fixed before anything runs.`,
-      why: `Approval records verdicts, and ${single ? 'this problem leaves' : 'these problems leave'} it unclear what would be checked, how it would be judged, or whether doing so is safe; nothing ran and nothing was written.`,
-      next: `Fix the errors below, then re-run: ${retry}`,
-    });
-    for (const i of gating) emitIssue(i.messageData);
+    if (opts.gateIssuesOnError !== true) {
+      emitIssue({
+        what: `yg check --approve aborted — ${gating.length} ${single ? 'problem' : 'problems'} must be fixed before anything runs.`,
+        why: `Approval records verdicts, and ${single ? 'this problem leaves' : 'these problems leave'} it unclear what would be checked, how it would be judged, or whether doing so is safe; nothing ran and nothing was written.`,
+        next: `Fix the errors below, then re-run: ${retry}`,
+      });
+      for (const i of gating) emitIssue(i.messageData);
+    }
     throw new FillGatingError(
       gating.map((i) => ({ code: i.code!, what: i.messageData.what, why: i.messageData.why, next: i.messageData.next })),
+      'structural',
+      gating.map((i) => ({
+        code: i.code!,
+        severity: 'error',
+        rule: i.rule,
+        messageData: i.messageData,
+        ...(i.nodePath !== undefined ? { nodePath: i.nodePath } : {}),
+        ...(i.aspectId !== undefined ? { aspectId: i.aspectId } : {}),
+      })),
+      retry,
     );
   }
 
@@ -257,26 +274,30 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // ── Pre-dispatch header (EXACT) — printed by the preview below, or after the
   //    log gate for a real run, so a gated run never announces a fill. ──────
   const writeHeader = (): void => {
-    writeDispatchHeader({
-      fillPairs: detPairs.length + llmPairs.length,
-      nodeCount: reportNodeSet.size,
-      fileCount: reportFileSet.size,
-      detPairs: detPairs.length,
-      reviewerCallBudget,
-      skippedLlmPairs,
-      skippedOutsideLlmPairs,
-      reviewerConfigured,
-    }, write);
+    emit({
+      type: 'dispatch',
+      counts: {
+        fillPairs: detPairs.length + llmPairs.length,
+        nodeCount: reportNodeSet.size,
+        fileCount: reportFileSet.size,
+        detPairs: detPairs.length,
+        reviewerCallBudget,
+        skippedLlmPairs,
+        skippedOutsideLlmPairs,
+        reviewerConfigured,
+        preview: dryRun,
+      },
+    });
     // Judgment pairs in the fill set with no reviewer to call: only a preview or
     // an all-advisory project gets here (the structural gate stops the rest).
     if (!reviewerConfigured && llmPairs.length > 0) {
-      // Structured what / why / next, rendered as the indented lines the header uses.
+      // Structured what / why / next; the renderer lays it out under the header.
       const noReviewer = {
         what: `No reviewer is configured — the ${llmPairs.length} judgment pair${llmPairs.length === 1 ? '' : 's'} counted here cannot be reviewed.`,
         why: 'Judgment rules are decided only by the configured reviewer; this run fills the script rules and leaves these pairs unverified.',
         next: "yg init --provider <name> [--model <m>] (the user's decision), or set the judgment rule to status: draft.",
       };
-      write(`  ${noReviewer.what}\n  ${noReviewer.why}\n  ${noReviewer.next}\n`);
+      emit({ type: 'no-reviewer', message: noReviewer });
     }
   };
 
@@ -288,13 +309,13 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // step-1 structural/config gate, which already ran above, can abort a preview.
   if (dryRun) {
     writeHeader();
-    writeDryRunBreakdown(graph, { detPairs, llmPairs, aspectById, reviewerCallBudget }, write);
+    emit(dryRunBreakdown(graph, { detPairs, llmPairs, aspectById, reviewerCallBudget }));
     const prunePreview = await previewPruneSummary(graph, lock, {
       typeCoverage: typeCoverageInput,
       detAspectIdsOnDisk,
       onlyDeterministic,
     });
-    writePruneSummary(prunePreview, write);
+    emit({ type: 'prune', ...prunePreview });
     const checkResult = await runCheck(graph, opts.coverageVisibleFiles, {
       nowUtc: opts.reviewNowUtc,
       rulesArtifacts: opts.rulesArtifacts,
@@ -339,11 +360,15 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // entry, --approve approves NOTHING this run and stops (no fill, no report) —
   // the per-node messages tell the user which entries to add, then re-run.
   const blockedNodes = new Set<string>();
+  const logGateIssues: CheckIssue[] = [];
   for (const nodePath of nodeSet) {
     const node = graph.nodes.get(nodePath);
     if (!node) continue;
-    const blocked = await logGateBlocks(graph, projectRoot, node, lock, emitIssue, retry);
-    if (blocked) blockedNodes.add(nodePath);
+    const blocked = await logGateBlocks(graph, projectRoot, node, lock, retry);
+    if (blocked === null) continue;
+    blockedNodes.add(nodePath);
+    logGateIssues.push({ code: 'log-entry-missing', severity: 'error', rule: 'log-entry-missing', messageData: blocked, nodePath });
+    if (opts.gateIssuesOnError !== true) emitIssue(blocked);
   }
   if (blockedNodes.size > 0) {
     throw new FillGatingError([{
@@ -351,7 +376,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
       what: `${blockedNodes.size} node(s) need a fresh log entry before --approve.`,
       why: 'Their source has drifted from the state their recorded verdicts were written over — by earlier commits as easily as by anything in progress now — and log_required nodes owe a justification entry for that. Nothing was approved this run.',
       next: `Add the log entries listed above (yg log add), then re-run: ${retry}`,
-    }]);
+    }], 'log-gate', logGateIssues, retry);
   }
 
   // ── Step 4: Pre-dispatch header (EXACT). ──────────────────────────────────
@@ -376,7 +401,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // we tick often enough to detect a stall. We use a short interval (5s) for
   // the TTY rewrite so the elapsed-seconds counter stays current.
   const tickIntervalMs = isTTY ? 5000 : (opts.stillWorkingIntervalMs ?? 30000);
-  const tickInterval = setInterval(() => { tracker.onTick(write); }, tickIntervalMs);
+  const tickInterval = setInterval(() => { tracker.onTick(emit); }, tickIntervalMs);
   tickInterval.unref?.(); // don't keep the process alive if everything else finishes
 
   // The architecture-reach cache for nodeless (component-free) pairs — shared
@@ -394,7 +419,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // ── Step 5: Deterministic fills FIRST (free). ─────────────────────────────
   const det = await runDeterministicPhase({
     graph, projectRoot, detPairs, aspectById, verification, blockedNodes,
-    detConcurrency, detTaskBudgetMs, typeCoverage: typeCoverageInput, reachCache, writer, tracker, write,
+    detConcurrency, detTaskBudgetMs, typeCoverage: typeCoverageInput, reachCache, writer, tracker, emit,
   });
 
   // ── Emit grouped det runtime-error diagnostics (one message per aspect). ────
@@ -418,7 +443,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // ── Step 6: LLM fills — grouped by resolved tier; one provider per tier. ───
   const llm = await runLlmPhase({
     graph, projectRoot, llmPairs, aspectById, blockedNodes, llmSkippedByDetGate,
-    typeCoverage: typeCoverageInput, reachCache, writer, tracker, write, emitIssue,
+    typeCoverage: typeCoverageInput, reachCache, writer, tracker, emit, emitIssue,
   });
 
   // ── Emit grouped companion and pool-infra diagnostics. ────────────────────
@@ -463,9 +488,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   const statuses = await recordAspectStatuses(graph, lock, now());
   if (statuses.changed) await writer.persistLock();
   for (const drift of statuses.recorded) {
-    write(
-      `  Rule '${drift.aspectId}' now stands at ${drift.to} (was ${drift.from}) — written into its own log.\n`,
-    );
+    emit({ type: 'rule-status', aspectId: drift.aspectId, from: drift.from, to: drift.to });
   }
 
   // ── Step 8: GC + canonical rewrite (§3.2). ────────────────────────────────
@@ -481,7 +504,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   });
 
   // ── Step 9: Summaries + re-run the read. ──────────────────────────────────
-  writePruneSummary(pruneSummary, write);
+  emit({ type: 'prune', ...pruneSummary });
   reportFillTotals({
     reviewerCallsMade: llm.reviewerCallsMade,
     infraFailures: llm.infraFailures,
@@ -496,12 +519,15 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     skippedByDetGate: llmSkippedByDetGate.size,
     reviewerConfigured,
     retry,
-  }, write, emitIssue);
+    // Refusals the lock already held for unchanged inputs: they stand after
+    // this run, so its closing line must not claim every pair is valid.
+    cachedRefusals: verification.pairs.filter((vp) => vp.state.kind === 'refused').length,
+  }, emit, emitIssue);
 
   // Drain all queued progress writes first, then stop the timer and clear the TTY line.
   await writer.drain();
   clearInterval(tickInterval);
-  tracker.clearLine(write);
+  tracker.clearLine(emit);
 
   // The `yg check --approve` combiner prints this report after filling. This IS the
   // reporting path for `--approve`, so it maintains the silent feature-field index when the

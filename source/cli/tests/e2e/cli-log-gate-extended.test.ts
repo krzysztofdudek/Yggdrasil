@@ -306,7 +306,10 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain(GATE_FIRED);
       expect(all).toContain("Node type 'service' has log_required: true");
       expect(status).toBe(1);
-      expect(all).not.toContain('yg check:'); // hard stop → no report summary
+      // Hard stop → no report of the tree: the abort is reported under its own
+      // ABORTED verdict line, never a PASS/FAIL summary.
+      expect(all).toContain('yg check: ABORTED');
+      expect(all).not.toMatch(/yg check: (PASS|FAIL)/);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

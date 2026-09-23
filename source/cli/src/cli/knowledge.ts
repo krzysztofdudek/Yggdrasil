@@ -1,8 +1,8 @@
 import { Command } from 'commander';
 import chalk from 'chalk';
 import { KNOWLEDGE_TOPICS } from '../templates/knowledge/index.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import { abortOnUnexpectedError } from './preamble.js';
+import { fail } from './output.js';
 
 export function listKnowledge(): void {
   process.stdout.write('\nAvailable knowledge topics:\n\n');
@@ -16,15 +16,11 @@ export function listKnowledge(): void {
 export function readKnowledge(name: string): void {
   if (!Object.prototype.hasOwnProperty.call(KNOWLEDGE_TOPICS, name)) {
     const available = Object.keys(KNOWLEDGE_TOPICS).sort().join(', ');
-    process.stderr.write(
-      chalk.red(
-        `Error: ${buildIssueMessage({
+    fail({
           what: `Unknown knowledge topic '${name}'.`,
           why: 'The topic name does not match any entry in the embedded knowledge base.',
           next: `Available: ${available}. Run 'yg knowledge list' for summaries.`,
-        })}\n`,
-      ),
-    );
+        });
     process.exit(1);
   }
   const topic = KNOWLEDGE_TOPICS[name];

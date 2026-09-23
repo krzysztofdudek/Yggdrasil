@@ -184,7 +184,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
     // full, minus only that one line.
     const twinBlock = warningSection(stdout);
     expect(twinBlock).toContain(
-      "enforced (outside changes)  1 pairs  1 nodes  aspect 'no-todo-comments'\n"
+      "enforced (outside changes)  1 pair  1 node  aspect 'no-todo-comments'\n"
       + '            A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.\n'
       + '            - beta  Violations:\n',
     );
@@ -244,7 +244,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       // as outside the change — and with no Fix: line repeating a command
       // that would, for this one finding, review the whole project.
       expect(warningSection(stdout)).toContain(
-        'unverified (deterministic check not run on this checkout — free) (outside changes)  1 pairs  1 nodes\n'
+        'unverified (deterministic check not run on this checkout — free) (outside changes)  1 pair  1 node\n'
         + '            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.\n'
         + "            - beta  aspect 'no-todo-comments'\n",
       );
@@ -272,7 +272,7 @@ describe.skipIf(!distExists)('yg check — the progressive gate', () => {
       expect(errorSection(stdout)).toContain('Fix: yg check --approve');
       // …beta's inherited pair reads the same way minus that line.
       expect(warningSection(stdout)).toContain(
-        'unverified (deterministic check not run on this checkout — free) (outside changes)  1 pairs  1 nodes\n'
+        'unverified (deterministic check not run on this checkout — free) (outside changes)  1 pair  1 node\n'
         + '            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.\n'
         + "            - beta  aspect 'no-todo-comments'\n",
       );

@@ -602,9 +602,9 @@ describe.skipIf(!distExists)('CLI E2E — implied aspects (channel 7 / implies)'
       // generic on purpose (the same header fires for a broken reviewer config
       // too) so it must not claim a config/tier problem that isn't there for a
       // cycle — it says only that nothing ran.
-      expect(all).toContain('yg check --approve aborted');
-      expect(all).toContain('must be fixed before anything runs');
-      expect(all).toContain('Fix the errors below, then re-run: yg check --approve');
+      expect(all).toContain('yg check: ABORTED');
+      expect(all).toContain('must be fixed first');
+      expect(all).toContain('then re-run: yg check --approve');
       // What actually tells the user THIS run's problem is a cycle — not the
       // generic header above, which is deliberately silent on specifics — is
       // the cycle's own diagnostic underneath, not buried: same what/why/next

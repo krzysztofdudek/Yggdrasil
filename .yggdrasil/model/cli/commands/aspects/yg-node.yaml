@@ -18,7 +18,19 @@ description: >-
   omits because it does not judge them, so a rule that reaches nothing stays
   distinguishable from one not yet judging what it reaches.
 aspects: []
+max_direct_relations:
+  limit: 21
+  reason: >-
+    Reviewed at exactly this count. This node owns two commands — the rule
+    inventory with its health projection, and each rule's own history — and the
+    inventory reads every fact a rule has: its reach through the graph and the
+    type tier, the lock and its verifier, the drill corpus, the incident ledger,
+    the suppression scan and the rule's log. The twenty-first edge is the CLI
+    output layer, through which both commands now report their errors like every
+    other command.
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/core/log

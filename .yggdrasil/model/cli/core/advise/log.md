@@ -76,3 +76,5 @@ The newer-version item now names the exact command that takes the newest publish
 The package-system fixes and the already merged gate-clarity and documentation-consistency fixes met in this component at merge. The merged source carries both sets of behaviour unchanged; this entry records that the combination is what the verdicts now answer for.
 ## [2026-09-23T22:12:12.204Z]
 The environment-robustness fixes and the release work already merged met in this component: a rule whose committed drill corpus holds refusal cases is never nominated for demotion as having no regression drill, because drill results are local and every clone read as having none; the nominations the release changed before (package rules, family and architecture cuts) keep their behaviour. The merged source carries both behaviours.
+## [2026-09-23T23:00:40.318Z]
+The incident counter no longer calls incidents 'the only external oracle', jargon a first-time reader could not decode; it says what they are: the only evidence from outside the graph that a rule missed something.

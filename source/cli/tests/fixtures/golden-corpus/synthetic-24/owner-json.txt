@@ -1,0 +1,16 @@
+$ yg owner --file src/svc-01/index.ts --json
+exit: 0
+--- stdout
+{
+  "schema": "yg-owner/1",
+  "node": "app/svc-01",
+  "type": null,
+  "direct": false,
+  "mappingPath": "src/svc-01",
+  "enforced": null,
+  "excludedBecause": null,
+  "next": "yg context --node app/svc-01",
+  "file": "src/svc-01/index.ts",
+  "kind": "node"
+}
+--- stderr

@@ -1,0 +1,201 @@
+$ yg check --json
+exit: 1
+--- stdout
+{
+  "schema": "yg-check/1",
+  "project": {
+    "name": "<ROOT-NAME>",
+    "nodes": 4,
+    "aspects": 1,
+    "flows": 0
+  },
+  "exit": {
+    "code": 1,
+    "status": "fail",
+    "reason": "5 blocking findings."
+  },
+  "coverage": {
+    "files": 8,
+    "covered": 3,
+    "nodeOwned": null,
+    "typeCovered": null,
+    "excluded": null,
+    "requiresNothing": false
+  },
+  "totals": {
+    "errors": 5,
+    "warnings": 0,
+    "draftSkipped": 0,
+    "verdicts": {
+      "approved": 0,
+      "refused": 0,
+      "unverified": 3,
+      "stale": 0,
+      "prompt-too-large": 0,
+      "companion-error": 0
+    },
+    "verified": {
+      "deterministic": 0,
+      "llm": 0
+    }
+  },
+  "pairs": [
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "node": "app/svc-01",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-02"
+      },
+      "node": "app/svc-02",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "node": "app/svc-03",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    }
+  ],
+  "issues": [
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'no-todo' on node:app/svc-01.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "no-todo",
+      "node": "app/svc-01",
+      "unit": "node:app/svc-01",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'no-todo' on node:app/svc-02.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "no-todo",
+      "node": "app/svc-02",
+      "unit": "node:app/svc-02",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-02"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'no-todo' on node:app/svc-03.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "no-todo",
+      "node": "app/svc-03",
+      "unit": "node:app/svc-03",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-03"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "config-invalid",
+      "severity": "error",
+      "what": "yg-config.yaml does not parse: Flow sequence in block collection must be sufficiently indented and end with a ] at line 15, column 1:\nquality: [\n^",
+      "why": "Until it parses, every setting in it falls back to its default — coverage roots, the reviewer, quality limits — so the rest of this report describes the default configuration, not this project's.",
+      "next": "Fix the syntax error in .yggdrasil/yg-config.yaml.",
+      "label": "config-invalid"
+    },
+    {
+      "code": "unmapped-files",
+      "severity": "error",
+      "what": "5 source files not covered by any node.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md\n  src/tools/gen.ts",
+      "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "files": [
+        ".clinerules/yggdrasil.md",
+        ".gitattributes",
+        "AGENTS.md",
+        "CLAUDE.md",
+        "src/tools/gen.ts"
+      ],
+      "label": "unmapped"
+    }
+  ],
+  "judges": [],
+  "progressive": null,
+  "suggestedNext": "Fix the syntax error in .yggdrasil/yg-config.yaml.",
+  "groups": [
+    {
+      "code": "config-invalid",
+      "label": "config-invalid",
+      "aspect": null,
+      "severity": "error",
+      "why": "Until it parses, every setting in it falls back to its default — coverage roots, the reviewer, quality limits — so the rest of this report describes the default configuration, not this project's.",
+      "next": "Fix the syntax error in .yggdrasil/yg-config.yaml.",
+      "members": [
+        3
+      ]
+    },
+    {
+      "code": "unverified",
+      "label": "deterministic-not-run",
+      "aspect": null,
+      "severity": "error",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "members": [
+        0,
+        1,
+        2
+      ]
+    },
+    {
+      "code": "unmapped-files",
+      "label": "unmapped",
+      "aspect": null,
+      "severity": "error",
+      "why": "No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).",
+      "next": "Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.",
+      "members": [
+        4
+      ]
+    }
+  ],
+  "banner": "Partial result: yg-config.yaml did not load, so its defaults were used. The findings below were computed without it and may be symptoms of it — fix it first."
+}
+--- stderr

@@ -108,7 +108,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       // The dry-run-specific UPPER BOUND budget line is emitted via the `write`
       // sink — which --quiet must NOT swallow when --dry-run is also set.
       expect(result.stdout).not.toBe('');
-      expect(result.stdout).toContain('reviewer call(s) is an UPPER BOUND');
+      expect(result.stdout).toContain('is an UPPER BOUND');
       // The per-pair budget breakdown also lands on stdout.
       expect(result.stdout).toMatch(/Filling \d+ unverified pairs/);
 
@@ -133,7 +133,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       const result = run(['check', '--approve', '--dry-run', '--json', '--quiet'], dir);
 
       // The budget breakdown reaches STDERR (stdout is the JSON document's).
-      expect(result.stderr).toContain('reviewer call(s) is an UPPER BOUND');
+      expect(result.stderr).toContain('is an UPPER BOUND');
       expect(result.stderr).toMatch(/Filling \d+ unverified pairs/);
 
       // STDOUT stays a clean, parseable JSON document — no preview text mixed in.
@@ -154,7 +154,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       // preview already belongs on stderr so stdout carries the document alone.
       const result = run(['check', '--approve', '--dry-run', '--json'], dir);
 
-      expect(result.stderr).toContain('reviewer call(s) is an UPPER BOUND');
+      expect(result.stderr).toContain('is an UPPER BOUND');
       expect(result.stdout).not.toContain('UPPER BOUND');
       expect(() => JSON.parse(result.stdout)).not.toThrow();
       expect(result.status).toBe(0);
@@ -170,7 +170,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       // preview on stdout, where it has always been.
       const result = run(['check', '--approve', '--dry-run'], dir);
 
-      expect(result.stdout).toContain('reviewer call(s) is an UPPER BOUND');
+      expect(result.stdout).toContain('is an UPPER BOUND');
       expect(result.stdout).toMatch(/Filling \d+ unverified pairs/);
       expect(result.status).toBe(0);
     } finally {

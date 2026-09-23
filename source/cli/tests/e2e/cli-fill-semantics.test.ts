@@ -130,7 +130,7 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
       // Grouped view: unverified groups by code only (no aspect in header).
-      expect(check.all).toMatch(/unverified \(not yet reviewed\)\s+1 pairs\s+1 nodes$/m);
+      expect(check.all).toMatch(/unverified \(not yet reviewed\)\s+1 pair\s+1 node$/m);
       // The aspect appears on the body line instead.
       expect(check.all).toContain("- services/orders  aspect 'has-doc-comment'");
     } finally {

@@ -66,3 +66,5 @@ Two independent release fixes met in this component at merge: the gate-clarity w
 The package-system fixes and the already merged gate-clarity and documentation-consistency fixes met in this component at merge. The merged source carries both sets of behaviour unchanged; this entry records that the combination is what the verdicts now answer for.
 ## [2026-09-23T22:37:55.523Z]
 The graph-governance work met the release work already merged in this component: the reserved default port name comes from the one model constant, while the status-downgrade site naming, the withheld absence findings and the packages-area guidance from the earlier work are unchanged.
+## [2026-09-23T23:00:41.262Z]
+A status downgrade is reported once, at the site that declares it, naming how many nodes it reaches, instead of once per node: a type or flow attaching a rule below its default blamed every node it reached for a declaration made in one place, and repeated one fault as many times.

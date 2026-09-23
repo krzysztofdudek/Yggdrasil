@@ -120,7 +120,7 @@ Findings your change reached are unchanged — same name, same severity, same
 they mirror, with one phrase added:
 
 ```text
-  stale (inputs changed since the verdict) (outside changes)  1 pairs  1 nodes
+  stale (inputs changed since the verdict) (outside changes)  1 pair  1 node
             A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.
             - beta  aspect 'no-todo-comments'
 ```

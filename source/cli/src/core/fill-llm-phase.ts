@@ -22,6 +22,7 @@ import type { ExpectedPair, TypeCoverageInput } from './pairs.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { LlmFillOutcome } from './fill-shared.js';
 import type { ProgressTracker } from './fill-progress.js';
+import type { FillEventSink } from '../model/fill-event.js';
 import type { VerdictWriter } from './fill-writer.js';
 import type { InfraDiagnosticItem } from './fill-report.js';
 import { detGateKey, isNodeBlocked } from './fill-contract.js';
@@ -92,13 +93,14 @@ export interface LlmPhaseParams {
   reachCache: Map<string, Set<string>>;
   writer: VerdictWriter;
   tracker: ProgressTracker;
-  write: (s: string) => void;
+  /** Where progress events go (see model/fill-event.ts). */
+  emit: FillEventSink;
   emitIssue: (msg: IssueMessage) => void;
 }
 
 export async function runLlmPhase({
   graph, projectRoot, llmPairs, aspectById, blockedNodes, llmSkippedByDetGate,
-  typeCoverage, reachCache, writer, tracker, write, emitIssue,
+  typeCoverage, reachCache, writer, tracker, emit, emitIssue,
 }: LlmPhaseParams): Promise<LlmPhaseResult> {
   const result: LlmPhaseResult = {
     reviewerCallsMade: 0,
@@ -193,7 +195,7 @@ export async function runLlmPhase({
     let outcomes: LlmFillOutcome[];
     try {
       outcomes = await runPairPool(group, parallel, async (item) => {
-        tracker.onPairStart('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), write);
+        tracker.onPairStart('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), emit);
         const bucket = parseCacheBuckets.get(parseCacheBucketKey(item.pair));
         try {
           const outcome = await fillLlmPair(graph, projectRoot, item.pair, item.aspect, item.tier, item.tierName, baseTier, provider, referencesCache, typeCoverage, reachCache, bucket?.cache);
@@ -208,9 +210,9 @@ export async function runLlmPhase({
               total: outcome.votes.length,
             };
             await writer.setEntry(item.pair, outcome.entry, item.tierName, votes, judgeIdentity(item.tier));
-            tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), outcome.entry.verdict, write);
+            tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), outcome.entry.verdict, emit);
           } else if (outcome.kind === 'infra' || outcome.kind === 'companion-runtime-error') {
-            tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), 'infra', write);
+            tracker.onPairComplete('llm', item.pair.aspectId, toPosixPath(item.pair.unitKey), 'infra', emit);
           }
           return outcome;
         } finally {

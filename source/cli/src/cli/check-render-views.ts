@@ -1,10 +1,13 @@
-// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
+// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
 import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE, FEATURE_INDEX_NOT_IGNORED_NOTICE, OUTSIDE_CODES } from '../core/check-codes.js';
-import { groupIssues, issuePriorityRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, type IssueGroup } from './group-issues.js';
+import { groupIssues, issuePriorityRank, getIssueLabel, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, type IssueGroup } from './group-issues.js';
 import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderChangeScope, renderByteGuardNotice, renderBaselineNoiseNotice, renderCoverageRequiresNothingNotice, renderExternalJudgesNotice } from './check-render-header.js';
-import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup } from './check-render-groups.js';
+import { renderErrorSection, renderWarningSection, renderDetailsSection, renderUnmappedBlock, renderGroup, type GroupRenderOptions } from './check-render-groups.js';
+import { GRAPH_INVALID_CODES } from './output-diagnostic.js';
+import { count, MEMBER_CAP, verdict, next as nextLine, fixPointer } from './output.js';
+import type { CheckJsonDocument, CheckJsonGroup, CheckJsonIssue } from '../formatters/check-json.js';
 import { toPosixPath } from '../utils/posix.js';
 
 // ── Output formatting ──────────────────────────────────────
@@ -119,12 +122,23 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   const errors = result.issues.filter(i => i.severity === 'error');
   const warnings = result.issues.filter(i => i.severity === 'warning');
 
-  // isTTY controls node-list truncation inside groups (CAP_NODES per group).
-  const opts = { isTTY: process.stdout.isTTY ?? false };
+  // Member lists are capped by the VIEW, in every sink: a pipe (an agent, CI)
+  // gets the same bounded report a terminal does, each cut list ending in the
+  // command that shows the rest. Only the drill-in and per-issue views show
+  // every member.
+  const opts: GroupRenderOptions = { capMembers: true };
 
   // Header ALWAYS uses the full counts — in every view. Only the body changes.
   const header = renderHeader(result, errors.length, warnings.length, autoFilled, emoji);
   const sections: string[] = [header];
+
+  // The graph did not load as written: say so before anything else, in every
+  // view, because everything below was computed without the part that failed.
+  const partial = renderPartialResultBanner(result);
+  if (partial !== undefined) {
+    sections.push('');
+    sections.push(chalk.yellow(partial));
+  }
 
   // Standing config fact, not an issue — printed ahead of every view. Withheld
   // while yg-architecture.yaml failed to load: its types were not read at all,
@@ -243,7 +257,7 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
     // grouped, with the full node list (no truncation). The TRUE total error
     // count (N) stays visible in the header line so the user knows how much
     // of the total wall this aspect represents.
-    const drillOpts = { isTTY: false }; // never truncate in drill-in
+    const drillOpts: GroupRenderOptions = { capMembers: false }; // the drill-in shows every member
     const filtered = result.issues.filter(i => i.aspectId === view.id);
     const filteredErrors = filtered.filter(i => i.severity === 'error');
     const filteredWarnings = filtered.filter(i => i.severity === 'warning');
@@ -357,6 +371,134 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   return sections.join('\n');
 }
 
+// ── Machine document extras ────────────────────────────────
+
+/**
+ * Add to a yg-check/1 document what only the command layer knows: each
+ * finding's text-report label, the text report's groups (the shared why and
+ * fix stated once, members as indexes into `issues`), and the partial-result
+ * banner. Additive — every field the document already had is untouched.
+ */
+export function enrichCheckJson(doc: CheckJsonDocument, result: CheckResult): CheckJsonDocument {
+  // The label the text report heads the finding with: a coverage finding's
+  // block label, every other finding's group label.
+  const labelOf = (issue: CheckIssue): string =>
+    COVERAGE_GROUP_EXCLUDED_CODES.has(issue.code) ? coverageBlockLabel(issue.code) : getIssueLabel(issue);
+  const index = new Map<CheckIssue, number>();
+  result.issues.forEach((issue, i) => {
+    index.set(issue, i);
+    doc.issues[i].label = labelOf(issue);
+  });
+  const groups: CheckJsonGroup[] = [];
+  for (const severity of ['error', 'warning'] as const) {
+    for (const g of groupIssues(result.issues.filter((i) => i.severity === severity))) {
+      groups.push({
+        code: g.code,
+        label: labelOf(g.members[0]),
+        aspect: g.aspectId ?? null,
+        severity,
+        why: g.divergentWhy ? null : g.sharedWhy,
+        next: g.divergentNext ? null : g.sharedNext,
+        members: g.members.map((m) => index.get(m) ?? -1).filter((i) => i >= 0),
+      });
+    }
+  }
+  doc.groups = groups;
+  doc.banner = renderPartialResultBanner(result) ?? null;
+  return doc;
+}
+
+// ── Gate abort ─────────────────────────────────────────────
+
+/** Which gate stopped a recording run, and the findings that stopped it. */
+export interface FillAbort {
+  stage: 'structural' | 'log-gate';
+  issues: CheckIssue[];
+  /** The command to re-run once the gate is cleared — the user's own, flags kept. */
+  retry?: string;
+}
+
+/** The one-line account of an abort the verdict line and the document both carry. */
+function abortReason(abort: FillAbort): string {
+  const n = abort.stage === 'log-gate'
+    ? new Set(abort.issues.map((i) => i.nodePath ?? '')).size
+    : abort.issues.length;
+  return abort.stage === 'log-gate'
+    ? `nothing recorded — ${count(n, 'node')} ${n === 1 ? 'needs' : 'need'} a log entry first`
+    : `nothing ran — ${count(n, 'problem')} must be fixed first`;
+}
+
+/**
+ * The report of a recording run a gate stopped before it recorded anything:
+ * a verdict line that says ABORTED (keeping the `yg check:` anchor every other
+ * report opens with), the gating findings through the same grouped renderer as
+ * any report — capped, templated where they differ only by node — and the
+ * first step. It used to be dozens of unlabelled three-line blocks on stderr,
+ * with nothing on stdout at all.
+ */
+export function formatAbort(abort: FillAbort, emoji = useEmoji): string {
+  const prefix = emoji ? '❌ ' : '';
+  const sections: string[] = [`${prefix}${verdict('yg check', 'ABORTED', abortReason(abort))}`];
+  if (abort.issues.length > 0) {
+    sections.push('');
+    sections.push(renderErrorSection(abort.issues, { capMembers: true }, emoji));
+    const first = [...abort.issues].sort((a, b) => issuePriorityRank(a) - issuePriorityRank(b) || (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];
+    if (first.messageData.next) {
+      sections.push('');
+      const step = fixPointer(first.messageData.next);
+      // Name the re-run with the user's own flags (a keyless
+      // --only-deterministic run must not be sent to the paid lane), unless the
+      // step already does.
+      const rerun = abort.retry !== undefined && !step.includes('then re-run:') ? `\n  then re-run: ${abort.retry}` : '';
+      sections.push(nextLine(`${step}${rerun}`));
+    }
+  }
+  sections.push('');
+  return sections.join('\n');
+}
+
+/**
+ * The yg-check/1 document of an aborted recording run: the read-only report of
+ * the same tree (so every count is true), with `exit.status` `aborted`, the
+ * reason, and the gating findings under `aborted`.
+ */
+export function abortCheckJson(doc: CheckJsonDocument, abort: FillAbort, issueOf: (i: CheckIssue) => CheckJsonIssue): CheckJsonDocument {
+  doc.exit = { code: 1, status: 'aborted', reason: `yg check --approve stopped: ${abortReason(abort)}.` };
+  doc.aborted = { stage: abort.stage, issues: abort.issues.map(issueOf) };
+  return doc;
+}
+
+// ── Partial result ─────────────────────────────────────────
+
+/** How many per-node rows the --summary view prints before it counts the rest. */
+const SUMMARY_CAP = MEMBER_CAP * 2;
+
+/**
+ * The banner a report carries when part of the graph did not load as written:
+ * which part, and that the findings below were computed without it. A config
+ * that does not parse falls back to defaults (coverage roots, reviewer, limits);
+ * an architecture that does not load checks no architecture rule; a component
+ * file that does not parse drops that component, so a flow naming it reads it
+ * as non-existent and its files read as unmapped. Without the banner the report
+ * silently got GREENER as the graph broke. Undefined on every ordinary run.
+ */
+function renderPartialResultBanner(result: CheckResult): string | undefined {
+  const failed = result.issues.filter((i) => i.severity === 'error' && GRAPH_INVALID_CODES.has(i.code));
+  if (failed.length === 0) return undefined;
+  const parts: string[] = [];
+  if (failed.some((i) => i.code === 'config-invalid')) parts.push('yg-config.yaml did not load, so its defaults were used');
+  if (failed.some((i) => i.code === 'architecture-invalid')) parts.push('yg-architecture.yaml did not load, so no architecture rule was checked');
+  const components = [...new Set(failed.filter((i) => i.code === 'yaml-invalid' && i.nodePath !== undefined).map((i) => toPosixPath(i.nodePath!)))];
+  const otherYaml = failed.filter((i) => i.code === 'yaml-invalid' && i.nodePath === undefined).length;
+  if (components.length > 0) {
+    const sample = components.slice(0, 3).join(', ') + (components.length > 3 ? ', …' : '');
+    parts.push(`${count(components.length, 'component file')} did not parse (${sample}), so ${components.length === 1 ? 'that component was' : 'those components were'} left out`);
+  }
+  if (otherYaml > 0) parts.push(`${count(otherYaml, 'rule file')} did not parse`);
+  if (failed.some((i) => i.code === 'lock-invalid')) parts.push('the verdict lock did not load');
+  return `Partial result: ${parts.join('; ')}. The findings below were computed without it and may be symptoms of it — fix it first.`;
+}
+
 // ── Top view: prioritized blocks ───────────────────────────
 
 /** A triage-view body split by severity, so each block lands under its
@@ -377,7 +519,7 @@ interface ViewBody { errorLines: string; warningLines: string }
  * by warning groups is sliced at n; sliced groups are then split by severity
  * for the two subheaders.
  */
-function renderTopBody(errors: CheckIssue[], warnings: CheckIssue[], n: number, opts: { isTTY: boolean }): ViewBody {
+function renderTopBody(errors: CheckIssue[], warnings: CheckIssue[], n: number, opts: GroupRenderOptions): ViewBody {
   if (n <= 0) return { errorLines: '', warningLines: '' };
   // groupIssues returns groups sorted by representative priority within each
   // severity. Errors always outrank warnings, so combine errors first.
@@ -393,7 +535,7 @@ function renderTopBody(errors: CheckIssue[], warnings: CheckIssue[], n: number, 
     // coverage finding cannot render as a file-list block in one view and as a
     // truncated one-liner in another.
     if (COVERAGE_GROUP_EXCLUDED_CODES.has(g.code)) {
-      renderUnmappedBlock(g.members[0], lines, coverageBlockLabel(g.code));
+      renderUnmappedBlock(g.members[0], lines, coverageBlockLabel(g.code), opts);
     } else {
       renderGroup(g, lines, opts);
     }
@@ -490,8 +632,22 @@ function renderSummaryRows(issues: CheckIssue[]): string {
     }
   }
 
+  // Bounded like every other view: with more rows than SUMMARY_CAP, the rows
+  // that carry the most findings are shown (ties by name) and the rest are
+  // counted on one line that names the view listing every finding.
+  const total = (a: NodeAgg): number => a.unverifiedDet + a.unverifiedLlm + a.refused + a.outside + a.other;
+  let names = [...byNode.keys()].sort((x, y) => x.localeCompare(y, 'en'));
+  let hiddenRows = 0;
+  let hiddenFindings = 0;
+  if (names.length > SUMMARY_CAP) {
+    const ranked = [...names].sort((x, y) => total(byNode.get(y)!) - total(byNode.get(x)!) || x.localeCompare(y, 'en'));
+    const hidden = ranked.slice(SUMMARY_CAP);
+    hiddenRows = hidden.length;
+    hiddenFindings = hidden.reduce((sum, n) => sum + total(byNode.get(n)!), 0);
+    names = ranked.slice(0, SUMMARY_CAP);
+  }
   const lines: string[] = [];
-  for (const node of [...byNode.keys()].sort((x, y) => x.localeCompare(y, 'en'))) {
+  for (const node of names) {
     const a = byNode.get(node)!;
     const unverified = a.unverifiedDet + a.unverifiedLlm;
     const parts: string[] = [];
@@ -500,6 +656,9 @@ function renderSummaryRows(issues: CheckIssue[]): string {
     if (a.outside > 0) parts.push(`${a.outside} outside changes`);
     if (a.other > 0) parts.push(`${a.other} other`);
     lines.push(`  ${node}  ${parts.join(', ')}`);
+  }
+  if (hiddenRows > 0) {
+    lines.push(`  ... and ${count(hiddenRows, 'more row')} with ${count(hiddenFindings, 'finding')} (yg check --details)`);
   }
   return lines.join('\n');
 }

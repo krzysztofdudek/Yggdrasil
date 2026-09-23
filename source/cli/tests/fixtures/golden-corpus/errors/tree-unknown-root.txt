@@ -1,0 +1,7 @@
+$ yg tree --root nope
+exit: 1
+--- stdout
+--- stderr
+Error: Node 'nope' not found.
+The --root path must be a valid node path in the graph.
+Run yg tree (no --root) to list all nodes, then pick a valid path.

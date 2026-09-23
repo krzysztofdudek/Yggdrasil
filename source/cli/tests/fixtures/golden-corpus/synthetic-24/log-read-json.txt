@@ -1,0 +1,9 @@
+$ yg log read --node app/svc-01 --json
+exit: 0
+--- stdout
+{
+  "schema": "yg-log/1",
+  "node": "app/svc-01",
+  "entries": []
+}
+--- stderr

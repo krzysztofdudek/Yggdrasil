@@ -131,7 +131,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: per-file scope / observat
       expect(afterIncluded.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
       // The aspect appears on the body line (not in the group header).
       expect(afterIncluded.all).toContain("aspect 'no-todo-comments'");
-      expect(afterIncluded.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)\s+1 pairs\s+1 nodes$/m);
+      expect(afterIncluded.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)\s+1 pair\s+1 node$/m);
       expect(afterIncluded.all).toContain("- services/orders  aspect 'no-todo-comments'");
 
       // RE-FILL: exactly ONE pair re-verified (a.ts). b.ts carries its prior verdict.

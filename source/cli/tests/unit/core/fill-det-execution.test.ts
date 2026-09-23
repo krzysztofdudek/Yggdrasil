@@ -27,6 +27,8 @@ import { readBytesOrEmpty } from '../../../src/core/fill-shared.js';
 
 import { loadGraph } from '../../../src/core/graph-loader.js';
 import { runFill } from '../../../src/core/fill.js';
+import type { FillEvent } from '../../../src/model/fill-event.js';
+import { renderFillEvent } from '../../../src/formatters/fill-text.js';
 import { buildIssueMessage } from '../../../src/formatters/message-builder.js';
 import type { IssueMessage } from '../../../src/model/validation.js';
 import { readLock } from '../../../src/io/lock-store.js';
@@ -483,12 +485,13 @@ describe('dry-run cost preview (no writes)', () => {
     expect(result.companionRuntimeErrors).toBe(0);
 
     const out = w.text();
-    // The node header and BOTH per-aspect breakdown lines (det free + llm calls).
+    // Billed pairs listed, free ones counted.
     expect(out).toContain('svc');
-    expect(out).toContain('[det] det-a on node:svc — free');
-    expect(out).toContain('[llm] llm-a on node:svc — 1 reviewer call(s)');
+    expect(out).toContain('[llm] llm-a on node:svc — 1 reviewer call');
+    expect(out).toContain('1 deterministic pair — free, not listed');
+    expect(out).not.toContain('[det] det-a');
     // The upper-bound caveat (the dry-run-only closing line).
-    expect(out).toContain('reviewer call(s) is an UPPER BOUND');
+    expect(out).toContain('is an UPPER BOUND');
     expect(out).toContain('Nothing was written; run yg check --approve to fill.');
 
     // Structural no-write guarantee: NO verdict landed in any lock file.
@@ -518,7 +521,7 @@ describe('dry-run cost preview (no writes)', () => {
     });
 
     const out = w.text();
-    expect(out).toContain('[det] det-a on node:svc — free');
+    expect(out).toContain('1 deterministic pair — free, not listed');
     // onlyDeterministic drops the LLM pair from the preview entirely.
     expect(out).not.toContain('[llm] llm-a');
     // Still a no-write preview.
@@ -538,14 +541,15 @@ describe('dry-run cost preview (no writes)', () => {
       ],
     });
     const graph = await loadGraph(projectRoot);
-    const w = makeWriter();
-    await runFill(graph, { ...IO, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue, dryRun: true });
+    const events: FillEvent[] = [];
+    await runFill(graph, { ...IO, coverageVisibleFiles: null, onEvent: (e) => { events.push(e); }, dryRun: true });
 
-    const out = w.text();
-    expect(out).toContain('[det] det-a on node:svc — free');
-    expect(out).toContain('[det] det-b on node:svc — free');
-    // Sorted alphabetically by aspect id within the node.
-    expect(out.indexOf('det-a')).toBeLessThan(out.indexOf('det-b'));
+    // Both pairs sit under the single node, sorted by aspect id — the preview's
+    // data; its text counts free pairs rather than listing them.
+    const dry = events.find((e): e is Extract<FillEvent, { type: 'dry-run' }> => e.type === 'dry-run');
+    expect(dry!.nodes.map((n) => n.nodePath)).toEqual(['svc']);
+    expect(dry!.nodes[0].pairs.map((p) => p.aspectId)).toEqual(['det-a', 'det-b']);
+    expect(renderFillEvent(dry!)).toContain('2 deterministic pairs — free, not listed');
   });
 });
 

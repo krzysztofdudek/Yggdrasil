@@ -119,8 +119,8 @@ function diagEvent(aspectId: string, satisfied: 0 | 1, ts: string): VerdictEvent
 /** The always-on incident reality-counter line (only N varies; singular at N=1). */
 const INC = (n: number) =>
   n === 0
-    ? '0 incidents on record — the only external oracle; record one with yg incident add when something escapes enforcement'
-    : `${n} incident${n === 1 ? '' : 's'} on record — the only external oracle; see .yggdrasil/incidents.md`;
+    ? '0 incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement'
+    : `${n} incident${n === 1 ? '' : 's'} on record — the only evidence from outside the graph that a rule missed something; see .yggdrasil/incidents.md`;
 /** The wrong-rule miscalibration-evidence line (only K varies; singular at K=1). */
 const WRONG = (k: number) =>
   `${k} wrong-rule incident${k === 1 ? '' : 's'} recorded — rules may be miscalibrated; see incidents.md`;
@@ -155,7 +155,7 @@ describe('buildAttention — incident reality-counter (the only external oracle)
     expect(
       buildAttention({ tunnelCount: 0, deviationCount: 0, incidentCount: 1, wrongRuleIncidentCount: 1 }),
     ).toEqual([
-      '1 incident on record — the only external oracle; see .yggdrasil/incidents.md',
+      '1 incident on record — the only evidence from outside the graph that a rule missed something; see .yggdrasil/incidents.md',
       '1 wrong-rule incident recorded — rules may be miscalibrated; see incidents.md',
     ]);
   });

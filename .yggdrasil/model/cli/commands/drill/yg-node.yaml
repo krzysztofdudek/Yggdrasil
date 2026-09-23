@@ -23,6 +23,8 @@ description: "Re-runs an aspect's rule over its violates-*/satisfies-* case corp
 aspects:
   - provider-redaction-cascade
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/drill
     type: calls
   - target: cli/core/log

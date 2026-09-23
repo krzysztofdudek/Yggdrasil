@@ -1,0 +1,7 @@
+$ yg impact --node nope
+exit: 1
+--- stdout
+--- stderr
+Error: Node not found: nope
+The node path must match a node in the graph.
+Run: yg tree — to list all nodes.

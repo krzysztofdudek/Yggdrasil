@@ -58,6 +58,7 @@ function pickByAspectIdLocale(errors: CheckIssue[], code: string): CheckIssue | 
 
 /**
  * Suggest the next command based on the highest-priority error, in the §6 order:
+ *   graph did not load (config → architecture → component yaml) →
  *   lock-invalid → log conflict → log-entry-missing → config-reviewer-missing →
  *   unverified(enforced, by cause) → enforced refusal (three exits / fix
  *   violations, per-issue) → prompt-too-large → log
@@ -105,6 +106,21 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
       a.code.localeCompare(b.code, 'en') ||
       (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];
     return first.messageData.next ?? null;
+  }
+
+  // 0. The graph did not load as written — yg-config.yaml, yg-architecture.yaml
+  //    or a component's yg-node.yaml does not parse (or does not validate).
+  //    Everything below was computed on a fallback, and much of it can be a
+  //    symptom of this one fault (a flow naming a component that "does not
+  //    exist" because its file failed to load, files reading as unmapped
+  //    because their owner never loaded, coverage roots lost with the config),
+  //    so the root fix comes first, in the order the loader depends on them.
+  //    Within yaml-invalid, the first by node path.
+  for (const code of ['config-invalid', 'architecture-invalid', 'yaml-invalid']) {
+    const graphInvalid = errors
+      .filter(i => i.code === code)
+      .sort((a, b) => (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];
+    if (graphInvalid) return graphInvalid.messageData.next;
   }
 
   // 1. lock-invalid — fail closed; restore-or-refill (its own next).

@@ -35,6 +35,8 @@ description: "Renders the yg check verdict/metrics header line — PASS/FAIL, no
 mapping:
   - source/cli/src/cli/check-render-header.ts
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/check
     type: calls
   - target: cli/core/type-visibility

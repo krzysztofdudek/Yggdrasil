@@ -23,6 +23,8 @@ import type {
   CheckJsonPair,
   CheckJsonProgressive,
   CheckJsonVerdict,
+  CheckJsonViolation,
+  CheckJsonEdge,
 } from '../formatters/check-json.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -101,6 +103,53 @@ function pairOf(vp: VerifiedPair): CheckJsonPair {
 }
 
 /** One finding, projected — the structured message, never the rendered block. */
+/** Codes whose `what` lists a script rule's violations under a `Violations:` line. */
+const VIOLATION_CODES = new Set(['aspect-violation-enforced', 'aspect-violation-advisory']);
+
+/**
+ * A script refusal's violations, read back out of the report its check wrote:
+ * each `<file>:<line>: <message>` line after `Violations:` is one violation;
+ * a line that does not start a new one (an expected/actual pair a check
+ * printed under its message) belongs to the violation above it.
+ */
+function violationsOf(what: string): CheckJsonViolation[] | undefined {
+  const lines = what.split('\n');
+  const start = lines.findIndex((l) => l.trim() === 'Violations:');
+  if (start < 0) return undefined;
+  const out: CheckJsonViolation[] = [];
+  for (const raw of lines.slice(start + 1)) {
+    const line = raw.trimEnd();
+    if (line.trim() === '') continue;
+    const m = /^\s*(.+?):(\d+): (.*)$/.exec(line);
+    if (m !== null) {
+      out.push({ file: toPosixPath(m[1]), line: Number(m[2]), message: m[3] });
+    } else if (out.length > 0) {
+      out[out.length - 1].message += `\n${line.trim()}`;
+    } else {
+      out.push({ file: '', line: null, message: line.trim() });
+    }
+  }
+  return out;
+}
+
+/**
+ * The edges a relation finding is about: the undeclared-dependency list
+ * (`<file>:<line> → <node>` per line of `what`), or the type-relation gate's
+ * own structured edge list.
+ */
+function edgesOf(issue: CheckIssue): CheckJsonEdge[] | undefined {
+  if (issue.relationEdges !== undefined && issue.relationEdges.length > 0 && issue.code !== 'strict-overlap-conflict') {
+    return issue.relationEdges.map((e) => ({ file: toPosixPath(e.fromFile), line: null, target: toPosixPath(e.toFile) }));
+  }
+  if (issue.code !== 'relation-undeclared-dependency') return undefined;
+  const out: CheckJsonEdge[] = [];
+  for (const line of issue.messageData.what.split('\n').slice(1)) {
+    const m = /^\s*(.+?):(\d+)\s+→\s+(\S+)/.exec(line);
+    if (m !== null) out.push({ file: toPosixPath(m[1]), line: Number(m[2]), target: toPosixPath(m[3]) });
+  }
+  return out.length > 0 ? out : undefined;
+}
+
 function issueOf(issue: CheckIssue): CheckJsonIssue {
   const row: CheckJsonIssue = {
     code: issue.code,
@@ -113,7 +162,24 @@ function issueOf(issue: CheckIssue): CheckJsonIssue {
   if (issue.nodePath !== undefined) row.node = toPosixPath(issue.nodePath);
   if (issue.unitKey !== undefined) row.unit = toPosixPath(issue.unitKey);
   if (issue.unverifiedCause !== undefined) row.cause = issue.unverifiedCause;
+  if (issue.unitKey !== undefined) {
+    const unitKey = toPosixPath(issue.unitKey);
+    const sep = unitKey.indexOf(':');
+    if (sep > 0) row.unitRef = { kind: unitKey.startsWith('node:') ? 'node' : 'file', path: unitKey.slice(sep + 1) };
+  }
+  if (VIOLATION_CODES.has(issue.code) || VIOLATION_CODES.has(issue.code.replace(/-outside$/, ''))) {
+    const violations = violationsOf(issue.messageData.what);
+    if (violations !== undefined) row.violations = violations;
+  }
+  const edges = edgesOf(issue);
+  if (edges !== undefined) row.edges = edges;
+  if (issue.uncoveredFiles !== undefined) row.files = issue.uncoveredFiles.map(toPosixPath);
   return row;
+}
+
+/** One finding projected into its machine form — exported for a caller reporting findings outside a finished run (an aborted fill). */
+export function checkJsonIssueOf(issue: CheckIssue): CheckJsonIssue {
+  return issueOf(issue);
 }
 
 /**

@@ -2,7 +2,6 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import { computeEffectiveAspects, getAspectStatusSources, inferAspectDisplayKind } from '../core/graph/aspects.js';
@@ -52,6 +51,7 @@ import {
   type AspectFalsePositiveSignal,
   type DrillStatus,
 } from '../core/aspect-health-signals.js';
+import { fail } from './output.js';
 
 interface AspectUsage {
   architecture: number;
@@ -409,6 +409,8 @@ async function lastLogFacts(graph: Graph, aspect: AspectDef): Promise<AspectsJso
 }
 
 export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInput): string {
+  // An empty listing must still say it ran: a blank line reads as a failure.
+  if (graph.aspects.length === 0) return '(no aspects defined — a rule is a directory under .yggdrasil/aspects/; see yg knowledge read aspects-overview)';
   const usage = computeAspectUsage(graph, typeCoverage);
   const lines: string[] = [];
 
@@ -1137,19 +1139,19 @@ export function registerAspectsCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
         if (options.json === true && options.health === true) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--health cannot be combined with --json.',
             why: '--health is a separate projection with its own columns — signals, rule age, suppress coverage, attributed incidents — and it costs a whole verification pass to compute. The machine document is the rule INVENTORY; folding a different, far more expensive report into it under the same schema would make one name mean two things.',
             next: 'Run: yg aspects --json (the inventory), or yg aspects --health (the health projection).',
-          })}`) + '\n');
+          });
           process.exit(1);
         }
         if (options.reach === true && options.json !== true) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--reach needs --json.',
             why: 'Reach is an enumeration of every unit each rule judges — hundreds of lines on a real graph, and machine input by nature. The listing answers the same question at the resolution a person reads it at: how many places each rule reaches, split by the channel it arrived through.',
             next: 'Run: yg aspects --json --reach (the enumeration), or yg aspects (the listing with the counts).',
-          })}`) + '\n');
+          });
           process.exit(1);
         }
         if (options.json === true) {

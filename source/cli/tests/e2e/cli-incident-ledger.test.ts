@@ -33,7 +33,7 @@ const INCIDENTS_REL = path.join('.yggdrasil', 'incidents.md');
 
 /** The reality-counter line, verbatim (only N varies; the noun is singular at N=1). */
 const COUNTER_RE =
-  /(\d+) incidents? on record — the only external oracle; (?:see \.yggdrasil\/incidents\.md|record one with yg incident add)/g;
+  /(\d+) incidents? on record — (?:incidents are )?the only evidence from outside the graph that a rule missed something; (?:see \.yggdrasil\/incidents\.md|record one with yg incident add)/g;
 
 function run(args: string[], cwd: string): { stdout: string; stderr: string; status: number | null } {
   const r = spawnSync('node', [BIN_PATH, ...args], { cwd, encoding: 'utf-8' });

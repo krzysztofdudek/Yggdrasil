@@ -308,12 +308,19 @@ async function scanModelDirectory(
       nodeYamlRaw = await readTextFile(nodeYamlPath);
       meta = await parseNodeYaml(nodeYamlPath);
     } catch (err) {
+      // The parser's own message is WHAT happened (its first line, then any
+      // excerpt it quotes); WHY says what not loading the component costs —
+      // every finding that names it downstream is a symptom of this one.
+      const isSyntaxError = (err as Error).name === 'YAMLParseError';
+      const [reason, ...excerpt] = (err as Error).message.split('\n').map((l) => l.trimEnd()).filter((l) => l.trim() !== '');
       nodeParseErrors.push({
         nodePath: graphPath,
         messageData: {
-          what: `yg-node.yaml parse error in ${graphPath}.`,
-          why: (err as Error).message,
-          next: (err as Error).name === 'YAMLParseError'
+          what: [`yg-node.yaml in ${graphPath} ${isSyntaxError ? 'does not parse' : 'breaks the node schema'}: ${reason ?? 'unknown error'}`, ...excerpt].join('\n'),
+          why: isSyntaxError
+            ? `The file is not valid YAML, so component '${graphPath}' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it parses.`
+            : `The file is valid YAML but does not match the node schema, so component '${graphPath}' was not loaded: a flow or relation naming it reads it as missing, and the files it maps read as unmapped, until it is corrected.`,
+          next: isSyntaxError
             ? `Fix the YAML in .yggdrasil/model/${graphPath}/yg-node.yaml.`
             : `Correct what the reason above names in .yggdrasil/model/${graphPath}/yg-node.yaml (yg schemas read node lists the allowed fields).`,
         },

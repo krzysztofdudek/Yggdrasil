@@ -3,10 +3,13 @@ type: command-support
 description: "Command-layer support helpers shared by every command handler:
   loadGraphOrAbort (load the graph or print a uniform what/why/next error and
   exit) and abortOnUnexpectedError (the canonical funnel for unclassified
-  errors). Lives in the command layer so it may import both the engine
-  (loadGraph) and formatters (buildIssueMessage); it registers no Commander
-  subcommand."
+  errors). Both report through the CLI output layer's fail, so these errors
+  read, and reach a JSON reader, exactly like every other command error. Lives
+  in the command layer so it may import both the engine (loadGraph) and the
+  output layer; it registers no Commander subcommand."
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/formatters

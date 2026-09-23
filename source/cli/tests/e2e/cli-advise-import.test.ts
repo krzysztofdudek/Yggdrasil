@@ -150,7 +150,8 @@ describe.skipIf(!distExists)('CLI E2E — yg advise import', () => {
         const refused = run(['advise', '--json', flag], dir);
         expect(refused.status).toBe(1);
         expect(refused.stderr).toContain(`${flag} cannot be combined with --json`);
-        expect(refused.stdout).toBe('');
+        // A refusal under --json also answers on stdout: the yg-error/1 document.
+        expect(JSON.parse(refused.stdout).schema).toBe('yg-error/1');
       }
       const both = run(['advise', '--json', '--all', '--ids'], dir);
       expect(both.status).toBe(1);

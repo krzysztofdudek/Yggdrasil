@@ -11,9 +11,10 @@
  * orchestrator back.
  */
 
-import type { CheckResult, RunCheckOptions } from './check.js';
+import type { CheckResult, CheckIssue, RunCheckOptions } from './check.js';
 import type { ExpectedPair } from './pairs.js';
 import type { IssueMessage } from '../model/validation.js';
+import type { FillEventSink } from '../model/fill-event.js';
 
 export interface RunFillOptions {
   /** Coverage-visible files (the `walkRepoFiles` disk walk, gitignore-aware/
@@ -27,14 +28,26 @@ export interface RunFillOptions {
    *  absent, or the CLI's git probe having failed) skips that one check only;
    *  every other coverage check is unaffected. */
   trackedFiles?: string[] | null;
-  /** Sink for agent-facing fill PROGRESS (plain status lines). Required: the
-   *  engine writes to no stream of its own — the CLI decides where progress goes. */
-  write: (s: string) => void;
+  /** Sink for everything the fill says while it runs — the pre-dispatch header,
+   *  progress, the prune summary, the closing line — as FillEvent data. The CLI
+   *  command layer supplies it and owns the words (formatters/fill-text.ts); the
+   *  engine never formats one of these sentences, and writes to no stream of its
+   *  own. When absent, events are rendered by that same formatter into `write`. */
+  onEvent?: FillEventSink;
+  /** Plain-text sink used only when `onEvent` is absent: each event is rendered
+   *  by formatters/fill-text.ts and written here. With neither, the run says nothing. */
+  write?: (s: string) => void;
   /** Sink for structured DIAGNOSTICS ({ what, why, next }). The CLI command
    *  layer supplies the renderer — it owns formatting; this engine module only
    *  emits structured data and never formats it. Defaults to a no-op, so a
    *  caller that wants diagnostics surfaced must provide a sink. */
   emitIssue?: (msg: IssueMessage) => void;
+  /** When true, a gate that stops the run does NOT send its findings to
+   *  `emitIssue`: they travel only on the FillGatingError (`gatingIssues`), for
+   *  a caller that reports the abort itself — `yg check` renders it as a report
+   *  and a yg-check/1 document. Default false: every gating finding is emitted
+   *  as it always was (a caller like `yg adopt` relies on that stream). */
+  gateIssuesOnError?: boolean;
   /** Fill ONLY deterministic pairs (skip LLM fills + positive closure) and write
    *  ONLY the gitignored deterministic file — the committed locks are never touched.
    *  Keyless and free; powers `yg check --approve --only-deterministic` and the CI pipeline. */
@@ -186,9 +199,25 @@ export interface RunFillResult {
   runtimeDispositions: Array<{ file: string; aspectId: string; code: string }>;
 }
 
-/** Abort sentinel — the structural gate failed; no fills ran. */
+/**
+ * Abort sentinel — a gate stopped the run before anything was filled: the
+ * structural gate (a problem that leaves it unclear what would be checked or
+ * how), or the mandatory-log gate (components that owe a justification entry).
+ *
+ * `issues` is the one-line summary per gating problem, as it always was.
+ * `stage` says which gate stopped the run, and `gatingIssues` carries every
+ * gating finding as a whole check issue (code, severity, node, what/why/next),
+ * so a caller can report the abort through the same renderer — and the same
+ * machine document — as any other finding instead of a raw text stream.
+ */
 export class FillGatingError extends Error {
-  constructor(public readonly issues: Array<{ code: string; what: string; why: string; next: string }>) {
+  constructor(
+    public readonly issues: Array<{ code: string; what: string; why: string; next: string }>,
+    public readonly stage: 'structural' | 'log-gate' = 'structural',
+    public readonly gatingIssues: CheckIssue[] = [],
+    /** The command the run was invoked as — what to re-run once the gate is cleared. */
+    public readonly retry: string = 'yg check --approve',
+  ) {
     super('fill aborted before running anything — see the listed problems');
     this.name = 'FillGatingError';
   }

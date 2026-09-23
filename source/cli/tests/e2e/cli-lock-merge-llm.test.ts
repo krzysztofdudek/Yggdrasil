@@ -193,7 +193,10 @@ describe.skipIf(!distExists)('CLI E2E — lock merge (LLM) & piped refusal survi
       expect(mock.chatCount()).toBe(NODE_COUNT); // one call per node (consensus 1).
 
       // Plain `yg check` through a pipe (spawnSync internally pipes stdout).
-      const r = spawnSync('node', [BIN_PATH, 'check'], { cwd: dir, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 });
+      // The drill-in view of the one rule: it lists every member (the default
+      // view caps a member list at 12 in every sink, ending it with this very
+      // command), so it is the view whose whole length must survive the pipe.
+      const r = spawnSync('node', [BIN_PATH, 'check', '--aspect', 'must-have-header'], { cwd: dir, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 });
       const stdout = r.stdout ?? '';
       expect(r.status).toBe(1);
 

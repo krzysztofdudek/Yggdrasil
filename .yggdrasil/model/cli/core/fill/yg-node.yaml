@@ -39,7 +39,7 @@ description: "Fill stage behind yg check --approve — the single producer of
   that lock verification can share them without reaching anything that depends
   back on the check report."
 max_direct_relations:
-  limit: 25
+  limit: 26
   reason: >-
     Reviewed architectural seam. This node is the SINGLE producer of verdict-lock
     entries and the fill orchestrator — it fans out to every subsystem a
@@ -104,6 +104,13 @@ max_direct_relations:
     recorded are both removed — a port's version and contract test are gone from
     the graph entirely, so this stage no longer calls anything to record one.
     Contract versions and mirrored contract tests are Horde's job now.
+    Raised from 25 to 26 for the formatters: this stage no longer writes any
+    sentence of its own — everything it says while it runs is emitted as a fill
+    event and worded by the fill-text formatter — and a caller that passes only a
+    plain-text sink still gets that same text, which means this stage hands its
+    events to the formatter on that caller's behalf. Keeping that path is what
+    lets every existing caller of the stage go on reading exactly the text it
+    always read.
 aspects:
   - deterministic
   - posix-paths-output
@@ -112,6 +119,8 @@ aspects:
   - provider-redaction-cascade
   - runcheck-injected-input-parity
 relations:
+  - target: cli/formatters
+    type: calls
   - target: cli/core/parse-cache-buckets
     type: calls
   - target: cli/core/check

@@ -1,0 +1,40 @@
+$ yg check
+exit: 1
+--- stdout
+yg check: FAIL  5 nodes · 4/8 files (50%) · 2 aspects · 0 flows
+
+Errors (5) in 2 groups:
+
+  unverified (deterministic check not run on this checkout — free)  4 pairs  4 nodes
+            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
+            Fix: yg check --approve --only-deterministic  (4 script pairs, free)
+            - app/svc-01  aspect 'no-todo'
+            - app/svc-02  aspect 'no-todo'
+            - app/svc-03  aspect 'no-todo'
+            - app/svc-04  aspect 'no-todo'
+
+  aspect-status-downgrade
+            Aspect 'header-comment': node type 'service' in yg-architecture.yaml declares status 'advisory', but the aspect already reaches the 4 nodes it attaches to there (app/svc-01, app/svc-02, app/svc-03, …) as 'enforced' from the aspect default (enforced, because the aspect's yg-aspect.yaml sets no status:).
+            Why: An explicit attach-site status cannot relax (downgrade) what already cascades — that would silently weaken enforcement. An attach site can only raise the status above the aspect default and the other sites, never lower it.
+            Fix: Remove the explicit status from node type 'service' in yg-architecture.yaml (let the cascade win), or, to weaken the rule everywhere, set a lower status: in the aspect's yg-aspect.yaml. See: yg knowledge read aspect-status.
+
+Warnings (5):
+
+  unverified (deterministic check not run on this checkout — free)  4 pairs  4 nodes
+            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
+            Fix: yg check --approve --only-deterministic  (4 script pairs, free)
+            - app/svc-01  aspect 'header-comment'
+            - app/svc-02  aspect 'header-comment'
+            - app/svc-03  aspect 'header-comment'
+            - app/svc-04  aspect 'header-comment'
+
+  uncovered (4)
+            .clinerules/yggdrasil.md
+            .gitattributes
+            AGENTS.md
+            CLAUDE.md
+            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
+            Fix: Map these files to a node, or add their root to coverage.required to make this an error.
+
+Next: yg check --approve --only-deterministic  (fills 4 unverified; 1 error remain — need code/graph fixes)
+--- stderr

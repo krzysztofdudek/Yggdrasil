@@ -1,0 +1,75 @@
+$ yg find svc-07 --json
+exit: 0
+--- stdout
+{
+  "schema": "yg-find/1",
+  "query": "svc-07",
+  "results": [
+    {
+      "kind": "node",
+      "id": "app/svc-07",
+      "type": "service",
+      "status": null,
+      "description": "Service svc-07 handles one slice of the application. It owns its directory under src and nothing else. It depends on no other service today, and a later split may give it one. This sentence exists to make the description long enough to show how a listing treats a description of several sentences.",
+      "score": 1,
+      "matched": [
+        "svc",
+        "src",
+        "07"
+      ],
+      "next": "yg context --node app/svc-07"
+    },
+    {
+      "kind": "node",
+      "id": "app/svc-01",
+      "type": "service",
+      "status": null,
+      "description": "Service svc-01 handles one slice of the application. It owns its directory under src and nothing else. It depends on no other service today, and a later split may give it one. This sentence exists to make the description long enough to show how a listing treats a description of several sentences.",
+      "score": 0.06,
+      "matched": [
+        "svc",
+        "src"
+      ],
+      "next": "yg context --node app/svc-01"
+    },
+    {
+      "kind": "node",
+      "id": "app/svc-13",
+      "type": "service",
+      "status": null,
+      "description": "Service svc-13 handles one slice of the application. It owns its directory under src and nothing else. It depends on no other service today, and a later split may give it one. This sentence exists to make the description long enough to show how a listing treats a description of several sentences.",
+      "score": 0.06,
+      "matched": [
+        "svc",
+        "src"
+      ],
+      "next": "yg context --node app/svc-13"
+    },
+    {
+      "kind": "node",
+      "id": "app/svc-19",
+      "type": "service",
+      "status": null,
+      "description": "Service svc-19 handles one slice of the application. It owns its directory under src and nothing else. It depends on no other service today, and a later split may give it one. This sentence exists to make the description long enough to show how a listing treats a description of several sentences.",
+      "score": 0.06,
+      "matched": [
+        "svc",
+        "src"
+      ],
+      "next": "yg context --node app/svc-19"
+    },
+    {
+      "kind": "node",
+      "id": "app/svc-02",
+      "type": "service",
+      "status": null,
+      "description": "Service svc-02.",
+      "score": 0.03,
+      "matched": [
+        "svc"
+      ],
+      "next": "yg context --node app/svc-02"
+    }
+  ]
+}
+--- stderr

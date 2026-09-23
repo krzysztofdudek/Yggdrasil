@@ -20,6 +20,8 @@ description: >-
   since cost is not part of what the document promises.
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/core/context

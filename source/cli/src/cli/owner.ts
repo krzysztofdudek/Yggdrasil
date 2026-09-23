@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { access } from 'node:fs/promises';
-import chalk from 'chalk';
 import { Command } from 'commander';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
@@ -29,6 +28,7 @@ import { readLock } from '../io/lock-store.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
+import { fail } from './output.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -106,25 +106,56 @@ async function computeRelationEdgesForOwner(graph: Graph, projectRoot: string): 
   return relResult.typedEdges;
 }
 
+/** Schema id of `yg owner --json`. */
+export const OWNER_JSON_SCHEMA = 'yg-owner/1';
+
+/** Who owns a file, as `yg owner --json` reports it. */
+export interface OwnerJsonDocument {
+  schema: typeof OWNER_JSON_SCHEMA;
+  file: string;
+  /**
+   * `node`: a component maps it; `type`: its architecture type alone covers it;
+   * `unmapped`: it exists and nothing covers it; `missing`: no such file;
+   * `excluded`: coverage never looks at it, by design.
+   */
+  kind: 'node' | 'type' | 'unmapped' | 'missing' | 'excluded';
+  node: string | null;
+  type: string | null;
+  /** For a node owner: whether a mapping names the file itself (false: an ancestor directory does). */
+  direct: boolean | null;
+  mappingPath: string | null;
+  /** For a type owner: whether any of the type's rules apply to the file. */
+  enforced: boolean | null;
+  excludedBecause: string | null;
+  /** The command that shows the file's rules, when there is one. */
+  next: string | null;
+}
+
+const EMPTY_OWNER: Omit<OwnerJsonDocument, 'schema' | 'file' | 'kind'> = {
+  node: null, type: null, direct: null, mappingPath: null, enforced: null, excludedBecause: null, next: null,
+};
+
 export function registerOwnerCommand(program: Command): void {
   program
     .command('owner')
     .description('Find which graph node owns a source file')
     .option('--file <path>', 'File path (relative to repository root)')
-    .action(async (options: { file?: string }) => {
+    .option('--json', 'Print the answer as a yg-owner/1 JSON document')
+    .action(async (options: { file?: string; json?: boolean }) => {
       try {
+        // One answer, two forms: the text a person reads, or the yg-owner/1
+        // document — the same facts, so a consumer never parses the sentence.
+        const answer = (doc: Omit<OwnerJsonDocument, 'schema'>, text: string): void => {
+          process.stdout.write(options.json === true ? `${JSON.stringify({ schema: OWNER_JSON_SCHEMA, ...doc }, null, 2)}\n` : text);
+        };
         if (!options.file) {
           // Emit a structured what/why/next error instead of Commander's bare
           // "required option not specified" line.
-          process.stderr.write(
-            chalk.red(
-              `Error: ${buildIssueMessage({
+          fail({
                 what: '--file is required.',
                 why: 'yg owner resolves which graph node owns a specific source file, so it needs that file path.',
                 next: 'Re-run as: yg owner --file <path>',
-              })}\n`,
-            ),
-          );
+              });
           process.exit(1);
         }
         const graph = await loadGraphOrAbort(process.cwd());
@@ -163,7 +194,8 @@ export function registerOwnerCommand(program: Command): void {
             // or the graph's own directory) is unconditional — it has nothing to
             // do with an adopter's config, so it is named on its own rather than
             // folded into the config-driven disjunction below.
-            process.stdout.write(
+            answer(
+              { ...EMPTY_OWNER, file: result.file, kind: 'excluded', excludedBecause: "it sits inside git internals or the graph's own .yggdrasil/ directory" },
               buildIssueMessage({
                 what: `${result.file} is excluded from graph coverage by design.`,
                 why: `This path is never scanned for coverage because it sits inside git internals or the graph's own .yggdrasil/ directory, so it cannot and need not be mapped to a node here.`,
@@ -179,7 +211,8 @@ export function registerOwnerCommand(program: Command): void {
             // null here: `isExcludedFromGraph` just confirmed this path is
             // excluded by one of exactly the two sources it covers.
             const cause = describeExclusionCause(describeExclusionSource(result.file, exclusionSet)!);
-            process.stdout.write(
+            answer(
+              { ...EMPTY_OWNER, file: result.file, kind: 'excluded', excludedBecause: cause },
               buildIssueMessage({
                 what: `${result.file} is excluded from graph coverage by design.`,
                 why: `This path is never scanned for coverage because ${cause}, so it cannot and need not be mapped to a node here.`,
@@ -209,12 +242,11 @@ export function registerOwnerCommand(program: Command): void {
             // via describeCascadeCycle, so the surfaces cannot disagree.
             const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId, edges).cycle;
             if (cascadeCycle) {
-              const cycleMsg = buildIssueMessage({
+              fail({
                 what: `${result.file} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
                 why: describeCascadeCycle(cascadeCycle),
                 next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
               });
-              process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));
               process.exit(1);
             }
             // Enumerates pairs scoped to THIS ONE FILE (a single-entry covered
@@ -250,8 +282,9 @@ export function registerOwnerCommand(program: Command): void {
                 debugWrite(`[owner] lock read failed while building the unverified caveat: ${e instanceof Error ? e.message : String(e)}`);
               }
             }
-            process.stdout.write(`${result.file} -> type:${typeMatch.typeId}\n`);
-            process.stdout.write(
+            answer(
+              { ...EMPTY_OWNER, file: result.file, kind: 'type', type: typeMatch.typeId, enforced: hasEnforcement, next: `yg context --file ${result.file}` },
+              `${result.file} -> type:${typeMatch.typeId}\n` +
               '  ' +
                 buildIssueMessage(
                   hasEnforcement
@@ -269,7 +302,8 @@ export function registerOwnerCommand(program: Command): void {
                 '\n',
             );
           } else if (exists) {
-            process.stdout.write(
+            answer(
+              { ...EMPTY_OWNER, file: result.file, kind: 'unmapped' },
               buildIssueMessage({
                 what: `${result.file} -> no graph coverage`,
                 why: 'This file exists but no graph node maps it, so its code is not verified against any aspect.',
@@ -277,7 +311,8 @@ export function registerOwnerCommand(program: Command): void {
               }) + '\n',
             );
           } else {
-            process.stdout.write(
+            answer(
+              { ...EMPTY_OWNER, file: result.file, kind: 'missing' },
               buildIssueMessage({
                 what: `${result.file} -> no graph coverage (file not found)`,
                 why: 'This path does not exist on disk and is not mapped by any graph node.',
@@ -286,18 +321,28 @@ export function registerOwnerCommand(program: Command): void {
             );
           }
         } else {
-          process.stdout.write(`${result.file} -> ${result.nodePath}\n`);
-          if (result.direct === false && result.mappingPath) {
-            process.stdout.write(
-              '  ' +
-                buildIssueMessage({
-                  what: 'File has no direct mapping.',
-                  why: `Context comes from ancestor directory '${result.mappingPath}'.`,
-                  next: `yg context --node ${result.nodePath}`,
-                }) +
-                '\n',
-            );
-          }
+          const indirect = result.direct === false && result.mappingPath;
+          answer(
+            {
+              ...EMPTY_OWNER,
+              file: result.file,
+              kind: 'node',
+              node: result.nodePath,
+              direct: result.direct !== false,
+              mappingPath: result.mappingPath ?? null,
+              next: `yg context --node ${result.nodePath}`,
+            },
+            `${result.file} -> ${result.nodePath}\n` +
+              (indirect
+                ? '  ' +
+                  buildIssueMessage({
+                    what: 'File has no direct mapping.',
+                    why: `Context comes from ancestor directory '${result.mappingPath}'.`,
+                    next: `yg context --node ${result.nodePath}`,
+                  }) +
+                  '\n'
+                : ''),
+          );
         }
       } catch (error) {
         // A --file path that resolves outside the repository is USER input, not an
@@ -306,11 +351,11 @@ export function registerOwnerCommand(program: Command): void {
         const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
         if (outsideRoot) {
           debugWrite(`[owner] file arg outside project root: ${msg}`);
-          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+          fail({
             what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
             why: `yg owner resolves ownership only for files tracked inside the project.`,
             next: `Pass a path inside the project root (relative to the repo).`,
-          }) + '\n'));
+          });
           process.exit(1);
         }
         abortOnUnexpectedError(error, 'resolving file owner');

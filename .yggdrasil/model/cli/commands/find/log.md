@@ -32,3 +32,5 @@ A file satisfied by the type-level coverage lattice, with no owning component, w
 The command's --help description said it locates entry points among nodes and aspects only, but a type-covered file has been searchable through this command for a while now (coverage.type_level classifies it and points the result at yg context --file) — the description text just never caught up. Updated the description to name all three kinds so --help matches what the index actually contains.
 ## [2026-08-02T12:05:04.124Z]
 Now calls computeTypeCoverageCached instead of computeTypeCoverage, so yg find benefits from the persistent on-disk type-classification cache instead of paying full classification cost every invocation.
+## [2026-09-23T23:00:39.340Z]
+yg find --json prints the yg-find/1 document so a layer above the agent can use the ranking without parsing the text. The empty-query refusal goes through the shared CLI output layer like every other command error, and reaches a JSON reader as a yg-error/1 document.

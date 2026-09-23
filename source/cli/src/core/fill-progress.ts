@@ -6,10 +6,16 @@
  *     for a configurable interval.
  *   - TTY: single line rewritten with \r on each event or timer tick.
  *
+ * The tracker decides WHEN something is said and emits it as a FillEvent; the
+ * words (and the terminal control sequences of the in-place line) belong to the
+ * renderer in formatters/fill-text.ts, which the command layer applies.
+ *
  * All dependencies on the environment (clock, TTY flag) are injectable for testability.
  * The caller (fill.ts) is responsible for setting up real timers and calling onTick().
  * Tests drive the tracker directly via onTick() with a fake clock — no real timers needed.
  */
+
+import type { FillEventSink, FillLane } from '../model/fill-event.js';
 
 // ============================================================
 // Public types
@@ -25,7 +31,8 @@ export interface ProgressOptions {
    * was meant to update in place scrolls the screen instead. Truncating to the
    * width is what keeps it one line. Injected (never read off the process here)
    * so the engine stays free of environment reads; defaults to a conservative
-   * 80 when the caller has no width to give.
+   * 80 when the caller has no width to give. Carried on each status event for
+   * the renderer, which does the truncating.
    */
   columns?: number;
   /** Milestone threshold: emit a milestone line every N completed pairs (non-TTY mode).
@@ -45,19 +52,6 @@ export interface ProgressState {
   /** The aspect+unit of the most recently started (or in-progress) pair. */
   currentPair: string;
   lastCompletionTime: number;
-}
-
-/**
- * Cut `text` to at most `width` columns, marking the cut with a single ellipsis
- * so it reads as shortened rather than as a path that mysteriously ends early.
- * Plain text only — the status line carries no colour codes, so counting
- * characters is counting columns.
- */
-function truncateToWidth(text: string, width: number): string {
-  if (width <= 0) return '';
-  if (text.length <= width) return text;
-  if (width === 1) return '…';
-  return `${text.slice(0, width - 1)}…`;
 }
 
 // ============================================================
@@ -101,10 +95,10 @@ export class ProgressTracker {
   /**
    * Called just before a pair starts filling. Updates currentPair and refreshes TTY display.
    */
-  onPairStart(kind: 'det' | 'llm', aspectId: string, unitKey: string, write: (s: string) => void): void {
+  onPairStart(kind: FillLane, aspectId: string, unitKey: string, emit: FillEventSink): void {
     this.state.currentPair = `${aspectId} on ${unitKey}`;
     if (this.isTTY) {
-      this._writeTTYLine(write);
+      this._emitStatus(emit);
     }
   }
 
@@ -114,11 +108,11 @@ export class ProgressTracker {
    * For approved: silently increments counter, checks milestone threshold (non-TTY).
    */
   onPairComplete(
-    kind: 'det' | 'llm',
+    kind: FillLane,
     aspectId: string,
     unitKey: string,
     verdict: string,
-    write: (s: string) => void,
+    emit: FillEventSink,
   ): void {
     this.state.completed += 1;
     this.state.lastCompletionTime = this.now();
@@ -135,22 +129,22 @@ export class ProgressTracker {
     if (this.isTTY) {
       // For refused/infra in TTY mode: clear the TTY line first, then emit the permanent line
       if (verdict !== 'approved') {
-        write(`\r\x1b[2K`);
-        write(`  [${kind}] ${aspectId} on ${unitKey} — ${verdict}\n`);
+        emit({ type: 'clear-line' });
+        emit({ type: 'pair-outcome', lane: kind, aspectId, unitKey, verdict });
       }
-      this._writeTTYLine(write);
+      this._emitStatus(emit);
     } else {
       // Non-TTY mode
       if (verdict !== 'approved') {
         // Refused/infra: immediate permanent line
-        write(`  [${kind}] ${aspectId} on ${unitKey} — ${verdict}\n`);
+        emit({ type: 'pair-outcome', lane: kind, aspectId, unitKey, verdict });
       }
       // Milestone fires on every Nth completion regardless of verdict —
       // it shows overall progress (K/T filled + breakdown). A refused/infra
       // pair already got its own immediate line above, but the milestone
       // provides the aggregate view and is not a duplicate.
       if (this.state.completed % this.milestoneInterval === 0 && this.state.completed > 0) {
-        this._writeMilestoneLine(write);
+        emit({ type: 'milestone', counts: this._counts() });
       }
     }
   }
@@ -160,11 +154,11 @@ export class ProgressTracker {
    * TTY mode: rewrites the status line.
    * Non-TTY mode: checks if still-working line should be emitted.
    */
-  onTick(write: (s: string) => void): void {
+  onTick(emit: FillEventSink): void {
     if (this.isTTY) {
-      this._writeTTYLine(write);
+      this._emitStatus(emit);
     } else {
-      this.isStillWorking(write);
+      this.isStillWorking(emit);
     }
   }
 
@@ -172,9 +166,9 @@ export class ProgressTracker {
    * For TTY mode: clears the rewritable progress line before the final report.
    * No-op in non-TTY mode.
    */
-  clearLine(write: (s: string) => void): void {
+  clearLine(emit: FillEventSink): void {
     if (this.isTTY) {
-      write(`\r\x1b[2K`);
+      emit({ type: 'clear-line' });
     }
   }
 
@@ -183,12 +177,12 @@ export class ProgressTracker {
    * Emits if `now() - lastCompletionTime > stillWorkingIntervalMs`.
    * Returns true if emitted.
    */
-  isStillWorking(write: (s: string) => void): boolean {
+  isStillWorking(emit: FillEventSink): boolean {
     if (this.isTTY) return false;
     const elapsed = this.now() - this.state.lastCompletionTime;
     if (elapsed > this.stillWorkingIntervalMs) {
       const { completed, total, currentPair } = this.state;
-      write(`... still working (${completed}/${total}, waiting on ${currentPair})\n`);
+      emit({ type: 'still-working', completed, total, currentPair });
       // Reset lastCompletionTime to avoid repeated still-working lines every tick
       this.state.lastCompletionTime = this.now();
       return true;
@@ -201,40 +195,19 @@ export class ProgressTracker {
   // ============================================================
 
   /**
-   * Rewrite the single in-place status line.
-   *
-   * Two things keep it to ONE line rather than a scrolling log:
-   *
-   *  - The line is CLEARED (`\x1b[2K`) before it is rewritten. Returning the
-   *    cursor with `\r` alone overwrites only as many characters as the new
-   *    line has, so a shorter line left the tail of the previous, longer one on
-   *    screen — a component path from a moment ago trailing behind the current
-   *    one.
-   *  - It is TRUNCATED to the terminal width. This is the one that actually
-   *    made it scroll: unit keys are full repository paths, so the line
-   *    routinely ran past the width and wrapped, and `\r` returns only to the
-   *    start of the LAST visual row. Every redraw then left its wrapped rows
-   *    behind, turning an update-in-place line into several new lines every
-   *    tick.
-   *
-   * The counts come first and the pair name last, so what gets cut on a narrow
-   * terminal is the part that changes constantly rather than the progress.
+   * Emit the single in-place status line's data. The renderer clears the line
+   * before rewriting it (a shorter line would leave the tail of the previous
+   * one on screen) and truncates it to `columns` (a wrapped line scrolls
+   * instead of updating in place, because `\r` returns only to the start of the
+   * LAST visual row).
    */
-  private _writeTTYLine(write: (s: string) => void): void {
-    const { completed, total, approved, refused, currentPair } = this.state;
+  private _emitStatus(emit: FillEventSink): void {
     const elapsedSeconds = Math.floor((this.now() - this.startTime) / 1000);
-    const head = `filling ${completed}/${total} · ok ${approved} · refused ${refused} · ${elapsedSeconds}s`;
-    const full = currentPair === '' ? head : `${head} · ${currentPair}`;
-    // Leave one column spare: a line filling the very last column makes some
-    // terminals wrap to the next row on their own.
-    write(`\r\x1b[2K${truncateToWidth(full, this.columns - 1)}\r`);
+    emit({ type: 'status', counts: this._counts(), elapsedSeconds, currentPair: this.state.currentPair, columns: this.columns });
   }
 
-  private _writeMilestoneLine(write: (s: string) => void): void {
+  private _counts(): { completed: number; total: number; approved: number; refused: number; infra: number } {
     const { completed, total, approved, refused, infra } = this.state;
-    const parts = [`${approved} ok`];
-    if (refused > 0) parts.push(`${refused} refused`);
-    if (infra > 0) parts.push(`${infra} infra`);
-    write(`... ${completed}/${total} filled (${parts.join(', ')})\n`);
+    return { completed, total, approved, refused, infra };
   }
 }

@@ -8,15 +8,22 @@
 
 import { describe, it, expect } from 'vitest';
 import { ProgressTracker } from '../../../src/core/fill-progress.js';
+import { renderFillEvent } from '../../../src/formatters/fill-text.js';
+import type { FillEvent } from '../../../src/model/fill-event.js';
 import { runPairPool } from '../../../src/core/fill-pool.js';
 import type { LlmFillOutcome } from '../../../src/core/fill-shared.js';
 
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
-/** Collect all strings written via a mock write sink into an array. */
-function collectLines(): { write: (s: string) => void; lines: string[] } {
+/**
+ * Collect what the tracker says, as the text a person would read: each event
+ * it emits is rendered by the same formatter the command layer uses. (The
+ * tracker decides WHEN something is said; the formatter owns the words — the
+ * assertions below pin both together, exactly as the terminal shows them.)
+ */
+function collectLines(): { write: (e: FillEvent) => void; lines: string[] } {
   const lines: string[] = [];
-  return { write: (s: string) => { lines.push(s); }, lines };
+  return { write: (e: FillEvent) => { lines.push(renderFillEvent(e)); }, lines };
 }
 
 /** Returns a fake clock that starts at the given base time and can be advanced

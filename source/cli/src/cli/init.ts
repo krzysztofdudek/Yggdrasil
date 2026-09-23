@@ -37,6 +37,7 @@ import {
   ensureYggdrasilGitignore,
   writeRulesArtifactsConfig,
 } from './init-scaffold.js';
+import { fail } from './output.js';
 
 // The .gitattributes / .gitignore maintenance helpers now live in the scaffold
 // sibling; re-exported here so tests and existing importers resolve them from
@@ -59,11 +60,11 @@ function isTTY(): boolean {
  */
 function ensureKnownProvider(provider: string): asserts provider is ReviewerProvider {
   if (!ALL_PROVIDERS.includes(provider as ReviewerProvider)) {
-    process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+    fail({
       what: `Unknown provider '${provider}'.`,
       why: 'The --provider value must match one of the supported reviewer providers.',
       next: `Use one of: ${ALL_PROVIDERS.join(', ')}`,
-    })}\n`));
+    });
     process.exit(1);
   }
 }
@@ -310,7 +311,7 @@ function resolveReviewerOrExit(opts: {
 }): ResolvedReviewerOk {
   const resolved = resolveReviewerConfigFromFlags(opts);
   if (!resolved.ok) {
-    process.stderr.write(chalk.red(`Error: ${buildIssueMessage(resolved.issue)}\n`));
+    fail(resolved.issue);
     process.exit(1);
   }
   return resolved;
@@ -795,34 +796,30 @@ export function registerInitCommand(program: Command): void {
         const noReviewer = options.reviewer === false;
 
         if (noReviewer && (options.provider || options.model || options.endpoint)) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--no-reviewer was combined with reviewer flags (--provider / --model / --endpoint).',
             why: 'They ask for opposite things: --no-reviewer bootstraps with no reviewer at all, while --provider configures one. Honoring both would mean ignoring one silently.',
             next: 'Keep exactly one: yg init --no-reviewer to start without a reviewer, or yg init --provider <name> [--model <m>] to configure one.',
-          })}\n`));
+          });
           process.exit(1);
         }
 
         // Non-interactive upgrade: --upgrade [--platform <name>]
         if (options.upgrade) {
           if (noReviewer) {
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            fail({
               what: '--no-reviewer was combined with --upgrade.',
               why: '--upgrade only refreshes the agent rules of an existing project; it never touches the reviewer configuration, so --no-reviewer would be silently ignored.',
               next: 'Run the upgrade alone: yg init --upgrade.',
-            })}\n`));
+            });
             process.exit(1);
           }
           if (options.provider || options.model || options.endpoint) {
-            process.stderr.write(
-              chalk.red(
-                `Error: ${buildIssueMessage({
+            fail({
                   what: '--upgrade was combined with reviewer flags (--provider / --model / --endpoint).',
                   why: '--upgrade only refreshes the agent rules files; it does not configure a reviewer, so those flags would be silently ignored.',
                   next: 'Run the upgrade alone (yg init --upgrade), then configure the reviewer separately: yg init --provider <name> [--model <m>].',
-                })}\n`,
-              ),
-            );
+                });
             process.exit(1);
           }
           noticeDeprecatedPlatform(options.platform);
@@ -831,21 +828,17 @@ export function registerInitCommand(program: Command): void {
           // branch or the missing-graph string here (cli-command-contract).
           await abortUnlessYggdrasilExists(yggRoot);
 
-          // The same one reader the graph loader uses: an absent field and a
-          // non-string one (an unquoted `version: 5.1`) are refused with the
-          // same message `yg check` gives, so the two commands never disagree
-          // about whether the graph has a version.
           const versionRead = await readSchemaVersion(yggRoot);
           if (versionRead?.kind === 'absent' || versionRead?.kind === 'not-string') {
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage(schemaVersionFieldIssue(versionRead))}\n`));
+            fail(schemaVersionFieldIssue(versionRead));
             process.exit(1);
           }
           if (versionRead === null) {
-            process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+            fail({
               what: '.yggdrasil/yg-config.yaml could not be read as a YAML mapping.',
               why: '--upgrade reads the version field to choose which migrations to run; a missing, unreadable, or unparseable config file has no version to read.',
               next: 'Restore .yggdrasil/yg-config.yaml from version control, then retry yg init --upgrade.',
-            })}\n`));
+            });
             process.exit(1);
           }
           // Flags are resolved against — and written back into — the committed
@@ -865,17 +858,13 @@ export function registerInitCommand(program: Command): void {
           // COMPLETED upgrade that merely emitted informational warnings still
           // succeeds (exit 0) but surfaces them rather than swallowing them.
           if (result.withheld) {
-            process.stderr.write(
-              chalk.red(
-                `Error: ${buildIssueMessage({
+            fail({
                   what:
                     'Migration withheld — the version bump was NOT applied.\n' +
                     result.migrationWarnings.map((w) => `  - ${w}`).join('\n'),
                   why: 'A migration step could not be safely applied, so the chain stopped and yg-config.yaml was left at its prior version. Reporting success here would hide an incomplete upgrade from agents and CI.',
                   next: 'Fix the listed configuration problems, then re-run yg init --upgrade.',
-                })}\n`,
-              ),
-            );
+                });
             process.exit(1);
           }
 
@@ -909,15 +898,11 @@ export function registerInitCommand(program: Command): void {
         try {
           const statResult = await stat(yggRoot);
           if (!statResult.isDirectory()) {
-            process.stderr.write(
-              chalk.red(
-                `Error: ${buildIssueMessage({
+            fail({
                   what: '.yggdrasil exists at the project root but is not a directory.',
                   why: 'yg init requires the .yggdrasil path to be a directory it can populate.',
                   next: 'Inspect the path manually; remove or rename the conflicting file, then re-run yg init.',
-                })}\n`,
-              ),
-            );
+                });
             process.exit(1);
           }
           exists = true;
@@ -928,11 +913,11 @@ export function registerInitCommand(program: Command): void {
 
         // --model / --endpoint only configure a judge; meaningless without --provider.
         if ((options.model || options.endpoint) && !options.provider) {
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--model/--endpoint given without --provider.',
             why: 'A model or endpoint only configures a judge; without --provider there is no judge to configure.',
             next: 'Add --provider <name>, or drop --model/--endpoint (and pass --no-reviewer to start without one).',
-          })}\n`));
+          });
           process.exit(1);
         }
 
@@ -941,11 +926,11 @@ export function registerInitCommand(program: Command): void {
           // one there is nothing it could mean that is not destructive: it
           // would either do nothing at all, or delete a reviewer the user
           // configured deliberately. Say so instead of guessing.
-          process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+          fail({
             what: '--no-reviewer was given, but this project already has a .yggdrasil/ graph.',
             why: 'The flag chooses how to bootstrap a NEW project (with no reviewer); it never removes a reviewer an existing project already configured.',
             next: 'Run yg init with no flags to open the menu, or yg init --provider <name> [--model <m>] to change the reviewer. To go back to no reviewer, delete the reviewer: section from .yggdrasil/yg-config.yaml.',
-          })}\n`));
+          });
           process.exit(1);
         }
 

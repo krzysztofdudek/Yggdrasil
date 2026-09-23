@@ -1,7 +1,6 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import { abortOnUnexpectedError } from './preamble.js';
+import { fail } from './output.js';
 
 /**
  * `yg verdict` (package / record / read) was the external-judge channel: a way
@@ -21,11 +20,11 @@ export function registerRemovedVerdictCommand(program: Command): void {
     .helpOption(false)
     .action(() => {
       try {
-        process.stderr.write(chalk.red(`Error: ${buildIssueMessage({
+        fail({
           what: 'yg verdict (package, record, read) was removed in 6.1.0.',
           why: 'A prose rule is judged by the reviewer configured in .yggdrasil/yg-config.yaml and by nothing else, so there is no channel for recording a judgement from outside it. Verdicts an earlier release recorded that way are still read and still hold while the code they judged is unchanged.',
           next: 'Record verdicts with: yg check --approve (configure the reviewer first with yg init --provider <name> [--model <m>] if none is set).',
-        })}\n`));
+        });
       } catch (error) {
         abortOnUnexpectedError(error, 'reporting the removed verdict command');
       }

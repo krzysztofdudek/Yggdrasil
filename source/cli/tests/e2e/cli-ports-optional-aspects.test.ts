@@ -182,7 +182,7 @@ describe.skipIf(!distExists)('CLI E2E — a port without aspects', () => {
       // referencing relation. Other errors from the now-missing target
       // (relation-broken on both orders and invoicing) are the KNOWN cascade
       // and are deliberately not asserted on here.
-      const occurrences = stdout.split('yg-node.yaml parse error in services/payments.').length - 1;
+      const occurrences = stdout.split('yg-node.yaml in services/payments breaks the node schema').length - 1;
       expect(occurrences).toBe(1);
     } finally {
       rmSync(dir, { recursive: true, force: true });

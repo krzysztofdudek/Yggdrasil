@@ -5,7 +5,6 @@ import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { findOwnerWithinOwnGraph } from './owner.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import { logAdd } from '../core/log/log-add.js';
 import { logRead } from '../core/log/log-read.js';
 import { logMergeResolve } from '../core/log/log-merge-resolve.js';
@@ -13,6 +12,7 @@ import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import type { VerdictEvent } from '../io/events-store.js';
 import type { Graph } from '../model/graph.js';
+import { fail } from './output.js';
 
 /**
  * True when `filePath` (a `file:` unit-key path) is REALLY owned by `nodePath` —
@@ -42,6 +42,30 @@ function handleError(error: unknown): never {
   abortOnUnexpectedError(error, 'running log command');
 }
 
+/** Schema id of `yg log read --json`. */
+export const LOG_JSON_SCHEMA = 'yg-log/1';
+
+/**
+ * `yg log read --json`: the node's entries, newest first, each with its
+ * timestamp and body; with --with-verdicts also the fill events attributed to
+ * the node, and whether that telemetry is local or shared.
+ */
+function writeLogJson(
+  node: string,
+  entries: Array<{ datetime: string; body: string }>,
+  verdicts?: { events: VerdictEvent[]; gitTracked: boolean; since: string | null },
+): void {
+  const doc = {
+    schema: LOG_JSON_SCHEMA,
+    node,
+    entries: entries.map((e) => ({ datetime: e.datetime, body: e.body })),
+    ...(verdicts !== undefined
+      ? { verdictEvents: { since: verdicts.since, sharedHistory: verdicts.gitTracked, events: verdicts.events } }
+      : {}),
+  };
+  process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`);
+}
+
 export function registerLogCommand(program: Command): void {
   const log = program
     .command('log')
@@ -58,15 +82,11 @@ export function registerLogCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
 
         if ((opts.reason !== undefined) === (opts.reasonFile !== undefined)) {
-          process.stderr.write(
-            chalk.red(
-              buildIssueMessage({
+          fail({
                 what: 'Exactly one of --reason or --reason-file is required',
                 why: 'Cannot provide both, cannot provide neither.',
                 next: 'Pass --reason "<text>" OR --reason-file <path>.',
-              }),
-            ) + '\n',
-          );
+              });
           process.exit(1);
         }
 
@@ -75,30 +95,22 @@ export function registerLogCommand(program: Command): void {
           try {
             const s = await stat(opts.reasonFile);
             if (!s.isFile()) {
-              process.stderr.write(
-                chalk.red(
-                  buildIssueMessage({
+              fail({
                     what: `--reason-file is not a regular file: ${opts.reasonFile}`,
                     why: 'Directory, device, socket, or named pipe is not a valid source for log entry body.',
                     next: 'Provide a path to a regular text file containing the justification.',
-                  }),
-                ) + '\n',
-              );
+                  });
               process.exit(1);
             }
           } catch (err) {
             const e = err as NodeJS.ErrnoException;
             if (e.code === 'ENOENT' || !e.code) {
               debugWrite(`[log] reason-file not found: ${e.message}`);
-              process.stderr.write(
-                chalk.red(
-                  buildIssueMessage({
+              fail({
                     what: `Cannot stat --reason-file: ${e.message}`,
                     why: 'File must exist and be accessible.',
                     next: `Check path: ${opts.reasonFile}`,
-                  }),
-                ) + '\n',
-              );
+                  });
               process.exit(1);
             }
             throw err;
@@ -111,7 +123,7 @@ export function registerLogCommand(program: Command): void {
         const nodePath = opts.node.trim().replace(/\/$/, '');
         const result = await logAdd({ graph, nodePath, reasonText, nowMs: Date.now() });
         if (!result.ok) {
-          process.stderr.write(chalk.red(buildIssueMessage(result.error)) + '\n');
+          fail(result.error);
           process.exit(1);
         }
         process.stdout.write(
@@ -134,13 +146,14 @@ export function registerLogCommand(program: Command): void {
       '--with-verdicts',
       "interleave the node's verification events (local telemetry) with its log entries",
     )
-    .action(async (opts: { node: string; top?: number; all?: boolean; withVerdicts?: boolean }) => {
+    .option('--json', 'Print the entries as a yg-log/1 JSON document')
+    .action(async (opts: { node: string; top?: number; all?: boolean; withVerdicts?: boolean; json?: boolean }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         const nodePath = opts.node.trim().replace(/\/$/, '');
         const result = await logRead({ graph, nodePath, top: opts.top, all: opts.all });
         if (!result.ok) {
-          process.stderr.write(chalk.red(buildIssueMessage(result.error)) + '\n');
+          fail(result.error);
           process.exit(1);
         }
 
@@ -179,6 +192,10 @@ export function registerLogCommand(program: Command): void {
             }
           }
 
+          if (opts.json === true) {
+            writeLogJson(nodePath, result.entries, { events: matched, gitTracked: evResult.gitTracked, since: evResult.firstTs ?? null });
+            return;
+          }
           // Honesty label: the sidecar is meant to be gitignored local telemetry.
           // If it is git-tracked it is shared history for the whole team — refuse
           // the "local" wording and say so plainly.
@@ -226,6 +243,10 @@ export function registerLogCommand(program: Command): void {
           return;
         }
 
+        if (opts.json === true) {
+          writeLogJson(nodePath, result.entries);
+          return;
+        }
         if (result.entries.length === 0) {
           process.stdout.write('No log entries.\n');
           return;
@@ -251,15 +272,11 @@ export function registerLogCommand(program: Command): void {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         if ((opts.ours === undefined) !== (opts.theirs === undefined) || (opts.base !== undefined && opts.ours === undefined)) {
-          process.stderr.write(
-            chalk.red(
-              buildIssueMessage({
+          fail({
                 what: '--ours and --theirs go together, and --base only with them.',
                 why: 'A merge has two sides; the merged log is verified against both, so naming one of them names no merge.',
                 next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only when they share no merge base), or none of them (during a merge in progress, or on the merge commit).',
-              }),
-            ) + '\n',
-          );
+              });
           process.exit(1);
         }
         const repoRoot = path.dirname(graph.rootPath);
@@ -270,7 +287,7 @@ export function registerLogCommand(program: Command): void {
             : undefined;
         const result = await logMergeResolve({ graph, nodePath, repoRoot, ...(sides !== undefined ? { sides } : {}) });
         if (!result.ok) {
-          process.stderr.write(chalk.red(buildIssueMessage(result.error)) + '\n');
+          fail(result.error);
           process.exit(1);
         }
         process.stdout.write(

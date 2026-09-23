@@ -132,7 +132,8 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --json and yg node --json', 
       for (const target of [['--aspect', 'audit-required'], ['--flow', 'nothing'], ['--type', 'provider']]) {
         const { status, stdout, stderr } = run(['impact', ...target, '--json'], dir);
         expect(status).toBe(1);
-        expect(stdout).toBe('');
+        // A refusal under --json also answers on stdout: the yg-error/1 document.
+        expect(JSON.parse(stdout).schema).toBe('yg-error/1');
         expect(stderr).toContain('--json is not available for --aspect, --flow, or --type.');
         expect(stderr).toContain('describes the blast radius of ONE component');
         expect(stderr).toContain('yg impact --node <path> --json');
@@ -149,7 +150,8 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --json and yg node --json', 
       const json = run(['impact', '--file', 'src/services/nothing.ts', '--json'], dir);
       // Same verdict as the text view, and no half-document on stdout.
       expect(json.status).toBe(text.status);
-      expect(json.stdout).toBe('');
+      // A refusal under --json also answers on stdout: the yg-error/1 document.
+      expect(JSON.parse(json.stdout).schema).toBe('yg-error/1');
       expect(json.stderr).toContain('no graph coverage');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -210,7 +212,8 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --json and yg node --json', 
     try {
       const { status, stdout, stderr } = run(['node', 'services/nope', '--json'], dir);
       expect(status).toBe(1);
-      expect(stdout).toBe('');
+      // A refusal under --json also answers on stdout: the yg-error/1 document.
+      expect(JSON.parse(stdout).schema).toBe('yg-error/1');
       expect(stderr).toContain("Node 'services/nope' does not exist in the graph.");
       expect(stderr).toContain('directory under .yggdrasil/model/');
       expect(stderr).toContain('yg tree');

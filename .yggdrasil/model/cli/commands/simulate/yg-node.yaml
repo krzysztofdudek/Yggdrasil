@@ -11,6 +11,8 @@ description: "CLI command yg simulate — replays a candidate deterministic rule
   precondition failure on the real repo exits non-zero."
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/io/stores
     type: calls
   - target: cli/formatters

@@ -1,0 +1,11 @@
+name: E2E Tests — Golden Output Corpus
+type: test-suite
+description: "Subprocess E2E that records what the CLI says, byte for byte, in a fixed set of project states — a brand-new project after yg init, a 24-component graph after a free fill with refusals and every read-only view of the report it leaves (summary, top, one rule, per-issue, the JSON document, the fill preview, the tree, the attention feed), the mandatory-log gate stopping a recording run, a component file that does not parse while a flow still names it, a configuration that does not parse, a measured change on a branch, a type attaching a rule below its default, a per-file rule over components owning several files, the error each of several commands prints for a wrong argument, and a directory with no graph at all — and compares each recording with a committed file. Any change to wording, counts, ordering or layout fails here until the corpus is regenerated, so the regenerated files are the reviewable record of what changed for the reader. Only what cannot repeat run to run is normalised: the temp directory and its name, timestamps, durations, git object names, and the finishing order of parallel checks."
+aspects: []
+relations:
+  - target: cli/tests/fixtures
+    type: uses
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-golden-corpus.test.ts

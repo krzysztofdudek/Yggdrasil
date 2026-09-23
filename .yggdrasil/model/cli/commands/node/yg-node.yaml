@@ -16,6 +16,8 @@ description: >-
   and exit 1; the text and machine views are built from the same document, so
   they can never disagree.
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/core/graph

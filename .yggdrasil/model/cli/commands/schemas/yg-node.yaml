@@ -4,6 +4,8 @@ description: Implements `yg schemas list` and `yg schemas read <name>` —
   read-only access to SCHEMA_TOPICS embedded in the CLI binary.
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/schemas
     type: calls
   - target: cli/formatters

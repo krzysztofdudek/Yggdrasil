@@ -1,0 +1,185 @@
+$ yg check --json
+exit: 1
+--- stdout
+{
+  "schema": "yg-check/1",
+  "project": {
+    "name": "<ROOT-NAME>",
+    "nodes": 3,
+    "aspects": 1,
+    "flows": 0
+  },
+  "exit": {
+    "code": 1,
+    "status": "fail",
+    "reason": "1 blocking finding and 2 warnings."
+  },
+  "coverage": {
+    "files": 3,
+    "covered": 3,
+    "nodeOwned": null,
+    "typeCovered": null,
+    "excluded": null,
+    "requiresNothing": false
+  },
+  "totals": {
+    "errors": 1,
+    "warnings": 2,
+    "draftSkipped": 0,
+    "verdicts": {
+      "approved": 1,
+      "refused": 1,
+      "unverified": 0,
+      "stale": 1,
+      "prompt-too-large": 0,
+      "companion-error": 0
+    },
+    "verified": {
+      "deterministic": 1,
+      "llm": 0
+    }
+  },
+  "pairs": [
+    {
+      "aspect": "no-todo-comments",
+      "unit": {
+        "kind": "node",
+        "path": "alpha"
+      },
+      "node": "alpha",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "stale",
+      "reviewer": "deterministic",
+      "hash": "c4f63bf87c4c23101b5ad7cc7fc4cc10afd707a752289da2c29e761947acf36a",
+      "filled": null
+    },
+    {
+      "aspect": "no-todo-comments",
+      "unit": {
+        "kind": "node",
+        "path": "beta"
+      },
+      "node": "beta",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "refused",
+      "reviewer": "deterministic",
+      "hash": "c3354a7f0416e257dfa663eedd1694fa740e37189d0ac56e4c960cdcad284e0e",
+      "filled": null,
+      "report": "src/beta/beta.ts:1: TODO comment found — remove it or track the work in the issue tracker."
+    },
+    {
+      "aspect": "no-todo-comments",
+      "unit": {
+        "kind": "node",
+        "path": "gamma"
+      },
+      "node": "gamma",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "approved",
+      "reviewer": "deterministic",
+      "hash": "228511da2fbc849a3af5b55011189d6100c44932e6c2fd37c49cb75a434cae66",
+      "filled": null
+    }
+  ],
+  "issues": [
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "The verdict for aspect 'no-todo-comments' on node:alpha is stale.",
+      "why": "A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.",
+      "next": "yg check --approve",
+      "aspect": "no-todo-comments",
+      "node": "alpha",
+      "unit": "node:alpha",
+      "cause": "stale",
+      "unitRef": {
+        "kind": "node",
+        "path": "alpha"
+      },
+      "label": "stale"
+    },
+    {
+      "code": "aspect-violation-enforced-outside",
+      "severity": "warning",
+      "what": "Aspect 'no-todo-comments' is refused on node:beta by a deterministic check.\nViolations:\nsrc/beta/beta.ts:1: TODO comment found — remove it or track the work in the issue tracker.",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "aspect": "no-todo-comments",
+      "node": "beta",
+      "unit": "node:beta",
+      "unitRef": {
+        "kind": "node",
+        "path": "beta"
+      },
+      "violations": [
+        {
+          "file": "src/beta/beta.ts",
+          "line": 1,
+          "message": "TODO comment found — remove it or track the work in the issue tracker."
+        }
+      ],
+      "label": "enforced (outside changes)"
+    },
+    {
+      "code": "rules-digest-stale",
+      "severity": "warning",
+      "what": "Committed agent-rules digest is out of sync: AGENTS.md digest block is missing; .clinerules/yggdrasil.md is missing; CLAUDE.md @AGENTS.md import is missing.",
+      "why": "Agents read the committed digest before running yg prime; a stale, hand-edited, or missing digest means agents may follow outdated rules or none at all.",
+      "next": "yg init --upgrade",
+      "label": "rules-digest-stale"
+    }
+  ],
+  "judges": [],
+  "progressive": {
+    "reference": "main",
+    "changedInputs": 1,
+    "outside": 1,
+    "byteGuardKept": 0,
+    "byteGuardUnavailable": false,
+    "noiseFloor": {
+      "advisory": 0,
+      "enforcedOutside": 1
+    }
+  },
+  "suggestedNext": "yg check --approve",
+  "groups": [
+    {
+      "code": "unverified",
+      "label": "stale",
+      "aspect": null,
+      "severity": "error",
+      "why": "A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.",
+      "next": "yg check --approve",
+      "members": [
+        0
+      ]
+    },
+    {
+      "code": "rules-digest-stale",
+      "label": "rules-digest-stale",
+      "aspect": null,
+      "severity": "warning",
+      "why": "Agents read the committed digest before running yg prime; a stale, hand-edited, or missing digest means agents may follow outdated rules or none at all.",
+      "next": "yg init --upgrade",
+      "members": [
+        2
+      ]
+    },
+    {
+      "code": "aspect-violation-enforced-outside",
+      "label": "enforced (outside changes)",
+      "aspect": "no-todo-comments",
+      "severity": "warning",
+      "why": "A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.",
+      "next": "Fix the listed violations, then: yg check --approve",
+      "members": [
+        1
+      ]
+    }
+  ],
+  "banner": null
+}
+--- stderr

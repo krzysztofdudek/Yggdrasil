@@ -10,7 +10,8 @@ aspects:
 relations:
   [
     { target: cli/core/checks/architecture, type: calls },
-    { target: cli/io/parsers/config, type: calls }
+    { target: cli/io/parsers/config, type: calls },
+    { target: cli/utils, type: calls }
   ]
 mapping:
   - source/cli/src/core/checks/relations.ts

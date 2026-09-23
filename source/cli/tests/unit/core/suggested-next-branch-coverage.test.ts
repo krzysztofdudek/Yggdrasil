@@ -98,12 +98,12 @@ describe('computeSuggestedNext', () => {
 
   it('names the alphabetically-first structural code and appends the coverage rider', () => {
     const issues: Issue[] = [
-      { severity: 'error', code: 'yaml-invalid', nodePath: 'b/n', messageData: md('x') },
+      { severity: 'error', code: 'type-invalid', nodePath: 'b/n', messageData: md('x') },
       { severity: 'error', code: 'aspect-undefined', nodePath: 'a/n', messageData: md('x') },
       { severity: 'error', code: 'unmapped-files', uncoveredCount: 4, messageData: md('x') },
     ];
     const next = run(issues);
-    // 'aspect-undefined' sorts before 'yaml-invalid'.
+    // 'aspect-undefined' sorts before 'type-invalid'.
     expect(next).toContain('Fix aspect-undefined in a/n');
     expect(next).toContain('Then: 4 files need coverage');
   });
@@ -224,7 +224,7 @@ describe('computeSuggestedNext — findings outside the change', () => {
 
   it('reads the structural rider from the blocking half of a split too', () => {
     const issues: Issue[] = [
-      { severity: 'error', code: 'yaml-invalid', nodePath: 'b/n', messageData: md('x') },
+      { severity: 'error', code: 'type-invalid', nodePath: 'b/n', messageData: md('x') },
       { severity: 'error', code: 'unmapped-files', uncoveredCount: 2, messageData: md('x') },
       { severity: 'warning', code: 'unmapped-files-outside', uncoveredCount: 5, messageData: md('x') },
     ];
@@ -297,23 +297,23 @@ describe('computeSuggestedNext — issues with a field missing', () => {
   it('surfaces an ambiguous-node-type finding\'s own two-exit guidance instead of the generic structural line', () => {
     const issues: Issue[] = [
       partial({ severity: 'error', code: 'ambiguous-node-type' }, 'NARROW-THE-TYPES'),
-      partial({ severity: 'error', code: 'yaml-invalid', nodePath: 'a/n' }, 'x'),
+      partial({ severity: 'error', code: 'type-invalid', nodePath: 'a/n' }, 'x'),
     ];
     expect(run(issues)).toBe('NARROW-THE-TYPES');
   });
 
   it('names a repo-level structural error by the graph directory, and a nodeless one by its file', () => {
-    expect(run([partial({ severity: 'error', code: 'config-invalid' }, 'x')])).toBe('Fix config-invalid in .yggdrasil\n  1 of 1 structural error');
-    const fileScoped = { ...partial({ severity: 'error', code: 'yaml-invalid' }, 'x'), unitKey: 'file:src/a.ts' } as Issue;
-    expect(run([fileScoped])).toBe('Fix yaml-invalid in src/a.ts\n  1 of 1 structural error');
+    expect(run([partial({ severity: 'error', code: 'duplicate-aspect-id' }, 'x')])).toBe('Fix duplicate-aspect-id in .yggdrasil\n  1 of 1 structural error');
+    const fileScoped = { ...partial({ severity: 'error', code: 'type-invalid' }, 'x'), unitKey: 'file:src/a.ts' } as Issue;
+    expect(run([fileScoped])).toBe('Fix type-invalid in src/a.ts\n  1 of 1 structural error');
   });
 
   it('reads an unmapped-files finding without a count as zero files in the structural rider', () => {
     const next = run([
-      partial({ severity: 'error', code: 'yaml-invalid', nodePath: 'a/n' }, 'x'),
+      partial({ severity: 'error', code: 'type-invalid', nodePath: 'a/n' }, 'x'),
       partial({ severity: 'error', code: 'unmapped-files' }, 'x'),
     ]);
-    expect(next).toBe('Fix yaml-invalid in a/n\n  1 of 1 structural error\n  Then: 0 files need coverage');
+    expect(next).toBe('Fix type-invalid in a/n\n  1 of 1 structural error\n  Then: 0 files need coverage');
   });
 
   it('agrees in number for one uncovered file, and reads a missing count as zero', () => {

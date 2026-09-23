@@ -27,10 +27,12 @@ description: "Resolves a file path to its owning graph node via yg owner. For
   never seen at all, or one whose recorded verdict has gone stale since a
   source edit, both counted the same way yg check's qualified 'unverified'
   wording already counts them for the identical pair, so 'enforced by
-  architecture' is never read as 'already verified'."
+  architecture' is never read as 'already verified'. --json answers with the yg-owner/1 document instead of the sentence: which kind of owner the file has (a node, its type alone, none, no such file, or excluded by design), the node or type, whether a mapping names the file itself, why it is excluded, and the command that shows its rules."
 aspects:
   - posix-paths-output
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/utils

@@ -4,7 +4,7 @@ import { STATUS_ORDER } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import { statPath, fileExistsSync } from '../../io/graph-fs.js';
 import { computeEffectiveAspects, computeEffectiveAspectStatuses, getAspectStatusSources, type AttachSource } from '../graph/aspects.js';
-import { aspectStatusDowngradeMessage } from '../../formatters/aspect-status-messages.js';
+import { aspectStatusDowngradeSiteMessage } from '../../formatters/aspect-status-messages.js';
 import { issueMsg, graphLoadIncomplete } from './shared.js';
 import { toPosixPath } from '../../utils/posix.js';
 import { computeExpectedPairs } from '../pairs.js';
@@ -754,8 +754,42 @@ function sourceIsExplicit(source: AttachSource, node: GraphNode, aspectId: strin
   }
 }
 
+/**
+ * The node a downgrade finding is filed under: the node whose own file declares
+ * the lower status, or the ancestor / port owner that declares it; none for a
+ * type or a flow, which are declared outside every node.
+ */
+function declaringNodeOf(origin: string): string | undefined {
+  const [kind, ...restParts] = origin.split(':');
+  const rest = restParts.join(':');
+  switch (kind) {
+    case 'own':
+    case 'ancestor':
+      return rest;
+    case 'ancestor-type':
+      return rest.split('@')[1];
+    case 'port':
+      return rest.split('@')[1];
+    default:
+      return undefined;
+  }
+}
+
 export function checkAspectStatusDowngrade(graph: Graph): ValidationIssue[] {
-  const issues: ValidationIssue[] = [];
+  // One finding per declaring site, never one per node the site reaches: the
+  // fault is the declaration, made once, in one file. Keyed by everything the
+  // message says, so two sites (or one site against two different anchors)
+  // still report separately.
+  const bySite = new Map<string, {
+    aspectId: string;
+    declared: AspectStatus;
+    anchor: AspectStatus;
+    declaringOrigin: string;
+    anchorOrigins: string[];
+    aspectDefault: AspectStatus;
+    aspectDeclaresStatus: boolean;
+    nodePaths: string[];
+  }>();
   for (const node of graph.nodes.values()) {
     const statuses = computeEffectiveAspectStatuses(node, graph);
     for (const [aspectId] of statuses) {
@@ -785,27 +819,39 @@ export function checkAspectStatusDowngrade(graph: Graph): ValidationIssue[] {
           const anchorOrigins = sources
             .filter((s) => s !== source && s.declared === anchor && sourceIsExplicit(s, node, aspectId, graph))
             .map((s) => s.origin);
-          const msgData = aspectStatusDowngradeMessage({
-            nodePath: node.path,
-            aspectId,
-            declared: source.declared,
-            anchor,
-            declaringOrigin: source.origin,
-            anchorOrigins,
-            aspectDefault,
-            aspectDeclaresStatus: aspectDef?.status !== undefined,
-          });
-          issues.push({
-            code: 'aspect-status-downgrade',
-            severity: 'error',
-            rule: 'aspect-status-downgrade',
-            ...issueMsg(msgData),
-            messageData: msgData,
-            nodePath: node.path,
-          });
+          const key = [aspectId, source.origin, source.declared, anchor, ...anchorOrigins].join('\u0000');
+          const found = bySite.get(key);
+          if (found !== undefined) {
+            found.nodePaths.push(node.path);
+          } else {
+            bySite.set(key, {
+              aspectId,
+              declared: source.declared,
+              anchor,
+              declaringOrigin: source.origin,
+              anchorOrigins,
+              aspectDefault,
+              aspectDeclaresStatus: aspectDef?.status !== undefined,
+              nodePaths: [node.path],
+            });
+          }
         }
       }
     }
+  }
+  const issues: ValidationIssue[] = [];
+  for (const site of bySite.values()) {
+    const msgData = aspectStatusDowngradeSiteMessage(site);
+    const nodePath = declaringNodeOf(site.declaringOrigin);
+    issues.push({
+      code: 'aspect-status-downgrade',
+      severity: 'error',
+      rule: 'aspect-status-downgrade',
+      ...issueMsg(msgData),
+      messageData: msgData,
+      ...(nodePath !== undefined ? { nodePath } : {}),
+      aspectId: site.aspectId,
+    });
   }
   return issues;
 }

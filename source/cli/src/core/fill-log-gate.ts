@@ -17,8 +17,10 @@ import { logGateBlocksNode } from './log/log-gate.js';
 import { toPosixPath } from '../utils/posix.js';
 
 /**
- * Step-4 log gate: consults logGateBlocksNode (the shared predicate) and emits the
- * `log-entry-missing` message when a node blocks. The gate is ALL-OR-NOTHING —
+ * Step-4 log gate: consults logGateBlocksNode (the shared predicate) and returns
+ * the `log-entry-missing` message when a node blocks (null when it does not).
+ * The caller decides where the message goes: onto the diagnostic stream, or
+ * into the abort it raises. The gate is ALL-OR-NOTHING —
  * fill.ts collects every blocked node and, if any exist, throws FillGatingError so
  * the run fills NOTHING (no pair on any node is verified until every entry exists).
  *
@@ -31,22 +33,34 @@ import { toPosixPath } from '../utils/posix.js';
  * still refuses to record anything. Someone meeting the two answers together
  * has to be able to tell they are not in contradiction, so the WHY names the
  * baseline the drift is measured from rather than implying "you changed this".
+ *
+ * A component that has NEVER recorded a baseline did not drift from anything:
+ * its first verdicts are simply owed an entry. Calling that "drifted" sent the
+ * reader looking for a change that never happened, so the message says which
+ * of the two it is.
  */
 export async function logGateBlocks(
   graph: Graph,
   projectRoot: string,
   node: GraphNode,
   lock: LockFile,
-  emitIssue: (msg: IssueMessage) => void,
   retry = 'yg check --approve',
-): Promise<boolean> {
+): Promise<IssueMessage | null> {
   const blocked = await logGateBlocksNode(graph, projectRoot, node, lock);
-  if (!blocked) return false;
+  if (!blocked) return null;
 
-  emitIssue({
-    what: `No fresh log entry for node '${toPosixPath(node.path)}' — mandatory before recording verdicts when its source drifted.`,
+  const nodePath = toPosixPath(node.path);
+  const next = `yg log add --node ${nodePath} --reason '<why this change was made>', then re-run: ${retry} — if you did not make this change, ask the user for the reason; never invent one`;
+  if (lock.nodes[node.path]?.source === undefined) {
+    return {
+      what: `No log entry for node '${nodePath}' — mandatory before its first verdicts are recorded.`,
+      why: `Node type '${node.meta.type}' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.`,
+      next,
+    };
+  }
+  return {
+    what: `No fresh log entry for node '${nodePath}' — mandatory before recording verdicts when its source drifted.`,
     why: `Node type '${node.meta.type}' has log_required: true — every source change needs a justification entry capturing WHY. This component's source has drifted from the state its recorded verdicts were written over, which earlier commits can be as much the cause of as anything in progress now. Recording answers for the code as it stands, so it stops here and approves nothing this run until a fresh entry exists.`,
-    next: `yg log add --node ${toPosixPath(node.path)} --reason '<why this change was made>', then re-run: ${retry} — if you did not make this change, ask the user for the reason; never invent one`,
-  });
-  return true;
+    next,
+  };
 }

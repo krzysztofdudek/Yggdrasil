@@ -189,7 +189,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
 
       // Shared why + Fix lines render once for the whole group (NOT once per node).
       expect(out).toContain('The lock holds no entry for this pair');
-      expect(out).toMatch(/^ {12}Fix: yg check --approve$/m);
+      expect(out).toMatch(/^ {12}Fix: yg check --approve( {2}\(.*\))?$/m);
 
       // Every affected node is listed as "            - <node>  aspect 'shared'".
       for (const n of nodes) {
@@ -240,7 +240,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
       // ONE relation-undeclared-dependency group block. It carries no aspect
       // segment (built-in check, not an aspect) and DOES retain the per-node
       // detail (FULL_WHAT code): the importer's undeclared edge to dep.
-      const relationHeaders = out.match(/^ {2}relation-undeclared-dependency {2}(\d+) issues? {2}(\d+) nodes$/gm) ?? [];
+      const relationHeaders = out.match(/^ {2}relation-undeclared-dependency {2}(\d+) issues? {2}(\d+) nodes?$/gm) ?? [];
       expect(relationHeaders.length).toBe(1);
       // Not a pair's verdict — counted as an issue.
       expect(relationHeaders[0]).toContain('1 issue');
@@ -352,7 +352,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check grouped default output', () =
       expect(out).not.toMatch(/Errors \(\d+\) in \d+ groups:/);
 
       // Group header: no aspect segment (unverified collapses by code only).
-      expect(out).toMatch(/^ {2}unverified \(not yet reviewed\) {2}2 pairs {2}1 nodes$/m);
+      expect(out).toMatch(/^ {2}unverified \(not yet reviewed\) {2}2 pairs {2}1 node$/m);
       expect(out).not.toMatch(/^ {2}unverified \(not yet reviewed\).*aspect '/m);
 
       // Body: two lines, one per (node, aspect) pair.

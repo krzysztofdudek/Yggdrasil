@@ -1,6 +1,5 @@
 import path from 'node:path';
 import { Command } from 'commander';
-import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog, debugWrite } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
@@ -44,6 +43,7 @@ import type { Graph } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
+import { fail } from './output.js';
 
 type CandidateNode = { nodePath: string; fileCount: number };
 
@@ -420,19 +420,19 @@ export function registerBuildCommand(program: Command): void {
       };
       try {
         if (!options.node && !options.file) {
-          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+          fail({
             what: "No target specified.",
             why: "Either '--node <path>' or '--file <path>' is required.",
             next: "Run: yg context --node <path> or yg context --file <path>",
-          }) + '\n'));
+          });
           process.exit(1);
         }
         if (options.node && options.file) {
-          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+          fail({
             what: "Conflicting options.",
             why: "'--node' and '--file' are mutually exclusive.",
             next: "Use one or the other, not both.",
-          }) + '\n'));
+          });
           process.exit(1);
         }
 
@@ -530,12 +530,11 @@ export function registerBuildCommand(program: Command): void {
                 // surfaces cannot disagree.
                 const cascadeCycle = computeTypeAspectCascade(graph, result.file, typeMatch.typeId, edges).cycle;
                 if (cascadeCycle) {
-                  const cycleMsg = buildIssueMessage({
+                  fail({
                     what: `${displayFile} matches type '${typeMatch.typeId}', but its rules could not be worked out.`,
                     why: describeCascadeCycle(cascadeCycle),
                     next: `Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/. This file's rules cannot be evaluated until the cycle is fixed.`,
                   });
-                  process.stderr.write(chalk.red(`Error: ${cycleMsg}\n`));
                   process.exit(1);
                 }
                 const { data, block } = await buildTypeCoveredFileContextData(graph, displayFile, typeMatch.typeId, edges);
@@ -558,20 +557,18 @@ export function registerBuildCommand(program: Command): void {
                 candidatesList += `  - ${c.nodePath} (${c.fileCount} file${c.fileCount === 1 ? '' : 's'} in same dir)\n`;
               }
               uncoveredWhy = `File is not mapped to any node. Other files in the same directory are mapped to these nodes:\n${candidatesList}This suggests the file should be added to one of them.`;
-              const msg = buildIssueMessage({
+              fail({
                 what: `${displayFile} has no graph coverage.`,
                 why: uncoveredWhy,
                 next: 'Use: yg context --node <node-path>',
-              });
-              process.stderr.write(chalk.red(`Error: ${msg}\n`));
+              }, 'no-coverage', { document: false });
             } else {
               uncoveredWhy = 'File is not mapped to any node and no candidate nodes found in the same directory.';
-              const noGraphMsg = buildIssueMessage({
+              fail({
                 what: `${displayFile} has no graph coverage.`,
                 why: uncoveredWhy,
                 next: 'Add the file to an existing node mapping, or create a new node.',
-              });
-              process.stderr.write(chalk.red(`Error: ${noGraphMsg}\n`));
+              }, 'no-coverage', { document: false });
             }
             // The machine view still gets an ANSWER on stdout — "nothing in this
             // graph governs this file" is a fact a caller must be able to read
@@ -609,12 +606,11 @@ export function registerBuildCommand(program: Command): void {
           if (skippedErrors > 0) {
             whyText += ` (${skippedErrors} unrelated error(s) in other nodes ignored.)`;
           }
-          const msg = buildIssueMessage({
+          fail({
             what: `build-context blocked by ${relevantErrors.length} error${relevantErrors.length === 1 ? '' : 's'} affecting this node's context.`,
             why: whyText,
             next: `Run yg check and fix the listed errors first:\n${errorList}`,
           });
-          process.stderr.write(chalk.red(`Error: ${msg}\n`));
           process.exit(1);
         }
 
@@ -649,22 +645,22 @@ export function registerBuildCommand(program: Command): void {
         const msg = error instanceof Error ? error.message : String(error);
         const notFound = msg.match(/^Node not found: (.+)$/);
         if (notFound) {
-          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+          fail({
             what: `Node '${toPosixPath(notFound[1])}' does not exist in the graph.`,
             why: `The --node path must name an existing node — a directory under .yggdrasil/model/, written without the model/ prefix.`,
             next: `Browse the graph with 'yg tree', or locate one with 'yg find "<keywords>"', then retry with a valid --node path.`,
-          }) + '\n'));
+          });
           process.exit(1);
         }
         // A --file path that resolves outside the repository is USER input, not an
         // internal bug — classify it rather than routing to the crash handler.
         const outsideRoot = msg.match(/^Path is outside project root: (.+)$/);
         if (outsideRoot) {
-          process.stderr.write(chalk.red('Error: ' + buildIssueMessage({
+          fail({
             what: `The path '${toPosixPath(outsideRoot[1])}' is outside the project root.`,
             why: `Context can only be built for files tracked inside the project.`,
             next: `Pass a path inside the project root (relative to the repo).`,
-          }) + '\n'));
+          });
           process.exit(1);
         }
         abortOnUnexpectedError(error, 'building context');

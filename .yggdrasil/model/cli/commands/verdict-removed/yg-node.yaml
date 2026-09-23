@@ -3,6 +3,8 @@ type: command
 description: "Hidden stub for the removed external-judge command family (yg verdict package / record / read). It reads and writes nothing and always exits 1, telling a script, CI job or agent that still calls it that prose rules are judged only by the configured reviewer through yg check --approve — instead of a bare unknown-command error."
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/formatters
     type: calls
   - target: cli/preamble

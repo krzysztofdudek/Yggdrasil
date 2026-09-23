@@ -1,0 +1,74 @@
+$ yg check --json
+exit: 0
+--- stdout
+{
+  "schema": "yg-check/1",
+  "project": {
+    "name": "<ROOT-NAME>",
+    "nodes": 0,
+    "aspects": 0,
+    "flows": 0
+  },
+  "exit": {
+    "code": 0,
+    "status": "pass",
+    "reason": "Nothing blocks this run; 1 warning reported."
+  },
+  "coverage": {
+    "files": 5,
+    "covered": 4,
+    "nodeOwned": 0,
+    "typeCovered": 0,
+    "excluded": 4,
+    "requiresNothing": true
+  },
+  "totals": {
+    "errors": 0,
+    "warnings": 1,
+    "draftSkipped": 0,
+    "verdicts": {
+      "approved": 0,
+      "refused": 0,
+      "unverified": 0,
+      "stale": 0,
+      "prompt-too-large": 0,
+      "companion-error": 0
+    },
+    "verified": {
+      "deterministic": 0,
+      "llm": 0
+    }
+  },
+  "pairs": [],
+  "issues": [
+    {
+      "code": "uncovered-advisory",
+      "severity": "warning",
+      "what": "1 coverage-visible file outside any required coverage root.\n  src/app.ts",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.",
+      "files": [
+        "src/app.ts"
+      ],
+      "label": "uncovered"
+    }
+  ],
+  "judges": [],
+  "progressive": null,
+  "suggestedNext": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.",
+  "groups": [
+    {
+      "code": "uncovered-advisory",
+      "label": "uncovered",
+      "aspect": null,
+      "severity": "warning",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.",
+      "members": [
+        0
+      ]
+    }
+  ],
+  "banner": null
+}
+--- stderr

@@ -1,0 +1,27 @@
+$ yg check
+exit: 1
+--- stdout
+yg check: FAIL  3 nodes · 8/12 files (67%) · 2 aspects · 0 flows
+
+Errors (10):
+
+  unverified (deterministic check not run on this checkout — free)  10 pairs  2 nodes
+            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
+            Fix: yg check --approve --only-deterministic  (10 script pairs, free)
+            - app/svc-01  aspect 'no-todo'
+            - app/svc-01  aspect 'self-contained'  4 files
+            - app/svc-02  aspect 'no-todo'
+            - app/svc-02  aspect 'self-contained'  4 files
+
+Warnings (1):
+
+  uncovered (4)
+            .clinerules/yggdrasil.md
+            .gitattributes
+            AGENTS.md
+            CLAUDE.md
+            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
+            Fix: Map these files to a node, or add their root to coverage.required to make this an error.
+
+Next: yg check --approve --only-deterministic
+--- stderr

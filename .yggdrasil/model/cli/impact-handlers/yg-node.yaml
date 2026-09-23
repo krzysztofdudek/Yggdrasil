@@ -2,6 +2,8 @@ name: Impact Handlers
 type: command-support
 description: "Command-layer support for the impact command: the aspect/flow/type blast-radius handlers (handleAspectImpact, handleFlowImpact, handleTypeImpact), the aspect re-fill cost computation and rendering (computeAspectFillCost, renderFillCost), and the hierarchy descendant collector (collectDescendants). Extracted from the impact command handler so the command file carries only Commander registration and the inline node-impact path. Registers no Commander subcommand; invoked by the impact command via direct import."
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/context
     type: calls
   - target: cli/core/graph

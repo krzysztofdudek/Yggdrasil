@@ -4,6 +4,8 @@ description: Implements `yg knowledge list` and `yg knowledge read <name>` —
   read-only access to KNOWLEDGE_TOPICS embedded in the CLI binary.
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/templates
     type: calls
   - target: cli/tests/unit/cli

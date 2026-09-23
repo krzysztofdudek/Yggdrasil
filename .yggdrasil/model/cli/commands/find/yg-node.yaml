@@ -4,10 +4,15 @@ description: Natural-language search over graph nodes and aspects via yg find;
   uses MiniSearch index built from names, descriptions, and log.md content. At
   coverage.type_level on, a type-covered file also joins the index (its matched
   type's own description as searchable text), pointing to yg context --file
-  rather than a phantom --node target.
+  rather than a phantom --node target. --json prints the yg-find/1 document —
+  the ranked results with their kind, the id each is passed on by, type, a
+  rule's default status, description, score relative to the best match,
+  matched terms and the command that shows its context.
 aspects:
   - posix-paths-output
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/io/stores

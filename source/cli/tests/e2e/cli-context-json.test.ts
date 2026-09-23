@@ -212,7 +212,8 @@ describe.skipIf(!distExists)('CLI E2E — yg context --json', () => {
       const neither = run(['context', '--json'], dir);
       expect(neither.status).toBe(1);
       expect(neither.stderr).toContain('No target specified.');
-      expect(neither.stdout).toBe('');
+      // A refusal under --json also answers on stdout: the yg-error/1 document.
+      expect(JSON.parse(neither.stdout).schema).toBe('yg-error/1');
 
       const both = run(
         ['context', '--node', 'services/orders', '--file', 'src/services/orders.ts', '--json'],
@@ -220,7 +221,8 @@ describe.skipIf(!distExists)('CLI E2E — yg context --json', () => {
       );
       expect(both.status).toBe(1);
       expect(both.stderr).toContain('Conflicting options.');
-      expect(both.stdout).toBe('');
+      // A refusal under --json also answers on stdout: the yg-error/1 document.
+      expect(JSON.parse(both.stdout).schema).toBe('yg-error/1');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

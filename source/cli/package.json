@@ -29,7 +29,8 @@
     "lint:fix": "eslint src/ tests/ --fix",
     "format": "prettier --write \"src/**/*.ts\"",
     "typecheck": "tsc -p tsconfig.check.json",
-    "typecheck:e2e": "tsc -p tests/portal-e2e/tsconfig.json"
+    "typecheck:e2e": "tsc -p tests/portal-e2e/tsconfig.json",
+    "golden:update": "YG_GOLDEN_UPDATE=1 vitest run tests/e2e/cli-golden-corpus.test.ts"
   },
   "keywords": [
     "yggdrasil",

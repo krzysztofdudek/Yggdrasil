@@ -1,17 +1,18 @@
 /**
- * source/cli/src/core/fill-report.ts — everything the fill stage (spec §7) says
- * out loud: the pre-dispatch header, the garbage collector's prune summary, the
- * grouped infrastructure diagnostics each phase collects, the deterministic
- * gate's skip notices, and the closing summary.
+ * source/cli/src/core/fill-report.ts — the facts behind what the fill stage
+ * (spec §7) says out loud: the grouped infrastructure diagnostics each phase
+ * collects, the deterministic gate's skip notices, and the closing summary.
  *
- * Two sinks, deliberately separate. Plain PROGRESS text goes to `write`;
- * structured DIAGNOSTICS ({ what, why, next }) go to `emitIssue` and are never
- * formatted here — the CLI command layer owns presentation, this engine module
- * only produces the data.
+ * Two sinks, deliberately separate, and neither carries a sentence written here.
+ * What the run did goes out as FillEvent data (model/fill-event.ts) — the pre-
+ * dispatch header, the prune summary and the closing line are worded by
+ * formatters/fill-text.ts, which the command layer applies. Structured
+ * DIAGNOSTICS ({ what, why, next }) go to `emitIssue`, rendered by the command
+ * layer too. This engine module only produces the data.
  */
 
 import type { IssueMessage } from '../model/validation.js';
-import type { PruneSummary } from './fill-gc.js';
+import type { FillEventSink } from '../model/fill-event.js';
 import type { CheckResult } from './check-contract.js';
 import type { UnverifiedCause } from './check-codes.js';
 import { computeSuggestedNext } from './check-suggested-next.js';
@@ -22,99 +23,6 @@ export interface InfraDiagnosticItem {
   aspectId: string;
   unitKey: string;
   messageData: IssueMessage;
-}
-
-/**
- * The remedy every "these paid pairs were left alone" notice ends in. One
- * phrasing, two causes — a run that skips paid work for a second reason should
- * extend this rather than inventing a parallel sentence, so the two read as the
- * same kind of statement about the same kind of omission.
- */
-const reviewThemWith = (count: number, command: string): string =>
-  `run \`${command}\` to review ${count === 1 ? 'it' : 'them'}`;
-
-/**
- * Print the pre-dispatch header (EXACT wording): how many pairs this run will
- * fill, over how many subjects, and what the reviewer-call budget is.
- *
- * Every number here describes what this run will ACTUALLY fill, not everything
- * it found unverified. The two differ whenever paid work is deliberately left
- * alone (deterministic-only mode, or a pair outside the current change), and
- * quoting the larger set would name a bill the run never intends to spend.
- * Whatever is left out is then said out loud below, so the smaller number never
- * reads as "there was nothing else".
- *
- * `nodeCount` counts only DEFINED owners — a nodeless (file-level) pair would
- * otherwise inflate it by one phantom component. `fileCount` counts distinct
- * type-covered files separately. The combined "components and files" wording
- * appears ONLY when a nodeless pair exists this run; with none, the line is
- * byte-identical to the plain node-only header, and no phantom nodes are
- * rendered either way.
- */
-export function writeDispatchHeader(
-  counts: {
-    fillPairs: number;
-    nodeCount: number;
-    fileCount: number;
-    detPairs: number;
-    reviewerCallBudget: number;
-    skippedLlmPairs: number;
-    skippedOutsideLlmPairs: number;
-    /** False when yg-config.yaml has no reviewer: section — the skipped judgment
-     *  pairs then need a reviewer first, not another --approve. */
-    reviewerConfigured?: boolean;
-  },
-  write: (s: string) => void,
-): void {
-  const acrossLabel = counts.fileCount > 0
-    ? `${counts.nodeCount} components and ${counts.fileCount} files`
-    : `${counts.nodeCount} nodes`;
-  write(
-    `Filling ${counts.fillPairs} unverified pairs across ${acrossLabel} — ` +
-      `${counts.detPairs} deterministic (no cost), ${counts.reviewerCallBudget} reviewer calls (consensus included)\n`,
-  );
-  // Deterministic-only mode fills the free deterministic pairs but leaves every
-  // unverified LLM pair untouched. Say so up front — otherwise the header reads
-  // as if all N unverified pairs are being handled this run.
-  if (counts.skippedLlmPairs > 0) {
-    write(
-      `  Deterministic-only mode — ${counts.skippedLlmPairs} LLM pair${counts.skippedLlmPairs === 1 ? '' : 's'} will NOT be reviewed this run; ` +
-        (counts.reviewerConfigured === false
-          ? `no reviewer is configured to review ${counts.skippedLlmPairs === 1 ? 'it' : 'them'} (yg init --provider <name> [--model <m>] — the user's decision).\n`
-          : `${reviewThemWith(counts.skippedLlmPairs, 'yg check --approve')}.\n`),
-    );
-  }
-  // The same statement for the other reason paid work is left alone: the change
-  // is not accountable for it. The remedy differs — these pairs need the run
-  // that answers for the whole project, not merely another --approve.
-  if (counts.skippedOutsideLlmPairs > 0) {
-    write(
-      `  ${counts.skippedOutsideLlmPairs} LLM pair(s) outside this change — ` +
-        `${reviewThemWith(counts.skippedOutsideLlmPairs, 'yg check --full --approve')}.\n`,
-    );
-  }
-}
-
-/**
- * Print the garbage collector's own prune summary — this exact wording is a
- * contract another CLI-driven end-to-end test asserts against, so a later
- * change here is a coordinated edit across both, never a local cosmetic one.
- * Printed by BOTH `--approve` (after the real prune) and `--dry-run` (a preview,
- * computed over a disposable clone of the lock — see the dry-run call site).
- * Prints NOTHING when nothing was pruned. An entry whose reviewer kind could
- * not be determined (see PruneSummary's own doc) adds a third ", U unknown"
- * clause rather than silently folding into billed or free; omitted entirely
- * when there are none, so the common case's wording is unchanged.
- */
-export function writePruneSummary(summary: PruneSummary, write: (s: string) => void): void {
-  if (summary.entries.length === 0) return;
-  const unknownClause = summary.unknownCount > 0 ? `, ${summary.unknownCount} unknown` : '';
-  write(
-    `Pruned ${summary.entries.length} stale verdict(s) — ${summary.billedCount} billed, ${summary.freeCount} free${unknownClause}:\n`,
-  );
-  for (const e of summary.entries) {
-    write(`  [${e.kind}] ${e.aspectId} on ${toPosixPath(e.unitKey)} — ${e.reason}\n`);
-  }
 }
 
 /**
@@ -223,73 +131,44 @@ export interface FillTotals {
   detRefused?: number;
   /** Units whose paid review the deterministic gate skipped this run (0 when absent). */
   skippedByDetGate?: number;
-  /** False when no reviewer is configured (see writeDispatchHeader). */
+  /** False when no reviewer is configured (the dispatch header says so too). */
   reviewerConfigured?: boolean;
   /** The command the run was invoked as, for every "then re-run" line. */
   retry?: string;
+  /** Refusals the lock held for unchanged inputs before this run (they still stand). */
+  cachedRefusals?: number;
 }
 
 /**
- * Report what the finished fill did: the "0 reviewer calls" line when no
- * reviewer was called and nothing failed — saying what WAS done, and claiming
- * "all expected pairs hold valid verdicts" only when this run neither filled
- * nor skipped anything — then one diagnostic per non-zero no-write
- * disposition class.
+ * Report what the finished fill did: one `totals` event (the closing line —
+ * worded by formatters/fill-text.ts, which says what WAS done and claims "all
+ * expected pairs hold valid verdicts" only when this run neither filled nor
+ * skipped anything), then one diagnostic per non-zero no-write disposition
+ * class.
  */
 export function reportFillTotals(
   totals: FillTotals,
-  write: (s: string) => void,
+  emit: FillEventSink,
   emitIssue: (msg: IssueMessage) => void,
 ): void {
   const retry = totals.retry ?? 'yg check --approve';
-  const detApproved = totals.detApproved ?? 0;
-  const detRefused = totals.detRefused ?? 0;
-  const detFilled = detApproved + detRefused;
-  const detClause = detFilled > 0
-    ? `${detFilled} deterministic pair${detFilled === 1 ? '' : 's'} filled (${
-      [detApproved > 0 ? `${detApproved} approved` : '', detRefused > 0 ? `${detRefused} refused` : '']
-        .filter((part) => part !== '').join(', ')
-    })`
-    : '';
-  if (
-    totals.reviewerCallsMade === 0 &&
-    totals.infraFailures === 0 &&
-    totals.runtimeErrors === 0 &&
-    totals.companionRuntimeErrors === 0 &&
-    totals.malformedSuppressErrors === 0
-  ) {
-    // What the deterministic phase did, appended as its own sentence so each
-    // line below still opens with the fact that matters most.
-    const detTail = detClause ? ` ${detClause.charAt(0).toUpperCase()}${detClause.slice(1)}.` : '';
-    if (totals.skippedLlmPairs > 0) {
-      // --only-deterministic made no reviewer calls BY DESIGN, but LLM pairs were
-      // left unverified — do NOT claim every pair holds a valid verdict.
-      write(
-        `0 reviewer calls made — deterministic-only mode; ${totals.skippedLlmPairs} LLM pair${totals.skippedLlmPairs === 1 ? '' : 's'} left unverified. ` +
-          (totals.reviewerConfigured === false
-            ? `No reviewer is configured to review ${totals.skippedLlmPairs === 1 ? 'it' : 'them'}: yg init --provider <name> [--model <m>] (the user's decision).`
-            : `Run \`yg check --approve\` to review ${totals.skippedLlmPairs === 1 ? 'it' : 'them'}.`) +
-          `${detTail}\n`,
-      );
-    } else if (totals.skippedOutsideLlmPairs > 0) {
-      // Same rule, other cause: pairs outside this change were never dispatched,
-      // so "all expected pairs hold valid verdicts" would be false — the ones
-      // this change is not accountable for are still waiting for a reviewer.
-      write(
-        `0 reviewer calls made — ${totals.skippedOutsideLlmPairs} LLM pair(s) outside this change left unverified. ` +
-          `Run \`yg check --full --approve\` to review ${totals.skippedOutsideLlmPairs === 1 ? 'it' : 'them'}.${detTail}\n`,
-      );
-    } else if ((totals.skippedByDetGate ?? 0) > 0) {
-      // Paid review skipped because a deterministic check refuses the unit:
-      // those pairs are still waiting, so "all valid" would be false here too.
-      const n = totals.skippedByDetGate ?? 0;
-      write(`0 reviewer calls made — LLM review skipped on ${n} unit${n === 1 ? '' : 's'} a deterministic check refuses.${detTail}\n`);
-    } else if (detFilled > 0) {
-      write(`0 reviewer calls made — ${detClause}.\n`);
-    } else {
-      write('0 reviewer calls made — all expected pairs hold valid verdicts\n');
-    }
-  }
+  emit({
+    type: 'totals',
+    totals: {
+      reviewerCallsMade: totals.reviewerCallsMade,
+      infraFailures: totals.infraFailures,
+      runtimeErrors: totals.runtimeErrors,
+      companionRuntimeErrors: totals.companionRuntimeErrors,
+      malformedSuppressErrors: totals.malformedSuppressErrors,
+      skippedLlmPairs: totals.skippedLlmPairs,
+      skippedOutsideLlmPairs: totals.skippedOutsideLlmPairs,
+      detApproved: totals.detApproved ?? 0,
+      detRefused: totals.detRefused ?? 0,
+      skippedByDetGate: totals.skippedByDetGate ?? 0,
+      ...(totals.reviewerConfigured !== undefined ? { reviewerConfigured: totals.reviewerConfigured } : {}),
+      ...(totals.cachedRefusals !== undefined ? { cachedRefusals: totals.cachedRefusals } : {}),
+    },
+  });
   if (totals.infraFailures > 0) {
     const providers = [...new Set(totals.infraReport.map((r) => r.provider).filter(Boolean))].join(', ');
     const tiers = [...new Set(totals.infraReport.map((r) => r.tier).filter(Boolean))].join(', ');

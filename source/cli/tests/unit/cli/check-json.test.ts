@@ -339,6 +339,8 @@ describe('the check document — findings', () => {
       aspect: 'audit-logging',
       node: 'orders',
       unit: 'node:orders',
+      // The same subject, structured the way a pair's unit is.
+      unitRef: { kind: 'node', path: 'orders' },
     });
   });
 

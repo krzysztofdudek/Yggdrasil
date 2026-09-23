@@ -1,0 +1,49 @@
+$ yg check --top 2
+exit: 1
+--- stdout
+yg check: FAIL  25 nodes · 24/29 files (83%) · 2 aspects · 0 flows · 16 verified (16 deterministic, 0 LLM)
+
+Errors (34):
+
+  unverified (not yet reviewed)  24 pairs  24 nodes
+            The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
+            Fix: yg check --approve  (24 reviewer pairs, paid)
+            - app/svc-01  aspect 'readable-names'
+            - app/svc-02  aspect 'readable-names'
+            - app/svc-03  aspect 'readable-names'
+            - app/svc-04  aspect 'readable-names'
+            - app/svc-05  aspect 'readable-names'
+            - app/svc-06  aspect 'readable-names'
+            - app/svc-07  aspect 'readable-names'
+            - app/svc-08  aspect 'readable-names'
+            - app/svc-09  aspect 'readable-names'
+            - app/svc-10  aspect 'readable-names'
+            - app/svc-11  aspect 'readable-names'
+            - app/svc-12  aspect 'readable-names'
+            ... and 12 more (yg check --aspect readable-names)
+
+  enforced  8 pairs  8 nodes  aspect 'no-todo'
+            A deterministic check recorded these violations. The result is cached — the same inputs reproduce the same verdict, so the check is not re-run.
+            Fix: Fix the listed violations, then: yg check --approve
+            - app/svc-03  Violations:
+              src/svc-03/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-06  Violations:
+              src/svc-06/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-09  Violations:
+              src/svc-09/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-12  Violations:
+              src/svc-12/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-15  Violations:
+              src/svc-15/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-18  Violations:
+              src/svc-18/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-21  Violations:
+              src/svc-21/index.ts:2: TODO marker left in shipped code — move it to the tracker
+            - app/svc-24  Violations:
+              src/svc-24/index.ts:2: TODO marker left in shipped code — move it to the tracker
+
+Warnings (1):
+    (no warning groups within --top 2 — run yg check for the full list)
+
+Next: yg check --approve
+--- stderr

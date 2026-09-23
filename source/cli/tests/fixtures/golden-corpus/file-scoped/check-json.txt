@@ -1,0 +1,398 @@
+$ yg check --json
+exit: 1
+--- stdout
+{
+  "schema": "yg-check/1",
+  "project": {
+    "name": "<ROOT-NAME>",
+    "nodes": 3,
+    "aspects": 2,
+    "flows": 0
+  },
+  "exit": {
+    "code": 1,
+    "status": "fail",
+    "reason": "10 blocking findings and 1 warning."
+  },
+  "coverage": {
+    "files": 12,
+    "covered": 8,
+    "nodeOwned": null,
+    "typeCovered": null,
+    "excluded": null,
+    "requiresNothing": false
+  },
+  "totals": {
+    "errors": 10,
+    "warnings": 1,
+    "draftSkipped": 0,
+    "verdicts": {
+      "approved": 0,
+      "refused": 0,
+      "unverified": 10,
+      "stale": 0,
+      "prompt-too-large": 0,
+      "companion-error": 0
+    },
+    "verified": {
+      "deterministic": 0,
+      "llm": 0
+    }
+  },
+  "pairs": [
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "node": "app/svc-01",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "no-todo",
+      "unit": {
+        "kind": "node",
+        "path": "app/svc-02"
+      },
+      "node": "app/svc-02",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "self-contained",
+      "unit": {
+        "kind": "file",
+        "path": "src/svc-01/a.ts"
+      },
+      "node": "app/svc-01",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "self-contained",
+      "unit": {
+        "kind": "file",
+        "path": "src/svc-01/b.ts"
+      },
+      "node": "app/svc-01",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "self-contained",
+      "unit": {
+        "kind": "file",
+        "path": "src/svc-01/c.ts"
+      },
+      "node": "app/svc-01",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "self-contained",
+      "unit": {
+        "kind": "file",
+        "path": "src/svc-01/index.ts"
+      },
+      "node": "app/svc-01",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "self-contained",
+      "unit": {
+        "kind": "file",
+        "path": "src/svc-02/a.ts"
+      },
+      "node": "app/svc-02",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "self-contained",
+      "unit": {
+        "kind": "file",
+        "path": "src/svc-02/b.ts"
+      },
+      "node": "app/svc-02",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "self-contained",
+      "unit": {
+        "kind": "file",
+        "path": "src/svc-02/c.ts"
+      },
+      "node": "app/svc-02",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    },
+    {
+      "aspect": "self-contained",
+      "unit": {
+        "kind": "file",
+        "path": "src/svc-02/index.ts"
+      },
+      "node": "app/svc-02",
+      "kind": "deterministic",
+      "status": "enforced",
+      "verdict": "unverified",
+      "reviewer": "deterministic",
+      "hash": null,
+      "filled": null
+    }
+  ],
+  "issues": [
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'no-todo' on node:app/svc-01.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "no-todo",
+      "node": "app/svc-01",
+      "unit": "node:app/svc-01",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-01"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'no-todo' on node:app/svc-02.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "no-todo",
+      "node": "app/svc-02",
+      "unit": "node:app/svc-02",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "node",
+        "path": "app/svc-02"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'self-contained' on file:src/svc-01/a.ts.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "self-contained",
+      "node": "app/svc-01",
+      "unit": "file:src/svc-01/a.ts",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "file",
+        "path": "src/svc-01/a.ts"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'self-contained' on file:src/svc-01/b.ts.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "self-contained",
+      "node": "app/svc-01",
+      "unit": "file:src/svc-01/b.ts",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "file",
+        "path": "src/svc-01/b.ts"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'self-contained' on file:src/svc-01/c.ts.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "self-contained",
+      "node": "app/svc-01",
+      "unit": "file:src/svc-01/c.ts",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "file",
+        "path": "src/svc-01/c.ts"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'self-contained' on file:src/svc-01/index.ts.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "self-contained",
+      "node": "app/svc-01",
+      "unit": "file:src/svc-01/index.ts",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "file",
+        "path": "src/svc-01/index.ts"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'self-contained' on file:src/svc-02/a.ts.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "self-contained",
+      "node": "app/svc-02",
+      "unit": "file:src/svc-02/a.ts",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "file",
+        "path": "src/svc-02/a.ts"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'self-contained' on file:src/svc-02/b.ts.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "self-contained",
+      "node": "app/svc-02",
+      "unit": "file:src/svc-02/b.ts",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "file",
+        "path": "src/svc-02/b.ts"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'self-contained' on file:src/svc-02/c.ts.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "self-contained",
+      "node": "app/svc-02",
+      "unit": "file:src/svc-02/c.ts",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "file",
+        "path": "src/svc-02/c.ts"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "unverified",
+      "severity": "error",
+      "what": "No local result for deterministic aspect 'self-contained' on file:src/svc-02/index.ts.",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "aspect": "self-contained",
+      "node": "app/svc-02",
+      "unit": "file:src/svc-02/index.ts",
+      "cause": "deterministic-not-run",
+      "unitRef": {
+        "kind": "file",
+        "path": "src/svc-02/index.ts"
+      },
+      "label": "deterministic-not-run"
+    },
+    {
+      "code": "uncovered-advisory",
+      "severity": "warning",
+      "what": "4 coverage-visible files outside any required coverage root.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "files": [
+        ".clinerules/yggdrasil.md",
+        ".gitattributes",
+        "AGENTS.md",
+        "CLAUDE.md"
+      ],
+      "label": "uncovered"
+    }
+  ],
+  "judges": [],
+  "progressive": null,
+  "suggestedNext": "yg check --approve --only-deterministic",
+  "groups": [
+    {
+      "code": "unverified",
+      "label": "deterministic-not-run",
+      "aspect": null,
+      "severity": "error",
+      "why": "Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.",
+      "next": "yg check --approve --only-deterministic",
+      "members": [
+        0,
+        2,
+        3,
+        4,
+        5,
+        1,
+        6,
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "code": "uncovered-advisory",
+      "label": "uncovered",
+      "aspect": null,
+      "severity": "warning",
+      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
+      "members": [
+        10
+      ]
+    }
+  ],
+  "banner": null
+}
+--- stderr

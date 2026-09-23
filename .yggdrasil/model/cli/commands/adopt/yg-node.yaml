@@ -31,6 +31,8 @@ description: >-
   and carries what/why/next.
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/adopt-transaction
     type: calls
   - target: cli/preamble

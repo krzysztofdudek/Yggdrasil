@@ -4,6 +4,7 @@ import type { CheckResult } from '../core/check.js';
 import type { TypeVisibilityReason, TypeVisibilityReport } from '../core/type-visibility.js';
 import { describeTypeVisibilityReason, describeChainTermination } from '../core/type-visibility.js';
 import { describeCascadeCycle } from '../core/type-effective.js';
+import { count } from './output.js';
 
 // ── Emoji gate ─────────────────────────────────────────────
 
@@ -201,7 +202,7 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
 
   const emojiPrefix = emoji ? (errorCount > 0 ? '❌ ' : '✅ ') : '';
 
-  const metrics: string[] = [`${result.nodeCount} nodes`];
+  const metrics: string[] = [count(result.nodeCount, 'node')];
 
   if (result.totalFiles > 0) {
     if (result.typeLevel) {
@@ -221,8 +222,8 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
     }
   }
 
-  metrics.push(`${result.aspectCount} aspects`);
-  metrics.push(`${result.flowCount} flows`);
+  metrics.push(count(result.aspectCount, 'aspect'));
+  metrics.push(count(result.flowCount, 'flow'));
 
   const verifiedTotal = result.verifiedDet + result.verifiedLlm;
   if (verifiedTotal > 0) {

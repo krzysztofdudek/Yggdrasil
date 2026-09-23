@@ -30,6 +30,8 @@ description: "Installs rules published by another repository, keeps them exactly
 aspects:
   - provider-redaction-cascade
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/pack-source
     type: calls
   - target: cli/pack-update

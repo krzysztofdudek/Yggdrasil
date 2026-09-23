@@ -129,7 +129,7 @@ describe.skipIf(!distExists)('CLI E2E — port channel-6 enforcement / relation 
       expect(check.status).toBe(1);
       // The grouped enforced refusal names the port-sourced aspect in its header
       // and lists the consumer node it refuses on.
-      expect(check.all).toMatch(/enforced\s+1 pairs\s+1 nodes\s+aspect 'audit-required'/);
+      expect(check.all).toMatch(/enforced\s+1 pair\s+1 node\s+aspect 'audit-required'/);
       expect(check.all).toContain('- services/orders');
 
       // The violation is reported against the consumer's OWN source file —

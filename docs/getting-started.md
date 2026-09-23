@@ -138,7 +138,7 @@ Warnings (1):
             src/f15.ts
             src/f16.ts
             src/f17.ts
-            ... +40
+            ... +40 (yg check --details)
             Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
             Fix: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 
@@ -181,13 +181,13 @@ Now run `yg check`:
 ```text
 $ yg check
 
-yg check: FAIL  1 nodes · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspects · 0 flows
+yg check: FAIL  1 node · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspect · 0 flows
 
 Errors (1):
 
-  unverified (not yet reviewed)  1 pairs  1 nodes
+  unverified (not yet reviewed)  1 pair  1 node
             The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve
+            Fix: yg check --approve  (1 reviewer pair, paid)
             - payments  aspect 'requires-audit'
 
 Next: yg check --approve
@@ -207,18 +207,18 @@ $ yg check --approve
 
 Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
 
-yg check: PASS  1 nodes · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspects · 0 flows · 1 verified (0 deterministic, 1 LLM)
+yg check: PASS  1 node · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspect · 0 flows · 1 verified (0 deterministic, 1 LLM)
 ```
 
 If the code didn't satisfy the aspect, the pair is refused and the report shows
 the enforced refusal block with the reviewer's reason:
 
 ```text
-yg check: FAIL  1 nodes · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspects · 0 flows
+yg check: FAIL  1 node · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspect · 0 flows
 
 Errors (1):
 
-  enforced  1 pairs  1 nodes  aspect 'requires-audit'
+  enforced  1 pair  1 node  aspect 'requires-audit'
             A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
             Fix: Three exits:
               1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
@@ -306,7 +306,7 @@ this way, so the moment you map a directory that imports from another mapped
 directory, the check turns red and names each import, like this:
 
 ```text
-  relation-undeclared-dependency  1 pairs  1 nodes
+  relation-undeclared-dependency  1 issue  1 node
             Fix: Declare the missing relation(s) in .yggdrasil/model/users/yg-node.yaml (or remove the dependency if it is not legitimate):
             payments: allowed relation type(s) [uses, calls, extends, implements, emits, listens]. Add to .yggdrasil/model/users/yg-node.yaml:
             relations:

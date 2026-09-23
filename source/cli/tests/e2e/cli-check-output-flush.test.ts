@@ -220,15 +220,25 @@ describe.skipIf(!distExists)('CLI E2E — yg check output survives pipe (flush r
       //    pass adds no relation-undeclared block. The flush invariant: EVERY pair
       //    the header declares is rendered as a bullet.
       const nodeLineCount = (stripped.match(/^ {12}- svc\d{3} {2}aspect '[^']+'$/gm) ?? []).length;
-      // 75 nodes × 3 LLM aspects = 225 affected-node lines, each unverified cold.
-      expect(nodeLineCount).toBe(225);
+      // 75 nodes × 3 LLM aspects = 225 unverified pairs, cold — the header says so.
+      expect(headerCount).toBe(225);
       // No relation-undeclared block (no cross-node dependency in the fixture).
       expect(stripped.match(/^ {2}relation-undeclared-dependency {2}/gm)).toBeNull();
 
-      // 7. The core assertion: every error the header declares must be rendered as
-      //    an affected-node bullet. Under the truncation bug, the rendered bullet
-      //    count would be less than headerCount for large outputs.
-      expect(nodeLineCount).toBe(headerCount);
+      // 7. The grouped view caps a member list at 12 in EVERY sink — a pipe gets
+      //    the bounded report a terminal gets — and names the view that lists the
+      //    rest, with the true count of what it held back.
+      expect(nodeLineCount).toBe(12);
+      expect(stripped).toMatch(new RegExp(`^ {12}\\.\\.\\. and ${headerCount - 12} more \\(yg check --details\\)$`, 'm'));
+
+      // 8. The core flush assertion, on the view that enumerates every finding:
+      //    every error the header declares is rendered as one per-issue block.
+      //    Under the truncation bug the rendered count would fall short of it.
+      const details = spawnSync('node', [BIN_PATH, 'check', '--details'], { cwd: dir, encoding: 'utf-8', maxBuffer: 32 * 1024 * 1024 });
+      // eslint-disable-next-line no-control-regex
+      const detailsStripped = (details.stdout ?? '').replace(/\x1b\[[0-9;]*m/g, '');
+      const issueLines = (detailsStripped.match(/^ {2}unverified {2}svc\d{3} {2}/gm) ?? []).length;
+      expect(issueLines).toBe(headerCount);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

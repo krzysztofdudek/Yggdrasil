@@ -311,7 +311,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('relation-target-forbidden');
       // Grouped header carries the finding/node counts (4 issues, 1 node) —
       // issues, not pairs: a forbidden relation is not a rule's verdict.
-      expect(stdout).toMatch(/relation-target-forbidden\s+4 issues\s+1 nodes/);
+      expect(stdout).toMatch(/relation-target-forbidden\s+4 issues\s+1 node/);
       // The WHY enumerates the allowed targets for the relation type.
       expect(stdout).toContain("Allowed targets for 'calls' from type 'producer': [consumer]");
       // The declaring node is named in the group's node list.
@@ -738,7 +738,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // Attributed to the declaring node (listed in the group's node list).
       expect(stdout).toContain('app/p');
       // The existing-siblings hint surfaces the real nodes under app/.
-      expect(stdout).toContain('Existing nodes under app');
+      expect(stdout).toContain('Nodes under app');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

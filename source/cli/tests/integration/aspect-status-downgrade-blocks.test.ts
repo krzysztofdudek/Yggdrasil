@@ -169,9 +169,12 @@ mapping:
     const downs = await getDowngradeIssues(repo);
     // Parent also fires on Ch 1; what matters is that the child also fires
     // with the ancestor-node origin.
-    const onChild = downs.find(d => d.nodePath === 'mod/svc');
+    // Filed once, under the node whose file declares the lower status (the
+    // ancestor), never repeated per descendant it reaches.
+    const onChild = downs.find(d => d.nodePath === 'mod' && d.rendered.includes('ancestor node'));
     expect(onChild).toBeDefined();
     expect(onChild!.rendered).toContain("ancestor node 'mod' declares status");
+    expect(onChild!.rendered).toContain("node 'mod/svc'");
   });
 
   it('channel 3 (own arch type): type-level explicit status < aspect-default → downgrade', async () => {
@@ -200,9 +203,11 @@ mapping:
     repos.push(repo);
 
     const downs = await getDowngradeIssues(repo);
-    const onSvc = downs.find(d => d.nodePath === 'svc');
+    // A type's declaration is made outside every node: one finding, no node.
+    const onSvc = downs.find(d => d.nodePath === undefined);
     expect(onSvc).toBeDefined();
     expect(onSvc!.rendered).toContain("node type 'service' in yg-architecture.yaml declares status");
+    expect(onSvc!.rendered).toContain("node 'svc'");
   });
 
   it('channel 4 (ancestor arch type): parent type default advisory propagates as Ch 4 → downgrade on child', async () => {
@@ -239,7 +244,8 @@ mapping:
     repos.push(repo);
 
     const downs = await getDowngradeIssues(repo);
-    const onChild = downs.find(d => d.nodePath === 'mod/svc');
+    // Filed under the ancestor whose type declares it, once.
+    const onChild = downs.find(d => d.nodePath === 'mod');
     expect(onChild).toBeDefined();
     // Ch 4 origin format is "ancestor-type:module@mod".
     expect(onChild!.rendered).toContain("node type 'module' in yg-architecture.yaml (via ancestor 'mod') declares status");
@@ -278,7 +284,8 @@ aspects:
     repos.push(repo);
 
     const downs = await getDowngradeIssues(repo);
-    const onSvc = downs.find(d => d.nodePath === 'svc');
+    // A flow's declaration is made outside every node: one finding, no node.
+    const onSvc = downs.find(d => d.nodePath === undefined);
     expect(onSvc).toBeDefined();
     // The flow is the site that says advisory; it must be named as the
     // declaring site, never as the source of 'enforced', and the node that

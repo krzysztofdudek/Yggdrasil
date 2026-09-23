@@ -1,0 +1,11 @@
+name: CLI Output Layer
+type: command-support
+description: "The command layer's one place for how the CLI speaks: the Diagnostic model (severity, code, label, subject, summary, detail lines, why, and a fix that is always readable text and, when the remedy is a runnable command, also that command), the code registry (per issue code: the heading label a report uses, the tier it sorts into — graph-invalid, code and graph errors, gate prerequisites, pending — and the noun its members are counted in), and the shared primitives every command renders through: count and plural (so a count and its noun always agree), capped lists whose overflow line always carries a drill command, the three-part what/why/next block, the report's verdict line (the `<command>: <STATUS>` anchor external parsers key on) and its Next line, a fix pointer that keeps a heading-introduced list whole, text and JSON sinks, and the command-error path: fail writes the red `Error:` what/why/next block to stderr and, when the invocation answers in JSON, the yg-error/1 document to stdout, so a failed command never leaves a machine reader with zero bytes; failAndExit does the same and exits 1; notice writes a non-fatal yellow notice. Exists so a fact reads the same from every command and so wording can change in one place. Whether an invocation answers in JSON is read from its own command line (--json), overridable for an in-process caller; a command whose JSON answer to a failure is its own document (context's no-owner answer) passes document: false so stdout still carries exactly one document."
+relations:
+  - target: cli/formatters
+    type: calls
+  - target: cli/model/validation
+    type: uses
+mapping:
+  - source/cli/src/cli/output.ts
+  - source/cli/src/cli/output-diagnostic.ts

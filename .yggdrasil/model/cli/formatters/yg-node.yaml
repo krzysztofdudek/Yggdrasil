@@ -27,12 +27,19 @@ description: >-
   `calls` a utility, never reach into a facade or a core result type, so a
   builder that needs one (buildAspectsJson, buildCheckJson,
   buildSuppressionsJson) lives one layer up, in the command or core module
-  that owns that input.
+  that owns that input. It also words everything the fill stage says while it
+  runs: the engine emits each of those things as a fill event (a header's
+  counts, a pair's outcome, a periodic tally, the in-place status line with the
+  width it must fit, the closing totals) and the fill-text renderer turns one
+  event into the exact text a person reads, so the engine owns none of those
+  sentences.
 relations:
   - target: cli/model/graph
     type: uses
   - target: cli/utils
     type: calls
+  - target: cli/model/fill-event
+    type: uses
 mapping:
   - source/cli/src/formatters/advise-json.ts
   - source/cli/src/formatters/aspect-log-json.ts
@@ -42,6 +49,7 @@ mapping:
   - source/cli/src/formatters/context-file.ts
   - source/cli/src/formatters/context-json.ts
   - source/cli/src/formatters/context-node.ts
+  - source/cli/src/formatters/fill-text.ts
   - source/cli/src/formatters/impact-json.ts
   - source/cli/src/formatters/lock-issue-messages.ts
   - source/cli/src/formatters/message-builder.ts

@@ -110,3 +110,5 @@ Registered the new advisory check that flags a node explicitly declaring a port 
 The gate now also verifies that every rule installed from another repository still matches what that repository published. It runs as a global check rather than a per-component one because a copied rule belongs to no component — there is no node to attribute the finding to.
 ## [2026-09-22T13:01:45.394Z]
 The validator no longer runs the reserved default port check, because that check was removed: a deliberate default port declaration is the documented way to hang aspects on the implicit port and warning about it on every run only trained readers to ignore warnings.
+## [2026-09-23T23:00:44.157Z]
+A yg-config.yaml that does not parse reports the parser's message as what happened and, as why, that every setting has fallen back to its default — the two were swapped, and nothing said that the rest of the report described the default configuration rather than the project's.
