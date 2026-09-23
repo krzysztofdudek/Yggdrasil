@@ -178,12 +178,12 @@ export async function loadGraph(
   try {
     await scanModelDirectory(modelDir, modelDir, null, nodes, nodeParseErrors);
   } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      throw new Error(`Directory .yggdrasil/model/ does not exist. Run 'yg init' first.`, {
-        cause: err,
-      });
-    }
-    throw err;
+    // An absent model/ is an empty graph, not an uninitialized one. Git does not
+    // track empty directories, so a graph committed before its first node comes
+    // back from a clone without model/ at all; the graph root and its config are
+    // there, and every command must work on it exactly as it did before the commit.
+    const e = err as NodeJS.ErrnoException;
+    if (e.code !== 'ENOENT' || e.path !== modelDir) throw err;
   }
 
   const aspectsLoad = await loadAspects(path.join(yggRoot, 'aspects'), path.dirname(yggRoot));

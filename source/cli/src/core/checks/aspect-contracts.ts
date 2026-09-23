@@ -768,12 +768,21 @@ export function checkAspectStatusDowngrade(graph: Graph): ValidationIssue[] {
         );
 
         if (STATUS_ORDER[source.declared] < STATUS_ORDER[anchor]) {
+          // Name what actually produces the anchor: the aspect default and any
+          // other site that explicitly declares that status. A bare attach carries
+          // the default already, so it is covered by naming the default.
+          const anchorOrigins = sources
+            .filter((s) => s !== source && s.declared === anchor && sourceIsExplicit(s, node, aspectId, graph))
+            .map((s) => s.origin);
           const msgData = aspectStatusDowngradeMessage({
             nodePath: node.path,
             aspectId,
             declared: source.declared,
             anchor,
-            origin: source.origin === `own:${node.path}` ? 'aspect-default and other channels' : source.origin,
+            declaringOrigin: source.origin,
+            anchorOrigins,
+            aspectDefault,
+            aspectDeclaresStatus: aspectDef?.status !== undefined,
           });
           issues.push({
             code: 'aspect-status-downgrade',

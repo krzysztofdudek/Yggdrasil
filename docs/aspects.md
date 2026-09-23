@@ -68,12 +68,13 @@ yg aspects log read --aspect no-raw-sql
 ```
 
 Recording a change of standing does not make one: you edit `status:` in the rule's
-own file, and the command refuses to record a standing the file does not carry.
+own file, and the command refuses to record a standing the file does not carry, or
+one the rule already stood at, so the history never shows a promotion that moved nothing.
 What justified the move is required, because it is the part nobody can reconstruct
 later. If you move a rule and record nothing, `yg check` says so, and the next
 approving run writes the bare fact into that rule's log so the change is not lost.
 
-See [`yg aspects log`](/cli-reference#yg-aspects-log--a-rules-own-history).
+See [`yg aspects log`](/cli-reference#yg-aspects-log).
 
 ## Two more fields worth knowing
 

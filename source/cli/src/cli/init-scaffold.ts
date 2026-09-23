@@ -99,7 +99,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<string[]> {
  *  This is the single source of truth for what init writes into the local
  *  gitignore (both fresh init and every --upgrade). Paths are relative to the
  *  `.yggdrasil/` directory the file lives in. */
-const YGGDRASIL_GITIGNORE_LINES = [
+export const YGGDRASIL_GITIGNORE_LINES = [
   'yg-secrets.yaml',
   '.symbols-cache/',
   // Content-addressed per-file AST fact cache: a local speed cache the relation pass rebuilds
@@ -209,9 +209,15 @@ export async function createYggdrasilStructure(
   cliVersionStr: string,
   artifacts: RulesArtifactsConfig = DEFAULT_RULES_ARTIFACTS,
 ): Promise<void> {
-  await mkdir(path.join(yggRoot, 'model'), { recursive: true });
-  await mkdir(path.join(yggRoot, 'aspects'), { recursive: true });
-  await mkdir(path.join(yggRoot, 'flows'), { recursive: true });
+  // Git does not track empty directories. Without a placeholder, a graph
+  // committed before its first node, rule or flow reaches every clone without
+  // these directories, so each one carries an empty .gitkeep until real content
+  // arrives. The loader tolerates their absence as well; the placeholder keeps
+  // the clone looking like the tree init produced.
+  for (const dir of ['model', 'aspects', 'flows']) {
+    await mkdir(path.join(yggRoot, dir), { recursive: true });
+    await writeFile(path.join(yggRoot, dir, '.gitkeep'), '', 'utf-8');
+  }
 
   await writeFile(path.join(yggRoot, 'yg-config.yaml'), DEFAULT_CONFIG, 'utf-8');
   await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), DEFAULT_ARCHITECTURE, 'utf-8');

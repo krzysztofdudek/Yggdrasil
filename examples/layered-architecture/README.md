@@ -38,7 +38,7 @@ deterministic.
 
 ```bash
 cd examples/layered-architecture
-yg check          # PASS — 3 nodes · 4/4 files · 0 aspects
+yg check          # PASS — 3 nodes · 8/8 files · 0 aspects
 ```
 
 Expected output:

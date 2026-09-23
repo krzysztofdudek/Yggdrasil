@@ -12,15 +12,6 @@ coverage:
   required: ["src"]
   excluded: ["README.md", "AGENTS.md", "CLAUDE.md", ".clinerules/", ".gitattributes"]
 
-# This example is fully KEYLESS: its only aspect is deterministic, so no reviewer
-# is ever contacted. The CLI still requires a reviewer section for future LLM
-# aspects, so a minimal tier is declared here with an unreachable endpoint — a
-# stray LLM pair could never reach a live service.
-reviewer:
-  tiers:
-    standard:
-      provider: ollama
-      consensus: 1
-      config:
-        model: unused
-        endpoint: http://127.0.0.1:1
+# This example is KEYLESS: its only rules are deterministic, and a script-only
+# project needs no reviewer: section at all. Add one (yg init --provider ...)
+# when you add the first judgment rule.

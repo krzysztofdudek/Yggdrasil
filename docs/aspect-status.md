@@ -72,7 +72,7 @@ that names no branch (the default), the table above is the whole story.
   rows in `pairs[]` at all, and an empty join there means either "reaches
   nothing" or "is draft" with no way to tell the two apart. The surface that
   does enumerate a draft rule's reach is
-  [`yg aspects --json --reach`](/cli-reference#yg-aspects---json), whose
+  [`yg aspects --json --reach`](/cli-reference#yg-aspects-json), whose
   `reach.units[]` lists a draft unit like any other.
 - **`advisory`** — rule is complete; gather signal across the repo
   without blocking CI. Pairs are verified and cached normally; refusals and
@@ -89,7 +89,12 @@ fires only on real violations.
 
 `status:` can appear on the aspect itself (aspect-level default) and on
 every object-form attach site. The aspect-level default applies wherever
-the aspect attaches unless an attach site declares its own.
+the aspect attaches, and an attach site can only **raise** it: the effective
+status is the strictest of the aspect default and every site that attaches
+the aspect, and a site that declares a lower status is an
+`aspect-status-downgrade` error (see [How effective status is computed](#how-effective-status-is-computed)).
+To run a rule softer in most places and stricter in a few, give the aspect
+the lower default and raise it at the sites that need more.
 
 ### Aspect-level default
 
@@ -114,7 +119,7 @@ aspects:
 ```
 
 Bare-string entries (`- audit-logging`) inherit the aspect-level default.
-Object form (`{ id, status }`) is the only way to override per site.
+Object form (`{ id, status }`) is the only way to raise the status per site.
 
 ### Architecture node-type default
 
@@ -130,11 +135,18 @@ node_types:
 ### Flow-level
 
 ```yaml
+# .yggdrasil/aspects/correlation-tracking/yg-aspect.yaml
+status: advisory               # soft everywhere by default
+
 # .yggdrasil/flows/checkout/yg-flow.yaml
 aspects:
   - id: correlation-tracking
-    status: advisory
+    status: enforced           # promote for the checkout participants
 ```
+
+The flow raises the status for its participants. The reverse, a flow that
+declares `advisory` for an aspect whose default is `enforced` (the default
+when the aspect sets no `status:`), is a downgrade and fails validation.
 
 ### Port-level
 
@@ -158,15 +170,18 @@ effective_status = max(declared in each channel)
 
 where `draft < advisory < enforced`. The strictest level wins.
 
-If an attach site explicitly declares a status **lower** than what the
-cascade would yield from other channels (plus the aspect-level default),
-the validator emits `aspect-status-downgrade` as an error. The rule is
+If an attach site explicitly declares a status **lower** than the
+strictest of the aspect-level default and every other channel, the
+validator emits `aspect-status-downgrade` as an error. The message names
+the site that declares the lower status and where the higher one comes
+from (the aspect default, another site, or both). The rule is
 **bump up OK, downgrade is an error**: a node can promote an aspect to
 `enforced`, but it cannot quietly weaken what the architecture or a flow
 demands.
 
 To resolve a downgrade error: remove the explicit lower status from the
-attach site, or raise the lower-ranked channel to match.
+attach site, or, if the rule really should be softer everywhere, lower the
+aspect-level default (and any other site that declares the higher status).
 
 This `max()` computation and the downgrade check apply to the cascading
 attach channels 1–6 (own, ancestor, own type, ancestor type, flows,

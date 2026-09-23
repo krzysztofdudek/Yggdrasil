@@ -4,7 +4,9 @@ description: "Unit tests for build and check CLI commands — build-command,
   build-context, check, the check render layer split across
   check-render-header/check-render-groups/check-render-views, check-exit (the
   command-exit force-exit path), init, init/upgrade, the shared
-  exit-after-flush command-exit helper, and the rules-artifacts reader that
+  exit-after-flush command-exit helper, the interactive init's API-key prompt
+  (masked, honouring the provider's environment variable, never copying an
+  environment key to disk), and the rules-artifacts reader that
   feeds the committed-digest gate — which must see exactly what the installer
   wrote, including a repo whose agent-rules file carries a non-canonical
   capitalization. It also covers the worker-thread ceiling the check injects
@@ -83,6 +85,7 @@ mapping:
   - source/cli/tests/unit/cli/context-file-type-coverage.test.ts
   - source/cli/tests/unit/cli/init.test.ts
   - source/cli/tests/unit/cli/init-upgrade.test.ts
+  - source/cli/tests/unit/cli/init-reviewer-key.test.ts
   - source/cli/tests/unit/cli/exit-after-flush.test.ts
   - source/cli/tests/unit/cli/check-exit.test.ts
   - source/cli/tests/unit/cli/check-disk-scan.test.ts

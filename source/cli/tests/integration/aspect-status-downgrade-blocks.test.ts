@@ -125,8 +125,10 @@ aspects:
     expect(downs.length).toBeGreaterThan(0);
     const onSvc = downs.find(d => d.nodePath === 'svc');
     expect(onSvc).toBeDefined();
-    // Channel-1 origin is rewritten to "aspect-default and other channels".
-    expect(onSvc!.rendered).toContain('aspect-default and other channels');
+    // The message names the site that declares the lower status (the node's
+    // own attach) and what the enforced status comes from (the aspect default).
+    expect(onSvc!.rendered).toContain("node 'svc' (its own yg-node.yaml) declares status 'advisory'");
+    expect(onSvc!.rendered).toContain("as 'enforced' from the aspect default (status: enforced");
   });
 
   it('channel 2 (ancestor node): parent attaches at advisory, propagates as Ch 2 → downgrade on child', async () => {
@@ -169,7 +171,7 @@ mapping:
     // with the ancestor-node origin.
     const onChild = downs.find(d => d.nodePath === 'mod/svc');
     expect(onChild).toBeDefined();
-    expect(onChild!.rendered).toContain('ancestor:mod');
+    expect(onChild!.rendered).toContain("ancestor node 'mod' declares status");
   });
 
   it('channel 3 (own arch type): type-level explicit status < aspect-default → downgrade', async () => {
@@ -200,7 +202,7 @@ mapping:
     const downs = await getDowngradeIssues(repo);
     const onSvc = downs.find(d => d.nodePath === 'svc');
     expect(onSvc).toBeDefined();
-    expect(onSvc!.rendered).toContain('type:service');
+    expect(onSvc!.rendered).toContain("node type 'service' in yg-architecture.yaml declares status");
   });
 
   it('channel 4 (ancestor arch type): parent type default advisory propagates as Ch 4 → downgrade on child', async () => {
@@ -240,7 +242,7 @@ mapping:
     const onChild = downs.find(d => d.nodePath === 'mod/svc');
     expect(onChild).toBeDefined();
     // Ch 4 origin format is "ancestor-type:module@mod".
-    expect(onChild!.rendered).toContain('ancestor-type:module@mod');
+    expect(onChild!.rendered).toContain("node type 'module' in yg-architecture.yaml (via ancestor 'mod') declares status");
   });
 
   it('channel 5 (flow): flow attaches at advisory, aspect-default enforced → downgrade on flow channel', async () => {
@@ -278,7 +280,13 @@ aspects:
     const downs = await getDowngradeIssues(repo);
     const onSvc = downs.find(d => d.nodePath === 'svc');
     expect(onSvc).toBeDefined();
-    expect(onSvc!.rendered).toContain('flow:f');
+    // The flow is the site that says advisory; it must be named as the
+    // declaring site, never as the source of 'enforced', and the node that
+    // attaches nothing must not be blamed for attaching.
+    expect(onSvc!.rendered).toContain("flow 'f' declares status 'advisory'");
+    expect(onSvc!.rendered).toContain("as 'enforced' from the aspect default");
+    expect(onSvc!.rendered).not.toContain("Node 'svc' attaches");
+    expect(onSvc!.rendered).toContain("set a lower status: in the aspect's yg-aspect.yaml");
   });
 
   it('channel 6 (port): consumer node attaches at advisory while port declares enforced → downgrade on own attach', async () => {
@@ -336,7 +344,9 @@ relations:
     const downs = await getDowngradeIssues(repo);
     const onConsumer = downs.find(d => d.nodePath === 'consumer');
     expect(onConsumer).toBeDefined();
-    // Ch 1 origin on consumer is rewritten to "aspect-default and other channels".
-    expect(onConsumer!.rendered).toContain('aspect-default and other channels');
+    // The enforced status reaches the consumer from the aspect default AND the
+    // port's explicit declaration; both are named.
+    expect(onConsumer!.rendered).toContain("node 'consumer' (its own yg-node.yaml) declares status 'advisory'");
+    expect(onConsumer!.rendered).toMatch(/from the aspect default .* and port '\w+' on node 'target'/);
   });
 });

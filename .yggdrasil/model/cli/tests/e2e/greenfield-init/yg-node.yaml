@@ -1,9 +1,10 @@
 name: E2E Tests — Greenfield & Init
 type: test-suite
-description: "Subprocess E2E for the headless init/upgrade and platform-install paths — scaffold via init --upgrade, the platform rules-file matrix (claude-code, cursor, codex, opencode, amp, generic), the greenfield approve lifecycle, an empty no-node repo, and the unknown-platform and missing-version guards."
+description: "Subprocess E2E for the headless init/upgrade and platform-install paths — scaffold via init --upgrade, the platform rules-file matrix (claude-code, cursor, codex, opencode, amp, generic), the greenfield approve lifecycle, an empty no-node repo, the unknown-platform and missing-version guards, and a fresh init that is committed and cloned: the clone keeps model/, aspects/ and flows/ and runs yg check, and a clone that lost those empty directories still loads as an empty graph."
 aspects: []
 relations:
   - target: cli/tests/e2e/support
     type: uses
 mapping:
   - source/cli/tests/e2e/cli-greenfield-init.test.ts
+  - source/cli/tests/e2e/cli-init-clone.test.ts

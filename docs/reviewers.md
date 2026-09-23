@@ -75,16 +75,22 @@ $ yg check --approve
 
 Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
 
-yg check: FAIL  1 nodes · 1/1 files (1 node-owned, 0 type-covered, 0 excluded) · 1 aspects · 0 flows
+yg check: FAIL  1 nodes · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspects · 0 flows
 
 Errors (1):
 
   enforced  1 pairs  1 nodes  aspect 'requires-audit'
             A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
-            Fix: Three exits: fix the code; sharpen the aspect's content.md; or propose a yg-suppress (user must approve the reason).
+            Fix: Three exits:
+              1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
+              2. Sharpen the aspect's content.md — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+              3. Propose a `yg-suppress` to the user (user must approve the reason).
             - payments  Reviewer reason: chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
 
-Next: fix the violation, then re-run: yg check --approve
+Next: Three exits:
+  1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
+  2. Sharpen the aspect's content.md — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+  3. Propose a `yg-suppress` to the user (user must approve the reason).
 ```
 
 If the reviewer rejects compliant code, the fix is improving the aspect's `content.md` — make the rule clearer and more specific. Sharpening the rule re-verifies every pair of the aspect. The escape hatch is better rules, not bypassing enforcement.
@@ -556,7 +562,7 @@ corpus — the code that actually got past the rule — names the case for where
 came from, runs the rule over it, and records the reason you give in a log kept
 beside the rule. A rule that does not catch its own escape exits non-zero and the
 case stays, failing, until the rule is sharpened enough to catch it. See
-[`yg drill add`](/cli-reference#yg-drill-add--a-real-escape-becomes-a-permanent-case).
+[`yg drill add`](/cli-reference#yg-drill-add).
 
 A rule sees a case file under its path inside the case directory: `drills/violates-x/src/pay/charge.ts` reaches the rule as `src/pay/charge.ts`, and a file placed directly in its case directory arrives as its bare file name. `yg drill add` stores a case under the path it had in the repository, so a rule anchored on a path prefix drills the way it runs.
 

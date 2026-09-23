@@ -13,11 +13,20 @@
 //   - external / protocol links (http:, https:, mailto:, tel:, //host)
 //   - any target that carries a non-.md file extension (images, .html, .gif,
 //     .svg, … live in docs/public/ — an EXTENSION-based skip, not a fixed list)
-//   - same-page anchors (#section) and query-only targets
+//   - query-only targets
 //   - image links (![alt](src)) and reference-style links [t][ref]
 //   - escaped brackets, unbalanced-paren captures, and anything inside a fenced
 //     code block, an indented code block, or an inline code span (documented
 //     link EXAMPLES must never be resolved)
+//
+// A #fragment is checked too, against the anchors the target page (or, for a
+// bare #fragment, the page itself) actually has: every heading's id as VitePress
+// renders it (its own slugify, `{#custom-id}` overrides, and the -1/-2 suffixes
+// for repeated headings), plus any literal id= / name= attribute in the page. A
+// GitHub-style slug that VitePress does not produce (`yg-aspects---json` for the
+// heading `yg aspects --json`) is a dead anchor on the published site. To stay
+// errs: under, a fragment is reported only when it matches neither the exact
+// heading text nor a looser reading of it with emphasis markers removed.
 //
 // It is a CONTENT check: markdown has no tree-sitter grammar, so it reads
 // file.content and never touches file.ast. It uses ONLY ctx.files (no graph /
@@ -110,6 +119,78 @@ function backslashRun(s, i) {
   return n;
 }
 
+// VitePress's own slugify (from @mdit-vue/shared), copied verbatim so the anchor
+// set this check builds is the one the published site renders.
+const rControl = /[\u0000-\u001f]/g;
+const rSpecial = /[\s~`!@#$%^&*()\-_+=[\]{}|\\;:"'“”‘’<>,.?/]+/g;
+const rCombining = /[\u0300-\u036F]/g;
+function slugify(str) {
+  return str.normalize('NFKD').replace(rCombining, '').replace(rControl, '').replace(rSpecial, '-')
+    .replace(/-{2,}/g, '-').replace(/^-+|-+$/g, '').replace(/^(\d)/, '_$1').toLowerCase();
+}
+
+const ENTITIES = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+/** Markdown-level rewrites of one non-code stretch of a heading. */
+function inlineText(t, loose) {
+  const escaped = [];
+  t = t.replace(/\\([!-/:-@[-`{-~])/g, (_, c) => `${escaped.push(c) - 1}`); // hold backslash escapes aside
+  t = t
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, '')          // images contribute no text
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')        // links contribute their text
+    .replace(/<[^>]+>/g, '')                        // inline HTML is not text
+    .replace(/&(amp|lt|gt|quot|apos|nbsp);/g, (_, e) => ENTITIES[e]);
+  if (loose) t = t.replace(/(\*\*|__|\*|_)/g, '');
+  return t.replace(/(\d+)/g, (_, i) => escaped[Number(i)]);
+}
+
+/** The text VitePress reads off a heading (text and inline-code content only). */
+function headingText(raw, loose) {
+  let out = '';
+  let last = 0;
+  // Inline code spans are taken verbatim; everything around them is markdown.
+  for (const m of raw.matchAll(/(`+)([\s\S]*?[^`])\1(?!`)/g)) {
+    out += inlineText(raw.slice(last, m.index), loose) + m[2];
+    last = m.index + m[0].length;
+  }
+  return out + inlineText(raw.slice(last), loose);
+}
+
+/**
+ * Every anchor a page renders: heading ids (with VitePress's slugify, custom
+ * `{#id}` overrides, and -N suffixes for repeats) and literal id=/name= values.
+ * `loose` is the errs: under safety net — a second reading of each heading with
+ * emphasis markers removed, so an unusual heading never produces a false alarm.
+ */
+function anchorsOf(content, loose) {
+  const anchors = new Set();
+  const seen = Object.create(null);
+  const add = (slug) => {
+    let s = slug, i = 1;
+    while (seen[s]) s = `${slug}-${i++}`;
+    seen[s] = true;
+    anchors.add(s);
+  };
+  const lines = content.split(/\r?\n/);
+  let fence = null;
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const fm = line.match(/^ {0,3}(`{3,}|~{3,})/);
+    if (fence) { if (fm && fm[1][0] === fence.ch && fm[1].length >= fence.len) fence = null; continue; }
+    if (fm) { fence = { ch: fm[1][0], len: fm[1].length }; continue; }
+    let text = null;
+    const atx = line.match(/^ {0,3}#{1,6}(?:[ \t]+(.*?))?[ \t]*$/);
+    if (atx) text = (atx[1] ?? '').replace(/[ \t]+#+$/, '');
+    else if (i + 1 < lines.length && /^ {0,3}(=+|-+)[ \t]*$/.test(lines[i + 1]) && line.trim() !== '' && !/^ {0,3}([-*+]|\d+[.)]|>|\|)/.test(line)) text = line.trim();
+    if (text === null) continue;
+    const custom = text.match(/\s*\{#([^}\s]+)\}\s*$/);
+    if (custom) { add(custom[1]); continue; }
+    add(slugify(headingText(text, loose)));
+  }
+  for (const m of content.matchAll(/\b(?:id|name)\s*=\s*["']([^"']+)["']/g)) anchors.add(m[1]);
+  return anchors;
+}
+
 export function check(ctx) {
   const violations = [];
   const mdFiles = ctx.files.filter((f) => /\.md$/i.test(f.path) && typeof f.content === 'string');
@@ -127,6 +208,31 @@ export function check(ctx) {
     if (/(^|\/)index$/i.test(key)) known.add(key.replace(/\/index$/i, '') || '/');
   }
   const isKnown = (k) => known.has(k) || known.has(k.replace(/\/+$/, '')) || known.has(k + '/');
+
+  // Page key → its content, for resolving #fragments against the target page.
+  const pageByKey = new Map();
+  for (const f of mdFiles) {
+    const key = keyFor(relOf(f.path));
+    pageByKey.set(key, f);
+    if (/(^|\/)index$/i.test(key)) pageByKey.set(key.replace(/\/index$/i, '') || '/', f);
+  }
+  const pageFor = (k) => pageByKey.get(k) ?? pageByKey.get(k.replace(/\/+$/, '')) ?? pageByKey.get(k + '/');
+  const anchorCache = new Map();
+  const hasAnchor = (page, frag) => {
+    if (!anchorCache.has(page.path)) anchorCache.set(page.path, [anchorsOf(page.content, false), anchorsOf(page.content, true)]);
+    const [exact, loose] = anchorCache.get(page.path);
+    return exact.has(frag) || loose.has(frag);
+  };
+  const fragmentViolation = (f, ln, column, raw, rel, page, frag) => ({
+    file: f.path,
+    line: ln + 1,
+    column,
+    message:
+      `Internal documentation link '${raw}' in ${rel} points at '#${frag}', which is not an anchor ` +
+      `on ${page === f ? 'this page' : `'${relOf(page.path)}'`}. The published site derives heading anchors ` +
+      `with VitePress's slugify (not GitHub's): fix the fragment to the heading's real id, or give the ` +
+      `heading an explicit {#id}.`,
+  });
 
   const LINK = /\]\(([^)\n]*)\)/g;
   for (const f of mdFiles) {
@@ -159,8 +265,14 @@ export function check(ctx) {
         if (t === '') continue;
         if (/^[a-z][a-z0-9+.-]*:/i.test(t) || t.startsWith('//')) continue; // scheme / //host
         if (t.includes('(') || t.includes(')')) continue;                    // unbalanced-paren capture — cannot resolve safely
+        const hashAt = t.indexOf('#');
+        let frag = hashAt >= 0 ? t.slice(hashAt + 1) : '';
+        try { frag = decodeURIComponent(frag); } catch { /* keep raw on malformed % */ }
         t = t.replace(/[?#].*$/s, '');                                        // strip ?query and #anchor
-        if (t === '') continue;                                              // same-page anchor
+        if (t === '') {                                                      // same-page anchor
+          if (frag !== '' && !raw.includes('?') && !hasAnchor(f, frag)) violations.push(fragmentViolation(f, ln, m.index, raw, rel, f, frag));
+          continue;
+        }
         try { t = decodeURIComponent(t); } catch { /* keep raw on malformed % */ }
 
         // Extension-based skip: only extensionless (clean URL) and .md targets are
@@ -174,7 +286,12 @@ export function check(ctx) {
           ? (t.replace(/\.md$/i, '').replace(/\/+$/, '') || '/')
           : (resolveRelative(fileDir, t).replace(/\.md$/i, '').replace(/(.)\/+$/, '$1') || '/');
 
-        if (!isKnown(key)) {
+        if (isKnown(key)) {
+          const page = pageFor(key);
+          if (frag !== '' && !raw.includes('?') && page !== undefined && !hasAnchor(page, frag)) {
+            violations.push(fragmentViolation(f, ln, m.index, raw, rel, page, frag));
+          }
+        } else {
           violations.push({
             file: f.path,
             line: ln + 1,

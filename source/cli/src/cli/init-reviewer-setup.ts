@@ -54,17 +54,45 @@ function needsEndpoint(provider: ReviewerProvider): boolean {
   return provider === 'openai-compatible' || provider === 'ollama';
 }
 
-async function promptApiKey(provider: ReviewerProvider): Promise<string> {
+/**
+ * The key the interactive flow will use, and whether init should store it.
+ * A key that came from the provider's environment variable is used for the
+ * model list and the connection test but never copied to disk: the reviewer
+ * reads the same variable at run time, so a second copy in yg-secrets.yaml
+ * would only be one more place for the secret to leak from.
+ */
+export interface ApiKeyAnswer {
+  key: string;
+  fromEnv: boolean;
+}
+
+/**
+ * Ask for an API key without echoing it. The provider's environment variable
+ * is read first: when it is set, an empty answer uses it, so a person who has
+ * already exported the key never has to paste it. When it is not set, the
+ * answer is required and is stored in yg-secrets.yaml. `offerEnv: false` is the
+ * retry after the environment key was rejected, where falling back to the same
+ * key again would only fail again.
+ */
+export async function promptApiKey(
+  provider: ReviewerProvider,
+  opts: { offerEnv?: boolean } = {},
+): Promise<ApiKeyAnswer> {
   const envVar = API_KEY_ENV[provider];
-  const hint = envVar ? ` (or set ${envVar} env var)` : '';
-  const key = await p.text({
-    message: `API key for ${provider}${hint}${provider === 'openai-compatible' ? ' — leave empty for a keyless server' : ''}`,
-    placeholder: 'Stored in .yggdrasil/yg-secrets.yaml (gitignored)',
-    // An OpenAI-compatible server may take no key (a local vLLM, LM Studio or llama.cpp).
-    validate: (v) => (provider !== 'openai-compatible' && (v ?? '').trim().length === 0 ? 'API key cannot be empty' : undefined),
+  const envKey = opts.offerEnv === false ? undefined : (envVar ? process.env[envVar] : undefined)?.trim() || undefined;
+  // An OpenAI-compatible server may take no key (a local vLLM, LM Studio or llama.cpp).
+  const keyless = provider === 'openai-compatible' ? ' — leave empty for a keyless server' : '';
+  const message = envKey
+    ? `API key for ${provider} (press Enter to use $${envVar}, which is set; it is not copied to disk)`
+    : `API key for ${provider} (input hidden; stored in .yggdrasil/yg-secrets.yaml, which is gitignored${envVar ? `; or cancel and export ${envVar}` : ''})${keyless}`;
+  const key = await p.password({
+    message,
+    validate: (v) => (!envKey && provider !== 'openai-compatible' && (v ?? '').trim().length === 0 ? 'API key cannot be empty' : undefined),
   });
   assertNotCancelled(key);
-  return key.trim();
+  const typed = (key ?? '').trim();
+  if (typed.length === 0 && envKey) return { key: envKey, fromEnv: true };
+  return { key: typed, fromEnv: false };
 }
 
 async function promptEndpoint(provider: ReviewerProvider): Promise<string> {
@@ -206,8 +234,9 @@ export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
 
   // API providers
   let apiKey = '';
+  let keyFromEnv = false;
   if (needsApiKey(provider)) {
-    apiKey = await promptApiKey(provider);
+    ({ key: apiKey, fromEnv: keyFromEnv } = await promptApiKey(provider));
   }
 
   let endpoint: string | undefined;
@@ -224,7 +253,7 @@ export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
   if (fetchResult.is401 && needsApiKey(provider)) {
     s.stop('Authentication failed (401).');
     p.log.warning('Invalid API key. Please try again.');
-    apiKey = await promptApiKey(provider);
+    ({ key: apiKey, fromEnv: keyFromEnv } = await promptApiKey(provider, { offerEnv: !keyFromEnv }));
     s.start('Retrying model fetch...');
     fetchResult = await fetchModels(provider, apiKey, endpoint);
   }
@@ -250,7 +279,8 @@ export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
     p.log.info('Configuration will be saved anyway. You can fix it later.');
   }
 
-  return { provider, model, apiKey: apiKey || undefined, endpoint };
+  // Only a key the person typed is stored; one read from the environment stays there.
+  return { provider, model, apiKey: keyFromEnv ? undefined : apiKey || undefined, endpoint };
 }
 
 // ---------------------------------------------------------------------------

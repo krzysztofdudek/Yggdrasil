@@ -44,7 +44,26 @@ yg check: PASS (1 warning)  0 nodes · 4/54 files (0 node-owned, 0 type-covered,
 
 Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 
-  uncovered (50)  Not under a coverage.required root. Visible, non-blocking.
+Nothing is required to be covered, so the 50 uncovered files this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.
+
+Warnings (1):
+
+  uncovered (50)
+            package.json
+            src/f1.ts
+            src/f10.ts
+            src/f11.ts
+            src/f12.ts
+            src/f13.ts
+            src/f14.ts
+            src/f15.ts
+            src/f16.ts
+            src/f17.ts
+            ... +40
+            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
+            Fix: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
+
+Next: Map these files to a node, or add their root to coverage.required to make this an error. yg type-suggest --file <path> can help design one before you decide where it belongs.
 ```
 
 Nothing is enforced yet, because you have not said what matters yet. Nothing is pretending otherwise. That list is your to-do, not a finding.
@@ -70,7 +89,7 @@ async function refund(req) {
 }
 ```
 
-`yg check` refuses it: **refund changes a charge with no audit event.** The agent adds the call, re-runs, passes.
+`yg check --approve` refuses it: **refund changes a charge with no audit event.** The agent adds the call, re-runs, passes. (A bare `yg check` never calls the model; on this change it fails because the new code has no verdict yet, and names `--approve` as the next step.)
 
 ```ts
 async function refund(req) {
@@ -140,7 +159,7 @@ I built it while shipping things alone, fast, which is where the wall above come
 
 ## See the whole graph
 
-`yg portal` renders everything as a read only map in the browser: every component, every rule, and whether each one is verified against the code as it stands right now. Nothing is rounded up to green. `yg portal --static` writes a single self contained file you can hand to someone who has no checkout.
+`yg portal` renders everything as a map in the browser: every component, every rule, and whether each one is verified against the code as it stands right now. Nothing is rounded up to green. Browsing it changes nothing; its one write is an Approve button that runs `yg check --approve`, and `yg portal --no-write` removes it. `yg portal --static` writes a single self contained file you can hand to someone who has no checkout.
 
 <p align="center">
   <img src="docs/public/portal-overview-dark.png" alt="The Yggdrasil portal" width="900" />
@@ -175,7 +194,7 @@ A hook is a real gate and you should use one. Point it at `yg check` and you hav
 Review bots hunt for bugs against their own idea of good code, and they re-run and re-bill on every pull request. This checks your specific rules, the ones only your team knows, and records a durable proof of each verdict.
 
 **What if I want to stop?**
-Delete `.yggdrasil/` and the rules file. No runtime dependencies, no build hooks, nothing left behind.
+Delete `.yggdrasil/`. There are no runtime dependencies and no build hooks. Outside that directory, `yg init` wrote the agent-rules files (the summary block in `AGENTS.md`, the import line in `CLAUDE.md`, `.clinerules/yggdrasil.md`) and four lines in the repo-root `.gitattributes`; delete those too if you want no trace left. The full list is in the "No lock-in" note of [How it works](https://krzysztofdudek.github.io/Yggdrasil/how-it-works).
 
 ## Examples and docs
 

@@ -96,7 +96,7 @@ describe('loadGraph version gate', () => {
 });
 
 describe('graph-loader', () => {
-  it('throws when model/ directory does not exist', async () => {
+  it('treats a missing model/ directory as an empty graph', async () => {
     const tmpDir = path.join(__dirname, '../../fixtures/tmp-no-model');
     const yggRoot = path.join(tmpDir, '.yggdrasil');
     await mkdir(yggRoot, { recursive: true });
@@ -107,7 +107,10 @@ describe('graph-loader', () => {
     );
 
     try {
-      await expect(loadGraph(tmpDir)).rejects.toThrow('model/ does not exist');
+      // Git does not track empty directories: a graph committed before its first
+      // node is cloned without model/. That is an empty graph, not a missing one.
+      const graph = await loadGraph(tmpDir);
+      expect(graph.nodes.size).toBe(0);
     } finally {
       await rm(tmpDir, { recursive: true, force: true });
     }
