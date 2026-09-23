@@ -480,10 +480,20 @@ repository root only. Review the diff before committing.
 `--approve`, `--no-approve`, or `--only-deterministic` on the command line takes
 effect regardless of what the config says.
 
-**CI note:** CI and pre-commit scripts should always use explicit flags
-(`yg check --approve --only-deterministic`) — the CI-is-free-and-keyless guarantee
-is about explicit flag use, not `auto_approve`. Set `auto_approve` for local
-developer convenience only.
+**CI note:** CI and pre-commit scripts should always use explicit flags — the
+cache rebuild `yg check --approve --only-deterministic`, then the gate
+`yg check --no-approve`. The CI-is-free-and-keyless guarantee is about explicit
+flag use, not `auto_approve`. Set `auto_approve` for local developer convenience
+only.
+
+**Under CI, `full` is held back.** `yg-config.yaml` is committed, so one
+developer's `auto_approve: full` reaches every pipeline. When the `CI`
+environment variable is set (any value except empty, `0` or `false`; GitHub
+Actions, GitLab CI and most runners set it), a bare `yg check` ignores
+`auto_approve: full`, stays read-only, calls no reviewer, and prints
+`auto-approve: full ignored — CI is set` on stderr. An explicit `--approve` still
+fills. `auto_approve: deterministic` is not held back: that fill is free,
+keyless, and the same as the recommended cache-rebuild step.
 
 When a fill triggered by `auto_approve` produces a PASS, the result line shows
 `(auto-filled)` to indicate that verdicts were written during this run.

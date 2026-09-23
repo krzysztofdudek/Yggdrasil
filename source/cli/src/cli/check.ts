@@ -30,12 +30,25 @@ import { resolveChangeScope } from './progressive-scope-resolve.js';
  *   3. Explicit `--approve` (opts.approve === true) → approve, det from flag.
  *   4. No explicit approve flag → from config.auto_approve:
  *        'deterministic' → approve + det
- *        'full'          → approve, not det
+ *        'full'          → approve, not det — EXCEPT under CI (see below)
  *        false/undefined → read-only (today's default behavior)
+ *
+ * `auto_approve` lives in the committed yg-config.yaml, so one developer's local
+ * convenience travels to every pipeline. A config-driven `full` fill in CI would
+ * call the reviewer and write fresh verdicts over a change nobody re-verified —
+ * turning the gate into the thing it exists to catch. So when the environment
+ * says it is CI (see {@link isCiEnvironment}), a config-driven `full` stays
+ * read-only; an explicit `--approve` still fills. A config-driven
+ * `deterministic` fill is left alone: it is free, keyless, and exactly the
+ * recommended CI cache-rebuild step, so it cannot make a stale change green.
+ *
+ * `env` defaults to an empty object (NOT process.env) so the function stays pure
+ * for callers and tests; the command passes the real environment.
  */
 export function resolveApproveMode(
   opts: { approve?: boolean; onlyDeterministic?: boolean },
   config: YggConfig | undefined,
+  env: Readonly<Record<string, string | undefined>> = {},
 ): { approve: boolean; onlyDeterministic: boolean } {
   // EXPLICIT --no-approve always wins — even over config.
   if (opts.approve === false) {
@@ -57,12 +70,25 @@ export function resolveApproveMode(
   if (autoApprove === 'deterministic') {
     return { approve: true, onlyDeterministic: true };
   }
-  if (autoApprove === 'full') {
+  if (autoApprove === 'full' && !isCiEnvironment(env)) {
     return { approve: true, onlyDeterministic: false };
   }
 
-  // false / undefined → read-only (today's default behavior).
+  // false / undefined (or a config-driven full under CI) → read-only.
   return { approve: false, onlyDeterministic: false };
+}
+
+/**
+ * True when the environment declares itself a CI run: the `CI` variable that
+ * GitHub Actions, GitLab CI, CircleCI, Travis, Buildkite, Azure Pipelines (via
+ * its own export) and most other runners set. Empty, `0`, and `false` read as
+ * "not CI", so a developer can switch a leaked `CI=1` off without unsetting it.
+ */
+export function isCiEnvironment(env: Readonly<Record<string, string | undefined>>): boolean {
+  const v = env.CI;
+  if (v === undefined) return false;
+  const norm = v.trim().toLowerCase();
+  return norm !== '' && norm !== '0' && norm !== 'false';
 }
 
 /**
@@ -337,7 +363,23 @@ export function registerCheckCommand(program: Command): void {
         const isTriageView = wantsTop || opts.summary || opts.details || opts.aspect !== undefined;
         const mode = isTriageView
           ? { approve: false, onlyDeterministic: false }
-          : resolveApproveMode(opts, graph.config);
+          : resolveApproveMode(opts, graph.config, process.env);
+
+        // Say so when CI held a committed `auto_approve: full` back — a silent
+        // downgrade would leave the author wondering why their setting "broke".
+        if (
+          !isTriageView &&
+          opts.approve === undefined &&
+          opts.onlyDeterministic !== true &&
+          graph.config?.auto_approve === 'full' &&
+          isCiEnvironment(process.env)
+        ) {
+          process.stderr.write(chalk.yellow(`Notice: ${buildIssueMessage({
+            what: "auto-approve: full ignored — CI is set, so bare 'yg check' stays read-only and calls no reviewer.",
+            why: 'auto_approve lives in the committed yg-config.yaml, so a local convenience reaches every pipeline; in CI a config-driven fill would record fresh verdicts over a change nobody re-verified. Verdicts are recorded where the change is made, and CI only re-proves them.',
+            next: 'Nothing, for the gate: the read-only result below is the CI answer. To record verdicts in this run anyway, pass --approve explicitly.',
+          })}`) + '\n');
+        }
 
         // --dry-run is a preview MODE of --approve, not a standalone alias for the
         // plain read. Without an effective approve mode it is a usage error: steer

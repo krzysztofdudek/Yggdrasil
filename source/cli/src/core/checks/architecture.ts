@@ -316,8 +316,13 @@ export function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
 
   // invalid-relation-target and invalid-parent-type require architecture to be defined and loaded
   // Only validate if architecture has node_types entries
-  if (!graph.architecture || Object.keys(graph.architecture.node_types).length === 0) {
-    return issues;
+  if (!graph.architecture) return issues;
+  if (Object.keys(graph.architecture.node_types).length === 0) {
+    // Pre-architecture project (what `yg init` writes): type checks are held
+    // back, but say so per node — silently accepting any type string teaches
+    // that types are free-form labels, and the first type anyone adds would
+    // then turn every such node red at once.
+    return checkNodeTypesPending(graph);
   }
 
   // type-undefined: node uses a type not defined in architecture
@@ -329,6 +334,34 @@ export function checkArchitectureConstraints(graph: Graph): ValidationIssue[] {
   // invalid-parent-type (sync, no I/O)
   issues.push(...checkArchitectureParents(graph));
 
+  return issues;
+}
+
+/**
+ * type-undefined-pending (WARNING): the architecture declares no node types yet,
+ * so `type-undefined` and `type-without-when-with-mapping` are not enforced —
+ * but they will be, for every node at once, the moment the first type is added.
+ * One warning per node names its undeclared type and what defining it takes.
+ * Never blocks: a project mapping nodes before designing types is legitimate.
+ */
+export function checkNodeTypesPending(graph: Graph): ValidationIssue[] {
+  const issues: ValidationIssue[] = [];
+  for (const [nodePath, node] of graph.nodes) {
+    const maps = (node.meta.mapping ?? []).length > 0;
+    const msgData: IssueMessage = {
+      what: `Node type '${node.meta.type}' is not defined — yg-architecture.yaml declares no node types yet.`,
+      why: `While node_types is empty, node types are not checked. Once any type is declared, every node whose type is missing becomes a blocking type-undefined error${maps ? ', and a type whose nodes map files must declare when:' : ''}.`,
+      next: `Define '${node.meta.type}' under node_types in yg-architecture.yaml${maps ? ' with a when: predicate matching its files' : ''} (an architecture change — confirm it first). yg type-suggest --file <path> can help design it.`,
+    };
+    issues.push({
+      severity: 'warning',
+      code: 'type-undefined-pending',
+      rule: 'type-undefined-pending',
+      nodePath,
+      ...issueMsg(msgData),
+      messageData: msgData,
+    });
+  }
   return issues;
 }
 

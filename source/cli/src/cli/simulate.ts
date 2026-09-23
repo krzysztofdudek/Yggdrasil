@@ -542,13 +542,9 @@ export function renderReport(params: {
       `${chalk.dim(`non-comparable ${nonComparable}`)}`,
   );
   lines.push('');
-  lines.push(
-    chalk.dim(
-      'Caveat: the old rule gate already refused some code that never landed, so this history is a ' +
-        'filtered sample — the counts above are bounds, not the whole truth.',
-    ),
-  );
-  lines.push(chalk.dim(WALD_LABEL));
+  // ONE caveat line: the survivorship bias stated once, with the Wald label
+  // verbatim as its conclusion (two lines once said the same thing twice).
+  lines.push(chalk.dim(`Caveat: the old rule gate already refused code that never landed, so ${WALD_LABEL}`));
   lines.push('');
   return lines.join('\n');
 }

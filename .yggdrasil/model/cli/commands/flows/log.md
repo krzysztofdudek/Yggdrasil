@@ -8,3 +8,5 @@ Migrated remaining ad-hoc stderr errors to buildIssueMessage (constant-text erro
 Removed unused chalk import after migrating error path to abortOnUnexpectedError.
 ## [2026-05-31T17:27:16.948Z]
 Moved the shared command-layer support helpers — the graph-load-or-abort wrapper and the unexpected-error funnel — out of the formatters layer and into the command layer. These helpers must reach both the engine (to load the graph) and the formatters (to build the uniform what/why/next message), and only the command layer may legally depend on both; keeping them in the formatters layer was an upward dependency on the engine that the layering rules forbid. The helpers register no command of their own, so they live under a dedicated command-support classification rather than as a command handler. Command handlers now import them from their new command-layer location.
+## [2026-09-23T19:15:12.478Z]
+An empty graph used to print nothing at all, which reads as a failure rather than an answer. The listing now says there are no flows defined.

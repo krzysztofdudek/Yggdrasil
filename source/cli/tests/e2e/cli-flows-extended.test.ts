@@ -610,7 +610,7 @@ describe.skipIf(!distExists)('CLI E2E — flows extended (multi-aspect / dry-run
   // L. yg flows listing — empty, multiple, and the participants: alias.
   // =========================================================================
 
-  it('L1: yg flows on a graph with NO flows prints nothing and exits 0', () => {
+  it('L1: yg flows on a graph with NO flows says there are none and exits 0', () => {
     const dir = deterministicFixture('l1');
     try {
       rmSync(path.join(dir, '.yggdrasil', 'flows', 'order-processing'), {
@@ -619,7 +619,7 @@ describe.skipIf(!distExists)('CLI E2E — flows extended (multi-aspect / dry-run
       });
       const flows = run(['flows'], dir);
       expect(flows.status).toBe(0);
-      expect(flows.stdout).toBe('');
+      expect(flows.stdout).toBe('(no flows defined)\n');
       // And check accounts zero flows.
       const check = run(['check'], dir);
       expect(check.stdout).toContain('0 flows');

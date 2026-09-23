@@ -736,7 +736,7 @@ export function registerInitCommand(program: Command): void {
   program
     .command('init')
     .description('Initialize Yggdrasil graph in current project')
-    .option('--upgrade', 'Non-interactive: refresh agent rules')
+    .option('--upgrade', 'Non-interactive: refresh agent rules, lift the config version (running its migrations), remove files retired installers left behind, and split a legacy yg-lock.json into the lock triad')
     .option('--platform <name>', `Deprecated — accepted for backward compatibility only; agent rules now install identically for every agent, so this only prints a notice and is otherwise ignored (formerly one of: ${DEPRECATED_PLATFORMS.join(', ')})`)
     .option('--provider <name>', `Configure a reviewer non-interactively — fresh or existing repo (${ALL_PROVIDERS.join(', ')})`)
     .option('--model <name>', 'Reviewer model (defaults to sonnet for claude-code; required otherwise)')
