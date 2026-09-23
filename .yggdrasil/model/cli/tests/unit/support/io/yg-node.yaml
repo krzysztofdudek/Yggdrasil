@@ -54,3 +54,6 @@ mapping:
   - source/cli/tests/unit/io/read-or-default.test.ts
   - source/cli/tests/unit/io/type-class-cache.test.ts
   - source/cli/tests/unit/io/atomic-write-sweep.test.ts
+  - source/cli/tests/unit/io/atomic-write-retry.test.ts
+  - source/cli/tests/unit/io/exclusive-file.test.ts
+  - source/cli/tests/unit/io/events-rotation.test.ts

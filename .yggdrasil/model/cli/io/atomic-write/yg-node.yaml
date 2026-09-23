@@ -1,6 +1,6 @@
 name: Atomic Write
 type: persistence-adapter
-description: Low-level atomic file write helper — writes via a temp file + rename to avoid partial writes on crash or signal.
+description: "Low-level atomic file write helper — writes via a temp file + rename to avoid partial writes on crash or signal, retrying a write that fails only for a moment (a rename refused with EPERM, EBUSY or EACCES while another program holds the target) with a short backoff before giving up, and offering a synchronous twin for the one place that cannot wait: a signal handler. It also owns the two other primitives a writer that shares a directory with other processes needs: an exclusive lock file created with O_EXCL that records who holds it and is replaced when its holder is gone, and a hook that runs registered callbacks synchronously on SIGINT or SIGTERM before re-raising the signal."
 relations:
   - target: cli/utils
     type: calls

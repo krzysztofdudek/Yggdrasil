@@ -14,7 +14,11 @@ description: "Filesystem readers and writers for runtime state — find index,
   allowed to write. An install is all-or-nothing by construction — the copy is
   staged out of sight, the record is written next, and only then does the staging
   directory become the real one, so a failure at the step that can genuinely fail
-  leaves no half-installed rule set behind. Beside it sits a
+  leaves no half-installed rule set behind. The log store serializes every
+  read-compose-replace of a log behind a short repository-wide lock file, and
+  the local verdict-events sidecar is rotated to one previous generation once it
+  reaches its size cap, so an append-only record every run adds to stays bounded.
+  Beside it sits a
   separate, local cache of what each installed package's source was last seen to
   publish — knowledge about somebody else's repository rather than this one, so
   it is deliberately NOT folded into the installation record, whose stability is

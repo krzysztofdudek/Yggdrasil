@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { freshPortalData, renderLivePage, readStaticAsset, loadingShell, errorPage } from './page.js';
-import { runApproveViaCli, dryRunApproveViaCli } from './approve.js';
+import { runApproveViaCli, dryRunApproveViaCli, approveInProgress } from './approve.js';
 
 /**
  * server/router — maps one HTTP request to one response for the loopback portal server.
@@ -195,6 +195,14 @@ export async function handleRequest(
       const body = await readJsonBody(req);
       // Default the LLM checkbox to ON, matching the CLI's full --approve; llm:false is the free path.
       const llm = body.llm !== false;
+      // One approval per repository at a time: a second would overwrite the first one's verdicts.
+      if (approveInProgress(config.projectRoot)) {
+        sendJson(res, 409, {
+          error: 'approve-in-progress',
+          message: 'An approval is already running in this repository; wait for it to finish, then approve again.',
+        });
+        return;
+      }
       const result = await runApproveViaCli(config.projectRoot, llm);
       sendJson(res, 200, {
         ok: result.exitCode === 0,

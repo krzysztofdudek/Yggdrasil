@@ -417,6 +417,7 @@ separately.
 | `.yg-fill-divergence.log*` | Forensic evidence, written only when a single run disagrees with itself because something outside Yggdrasil rewrote a tracked file mid-run (see [Running in parallel](/concurrency)). The trailing `*` also covers its `.1` rotation. |
 | `.feature-field.json` | The silent structural-deviation index behind the [structural-attention](/feature-field) hint. |
 | `.yg-packages-versions.json` | What each installed package's source was last seen to publish — a local cache the `yg pack` commands write while they are already talking to a source. |
+| `.yg-*.lock` | The run-exclusion lock files — `.yg-approve.lock`, held for the length of `yg check --approve`, and `.yg-log.lock`, held for the moment a log entry is written (see [Running in parallel](/concurrency)). They exist only while a command runs; the first command that takes one adds this line if it is missing. |
 | `*.tmp` | An atomic write's half-finished temp file, orphaned by a hard kill. `yg check` sweeps stale ones on startup; this keeps one from showing up as untracked noise before that. |
 
 Every one of them is rebuildable, so a fresh clone missing all of them is a normal

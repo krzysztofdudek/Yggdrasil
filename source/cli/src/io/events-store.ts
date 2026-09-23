@@ -12,10 +12,19 @@
  */
 
 import path from 'node:path';
-import { appendToDebugLog } from './debug-log-writer.js';
+import { appendToDebugLog, appendWithRotation } from './debug-log-writer.js';
 
 /** The LOCAL events sidecar's filename, relative to the `.yggdrasil/` graph root. Gitignored — never committed. */
 export const EVENTS_FILENAME = '.yg-events.jsonl';
+
+/**
+ * Size at which the local sidecar is rotated to `<sidecar>.1` (one previous
+ * generation is kept, and events-reader reads it before the current file), so
+ * the local record stays at about twice this size however many runs append to
+ * it. The committed shared stream is NOT rotated: it is merged across branches
+ * by git, and a rotation there would be a rewrite of a committed file.
+ */
+export const EVENTS_ROTATE_BYTES = 5 * 1024 * 1024;
 
 /**
  * The COMMITTED shared LLM-fill event stream's filename, relative to the
@@ -105,7 +114,7 @@ export function appendVerdictEvent(
       appendToDebugLog(path.join(yggRootPath, COMMITTED_EVENTS_FILENAME), JSON.stringify(shared) + '\n');
       return;
     }
-    appendToDebugLog(path.join(yggRootPath, EVENTS_FILENAME), JSON.stringify(event) + '\n');
+    appendWithRotation(path.join(yggRootPath, EVENTS_FILENAME), JSON.stringify(event) + '\n', EVENTS_ROTATE_BYTES);
   } catch {
     /* swallowed by contract — telemetry must never affect a fill */
   }

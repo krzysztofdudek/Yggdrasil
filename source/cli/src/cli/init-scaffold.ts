@@ -6,7 +6,7 @@ import { installRules } from '../templates/platform.js';
 import type { RulesArtifactsConfig } from '../model/graph.js';
 import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { FILL_DIVERGENCE_GITIGNORE_LINE } from '../io/debug-log-writer.js';
+import { FILL_DIVERGENCE_GITIGNORE_LINE, RUN_LOCK_GITIGNORE_LINE } from '../io/debug-log-writer.js';
 import { PACKAGE_VERSIONS_CACHE_FILENAME } from '../io/package-versions-cache.js';
 
 // ---------------------------------------------------------------------------
@@ -96,6 +96,7 @@ export async function ensureGitattributes(repoRoot: string): Promise<string[]> {
  *    - `.feature-field.json` — `yg check`'s silent structural-deviation attention index
  *    - `.yg-packages-versions.json` — what each installed package's source was last seen to publish
  *    - `*.tmp`            — an atomic write's half-finished temp file, orphaned by a hard kill
+ *    - `.yg-*.lock`       — the run-exclusion lock files held while an approval or a log write runs
  *  This is the single source of truth for what init writes into the local
  *  gitignore (both fresh init and every --upgrade). Paths are relative to the
  *  `.yggdrasil/` directory the file lives in. */
@@ -149,6 +150,12 @@ const YGGDRASIL_GITIGNORE_LINES = [
   // keeps one from showing up as untracked noise in the window before that, and covers
   // any left by a run of an older CLI.
   '*.tmp',
+  // Run-exclusion lock files: `.yg-approve.lock`, held by `yg check --approve` from its
+  // lock read to its last write so a second approval cannot overwrite its verdicts, and
+  // `.yg-log.lock`, held for the moment a log entry is read, composed and replaced. They
+  // exist only while a command runs (or after a crash, until the next run replaces
+  // them); never committed.
+  RUN_LOCK_GITIGNORE_LINE,
 ] as const;
 
 /**

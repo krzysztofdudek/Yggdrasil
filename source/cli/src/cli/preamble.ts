@@ -3,7 +3,7 @@ import { stat } from 'node:fs/promises';
 import chalk from 'chalk';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError, MalformedSchemaVersionError, FlowLoadError } from '../core/graph-loader.js';
-import { LockInvalidError } from '../io/lock-store.js';
+import { LockEnvironmentError, LockInvalidError } from '../io/lock-store.js';
 import type { Graph } from '../model/graph.js';
 
 /**
@@ -20,6 +20,12 @@ export function abortOnUnexpectedError(error: unknown, context: string): never {
   // fail-closed gate for corrupted or unrecognized lock files.
   if (error instanceof LockInvalidError) {
     process.stderr.write(chalk.red(`Error: ${error.message}\n`));
+    process.exit(1);
+  }
+  // An ENVIRONMENT problem around the lock — another approval holds it, or the
+  // file system refused the write — is not a bug and says what to do about it.
+  if (error instanceof LockEnvironmentError) {
+    process.stderr.write(chalk.red(`Error: ${buildIssueMessage(error.messageData)}\n`));
     process.exit(1);
   }
   const message = error instanceof Error ? error.message : String(error);

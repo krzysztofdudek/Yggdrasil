@@ -34,3 +34,5 @@ under an attacker-controlled hostname. The plain page and static-asset routes
 are deliberately left unguarded, because a browser navigates to them directly
 and cannot attach a custom header; those routes perform no action and reveal
 only the same page a local operator already sees.
+## [2026-09-23T20:25:27.874Z]
+The Approve button spawned a new approval on every click with no regard for one already running, and two approvals overlapping on the same lock overwrite each other's verdicts. The server now answers 409 while an approval is running in the project, whether it spawned that run itself or another process holds the CLI's approval lock, and it still leaves the lock itself to the spawned CLI, which is the guard that cannot race.
