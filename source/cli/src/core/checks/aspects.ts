@@ -17,9 +17,32 @@ const DEFAULT_PORT_NAME = 'default';
 
 // --- Rule 2: All aspect references must point to defined aspects (aspect-undefined) ---
 
+/**
+ * What to do about an id that names no loaded rule.
+ *
+ * Two cases are not "create the directory". A rule whose definition exists but
+ * failed to load is already reported, with its real cause, by the load error —
+ * repeating it here as undefined would bury that cause under one misleading line
+ * per attachment, so those ids are skipped entirely. And a rule under
+ * `packages/` is installed, never written by hand: creating files inside the
+ * packages area is exactly what the copy rail refuses.
+ */
+function undefinedNext(aspectId: string): string {
+  if (aspectId.startsWith('packages/')) {
+    return `'${aspectId}' names a rule installed from a package, and no installed package provides it. Run yg pack list to see what is installed: install the package with yg pack add, or detach the rule (a package update may have renamed or dropped it).`;
+  }
+  return `Create the aspects/${aspectId} directory with yg-aspect.yaml and content.md.`;
+}
+
 export function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
-  const definedAspects = new Set(graph.aspects.map((a) => a.id));
+  const loaded = new Set(graph.aspects.map((a) => a.id));
+  // A rule that exists but failed to load — or sits in a package that failed to
+  // load — is reported by its own load error, not again here.
+  const failedToLoad = (graph.aspectParseErrors ?? []).map((e) => e.aspectId);
+  const definedAspects = {
+    has: (id: string): boolean => loaded.has(id) || failedToLoad.some((f) => id === f || id.startsWith(`${f}/`)),
+  };
 
   // Check node aspects
   for (const [nodePath, node] of graph.nodes) {
@@ -33,7 +56,7 @@ export function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
           ...issueMsg({
             what: `Aspect '${aspectId}' is referenced by this node but not defined in aspects/.`,
             why: `Node declares an aspect that does not exist — aspect requirements cannot be verified.`,
-            next: `Create the aspects/${aspectId} directory with yg-aspect.yaml and content.md.`,
+            next: undefinedNext(aspectId),
           }),
         });
       }
@@ -51,7 +74,7 @@ export function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
               ...issueMsg({
                 what: `Aspect '${aspectId}' is referenced by port '${portName}' but not defined in aspects/.`,
                 why: `Port declares a required aspect that does not exist — port contracts cannot be enforced.`,
-                next: `Create the aspects/${aspectId} directory with yg-aspect.yaml and content.md.`,
+                next: undefinedNext(aspectId),
               }),
             });
           }
@@ -71,7 +94,7 @@ export function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
           ...issueMsg({
             what: `Aspect '${aspectId}' is referenced by architecture type '${typeId}' but not defined in aspects/.`,
             why: `Architecture declares a required aspect that does not exist.`,
-            next: `Create the aspects/${aspectId} directory with yg-aspect.yaml and content.md.`,
+            next: undefinedNext(aspectId),
           }),
         });
       }
@@ -89,7 +112,7 @@ export function checkDanglingAspectRefs(graph: Graph): ValidationIssue[] {
           ...issueMsg({
             what: `Aspect '${aspectId}' is referenced by flow '${flow.name}' but not defined in aspects/.`,
             why: `Flow declares an aspect that does not exist — flow requirements cannot propagate.`,
-            next: `Create the aspects/${aspectId} directory with yg-aspect.yaml and content.md.`,
+            next: undefinedNext(aspectId),
           }),
         });
       }

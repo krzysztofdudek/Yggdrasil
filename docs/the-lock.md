@@ -8,6 +8,8 @@ This is the depth page. Day to day you never touch the lock — your agent runs 
 
 The payoff is simple: every verdict is recorded so that CI doesn't re-run the reviewer — it recomputes a hash and confirms the recorded verdicts still match the current code. Fast, keyless, and it travels with the repo.
 
+Not to be confused with the **package record**, `.yggdrasil/yg-packages.yaml`, which says what [packages](/packages) are installed and what their copied files hashed to. It holds no verdict and is not part of the lock.
+
 ## The three lock files
 
 On disk the lock is a **triad** of files under `.yggdrasil/`, partitioned by the *kind* of reviewer that produced each verdict:
@@ -46,6 +48,7 @@ What the hash folds depends on the reviewer kind:
 - **LLM pair (without companion)** — the rule text (`content.md`), the subject files, the aspect description, any reference files, and the **name** of the resolved reviewer tier. The tier's config (provider, model, endpoint, temperature, consensus) is not folded — only its name, so re-pointing a named tier at a different reviewer leaves verdicts valid.
 - **LLM pair (with `companion.mjs`)** — all of the above, plus two additional ingredients folded only when present: `companionHash` (SHA-256 of `companion.mjs`, present whenever the aspect ships `companion.mjs`) and `touched` (the hook's observations — the companion files the runner read plus any `ctx.fs`/`ctx.graph` accesses — folded only when the set is non-empty). A plain LLM aspect passes neither, so its hash is byte-identical to before: there is no lock-format change, no schema-version bump, no migration.
 - **Deterministic pair** — the rule (`check.mjs`), the subject files, and everything the check observed beyond those files: each file it read, each directory it listed, each existence probe (including the ones that came back `false`), each node file list it walked (which files the list held, even when the check read only their names), and each piece of graph topology it looked at.
+- **Either kind, when the rule's directory holds more than its rule files** — every other file there is folded in with the rule: a helper module `check.mjs` or `companion.mjs` imports, a table it ships. Their bytes decide the verdict as much as the rule file's own, so changing only a helper re-opens the rule. Left out: `yg-aspect.yaml`, `log.md`, a package rule's adaptation and its log, a generator's `provenance.json`, dot-prefixed entries, a nested rule's own directory, and the `drills/` corpus. Folded only when present: a rule directory holding nothing else hashes exactly as it always did.
 
 Change any folded input and the pair goes unverified. Edit a source file, edit the rule, point the aspect at a different named tier, move a file the check was watching — all of these. The next `yg check --approve` re-verifies them.
 

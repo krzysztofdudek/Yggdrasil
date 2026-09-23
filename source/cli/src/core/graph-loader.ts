@@ -383,6 +383,15 @@ async function scanAspectsDirectory(
   }
 }
 
+/** Why a directory under `aspects/packages/` that is not an installed package loads nothing. */
+function packagesReservedMessage(dirId: string): IssueMessage {
+  return {
+    what: `.yggdrasil/aspects/${dirId} is not an installed package, and ${PACKAGES_DIR}/ under .yggdrasil/aspects/ holds nothing else — nothing in it was loaded.`,
+    why: `Since 6.0.0 the directory .yggdrasil/aspects/${PACKAGES_DIR}/ is reserved for packages installed with yg pack, laid out as <owner>/<repo>/<package>/ with a ${PACKAGE_FILENAME} in each. A rule of this repository's own placed there is never read, so everything that attaches it reports it as undefined.`,
+    next: `Move your own rule to a directory under .yggdrasil/aspects/ outside ${PACKAGES_DIR}/ and update the ids that attach it; if this was an installed package, install it again with yg pack add.`,
+  };
+}
+
 /**
  * Load every rule installed from a package.
  *
@@ -405,12 +414,23 @@ async function scanInstalledPackages(
 ): Promise<void> {
   const packagesRoot = path.join(aspectsDir, PACKAGES_DIR);
   const owners = await readSortedDirOrEmpty(packagesRoot);
+  // A rule of this repository's own sitting where only installed packages may
+  // live is not loaded — and saying only "undefined" wherever it is attached
+  // would hide why. Every level of the fixed layout that holds a rule
+  // definition of its own is named as the reserved directory it is.
+  const reserved = (dirId: string, entries: Array<{ name: string; isFile(): boolean }>): void => {
+    if (!entries.some((e) => e.isFile() && e.name === 'yg-aspect.yaml')) return;
+    parseErrors.push({ aspectId: dirId, code: 'aspect-packages-dir-reserved', messageData: packagesReservedMessage(dirId) });
+  };
+  reserved(PACKAGES_DIR, owners);
   for (const owner of owners) {
     if (!owner.isDirectory() || owner.name.startsWith('.')) continue;
     const repos = await readSortedDirOrEmpty(path.join(packagesRoot, owner.name));
+    reserved(`${PACKAGES_DIR}/${owner.name}`, repos);
     for (const repo of repos) {
       if (!repo.isDirectory() || repo.name.startsWith('.')) continue;
       const packages = await readSortedDirOrEmpty(path.join(packagesRoot, owner.name, repo.name));
+      reserved(`${PACKAGES_DIR}/${owner.name}/${repo.name}`, packages);
       for (const pkgDir of packages) {
         if (!pkgDir.isDirectory() || pkgDir.name.startsWith('.')) continue;
         const installId = `${owner.name}/${repo.name}/${pkgDir.name}`;
@@ -425,7 +445,14 @@ async function scanInstalledPackages(
         const manifestResult = await parsePackageManifest(manifestPath, presentDirs);
         if (!manifestResult.ok) {
           for (const err of manifestResult.errors) {
-            parseErrors.push({ aspectId: idPrefix, code: err.code, messageData: err.messageData });
+            // No manifest at all is not a broken package but a directory that
+            // was never one — most often a rule of the repository's own, from
+            // before packages/ was reserved.
+            parseErrors.push(
+              err.code === 'package-manifest-missing'
+                ? { aspectId: idPrefix, code: 'aspect-packages-dir-reserved', messageData: packagesReservedMessage(idPrefix) }
+                : { aspectId: idPrefix, code: err.code, messageData: err.messageData },
+            );
           }
           continue;
         }

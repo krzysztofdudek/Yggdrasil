@@ -430,8 +430,13 @@ verdict cache: those pairs read as unverified until
 
 The committed side is the graph itself — `yg-config.yaml`, `yg-architecture.yaml`,
 the `model/`, `aspects/` and `flows/` trees, the two committed lock files, the
-incident ledger, the attention-decision record, and (when opted in) the shared
-events stream.
+incident ledger, the attention-decision record, (when opted in) the shared
+events stream, and — in a repository that installs packages — the package record
+`yg-packages.yaml` with the copies under `aspects/packages/`. The package record
+says what is installed: for each package its source, its install directory, the
+version, what was asked for (a pinned version or `latest`), the tag and commit it
+was taken from, and what every copied file hashed to. It is not a verdict lock;
+see [Packages](/packages).
 
 ---
 

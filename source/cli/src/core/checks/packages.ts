@@ -3,7 +3,7 @@ import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 import type { PackagesLock } from '../../model/packages.js';
 import type { ValidationIssue } from '../../model/validation.js';
-import { ADAPT_FILENAME, PACKAGES_LOCK_FILENAME } from '../../model/packages.js';
+import { ADAPT_FILENAME, CONSUMER_FILENAMES, PACKAGES_LOCK_FILENAME } from '../../model/packages.js';
 import { parsePackagesLock } from '../../io/package-manifest-parser.js';
 import { hashAspectsRelativeFile, listAllPackageFiles, packagesLockPath } from '../../io/package-store.js';
 import { issueMsg } from './shared.js';
@@ -25,9 +25,10 @@ import { issueMsg } from './shared.js';
  * from elsewhere is that what you run is what they published, and a rail you can
  * turn off does not carry that.
  *
- * The consumer's own `yg-aspect.adapt.yaml` is never checked and never recorded.
- * It is the place a repository is MEANT to write, and objecting to it would leave
- * nowhere to adapt a rule at all.
+ * The consumer's own files beside a copy — `yg-aspect.adapt.yaml`, and the rule's
+ * history in `yg-aspect.adapt.log.md` — are never checked and never recorded. They
+ * are the places a repository is MEANT to write, and objecting to them would leave
+ * nowhere to adapt a rule or keep its history at all.
  */
 
 /** The one blocking code this rail emits. */
@@ -83,9 +84,10 @@ export async function collectPackagesDrift(
   const unknown: string[] = [];
 
   for (const filePath of actual) {
-    // The adapt file is the consumer's own writing. It is never in the lock and
-    // is never judged here — that is the whole point of it existing.
-    if (path.posix.basename(filePath) === ADAPT_FILENAME) continue;
+    // The adapt file and the rule's history are the consumer's own writing. They
+    // are never in the lock and never judged here — that is the whole point of
+    // them existing.
+    if (CONSUMER_FILENAMES.includes(path.posix.basename(filePath))) continue;
     const record = expected.get(filePath);
     if (record === undefined) {
       unknown.push(filePath);
@@ -144,7 +146,7 @@ export async function checkPackageFilesModified(graph: Graph): Promise<Validatio
       issue({
         what: `${repoRelativePackagePath(filePath)} sits among the installed packages, but no installed package put it there.`,
         why: `Everything under .yggdrasil/aspects/packages/ is a copy of law published elsewhere, recorded file by file in .yggdrasil/${PACKAGES_LOCK_FILENAME}. A file that is not in that record is a rule nobody chose, wearing a package's name.`,
-        next: `Delete ${repoRelativePackagePath(filePath)}. To add a rule of your own, put it in .yggdrasil/aspects/ outside packages/; to change one you installed, edit its ${ADAPT_FILENAME}.`,
+        next: `Delete ${repoRelativePackagePath(filePath)}. The directory .yggdrasil/aspects/packages/ is reserved for installed packages: to add a rule of your own, put it in .yggdrasil/aspects/ outside packages/; to change one you installed, edit its ${ADAPT_FILENAME}.`,
       }),
     );
   }
@@ -155,7 +157,7 @@ export async function checkPackageFilesModified(graph: Graph): Promise<Validatio
         issue({
           what: `${repoRelativePackagePath(filePath)} has been edited since it was installed from the package '${packageName}'.`,
           why: "A rule installed from someone else's repository is a copy: an update replaces it wholesale, so an edit here is silently discarded the next time the package moves — and until then, what runs is no longer what the package published.",
-          next: `Restore ${repoRelativePackagePath(filePath)} and put your change in the ${ADAPT_FILENAME} beside it instead. To take the change wholesale, run: yg pack update ${packageName}`,
+          next: `Put your change in the ${ADAPT_FILENAME} beside it instead, then restore the copy as it was installed: yg pack update ${packageName} --reinstall`,
         }),
       );
     }
@@ -164,7 +166,7 @@ export async function checkPackageFilesModified(graph: Graph): Promise<Validatio
         issue({
           what: `${repoRelativePackagePath(filePath)} is missing — the package '${packageName}' installed it and it is no longer there.`,
           why: 'The package is recorded as installed, so this file is part of the law this repository is running. A rule with a piece missing does not fail loudly; it stops applying.',
-          next: `Restore the file, or reinstall the package: yg pack update ${packageName}. To stop using it entirely, run: yg pack remove ${packageName}`,
+          next: `Restore the copy as it was installed: yg pack update ${packageName} --reinstall. To stop using the package entirely, run: yg pack remove ${packageName}`,
         }),
       );
     }

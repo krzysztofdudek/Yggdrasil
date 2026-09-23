@@ -6,9 +6,9 @@ import type { AspectDef, AspectReviewerSpec, AspectStatus, StatusInherit, ScopeD
 import { ASPECT_STATUS_VALUES, ERRS_DIRECTION_VALUES } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 import type { WhenPredicate } from '../model/when.js';
-import { readArtifacts } from './artifact-reader.js';
+import { readArtifacts, readSupportFileHashes } from './artifact-reader.js';
 import { mergeAdaptOverAspect, parseAspectAdapt, resolveAspectConfig } from './aspect-adapt-parser.js';
-import { ADAPT_FILENAME } from '../model/packages.js';
+import { ADAPT_FILENAME, ADAPT_LOG_FILENAME } from '../model/packages.js';
 import type { PackageConfigKeyDef } from '../model/packages.js';
 import { parseWhen, parseAspectAttachment } from '../utils/when-parser.js';
 import { parseFileWhen, WhenPredicateInvalidError } from '../utils/file-when-parser.js';
@@ -209,7 +209,19 @@ export async function parseAspect(
   // here and hashed into the verdict — and the consumer's own adaptation is not
   // part of what the package published. Left in, it would ride into the rule hash
   // and make every adapted rule look like a different rule.
-  const artifacts = await readArtifacts(aspectDir, ['yg-aspect.yaml', ADAPT_FILENAME]);
+  const artifacts = await readArtifacts(aspectDir, ['yg-aspect.yaml', ADAPT_FILENAME, ADAPT_LOG_FILENAME]);
+  // Everything else the rule's code can reach — a helper module, a shipped table
+  // — is a verdict input too. See readSupportFileHashes for what is left out.
+  const supportFiles = await readSupportFileHashes(aspectDir, [
+    'yg-aspect.yaml',
+    ADAPT_FILENAME,
+    ADAPT_LOG_FILENAME,
+    'log.md',
+    'provenance.json',
+    'content.md',
+    'check.mjs',
+    'companion.mjs',
+  ]);
 
   let status: AspectStatus | undefined;
   if (raw.status !== undefined) {
@@ -482,7 +494,9 @@ export async function parseAspect(
           messageData: {
             what: `Aspect '${idTrimmed}' declares 'references:' but reviewer.type is 'deterministic'.`,
             why: 'reference files are passed to the LLM reviewer in the prompt. Deterministic aspects run a local check.mjs and ignore them.',
-            next: `remove 'references:' from .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml, or embed lookup tables in check.mjs directly, or change reviewer.type to 'llm'.`,
+            next: options.package !== undefined
+              ? `remove 'references:' from ${toPosixPath(adaptFilePath)} — the adaptation beside the installed copy. A deterministic rule takes its settings through ctx.config instead; the package's own files are not yours to edit.`
+              : `remove 'references:' from .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml, or embed lookup tables in check.mjs directly, or change reviewer.type to 'llm'.`,
           },
         }],
       };
@@ -497,7 +511,9 @@ export async function parseAspect(
           messageData: {
             what: `Aspect '${idTrimmed}' declares 'references:' but it is an aggregating aspect (no content.md, no check.mjs).`,
             why: 'reference files are passed to the LLM reviewer in the prompt. An aggregating aspect has no own reviewer — it only bundles implied aspects, so references would never be read.',
-            next: `remove 'references:' from .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml, or add a content.md and move the references onto that LLM aspect.`,
+            next: options.package !== undefined
+              ? `remove 'references:' from ${toPosixPath(adaptFilePath)} — the adaptation beside the installed copy. A rule that only bundles others has no reviewer to read them.`
+              : `remove 'references:' from .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml, or add a content.md and move the references onto that LLM aspect.`,
           },
         }],
       };
@@ -731,6 +747,7 @@ export async function parseAspect(
       ...(errs !== undefined && { errs }),
       ...(scope !== undefined && { scope }),
       ...((hasCompanionMjs || companionPath !== undefined) && { hasCompanion: true }),
+      ...(supportFiles.length > 0 && { supportFiles }),
     },
   };
 }

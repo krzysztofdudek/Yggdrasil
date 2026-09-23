@@ -38,8 +38,10 @@ export const content = `# Packages and marketplaces
 
 A **package** is a set of rules one repository publishes and another installs. A
 **marketplace** is the repository that publishes them. There is no registry: a
-consumer installs from the URL they type, so the same package published from two
-forks is two different packages and neither can claim the other's name.
+consumer installs from the URL they type, and the package is filed under the
+repository that published it, so a fork cannot claim the original's rule names.
+A consumer holds one package of a given name at a time — its record is keyed by
+the name. A **version** is a git tag, \`pack/<package>@<version>\`.
 
 You are on the PUBLISHING side of this topic. For the consuming side —
 \`yg pack add\`, adapting a copy, updating — read the \`yg pack\` section of
@@ -77,7 +79,11 @@ a separator in it (a package name is one directory in every repository that
 installs it) and refuses to scaffold over a directory that already exists.
 
 Publish a version by tagging it \`pack/<package>@<version>\`. Nothing else is
-needed; that tag is what a consumer's \`@1.2.0\` checks out.
+needed: that tag is what a consumer's \`@1.2.0\` checks out, and the HIGHEST such
+tag is what a consumer who names no version installs. Nothing is ever installed
+from a default branch — a package with no tag cannot be installed from a
+repository at all. \`pack new\` writes \`requires.yg: "^<major>.0.0"\`: the running
+major, not the next one.
 
 ## Extracting a rule you already have into a package
 
@@ -148,10 +154,15 @@ arrive in someone's repository as law nobody announced.
 
 The rule a consumer installs stays byte for byte what you published — \`yg check\`
 refuses an edited copy by name, and \`yg pack update\` refuses to update a package
-whose copy has changed. Everything they want different goes in the
+whose copy has changed (\`yg pack update <name> --reinstall\` is how they put an
+edited copy back). Everything they want different goes in the
 \`yg-aspect.adapt.yaml\` written beside each copy: its granularity, its reviewer,
 its standing, its review date, its references, its companion module, and any
-setting you declared. (\`companion:\` matters to you specifically: a published rule
+setting you declared. The stub lists your settings with your defaults COMMENTED
+OUT, so a consumer who never opens it follows your defaults, including when you
+change one; a setting they uncomment is theirs. A rule's history in their
+repository lives beside the adaptation too, as \`yg-aspect.adapt.log.md\` — never
+inside your copy. (\`companion:\` matters to you specifically: a published rule
 cannot know a consumer's layout, so a rule that needs a repository-shaped hook
 ships yours and lets them point at their own.)
 
@@ -162,9 +173,15 @@ publish has to reason about what they changed, because they changed nothing.
 
 Two consequences for you:
 
-- **A setting you remove breaks their repository at load,** naming the key — so a
-  key you publish is a promise. Prefer leaving one and ignoring it, or bump the
-  major.
+- **A setting you remove breaks their repository at load** if they set it,
+  naming the key — so a key you publish is a promise. Prefer leaving one and
+  ignoring it, or bump the major. Their update warns them before it happens.
+- **A rule you rename or drop is refused by their update** while their graph
+  still attaches it (a component, a port, a type, a flow, or an \`implies:\`), and
+  its adaptation goes with it once they detach it.
+- **Every file in a rule's directory except its drills is part of the rule.** A
+  helper module your \`check.mjs\` imports enters the rule's verdicts, so a new
+  version that changes only the helper re-opens the verdicts it could change.
 - **A rule's \`name\`, \`description\`, \`implies\`, \`errs\`, \`when\` and every code file
   are NOT adaptable.** They are what the rule IS. Anything you want a consumer to
   tune has to be a setting.
@@ -172,13 +189,24 @@ Two consequences for you:
 ## Updating a package you publish
 
 1. Change the rules.
-2. Raise \`version:\` in \`yg-package.yaml\` AND the entry in \`yg-marketplace.yaml\`.
+2. Raise \`version:\` in \`yg-package.yaml\` AND the entry in \`yg-marketplace.yaml\`
+   — to the same number the tag will carry. A consumer is refused a version
+   whose tag, package manifest and marketplace entry disagree.
 3. \`yg marketplace check\`.
 4. \`git tag pack/<package>@<version> && git push --tags\`.
 
-A consumer's \`yg pack update\` compares against those tags. A rule whose content
+A consumer following your newest version takes the highest tag on their next
+\`yg pack update\`; one who pinned a version stays there until they move it with
+\`--to\`. Their update tells them, before it swaps anything in, what your version
+changes: rules added and removed, a change of standing (a draft you made
+enforced), a change to what a rule implies or to its scope, which files changed,
+and every setting added, removed or given a new default. A rule whose content
 actually changed goes back to unverified in their repository and gets judged
 again; a rule that did not keep its verdicts.
+
+**Never move a published tag.** The consumer's record names the commit the tag
+pointed at; \`yg pack verify\` reports a tag that moved, and \`--reinstall\`
+refuses one. Publish a new version instead.
 
 ## Reading \`yg marketplace check\`
 
@@ -210,11 +238,15 @@ name — see step 3 above), and \`package-drills-unrecognized\` (a directory und
 \`drills/\` under neither prefix — the runner skips it silently, so it looks like a
 case and runs as none).
 
-**\`marketplace check\` does not run your drills.** Running a case needs the graph
-context a rule is handed, and a marketplace has no graph — which is the whole
+**\`marketplace check\` does not run your drills.** Running a case needs a
+repository to run it in, and a marketplace has no graph — which is the whole
 reason this command does not load one. It checks that the cases are there and
 shaped the way the runner recognises. To watch them actually pass, install the
-package in a repository that has a graph and run \`yg drill --aspect <id>\`.
+package in a repository that has a graph and run \`yg drill --aspect <id>\`. A
+drill hands your rule the case files as \`ctx.files\` and \`ctx.subject\`, and its
+settings — your defaults, with that repository's adaptation over them — as
+\`ctx.config\`; a rule that reads the rest of the graph context (\`ctx.node\`,
+\`ctx.graph\`, \`ctx.fs\`, the parsers) is reported as unsupported by a drill.
 
 ## What packages deliberately are not
 

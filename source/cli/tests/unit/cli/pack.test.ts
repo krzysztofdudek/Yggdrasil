@@ -71,12 +71,12 @@ const LOCK: PackagesLock = {
 };
 
 describe('yg pack — what the command exposes', () => {
-  it('registers the five subcommands', () => {
+  it('registers the six subcommands', () => {
     const program = new Command();
     registerPackCommand(program);
     const pack = program.commands.find((c) => c.name() === 'pack');
     expect(pack).toBeDefined();
-    expect(pack!.commands.map((c) => c.name()).sort()).toEqual(['add', 'list', 'new', 'remove', 'update']);
+    expect(pack!.commands.map((c) => c.name()).sort()).toEqual(['add', 'list', 'new', 'remove', 'update', 'verify']);
   });
 
   it('says in its own description that installing runs someone else\'s code', () => {
@@ -95,6 +95,8 @@ describe('yg pack — what the command exposes', () => {
       pack.commands.find((c) => c.name() === name)!.options.map((o) => o.long ?? '');
     expect(flags('add')).toContain('--as');
     expect(flags('update')).toContain('--to');
+    expect(flags('update')).toContain('--allow-downgrade');
+    expect(flags('update')).toContain('--reinstall');
   });
 });
 
@@ -116,6 +118,21 @@ describe('the record written back to disk', () => {
     expect(read.ok).toBe(true);
     if (!read.ok) return;
     expect(read.value).toEqual(LOCK);
+  });
+
+  it('round-trips the provenance of a version: what was asked for, the tag, the commit, a given identity', async () => {
+    const withProvenance: PackagesLock = {
+      schema: 'yg-packages/1',
+      packages: {
+        demo: { ...LOCK.packages.demo, requested: '0.1.0', tag: 'pack/demo@0.1.0', commit: 'd'.repeat(40), identity: 'given' },
+      },
+    };
+    const root = newRepo();
+    await writePackagesLock(root, withProvenance);
+    const back = await parsePackagesLock(packagesLockPath(root));
+    expect(back.ok).toBe(true);
+    if (!back.ok) return;
+    expect(back.value).toEqual(withProvenance);
   });
 
   it('renders an empty record rather than omitting the key', async () => {
@@ -147,12 +164,30 @@ describe('the adaptation stub written beside a copied rule', () => {
     expect(stub).toContain('the rule IS');
   });
 
-  it('carries the package defaults as live YAML, not as comments', () => {
+  it('lists every setting with the package default, commented out so an untouched adaptation follows the package', () => {
     // A setting someone has to discover before they can change it is a setting
-    // nobody changes.
-    expect(stub).toContain('config:');
-    expect(stub).toContain('  threshold: 3');
-    expect(stub).toContain('  label: "house"');
+    // nobody changes — so every one is listed. But a live copy of each default
+    // pinned the install-day value: a later default was silently shadowed, and a
+    // renamed key broke the rule over a line the consumer never wrote.
+    expect(stub).toContain('# config:');
+    expect(stub).toContain('#   threshold: 3');
+    expect(stub).toContain('#   label: "house"');
+    expect(stub).not.toMatch(/^config:/m);
+    expect(stub).not.toMatch(/^ {2}threshold:/m);
+  });
+
+  it('offers only the keys that mean something for the kind of rule it is', () => {
+    const det = renderAdaptStub('demo', 'rule-a', { threshold: { type: 'number', default: 3 } }, 'deterministic');
+    // references, a reviewer tier and a companion feed an LLM reviewer; a script
+    // rule refuses them, so the stub never invites the edit.
+    expect(det).not.toContain('#   references:');
+    expect(det).not.toContain('#   reviewer:');
+    expect(det).not.toContain('#   companion:');
+    expect(det).toContain('#   scope:');
+    expect(det).toContain('#   status:');
+    const agg = renderAdaptStub('demo', 'bundle', undefined, 'aggregate');
+    expect(agg).not.toContain('#   scope:');
+    expect(agg).not.toContain('#   config:');
   });
 
   it('says so plainly when a rule reads no settings at all', () => {
@@ -396,8 +431,8 @@ describe('scaffolding a package', () => {
     expect(parsed.name).toBe('house-style');
     expect(parsed.version).toBe('0.1.0');
     // A package written against 6.4 works on 6.7; a range naming the patch would
-    // refuse consumers for no reason.
-    expect(parsed.requires.yg).toBe('>=6.0.0');
+    // refuse consumers for no reason. And it does not claim the next major.
+    expect(parsed.requires.yg).toBe('^6.0.0');
     expect(parsed.aspects).toEqual(['example']);
   });
 

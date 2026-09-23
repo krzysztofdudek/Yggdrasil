@@ -537,8 +537,11 @@ Each case resolves to one of five outcomes:
 - \`unrun\` — the case could not be evaluated (a check runtime error, or an LLM
   prompt over the tier's \`max_prompt_chars\`); infra, recorded, not scored.
 - \`unsupported\` — the rule needs context a drill cannot supply (a deterministic
-  check that reads graph context, or an LLM aspect that ships \`companion.mjs\`);
-  a capability gap, recorded, never counted as pass/fail.
+  check that reads graph context — \`ctx.node\`, \`ctx.graph\`, \`ctx.fs\`, the
+  parsers — or an LLM aspect that ships \`companion.mjs\`); a capability gap,
+  recorded, never counted as pass/fail. A drill DOES supply \`ctx.subject\` (the
+  case files) and \`ctx.config\` (the rule's settings, with this repository's
+  adaptation applied), so a rule parameterized through settings drills normally.
 
 Deterministic aspects run locally and FREE. LLM aspects go through the same
 production prompt path the reviewer uses and BILL the reviewer — the
@@ -1465,47 +1468,80 @@ the fix is always \`yg init --upgrade\`.
 
 Install rules another repository publishes, and adapt them beside the copy.
 There is no registry: a marketplace is an ordinary git repository with
-\`yg-marketplace.yaml\` at its root, and the identity a package is filed under
-comes from the URL you type — the same package published from two forks is two
-different packages.
+\`yg-marketplace.yaml\` at its root, a VERSION is a tag
+\`pack/<package>@<version>\`, and the identity a package is filed under comes
+from the URL you type. Every subcommand works on the repository the graph
+belongs to, from any directory inside it.
 
 \`\`\`bash
 yg pack add <url-or-path>#<package>[@<version>] [--as <owner>/<repo>]
-yg pack update [<package>] [--to <version>]
+yg pack update [<package>] [--to <version>|latest] [--allow-downgrade]
+yg pack update <package> --reinstall
 yg pack list
+yg pack verify [<package>]
 yg pack remove <package>
 yg pack new <name>
 \`\`\`
 
-- \`add\` — copies the package into
-  \`.yggdrasil/aspects/packages/<owner>/<repo>/<package>/\`, records what every
-  copied file hashed to in \`.yggdrasil/yg-packages.yaml\`, and writes a
-  \`yg-aspect.adapt.yaml\` beside each installed rule. \`--as <owner>/<repo>\`
-  supplies the publishing identity when the source cannot say for itself (a local
-  directory with no git origin). Installing a package that is already installed
-  is REFUSED, naming the installed version — use \`update\`.
-- \`update\` — replaces the copy with a newer version and carries your
-  adaptations across byte for byte. \`--to <version>\` takes an exact version
-  instead of whatever the source currently publishes; omitting the package name
-  updates every installed package. REFUSED, naming files, while a copied file has
-  been edited in place — the copy is never yours to edit; everything you want
-  different goes in the \`yg-aspect.adapt.yaml\` beside each rule, which an update
-  leaves alone. Rules whose content changed go back to \`unverified\`.
-- \`list\` — what is installed, which version, from where, and whether each copy
-  is still untouched. It names a newer version only when the source answers; an
-  unreachable source produces silence, never a claim that you are current. What a
-  reachable source said is also kept in a local, never-committed cache, which is
-  what lets \`yg advise\` mention a newer version without reaching outside the
-  repository.
-- \`remove\` — deletes the installed rules and the record. REFUSED while anything
-  in the graph still attaches one of them, listing what does.
+- \`add\` — takes the newest published version (the highest \`pack/<package>@*\`
+  tag, on any branch) or the one named with \`@<version>\`, which PINS it. Copies
+  the package from that tag into
+  \`.yggdrasil/aspects/packages/<owner>/<repo>/<package>/\`, and records in
+  \`.yggdrasil/yg-packages.yaml\` what was asked for, the tag, the commit it
+  pointed at, and what every copied file hashed to. A source publishing no tag
+  for the package is REFUSED — nothing is ever read from a default branch or a
+  working tree. A local git checkout is read through its tags like a remote; a
+  plain directory (not a repository) is copied as it is, and recorded with no tag
+  or commit. A local path is recorded relative to the repository root; a URL
+  without credentials. \`--as <owner>/<repo>\` supplies the identity when the
+  source cannot say (a local directory with no git origin). REFUSED when a
+  package of that name is already installed — from the same publisher (use
+  \`update\`) or from another one (one package of a given name at a time).
+- \`update\` — replaces the copy with another published version and carries your
+  adaptations and the rules' history across byte for byte. A package that
+  follows the newest version takes the highest tag; a pinned one is left where
+  it is (the output names what else is published). \`--to <version>\` takes and
+  pins that version; \`--to latest\` follows the newest again; going back
+  needs \`--allow-downgrade\`. It says, before swapping anything, what changes for
+  each rule (added, removed, standing, implies, scope, files, settings). ALL OR
+  NOTHING: every named package is fetched and judged before any is replaced —
+  an edited copy, an unreachable source, a version whose tag, package manifest
+  and marketplace entry disagree, a source that no longer is the recorded
+  publisher, or a dropped rule the graph still attaches (a component, a port, a
+  type, a flow, an \`implies:\`) stops the whole run with nothing changed.
+  \`--reinstall\` puts an edited or incomplete copy back from the version the
+  record names, keeping your adaptations; it refuses when the source no longer
+  publishes exactly that (a moved tag, a changed file).
+- \`list\` — what is installed, which version, pinned or following, from where,
+  the tag and commit, and whether each copy is still untouched. It names a newer
+  version only when the source answers; an unreachable source produces silence,
+  never a claim that you are current. What a reachable source said is also kept
+  in a local, never-committed cache, which is what lets \`yg advise\` mention a
+  newer version (and the \`--to\` command that takes it) without reaching outside
+  the repository.
+- \`verify\` — asks each source whether the recorded tag still points at the
+  recorded commit and whether the copy is still exactly what it holds. Exits 1 on
+  any difference. The record attests only to itself; this is the check against
+  the source.
+- \`remove\` — deletes the installed rules, their adaptations and the record.
+  REFUSED while anything in the graph still names one of the rules — a
+  component, a port, a type, a flow, or another rule's \`implies:\` — listing what
+  does.
 - \`new <name>\` — the PUBLISHING side, for a repository that is itself a
   marketplace (see \`yg marketplace\` below). Scaffolds \`packages/<name>/\`: a
-  package manifest, one example rule that reads one setting, and the two drill
-  cases that rule needs. It adds the package to \`yg-marketplace.yaml\` by editing
-  that file rather than regenerating it, so its comments survive. Refuses a name
-  carrying a path separator, and refuses to scaffold over a directory that
-  already exists.
+  package manifest (\`requires.yg: "^<major>.0.0"\`), one example rule that reads
+  one setting, and the two drill cases that rule needs. It adds the package to
+  \`yg-marketplace.yaml\` by editing that file rather than regenerating it, so its
+  comments survive. Refuses a name carrying a path separator, and refuses to
+  scaffold over a directory that already exists.
+
+One pack command changes the record at a time; a second one is refused while
+the first runs. The copy is never edited: \`yg check\` blocks an edited, missing
+or unrecorded file under \`.yggdrasil/aspects/packages/\` and a malformed record,
+and a rule of your own placed under \`packages/\` is not loaded (code
+\`aspect-packages-dir-reserved\`). A rule's history for an installed rule is
+written beside its adaptation, as \`yg-aspect.adapt.log.md\`; \`yg drill add\` on
+an installed rule is refused — its cases belong to the package.
 
 **Installing a package runs its author's code.** A rule's script runs in your own
 process on every \`yg check\`. What is sandboxed is what a rule may READ through
@@ -1514,10 +1550,10 @@ you trust that far.
 
 The documents involved: \`yg-marketplace/1\` (the source repository's root
 manifest), \`yg-package/1\` (each package directory in the source),
-\`yg-packages/1\` (\`.yggdrasil/yg-packages.yaml\`, the installed-package record),
-the per-rule \`yg-aspect.adapt.yaml\` (no schema key), and
-\`yg-package-versions/1\` (\`.yggdrasil/.yg-packages-versions.json\`, local and
-never committed). Full topic: \`yg knowledge read packages-and-marketplaces\`.
+\`yg-packages/1\` (\`.yggdrasil/yg-packages.yaml\`, the package record — what is
+installed, not a verdict lock), the per-rule \`yg-aspect.adapt.yaml\` (no schema
+key), and \`yg-package-versions/1\` (\`.yggdrasil/.yg-packages-versions.json\`,
+local and never committed). Full topic: \`yg knowledge read packages-and-marketplaces\`.
 
 ## yg marketplace
 
@@ -1548,8 +1584,9 @@ yg marketplace check
   \`yg knowledge read packages-and-marketplaces\`.
 
 One limit it states rather than implies: it does NOT run your drill cases.
-Running one needs the context a rule is handed, and a marketplace has no graph to
-build that from — install the package somewhere with a graph and run \`yg drill\`.
+Running one needs a repository, and a marketplace has no graph — install the
+package somewhere with a graph and run \`yg drill\`, which hands the rule the case
+files and its settings (\`ctx.files\`, \`ctx.subject\`, \`ctx.config\`).
 
 ## Validator issue codes — verification and status
 

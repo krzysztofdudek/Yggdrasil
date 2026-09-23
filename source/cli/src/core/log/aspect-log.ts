@@ -9,7 +9,11 @@
  * has the log; a `git log` archaeology dig does not scale to a rule someone
  * meets for the first time.
  *
- * The file is `log.md` inside the rule's own directory. Nothing parses it as
+ * The file is `log.md` inside the rule's own directory — except for a rule
+ * installed from a package, whose directory is the package's copy and may hold
+ * nothing the package did not ship. Its history is the consumer's own writing, so
+ * it lives beside the consumer's adaptation, as `yg-aspect.adapt.log.md`: the copy
+ * rail never judges it and an update carries it across. Nothing parses it as
  * part of the graph — it is prose for whoever reads the rule next — and it is
  * deliberately NOT a verdict input: recording why a case was added invalidates
  * nothing, exactly as a component's log does not.
@@ -22,6 +26,7 @@
 import path from 'node:path';
 
 import type { IssueMessage } from '../../model/validation.js';
+import { ADAPT_LOG_FILENAME, PACKAGES_DIR } from '../../model/packages.js';
 import { readLogSafe, statLogFile, writeLogFile } from '../../io/log-store.js';
 import { composeLogEntry } from './log-entry.js';
 import { parseLog } from '../parsing/log-parser.js';
@@ -52,7 +57,8 @@ export type AspectLogAddResult =
  * to and the path that is shown stay the same string.
  */
 export function aspectLogPath(yggRootPath: string, aspectId: string): string {
-  return toPosixPath(path.join(yggRootPath, 'aspects', ...aspectId.split('/'), 'log.md'));
+  const filename = aspectId.startsWith(`${PACKAGES_DIR}/`) ? ADAPT_LOG_FILENAME : 'log.md';
+  return toPosixPath(path.join(yggRootPath, 'aspects', ...aspectId.split('/'), filename));
 }
 
 /**

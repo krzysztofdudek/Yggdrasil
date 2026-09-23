@@ -144,3 +144,5 @@ The verdict writer now stamps every real verdict it records with when it was fil
 An approving run no longer records a port-contract baseline into the committed lock. The recording step — which used to run even on the free deterministic-only fill — is removed along with the check it fed, so there is nothing left for this stage to write on a port's behalf.
 ## [2026-09-23T19:22:57.839Z]
 The approving run's log gate names the same exit as the plain check: when the drift comes from a change the reader did not make, the reason must come from the user. The gate measures drift from the last recorded verdicts, which earlier commits by other people can cause, so the message must not assume the reader knows why the code changed.
+## [2026-09-23T20:30:57.511Z]
+The comment on recording rule standings claimed no committed file is written under the deterministic-only fill; the change of standing is appended to the rule's own committed log, beside the adaptation for an installed rule, and the comment now says so.

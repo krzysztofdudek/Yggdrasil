@@ -1562,7 +1562,7 @@ non-zero.
 |---------|---------|
 | `yg init` | Initialize or reconfigure |
 | `yg adopt <proposal-dir>` | Accept a proposed graph into this repository |
-| `yg pack add` / `update` / `list` / `remove` / `new` | Install rules published by another repository and adapt them beside the copy; `new` scaffolds a package to publish |
+| `yg pack add` / `update` / `list` / `verify` / `remove` / `new` | Install a published version of rules another repository publishes and adapt them beside the copy; `verify` checks the copy against its source; `new` scaffolds a package to publish |
 | `yg marketplace init` / `check` | Turn this repository into one that publishes rules, and check it before anyone installs from it |
 | `yg prime` [`--digest`] | Print the full agent operating manual fresh from the installed CLI (`--digest` prints only the committed digest block) |
 
@@ -1808,41 +1808,62 @@ the manual before the project has a graph at all.
 
 Installs rules published by another repository. There is no registry: a
 marketplace is an ordinary git repository with `yg-marketplace.yaml` at its root,
-and the identity a package is filed under comes from the URL you type. Full
-guide: [Packages](/packages).
+a version is a tag `pack/<package>@<version>`, and the identity a package is
+filed under comes from the URL you type. Every subcommand works on the
+repository the graph belongs to, from any directory inside it. Full guide:
+[Packages](/packages).
 
 ```bash
 yg pack add <url-or-path>#<package>[@<version>] [--as <owner>/<repo>]
-yg pack update [<package>] [--to <version>]
+yg pack update [<package>] [--to <version>|latest] [--allow-downgrade]
+yg pack update <package> --reinstall
 yg pack list
+yg pack verify [<package>]
 yg pack remove <package>
 yg pack new <name>
 ```
 
-- `add` — copies the package into `.yggdrasil/aspects/packages/<owner>/<repo>/<package>/`,
-  records what every copied file hashed to in `.yggdrasil/yg-packages.yaml`, and
-  writes a `yg-aspect.adapt.yaml` beside each installed rule. `--as` supplies the
-  publishing identity when the source cannot say for itself (a local directory
-  with no git origin). Installing a package that is already installed is refused
-  — use `update`.
-- `update` — replaces the copy with a newer version and carries your adaptations
-  across byte for byte. Refuses, naming files, while a copied file has been
-  edited. Rules whose content changed go back to unverified.
-- `list` — what is installed, which version, from where, and whether each copy is
-  still untouched. Names newer versions only when the source answers; an
-  unreachable source produces silence, never a claim that you are current. What a
-  reachable source says is also recorded in a local, never-committed cache, which
-  is what lets `yg advise` mention a newer version without reaching outside the
-  repository itself. `update` refreshes the same cache while it is already
-  talking to the source.
-- `remove` — deletes the rules and the record. Refuses while anything in the
-  graph still attaches one of them, listing what does.
+- `add` — takes the newest published version (the highest tag) or the one named
+  with `@<version>`, which pins it, and copies the package from that tag into
+  `.yggdrasil/aspects/packages/<owner>/<repo>/<package>/`. It records in
+  `.yggdrasil/yg-packages.yaml` what was asked for, the tag, the commit and what
+  every copied file hashed to, and writes a `yg-aspect.adapt.yaml` beside each
+  installed rule. A source that publishes no version of the package is refused;
+  nothing is read from a default branch or a working tree, except from a plain
+  directory that is not a repository, which is copied as it is and recorded
+  without a tag. `--as` supplies the publishing identity when the source cannot
+  say for itself (a local directory with no git origin). Installing a package
+  that is already installed, or another package of the same name, is refused.
+- `update` — replaces the copy with another published version and carries your
+  adaptations across byte for byte. A pinned package stays where it is;
+  `--to <version>` takes and pins a version, `--to latest` follows the newest
+  again, and going back needs `--allow-downgrade`. Says what changes for each
+  rule before swapping anything. All or nothing: refuses, naming the reason and
+  changing nothing, on an edited copy, an unreachable source, versions that
+  disagree, a source that is no longer the recorded publisher, or a dropped rule
+  the graph still names. `--reinstall` restores an edited or incomplete copy from
+  the version the record names. Rules whose content changed go back to
+  unverified.
+- `list` — what is installed, which version, pinned or following, from where, the
+  tag and commit, and whether each copy is still untouched. Names newer versions
+  only when the source answers; an unreachable source produces silence, never a
+  claim that you are current. What a reachable source says is also recorded in a
+  local, never-committed cache, which is what lets `yg advise` mention a newer
+  version without reaching outside the repository itself. `add` and `update`
+  refresh the same cache while they are already talking to the source.
+- `verify` — asks each source whether the recorded tag still points at the
+  recorded commit and whether the copy is still exactly what it holds; exits 1 on
+  any difference.
+- `remove` — deletes the rules, their adaptations and the record. Refuses while
+  anything in the graph still names one of them — a component, a port, a type, a
+  flow, or another rule's `implies:` — listing what does.
 - `new` — the publishing side. Scaffolds `packages/<name>/` in the marketplace
-  this repository is (see `yg marketplace` below): a package manifest, one
-  example rule that reads one setting, and the two drill cases that rule needs.
-  Adds the package to `yg-marketplace.yaml`, editing that file rather than
-  regenerating it, so the comments in it survive. Refuses a name carrying a
-  separator, and refuses to scaffold over a directory that already exists.
+  this repository is (see `yg marketplace` below): a package manifest requiring
+  the running major (`^<major>.0.0`), one example rule that reads one setting, and
+  the two drill cases that rule needs. Adds the package to `yg-marketplace.yaml`,
+  editing that file rather than regenerating it, so the comments in it survive.
+  Refuses a name carrying a separator, and refuses to scaffold over a directory
+  that already exists.
 
 **Installing a package runs its author's code.** A rule's script runs in your
 process on every `yg check`. What is sandboxed is what a rule may READ through
@@ -1854,7 +1875,7 @@ Machine-readable documents `yg pack` and `yg marketplace` read and write:
 |---|---|---|
 | Marketplace manifest | `yg-marketplace/1` | the source repository's root |
 | Package manifest | `yg-package/1` | each package directory in the source |
-| Installed-package record | `yg-packages/1` | `.yggdrasil/yg-packages.yaml` |
+| Package record (what is installed — not a verdict lock) | `yg-packages/1` | `.yggdrasil/yg-packages.yaml` |
 | Per-rule adaptation | (no schema key) | `.yggdrasil/aspects/packages/<owner>/<repo>/<package>/<rule>/yg-aspect.adapt.yaml` |
 | Last-seen published versions | `yg-package-versions/1` | `.yggdrasil/.yg-packages-versions.json` (local, never committed) |
 

@@ -37,6 +37,13 @@ export interface RunAstAspectParams {
    * that wraps as `AST_CHECK_THROWN`, exactly as before this flag existed.
    */
   graphAccessTrap?: boolean;
+  /**
+   * The rule's settled configuration, handed to the check as `ctx.config` when
+   * `graphAccessTrap` is set. A drill has no graph, but it does have the rule —
+   * and a rule parameterized through `ctx.config` (the only way a package rule
+   * is) could not otherwise be drilled at all.
+   */
+  config?: Record<string, string | number | boolean>;
 }
 
 export interface RunAstAspectResult {
@@ -188,12 +195,17 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
   // serializes/inspects as `{ files }`.
   const ctx: CheckContext = { files: sourceFiles };
   if (params.graphAccessTrap) {
-    // The full complement of the production Ctx contract (structure/types.ts
-    // `Ctx`) MINUS `files` — every accessor a graphless drill cannot supply.
-    // Keep this list in sync with `Ctx`: a new graph-context member left off
-    // here would surface as `AST_CHECK_THROWN` (misclassified `unrun`, exit 2)
-    // instead of `AST_GRAPH_CTX_UNSUPPORTED` (`unsupported`, exit 0).
-    for (const accessor of ['node', 'subject', 'graph', 'fs', 'parseAst', 'parseYaml', 'parseJson', 'parseToml'] as const) {
+    // What a drill CAN supply, it does: the case files are the whole subject of
+    // the run, and the rule's settings are the ones it would see in the gate.
+    // Non-enumerable like the traps below, so the object still reads as { files }.
+    Object.defineProperty(ctx, 'subject', { configurable: true, enumerable: false, value: sourceFiles });
+    Object.defineProperty(ctx, 'config', { configurable: true, enumerable: false, value: Object.freeze({ ...(params.config ?? {}) }) });
+    // The rest of the production Ctx contract (structure/types.ts `Ctx`) — every
+    // accessor a graphless drill cannot supply. Keep this list in sync with
+    // `Ctx`: a new graph-context member left off here would surface as
+    // `AST_CHECK_THROWN` (misclassified `unrun`, exit 2) instead of
+    // `AST_GRAPH_CTX_UNSUPPORTED` (`unsupported`, exit 0).
+    for (const accessor of ['node', 'graph', 'fs', 'parseAst', 'parseYaml', 'parseJson', 'parseToml'] as const) {
       Object.defineProperty(ctx, accessor, {
         configurable: true,
         enumerable: false,
@@ -213,7 +225,7 @@ export async function runAstAspect(params: RunAstAspectParams): Promise<RunAstAs
     if (e instanceof GraphAccessTrap) {
       throw new AstRunnerError('AST_GRAPH_CTX_UNSUPPORTED', {
         what: `check.mjs for aspect '${params.aspectId}' read graph context (ctx.${e.accessor}), which yg drill does not provide.`,
-        why: `yg drill runs check.mjs over the case files only (ctx.files); a check that needs node / subject / graph / fs / parseAst / parseYaml / parseJson / parseToml cannot run in a graphless drill.`,
+        why: `yg drill runs check.mjs over the case files only (ctx.files and ctx.subject, with the rule's settings as ctx.config); a check that needs node / graph / fs / parseAst / parseYaml / parseJson / parseToml cannot run in a graphless drill.`,
         next: `The case is recorded as unsupported (not scored). Verify this aspect through yg check --approve, which supplies full graph context.`,
       });
     }

@@ -7,9 +7,12 @@
 // aspects read. A consumer's lock records what was copied in and what each
 // copied file hashed to.
 //
-// There is no registry: identity comes from the URL the consumer typed, so the
-// same package published from two forks is two different installations and
-// neither can claim the other's name.
+// There is no registry: identity comes from the URL the consumer typed, so a
+// package is filed under the repository that published it and a fork cannot
+// claim the original's rule names. The record is keyed by the package's bare
+// name, though, so one repository holds ONE package of a given name at a time:
+// installing a second package called the same thing from another repository is
+// refused rather than filed beside the first.
 
 /** One package advertised by a marketplace manifest. */
 export interface MarketplaceEntry {
@@ -59,13 +62,41 @@ export interface PackageManifest {
   config?: PackageConfigSchema;
 }
 
+/** What a record says was asked for when no exact version was: the newest tag. */
+export const REQUESTED_LATEST = 'latest';
+
 /** One installed package's record in the consumer's lock. */
 export interface PackagesLockEntry {
-  /** The URL or path the consumer installed from, verbatim. */
+  /**
+   * Where it was installed from. A URL is stored with any credentials removed; a
+   * path on this machine is stored relative to the repository root (POSIX), so
+   * a teammate with the marketplace checked out at the same place resolves it.
+   */
   source: string;
   /** Install identity `<owner>/<repo>/<name>` — the directory under `aspects/packages/`. */
   package: string;
+  /** The version installed — the version of the tag it was taken from. */
   version: string;
+  /**
+   * What was asked for: an exact version (a pin a plain `yg pack update` leaves
+   * alone) or `latest` (follow the newest published tag). Absent in a record an
+   * earlier release wrote, which reads as `latest`.
+   */
+  requested?: string;
+  /**
+   * The tag the copy was taken from, `pack/<name>@<version>`. Absent for a
+   * package read from a plain directory (which publishes no versions) and in a
+   * record an earlier release wrote.
+   */
+  tag?: string;
+  /** The commit that tag pointed at when the copy was taken. Absent where `tag` is. */
+  commit?: string;
+  /**
+   * `given` when the `<owner>/<repo>` was supplied with `--as` rather than read
+   * off the source. An update re-derives the identity from the source and
+   * refuses a mismatch — unless it was given, when there is nothing to derive.
+   */
+  identity?: 'given';
   /** ISO timestamp of the install. Never a hash ingredient. */
   installed_at: string;
   /**
@@ -101,6 +132,18 @@ export const PACKAGES_DIR = 'packages';
 
 /** The consumer's per-aspect adaptation file, written beside every copied aspect. */
 export const ADAPT_FILENAME = 'yg-aspect.adapt.yaml';
+
+/**
+ * The consumer's history of an installed rule — what `yg aspects log add` and a
+ * change of standing write for a rule that came from a package. A rule of your
+ * own keeps its history in `log.md` beside it; an installed rule's directory is
+ * the package's copy, so its history lives beside the adaptation instead, under
+ * a name the copy rail never judges and an update carries across.
+ */
+export const ADAPT_LOG_FILENAME = 'yg-aspect.adapt.log.md';
+
+/** Every file inside an installed rule's directory that is the consumer's own writing. */
+export const CONSUMER_FILENAMES: readonly string[] = [ADAPT_FILENAME, ADAPT_LOG_FILENAME];
 
 /** The consumer's lock filename, directly under `.yggdrasil/`. */
 export const PACKAGES_LOCK_FILENAME = 'yg-packages.yaml';

@@ -38,12 +38,27 @@ export function contentFor(aspect: AspectDef, filename: 'content.md' | 'check.mj
 }
 
 /**
- * sha256 of the named rule-source artifact's bytes (content.md or check.mjs).
+ * sha256 of the named rule-source artifact's bytes (content.md or check.mjs),
+ * with the aspect's support files folded in when it has any.
  * Contract #1: hashBytes over the graph-loaded UTF-8 text — producer and
  * verifier MUST use this one implementation.
+ *
+ * A support file is anything else in the rule's directory its code can reach —
+ * a helper `check.mjs` imports is the common one. Its bytes decide the verdict
+ * as much as the rule file's own, so an edit to it must re-open the verdicts it
+ * helped produce. Folded ONLY when present: an aspect with no support files
+ * hashes to exactly the bare rule-file hash it always did, so no verdict
+ * recorded before this existed goes stale by itself.
  */
 export function ruleHashFor(aspect: AspectDef, filename: 'content.md' | 'check.mjs'): string {
-  return hashBytes(Buffer.from(contentFor(aspect, filename), 'utf8'));
+  const bare = hashBytes(Buffer.from(contentFor(aspect, filename), 'utf8'));
+  const support = aspect.supportFiles ?? [];
+  if (support.length === 0) return bare;
+  const folded = [...support]
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+    .map(([p, h]) => `${p}\u0000${h}`)
+    .join('\n');
+  return hashBytes(Buffer.from(`rule\u0000${bare}\n${folded}`, 'utf8'));
 }
 
 /**

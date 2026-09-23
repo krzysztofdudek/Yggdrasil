@@ -70,6 +70,17 @@ export function registerDrillAddCommand(drill: Command): void {
 
         const aspect = resolveAspect(graph, opts.aspect);
         if ('error' in aspect) failWith(aspect.error);
+        // A rule installed from a package keeps its cases inside the package's
+        // copy, and the copy holds nothing the package did not ship — the copy
+        // rail would refuse the new case on the next check. The corpus is the
+        // publisher's to grow.
+        if (aspect.def.id.startsWith('packages/')) {
+          failWith({
+            what: `'${aspect.def.id}' was installed from a package, and its cases belong to the package.`,
+            why: 'Everything in an installed rule\'s directory is a copy of what its publisher released, recorded file by file; a case written into it would be refused by yg check as a file no package put there, and the next update would delete it.',
+            next: 'Send the case to the package\'s author, so it ships with the next version; once you update to it, yg drill runs it here. Nothing was added.',
+          });
+        }
 
         const why = typeof opts.why === 'string' && opts.why.trim() !== '' ? opts.why.trim() : null;
 
