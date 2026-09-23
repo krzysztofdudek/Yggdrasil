@@ -1,3 +1,4 @@
+import path from 'node:path';
 import { minimatch } from 'minimatch';
 
 /**
@@ -9,13 +10,22 @@ import { minimatch } from 'minimatch';
  * backslashes, then strip a single leading './', then strip trailing slashes.
  * A leading './' is a no-op prefix that callers sometimes emit; stripping it
  * keeps './src/a.ts' and 'src/a.ts' in the same equivalence class.
+ *
+ * Last, the entry is POSIX-normalized: `src//app`, `src/./app` and
+ * `src/lib/../app` all become `src/app`. The file-system side (stat,
+ * path.join) resolves those spellings on its own, so without this the text
+ * side (owner lookup, coverage, prefix matching) would disagree with it about
+ * which files a node owns. A `..` that survives normalization can only be a
+ * leading climb above the root, which the mapping-escapes-repo check refuses.
  */
 export function normalizeMappingPath(p: string): string {
-  return p
+  const cleaned = p
     .trim()
     .replace(/\\/g, '/')
     .replace(/^\.\//, '')
     .replace(/\/+$/, '');
+  if (cleaned === '') return '';
+  return path.posix.normalize(cleaned).replace(/\/+$/, '');
 }
 
 /**

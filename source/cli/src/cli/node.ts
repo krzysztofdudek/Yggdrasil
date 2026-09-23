@@ -9,10 +9,7 @@ import type { NodeJsonDocument } from '../formatters/node-json.js';
 import { buildNodeDocument } from '../core/graph/machine-documents.js';
 import { toPosixPath } from '../utils/posix.js';
 
-// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
-// a value import, to avoid an undeclared new dependency edge onto
-// cli/model/graph for one reserved string.
-const DEFAULT_PORT_NAME = 'default';
+import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
 /** `(none)` rather than an empty line, so an absent section never reads as a missing one. */
 const NONE = '(none)';

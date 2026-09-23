@@ -51,7 +51,7 @@ function writeArch(root: string): void {
   );
   writeFileSync(
     path.join(root, '.yggdrasil', 'yg-config.yaml'),
-    `quality:\n  max_direct_relations: 10\n`,
+    `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`,
     'utf-8',
   );
 }

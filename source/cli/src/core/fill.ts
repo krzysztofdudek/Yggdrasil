@@ -128,13 +128,13 @@ export { FillGatingError, detGateKey } from './fill-contract.js';
 // ============================================================
 
 export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFillResult> {
-  const write = opts.write ?? ((s: string) => { process.stdout.write(s); });
+  const write = opts.write;
   const emitIssue = opts.emitIssue ?? ((): void => {});
   const projectRoot = path.dirname(graph.rootPath);
   const onlyDeterministic = opts.onlyDeterministic ?? false;
   const dryRun = opts.dryRun ?? false;
-  const isTTY = opts.isTTY ?? (process.stderr.isTTY ?? false);
-  const now = opts.now ?? Date.now.bind(Date);
+  const isTTY = opts.isTTY;
+  const now = opts.now;
   // Deterministic-phase thread budget (injected; engine reads no system state).
   // 1 → sequential in-process; >1 → a worker-thread pool bounded by this value.
   const detConcurrency = Math.max(1, Math.floor(opts.detConcurrency ?? 1));
@@ -262,7 +262,8 @@ export async function runFill(graph: Graph, opts: RunFillOptions): Promise<RunFi
       // the change is not accountable for as though the fill would clear them.
       changeScope: opts.changeScope,
     });
-    return { checkResult, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0, runtimeDispositions: [] };
+    const dryRunBudget = { pairs: detPairs.length + llmPairs.length, nodes: reportNodeSet.size, files: reportFileSet.size, deterministic: detPairs.length, reviewerCalls: reviewerCallBudget };
+    return { checkResult, dryRunBudget, reviewerCallsMade: 0, infraFailures: 0, runtimeErrors: 0, companionRuntimeErrors: 0, malformedSuppressErrors: 0, runtimeDispositions: [] };
   }
 
   // ── Serialized lock writer (interruption-safe, §7) + verdict telemetry. ────

@@ -42,6 +42,32 @@ describe('evaluateFileWhen', () => {
     expect(result.result).toBe(false);
   });
 
+  // A content predicate scans only the first 256 KiB. When the anchor sits past
+  // that, the non-match must say so in the trace instead of reading as a plain
+  // "does not match".
+  it('content atom past the 256 KiB scan head: no match, and the trace says the rest was not scanned', async () => {
+    writeFileSync(join(tmpDir, 'big.sql'), `${'-- filler line\n'.repeat(20_000)}CREATE TABLE anchor_here;\n`);
+    const pred: FileWhenPredicate = { content: 'anchor_here' };
+    const result = await evaluateFileWhen(pred, ctx('big.sql'));
+    expect(result.result).toBe(false);
+    expect(result.trace).toMatchObject({ kind: 'atom-content', truncated: true });
+    expect((result.trace as { detail?: string }).detail).toContain('only the first 256 KiB');
+  });
+
+  it('content atom within the scan head of a large file matches, still flagged truncated', async () => {
+    writeFileSync(join(tmpDir, 'big2.sql'), `CREATE TABLE anchor_here;\n${'-- filler line\n'.repeat(20_000)}`);
+    const result = await evaluateFileWhen({ content: 'anchor_here' }, ctx('big2.sql'));
+    expect(result.result).toBe(true);
+    expect(result.trace).toMatchObject({ kind: 'atom-content', truncated: true });
+    expect((result.trace as { detail?: string }).detail).toBeUndefined();
+  });
+
+  it('content atom on a small file is never flagged truncated', async () => {
+    writeFileSync(join(tmpDir, 'small.ts'), 'anchor_here');
+    const result = await evaluateFileWhen({ content: 'anchor_here' }, ctx('small.ts'));
+    expect((result.trace as { truncated?: boolean }).truncated).toBeUndefined();
+  });
+
   it('content atom matches regex', async () => {
     writeFileSync(join(tmpDir, 'src.ts'), 'function registerLogCommand() {}');
     const pred: FileWhenPredicate = { content: 'register[A-Z]\\w*Command' };

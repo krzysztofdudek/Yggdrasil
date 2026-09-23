@@ -21,6 +21,14 @@ export const ZERO_CLASSIFYING_TYPES_NOTICE =
   "Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.";
 
 /**
+ * Printed by `yg check` when it skipped the structural attention index because
+ * the repository's .gitignore files do not ignore it. A check writes no tracked
+ * file, so the line is added by `yg init --upgrade`, never by the check.
+ */
+export const FEATURE_INDEX_NOT_IGNORED_NOTICE =
+  "The structural attention index (.yggdrasil/.feature-field.json) was not written: git does not ignore it here, and yg check never edits a tracked .gitignore. Run 'yg init --upgrade' to add the line.";
+
+/**
  * Structural validation codes — graph-shape and config errors that always block
  * `yg check` regardless of verification state. Both the summary tally and the
  * rendered grouping read this one set.

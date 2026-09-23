@@ -10,7 +10,6 @@ description: Relation-conformance engine — the live pass orchestration, symbol
   node or a type-covered file) against the architecture's relation allow-list.
 mapping:
   - source/cli/src/relations/allowed-types.ts
-  - source/cli/src/relations/audit.ts
   - source/cli/src/relations/facts-cache.ts
   - source/cli/src/relations/feature-vector.ts
   - source/cli/src/relations/messages.ts

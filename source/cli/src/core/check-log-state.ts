@@ -24,7 +24,7 @@ import { readTextFile } from '../io/graph-fs.js';
 import { validateAppendOnly } from './log-integrity.js';
 import { validateFormat } from './log-format.js';
 import { toPosixPath } from '../utils/posix.js';
-import { logGateBlocksNode } from './log/log-gate.js';
+import { computeLogGateState, logGateStateBlocks } from './log/log-gate.js';
 import { looksLikeInterleavedMerge } from './log/log-merge-resolve.js';
 import type { CheckIssue } from './check-contract.js';
 
@@ -155,10 +155,13 @@ export async function classifyLogStateFromLock(
  * nothing new for it — positive closure already refuses to advance the
  * baseline until an entry exists, and the final re-check surfaces this error.
  *
- * Reuses logGateBlocksNode — the single source of truth for the
+ * Reuses computeLogGateState — the single source of truth for the
  * freshness/fingerprint rule shared with the fill gate and positive closure.
  * Nodes with an unreadable mapped subject are skipped: they already surface a
- * blocking file-unreadable error and their fingerprint is uncomputable.
+ * blocking file-unreadable error and their fingerprint is uncomputable. A node
+ * whose unreadable file no pair reported (it has no aspect pairs) gets that
+ * file-unreadable error here, instead of a log-entry-missing whose fix — write
+ * a log entry — would not unblock it.
  */
 export async function classifyLogRequirement(
   graph: Graph,
@@ -169,7 +172,23 @@ export async function classifyLogRequirement(
 ): Promise<void> {
   for (const [nodePath, node] of graph.nodes) {
     if (unreadableNodes.has(nodePath)) continue;
-    if (!(await logGateBlocksNode(graph, projectRoot, node, lock))) continue;
+    const gate = await computeLogGateState(graph, projectRoot, node, lock);
+    if (!logGateStateBlocks(gate)) continue;
+    if (gate.unreadable) {
+      const unreadablePath = toPosixPath(gate.unreadable.filePath);
+      issues.push({
+        severity: 'error',
+        code: 'file-unreadable',
+        rule: 'file-unreadable',
+        messageData: {
+          what: `Node '${toPosixPath(nodePath)}' maps file '${unreadablePath}', which could not be read: ${gate.unreadable.reason}.`,
+          why: `Node type '${node.meta.type}' has log_required: true, and whether a log entry is owed depends on a fingerprint of every mapped file. An unreadable file makes that fingerprint uncomputable, so the node stays blocked until the file can be read.`,
+          next: `Fix the file permissions or remove '${unreadablePath}' from the node mapping, then re-run yg check.`,
+        },
+        nodePath,
+      });
+      continue;
+    }
     issues.push({
       severity: 'error',
       code: 'log-entry-missing',

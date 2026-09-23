@@ -97,7 +97,7 @@ describe('SUPREME EXCLUSION — coverage.excluded cuts a node\'s own explicit ma
       const currentPair = pairs.find((p) => p.nodePath === 'legacy' && p.subjectFiles.includes('src/current/thing.ts'));
       expect(currentPair).toBeDefined(); // NOT excluded — over-correction would silently drop this real file
 
-      await runFill(graph, { coverageVisibleFiles: files, write: () => {} });
+      await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: files, write: () => {} });
       const lockAfterFirst = readLock(graph.rootPath);
       const verdictAfterFirst = lockAfterFirst.verdicts['legacy-check']?.[currentPair!.unitKey];
       expect(verdictAfterFirst).toBeDefined(); // the pair's verdict was actually written
@@ -105,7 +105,7 @@ describe('SUPREME EXCLUSION — coverage.excluded cuts a node\'s own explicit ma
       // Re-approve: the verdict must be RETAINED byte-for-byte, not pruned as
       // "detached" and not re-hashed.
       const graphAgain = await loadGraph(dir);
-      await runFill(graphAgain, { coverageVisibleFiles: files, write: () => {} });
+      await runFill(graphAgain, { isTTY: false, now: Date.now, coverageVisibleFiles: files, write: () => {} });
       const lockAfterSecond = readLock(graphAgain.rootPath);
       expect(lockAfterSecond.verdicts['legacy-check']?.[currentPair!.unitKey]).toEqual(verdictAfterFirst);
     } finally {

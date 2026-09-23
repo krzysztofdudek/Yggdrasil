@@ -32,7 +32,7 @@ export type FileBooleanClause =
  */
 export type PredicateTrace =
   | { kind: 'atom-path'; pattern: string; result: boolean; detail?: string }
-  | { kind: 'atom-content'; pattern: string; result: boolean; detail?: string }
+  | { kind: 'atom-content'; pattern: string; result: boolean; detail?: string; truncated?: boolean }
   | { kind: 'all_of'; result: boolean; children: PredicateTrace[] }
   | { kind: 'any_of'; result: boolean; children: PredicateTrace[] }
   | { kind: 'not'; result: boolean; child: PredicateTrace }

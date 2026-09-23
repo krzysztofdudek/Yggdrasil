@@ -7,7 +7,9 @@ import path from 'node:path';
 import { findYggRoot, getPackageRoot, resolveFileArg, projectRootFromGraph } from '../io/paths.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { debugWrite } from '../utils/debug-log.js';
+import { parseSchemaVersionText } from '../io/config-parser.js';
 import { loadGraphOrAbort } from './preamble.js';
+import { exitAfterFlush } from './exit-after-flush.js';
 
 /**
  * yg simulate — replay a candidate DETERMINISTIC rule over the history it can
@@ -184,14 +186,16 @@ export function detectCandidateKind(candidateDir: string): 'llm' | 'companion' |
 }
 
 // ---------------------------------------------------------------------------
-// Schema version read (regex, no YAML parser — stays inside the import fence).
+// Schema version read (the one shared reader, never a private re-parse).
 // ---------------------------------------------------------------------------
 
 /**
  * Read the committed graph's declared schema version from `<yggRoot>/yg-config.yaml`
- * — the same `version:` field the migrator keys on. A regex read (not the YAML
- * parser) keeps simulate's dependency surface to io/paths, message-builder, and Node
- * built-ins. Returns null when the file or the version line is absent.
+ * through the same reader the graph loader and the migrator use, so all three
+ * agree on what the field holds. Returns the trimmed string when the field is a
+ * string; null when the file is absent or unreadable, the field is missing, or it
+ * is not a string (an unquoted `version: 5.1` is a YAML number) — none of those
+ * names a schema a commit could be compared against.
  */
 export function readConfigVersion(yggRoot: string): string | null {
   const configPath = path.join(yggRoot, 'yg-config.yaml');
@@ -204,8 +208,8 @@ export function readConfigVersion(yggRoot: string): string | null {
     debugWrite(`[simulate] could not read ${configPath}: ${(err as Error).message}`);
     return null;
   }
-  const m = content.match(/^version:\s*["']?([^"'#\n]+?)["']?\s*(?:#.*)?$/m);
-  return m ? m[1].trim() : null;
+  const read = parseSchemaVersionText(content);
+  return read?.kind === 'string' ? read.value : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -359,8 +363,8 @@ function overlayCandidate(candidateDir: string, cloneYggRoot: string, candidateI
  * the `coverage:` key line itself plus every following line that is either
  * MORE indented than column 0 or blank, up to (not including) the next
  * column-0, non-blank line. Returns null when no `coverage:` key exists at
- * column 0. A regex/line scan, not a YAML parser — mirrors readConfigVersion's
- * own stated reason for staying inside the import fence.
+ * column 0. A line scan, not a YAML parse: the block is spliced verbatim into
+ * the clone's config, so its original text is what has to be carried over.
  */
 function extractCoverageBlock(content: string): string | null {
   const lines = content.split('\n');
@@ -844,7 +848,9 @@ export function registerSimulateCommand(program: Command): void {
           binPath,
           emit: (chunk) => process.stdout.write(chunk),
         });
-        if (code !== 0) process.exit(code);
+        // The report was streamed to stdout; a bare process.exit could cut a
+        // piped report short, so the exit waits for the buffer to drain.
+        await exitAfterFlush(code);
       } catch (error) {
         debugWrite(`[simulate] command failed: ${(error as Error).message}`);
         emitError({
@@ -852,7 +858,7 @@ export function registerSimulateCommand(program: Command): void {
           why: 'The replay hit an error it does not classify; nothing in the real repository was modified — all work happens in an isolated clone.',
           next: 'Re-run the command; if it recurs, this is a bug — report it with the command you ran.',
         });
-        process.exit(1);
+        await exitAfterFlush(1);
       }
     });
 }

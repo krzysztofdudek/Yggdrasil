@@ -488,6 +488,45 @@ describe('checkMappingOverlap — glob pass: coverage.excluded', () => {
 // checkMappingPathsExist — glob + plain
 // =============================================================================
 
+describe('checkMappingPathsExist — letter case against the on-disk spelling', () => {
+  // On a case-insensitive filesystem (macOS, Windows) `SRC/App` stats fine, so a
+  // developer is green locally while text-based ownership (owner, coverage) sees
+  // no match and a case-sensitive CI fails. The check compares every segment
+  // with the directory listing, so the answer is the same on every host.
+  it('a mapping whose case differs from the real path -> mapping-path-case-mismatch naming the real spelling', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'src/app/ok.ts'), 'export {}');
+    const graph = buildGraph(yggRoot, [{ path: 'app', mapping: ['SRC/App'] }]);
+    const issues = await checkMappingPathsExist(graph);
+    const cm = issues.filter((i) => i.code === 'mapping-path-case-mismatch');
+    expect(cm).toHaveLength(1);
+    expect(cm[0].severity).toBe('error');
+    expect(cm[0].nodePath).toBe('app');
+    expect(cm[0].messageData.what).toContain("'SRC/App'");
+    expect(cm[0].messageData.what).toContain("'src/app'");
+    // One diagnosis, not two: the case finding replaces "does not exist".
+    expect(missing(issues)).toHaveLength(0);
+  });
+
+  it('the exact spelling -> no case finding', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'src/app/ok.ts'), 'export {}');
+    const graph = buildGraph(yggRoot, [{ path: 'app', mapping: ['src/app/ok.ts'] }]);
+    const issues = await checkMappingPathsExist(graph);
+    expect(issues.filter((i) => i.code === 'mapping-path-case-mismatch')).toHaveLength(0);
+    expect(missing(issues)).toHaveLength(0);
+  });
+
+  it('a genuinely missing path stays mapping-path-missing', async () => {
+    const { projectRoot, yggRoot } = await makeProject();
+    await writeFileEnsuringDir(path.join(projectRoot, 'src/app/ok.ts'), 'export {}');
+    const graph = buildGraph(yggRoot, [{ path: 'app', mapping: ['src/other'] }]);
+    const issues = await checkMappingPathsExist(graph);
+    expect(issues.filter((i) => i.code === 'mapping-path-case-mismatch')).toHaveLength(0);
+    expect(missing(issues)).toHaveLength(1);
+  });
+});
+
 describe('checkMappingPathsExist — glob entries', () => {
   it('glob matching >= 1 file -> NO mapping-path-missing', async () => {
     const { projectRoot, yggRoot } = await makeProject();

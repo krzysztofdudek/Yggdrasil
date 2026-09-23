@@ -62,7 +62,7 @@ import { ALL_FEATURE_CATEGORIES, type FeatureVector } from '../relations/feature
 import { buildOwnerIndex } from '../relations/owner-index.js';
 import { getLanguageForExtension } from '../utils/language-registry.js';
 import { atomicWriteFile } from '../io/atomic-write.js';
-import { readTextFile, writeTextFile } from '../io/graph-fs.js';
+import { isFileGitignored } from '../io/repo-scanner.js';
 import { debugWrite } from '../utils/debug-log.js';
 import {
   FAMILY_SEP,
@@ -365,9 +365,15 @@ export interface WriteFeatureIndexOptions {
 /**
  * Compute the sparse deviation index over the pass's per-file facts and write it to
  * `.yggdrasil/.feature-field.json`, atomically. BEST-EFFORT: any error (including a
- * gitignore or write failure) is swallowed to the debug log — a check never fails because
- * the index could not be written. Ensures the gitignore line before the first write so the
- * index is never committed even in a repo whose `init` predates this feature.
+ * write failure) is swallowed to the debug log — a check never fails because the index
+ * could not be written.
+ *
+ * The index is written only where git already ignores it. A check never edits a tracked
+ * file, so when the repo's .gitignore files do not cover it (a repo whose `init`
+ * predates the feature, or whose line was removed) the index is skipped and the result
+ * says so, for the caller to surface as a notice; `yg init --upgrade` adds the line.
+ * Writing it anyway would leave an untracked file in a tree the check promised not to
+ * change.
  */
 export async function writeFeatureIndex(
   graph: Graph,
@@ -375,7 +381,7 @@ export async function writeFeatureIndex(
   hashByPath: Map<string, string>,
   includedPaths: ReadonlySet<string>,
   opts: WriteFeatureIndexOptions,
-): Promise<void> {
+): Promise<{ skippedNotIgnored: boolean }> {
   try {
     const ownerOf = combinedOwnerOf(buildOwnerIndex(graph.nodes).ownerOf, opts.covered);
     const deviations = computeFamilyDeviations(factsByPath, ownerOf, hashByPath, includedPaths);
@@ -394,39 +400,15 @@ export async function writeFeatureIndex(
       files,
     };
 
-    // Self-ensure the gitignore line BEFORE the write (independent best-effort).
-    await ensureFeatureFieldGitignored(graph.rootPath);
+    const projectRoot = path.dirname(graph.rootPath);
+    const indexRel = `${path.basename(graph.rootPath)}/${FEATURE_FIELD_FILENAME}`;
+    if (!(await isFileGitignored(projectRoot, indexRel))) return { skippedNotIgnored: true };
     const target = path.join(graph.rootPath, FEATURE_FIELD_FILENAME);
     await atomicWriteFile(target, `${JSON.stringify(index, null, 2)}\n`);
   } catch (err) {
     // The index is attention, not law — a write failure never fails a check.
     debugWrite(`[feature-field] writeFeatureIndex failed (best-effort, ignored): ${(err as Error).message}`);
   }
+  return { skippedNotIgnored: false };
 }
 
-/**
- * Ensure `<yggRoot>/.gitignore` carries `.feature-field.json`. Independent best-effort: a
- * failure here is logged and never propagates (the caller is already best-effort, and
- * `init`/`--upgrade` scaffold the same line via YGGDRASIL_GITIGNORE_LINES — this is the
- * backstop for a repo that never re-ran init). Idempotent: creates the file when absent,
- * appends the line once when missing, no-ops when present.
- */
-async function ensureFeatureFieldGitignored(yggRoot: string): Promise<void> {
-  const giPath = path.join(yggRoot, '.gitignore');
-  try {
-    let existing: string;
-    try {
-      existing = await readTextFile(giPath);
-    } catch (e: unknown) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-      await writeTextFile(giPath, `${FEATURE_FIELD_FILENAME}\n`);
-      return;
-    }
-    const present = new Set(existing.split('\n').map((l) => l.trim()));
-    if (present.has(FEATURE_FIELD_FILENAME)) return;
-    const sep = existing.length > 0 && !existing.endsWith('\n') ? '\n' : '';
-    await writeTextFile(giPath, `${existing}${sep}${FEATURE_FIELD_FILENAME}\n`);
-  } catch (err) {
-    debugWrite(`[feature-field] gitignore self-ensure failed (best-effort, ignored): ${(err as Error).message}`);
-  }
-}

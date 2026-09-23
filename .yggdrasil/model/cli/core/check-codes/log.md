@@ -86,3 +86,5 @@ The comment over the port-contract codes claimed the ports-and-relations knowled
 when-unmatched-port is a new diagnostic code for a has_port reference to a port no node declares -- recorded as deliberately outside STRUCTURAL_CODES, the same non-blocking tier as the reserved default-port warning, since has_port naming a not-yet-existing port is an established idiom, not always an authoring mistake.
 ## [2026-09-22T13:01:46.029Z]
 The comment that listed the reserved default port warning as the one non-blocking port-contract code no longer holds, because that warning was removed; the comment now describes only the blocking port-contract codes that live in this set.
+## [2026-09-23T20:49:45.277Z]
+Adds the notice printed when the attention index was skipped because git does not ignore it, shared as one text so every surface says the same thing.

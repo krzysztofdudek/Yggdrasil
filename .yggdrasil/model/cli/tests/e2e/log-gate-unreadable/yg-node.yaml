@@ -1,0 +1,7 @@
+name: E2E Tests — Log Gate Over An Unreadable File
+type: test-suite
+description: "Subprocess E2E proving that a log_required node whose mapped file cannot be read gets the same gate answer from yg context and yg check — the gate stays closed — and that yg check names the unreadable file as the cause (file-unreadable) rather than prescribing a log entry that would not unblock it."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-log-gate-unreadable.test.ts

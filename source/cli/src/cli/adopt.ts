@@ -57,6 +57,7 @@ import {
  */
 const DEFERRED_UNTIL_IN_PLACE = new Set<string>([
   'mapping-path-missing',
+  'mapping-path-case-mismatch',
   'mapping-escapes-repo',
   'file-mapping-gitignored',
   'file-mapping-excluded',
@@ -341,6 +342,7 @@ export function registerAdoptCommand(program: Command): void {
             detConcurrency: detConcurrencyForThisMachine(),
             write: () => {},
             isTTY: false,
+            now: Date.now,
             // Whatever the baseline run has to say about this graph goes to the
             // error stream, so the summary on stdout stays one clean report.
             emitIssue: (m) => { process.stderr.write(`${buildIssueMessage(m)}\n`); },

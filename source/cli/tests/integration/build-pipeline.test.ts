@@ -157,7 +157,7 @@ describe('context pipeline integration', () => {
       await mkdir(path.join(yggDir, 'aspects', 'code-style'), { recursive: true });
 
       await writeFile(path.join(yggDir, 'yg-config.yaml'), [
-        'reviewer:',
+        'version: "6.0.0"', 'reviewer:',
         '  tiers:',
         '    default-tier:',
         '      provider: claude-code',

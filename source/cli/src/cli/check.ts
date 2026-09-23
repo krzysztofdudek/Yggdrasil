@@ -450,11 +450,13 @@ export function registerCheckCommand(program: Command): void {
           const isConfigFull =
             isConfigDrivenFill && graph.config?.auto_approve === 'full';
           if (isConfigFull && !opts.dryRun) {
-            process.stderr.write(
-              changeScope !== undefined
-                ? "auto-approve: full — bare 'yg check' will call the reviewer for anything your change is accountable for.\n"
-                : "auto-approve: full — bare 'yg check' will call the reviewer.\n",
-            );
+            process.stderr.write(`Notice: ${buildIssueMessage({
+              what: changeScope !== undefined
+                ? "auto-approve: full — bare 'yg check' will call the reviewer for anything your change is accountable for."
+                : "auto-approve: full — bare 'yg check' will call the reviewer.",
+              why: 'yg-config.yaml sets auto_approve: full, so a plain check fills unverified pairs, including paid reviewer calls, before it reports.',
+              next: 'Nothing, to proceed. To keep a run read-only, pass --no-approve; to preview the cost first, run yg check --approve --dry-run.',
+            })}\n`);
           }
 
           try {
@@ -511,8 +513,8 @@ export function registerCheckCommand(program: Command): void {
               // so it goes to stdout — except under --json, where stdout carries
               // the document alone and the preview joins the progress on stderr.
               // --dry-run is tested FIRST, before --quiet, on both branches: the
-              // preview outranks --quiet whether or not --json moved it, and the
-              // JSON document carries no budget field to fall back on.
+              // preview outranks --quiet whether or not --json moved it (the JSON
+              // document carries the same budget as numbers in dryRunBudget).
               write: isDryRun
                 ? asJson
                   ? (s: string) => { process.stderr.write(s); }
@@ -521,6 +523,7 @@ export function registerCheckCommand(program: Command): void {
                   ? () => {}
                   : (s: string) => { process.stderr.write(s); },
               isTTY: !isQuiet && (process.stderr.isTTY ?? false),
+              now: Date.now,
               // Width for the single rewritten progress line, so it stays one
               // line instead of wrapping into a new row on every redraw.
               columns: process.stderr.columns,
@@ -541,7 +544,7 @@ export function registerCheckCommand(program: Command): void {
             await applyHonestCoverageSplit(fill.checkResult, graph, repoFiles);
             process.stdout.write(
               asJson
-                ? formatCheckJson(buildCheckJson(fill.checkResult))
+                ? formatCheckJson({ ...buildCheckJson(fill.checkResult), ...(fill.dryRunBudget ? { dryRunBudget: fill.dryRunBudget } : {}) })
                 // `undefined` for the emoji gate keeps formatOutput's own
                 // chalk-derived default; the writer path carries --coverage
                 // exactly as the read path does, which is the whole point of

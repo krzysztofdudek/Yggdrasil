@@ -2,7 +2,7 @@ import path from 'node:path';
 import { stat } from 'node:fs/promises';
 import chalk from 'chalk';
 import { buildIssueMessage } from '../formatters/message-builder.js';
-import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError, MalformedSchemaVersionError, FlowLoadError } from '../core/graph-loader.js';
+import { loadGraph, UnsupportedSchemaVersionError, OutdatedSchemaVersionError, MalformedSchemaVersionError, MissingSchemaVersionError, FlowLoadError, CLI_SUPPORTED_SCHEMA } from '../core/graph-loader.js';
 import { LockInvalidError } from '../io/lock-store.js';
 import type { Graph } from '../model/graph.js';
 
@@ -42,6 +42,29 @@ export function abortOnUnexpectedError(error: unknown, context: string): never {
  * to stderr and calls process.exit(1) — it does not return. Any other error
  * is rethrown so the caller can decide.
  */
+/**
+ * The what/why/next for a yg-config.yaml whose `version:` field is unusable —
+ * absent, or present but not a string (an unquoted `version: 5.1` is a YAML
+ * number). Shared by the graph load path and `yg init --upgrade`, which refuse
+ * the same two cases and must say the same thing about them.
+ */
+export function schemaVersionFieldIssue(
+  problem: { kind: 'absent' } | { kind: 'not-string'; shown: string },
+): { what: string; why: string; next: string } {
+  if (problem.kind === 'absent') {
+    return {
+      what: '.yggdrasil/yg-config.yaml has no version: field.',
+      why: 'The version field records which graph schema this graph was written for. Without it the CLI cannot tell whether it can read the graph, cannot choose migrations, and reading the graph anyway would pass over a format it never confirmed it can read.',
+      next: `Restore the field from version control. If you know this graph was written for this CLI's schema, add version: "${CLI_SUPPORTED_SCHEMA}" to .yggdrasil/yg-config.yaml. Then re-run.`,
+    };
+  }
+  return {
+    what: `.yggdrasil/yg-config.yaml has version: ${problem.shown}, which YAML reads as a number, not a version string.`,
+    why: 'The schema version must be a full semver string such as "6.0.0". A bare number cannot be compared against the schema this CLI reads, and reading the graph anyway would pass over a format it never confirmed it can read.',
+    next: `Write the version as a quoted three-part string, e.g. version: "${CLI_SUPPORTED_SCHEMA}". Restore it from version control if you are unsure which schema the graph was written for. Then re-run.`,
+  };
+}
+
 export async function loadGraphOrAbort(
   rootPath: string,
   options: { tolerateInvalidConfig?: boolean; noSecrets?: boolean } = {},
@@ -65,6 +88,14 @@ export async function loadGraphOrAbort(
         next: `run \`yg init --upgrade\` to migrate the graph to ${err.minSupportedVersion}, then re-run.`,
       });
       process.stderr.write(chalk.red(`Error: ${formatted}\n`));
+      process.exit(1);
+    }
+    if (err instanceof MissingSchemaVersionError) {
+      process.stderr.write(chalk.red(`Error: ${buildIssueMessage(schemaVersionFieldIssue({ kind: 'absent' }))}\n`));
+      process.exit(1);
+    }
+    if (err instanceof MalformedSchemaVersionError && err.notAString) {
+      process.stderr.write(chalk.red(`Error: ${buildIssueMessage(schemaVersionFieldIssue({ kind: 'not-string', shown: err.detectedVersion }))}\n`));
       process.exit(1);
     }
     if (err instanceof MalformedSchemaVersionError) {

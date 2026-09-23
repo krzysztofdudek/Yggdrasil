@@ -42,7 +42,7 @@ async function setupProject(): Promise<string> {
 
   await writeFile(
     path.join(yggRoot, 'yg-config.yaml'),
-    'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n',
+    'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n',
   );
   await writeFile(
     path.join(yggRoot, 'yg-architecture.yaml'),
@@ -71,21 +71,21 @@ describe('runFill threads the review-cadence clock into its reports (RZ-18 parit
   it('full --approve report emits aspect-review-overdue when reviewNowUtc is past the date', async () => {
     const root = await setupProject();
     const graph = await loadGraph(path.join(root, '.yggdrasil'));
-    const result = await runFill(graph, { coverageVisibleFiles: null, reviewNowUtc: FUTURE_CLOCK });
+    const result = await runFill(graph, { write: (s: string) => { process.stdout.write(s); }, isTTY: false, now: Date.now, coverageVisibleFiles: null, reviewNowUtc: FUTURE_CLOCK });
     expect(overdueCount(result.checkResult.issues)).toBe(1);
   });
 
   it('dry-run cost-preview report also emits the overdue warning under the same clock', async () => {
     const root = await setupProject();
     const graph = await loadGraph(path.join(root, '.yggdrasil'));
-    const result = await runFill(graph, { coverageVisibleFiles: null, dryRun: true, reviewNowUtc: FUTURE_CLOCK });
+    const result = await runFill(graph, { write: (s: string) => { process.stdout.write(s); }, isTTY: false, now: Date.now, coverageVisibleFiles: null, dryRun: true, reviewNowUtc: FUTURE_CLOCK });
     expect(overdueCount(result.checkResult.issues)).toBe(1);
   });
 
   it('core purity: with NO clock injected the overdue check is skipped (no warning)', async () => {
     const root = await setupProject();
     const graph = await loadGraph(path.join(root, '.yggdrasil'));
-    const result = await runFill(graph, { coverageVisibleFiles: null });
+    const result = await runFill(graph, { write: (s: string) => { process.stdout.write(s); }, isTTY: false, now: Date.now, coverageVisibleFiles: null });
     expect(overdueCount(result.checkResult.issues)).toBe(0);
   });
 });

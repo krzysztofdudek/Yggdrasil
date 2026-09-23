@@ -65,7 +65,7 @@ describe('relation pass wired into runFill (integration)', () => {
     // even though there are zero LLM aspects so it is never invoked.
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n',
+      'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n',
       'utf-8',
     );
 
@@ -91,7 +91,7 @@ describe('relation pass wired into runFill (integration)', () => {
 
   it('runFill writes NO relation_verdicts and the live check agrees on the relation result', async () => {
     const graph = await loadGraph(root);
-    const fill = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const fill = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // The lock has no relation cache at all — relations are computed live. Each
     // split file is absent when its section is empty (empty → no file); read

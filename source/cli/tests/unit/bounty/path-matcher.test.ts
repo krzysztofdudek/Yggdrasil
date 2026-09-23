@@ -291,8 +291,8 @@ describe('normalizeMappingPath', () => {
   it('strips a single leading ./', () => {
     expect(normalizeMappingPath('./src/a.ts')).toBe('src/a.ts');
   });
-  it('only strips ONE leading ./ (a second remains)', () => {
-    expect(normalizeMappingPath('././src/a.ts')).toBe('./src/a.ts');
+  it('collapses every leading ./ (POSIX normalization, as the filesystem resolves it)', () => {
+    expect(normalizeMappingPath('././src/a.ts')).toBe('src/a.ts');
   });
   it('strips all trailing slashes', () => {
     expect(normalizeMappingPath('src/foo///')).toBe('src/foo');

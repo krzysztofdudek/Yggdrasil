@@ -30,5 +30,7 @@ relations:
     type: calls
   - target: cli/tests/unit/cli
     type: uses
+  - target: cli/model/graph
+    type: uses
 mapping:
   - source/cli/src/cli/node.ts

@@ -27,9 +27,9 @@ export interface RunFillOptions {
    *  absent, or the CLI's git probe having failed) skips that one check only;
    *  every other coverage check is unaffected. */
   trackedFiles?: string[] | null;
-  /** Sink for agent-facing fill PROGRESS (plain status lines). Defaults to
-   *  process.stdout.write. */
-  write?: (s: string) => void;
+  /** Sink for agent-facing fill PROGRESS (plain status lines). Required: the
+   *  engine writes to no stream of its own — the CLI decides where progress goes. */
+  write: (s: string) => void;
   /** Sink for structured DIAGNOSTICS ({ what, why, next }). The CLI command
    *  layer supplies the renderer — it owns formatting; this engine module only
    *  emits structured data and never formats it. Defaults to a no-op, so a
@@ -69,17 +69,18 @@ export interface RunFillOptions {
    *  purity: core reads no files). Read-only — never writes the lock or gates the fill.
    *  Typed off RunCheckOptions so the field cannot drift from the option it forwards. */
   rulesArtifacts?: RunCheckOptions['rulesArtifacts'];
-  /** Whether the write sink is an interactive TTY. Defaults to process.stderr.isTTY ?? false.
-   *  When true, the progress tracker rewrites a single line with \r instead of emitting
-   *  milestone lines. */
-  isTTY?: boolean;
+  /** Whether the write sink is an interactive TTY. Required: the engine probes no
+   *  terminal itself. When true, the progress tracker rewrites a single line with \r
+   *  instead of emitting milestone lines. */
+  isTTY: boolean;
   /** Terminal width for that single rewritten line. Without it the line wraps and
    *  each redraw leaves its wrapped rows on screen, so an in-place status turns
    *  into a scrolling log. Injected by the CLI (process.stderr.columns); absent ⇒
    *  a conservative 80. Ignored when isTTY is false. */
   columns?: number;
-  /** Clock function for progress/heartbeat (injectable for tests). Defaults to Date.now. */
-  now?: () => number;
+  /** Clock for progress, heartbeats, verdict timestamps and rule-standing log
+   *  entries. Required: the engine reads no ambient clock. */
+  now: () => number;
   /** INJECTED commit sha, resolved by the CLI boundary from git output it read
    *  itself (`git rev-parse HEAD`) — mirrors trackedFiles/changeScope above;
    *  core calls no git here either. Stamped onto every verdict this run WRITES
@@ -124,10 +125,29 @@ export interface RunFillOptions {
   divergenceWrite?: (text: string) => void;
 }
 
+/**
+ * What a `--dry-run` would cost, as numbers: the same counts the human budget
+ * header states, for a caller that must not parse that sentence.
+ */
+export interface DryRunBudget {
+  /** Unverified pairs the fill would touch. */
+  pairs: number;
+  /** Components owning those pairs. */
+  nodes: number;
+  /** Type-covered files (no owning component) among them. */
+  files: number;
+  /** Deterministic pairs in the set (free). */
+  deterministic: number;
+  /** Reviewer calls the fill would make, consensus included — an upper bound. */
+  reviewerCalls: number;
+}
+
 export interface RunFillResult {
   /** The final check report after fills (exit semantics: any error ⇒ nonzero).
    *  Printed by the `yg check --approve` combiner. */
   checkResult: CheckResult;
+  /** Present on a dry-run only: the cost preview as numbers. */
+  dryRunBudget?: DryRunBudget;
   /** Number of reviewer calls actually dispatched (consensus-inclusive). */
   reviewerCallsMade: number;
   /** Pairs that hit an infra disposition (no write). */

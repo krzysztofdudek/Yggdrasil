@@ -61,10 +61,12 @@ function makeFixture(label: string, opts: { signalsOff?: boolean } = {}): string
   w(
     dir,
     '.yggdrasil/yg-config.yaml',
-    `${signalsBlock}reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`,
+    `version: "6.0.0"\n${signalsBlock}reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`,
   );
   w(dir, '.yggdrasil/model/svc/yg-node.yaml', `name: Svc\ndescription: service unit\ntype: service\nmapping:\n  - src/svc\n`);
   [1, 2, 3, 2, 1, 50].forEach((n, i) => w(dir, `src/svc/file${i}.ts`, tsFileWithIfs(n)));
+  // The line `yg init` scaffolds: `yg check` writes the index only where git ignores it.
+  w(dir, '.yggdrasil/.gitignore', '.feature-field.json\n');
   return dir;
 }
 
@@ -85,10 +87,12 @@ function makeTypeCoveredFixture(label: string): string {
   w(
     dir,
     '.yggdrasil/yg-config.yaml',
-    `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\ncoverage:\n  type_level: true\n`,
+    `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\ncoverage:\n  type_level: true\n`,
   );
   mkdirSync(path.join(dir, '.yggdrasil', 'model'), { recursive: true });
   [1, 2, 3, 2, 1, 50].forEach((n, i) => w(dir, `src/svc/file${i}.ts`, tsFileWithIfs(n)));
+  // The line `yg init` scaffolds: `yg check` writes the index only where git ignores it.
+  w(dir, '.yggdrasil/.gitignore', '.feature-field.json\n');
   return dir;
 }
 

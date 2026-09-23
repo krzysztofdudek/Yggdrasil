@@ -166,7 +166,7 @@ describe.skipIf(!distExists)('CLI E2E — lock merge (LLM) & piped refusal survi
       // Config: a single tier pointed at the mock (consensus 1).
       writeFileSync(
         path.join(ygRoot, 'yg-config.yaml'),
-        ['quality:', '  max_direct_relations: 10', 'reviewer:', '  tiers:', '    standard:', '      provider: ollama', '      consensus: 1', '      config:', '        model: test', `        endpoint: ${mock.endpoint}`, ''].join('\n'),
+        ['version: "6.0.0"', 'quality:', '  max_direct_relations: 10', 'reviewer:', '  tiers:', '    standard:', '      provider: ollama', '      consensus: 1', '      config:', '        model: test', `        endpoint: ${mock.endpoint}`, ''].join('\n'),
         'utf-8',
       );
 

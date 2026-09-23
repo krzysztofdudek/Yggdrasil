@@ -18,11 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - The external-judge channel is removed: `yg verdict package`, `yg verdict record` and `yg verdict read`, with their `yg-review/1` and `yg-verdicts/1` documents. A prose rule is judged by the reviewer configured in `yg-config.yaml`, through `yg check --approve`, and by nothing else. A verdict an earlier release recorded through the channel is still read and still holds while the code it judged is unchanged, and `yg check` still names its judge; nothing writes a new one. Anything that consumed these documents, Horde's `retro` included, loses that input. `yg verdict` stays registered, hidden, and exits 1 pointing at `yg check --approve` instead of failing as an unknown command.
 - A drill case is seen at its repository path, not at its corpus location. A corpus written against the old location needs its cases moved under their repository path: a case whose relative import walks back out of `drills/<case>/`, or a check that treats the `violates-*` / `satisfies-*` directory as a container. Unmoved, such a case reports `MISS` with no hint that the layout changed.
+- Every command that loads the graph refuses a `yg-config.yaml` whose `version:` is missing or is not a string. An unquoted `version: 5.1` is a YAML number, and both cases used to load as the current schema, skipping the check that a newer or older graph is not misread. The error says to quote the version (`version: "6.0.0"`) or restore it; `yg init --upgrade` refuses the same two cases with the same message instead of the old "no graph version detected", which told you to run an interactive init that never wrote the field.
+- An unknown top-level key in `yg-config.yaml` or `yg-secrets.yaml` is an error, `config-unknown-key`, with a did-you-mean suggestion (`progresive` → `progressive`). It used to be ignored, so a misspelled block silently fell back to its default.
 
 ### Added
 
 - A reviewer provider for the GitHub Copilot CLI, `copilot-cli`, so a prose rule can be judged on a company's Copilot plan instead of a personal API key. It takes no default model: the organisation's Copilot policy decides which models a seat may use and the CLI refuses any other, so the tier names one (`auto` lets Copilot pick). It runs the real CLI — `YG_COPILOT_BIN`, else the first `copilot` on PATH outside the VS Code extension's storage, whose `copilot` is an installer prompt — with an empty `COPILOT_HOME`, no repository instructions, no built-in MCP servers and no shell, write, network or memory tools; the sign-in is kept. The prompt goes on stdin, so a large component's prompt is not cut off by the per-argument or Windows command-line limit, and on Windows the npm `.cmd` shim is started through a shell with only fixed flags and a checked model name. `yg init` offers it, requires `--model` for it, and checks for the real CLI the same way.
 - `yg check` warns `type-undefined-pending` for each node whose type is not declared while `yg-architecture.yaml` has no node types yet. Such a type was accepted silently, and the first type anyone added turned every one of those nodes into a blocking `type-undefined` error at once
+- `yg check --approve --dry-run --json` carries the cost preview as numbers in a `dryRunBudget` field (`pairs`, `nodes`, `files`, `deterministic`, `reviewerCalls`). The portal's Approve preview reads it instead of pattern-matching the human header.
+- `mapping-path-case-mismatch`: a mapping entry that differs from the on-disk path only in letter case is an error naming the real spelling. A case-insensitive filesystem resolved it, so the check passed locally and failed on a case-sensitive CI.
 
 ### Changed
 
@@ -32,6 +36,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `log-entry-missing` fix says to ask the user for the reason when the agent did not make the change, instead of only asking for a justification.
 - `yg advise` labels each nomination's action line `Next:` and says "Requires the user's approval." (or "requires the user's consent.") instead of "This requires your approval.", which read to an agent as its own approval.
 - The onboarding playbook says the protocol's confirmations still hold while tutoring: the first node type is an architecture edit and needs the user's yes. The session opens with `yg check --summary`, which is the same check. The keyless practice project uses `yg init --no-reviewer` instead of a hand-written config and ignore list.
+- A plain `yg check` no longer edits the tracked `.yggdrasil/.gitignore`. When git does not ignore `.yggdrasil/.feature-field.json`, the check skips that local index and prints a notice naming `yg init --upgrade`, which adds the line. A pattern such as `/.feature-field.json`, or a line in the root `.gitignore`, now counts as ignoring it.
+- Mapping entries are normalized before any comparison: `src//app`, `src/./app` and `src/lib/../app` all mean `src/app`. Such an entry used to be reviewed as the directory while `yg owner` and coverage said no node mapped its files.
+- `yg aspects` and `yg aspects --json` count a rule reached through an ancestor as `inherited` and one required by a consumed port as `port`. Both used to be counted as `implied`, which now means only another rule's `implies`.
+- The predicate trace of a `content:` match on a file longer than 256 KiB says that only the first 256 KiB was scanned when nothing matched there.
 
 ### Removed
 
@@ -65,6 +73,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `yg simulate` prints its survivorship caveat once instead of twice, and the reference documents `--file` beside `--node` (exactly one is required)
 - `yg tree` and `yg flows` say `(no nodes yet …)` and `(no flows defined)` on an empty graph instead of printing nothing
 - The help for `yg tree`, `yg portal` and `yg init --upgrade` now states what the reference does: a flat list of full paths, the port and output defaults and that `--static` writes at the project root, and the migrations `--upgrade` runs. The reference lists how `yg aspects log read` and `yg log read` differ instead of calling them exact counterparts
+- `yg context` reports the log gate the way `yg check` enforces it. With a mapped file it cannot read, context said no log entry was owed while check blocked, and `yg check` reported `log-entry-missing` (write a log entry) for a node whose real problem was the unreadable file; it now reports `file-unreadable` for it.
+- `yg simulate` waits for its streamed report to reach a pipe before it exits, so a long report is not cut short.
 
 ## [6.0.0] - 2026-09-12
 

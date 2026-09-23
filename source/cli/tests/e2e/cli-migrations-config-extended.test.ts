@@ -115,7 +115,7 @@ function scaffoldCheck(
   );
   writeFileSync(path.join(ygRoot, 'aspects', 'det', 'check.mjs'), 'export function check() {\n  return [];\n}\n', 'utf-8');
 
-  writeFileSync(path.join(ygRoot, 'yg-config.yaml'), opts.configYaml, 'utf-8');
+  writeFileSync(path.join(ygRoot, 'yg-config.yaml'), /^version:/m.test(opts.configYaml) ? opts.configYaml : `version: "6.0.0"\n${opts.configYaml}`, 'utf-8');
   if (opts.secretsYaml !== undefined) {
     writeFileSync(path.join(ygRoot, 'yg-secrets.yaml'), opts.secretsYaml, 'utf-8');
   }

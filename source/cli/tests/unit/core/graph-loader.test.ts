@@ -56,6 +56,23 @@ describe('loadGraph version gate', () => {
     });
   });
 
+  // An unquoted `version: 5.1` is a YAML NUMBER, not a string. The gate used to
+  // read only strings, so a number (or a missing line) skipped every gate and
+  // the graph loaded as if it were the current schema — fail open.
+  it.each([['5.1'], ['5'], ['99.0'], ['6.0']])('fails closed on an unquoted numeric version: %s', async (v) => {
+    writeFileSync(join(tmpRoot, '.yggdrasil', 'yg-config.yaml'), `version: ${v}\n`);
+    await expect(loadGraph(tmpRoot)).rejects.toBeInstanceOf(MalformedSchemaVersionError);
+    await loadGraph(tmpRoot).catch((e: unknown) => {
+      expect((e as MalformedSchemaVersionError).detectedVersion).toBe(v);
+      expect((e as MalformedSchemaVersionError).notAString).toBe(true);
+    });
+  });
+
+  it('fails closed when the version field is absent', async () => {
+    writeFileSync(join(tmpRoot, '.yggdrasil', 'yg-config.yaml'), 'parallel: 2\n');
+    await expect(loadGraph(tmpRoot)).rejects.toMatchObject({ name: 'MissingSchemaVersionError' });
+  });
+
   it('does not trip the malformed guard on legitimate pre-release semver', async () => {
     // A pre-release like "5.1.0-beta.1" IS valid semver (valid() accepts it), so
     // it must reach the real gt/lt gates — not the malformed-version guard. Being

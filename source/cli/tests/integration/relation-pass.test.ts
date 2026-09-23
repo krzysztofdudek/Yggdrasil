@@ -99,7 +99,7 @@ describe('runRelationPass (integration)', () => {
     );
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`,
       'utf-8',
     );
 
@@ -200,7 +200,7 @@ describe('runRelationPass stops file enumeration at a nested project boundary', 
     );
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`,
       'utf-8',
     );
     writeNode(root, 'a', 'A', 'src/a');
@@ -285,7 +285,7 @@ describe('runRelationPass stops file enumeration at a coverage.excluded root', (
     );
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src/a/vendor/\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src/a/vendor/\n`,
       'utf-8',
     );
     writeNode(root, 'a', 'A', 'src/a');
@@ -403,7 +403,7 @@ describe('runRelationPass silences an import whose TARGET resolves inside a cove
     );
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src/a/vendor/\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - src/a/vendor/\n`,
       'utf-8',
     );
     writeNode(root, 'a', 'A', 'src/a');
@@ -526,7 +526,7 @@ describe('runRelationPass — TypedEdgeIndex excludes node-owned <-> node-owned 
     );
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`,
       'utf-8',
     );
 
@@ -643,7 +643,7 @@ describe('runRelationPass — AST fact cache', () => {
     );
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`,
       'utf-8',
     );
   }
@@ -879,7 +879,7 @@ describe("runRelationPass — an excluded file must never become a Go package's 
   it('excluding the package member that sorts FIRST does not silence a real undeclared dependency reached through the package\'s other, non-excluded file', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -898,7 +898,7 @@ describe("runRelationPass — an excluded file must never become a Go package's 
   it('control: excluding the package member that sorts LAST still reports the same violation', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -966,7 +966,7 @@ describe('runRelationPass — excluding one file of a split Go package attribute
   it('control: with no exclusion, the split package silences the import for BOTH candidate owners', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -984,7 +984,7 @@ describe('runRelationPass — excluding one file of a split Go package attribute
   it('excluding the FIRST-sorting member (a1\'s file) attributes the import to a2, the owner that remains', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -1004,7 +1004,7 @@ describe('runRelationPass — excluding one file of a split Go package attribute
   it('excluding the LAST-sorting member (a2\'s file, the one that actually defines Kept()) attributes the import to a1, the owner that remains', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -1057,7 +1057,7 @@ describe('runRelationPass — a three-way split Go package stays silent after ex
     );
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa.go\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa.go\n`,
       'utf-8',
     );
   });
@@ -1115,7 +1115,7 @@ describe('runRelationPass — a single-file Go package', () => {
   });
 
   it('control: reported when nothing is excluded', async () => {
-    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`, 'utf-8');
     const graph = await loadGraph(root);
     const result = await runRelationPass(graph, root, {
       extractorFor: extractorForLanguage,
@@ -1130,7 +1130,7 @@ describe('runRelationPass — a single-file Go package', () => {
   it('the package\'s only file excluded: silent — the whole target is gone', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/only.go\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/only.go\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -1147,7 +1147,7 @@ describe('runRelationPass — a single-file Go package', () => {
     writeFileSync(path.join(root, 'pkg', 'b', 'unrelated.go'), 'package b\n\nfunc Unrelated() int { return 0 }\n', 'utf-8');
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/b/unrelated.go\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/b/unrelated.go\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -1211,7 +1211,7 @@ describe('runRelationPass + computeTypeGateFindings — an excluded Go package m
   }
 
   it('control: nothing excluded — the forbidden edge is reported, attributed to the lexicographically-first file', async () => {
-    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`, 'utf-8');
     const graph = await loadGraph(root);
     const typeCoveredFiles = new Map([
       ['pkg/a/aaa_gen.go', 'lib'],
@@ -1232,7 +1232,7 @@ describe('runRelationPass + computeTypeGateFindings — an excluded Go package m
   it('excluding the FIRST-sorting member (aaa_gen.go) still reports the forbidden edge, attributed to zzz_kept.go — the file that remains', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/aaa_gen.go\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -1257,7 +1257,7 @@ describe('runRelationPass + computeTypeGateFindings — an excluded Go package m
   it('control: excluding the LAST-sorting member (zzz_kept.go) still reports the forbidden edge, attributed to aaa_gen.go — the file that remains', async () => {
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\ncoverage:\n  excluded:\n    - pkg/a/zzz_kept.go\n`,
       'utf-8',
     );
     const graph = await loadGraph(root);
@@ -1298,7 +1298,7 @@ describe('runRelationPass + computeTypeGateFindings — a Java wildcard import i
       `node_types:\n  svc:\n    description: 'deny-default service type'\n    when:\n      path: "src/com/b/**"\n    relations:\n      default: deny\n  lib:\n    description: 'library type'\n    when:\n      path: "src/com/a/**"\n`,
       'utf-8',
     );
-    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`, 'utf-8');
     mkdirSync(path.join(root, 'src', 'com', 'a'), { recursive: true });
     mkdirSync(path.join(root, 'src', 'com', 'b'), { recursive: true });
     writeFileSync(

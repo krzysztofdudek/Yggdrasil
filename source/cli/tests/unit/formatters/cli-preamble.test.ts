@@ -30,7 +30,7 @@ describe('loadGraphOrAbort', () => {
     mkdirSync(join(ygg, 'model'), { recursive: true });
     writeFileSync(
       join(ygg, 'yg-config.yaml'),
-      `schemaVersion: "4.3.0"\nproject:\n  name: t\n`,
+      `version: "6.0.0"\nschemaVersion: "4.3.0"\nproject:\n  name: t\n`,
     );
     writeFileSync(join(ygg, 'yg-architecture.yaml'), 'node_types: {}\n');
 
@@ -51,7 +51,7 @@ describe('loadGraphOrAbort', () => {
   it('classifies a malformed flow file as a flow-specific finding, NOT "run yg init" (graph IS initialized)', async () => {
     const ygg = join(dir, '.yggdrasil');
     mkdirSync(join(ygg, 'model'), { recursive: true });
-    writeFileSync(join(ygg, 'yg-config.yaml'), `schemaVersion: "4.3.0"\nproject:\n  name: t\n`);
+    writeFileSync(join(ygg, 'yg-config.yaml'), `version: "6.0.0"\nschemaVersion: "4.3.0"\nproject:\n  name: t\n`);
     writeFileSync(join(ygg, 'yg-architecture.yaml'), 'node_types: {}\n');
     // A flow directory whose yg-flow.yaml is absent → ENOENT during load. The
     // graph IS initialized, so this must NOT surface as the not-initialized
@@ -108,7 +108,7 @@ describe('loadGraphOrAbort', () => {
     // pass-through error we point at a syntactically broken yg-config and disable
     // tolerateInvalidConfig.
     mkdirSync(join(ygg, 'model'));
-    writeFileSync(join(ygg, 'yg-config.yaml'), 'this is :: not valid yaml :::');
+    writeFileSync(join(ygg, 'yg-config.yaml'), 'version: "6.0.0"\nthis is :: not valid yaml :::');
 
     // Loader rejects bad config when tolerateInvalidConfig is false.
     // The error is not ENOENT-shaped, so loadGraphOrAbort should rethrow.

@@ -34,3 +34,5 @@ under an attacker-controlled hostname. The plain page and static-asset routes
 are deliberately left unguarded, because a browser navigates to them directly
 and cannot attach a custom header; those routes perform no action and reveal
 only the same page a local operator already sees.
+## [2026-09-23T20:50:34.270Z]
+The approve preview reads the cost from the check's machine document instead of pattern-matching the human header, whose wording is free to change. The page module held only one-line wrappers with a single caller, so the router calls the pipeline, serializer and boot pages directly.

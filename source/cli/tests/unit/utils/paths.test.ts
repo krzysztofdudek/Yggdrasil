@@ -6,7 +6,6 @@ import {
   findYggRoot,
   normalizeMappingPaths,
   normalizeProjectRelativePath,
-  toGraphPath,
 } from '../../../src/io/paths.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -101,27 +100,6 @@ describe('paths', () => {
       // than iterate the string's characters as if it were an array of paths.
       expect(normalizeMappingPaths('foo.ts' as unknown as string[])).toEqual([]);
       expect(normalizeMappingPaths({ path: 'foo.ts' } as unknown as string[])).toEqual([]);
-    });
-  });
-
-  describe('toGraphPath', () => {
-    it('converts absolute path to graph path', () => {
-      const yggRoot = path.join(FIXTURE_PROJECT, '.yggdrasil');
-      const modelDir = path.join(yggRoot, 'model');
-      const absPath = path.join(modelDir, 'orders', 'order-service');
-      expect(toGraphPath(absPath, modelDir)).toBe('orders/order-service');
-    });
-
-    it('handles single segment', () => {
-      const yggRoot = '/proj/.yggdrasil';
-      const absPath = '/proj/.yggdrasil/auth';
-      expect(toGraphPath(absPath, yggRoot)).toBe('auth');
-    });
-
-    it('handles deeply nested paths', () => {
-      const yggRoot = '/proj/.yggdrasil';
-      const absPath = '/proj/.yggdrasil/a/b/c/d';
-      expect(toGraphPath(absPath, yggRoot)).toBe('a/b/c/d');
     });
   });
 

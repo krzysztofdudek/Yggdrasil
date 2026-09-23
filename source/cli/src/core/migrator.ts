@@ -1,7 +1,7 @@
 import path from 'node:path';
-import { parse as parseYaml } from 'yaml';
 import { readTextFile, atomicWriteTextFile } from '../io/graph-fs.js';
 import { toPosixPath } from '../utils/posix.js';
+import { parseSchemaVersionText, type SchemaVersionField } from '../io/config-parser.js';
 
 export interface Migration {
   to: string;
@@ -17,22 +17,31 @@ export interface MigrationResult {
 }
 
 /**
- * Detect Yggdrasil version from yg-config.yaml.
- * Returns semver string or null if no config found.
+ * Read the schema `version:` field of `<yggRoot>/yg-config.yaml` through the one
+ * shared reader. Null when the file is missing, unreadable, or not a YAML
+ * mapping — the config parser reports those; this answers only what the version
+ * field holds.
  */
-export async function detectVersion(yggRoot: string): Promise<string | null> {
+export async function readSchemaVersion(yggRoot: string): Promise<SchemaVersionField | null> {
   const root = toPosixPath(yggRoot.trim());
   const configPath = path.join(root, 'yg-config.yaml');
+  let content: string;
   try {
-    const content = await readTextFile(configPath);
-    const raw = parseYaml(content) as Record<string, unknown>;
-    if (raw && typeof raw === 'object' && typeof raw.version === 'string') {
-      return raw.version.trim();
-    }
-    return null;
+    content = await readTextFile(configPath);
   } catch {
     return null;
   }
+  return parseSchemaVersionText(content);
+}
+
+/**
+ * The declared schema version when it is a string (trimmed), else null — absent,
+ * not a string, or no readable config. Callers that must tell those cases apart
+ * use {@link readSchemaVersion}.
+ */
+export async function detectVersion(yggRoot: string): Promise<string | null> {
+  const read = await readSchemaVersion(yggRoot);
+  return read?.kind === 'string' ? read.value : null;
 }
 
 /**

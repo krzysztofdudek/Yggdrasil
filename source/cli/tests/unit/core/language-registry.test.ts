@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getExtensionsForLanguage, getGrammarForExtension, getLanguageDisplayName } from '../../../src/utils/language-registry.js';
+import { LANGUAGES, EXTENSION_TO_LANGUAGE, getLanguageForExtension, getGrammarForExtension, getLanguageDisplayName } from '../../../src/utils/language-registry.js';
 
 describe('language registry', () => {
   it('lists Tier 0 (ts/tsx/js) + Tier 1 + JSON', () => {
@@ -57,15 +57,6 @@ describe('language registry', () => {
 
   it('.jsx maps to javascript (not tsx)', () => {
     expect(getLanguageForExtension('.jsx')).toBe('javascript');
-  });
-
-  it('getExtensionsForLanguage returns extensions for known language', () => {
-    expect(getExtensionsForLanguage('typescript')).toEqual(['.ts', '.mts', '.cts']);
-    expect(getExtensionsForLanguage('javascript')).toEqual(['.js', '.mjs', '.cjs', '.jsx']);
-  });
-
-  it('getExtensionsForLanguage returns empty array for unknown language', () => {
-    expect(getExtensionsForLanguage('cobol')).toEqual([]);
   });
 });
 

@@ -36,7 +36,7 @@ afterEach(async () => {
 
 /** Consensus 3, so a budget derived from the filtered set is visibly not a pair count. */
 const CONFIG_YAML =
-  'reviewer:\n  default: standard\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 3\n      config:\n        model: llama3\n';
+  'version: "6.0.0"\nreviewer:\n  default: standard\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 3\n      config:\n        model: llama3\n';
 
 const DET_RULE = 'export function check(ctx) { void ctx; return []; }\n';
 

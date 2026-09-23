@@ -144,3 +144,5 @@ The verdict writer now stamps every real verdict it records with when it was fil
 An approving run no longer records a port-contract baseline into the committed lock. The recording step — which used to run even on the free deterministic-only fill — is removed along with the check it fed, so there is nothing left for this stage to write on a port's behalf.
 ## [2026-09-23T19:22:57.839Z]
 The approving run's log gate names the same exit as the plain check: when the drift comes from a change the reader did not make, the reason must come from the user. The gate measures drift from the last recorded verdicts, which earlier commits by other people can cause, so the message must not assume the reader knows why the code changed.
+## [2026-09-23T20:50:03.242Z]
+The fill's output sink, TTY state and clock are now required inputs. The engine used to fall back to the process streams and the wall clock when a caller left them out, which the purity rule could not see; every caller now supplies them. A dry-run also returns its cost preview as numbers for machine output.

@@ -10,3 +10,5 @@ Replaced the hand-inlined path-separator normalization with calls to a single sh
 The migration rewrite of the project config now goes through the crash-safe atomic write path (temp file plus rename) instead of a direct overwrite, so an interrupt mid-migration can never leave a truncated or half-written config on disk — the same durability every other committed-state writer already has.
 ## [2026-07-15T10:22:08.743Z]
 Removed a dead, unreferenced migration-runner function whose applicable-filter/sort/run logic is duplicated by — and fully superseded by — the live version-upgrade runner in the sibling module. It had no callers in production code; only a unit test kept it alive. The live runner's own tests already cover the same ordering and skip behavior, so no coverage is lost. Pure dead-code removal, no behavior change.
+## [2026-09-23T20:50:16.412Z]
+The migrator reads the schema version through the one shared config reader and can tell an absent field from a non-string one, so callers stop treating both as no version.

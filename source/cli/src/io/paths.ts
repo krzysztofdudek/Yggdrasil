@@ -65,14 +65,6 @@ export function normalizeMappingPaths(mapping: string[] | undefined): string[] {
 }
 
 /**
- * Convert a node's directory path to its graph path.
- * E.g., "/abs/path/.yggdrasil/orders/order-service" → "orders/order-service"
- */
-export function toGraphPath(absolutePath: string, yggRoot: string): string {
-  return toPosixPath(path.relative(yggRoot, absolutePath));
-}
-
-/**
  * Normalize a user-provided path to project-relative POSIX form.
  * Throws when the target path points outside the project root.
  */

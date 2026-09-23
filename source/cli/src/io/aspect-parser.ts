@@ -97,6 +97,166 @@ function deriveProjectRoot(aspectDir: string, id: string): string {
   return path.resolve(aspectDir, ...upFromId, '..', '..');
 }
 
+/**
+ * The `references:` block of one yg-aspect.yaml: a list of repo-relative paths
+ * (bare, or `{ path, description }`), normalized to POSIX, refused when blank,
+ * escaping the repository, duplicated, or declared on a rule with no LLM prompt
+ * to carry them (deterministic or aggregate). Returns the FIRST problem found,
+ * exactly as the aspect parser reports it.
+ */
+function parseReferences(
+  rawRefs: unknown,
+  reviewerType: AspectReviewerSpec['type'],
+  aspectId: string,
+  aspectYamlPath: string,
+):
+  | { ok: true; value: Array<{ path: string; description?: string }> }
+  | { ok: false; errors: Array<{ code: string; messageData: IssueMessage }> }
+{
+  if (!Array.isArray(rawRefs)) {
+    return {
+      ok: false,
+      errors: [{
+        code: 'aspect-reference-invalid-form',
+        messageData: {
+          what: `yg-aspect.yaml at ${aspectYamlPath}: 'references' must be an array`,
+          why: 'references is a list of file paths or { path, description } objects',
+          next: 'change references: to a YAML sequence',
+        },
+      }],
+    };
+  }
+  // aspect-references-on-deterministic: cross-field check
+  if (reviewerType === 'deterministic') {
+    return {
+      ok: false,
+      errors: [{
+        code: 'aspect-references-on-deterministic',
+        messageData: {
+          what: `Aspect '${aspectId}' declares 'references:' but reviewer.type is 'deterministic'.`,
+          why: 'reference files are passed to the LLM reviewer in the prompt. Deterministic aspects run a local check.mjs and ignore them.',
+          next: `remove 'references:' from .yggdrasil/aspects/${aspectId}/yg-aspect.yaml, or embed lookup tables in check.mjs directly, or change reviewer.type to 'llm'.`,
+        },
+      }],
+    };
+  }
+  // An aggregating aspect has no LLM reviewer prompt, so references go nowhere.
+  if (reviewerType === 'aggregate') {
+    return {
+      ok: false,
+      errors: [{
+        code: 'aspect-references-on-aggregate',
+        messageData: {
+          what: `Aspect '${aspectId}' declares 'references:' but it is an aggregating aspect (no content.md, no check.mjs).`,
+          why: 'reference files are passed to the LLM reviewer in the prompt. An aggregating aspect has no own reviewer — it only bundles implied aspects, so references would never be read.',
+          next: `remove 'references:' from .yggdrasil/aspects/${aspectId}/yg-aspect.yaml, or add a content.md and move the references onto that LLM aspect.`,
+        },
+      }],
+    };
+  }
+  const references: Array<{ path: string; description?: string }> = [];
+  const seenPaths = new Set<string>();
+  for (let i = 0; i < rawRefs.length; i++) {
+    const entry = rawRefs[i];
+    let rawPath: string;
+    let description: string | undefined;
+    if (typeof entry === 'string') {
+      rawPath = entry;
+    } else if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
+      const obj = entry as Record<string, unknown>;
+      if (typeof obj.path !== 'string') {
+        return {
+          ok: false,
+          errors: [{
+            code: 'aspect-reference-invalid-form',
+            messageData: {
+              what: `yg-aspect.yaml at ${aspectYamlPath}: references[${i}] object missing string 'path' field`,
+              why: 'each reference entry must be a string OR an object { path: string, description?: string }',
+              next: `set references[${i}].path to a string path`,
+            },
+          }],
+        };
+      }
+      rawPath = obj.path;
+      if (obj.description !== undefined) {
+        if (typeof obj.description !== 'string') {
+          return {
+            ok: false,
+            errors: [{
+              code: 'aspect-reference-invalid-form',
+              messageData: {
+                what: `yg-aspect.yaml at ${aspectYamlPath}: references[${i}].description must be a string when present`,
+                why: 'description is optional but must be a string',
+                next: `remove the description or set it to a string at references[${i}]`,
+              },
+            }],
+          };
+        }
+        description = obj.description;
+      }
+    } else {
+      return {
+        ok: false,
+        errors: [{
+          code: 'aspect-reference-invalid-form',
+          messageData: {
+            what: `yg-aspect.yaml at ${aspectYamlPath}: references[${i}] is neither a string nor an object`,
+            why: 'each reference entry must be a string OR an object { path: string, description?: string }',
+            next: `replace references[${i}] with a string path or { path: ..., description: ... }`,
+          },
+        }],
+      };
+    }
+    // normalize: trim, \ -> /, strip trailing /
+    const normalized = toPosixPath(rawPath.trim());
+    // aspect-reference-blank-path
+    if (normalized === '') {
+      return {
+        ok: false,
+        errors: [{
+          code: 'aspect-reference-blank-path',
+          messageData: {
+            what: `yg-aspect.yaml at ${aspectYamlPath}: references[${i}] is blank or whitespace-only`,
+            why: 'every reference must declare a non-empty repo-relative path',
+            next: `set references[${i}] to a real file path or remove the entry`,
+          },
+        }],
+      };
+    }
+    // aspect-reference-escape
+    if (escapesRepo(normalized)) {
+      return {
+        ok: false,
+        errors: [{
+          code: 'aspect-reference-escape',
+          messageData: {
+            what: `Aspect '${aspectId}' reference '${rawPath}' escapes the repository root.`,
+            why: 'references must be repo-relative so they are reproducible across clones and CI.',
+            next: `use a path relative to the repository root, e.g. 'docs/error-codes.md'.`,
+          },
+        }],
+      };
+    }
+    // aspect-reference-duplicate
+    if (seenPaths.has(normalized)) {
+      return {
+        ok: false,
+        errors: [{
+          code: 'aspect-reference-duplicate',
+          messageData: {
+            what: `Aspect '${aspectId}' lists '${normalized}' more than once under 'references:'.`,
+            why: 'duplicate references inflate the prompt and indicate a copy-paste error.',
+            next: `remove the duplicate entry from .yggdrasil/aspects/${aspectId}/yg-aspect.yaml.`,
+          },
+        }],
+      };
+    }
+    seenPaths.add(normalized);
+    references.push({ path: normalized, description });
+  }
+  return { ok: true, value: references };
+}
+
 /** Pure helper: returns true if path p would escape the repository root. */
 function escapesRepo(p: string): boolean {
   if (p.startsWith('/')) return true;
@@ -458,156 +618,9 @@ export async function parseAspect(
   // references: optional, normalized to Array<{ path, description? }>
   let references: Array<{ path: string; description?: string }> | undefined;
   if (raw.references !== undefined) {
-    if (!Array.isArray(raw.references)) {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-reference-invalid-form',
-          messageData: {
-            what: `yg-aspect.yaml at ${aspectYamlPath}: 'references' must be an array`,
-            why: 'references is a list of file paths or { path, description } objects',
-            next: 'change references: to a YAML sequence',
-          },
-        }],
-      };
-    }
-    // aspect-references-on-deterministic: cross-field check
-    if (reviewer.type === 'deterministic') {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-references-on-deterministic',
-          messageData: {
-            what: `Aspect '${idTrimmed}' declares 'references:' but reviewer.type is 'deterministic'.`,
-            why: 'reference files are passed to the LLM reviewer in the prompt. Deterministic aspects run a local check.mjs and ignore them.',
-            next: `remove 'references:' from .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml, or embed lookup tables in check.mjs directly, or change reviewer.type to 'llm'.`,
-          },
-        }],
-      };
-    }
-    // An aggregating aspect has no LLM reviewer prompt, so references go nowhere.
-    if (reviewer.type === 'aggregate') {
-      return {
-        ok: false,
-        aspectId: idTrimmed,
-        errors: [{
-          code: 'aspect-references-on-aggregate',
-          messageData: {
-            what: `Aspect '${idTrimmed}' declares 'references:' but it is an aggregating aspect (no content.md, no check.mjs).`,
-            why: 'reference files are passed to the LLM reviewer in the prompt. An aggregating aspect has no own reviewer — it only bundles implied aspects, so references would never be read.',
-            next: `remove 'references:' from .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml, or add a content.md and move the references onto that LLM aspect.`,
-          },
-        }],
-      };
-    }
-    references = [];
-    const seenPaths = new Set<string>();
-    for (let i = 0; i < raw.references.length; i++) {
-      const entry = raw.references[i];
-      let rawPath: string;
-      let description: string | undefined;
-      if (typeof entry === 'string') {
-        rawPath = entry;
-      } else if (entry && typeof entry === 'object' && !Array.isArray(entry)) {
-        const obj = entry as Record<string, unknown>;
-        if (typeof obj.path !== 'string') {
-          return {
-            ok: false,
-            aspectId: idTrimmed,
-            errors: [{
-              code: 'aspect-reference-invalid-form',
-              messageData: {
-                what: `yg-aspect.yaml at ${aspectYamlPath}: references[${i}] object missing string 'path' field`,
-                why: 'each reference entry must be a string OR an object { path: string, description?: string }',
-                next: `set references[${i}].path to a string path`,
-              },
-            }],
-          };
-        }
-        rawPath = obj.path;
-        if (obj.description !== undefined) {
-          if (typeof obj.description !== 'string') {
-            return {
-              ok: false,
-              aspectId: idTrimmed,
-              errors: [{
-                code: 'aspect-reference-invalid-form',
-                messageData: {
-                  what: `yg-aspect.yaml at ${aspectYamlPath}: references[${i}].description must be a string when present`,
-                  why: 'description is optional but must be a string',
-                  next: `remove the description or set it to a string at references[${i}]`,
-                },
-              }],
-            };
-          }
-          description = obj.description;
-        }
-      } else {
-        return {
-          ok: false,
-          aspectId: idTrimmed,
-          errors: [{
-            code: 'aspect-reference-invalid-form',
-            messageData: {
-              what: `yg-aspect.yaml at ${aspectYamlPath}: references[${i}] is neither a string nor an object`,
-              why: 'each reference entry must be a string OR an object { path: string, description?: string }',
-              next: `replace references[${i}] with a string path or { path: ..., description: ... }`,
-            },
-          }],
-        };
-      }
-      // normalize: trim, \ -> /, strip trailing /
-      const normalized = toPosixPath(rawPath.trim());
-      // aspect-reference-blank-path
-      if (normalized === '') {
-        return {
-          ok: false,
-          aspectId: idTrimmed,
-          errors: [{
-            code: 'aspect-reference-blank-path',
-            messageData: {
-              what: `yg-aspect.yaml at ${aspectYamlPath}: references[${i}] is blank or whitespace-only`,
-              why: 'every reference must declare a non-empty repo-relative path',
-              next: `set references[${i}] to a real file path or remove the entry`,
-            },
-          }],
-        };
-      }
-      // aspect-reference-escape
-      if (escapesRepo(normalized)) {
-        return {
-          ok: false,
-          aspectId: idTrimmed,
-          errors: [{
-            code: 'aspect-reference-escape',
-            messageData: {
-              what: `Aspect '${idTrimmed}' reference '${rawPath}' escapes the repository root.`,
-              why: 'references must be repo-relative so they are reproducible across clones and CI.',
-              next: `use a path relative to the repository root, e.g. 'docs/error-codes.md'.`,
-            },
-          }],
-        };
-      }
-      // aspect-reference-duplicate
-      if (seenPaths.has(normalized)) {
-        return {
-          ok: false,
-          aspectId: idTrimmed,
-          errors: [{
-            code: 'aspect-reference-duplicate',
-            messageData: {
-              what: `Aspect '${idTrimmed}' lists '${normalized}' more than once under 'references:'.`,
-              why: 'duplicate references inflate the prompt and indicate a copy-paste error.',
-              next: `remove the duplicate entry from .yggdrasil/aspects/${idTrimmed}/yg-aspect.yaml.`,
-            },
-          }],
-        };
-      }
-      seenPaths.add(normalized);
-      references.push({ path: normalized, description });
-    }
+    const referencesResult = parseReferences(raw.references, reviewer.type, idTrimmed, aspectYamlPath);
+    if (!referencesResult.ok) return { ok: false, aspectId: idTrimmed, errors: referencesResult.errors };
+    references = referencesResult.value;
   }
 
   // scope: — optional review granularity block

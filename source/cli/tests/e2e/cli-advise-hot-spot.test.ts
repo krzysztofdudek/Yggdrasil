@@ -60,7 +60,7 @@ function makeFixture(label: string, coverageBlock = ''): string {
   w(
     dir,
     '.yggdrasil/yg-config.yaml',
-    `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n` +
+    `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n` +
       coverageBlock,
   );
   // An enforced (default status) LLM rule attached to `guarded`. `yg advise` never

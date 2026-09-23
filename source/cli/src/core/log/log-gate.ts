@@ -21,6 +21,54 @@ import { debugWrite } from '../../utils/debug-log.js';
 import { toPosixPath } from '../../utils/posix.js';
 
 /**
+ * The read-only log-gate state of one node (spec §9), computed ONE way for every
+ * surface: the fill gate, positive closure, plain `yg check`, and `yg context`'s
+ * display.
+ *
+ *  - `required`     — the type opts into log_required AND the source changed since
+ *                     the stored fingerprint (or none is stored yet), so an entry
+ *                     is owed before --approve. Also true when the fingerprint
+ *                     cannot be computed: an unverifiable source never counts as
+ *                     "unchanged".
+ *  - `freshPresent` — an entry newer than the recorded baseline exists now.
+ *  - `unreadable`   — set when a mapped file could not be read, so the
+ *                     fingerprint is uncomputable. The real cause to report is
+ *                     the file, not a missing log entry.
+ */
+export interface LogGateState {
+  required: boolean;
+  freshPresent: boolean;
+  unreadable?: { filePath: string; reason: string };
+}
+
+export async function computeLogGateState(
+  graph: Graph,
+  projectRoot: string,
+  node: GraphNode,
+  lock: LockFile,
+): Promise<LogGateState> {
+  // The default lives HERE and only here (spec §9): false unless the type opts in.
+  const archType = graph.architecture.node_types[node.meta.type];
+  const logRequired = archType?.log_required ?? false;
+  if (!logRequired) return { required: false, freshPresent: false };
+
+  const freshPresent = hasFreshLogEntry(await readLogContent(projectRoot, node.path), lock.nodes[node.path]?.log);
+  let currentFingerprint: string | undefined;
+  try {
+    currentFingerprint = await computeSourceFingerprint(graph, node.path);
+  } catch (e) {
+    if (e instanceof FileUnreadableError) {
+      debugWrite(`[log-gate] logGate fingerprint for ${toPosixPath(node.path)}: ${e.message}`);
+      return { required: true, freshPresent, unreadable: { filePath: toPosixPath(e.filePath), reason: e.reason } };
+    }
+    throw e;
+  }
+  // A mapping-less node has a constant (undefined) fingerprint — never owed (§9).
+  if (currentFingerprint === undefined) return { required: false, freshPresent };
+  return { required: currentFingerprint !== lock.nodes[node.path]?.source, freshPresent };
+}
+
+/**
  * True when a node is blocked by the mandatory-log gate (spec §9): the type opts
  * into log_required (default false) AND the current source fingerprint differs
  * from the stored one (or none is stored and the mapping is non-empty — first
@@ -46,28 +94,13 @@ export async function logGateBlocksNode(
   node: GraphNode,
   lock: LockFile,
 ): Promise<boolean> {
-  // The default lives HERE and only here (spec §9): false unless the type opts in.
-  const archType = graph.architecture.node_types[node.meta.type];
-  const logRequired = archType?.log_required ?? false;
-  if (!logRequired) return false;
+  return logGateStateBlocks(await computeLogGateState(graph, projectRoot, node, lock));
+}
 
-  let currentFingerprint: string | undefined;
-  try {
-    currentFingerprint = await computeSourceFingerprint(graph, node.path);
-  } catch (e) {
-    if (e instanceof FileUnreadableError) {
-      debugWrite(`[log-gate] logGate fingerprint for ${toPosixPath(node.path)}: ${e.message}`);
-      return true;
-    }
-    throw e;
-  }
-  if (currentFingerprint === undefined) return false;
-  const storedFingerprint = lock.nodes[node.path]?.source;
-  const drifted = currentFingerprint !== storedFingerprint;
-  if (!drifted) return false;
-
-  const logContent = await readLogContent(projectRoot, node.path);
-  return !hasFreshLogEntry(logContent, lock.nodes[node.path]?.log);
+/** Whether a computed state blocks: an unreadable source always does. */
+export function logGateStateBlocks(state: LogGateState): boolean {
+  if (state.unreadable) return true;
+  return state.required && !state.freshPresent;
 }
 
 /** Read a node's log.md content; empty string when absent. */
@@ -93,19 +126,6 @@ export function hasFreshLogEntry(
   if (!newest) return false;
   if (!storedLog) return true;
   return newest.datetime !== storedLog.last_entry_datetime;
-}
-
-/**
- * Compute the append-only log baseline (boundary datetime + prefix hash over
- * bytes [0..newest.offsetEnd)). Returns undefined when the log has no entries.
- * (Ported from approve.ts computeLogBaseline; spec §9.)
- */
-export async function computeLogBaselineForNode(
-  projectRoot: string,
-  nodePath: string,
-): Promise<{ last_entry_datetime: string; prefix_hash: string } | undefined> {
-  const content = await readLogContent(projectRoot, nodePath);
-  return computeLogBaselineFromContent(content);
 }
 
 /**

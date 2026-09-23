@@ -833,7 +833,7 @@ export async function runRelationPass(
  * them was `typeCoveredFiles` (present, absent, or `undefined`), which stays
  * a parameter here.
  *
- * `relations/audit.ts`'s three-way cache-on/cache-off comparison is the one
+ * The AST-cache audit test's three-way cache-on/cache-off comparison is the one
  * deliberate exception: it constructs its own `RelationPassDeps` (twice, with
  * `disableCache` toggled) to compare the pass's behavior WITH and WITHOUT the
  * fact cache, so it calls `runRelationPass` directly and must keep doing so —
