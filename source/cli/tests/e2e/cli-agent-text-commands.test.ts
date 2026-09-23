@@ -12,7 +12,7 @@
 // source/cli/src/** is imported.
 // =============================================================================
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -130,7 +130,7 @@ describe.skipIf(!distExists)('agent-facing text names only registered commands',
     expect(offenders).toEqual({});
   });
 
-  it('cleans up', () => {
+  afterAll(() => {
     rmSync(cwd, { recursive: true, force: true });
   });
 });
