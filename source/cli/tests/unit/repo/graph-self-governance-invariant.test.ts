@@ -65,6 +65,10 @@ describe('graph-rules owns every rule script this graph defines', () => {
 });
 
 describe('architecture types classify disjointly', () => {
+  // Budget 120 s: every tracked file against every type takes about 5 s in an ordinary parallel
+  // run, so the 30 s default is only a few times that, and a loaded machine
+  // (a coverage run beside other suites) can use it up. 120 s keeps a margin
+  // of 10x or more; a real hang still fails.
   it('no tracked file outside .yggdrasil/ matches the when of two types', async () => {
     const graph = await loadGraph(REPO_ROOT);
     const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: REPO_ROOT, encoding: 'utf-8' })
@@ -78,7 +82,7 @@ describe('architecture types classify disjointly', () => {
       if (matches.length > 1) overlaps.push(`${rel}: ${matches.map((m) => m.typeId).join(' + ')}`);
     }
     expect(overlaps, `files two types' when both match — narrow one predicate:\n${overlaps.join('\n')}`).toEqual([]);
-  });
+  }, 120_000);
 });
 
 describe('descriptions match what exists and how rules behave', () => {

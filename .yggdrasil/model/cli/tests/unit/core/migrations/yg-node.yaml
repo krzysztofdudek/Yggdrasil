@@ -12,7 +12,8 @@ relations:
     { target: cli/core/migrations, type: uses },
     { target: cli/core/loader, type: uses },
     { target: cli/io/lock-store, type: uses },
-    { target: cli/model/lock, type: uses }
+    { target: cli/model/lock, type: uses },
+    { target: cli/tests/support, type: uses }
   ]
 mapping:
   - source/cli/tests/unit/core/migrator.test.ts

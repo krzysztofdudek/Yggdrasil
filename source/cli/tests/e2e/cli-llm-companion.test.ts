@@ -42,6 +42,7 @@ import { fileURLToPath } from 'node:url';
 import { startMockReviewer, runAsync } from './support/mock-reviewer.js';
 import { readLock as readLockStore } from './support/read-lock.js';
 import { LOCK_NONDET_FILE_NAME } from './support/read-lock.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -148,7 +149,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(mock.chatCount() - before).toBe(0);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -193,7 +194,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(JSON.stringify(refilled[UNIT('search')])).toBe(searchBefore);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -232,7 +233,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(JSON.stringify(verdicts(dir, 'scenario-matches-test')[UNIT('login')])).not.toBe(loginBefore);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -262,7 +263,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(mock.chatCount() - callsBefore).toBe(3); // all three re-reviewed.
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -296,7 +297,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(mock.chatCount() - callsBefore).toBe(3);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -339,7 +340,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(mock.chatCount() - callsBefore).toBe(3);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -382,7 +383,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       }
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -429,7 +430,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(mock.chatCount() - callsBefore).toBe(1);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -462,7 +463,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(mock.chatCount() - before).toBe(0);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -498,7 +499,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(run(['check'], dir).status).toBe(0);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -545,7 +546,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(after.all).toContain('- scenarios');
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -595,7 +596,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (happy path)'
       expect(JSON.stringify((readLock(dir).verdicts as Verdicts)['scenario-matches-test'][UNIT('login')])).toBe(keptEntry);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 });

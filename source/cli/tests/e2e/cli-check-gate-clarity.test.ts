@@ -31,6 +31,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { copyFixtureTree } from '../support/fixture-copy.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -80,7 +81,7 @@ function edit(dir: string, rel: string, fn: (s: string) => string): void {
 
 /** Drop the judgment rule so a scenario runs on script rules alone. */
 function dropJudgmentRule(dir: string): void {
-  rmSync(path.join(dir, '.yggdrasil', 'aspects', 'has-doc-comment'), { recursive: true, force: true });
+  rmSync(path.join(dir, '.yggdrasil', 'aspects', 'has-doc-comment'), FIXTURE_RM_OPTIONS);
   edit(dir, '.yggdrasil/yg-architecture.yaml', (s) => s.split('\n').filter((l) => l.trim() !== '- has-doc-comment').join('\n'));
 }
 
@@ -106,7 +107,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(r.stdout).toContain('config-reviewer-missing');
         expect(r.stdout).toContain('unverified (no reviewer configured)');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -118,7 +119,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(r.all).not.toContain('aborted');
         expect(r.stdout).toContain('No reviewer is configured');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -131,7 +132,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(r.stderr).toContain('yg init --provider <name>');
         expect(r.stderr).not.toContain("pick 'Configure reviewer'");
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -144,7 +145,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(llm.length).toBeGreaterThan(0);
         expect(llm[0].next).toMatch(/^yg init --provider <name>/);
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -160,7 +161,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const missing = json(r).issues.find((i) => i.code === 'config-reviewer-missing');
         expect(missing?.severity).toBe('warning');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -184,7 +185,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(text.stdout).toContain('unverified (check.mjs failed to run)');
         expect(text.stdout).not.toMatch(/Next: yg check --approve\s*$/m);
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -204,7 +205,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(r.stdout).toContain('unverified (check.mjs failed to run)');
         expect(r.stdout).toContain('Fix: Refactor check to be synchronous.');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -221,7 +222,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(w?.severity).toBe('warning');
         expect(w?.what).toContain('src/services/orders.ts');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -232,7 +233,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const doc = json(run(['check', '--approve', '--only-deterministic', '--json'], dir));
         expect(doc.issues.some((i) => i.code === 'unverified' && i.cause === 'suppress-marker-invalid')).toBe(true);
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -273,7 +274,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(merged.indexOf('branch a')).toBeLessThan(merged.indexOf('\nmain'));
         expect(run(['check', '--json'], dir).stdout).not.toContain('log-conflict');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -315,7 +316,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(merged).toContain('branch a');
         expect(merged).toContain('main');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -330,7 +331,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(r.stderr).not.toContain('Filling ');
         expect(r.stderr).toContain('then re-run: yg check --approve --only-deterministic');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -344,7 +345,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(r.stderr).not.toContain('all expected pairs hold valid verdicts');
         expect(r.stderr).toMatch(/0 reviewer calls made — .*\d+ deterministic pairs? filled \(\d+ approved, [1-9]\d* refused\)/);
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -360,7 +361,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
           expect(existsSync(DET_LOCK(dir))).toBe(false);
         }
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -373,7 +374,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(r.status).toBe(1);
         expect(r.stderr).toContain('yg check --no-approve (plain read)');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -400,7 +401,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         run(['check', '--approve'], dir);
         expect(run(['check', '--json'], dir).stdout).not.toContain('log-cycle-open');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -416,7 +417,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const yamlInvalid = doc.issues.find((i) => i.code === 'yaml-invalid');
         expect(yamlInvalid?.next).toContain('yg schemas read node');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -431,7 +432,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(r.stdout).toContain('yg schemas read architecture');
         expect(r.stdout).not.toContain("no type in yg-architecture.yaml declares 'when:'");
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -448,7 +449,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(r.stdout).not.toContain('see .yggdrasil/incidents.md');
         expect(r.stdout).toContain('yg incident add');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -471,7 +472,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(text).toContain('unverified (stale — inputs changed since the verdict)');
         expect(json(run(['check', '--json'], dir)).issues.some((i) => i.cause === 'stale')).toBe(true);
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -485,7 +486,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(text).toMatch(/yaml-invalid {2}1 issue {2}/);
         expect(text).not.toMatch(/yaml-invalid {2}1 pairs/);
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });

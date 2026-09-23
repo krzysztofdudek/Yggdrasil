@@ -12,7 +12,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gitFixtureEnv } from '../support/git-fixture.js';
+import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -146,7 +146,7 @@ describe.skipIf(!distExists)('CLI E2E — log remaining: supersedes, read format
       expect(headerCount(all.stdout)).toBe(2);
       expect(all.stdout).toContain('the original decision');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -176,7 +176,7 @@ describe.skipIf(!distExists)('CLI E2E — log remaining: supersedes, read format
       expect(all).toContain('File must start with `## [<datetime>]` or be empty');
       expect(all).toContain('Fix log.md for node services/orders');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -196,7 +196,7 @@ describe.skipIf(!distExists)('CLI E2E — log remaining: supersedes, read format
       expect(all).toContain('out_of_order');
       expect(all).toContain('is not strictly greater than previous');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -235,7 +235,7 @@ describe.skipIf(!distExists)('CLI E2E — log remaining: supersedes, read format
       // Newest-first ordering across the full set.
       expect(all.stdout.indexOf('entry-marker-13')).toBeLessThan(all.stdout.indexOf('entry-marker-1\n'));
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -250,7 +250,7 @@ describe.skipIf(!distExists)('CLI E2E — log remaining: supersedes, read format
       // A --top larger than the entry count clamps to the available entries.
       expect(headerCount(r.stdout)).toBe(13);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -285,7 +285,7 @@ describe.skipIf(!distExists)('CLI E2E — log remaining: supersedes, read format
         all.stdout.indexOf('2099-12-31T23:59:59.999Z'),
       );
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -325,7 +325,7 @@ describe.skipIf(!distExists)('CLI E2E — log remaining: supersedes, read format
       expect(fill.status).toBe(0);
       expect(fill.stdout).toContain('yg check: PASS');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -382,7 +382,7 @@ describe.skipIf(!distExists)('CLI E2E — log remaining: supersedes, read format
       // Re-fill is clean (no source change vs. the restored lock).
       expect(run(['check', '--approve'], dir).status).toBe(0);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -434,7 +434,7 @@ describe.skipIf(!distExists)('CLI E2E — log remaining: supersedes, read format
       expect(all).toContain('Baseline boundary entry not found — log was deleted or reset.');
       expect(all).toContain('services/orders');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

@@ -176,6 +176,10 @@ describe.skipIf(!distExists)('CLI E2E — own-graph atomic-write-contract port m
     expect(consumers).toEqual([...FORMER_CONSUMERS, ...LATER_CONSUMERS].sort());
   });
 
+  // Budget 120 s: yg context on the real graph takes about 9 s in an ordinary parallel
+  // run, so the 30 s default is only a few times that, and a loaded machine
+  // (a coverage run beside other suites) can use it up. 120 s keeps a margin
+  // of 10x or more; a real hang still fails.
   it('5: lock-store gets atomic-write-contract through two channels at once — its own type, and the default port', () => {
     const doc = JSON.parse(run(['context', '--node', 'cli/io/lock-store', '--json']).stdout) as ContextDoc;
     const aspect = doc.aspects.find((a) => a.id === 'atomic-write-contract');
@@ -184,13 +188,17 @@ describe.skipIf(!distExists)('CLI E2E — own-graph atomic-write-contract port m
     expect(kinds).toEqual(['own-type', 'port']);
     const portChannel = aspect!.channels.find((c) => c.kind === 'port');
     expect(portChannel!.origin).toBe('port:default@cli/io/atomic-write');
-  });
+  }, 120_000);
 
+  // Budget 120 s: yg context on the real graph takes about 9 s in an ordinary parallel
+  // run, so the 30 s default is only a few times that, and a loaded machine
+  // (a coverage run beside other suites) can use it up. 120 s keeps a margin
+  // of 10x or more; a real hang still fails.
   it('6: core/check is NOT bound by atomic-write-contract — the port reaches it, the when filter excludes it', () => {
     const doc = JSON.parse(run(['context', '--node', 'cli/core/check', '--json']).stdout) as ContextDoc;
     const aspect = doc.aspects.find((a) => a.id === 'atomic-write-contract');
     expect(aspect).toBeUndefined();
-  });
+  }, 120_000);
 
   it('7: no yg-node.yaml under the model mentions consumes: or write-atomic any more, except the historical log entry', () => {
     const modelRoot = path.join(REPO_ROOT, '.yggdrasil', 'model');

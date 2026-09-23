@@ -23,6 +23,7 @@ import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -122,7 +123,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       // It lives under Nominations (a T1 class), below the Attention section.
       expect(stdout.indexOf('Nominations')).toBeLessThan(stdout.indexOf(HOT_WHAT('hot')));
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -135,7 +136,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       expect(status).toBe(0);
       expect(stdout).not.toContain('is changing but has no rule covering it');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -149,7 +150,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       // No git ⇒ churn UNKNOWN ⇒ the class is omitted, never fabricated as 0-and-fired.
       expect(stdout).not.toContain('is changing but has no rule covering it');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -187,8 +188,8 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       // count that would undercount churn while the provenance overstates the window).
       expect(stdout).not.toContain('is changing but has no rule covering it');
     } finally {
-      rmSync(src, { recursive: true, force: true });
-      rmSync(dst, { recursive: true, force: true });
+      rmSync(src, FIXTURE_RM_OPTIONS);
+      rmSync(dst, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -225,7 +226,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       expect(owner.status).toBe(0);
       expect(owner.stdout).toContain('excluded from graph coverage by design');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

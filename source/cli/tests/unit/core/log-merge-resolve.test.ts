@@ -9,12 +9,12 @@ import { logMergeResolve, looksLikeInterleavedMerge } from '../../../src/core/lo
 import { readLock, writeLock } from '../../../src/io/lock-store.js';
 import { parseLog } from '../../../src/core/parsing/log-parser.js';
 import { LOCK_FORMAT_VERSION } from '../../../src/model/lock.js';
-import { gitFixtureEnv } from '../../support/git-fixture.js';
+import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 const dirs: string[] = [];
 
 afterEach(async () => {
-  for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
+  for (const d of dirs.splice(0)) await rm(d, FIXTURE_RM_OPTIONS);
 });
 
 const ANCESTOR_LOG = '## [2026-05-11T10:00:00.000Z]\nbase.\n';
@@ -491,6 +491,42 @@ describe('logMergeResolve — a merge still in progress with log.md conflicted',
     expect(await readFile(logPath, 'utf-8')).toBe(
       ANCESTOR_LOG + shared + '## [2026-05-11T11:00:00.000Z]\nfeat1.\n' + '## [2026-05-11T12:00:00.000Z]\nfeat2.\n',
     );
+  });
+
+  it('accepts its own union when a side\'s last entry had no final newline — the one byte the union adds', async () => {
+    // Theirs ends without a newline and sorts ahead of ours, so its last entry
+    // lands in the middle of the union and must gain the newline there. The
+    // verification then has to see that entry as unchanged — it used to compare
+    // it against theirs' bytes without the newline and reject the very file it
+    // had just written ("missing or has altered 1 entry").
+    const theirs = ANCESTOR_LOG + '## [2026-05-11T11:00:00.000Z]\nfeat1.';
+    const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, PARENT2_LOG, theirs);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true });
+    expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
+  });
+
+  it('accepts its own union when the unterminated entry stays last', async () => {
+    const ours = ANCESTOR_LOG + '## [2026-05-11T12:00:00.000Z]\nfeat2.';
+    const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, ours, PARENT1_LOG);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true });
+    expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
+  });
+
+  it('still rejects an entry whose body changed by more than that final newline', async () => {
+    // The normalisation covers exactly the missing final newline of a side, not
+    // trailing whitespace in general: a hand resolution that gives the
+    // unterminated entry an extra blank line has altered it.
+    const theirs = ANCESTOR_LOG + '## [2026-05-11T11:00:00.000Z]\nfeat1.';
+    const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, PARENT2_LOG, theirs);
+    await writeFile(logPath, ANCESTOR_LOG + '## [2026-05-11T11:00:00.000Z]\nfeat1.\n\n' + '## [2026-05-11T12:00:00.000Z]\nfeat2.\n');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.what).toContain('missing or has altered 1 entry');
   });
 
   it('refuses to write a union when one side rewrote the shared history, and leaves the file alone', async () => {

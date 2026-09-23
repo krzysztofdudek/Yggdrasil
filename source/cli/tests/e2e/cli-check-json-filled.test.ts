@@ -33,7 +33,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startMockReviewer, runAsync, type ChatReply, type ChatRequest, type MockReviewer } from './support/mock-reviewer.js';
-import { runGitFixture } from '../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -167,7 +167,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(p.kind).toBe('deterministic');
       expect(p.filled).toBeNull();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -182,7 +182,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(Number.isNaN(Date.parse(p.filled!.ts))).toBe(false);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 30000);
 
@@ -197,7 +197,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(p.filled?.sha).toBe(sha);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -210,7 +210,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(p.filled).toEqual(filledAfterApprove);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -232,7 +232,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(p.filled?.sha).toBeNull();
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -263,7 +263,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(readFileSync(lockPath).equals(beforeBytes)).toBe(true);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -280,7 +280,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect('reason' in parsed).toBe(false);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 30000);
 
@@ -301,7 +301,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(() => JSON.parse(readFileSync(detLockPath, 'utf-8'))).not.toThrow();
       expect(run(['check'], dir).status).toBe(0);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 30000);
 
@@ -320,7 +320,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(leftoverTmp).toEqual([]);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -339,7 +339,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(r.all).toContain('filledWhen');
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -366,7 +366,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       const p = findPair(checkJson(dir), ASPECT, UNIT_PATH);
       expect(p.verdict).toBe('approved');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -390,7 +390,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(p.filled).toEqual(filledAfterApprove);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 30000);
 
@@ -407,7 +407,7 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(p.filled?.sha).toBe(sha);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -430,8 +430,8 @@ describe.skipIf(!distExists)('CLI E2E — when a verdict was filled', () => {
       expect(p.verdict).toBe('approved');
       expect(p.filled).toBeNull();
     } finally {
-      rmSync(dir, { recursive: true, force: true });
-      rmSync(realYggdrasil, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      rmSync(realYggdrasil, FIXTURE_RM_OPTIONS);
     }
   });
 });

@@ -27,6 +27,7 @@ import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, readFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -187,7 +188,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate', () => {
       // THE crux: the real fixture tree is untouched — all work happened in a clone.
       expect(snapshotTree(dir)).toBe(before);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -215,7 +216,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate', () => {
       // NEXT: the falsifiability tool for LLM rules.
       expect(stderr).toContain('yg drill');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -235,7 +236,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate', () => {
       expect(stdout).toContain('violations 1');
       expect(stdout).toContain('ran-clean 1');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -253,7 +254,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate', () => {
       expect(stdout).toContain('schema-downgrade');
       expect(stdout).not.toContain('preinit-no-graph');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -268,7 +269,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate', () => {
       expect(neither.status).toBe(1);
       expect(neither.stderr).toContain('Neither --node nor --file');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });
@@ -363,7 +364,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate --file (a file with no own
       // Security crux, same as --node: the real tree is untouched.
       expect(snapshotTree(dir)).toBe(before);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -385,7 +386,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate --file (a file with no own
       expect(stdout).toContain("over file 'src/leaf/a.ts'");
       expect(stdout).not.toContain('./src/leaf/a.ts');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

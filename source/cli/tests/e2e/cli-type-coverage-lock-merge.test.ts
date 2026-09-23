@@ -34,7 +34,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, it, expect } from 'vitest';
-import { runGitFixture } from '../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 import { startMockReviewer, runAsync, type MockReviewer } from './support/mock-reviewer.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -126,7 +126,7 @@ describe('lock merge with virtual entries (git-level)', () => {
       expect(after.all).toMatch(/0 reviewer calls made/);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -169,7 +169,7 @@ describe('lock merge with virtual entries (git-level)', () => {
       expect(after.all).toMatch(/0 reviewer calls made/);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

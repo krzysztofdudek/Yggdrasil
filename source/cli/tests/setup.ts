@@ -2,6 +2,7 @@ import { beforeEach, afterEach, onTestFailed } from 'vitest';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readdirSync, existsSync, rmSync } from 'node:fs';
+import { applyQuietGitConfig, FIXTURE_RM_OPTIONS } from './support/git-fixture.js';
 
 // ── Defense-in-depth: git-fixture isolation boundary (runs once per worker) ──
 // Test suites spawn throwaway `git init`/`add`/`commit` fixtures. If any such
@@ -35,6 +36,13 @@ for (const v of [
   delete process.env[v];
 }
 process.env.GIT_CEILING_DIRECTORIES = REPO_ROOT;
+//   3. Switch off git's detached auto-maintenance for every git child of this
+//      worker — fixtures built without gitFixtureEnv and git runs made by the
+//      CLI under test included. A `git commit` otherwise leaves a background
+//      `git maintenance run --auto --detach` behind that can repack into the
+//      fixture's `.git` while the test's cleanup is removing it (ENOTEMPTY on a
+//      test that passed). See QUIET_GIT_CONFIG in tests/support/git-fixture.ts.
+applyQuietGitConfig(process.env);
 
 // ── Defense-in-depth: fixture cache-pollution guard (runs once per worker) ──
 // A committed fixture under tests/fixtures/ is meant to be classified only via
@@ -55,7 +63,7 @@ try {
     if (!entry.isDirectory()) continue;
     const strayCacheDir = path.join(fixturesRoot, entry.name, '.yggdrasil', '.type-class-cache');
     if (existsSync(strayCacheDir)) {
-      rmSync(strayCacheDir, { recursive: true, force: true });
+      rmSync(strayCacheDir, FIXTURE_RM_OPTIONS);
     }
   }
 } catch {

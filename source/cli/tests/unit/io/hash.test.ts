@@ -23,7 +23,7 @@ import {
   normalizeLineEndings,
   walkRepoFiles,
 } from '../../../src/io/hash.js';
-import { runGitFixture } from '../../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 import { readFileBytes, listDirEntries, statKind, probeUnreadable } from '../../../src/io/graph-fs.js';
 import type { CoverageConfig } from '../../../src/model/graph.js';
 
@@ -32,7 +32,7 @@ const NO_EXCLUDED: CoverageConfig = { required: [], excluded: [], typeLevel: fal
 
 const dirs: string[] = [];
 afterEach(async () => {
-  for (const d of dirs.splice(0)) await rm(d, { recursive: true, force: true });
+  for (const d of dirs.splice(0)) await rm(d, FIXTURE_RM_OPTIONS);
 });
 
 async function tmpTree(files: Record<string, string>): Promise<string> {
@@ -378,7 +378,7 @@ describe('expandMappingPathsWithinOwnGraph — the boundary is read off the file
 describe('readFileBytes', () => {
   const gfsDirs: string[] = [];
   afterEach(() => {
-    for (const d of gfsDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    for (const d of gfsDirs.splice(0)) rmSync(d, FIXTURE_RM_OPTIONS);
   });
 
   it('returns the real bytes of an existing file', async () => {
@@ -401,7 +401,7 @@ describe('readFileBytes', () => {
 describe('listDirEntries', () => {
   const gfsDirs: string[] = [];
   afterEach(() => {
-    for (const d of gfsDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    for (const d of gfsDirs.splice(0)) rmSync(d, FIXTURE_RM_OPTIONS);
   });
 
   it('lists files and subdirectories, classified correctly', async () => {
@@ -426,7 +426,7 @@ describe('listDirEntries', () => {
 describe('statKind', () => {
   const gfsDirs: string[] = [];
   afterEach(() => {
-    for (const d of gfsDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    for (const d of gfsDirs.splice(0)) rmSync(d, FIXTURE_RM_OPTIONS);
   });
 
   it('returns "file" for a regular file', async () => {
@@ -464,7 +464,7 @@ describe('statKind', () => {
 describe('probeUnreadable', () => {
   const gfsDirs: string[] = [];
   afterEach(() => {
-    for (const d of gfsDirs.splice(0)) rmSync(d, { recursive: true, force: true });
+    for (const d of gfsDirs.splice(0)) rmSync(d, FIXTURE_RM_OPTIONS);
   });
 
   it('returns null (readable) for an existing, readable file', async () => {

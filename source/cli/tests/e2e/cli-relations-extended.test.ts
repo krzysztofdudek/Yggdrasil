@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { readLock } from './support/read-lock.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 // Hermetic E2E — RELATIONS: the relation-TYPE matrix (all six types allowed and
 // forbidden), event pairing (both unpaired directions, multi-pair, self-pair),
@@ -272,7 +273,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).not.toContain('relation-target-forbidden');
       expect(stdout).not.toContain('event-unpaired');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -316,7 +317,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The declaring node is named in the group's node list.
       expect(stdout).toContain('- app/p');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -348,7 +349,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The unpaired emit is independently reported (a second group).
       expect(stdout).toContain('event-unpaired');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -374,7 +375,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('PASS');
       expect(stdout).not.toContain('relation-target-forbidden');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -408,7 +409,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('yaml-invalid');
       expect(stdout).toContain('relations[0].type is invalid');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -438,7 +439,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The unpaired emit is attributed to the emitter in the group node list.
       expect(stdout).toContain('- app/p');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -465,7 +466,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The unpaired listen is attributed to the listener in the group node list.
       expect(stdout).toContain('- app/c');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -516,7 +517,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('PASS');
       expect(stdout).not.toContain('event-unpaired');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -565,7 +566,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('PASS');
       expect(stdout).not.toContain('event-unpaired');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -608,7 +609,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The unpaired self-emit is attributed to the node in the group node list.
       expect(stdout).toContain('- app/p');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -657,7 +658,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('Cycles prevent deterministic context assembly and cascade tracking.');
       expect(stdout).toContain('Break the cycle: extract a shared interface, invert a dependency, or merge nodes.');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -681,7 +682,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('PASS');
       expect(stdout).not.toContain('relation-target-forbidden');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -707,7 +708,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain("Allowed targets for 'calls' from type 'producer': [consumer]");
       expect(stdout).toContain('- app/p');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -739,7 +740,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The existing-siblings hint surfaces the real nodes under app/.
       expect(stdout).toContain('Existing nodes under app');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -766,7 +767,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('relation-broken');
       expect(stdout).not.toContain('relation-target-forbidden');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -809,7 +810,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(consumer.stdout).toContain('Dependents (1)');
       expect(consumer.stdout).toContain('app/p');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -870,7 +871,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('app/c <- app/p');
       expect(stdout).toContain('Blast radius: 2 nodes');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -895,7 +896,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('app/p5 (uses)');
       expect(stdout).toContain('Blast radius: 5 nodes');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -942,7 +943,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('Warnings (2)');
       expect(stdout).toContain('rules-digest-stale');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -978,7 +979,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(source.status).toBe(0);
       expect(source.stdout).not.toContain('target-only');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -1069,7 +1070,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The aspect verdicts are STILL byte-identical (never re-verified by a relation edit).
       expect(ordersAspectHashes(dir)).toEqual(before);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -1119,7 +1120,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(after.all).not.toContain('No valid verdict for aspect');
       expect(ordersAspectHashes(dir)).toEqual(before);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

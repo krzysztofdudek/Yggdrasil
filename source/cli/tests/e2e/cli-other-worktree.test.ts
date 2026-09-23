@@ -56,7 +56,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash } from 'node:crypto';
-import { runGitFixture } from '../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -182,7 +182,7 @@ function cleanup(...dirs: string[]): void {
   // `git worktree remove` would normally clear — removing the whole repo
   // directory (itself a throwaway mkdtemp tree) makes that moot, so plain
   // rmSync of every directory involved is sufficient cleanup here.
-  for (const d of dirs) rmSync(d, { recursive: true, force: true });
+  for (const d of dirs) rmSync(d, FIXTURE_RM_OPTIONS);
 }
 
 interface FileFact {
@@ -450,7 +450,7 @@ describe.skipIf(!distExists)('CLI E2E — reading a graph from another worktree'
     // base with it, then free the name and append the special characters —
     // still guaranteed unique, never colliding with another test's directory.
     const base = mkdtempSync(path.join(tmpdir(), 'yg-worktree-s10-wt-'));
-    rmSync(base, { recursive: true, force: true });
+    rmSync(base, FIXTURE_RM_OPTIONS);
     const wt = `${base} spacé 世界`;
     try {
       expect(addWorktree(dir, wt, shaA).status).toBe(0);
@@ -478,7 +478,7 @@ describe.skipIf(!distExists)('CLI E2E — reading a graph from another worktree'
 
       // Delete the worktree the crude way — never `git worktree remove` — so
       // `.git/worktrees/<name>` in the main repo now points at nothing.
-      rmSync(wt, { recursive: true, force: true });
+      rmSync(wt, FIXTURE_RM_OPTIONS);
 
       const after = run(['check', '--json'], dir);
       expect(after.status).toBe(before.status);
@@ -542,7 +542,7 @@ describe.skipIf(!distExists)('CLI E2E — reading a graph from another worktree'
 
       const available = addWorktree(shallow, wt, shaB);
       expect(available.status, available.stderr).toBe(0);
-      rmSync(wt, { recursive: true, force: true });
+      rmSync(wt, FIXTURE_RM_OPTIONS);
 
       const unavailable = addWorktree(shallow, wt, shaA);
       expect(unavailable.status).not.toBe(0);

@@ -54,9 +54,25 @@ run_step "CLI: pack-smoke (A2)" "$REPO_ROOT/source/cli" "node scripts/pack-smoke
 # assertions fail. This is the free, keyless rebuild (no reviewer, writes only the
 # gitignored cache); the final "Graph: check" step below re-hashes it as the closing gate.
 run_step "Graph: deterministic cache (test prerequisite)" "$REPO_ROOT" "node source/cli/dist/bin.js check --approve --only-deterministic"
-if run_step "CLI: test (with coverage)" "$REPO_ROOT/source/cli" "npm run test:coverage"; then
-  run_step "CLI: coverage >= 90%" "$REPO_ROOT/source/cli" "node -e \"
+# Tests and the coverage threshold are two different verdicts, and a reader of
+# the final "Failed:" line has to be able to tell them apart without scrolling:
+# "a test is broken" sends them to a failing assertion, "coverage fell below the
+# gate" sends them to write tests for uncovered branches. Left to itself, vitest
+# folds both into one non-zero exit (it enforces the thresholds from
+# vitest.config.ts), and every test passing while branches sat at 89.73% read
+# here as a failed test run followed by a skipped coverage check. So the test
+# step runs with vitest's own thresholds switched off — its exit code then means
+# "the tests" and nothing else — and the next step applies the gate to the
+# coverage summary the run wrote, naming each metric, its measured value and
+# the threshold it missed. `npm run test:coverage` on its own still enforces the
+# thresholds from vitest.config.ts; COVERAGE_GATE below must match them.
+COVERAGE_GATE='{"lines":90,"statements":90,"functions":90,"branches":90}'
+if run_step "CLI: test (with coverage)" "$REPO_ROOT/source/cli" "npm run test:coverage -- --coverage.thresholds.lines=0 --coverage.thresholds.statements=0 --coverage.thresholds.functions=0 --coverage.thresholds.branches=0"; then
+  echo "[repo-check] CLI: coverage >= 90%"
+  COVERAGE_VERDICT_FILE="$(mktemp)"
+  (cd "$REPO_ROOT/source/cli" && COVERAGE_GATE="$COVERAGE_GATE" COVERAGE_VERDICT_FILE="$COVERAGE_VERDICT_FILE" node -e "
 const fs = require('fs');
+const gate = JSON.parse(process.env.COVERAGE_GATE);
 const summaryPath = './coverage/coverage-summary.json';
 let reason = null;
 let j = null;
@@ -70,8 +86,7 @@ if (!fs.existsSync(summaryPath)) {
   }
   if (!reason) {
     const t = j && j.total;
-    const need = ['lines', 'statements', 'functions', 'branches'];
-    const missing = !t || need.some(function (k) { return !t[k] || typeof t[k].pct !== 'number'; });
+    const missing = !t || Object.keys(gate).some(function (k) { return !t[k] || typeof t[k].pct !== 'number'; });
     if (missing) {
       reason = 'the file exists and parses but is missing the total.{lines,statements,functions,branches}.pct fields this assertion reads';
     }
@@ -81,31 +96,46 @@ if (reason) {
   console.error('WHAT: coverage/coverage-summary.json is missing or unreadable -- ' + reason + '.');
   console.error('WHY: this is NOT a coverage threshold miss. The test step above reported success, so this step cannot tell whether coverage actually regressed -- only that the report it needs is not usable. Likely causes: a coverage reporter misconfigured, json-summary dropped from the reporter list, coverage/ cleaned between steps, or a --coverage flag lost from the npm script.');
   console.error('NEXT: run npm run test:coverage directly and confirm coverage/coverage-summary.json is written with a valid total.{lines,statements,functions,branches}.pct shape; fix the reporter configuration, then re-run.');
+  fs.writeFileSync(process.env.COVERAGE_VERDICT_FILE, 'no usable coverage summary');
   process.exit(1);
 }
 const t = j.total;
-const lines = t.lines.pct;
-const stmts = t.statements.pct;
-const funcs = t.functions.pct;
-const br = t.branches.pct;
-if (lines < 90 || stmts < 90 || funcs < 90 || br < 90) {
-  console.error('Coverage below 90%: lines=' + lines + '%, statements=' + stmts + '%, functions=' + funcs + '%, branches=' + br + '%');
+const measured = Object.keys(gate).map(function (k) { return k + '=' + t[k].pct + '%'; }).join(', ');
+const below = Object.keys(gate).filter(function (k) { return t[k].pct < gate[k]; });
+if (below.length > 0) {
+  const misses = below.map(function (k) { return k + ' ' + t[k].pct + '% < ' + gate[k] + '%'; }).join(', ');
+  const gaps = below.map(function (k) { return k + ': ' + (t[k].total - t[k].covered) + ' of ' + t[k].total + ' uncovered'; }).join('; ');
+  console.error('WHAT: coverage threshold missed -- ' + misses + '. Every test passed; this is not a test failure.');
+  console.error('WHY: the gate requires every metric at or above its threshold (' + Object.keys(gate).map(function (k) { return k + ' ' + gate[k] + '%'; }).join(', ') + '). Measured: ' + measured + '. Uncovered now: ' + gaps + '.');
+  console.error('NEXT: add tests for the uncovered code (open source/cli/coverage/lcov-report/index.html, or read the per-file table above, and sort by the failing metric), then re-run. Do not lower the threshold to pass.');
+  fs.writeFileSync(process.env.COVERAGE_VERDICT_FILE, misses);
   process.exit(1);
 }
-console.log('Coverage OK: lines=' + lines + '%, statements=' + stmts + '%, functions=' + funcs + '%, branches=' + br + '%');
-\""
+console.log('Coverage OK: ' + measured);
+")
+  COVERAGE_CODE=$?
+  COVERAGE_VERDICT="$(cat "$COVERAGE_VERDICT_FILE" 2>/dev/null)"
+  rm -f "$COVERAGE_VERDICT_FILE"
+  if [ "$COVERAGE_CODE" -ne 0 ]; then
+    if [ -z "$COVERAGE_VERDICT" ] || [ "$COVERAGE_VERDICT" = "no usable coverage summary" ]; then
+      FAILED+=("CLI: coverage >= 90% (no usable coverage summary — not a threshold miss)")
+    else
+      FAILED+=("CLI: coverage threshold missed, all tests passed — $COVERAGE_VERDICT")
+    fi
+  fi
 else
   # WHAT: the test run above failed, so coverage-summary.json was never produced (or
   # reflects a partial run cut short by the failure) — either way it is not a complete,
   # trustworthy report of coverage.
   # WHY: evaluating the threshold against that file would misreport a test failure as a
   # coverage regression — a maintainer reading the failure line could spend real time
-  # chasing a coverage drop that never happened.
+  # chasing a coverage drop that never happened. (The coverage thresholds are switched
+  # off in that run, so its failure is a test failure, never a threshold miss.)
   # NEXT: fix the failing test(s) named in "CLI: test (with coverage)" above, then re-run;
   # coverage is only meaningful once the test step itself passes.
   echo "[repo-check] CLI: coverage >= 90%"
   echo "[repo-check] SKIPPED — cannot evaluate: CLI: test (with coverage) failed above, so coverage-summary.json is missing or incomplete. This is not a coverage threshold miss; fix the failing test(s) first."
-  FAILED+=("CLI: coverage >= 90% (skipped — no usable coverage data, see CLI: test (with coverage))")
+  FAILED+=("CLI: coverage >= 90% (not evaluated — a test failed, see CLI: test (with coverage))")
 fi
 # Guard: the AST-extraction-cache false-green audit (warm, then cache-on vs cache-off,
 # asserting per-file facts AND violationsByNode deep-equal over a C# global-using +
@@ -211,7 +241,10 @@ run_step "Graph: check" "$REPO_ROOT" "node source/cli/dist/bin.js check --approv
 
 if [ ${#FAILED[@]} -gt 0 ]; then
   echo ""
-  echo "[repo-check] Failed: ${FAILED[*]}"
+  # One failed step per line: several labels joined by spaces read as one
+  # garbled sentence, and a label that names a threshold carries its own detail.
+  echo "[repo-check] Failed:"
+  for f in "${FAILED[@]}"; do echo "[repo-check]   - $f"; done
   exit 1
 fi
 echo "[repo-check] All checks passed"

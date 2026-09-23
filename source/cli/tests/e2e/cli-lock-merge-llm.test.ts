@@ -27,6 +27,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { startMockReviewer, runAsync } from './support/mock-reviewer.js';
 import { readLock as readMergedLock, nondetLockPath } from './support/read-lock.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '..', '..');
@@ -118,7 +119,7 @@ describe.skipIf(!distExists)('CLI E2E — lock merge (LLM) & piped refusal survi
       expect(run(['check'], dir).status).toBe(0);
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 40000);
 
@@ -230,7 +231,7 @@ describe.skipIf(!distExists)('CLI E2E — lock merge (LLM) & piped refusal survi
       expect(stripped).toContain('Reviewer reason: seeded refusal reason for the pipe-survival test');
     } finally {
       await mock.close();
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   }, 60000);
 });

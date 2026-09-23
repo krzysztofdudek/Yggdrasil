@@ -16,6 +16,7 @@ import { existsSync, mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -76,7 +77,7 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
       const gi = readFileSync(path.join(dir, '.yggdrasil', '.gitignore'), 'utf-8');
       expect(gi).toContain('.feature-field.json');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -101,7 +102,7 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
       // The tree the check ran over is exactly as committed.
       expect(git(['status', '--porcelain']).stdout).toBe('');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -115,7 +116,7 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
       expect(existsSync(path.join(dir, INDEX_REL))).toBe(true);
       expect(readFileSync(path.join(dir, '.yggdrasil', '.gitignore'), 'utf-8')).toBe('/.feature-field.json\n');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -140,7 +141,7 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
       const after = readFileSync(path.join(dir, INDEX_REL), 'utf-8');
       expect(after).toBe(before);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -151,7 +152,7 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
       expect(res.status).toBe(0);
       expect(existsSync(path.join(dir, INDEX_REL))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -177,7 +178,7 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
       git(['add', '-A']);
       expect(git(['status', '--porcelain']).stdout).not.toContain('.feature-field.json');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 

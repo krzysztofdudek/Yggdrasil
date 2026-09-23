@@ -310,6 +310,10 @@ describe.skipIf(!distExists)('family-without-law miner — faithful reach (drops
 });
 
 describe.skipIf(!distExists)('family-without-law miner — this repo (no false families)', () => {
+  // Budget 120 s: the miner over every tracked file takes about 9 s in an ordinary parallel
+  // run, so the 30 s default is only a few times that, and a loaded machine
+  // (a coverage run beside other suites) can use it up. 120 s keeps a margin
+  // of 10x or more; a real hang still fails.
   it('mines this repository and every reported family is well-formed (zero false by construction)', () => {
     const res = runMiner(REPO_ROOT, FIXED_TS);
     expect(res.status).toBe(0);
@@ -323,5 +327,5 @@ describe.skipIf(!distExists)('family-without-law miner — this repo (no false f
       expectWellFormed(f);
       for (const m of f.members) expect(m).not.toMatch(/(^|\/)(tests|fixtures|node_modules|dist)\//);
     }
-  }, 30_000);
+  }, 120_000);
 });

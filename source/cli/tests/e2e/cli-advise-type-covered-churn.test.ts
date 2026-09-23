@@ -39,6 +39,7 @@ import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -146,7 +147,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       // A suggestion, never an automatic action — requires the user's sign-off.
       expect(stdout).toMatch(/requires their approval|requires.*approval/i);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -169,7 +170,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       expect(stdout).toContain(GRAD_WHAT('src/svc/b.ts', 'svc'));
       expect(stdout).toMatch(/cluster/i);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -207,7 +208,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       expect(owner.status).toBe(0);
       expect(owner.stdout).toContain('excluded from graph coverage by design');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -233,7 +234,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       expect(stdout).not.toContain(GRAD_WHAT('src/unenforced/plain.ts', 'unenforced'));
       expect(stdout).not.toContain('has no node of its own');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -275,8 +276,8 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       expect(a.stdout).not.toContain('has no node of its own');
       expect(a.stdout).toBe(b.stdout);
     } finally {
-      rmSync(withType, { recursive: true, force: true });
-      rmSync(withoutType, { recursive: true, force: true });
+      rmSync(withType, FIXTURE_RM_OPTIONS);
+      rmSync(withoutType, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -303,7 +304,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       expect(stdout).not.toMatch(/cluster|both files/i);
       expect(stdout).not.toContain(GRAD_WHAT('src/svc/partner.ts', 'svc'));
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -358,7 +359,7 @@ describe.skipIf(!distExists)('CLI E2E — yg advise type-covered-churn graduatio
       expect(stdout).not.toContain('partner.ts');
       expect(stdout).not.toMatch(/cluster|both files/i);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

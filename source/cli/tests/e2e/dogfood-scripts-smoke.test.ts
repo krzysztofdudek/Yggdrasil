@@ -4,7 +4,7 @@ import path from 'node:path';
 import { existsSync, mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { gitFixtureEnv } from '../support/git-fixture.js';
+import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 // ---------------------------------------------------------------------------
 // Tests for the DOGFOOD-ONLY repo scripts (never adopter surfaces):
@@ -64,6 +64,10 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
   // full-suite parallel CPU contention, exceeds the 5s default. The scan itself is
   // deterministic; it gets a generous per-test timeout to stay non-flaky (same
   // rationale as the spectral-headroom smoke below).
+  // Budget 120 s: escape-scan over the real git history takes about 6 s in an ordinary parallel
+  // run, so the 30 s default is only a few times that, and a loaded machine
+  // (a coverage run beside other suites) can use it up. 120 s keeps a margin
+  // of 10x or more; a real hang still fails.
   it('escape-scan.mjs exits 0 with its header and both honesty labels on real history', () => {
     const res = runScript('scripts/escape-scan.mjs');
     expect(res.status).toBe(0);
@@ -73,7 +77,7 @@ describe.skipIf(!isGitRepo)('dogfood scripts — spawn smoke', () => {
     expect(res.stdout).toContain('UNDERCOUNTS');
     expect(res.stdout).toContain('OVERCOUNTS');
     expect(res.stdout).toContain('candidates for human triage, never a gate.');
-  }, 30_000);
+  }, 120_000);
 
   // The four calibration instruments against THIS repo's real telemetry. Whatever
   // telemetry exists (possibly thin/empty) they must exit 0, print their header, and
@@ -203,7 +207,7 @@ describe('judge-stability (a) — reviewer self-consistency (fixture telemetry)'
       expect(res.stdout).toMatch(/sharpen ambiguous-rule content\.md/);
       expect(res.stdout).toContain('— honesty labels —');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -215,7 +219,7 @@ describe('judge-stability (a) — reviewer self-consistency (fixture telemetry)'
       expect(res.status).toBe(0);
       expect(res.stdout).toMatch(/self-consistency telemetry yet/);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -249,7 +253,7 @@ describe('judge-stability (a) — reviewer self-consistency (fixture telemetry)'
       expect(res.stdout).not.toContain('local telemetry since');
       expect(res.stdout).toContain('— honesty labels —');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });
@@ -292,7 +296,7 @@ describe('cusum (b) — refusal-rate shift detector (fixture telemetry)', () => 
       expect(res.stdout).toMatch(/shifted upward/);
       expect(res.stdout).toContain('stepping-rule');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -304,7 +308,7 @@ describe('cusum (b) — refusal-rate shift detector (fixture telemetry)', () => 
       expect(res.status).toBe(0);
       expect(res.stdout).toContain('No aspect crossed the alarm threshold');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });
@@ -345,7 +349,7 @@ describe('mcnemar (c) — paired old-vs-new comparison (fixture telemetry)', () 
       expect(res.status).toBe(0);
       expect(res.stdout).toMatch(/2 cases the old reviewer caught and the new missed; 1 the reverse/);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -360,7 +364,7 @@ describe('mcnemar (c) — paired old-vs-new comparison (fixture telemetry)', () 
       expect(res.status).toBe(0);
       expect(res.stdout).toMatch(/Need two tiers to compare/);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });
@@ -406,7 +410,7 @@ describe('displacement (d) — Bode waterbed sibling analysis (fixture git + tel
       expect(res.stdout).toContain('rule-b');
       expect(res.stdout).toContain('— honesty labels —');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -434,7 +438,7 @@ describe('displacement (d) — Bode waterbed sibling analysis (fixture git + tel
       expect(res.status).toBe(0);
       expect(res.stdout).toMatch(/No rule-source edits/);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });
@@ -498,7 +502,7 @@ describe('lock-history-audit — detection paths (fixture git repo)', () => {
       );
       expect(res.stdout).toContain('1 laundering signatures');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -515,7 +519,7 @@ describe('lock-history-audit — detection paths (fixture git repo)', () => {
       expect(res.stdout).toContain('0 laundering signatures');
       expect(res.stdout).not.toContain('LAUNDERING SIGNATURE');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -534,7 +538,7 @@ describe('lock-history-audit — detection paths (fixture git repo)', () => {
       expect(res.stdout).toContain('asp-y / file:src/b.ts');
       expect(res.stdout).toContain('0 laundering signatures');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });
@@ -631,7 +635,7 @@ describe('escape-scan — fix-on-green candidates (fixture git repo)', () => {
       expect(res.stdout).toContain('candidates for human triage, never a gate.');
       expect(res.stdout).toContain('— honesty labels —');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

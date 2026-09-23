@@ -13,7 +13,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { gitFixtureEnv } from '../support/git-fixture.js';
+import { gitFixtureEnv, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -242,7 +242,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // The log was not mutated by the cascade re-fill.
       expect(readFileSync(ordersLogPath(dir), 'utf-8')).toBe(before);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -270,7 +270,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // The fix must not push an agent into inventing a WHY for a change it did not make.
       expect(all).toContain("if you did not make this change, ask the user for the reason");
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -308,7 +308,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(status).toBe(1);
       expect(all).not.toContain('yg check:'); // hard stop → no report summary
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -351,7 +351,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // Fill progress goes to STDERR; final report to STDOUT.
       expect(stderr).toContain('Filling 0 unverified pairs across 0 nodes');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -376,7 +376,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // All aspects draft → no pairs to fill → the run is clean.
       expect(stdout).toContain('yg check: PASS');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -398,7 +398,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // No log.md was ever required or created.
       expect(existsSync(ordersLogPath(dir))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -430,7 +430,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // fires for it despite log_required:true on the type.
       expect(all).not.toContain("No fresh log entry for node 'services/empty'");
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -464,7 +464,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(plain.all).toContain('yg log add --node services/orders');
       expect(plain.all).toContain('- services/orders');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -483,7 +483,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // Nothing to record → the committed logs lock is absent, not an empty husk.
       expect(existsSync(path.join(dir, '.yggdrasil', 'yg-lock.logs.json'))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -505,7 +505,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(entry.log?.last_entry_datetime).toBeTruthy(); // integrity baseline kept
       expect(entry.source).toBeUndefined();                // but no dead source fingerprint
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -546,7 +546,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).not.toContain('log-format');
       expect(all).not.toContain('Log format invalid');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -567,7 +567,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).not.toContain('log-format');
       expect(all).not.toContain('Log format invalid');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -591,7 +591,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // The fenced datetime is present only inside that entry's body.
       expect(stdout).toContain('## [2030-12-31T23:59:59.999Z]');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -621,7 +621,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(read.all).toContain('duplicate_datetime');
       expect(read.all).toContain("Datetime '2027-05-05T00:00:00.000Z' also appears at line");
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -642,7 +642,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain('Invalid --node value: Node path must not contain .. segments');
       expect(existsSync(ordersLogPath(dir))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -653,7 +653,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(status).toBe(1);
       expect(all).toContain('Invalid --node value: Node path must not start with model/');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -664,7 +664,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(status).toBe(1);
       expect(all).toContain('Invalid --node value: Node path must not be absolute (starts with /)');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -675,7 +675,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(status).toBe(1);
       expect(all).toContain('Invalid --node value: Node path must not be absolute (drive letter)');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -686,7 +686,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(status).toBe(1);
       expect(all).toContain('Invalid --node value: Node path must not contain .. segments');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -699,7 +699,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(status).toBe(1);
       expect(all).toContain('Invalid --node value: Node path must not start with model/');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -711,7 +711,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(status).toBe(1);
       expect(all).toContain('Invalid --node value: Node path must not start with model/');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -722,7 +722,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(status).toBe(1);
       expect(all).toContain('Invalid --node value: Node path must not contain .. segments');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -738,7 +738,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain('Node not found: services/ghost');
       expect(all).toContain('before log entries can be added');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -750,7 +750,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain('Node not found: services/ghost');
       expect(all).toContain('before its log can be read');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -763,7 +763,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain('Node not found: services/ghost');
       expect(all).toContain('before its log can be merge-resolved');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -806,7 +806,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain('log.md not found for node services/orders');
       expect(all).toContain('this node has no log.md in the working tree');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -829,7 +829,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain('the merge of this log was never reconciled');
       expect(all).toContain('order the entries by datetime');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -843,7 +843,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       expect(all).toContain('New log entries are not in chronological order');
       expect(all).toContain('ordered by timestamp');
     } finally {
-      rmSync(repo, { recursive: true, force: true });
+      rmSync(repo, FIXTURE_RM_OPTIONS);
     }
   });
 });

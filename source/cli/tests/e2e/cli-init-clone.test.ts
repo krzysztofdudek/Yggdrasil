@@ -4,6 +4,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BIN_PATH = path.join(__dirname, '../..', 'dist', 'bin.js');
@@ -60,7 +61,7 @@ describe.skipIf(!distExists)('a fresh yg init survives commit and clone', () => 
       const det = yg(['check', '--approve', '--only-deterministic'], clone);
       expect(det.status, det.all).toBe(0);
     } finally {
-      rmSync(root, { recursive: true, force: true });
+      rmSync(root, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -74,7 +75,7 @@ describe.skipIf(!distExists)('a fresh yg init survives commit and clone', () => 
       const tree = yg(['tree'], clone);
       expect(tree.status, tree.all).toBe(0);
     } finally {
-      rmSync(root, { recursive: true, force: true });
+      rmSync(root, FIXTURE_RM_OPTIONS);
     }
   });
 });

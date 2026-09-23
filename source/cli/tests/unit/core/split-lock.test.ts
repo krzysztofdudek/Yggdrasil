@@ -12,6 +12,7 @@ import {
   LOCK_DET_FILE_NAME,
   LOCK_FORMAT_VERSION,
 } from '../../../src/model/lock.js';
+import { FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 /** Scaffold a .yggdrasil root with a deterministic aspect (ships check.mjs), an LLM
  *  aspect (ships content.md), and a legacy single yg-lock.json holding one verdict each
@@ -66,7 +67,7 @@ describe('splitLock migration step', () => {
       expect(gi).toContain('yg-secrets.yaml');
       expect(gi.split('\n').filter((l) => l.trim() === LOCK_DET_FILE_NAME)).toHaveLength(1);
     } finally {
-      rmSync(ygg, { recursive: true, force: true });
+      rmSync(ygg, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -82,7 +83,7 @@ describe('splitLock migration step', () => {
       expect(nondet.verdicts['llm-aspect']).toBeDefined();
       expect(existsSync(path.join(ygg, LOCK_DET_FILE_NAME))).toBe(false);
     } finally {
-      rmSync(ygg, { recursive: true, force: true });
+      rmSync(ygg, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -93,7 +94,7 @@ describe('splitLock migration step', () => {
       const gi = readFileSync(path.join(ygg, '.gitignore'), 'utf-8');
       expect(gi).toBe(`node_modules/\n${LOCK_DET_FILE_NAME}\n`);
     } finally {
-      rmSync(ygg, { recursive: true, force: true });
+      rmSync(ygg, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -104,7 +105,7 @@ describe('splitLock migration step', () => {
       expect(r).toEqual({ actions: [], warnings: [] });
       expect(existsSync(path.join(ygg, LOCK_NONDET_FILE_NAME))).toBe(false);
     } finally {
-      rmSync(ygg, { recursive: true, force: true });
+      rmSync(ygg, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -116,7 +117,7 @@ describe('splitLock migration step', () => {
     try {
       await expect(splitLock(ygg)).rejects.toThrow();
     } finally {
-      rmSync(ygg, { recursive: true, force: true });
+      rmSync(ygg, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -127,7 +128,7 @@ describe('splitLock migration step', () => {
       const second = await splitLock(ygg);
       expect(second).toEqual({ actions: [], warnings: [] });
     } finally {
-      rmSync(ygg, { recursive: true, force: true });
+      rmSync(ygg, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -139,7 +140,7 @@ describe('splitLock migration step', () => {
       const gi = readFileSync(path.join(a, '.gitignore'), 'utf-8');
       expect(gi.split('\n').filter((l) => l.trim() === LOCK_DET_FILE_NAME)).toHaveLength(1);
     } finally {
-      rmSync(a, { recursive: true, force: true });
+      rmSync(a, FIXTURE_RM_OPTIONS);
     }
 
     // .gitignore already lists the cache → no second action for it, no duplicate.
@@ -150,7 +151,7 @@ describe('splitLock migration step', () => {
       const gi = readFileSync(path.join(b, '.gitignore'), 'utf-8');
       expect(gi.split('\n').filter((l) => l.trim() === LOCK_DET_FILE_NAME)).toHaveLength(1);
     } finally {
-      rmSync(b, { recursive: true, force: true });
+      rmSync(b, FIXTURE_RM_OPTIONS);
     }
   });
 });

@@ -13,6 +13,7 @@ import {
   readGitCommitRef,
   computePortalFreshness,
 } from '../../src/portal/engine-api.js';
+import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 /**
  * Phase-5 backend (5.1 attestation provenance + 5.2 file-aware loop) — real fixtures, real
@@ -37,7 +38,7 @@ const CLI_BIN = path.resolve(__dirname, '../../dist/bin.js');
 
 const tmpDirs: string[] = [];
 afterAll(async () => {
-  await Promise.all(tmpDirs.map((d) => rm(d, { recursive: true, force: true })));
+  await Promise.all(tmpDirs.map((d) => rm(d, FIXTURE_RM_OPTIONS)));
 });
 
 describe('5.1 — attestation provenance enters meta via the facade (real repo)', () => {

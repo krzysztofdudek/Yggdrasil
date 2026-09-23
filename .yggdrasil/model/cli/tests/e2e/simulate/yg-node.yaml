@@ -9,6 +9,8 @@ description: "Subprocess E2E for yg simulate over the public CLI surface: a real
   byte-compare proving the real fixture tree is untouched. Real spawned binary; no
   internal src imports."
 aspects: []
-relations: []
+relations:
+  - target: cli/tests/support
+    type: uses
 mapping:
   - source/cli/tests/e2e/simulate.e2e.test.ts

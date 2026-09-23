@@ -74,7 +74,7 @@ import {
 import { tmpdir, platform } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runGitFixture } from '../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -180,7 +180,7 @@ function twoPackageMarket(): string {
     ['0.1.0', MARKET_V1],
     ['0.2.0', MARKET_V2],
   ] as const) {
-    rmSync(path.join(market, 'packages'), { recursive: true, force: true });
+    rmSync(path.join(market, 'packages'), FIXTURE_RM_OPTIONS);
     for (const name of ['alpha', 'zulu']) {
       cpSync(path.join(from, 'packages', 'demo'), path.join(market, 'packages', name), { recursive: true });
       const manifest = path.join(market, 'packages', name, 'yg-package.yaml');
@@ -210,7 +210,7 @@ beforeAll(() => {
   runGitFixture(gitMarket, ['commit', '-qm', 'demo 0.1.0']);
   runGitFixture(gitMarket, ['tag', 'pack/demo@0.1.0']);
 
-  rmSync(path.join(gitMarket, 'packages'), { recursive: true, force: true });
+  rmSync(path.join(gitMarket, 'packages'), FIXTURE_RM_OPTIONS);
   cpSync(MARKET_V2, gitMarket, { recursive: true });
   runGitFixture(gitMarket, ['add', '-A']);
   runGitFixture(gitMarket, ['commit', '-qm', 'demo 0.2.0']);
@@ -221,7 +221,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  if (gitMarket !== '') rmSync(gitMarket, { recursive: true, force: true });
+  if (gitMarket !== '') rmSync(gitMarket, FIXTURE_RM_OPTIONS);
 });
 
 describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', () => {
@@ -267,7 +267,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(recorded.length).toBeGreaterThan(0);
       expect(recorded.some((l) => l.includes('yg-aspect.adapt.yaml'))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -287,7 +287,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(plain.stdout).toContain('2 verified');
       expect(run(['aspects'], dir).stdout).toContain(RULE_A);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -307,7 +307,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(checked.all).toContain(`.yggdrasil/aspects/${RULE_A}/check.mjs`);
       expect(checked.all).toContain('yg-aspect.adapt.yaml');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -323,7 +323,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(checked.all).toContain('is missing');
       expect(checked.all).not.toContain('has been edited');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -338,7 +338,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(checked.all).toContain('no installed package put it there');
       expect(checked.all).toContain('mine.mjs');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -368,7 +368,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       setSetting(dir, 'threshold', '50');
       expect(run(['check', '--approve', '--only-deterministic'], dir).status).toBe(0);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -386,7 +386,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(after.all).not.toContain('unverified');
       expect(after.stdout).toContain('2 verified');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -401,7 +401,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(checked.all).toContain('treshold');
       expect(checked.all).toContain('demo');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -416,7 +416,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(checked.all).toContain("'name'");
       expect(checked.all).toContain('not adaptable');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -454,7 +454,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       // And nothing is wrong with the copy itself.
       expect(after.all).not.toContain('package-file-modified');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -473,7 +473,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(read(dir, CHECK_A)).toBe(`${before}\n// mine\n`);
       expect(read(dir, LOCK)).toContain('version: "0.1.0"');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -514,8 +514,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
         expect(read(dir, LOCK)).toBe(lockBefore);
         expect(read(dir, LOCK)).not.toContain('0.2.0');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
-        rmSync(market, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+        rmSync(market, FIXTURE_RM_OPTIONS);
       }
     },
     60_000,
@@ -535,7 +535,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(updated.all).not.toContain('at Object.');
       expect(read(dir, LOCK)).toBe(lockBefore);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -562,7 +562,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(checked.status).toBe(1);
       expect(checked.all).toContain('countBlankLines');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -585,7 +585,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(dirty.stdout).toContain('copy changed');
       expect(dirty.stdout).not.toContain('copy untouched');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -609,7 +609,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(read(dir, LOCK)).toContain('packages: {}');
       expect(run(['check'], dir).status).toBe(0);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -645,7 +645,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
         expect(checked.all).toContain(`'${id}'`);
       }
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -665,7 +665,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(again.all).toContain('already installed');
       expect(again.all).toContain('yg pack update demo');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -683,8 +683,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(added.all).toMatch(/this one is \d+\.\d+\.\d+/);
       expect(existsSync(path.join(dir, LOCK))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
-      rmSync(market, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      rmSync(market, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -712,8 +712,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(lock).not.toContain('check.mjs');
       expect(run(['check'], dir).status).toBe(0);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
-      rmSync(market, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      rmSync(market, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -731,8 +731,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(checked.all).toContain('rule-c');
       expect(checked.all).toContain('some-local-rule');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
-      rmSync(market, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      rmSync(market, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -752,7 +752,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(added.all).toContain(RULE_A);
       expect(added.all).toContain('already has one by that name');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -778,7 +778,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
         expect(leftovers).toEqual([]);
         expect(existsSync(path.join(dir, LOCK))).toBe(false);
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     },
     10_000,
@@ -800,8 +800,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(added.all).toContain("'something-else'");
       expect(existsSync(path.join(dir, LOCK))).toBe(false);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
-      rmSync(market, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      rmSync(market, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -813,8 +813,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(added.status).toBe(1);
       expect(added.all).toContain('yg-marketplace.yaml');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
-      rmSync(empty, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      rmSync(empty, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -826,7 +826,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(added.all).toContain('who published');
       expect(added.all).toContain('--as <owner>/<repo>');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -837,7 +837,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(existsSync(path.join(dir, '.yggdrasil', 'aspects', 'packages', 'o', 'r', 'demo', 'rule-a'))).toBe(true);
       expect(run(['aspects'], dir).stdout).toContain('packages/o/r/demo/rule-a');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -866,8 +866,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(context.status).toBe(0);
       expect(context.stdout).toContain(id);
     } finally {
-      rmSync(dir, { recursive: true, force: true });
-      rmSync(market, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      rmSync(market, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -894,7 +894,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
         expect(afterCrlf.status).toBe(0);
         expect(afterCrlf.all).not.toContain('package-file-modified');
       } finally {
-        rmSync(dir, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
       }
     },
     30_000,
@@ -918,8 +918,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       // And the check reads it back through the link without complaint.
       expect(run(['check'], dir).all).not.toContain('package-file-modified');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
-      rmSync(elsewhere, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      rmSync(elsewhere, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -942,7 +942,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(read(dir, LOCK)).toContain('packages: {}');
     } finally {
       chmodSync(path.join(dir, '.yggdrasil'), 0o755);
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -961,7 +961,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       expect(existsSync(path.join(dir, '.yggdrasil', 'aspects', ...INSTALL.split('/'), 'leftover.txt'))).toBe(false);
       expect(run(['check'], dir).all).not.toContain('package-file-modified');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -1001,8 +1001,8 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
         expect(run(['pack', 'add', `${market}#big`, '--as', 'acme/law'], dir).status).toBe(0);
         expect(run(['check'], dir).status).toBe(0);
       } finally {
-        rmSync(dir, { recursive: true, force: true });
-        rmSync(market, { recursive: true, force: true });
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+        rmSync(market, FIXTURE_RM_OPTIONS);
       }
     },
     90_000,
@@ -1066,7 +1066,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       rmSync(path.join(dir, VERSIONS_CACHE));
       expect(run(['advise', '--all'], dir).stdout).not.toContain('is installed at version');
     } finally {
-      rmSync(dir, { recursive: true, force: true });
+      rmSync(dir, FIXTURE_RM_OPTIONS);
     }
   });
 });

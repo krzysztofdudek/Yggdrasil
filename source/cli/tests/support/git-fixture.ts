@@ -76,6 +76,70 @@ const FIXTURE_IDENTITY: NodeJS.ProcessEnv = {
 };
 
 /**
+ * Git configuration that keeps a fixture repository QUIET after each command.
+ *
+ * WHY: every `git commit` (and merge, rebase, am, ...) ends by spawning
+ * `git maintenance run --auto --detach`, a background process that outlives the
+ * command. When its thresholds trip it repacks, and a repack rewrites files
+ * under `.git/objects/` and `.git/info/refs` (via update-server-info). The test
+ * has moved on by then; its cleanup `rm -r` lists a directory, the detached
+ * child drops a new file into it, and the final rmdir fails with ENOTEMPTY —
+ * a test that passed reported as failed. CI saw exactly that on
+ * `.git/info` and `.git/objects` of a gitlink fixture. A fixture never
+ * needs housekeeping, so it is switched off at the source instead of raced.
+ *
+ * Supplied through GIT_CONFIG_COUNT / GIT_CONFIG_KEY_n / GIT_CONFIG_VALUE_n,
+ * which git reads as command-line config for the process AND its children,
+ * without touching the fixture's `.git/config` (tests that inspect it see only
+ * what they wrote).
+ */
+export const QUIET_GIT_CONFIG: ReadonlyArray<readonly [string, string]> = [
+  ['maintenance.auto', 'false'],
+  ['gc.auto', '0'],
+];
+
+/**
+ * Add {@link QUIET_GIT_CONFIG} to `env` in place, appending after any
+ * GIT_CONFIG_COUNT entries already present (a caller's own pairs survive) and
+ * skipping a key that is already set, so calling it twice is harmless.
+ */
+export function applyQuietGitConfig(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const parsed = Number.parseInt(env.GIT_CONFIG_COUNT ?? '0', 10);
+  let count = Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  const present = new Set<string>();
+  for (let i = 0; i < count; i++) {
+    const key = env[`GIT_CONFIG_KEY_${i}`];
+    if (key) present.add(key.toLowerCase());
+  }
+  for (const [key, value] of QUIET_GIT_CONFIG) {
+    if (present.has(key.toLowerCase())) continue;
+    env[`GIT_CONFIG_KEY_${count}`] = key;
+    env[`GIT_CONFIG_VALUE_${count}`] = value;
+    count++;
+  }
+  env.GIT_CONFIG_COUNT = String(count);
+  return env;
+}
+
+/**
+ * Options for removing a fixture directory in a test's cleanup.
+ *
+ * `maxRetries` makes `rm` retry the whole removal on ENOTEMPTY / EBUSY / EPERM,
+ * re-listing the directory each time, with a linearly growing `retryDelay`
+ * (50 ms, 100 ms, ... about 1.8 s in total at most). It is the second line of
+ * defence behind {@link QUIET_GIT_CONFIG}: a process the test did not start
+ * itself (an OS indexer, a straggling child of the CLI under test) can still
+ * drop a file into a directory mid-removal. A real leak stays visible: a
+ * directory that keeps refilling still fails after the last retry.
+ */
+export const FIXTURE_RM_OPTIONS = {
+  recursive: true,
+  force: true,
+  maxRetries: 8,
+  retryDelay: 50,
+} as const;
+
+/**
  * Build a scrubbed, fixture-pinned environment for a git command that must act on
  * `fixtureDir` and ONLY `fixtureDir`.
  *
@@ -99,6 +163,9 @@ export function gitFixtureEnv(
   // Belt-and-suspenders: even if something ignored GIT_DIR, forbid any upward walk
   // from crossing the fixture boundary.
   env.GIT_CEILING_DIRECTORIES = abs;
+  // No detached background housekeeping writing into the fixture after the
+  // command returns (see QUIET_GIT_CONFIG).
+  applyQuietGitConfig(env);
   return env;
 }
 

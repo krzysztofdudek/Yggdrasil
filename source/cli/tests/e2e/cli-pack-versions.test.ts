@@ -67,7 +67,7 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { runGitFixture } from '../support/git-fixture.js';
+import { runGitFixture, FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -152,7 +152,7 @@ function bump(work: string, version: string): void {
 
 /** Replace the marketplace tree in `work` with `from`, publishing it as `version`. */
 function publish(work: string, from: string, version: string): void {
-  rmSync(path.join(work, 'packages'), { recursive: true, force: true });
+  rmSync(path.join(work, 'packages'), FIXTURE_RM_OPTIONS);
   cpSync(from, work, { recursive: true });
   bump(work, version);
 }
@@ -213,7 +213,7 @@ beforeAll(() => {
 });
 
 afterAll(() => {
-  for (const d of made.splice(0)) rmSync(d, { recursive: true, force: true });
+  for (const d of made.splice(0)) rmSync(d, FIXTURE_RM_OPTIONS);
 });
 
 describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair, and where commands run', () => {
@@ -382,7 +382,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     const src = temp('two');
     git(src, ['init', '-q', '-b', 'main']);
     const writeTwo = (version: string, zuluRequires: string): void => {
-      rmSync(path.join(src, 'packages'), { recursive: true, force: true });
+      rmSync(path.join(src, 'packages'), FIXTURE_RM_OPTIONS);
       for (const name of ['alpha', 'zulu']) {
         cpSync(path.join(MARKET_V1, 'packages', 'demo'), path.join(src, 'packages', name), { recursive: true });
         const manifest = path.join(src, 'packages', name, 'yg-package.yaml');
@@ -437,7 +437,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     attach(dir, `${INSTALL}/rule-b`);
 
     // 0.2.0 drops rule-b and promotes the rule-c bundle from draft to enforced.
-    rmSync(path.join(src, 'packages', 'demo', 'rule-b'), { recursive: true, force: true });
+    rmSync(path.join(src, 'packages', 'demo', 'rule-b'), FIXTURE_RM_OPTIONS);
     const manifest = path.join(src, 'packages', 'demo', 'yg-package.yaml');
     writeFileSync(manifest, readFileSync(manifest, 'utf-8').replace('  - rule-b\n', ''), 'utf-8');
     const ruleC = path.join(src, 'packages', 'demo', 'rule-c', 'yg-aspect.yaml');
@@ -504,7 +504,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     cpSync(MARKET_V1, src, { recursive: true });
     const dir = consumer('gone');
     expect(run(['pack', 'add', `${src}#demo`, '--as', 'acme/law'], dir).status).toBe(0);
-    rmSync(src, { recursive: true, force: true });
+    rmSync(src, FIXTURE_RM_OPTIONS);
 
     const updated = run(['pack', 'update', 'demo'], dir);
     expect(updated.status).toBe(1);
@@ -610,7 +610,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: versions, provenance, repair,
     expect(implied.all).toContain('rule bundle implies it');
     expect(existsSync(path.join(dir, CHECK_A))).toBe(true);
 
-    rmSync(path.join(dir, '.yggdrasil', 'aspects', 'bundle'), { recursive: true, force: true });
+    rmSync(path.join(dir, '.yggdrasil', 'aspects', 'bundle'), FIXTURE_RM_OPTIONS);
     const node = path.join('.yggdrasil', 'model', 'app', 'yg-node.yaml');
     write(dir, node, `${read(dir, node)}ports:\n  api:\n    description: The entry.\n    aspects:\n      - ${RULE_A}\n`);
     const ported = run(['pack', 'remove', 'demo'], dir);

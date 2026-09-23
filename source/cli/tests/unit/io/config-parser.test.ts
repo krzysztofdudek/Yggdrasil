@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { tmpdir } from 'node:os';
 import { parseConfig, ConfigParseError, DEFAULT_COVERAGE, readRulesArtifactsConfig } from '../../../src/io/config-parser.js';
 import type { YggConfig, LlmConfig } from '../../../src/model/graph.js';
+import { FIXTURE_RM_OPTIONS } from '../../support/git-fixture.js';
 
 /** Bridge: extract the first (and typically only) tier from the new ReviewerConfig structure */
 function getLlm(config: YggConfig): LlmConfig | undefined {
@@ -22,7 +23,7 @@ afterEach(async () => {
   await Promise.all(
     entries
       .filter((e) => e.startsWith('tmp-config') || e.startsWith('tmp-no-llm') || e.startsWith('tmp-reviewer') || e.startsWith('tmp-v5'))
-      .map((e) => rm(path.join(FIXTURES_DIR, e), { recursive: true, force: true })),
+      .map((e) => rm(path.join(FIXTURES_DIR, e), FIXTURE_RM_OPTIONS)),
   );
 });
 
@@ -43,7 +44,7 @@ describe('config-parser', () => {
       'empty or not a valid YAML mapping',
     );
 
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('throws on a top-level YAML sequence (array) config', async () => {
@@ -59,7 +60,7 @@ describe('config-parser', () => {
     );
     await expect(parseConfig(badConfigPath)).rejects.toBeInstanceOf(ConfigParseError);
 
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('parses minimal config', async () => {
@@ -77,7 +78,7 @@ version: "4.0.0"
     const config = await parseConfig(minimalConfigPath);
     expect(config.version).toBe('4.0.0');
 
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('parses quality.max_direct_relations when present', async () => {
@@ -97,7 +98,7 @@ version: "4.0.0"
     );
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.version).toBe('2.0.0');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('defaults version to undefined when not present', async () => {
@@ -106,7 +107,7 @@ version: "4.0.0"
     await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'parallel: 2\n', 'utf-8');
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.version).toBeUndefined();
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('rejects an unknown top-level key with a did-you-mean suggestion', async () => {
@@ -118,7 +119,7 @@ version: "4.0.0"
     expect((err as ConfigParseError).code).toBe('config-unknown-key');
     expect((err as ConfigParseError).messageData.what).toContain("'progresive'");
     expect((err as ConfigParseError).messageData.next).toContain("Did you mean 'progressive'?");
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('rejects an unknown top-level key with no close match without a suggestion', async () => {
@@ -128,7 +129,7 @@ version: "4.0.0"
     const err = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
     expect((err as ConfigParseError).code).toBe('config-unknown-key');
     expect((err as ConfigParseError).messageData.next).not.toContain('Did you mean');
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('names yg-secrets.yaml when the unknown top-level key comes from the overlay', async () => {
@@ -140,7 +141,7 @@ version: "4.0.0"
     expect((err as ConfigParseError).code).toBe('config-unknown-key');
     expect((err as ConfigParseError).messageData.what).toContain('yg-secrets.yaml');
     expect((err as ConfigParseError).messageData.next).toContain("Did you mean 'parallel'?");
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('reads the schema version field one way: absent, string, or not a string (as written)', async () => {
@@ -168,7 +169,7 @@ version: "4.0.0"
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.quality?.max_direct_relations).toBe(10);
 
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('parses partial quality configuration with defaults', async () => {
@@ -187,7 +188,7 @@ quality:
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.quality?.max_direct_relations).toBe(15);
 
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('parses parallel: 5', async () => {
@@ -196,7 +197,7 @@ quality:
     await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "4.0.0"\nparallel: 5\n', 'utf-8');
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.parallel).toBe(5);
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('parallel field absent → config.parallel is undefined', async () => {
@@ -205,7 +206,7 @@ quality:
     await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "4.0.0"\n', 'utf-8');
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.parallel).toBeUndefined();
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('throws when parallel is 0', async () => {
@@ -215,7 +216,7 @@ quality:
     await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
       'parallel must be a positive integer',
     );
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('throws when parallel is a string', async () => {
@@ -225,7 +226,7 @@ quality:
     await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
       'parallel must be a number',
     );
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('throws when quality is not a mapping', async () => {
@@ -235,7 +236,7 @@ quality:
     await expect(parseConfig(path.join(tmpDir, 'yg-config.yaml'))).rejects.toThrow(
       'quality must be a mapping',
     );
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('parses debug: true', async () => {
@@ -244,7 +245,7 @@ quality:
     await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "4.0.0"\ndebug: true\n', 'utf-8');
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.debug).toBe(true);
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('debug absent → config.debug is undefined', async () => {
@@ -253,7 +254,7 @@ quality:
     await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "4.0.0"\n', 'utf-8');
     const config = await parseConfig(path.join(tmpDir, 'yg-config.yaml'));
     expect(config.debug).toBeUndefined();
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('accepts config without reviewer section', async () => {
@@ -271,7 +272,7 @@ version: "4.0.0"
       const config = await parseConfig(configPath);
       expect(getLlm(config)).toBeUndefined();
 
-      await rm(tmpDir, { recursive: true, force: true });
+      await rm(tmpDir, FIXTURE_RM_OPTIONS);
     });
 
   describe('parseConfig v5 happy paths', () => {
@@ -426,7 +427,7 @@ reviewer:
       try {
         return await parseConfig(path.join(dir, 'yg-config.yaml'));
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     }
 
@@ -666,7 +667,7 @@ quality:
     await writeFile(p, 'version: "5.0.0"\n', 'utf-8');
     const config = await parseConfig(p);
     expect(config.coverage).toEqual({ required: ['/'], excluded: [], typeLevel: false });
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('parses coverage.required and coverage.excluded', async () => {
@@ -676,7 +677,7 @@ quality:
     await writeFile(p, 'version: "5.0.0"\ncoverage:\n  required:\n    - services/\n  excluded:\n    - vendor/\n', 'utf-8');
     const config = await parseConfig(p);
     expect(config.coverage).toEqual({ required: ['services/'], excluded: ['vendor/'], typeLevel: false });
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('throws when coverage.required is not an array of strings', async () => {
@@ -685,7 +686,7 @@ quality:
     const p = path.join(tmpDir, 'yg-config.yaml');
     await writeFile(p, 'version: "5.0.0"\ncoverage:\n  required: services\n', 'utf-8');
     await expect(parseConfig(p)).rejects.toThrow(ConfigParseError);
-    await rm(tmpDir, { recursive: true, force: true });
+    await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
   it('accepts an explicit empty coverage.required as "require nothing" (pure-advisory)', async () => {
@@ -698,7 +699,7 @@ quality:
       // absent-block default of ['/'] only applies when coverage.required is omitted.
       expect(config.coverage).toEqual({ required: [], excluded: [], typeLevel: false });
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -709,7 +710,7 @@ quality:
       await writeFile(p, 'version: "5.0.0"\ncoverage:\n  required:\n    - services/../other/\n', 'utf-8');
       await expect(parseConfig(p)).rejects.toMatchObject({ code: 'config-invalid' });
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -720,7 +721,7 @@ quality:
       await writeFile(p, 'version: "5.0.0"\ncoverage:\n  required: 42\n', 'utf-8');
       await expect(parseConfig(p)).rejects.toThrow(ConfigParseError);
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -731,7 +732,7 @@ quality:
       await writeFile(p, 'version: "5.0.0"\ncoverage:\n  required:\n    - services/\n    - 42\n', 'utf-8');
       await expect(parseConfig(p)).rejects.toThrow(ConfigParseError);
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -742,7 +743,7 @@ quality:
       await writeFile(p, 'version: "5.0.0"\ncoverage: "all"\n', 'utf-8');
       await expect(parseConfig(p)).rejects.toThrow(ConfigParseError);
     } finally {
-      await rm(dir, { recursive: true, force: true });
+      await rm(dir, FIXTURE_RM_OPTIONS);
     }
   });
 
@@ -753,7 +754,7 @@ quality:
       try {
         return await parseConfig(path.join(dir, 'yg-config.yaml'));
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     }
 
@@ -780,7 +781,7 @@ quality:
       try {
         return await parseConfig(path.join(dir, 'yg-config.yaml'));
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     }
 
@@ -848,7 +849,7 @@ quality:
         const cfg = await parseConfig(filePath);
         expect(cfg.reviewer?.tiers.standard.api_key).toBe('SECRET-FROM-OVERLAY');
       } finally {
-        await rm(path.dirname(filePath), { recursive: true, force: true });
+        await rm(path.dirname(filePath), FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -858,7 +859,7 @@ quality:
         const cfg = await parseConfig(filePath, { skipSecretsOverlay: true });
         expect(cfg.reviewer?.tiers.standard.api_key).toBeUndefined();
       } finally {
-        await rm(path.dirname(filePath), { recursive: true, force: true });
+        await rm(path.dirname(filePath), FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -875,7 +876,7 @@ quality:
       try {
         return await parseConfig(filePath, { skipSecretsOverlay: true });
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     }
 
@@ -946,7 +947,7 @@ quality:
       try {
         return await parseConfig(filePath, { skipSecretsOverlay: true });
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     }
 
@@ -1020,7 +1021,7 @@ quality:
       try {
         return await parseConfig(filePath, { skipSecretsOverlay: true });
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     }
 
@@ -1077,7 +1078,7 @@ quality:
         const cfg = await parseConfig(filePath);
         expect(cfg.coverage?.typeLevel).toBe(false);
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -1094,7 +1095,7 @@ quality:
         const cfg = await parseConfig(filePath);
         expect(cfg.coverage?.typeLevel).toBe(true);
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -1113,7 +1114,7 @@ quality:
         const cfg = await parseConfig(filePath, { skipSecretsOverlay: true });
         expect(cfg.coverage).not.toBe(DEFAULT_COVERAGE);
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
 
       const dir2 = await mkdtemp(path.join(FIXTURES_DIR, 'tmp-config-type-level-'));
@@ -1123,7 +1124,7 @@ quality:
         await parseConfig(filePath2, { skipSecretsOverlay: true });
         expect(DEFAULT_COVERAGE.typeLevel).toBe(false);
       } finally {
-        await rm(dir2, { recursive: true, force: true });
+        await rm(dir2, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -1144,7 +1145,7 @@ quality:
       try {
         return await parseConfig(filePath, { skipSecretsOverlay: true });
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     }
 
@@ -1222,7 +1223,7 @@ quality:
         const cfg = await parseConfig(filePath);
         expect(cfg.progressive).toBeUndefined();
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -1235,7 +1236,7 @@ quality:
         const cfg = await parseConfig(filePath);
         expect(cfg.progressive?.reference).toBe('origin/main');
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     });
 
@@ -1248,7 +1249,7 @@ quality:
         const cfg = await parseConfig(filePath);
         expect(cfg.progressive?.reference).toBe('origin/main');
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -1268,7 +1269,7 @@ quality:
       try {
         return await parseConfig(filePath, { skipSecretsOverlay: true });
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     }
 
@@ -1336,7 +1337,7 @@ quality:
         const cfg = await parseConfig(filePath);
         expect(cfg.rulesArtifacts?.clinerules).toBe(true);
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     });
   });
@@ -1349,7 +1350,7 @@ quality:
       try {
         await fn(dir);
       } finally {
-        await rm(dir, { recursive: true, force: true });
+        await rm(dir, FIXTURE_RM_OPTIONS);
       }
     }
 
