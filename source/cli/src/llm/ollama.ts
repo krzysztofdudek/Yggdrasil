@@ -1,15 +1,20 @@
 import type { LlmProvider, AspectResponse } from './types.js';
 import { debugWrite } from '../utils/debug-log.js';
-import { apiFetch } from './api-utils.js';
+import { apiFetch, describeHttpFailure, describeFetchFailure } from './api-utils.js';
 import { parseAspectResponse } from './cli-base.js';
 import type { LlmConfig } from '../model/graph.js';
 import { registerProvider } from './provider.js';
+
+/** The availability probe asks only for the model list, so it gets a short timeout of its own. */
+const OLLAMA_PROBE_TIMEOUT_MS = 5_000;
 
 export class OllamaProvider implements LlmProvider {
   private endpoint: string;
   private model: string;
   private temperature: number;
   private timeout: number;
+  /** Why the last isAvailable() said no — reported by unavailableReason(). */
+  private lastProbeFailure = '';
 
   constructor(config: LlmConfig) {
     this.endpoint = config.endpoint ?? 'http://localhost:11434';
@@ -22,17 +27,24 @@ export class OllamaProvider implements LlmProvider {
   }
 
   async isAvailable(): Promise<boolean> {
+    const url = `${this.endpoint}/api/tags`;
     try {
-      const res = await apiFetch(`${this.endpoint}/api/tags`, {}, 'ollama', 5000);
+      const res = await apiFetch(url, {}, 'ollama', OLLAMA_PROBE_TIMEOUT_MS);
+      if (!res.ok) this.lastProbeFailure = describeHttpFailure('ollama', res.status, res.statusText, this.model);
       return res.ok;
     } catch (err) {
       debugWrite(`[ollama] isAvailable: ${(err as Error).message}`);
+      this.lastProbeFailure = describeFetchFailure(err, url, OLLAMA_PROBE_TIMEOUT_MS);
       return false;
     }
   }
 
+  async unavailableReason(): Promise<string> {
+    return `no Ollama server answered at ${this.endpoint} (${this.lastProbeFailure || 'no answer'}) — start it with \`ollama serve\`, or point config.endpoint at the running one`;
+  }
+
   async verifyAspect(prompt: string): Promise<AspectResponse> {
-    const fallback: AspectResponse = { satisfied: false, reason: 'LLM response could not be parsed', errorSource: 'provider' };
+    const fail = (why: string): AspectResponse => ({ satisfied: false, reason: `Ollama request failed: ${why}`, errorSource: 'provider' });
 
     const body = {
       model: this.model,
@@ -50,22 +62,31 @@ export class OllamaProvider implements LlmProvider {
       format: 'json',
     };
 
+    const url = `${this.endpoint}/api/chat`;
     try {
-      const res = await apiFetch(`${this.endpoint}/api/chat`, {
+      const res = await apiFetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       }, 'ollama', this.timeout);
       if (!res.ok) {
         debugWrite(`[ollama] http_error: ${res.status} ${res.statusText}`);
-        return fallback;
+        return fail(describeHttpFailure('ollama', res.status, res.statusText, this.model));
       }
-      const data = await res.json() as { message?: { content?: string } };
+      let data: { message?: { content?: string } };
+      try {
+        data = await res.json() as { message?: { content?: string } };
+      } catch (err) {
+        debugWrite(`[ollama] reply is not JSON: ${(err as Error).message}`);
+        return fail(`HTTP ${res.status} but the reply was not JSON — config.endpoint may not be an Ollama server`);
+      }
       const content = data.message?.content ?? '';
-      return parseAspectResponse(content) ?? fallback;
+      // An empty reply is the usual thinking-model failure: the whole budget went
+      // to the reasoning channel and no verdict reached `content`.
+      return parseAspectResponse(content) ?? fail(`model '${this.model}' returned an empty reply (no verdict)`);
     } catch (err) {
       debugWrite(`[ollama] error: ${(err as Error).message}`);
-      return fallback;
+      return fail(describeFetchFailure(err, url, this.timeout));
     }
   }
 }

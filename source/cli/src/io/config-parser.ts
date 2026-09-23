@@ -642,8 +642,12 @@ function parseTier(name: string, raw: unknown, filename: string): LlmConfig {
   if (!model || typeof model !== 'string') {
     throw new ConfigParseError({
       what: `${filename}: tier '${name}' config.model is missing or not a string`,
-      why: 'every tier requires a model id',
-      next: 'add `model: <model-name>` under config:',
+      why: t.provider === 'copilot-cli'
+        ? "copilot-cli has no default model: the organisation's Copilot policy decides which models a seat may use, and the CLI refuses any other"
+        : 'every tier requires a model id',
+      next: t.provider === 'copilot-cli'
+        ? 'add `model: <model-name>` under config:, one your Copilot plan allows — e.g. `model: auto`, which lets Copilot pick'
+        : 'add `model: <model-name>` under config:',
     }, 'config-tier-config-missing');
   }
 

@@ -214,7 +214,9 @@ describe.skipIf(!distExists)('CLI E2E — lifecycle (log, aspect-test, platform,
     // unreachable, so the diagnostic run fails closed.
     const { status, stderr } = run(['aspect-test', '--aspect', 'requires-audit', '--node', 'orders/order-service']);
     expect(status).toBe(1);
-    expect(stderr).toContain('unreachable');
+    // The provider names its own cause, not a generic "unreachable".
+    expect(stderr).toContain("Reviewer provider 'ollama' (tier 'standard') cannot run: no Ollama server answered at http://127.0.0.1:1");
+    expect(stderr).toContain('debug: true');
   });
 
   it('yg aspect-test runs the check and reports no violations on clean code', () => {

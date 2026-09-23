@@ -40,7 +40,7 @@ export async function fetchOpenAIModels(apiKey: string, endpoint?: string): Prom
   const base = endpoint ?? 'https://api.openai.com/v1';
   try {
     const res = await fetch(`${base}/models`, {
-      headers: { 'Authorization': `Bearer ${apiKey}` },
+      headers: apiKey ? { 'Authorization': `Bearer ${apiKey}` } : {},
       signal: AbortSignal.timeout(15_000),
     });
     if (!res.ok) {

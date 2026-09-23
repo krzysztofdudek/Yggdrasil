@@ -6,6 +6,7 @@ aspects: []
 relations:
   [
     { target: cli/llm/providers, type: uses },
+    { target: cli/llm/shared, type: uses },
     { target: cli/llm/subprocess-base, type: uses },
     { target: cli/utils, type: uses }
   ]

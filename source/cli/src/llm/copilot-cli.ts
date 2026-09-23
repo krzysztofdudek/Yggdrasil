@@ -4,7 +4,7 @@ import path from 'node:path';
 import { CliAgentProvider } from './cli-base.js';
 import { registerProvider } from './provider.js';
 import type { AspectResponse } from './types.js';
-import { binaryAvailable } from '../utils/binary-check.js';
+import { probeBinary } from '../utils/binary-check.js';
 import { toPosixPath } from '../utils/posix.js';
 
 /**
@@ -30,6 +30,20 @@ export function resolveCopilotBinary(env: NodeJS.ProcessEnv = process.env): stri
     }
   }
   return null;
+}
+
+/**
+ * Why no Copilot CLI was found, naming what was there instead: a YG_COPILOT_BIN
+ * that is not a file, or the VS Code extension's stub sitting alone on PATH.
+ */
+export function copilotNotFoundReason(env: NodeJS.ProcessEnv = process.env): string {
+  const install = 'install it (npm i -g @github/copilot) or set YG_COPILOT_BIN to its path';
+  const explicit = env.YG_COPILOT_BIN;
+  if (explicit && !isFile(explicit)) return `YG_COPILOT_BIN is set to '${explicit}', which is not a file — point it at the GitHub Copilot CLI, or unset it and ${install}`;
+  const names = process.platform === 'win32' ? ['copilot.exe', 'copilot.cmd', 'copilot'] : ['copilot'];
+  const stub = (env.PATH ?? '').split(path.delimiter).find((dir) => dir && isExtensionStub(dir) && names.some((n) => isFile(path.join(dir, n))));
+  if (stub) return `the only 'copilot' on PATH is the VS Code Copilot extension's (${toPosixPath(stub)}), which is an installer prompt, not the CLI — ${install}`;
+  return `GitHub Copilot CLI not found on PATH — ${install}; the copilot inside the VS Code extension is an installer prompt, not the CLI`;
 }
 
 /** The VS Code extension's own copy, which is an installer prompt and not the CLI. */
@@ -96,23 +110,35 @@ export class CopilotCliProvider extends CliAgentProvider {
     return ['-s', '--model', this.model, ...ISOLATION_ARGS];
   }
 
+  protected get installHint() { return 'reinstall the GitHub Copilot CLI (npm i -g @github/copilot) and sign in with `copilot`, or set YG_COPILOT_BIN'; }
+
   async isAvailable(): Promise<boolean> {
     const found = resolveCopilotBinary();
-    return found !== null && binaryAvailable(found);
+    if (found === null) {
+      this.lastProbeFailure = copilotNotFoundReason();
+      return false;
+    }
+    const probe = await probeBinary(found);
+    this.lastProbeFailure = probe.ok ? '' : `${probe.detail} — ${this.installHint}`;
+    return probe.ok;
+  }
+
+  async unavailableReason(): Promise<string> {
+    return this.lastProbeFailure || copilotNotFoundReason();
   }
 
   async verifyAspect(prompt: string): Promise<AspectResponse> {
     if (!/^[A-Za-z0-9._:-]+$/.test(this.model)) {
       return {
         satisfied: false,
-        reason: `copilot-cli model '${this.model}' is not a model name (letters, digits, '.', '_', ':' and '-' only)`,
+        reason: `copilot-cli model '${this.model}' is not a model name (letters, digits, '.', '_', ':' and '-' only) — name one your Copilot plan allows, e.g. auto`,
         errorSource: 'provider',
       };
     }
     if (resolveCopilotBinary() === null) {
       return {
         satisfied: false,
-        reason: 'GitHub Copilot CLI not found — install it (npm i -g @github/copilot) or set YG_COPILOT_BIN; the copilot inside the VS Code extension is an installer prompt, not the CLI',
+        reason: copilotNotFoundReason(),
         errorSource: 'provider',
       };
     }

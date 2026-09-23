@@ -38,6 +38,7 @@ mapping:
   - source/cli/src/utils/marker-block.ts
   - source/cli/src/utils/node-path-validator.ts
   - source/cli/src/utils/posix.ts
+  - source/cli/src/utils/redact.ts
   - source/cli/src/utils/predicate-boolean.ts
   - source/cli/src/utils/when-parser.ts
   - source/cli/src/utils/file-when-parser.ts

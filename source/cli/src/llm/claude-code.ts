@@ -22,6 +22,7 @@ const ISOLATION_ARGS: string[] = [
 export class ClaudeCodeProvider extends CliAgentProvider {
   get binary() { return 'claude'; }
   get stdinMode() { return true; }
+  protected get installHint() { return 'install Claude Code (npm i -g @anthropic-ai/claude-code) and sign in with `claude`'; }
 
   buildArgs(_prompt: string): string[] {
     return ['--model', this.model, '--print', ...ISOLATION_ARGS];

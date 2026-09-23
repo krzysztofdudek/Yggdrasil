@@ -934,6 +934,9 @@ describe('aspect-test command behavior (mocked runners)', () => {
     // The per-run provider-error line is infrastructure, not a result — it goes
     // to stderr, matching every other provider-error report in this command.
     expect(stripAnsi(stderr)).toContain('node:N run 2/3: provider-error — HTTP 500');
+    // Structured like every other infra report: what, why, and where to look.
+    expect(stripAnsi(stderr)).toContain('left out of the stability count');
+    expect(stripAnsi(stderr)).toContain('set `debug: true` in .yggdrasil/yg-config.yaml');
     expect(clean).toContain('stability: 2/2 satisfied (1 provider-error run excluded)');
     expect(clean).toContain('yg aspect-test: satisfied — 1 unit satisfied');
     expect(exitCode).toBeUndefined();

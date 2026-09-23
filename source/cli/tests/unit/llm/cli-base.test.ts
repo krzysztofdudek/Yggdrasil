@@ -4,6 +4,9 @@ import path from 'node:path';
 import os from 'node:os';
 import { parseAspectResponse } from '../../../src/llm/cli-base.js';
 import { initDebugLog, _resetForTesting } from '../../../src/utils/debug-log.js';
+import { writeFileSync, chmodSync } from 'node:fs';
+import { CliAgentProvider } from '../../../src/llm/cli-base.js';
+import { probeProvider } from '../../../src/llm/provider.js';
 
 describe('parseAspectResponse', () => {
   it('parses clean JSON', () => {
@@ -120,5 +123,77 @@ describe('parseAspectResponse — raw-output debug logging', () => {
     const result = parseAspectResponse('{"satisfied": true, "reason": "UNIQUE-SUCCESS-MARKER"}');
     expect(result?.satisfied).toBe(true);
     expect(logContent()).not.toContain('UNIQUE-SUCCESS-MARKER');
+  });
+});
+
+// ── Failure reasons: a failed CLI run names its cause ──────────────────────────
+// A bad login, an unknown model and a timeout used to read identically
+// ("Reviewer unavailable"), with the CLI's own stderr thrown away even in the
+// debug log. The reason now carries how it failed and what the CLI printed.
+
+class FakeCliProvider extends CliAgentProvider {
+  constructor(private readonly bin: string, timeout?: number) { super({ model: 'm', timeout }); }
+  get binary() { return this.bin; }
+  get stdinMode() { return true; }
+  buildArgs(): string[] { return []; }
+  protected get installHint() { return 'install the fake CLI'; }
+}
+
+describe('CliAgentProvider — failure reasons', () => {
+  const made: string[] = [];
+  afterEach(() => { for (const d of made.splice(0)) rmSync(d, { recursive: true, force: true }); });
+  function script(body: string): string {
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'yg-fake-cli-'));
+    made.push(dir);
+    const f = path.join(dir, 'fake-cli');
+    writeFileSync(f, `#!/bin/sh\n${body}\n`);
+    chmodSync(f, 0o755);
+    return f;
+  }
+
+  it.skipIf(process.platform === 'win32')('a non-zero exit reports the exit code and the redacted stderr tail', async () => {
+    const bin = script('cat >/dev/null\necho "Invalid API key · Please run /login (sk-ant-api03-abcdefghijklmnop)" >&2\nexit 3');
+    const r = await new FakeCliProvider(bin).verifyAspect('prompt');
+    expect(r.errorSource).toBe('provider');
+    expect(r.reason).toContain('exited with code 3');
+    expect(r.reason).toContain('Invalid API key · Please run /login');
+    expect(r.reason).toContain('sk-ant-[REDACTED]');
+    expect(r.reason).not.toContain('abcdefghijklmnop');
+  });
+
+  it.skipIf(process.platform === 'win32')('a timeout says so and names config.timeout', async () => {
+    const bin = script('cat >/dev/null\necho "still thinking" >&2\nexec sleep 20');
+    const r = await new FakeCliProvider(bin, 500).verifyAspect('prompt');
+    expect(r.errorSource).toBe('provider');
+    expect(r.reason).toContain('timed out after 1s');
+    expect(r.reason).toContain('config.timeout');
+    expect(r.reason).toContain('still thinking');
+  });
+
+  it.skipIf(process.platform === 'win32')('a clean exit with no verdict says so instead of "unavailable"', async () => {
+    const bin = script('cat >/dev/null\necho "model not found: m" >&2\nexit 0');
+    const r = await new FakeCliProvider(bin).verifyAspect('prompt');
+    expect(r.reason).toContain('exited 0 without a verdict');
+    expect(r.reason).toContain('model not found: m');
+  });
+
+  it('a missing binary is unavailable with "not found on PATH" and the install hint', async () => {
+    const p = new FakeCliProvider('yg-no-such-cli-zzz');
+    const probe = await probeProvider(p, 'fake');
+    expect(probe).toEqual({ available: false, reason: "'yg-no-such-cli-zzz' was not found on PATH — install the fake CLI" });
+  });
+
+  it('the full stderr goes to the debug log on a non-zero exit', async () => {
+    if (process.platform === 'win32') return;
+    const bin = script('cat >/dev/null\necho "line one of the diagnosis" >&2\nexit 1');
+    const dir = mkdtempSync(path.join(os.tmpdir(), 'yg-debuglog-'));
+    made.push(dir);
+    initDebugLog(dir, true, (f, t) => appendFileSync(f, t));
+    try {
+      await new FakeCliProvider(bin).verifyAspect('prompt');
+    } finally {
+      _resetForTesting();
+    }
+    expect(readFileSync(path.join(dir, '.debug.log'), 'utf-8')).toContain('stderr: line one of the diagnosis');
   });
 });

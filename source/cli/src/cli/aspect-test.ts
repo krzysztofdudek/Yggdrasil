@@ -20,6 +20,7 @@ import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
 import { verifyWithConsensus } from '../llm/aspect-verifier.js';
 import { createLlmProvider } from '../llm/index.js';
+import { probeProvider, REVIEWER_DEBUG_HINT } from '../llm/provider.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import { contentFor } from '../core/pair-inputs.js';
 import { readTextFile } from '../io/graph-fs.js';
@@ -36,6 +37,18 @@ import {
 import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, LlmConfig } from '../model/graph.js';
+
+/**
+ * The report for one stability-mode run that produced no verdict: infrastructure,
+ * not a result, so it is left out of the k/N count and says how to see why.
+ */
+function repeatRunProviderError(unitKey: string, run: number, repeat: number, reason: string): Parameters<typeof buildIssueMessage>[0] {
+  return {
+    what: `${unitKey} run ${run}/${repeat}: provider-error — ${reason}`,
+    why: 'The reviewer produced no verdict for this run — an infrastructure failure, not a code violation — so the run is left out of the stability count.',
+    next: `If it repeats, fix the cause named above. ${REVIEWER_DEBUG_HINT}`,
+  };
+}
 
 /** Footer printed after every run (det, LLM, and --dry-run). */
 const DIAGNOSTIC_FOOTER =
@@ -876,19 +889,14 @@ async function runLlmAspectTest(
     const mergedTier = tier;
     const provider = createLlmProvider(mergedTier);
 
-    // Availability check.
-    let available: boolean;
-    try {
-      available = await provider.isAvailable();
-    } catch (e) {
-      debugWrite(`[aspect-test] provider.isAvailable threw for tier ${tierName}: ${e instanceof Error ? e.message : String(e)}`);
-      available = false;
-    }
-    if (!available) {
+    // Availability check — the provider names its own cause when it cannot run.
+    const probe = await probeProvider(provider, mergedTier.provider);
+    if (!probe.available) {
+      debugWrite(`[aspect-test] tier ${tierName} provider ${mergedTier.provider} unavailable: ${probe.reason}`);
       process.stderr.write(`Error: ${buildIssueMessage({
-          what: `Reviewer provider '${mergedTier.provider}' (tier '${tierName}') is unreachable.`,
-          why: `The configured reviewer endpoint did not respond. No provider calls were made.`,
-          next: `Check the provider endpoint, network, and credentials, then retry.`,
+          what: `Reviewer provider '${mergedTier.provider}' (tier '${tierName}') cannot run: ${probe.reason}.`,
+          why: `The reviewer failed its availability check. No provider calls were made.`,
+          next: `Fix the cause above, then retry. ${REVIEWER_DEBUG_HINT}`,
         })}\n`);
       process.exit(1);
       return 1;
@@ -1001,14 +1009,14 @@ async function runLlmAspectTest(
             emitDiag(pair.unitKey, 'infra');
             // Infrastructure, not a code violation — same routing as every other
             // provider-error report in this file (stderr, never stdout).
-            process.stderr.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — reviewer threw: ${e instanceof Error ? e.message : String(e)}\n`);
+            process.stderr.write(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, `reviewer threw: ${e instanceof Error ? e.message : String(e)}`))}\n`);
             continue;
           }
           if (!response.satisfied && response.errorSource === 'provider') {
             debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${response.reason}`);
             providerErrorRuns++;
             emitDiag(pair.unitKey, 'infra');
-            process.stderr.write(`${pair.unitKey} run ${i}/${repeat}: provider-error — ${response.reason}\n`);
+            process.stderr.write(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, response.reason))}\n`);
             continue;
           }
           if (response.satisfied) satisfiedRuns++;
@@ -1068,7 +1076,7 @@ async function runLlmAspectTest(
         process.stderr.write(`Error: ${buildIssueMessage({
             what: `Reviewer for aspect '${aspect.id}' on ${pair.unitKey} returned a provider error: ${response.reason}`,
             why: `A provider-sourced failure is infrastructure, not a code violation — the unit was not verified.`,
-            next: `Check the provider endpoint, network, and credentials, then retry.`,
+            next: `Fix the cause named above, then retry. ${REVIEWER_DEBUG_HINT}`,
           })}\n`);
         skippedCount++;
         continue;

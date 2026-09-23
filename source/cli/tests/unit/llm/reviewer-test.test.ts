@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { testApiProvider, testCliProvider } from '../../../src/llm/reviewer-test.js';
+// The CLI probe asks the provider registry, which the shipped CLI fills through its command tree.
+import '../../../src/llm/index.js';
 
 describe('testApiProvider', () => {
   it('returns error for unreachable Anthropic endpoint', async () => {
@@ -45,5 +47,23 @@ describe('testCliProvider', () => {
     const result = await testCliProvider('anthropic');
     expect(result.ok).toBe(false);
     expect(result.error).toContain('Unsupported');
+  });
+});
+
+describe('testCliProvider — names the cause and the install', () => {
+  it('a CLI provider whose binary is not on PATH gets that provider install hint', async () => {
+    const saved = process.env.PATH;
+    process.env.PATH = '';
+    try {
+      expect(await testCliProvider('codex')).toEqual({
+        ok: false,
+        error: "'codex' was not found on PATH — install the Codex CLI (npm i -g @openai/codex) and sign in with `codex login`",
+      });
+      const copilot = await testCliProvider('copilot-cli');
+      expect(copilot.ok).toBe(false);
+      expect(copilot.error).toContain('YG_COPILOT_BIN');
+    } finally {
+      process.env.PATH = saved;
+    }
   });
 });

@@ -28,6 +28,7 @@ import {
   type ResolveReviewerResult,
   runReviewerConfigFlow,
   writeReviewerConfig,
+  probeReviewerFromFlags,
   writeSecretsFile,
 } from './init-reviewer-setup.js';
 import {
@@ -333,6 +334,12 @@ async function persistReviewerConfig(
   } else if (resolved.keyWarning) {
     process.stdout.write(chalk.yellow(`${buildIssueMessage(resolved.keyWarning)}\n`));
   }
+  // The same installation check the wizard runs, reported as a warning: a
+  // missing CLI should surface here, not at the first yg check --approve.
+  const unavailable = await probeReviewerFromFlags(resolved.config);
+  if (unavailable) {
+    process.stdout.write(chalk.yellow(`${buildIssueMessage(unavailable)}\n`));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -342,13 +349,15 @@ async function persistReviewerConfig(
 /**
  * Non-interactive fresh bootstrap. Runs the SAME write-path as interactive
  * freshInit (createYggdrasilStructure + writeReviewerConfig [+ writeSecretsFile])
- * but takes every choice from flags instead of prompts, and performs NO model
- * fetch or connection test — so it works in a non-TTY context (Docker,
- * devcontainer, CI) where the wizard cannot run.
+ * but takes every choice from flags instead of prompts, and makes NO network
+ * call (no model fetch, no API connection test) — so it works in a non-TTY
+ * context (Docker, devcontainer, CI) where the wizard cannot run. A CLI
+ * provider's binary is probed locally, as the wizard does, and a failure is a
+ * warning, not an error.
  *
  * The caller has already validated that `provider` is a recognized value.
- * Here: CLI-agent providers fall back to a built-in default model when
- * --model is omitted; API/local providers require --model. Ollama defaults its
+ * Here: claude-code falls back to sonnet when --model is omitted; every other
+ * provider requires --model. Ollama defaults its
  * endpoint; openai-compatible requires --endpoint. API keys are read from the
  * provider's env var (never a flag, so they never land in shell history); a
  * missing key is non-fatal — the config is written and can be fixed later,

@@ -338,6 +338,27 @@ reviewer:
       expect(cfg.reviewer?.tiers.cheap.model).toBe('haiku');
     });
 
+    it('copilot-cli without a model is told to name one, e.g. auto', async () => {
+      const tmpDir = path.join(FIXTURES_DIR, 'tmp-v5-copilot-no-model');
+      await mkdir(tmpDir, { recursive: true });
+      const configPath = path.join(tmpDir, 'yg-config.yaml');
+      await writeFile(configPath, `
+version: "5.0.0"
+reviewer:
+  tiers:
+    seat:
+      provider: copilot-cli
+      consensus: 1
+      config: {}
+`, 'utf-8');
+      const err = await parseConfig(configPath).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ConfigParseError);
+      const { what, why, next } = (err as ConfigParseError).messageData;
+      expect(what).toContain('config.model is missing');
+      expect(why).toContain('copilot-cli has no default model');
+      expect(next).toContain('`model: auto`');
+    });
+
     it('v5 tier config carries api_key and endpoint through to the resolved tier', async () => {
       // api_key in a tier's config: block is the documented landing site for the
       // gitignored yg-secrets.yaml overlay; an explicit endpoint is what an

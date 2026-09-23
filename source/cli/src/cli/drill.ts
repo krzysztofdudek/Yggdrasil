@@ -9,6 +9,7 @@ import { runAstAspect, AstRunnerError } from '../ast/runner.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import { verifyWithConsensus } from '../llm/aspect-verifier.js';
 import { createLlmProvider } from '../llm/index.js';
+import { probeProvider, REVIEWER_DEBUG_HINT } from '../llm/provider.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
 import { DEFAULT_MAX_PROMPT_CHARS, PROMPT_FORMAT_REV } from '../llm/prompt.js';
 import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
@@ -176,20 +177,15 @@ async function resolveLlmSetup(
   const { tier, tierName } = tierResult;
 
   const provider = createLlmProvider(tier);
-  let available: boolean;
-  try {
-    available = await provider.isAvailable();
-  } catch (e) {
-    debugWrite(`[drill] provider.isAvailable threw for tier ${tierName}: ${e instanceof Error ? e.message : String(e)}`);
-    available = false;
-  }
-  if (!available) {
+  const probe = await probeProvider(provider, tier.provider);
+  if (!probe.available) {
+    debugWrite(`[drill] tier ${tierName} provider ${tier.provider} unavailable: ${probe.reason}`);
     return {
       ok: false,
       error: {
-        what: `Reviewer provider '${tier.provider}' (tier '${tierName}') is unreachable.`,
+        what: `Reviewer provider '${tier.provider}' (tier '${tierName}') cannot run: ${probe.reason}.`,
         why: `An LLM drill cannot run without the configured reviewer. No provider calls were made.`,
-        next: `Check the provider endpoint, network, and credentials, then retry.`,
+        next: `Fix the cause above, then retry. ${REVIEWER_DEBUG_HINT}`,
       },
     };
   }

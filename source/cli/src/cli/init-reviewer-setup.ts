@@ -1,7 +1,7 @@
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import * as p from '@clack/prompts';
-import { parse as yamlParse, stringify as yamlStringify } from 'yaml';
+import { Document, parse as yamlParse, parseDocument, stringify as yamlStringify, isMap, isScalar } from 'yaml';
 import { fetchAnthropicModels, fetchOpenAIModels, fetchGoogleModels, fetchOllamaModels } from '../llm/model-fetcher.js';
 import { testApiProvider, testCliProvider } from '../llm/reviewer-test.js';
 import type { ReviewerProvider } from '../model/graph.js';
@@ -25,6 +25,8 @@ export function assertNotCancelled<T>(value: T | symbol): asserts value is T {
 
 const API_PROVIDERS: ReviewerProvider[] = ['anthropic', 'openai', 'google', 'openai-compatible', 'ollama'];
 const CLI_PROVIDERS: ReviewerProvider[] = ['claude-code', 'codex', 'gemini-cli', 'copilot-cli'];
+/** The model names the copilot-cli reviewer accepts (it refuses any other at run time). */
+const COPILOT_MODEL_NAME = /^[A-Za-z0-9._:-]+$/;
 /** Every valid --provider value (free CLI-agent providers first, then API/local). */
 export const ALL_PROVIDERS: ReviewerProvider[] = [...CLI_PROVIDERS, ...API_PROVIDERS];
 /** Env var each API provider reads its key from, for non-interactive init. */
@@ -56,9 +58,10 @@ async function promptApiKey(provider: ReviewerProvider): Promise<string> {
   const envVar = API_KEY_ENV[provider];
   const hint = envVar ? ` (or set ${envVar} env var)` : '';
   const key = await p.text({
-    message: `API key for ${provider}${hint}`,
+    message: `API key for ${provider}${hint}${provider === 'openai-compatible' ? ' — leave empty for a keyless server' : ''}`,
     placeholder: 'Stored in .yggdrasil/yg-secrets.yaml (gitignored)',
-    validate: (v) => ((v ?? '').trim().length === 0 ? 'API key cannot be empty' : undefined),
+    // An OpenAI-compatible server may take no key (a local vLLM, LM Studio or llama.cpp).
+    validate: (v) => (provider !== 'openai-compatible' && (v ?? '').trim().length === 0 ? 'API key cannot be empty' : undefined),
   });
   assertNotCancelled(key);
   return key.trim();
@@ -263,22 +266,35 @@ export async function runReviewerConfigFlow(): Promise<ReviewerChoice | null> {
  */
 const BOOTSTRAP_TIER_NAME = 'standard';
 
+/**
+ * Write the bootstrap reviewer tier into yg-config.yaml, editing the file as a
+ * YAML document so everything else in it survives: the explanatory comments init
+ * wrote (the absent-coverage note among them), a quoted `version`, the flow style
+ * of a list. A fresh reviewer lands where init's placeholder comment ("Reviewer
+ * configuration added by: yg init") sits, before `debug:`; an existing
+ * reviewer section is replaced in place.
+ */
 export async function writeReviewerConfig(
   yggRoot: string,
   config: { provider: ReviewerProvider; model: string; endpoint?: string },
 ): Promise<void> {
   const configPath = path.join(yggRoot, 'yg-config.yaml');
-  let raw: Record<string, unknown> = {};
+  let content = '';
   try {
-    const content = await readFile(configPath, 'utf-8');
-    raw = (yamlParse(content) as Record<string, unknown>) ?? {};
+    content = await readFile(configPath, 'utf-8');
   } catch (err) {
     const e = err as NodeJS.ErrnoException;
     if (e.code !== 'ENOENT') {
-      throw new Error(`Failed to parse ${configPath}: ${e.message}`, { cause: err });
+      throw new Error(`Failed to read ${configPath}: ${e.message}`, { cause: err });
     }
     debugWrite(`[init] writeReviewerConfig: ${configPath} not found (${e.message}), starting fresh`);
   }
+  const parsed = parseDocument(content);
+  if (parsed.errors.length > 0) {
+    throw new Error(`Failed to parse ${configPath}: ${parsed.errors[0].message}`);
+  }
+  // A missing or empty file (or a non-mapping) starts from an empty mapping.
+  const doc: Document = isMap(parsed.contents) ? parsed : new Document({});
 
   // Build reviewer section with a single-tier default.
   const tierConfig: Record<string, unknown> = { model: config.model };
@@ -288,8 +304,7 @@ export async function writeReviewerConfig(
   if (API_PROVIDERS.includes(config.provider)) {
     tierConfig.temperature = 0;
   }
-
-  raw.reviewer = {
+  const reviewer = {
     tiers: {
       [BOOTSTRAP_TIER_NAME]: {
         provider: config.provider,
@@ -300,7 +315,29 @@ export async function writeReviewerConfig(
     },
   };
 
-  await writeFile(configPath, yamlStringify(raw), 'utf-8');
+  const map = doc.contents as unknown as { items: Array<{ key: unknown }> };
+  if (doc.has('reviewer')) {
+    doc.set('reviewer', doc.createNode(reviewer));
+  } else {
+    const pair = doc.createPair('reviewer', reviewer);
+    const debugIdx = map.items.findIndex((p) => isScalar(p.key) && p.key.value === 'debug');
+    if (debugIdx >= 0) {
+      // Take over init's placeholder comment, which sits above `debug:`.
+      const debugKey = map.items[debugIdx].key as { commentBefore?: string | null; spaceBefore?: boolean };
+      const placeholder = debugKey.commentBefore ?? '';
+      if (/Reviewer configuration added by: yg init/.test(placeholder)) {
+        (pair.key as { commentBefore?: string }).commentBefore = placeholder.replace(/\n+$/, '');
+        debugKey.commentBefore = null;
+      }
+      (pair.key as { spaceBefore?: boolean }).spaceBefore = true;
+      debugKey.spaceBefore = true;
+      map.items.splice(debugIdx, 0, pair);
+    } else {
+      map.items.push(pair);
+    }
+  }
+
+  await writeFile(configPath, doc.toString(), 'utf-8');
 }
 
 // ---------------------------------------------------------------------------
@@ -385,10 +422,23 @@ export function resolveReviewerConfigFromFlags(opts: {
     } else {
       return { ok: false, issue: {
         what: `--model is required for provider '${provider}'.`,
-        why: 'Only claude-code has a built-in default model (sonnet); other providers must name the model explicitly.',
-        next: `Re-run naming a model: yg init --provider ${provider} --model <name>.`,
+        why: provider === 'copilot-cli'
+          ? "copilot-cli has no default model: the organisation's Copilot policy decides which models a seat may use, and the CLI refuses any other instead of substituting one."
+          : CLI_PROVIDERS.includes(provider)
+            ? 'yg init writes the model into yg-config.yaml and picks one itself only for claude-code (sonnet). A tier whose config.model is left out falls back to a built-in model at run time (see the configuration reference), but init asks you to name the one you want.'
+            : `An API provider has no default model; the tier must name one its account can call.`,
+        next: provider === 'copilot-cli'
+          ? `Re-run naming a model your Copilot plan allows, e.g. yg init --provider copilot-cli --model auto (auto lets Copilot pick).`
+          : `Re-run naming a model: yg init --provider ${provider} --model <name>.`,
       } };
     }
+  }
+  if (provider === 'copilot-cli' && !COPILOT_MODEL_NAME.test(model)) {
+    return { ok: false, issue: {
+      what: `--model '${model}' is not a model name copilot-cli can pass on.`,
+      why: "The copilot-cli reviewer refuses a model name with characters other than letters, digits, '.', '_', ':' and '-', because on Windows the name reaches a shell.",
+      next: 'Re-run naming a model your Copilot plan allows, e.g. yg init --provider copilot-cli --model auto (auto lets Copilot pick).',
+    } };
   }
 
   let endpoint = opts.endpoint?.trim() || undefined;
@@ -409,7 +459,13 @@ export function resolveReviewerConfigFromFlags(opts: {
   if (needsApiKey(provider)) {
     const envVar = API_KEY_ENV[provider];
     apiKey = (envVar ? process.env[envVar] : undefined)?.trim() || undefined;
-    if (!apiKey) {
+    if (!apiKey && provider === 'openai-compatible') {
+      keyWarning = {
+        what: `No API key found in $${envVar}; the reviewer will call ${endpoint} without one.`,
+        why: 'An OpenAI-compatible server may need no key (a local vLLM, LM Studio or llama.cpp), so the key is optional for this provider.',
+        next: `If the server wants a key, set ${envVar} or add config.api_key to this tier in .yggdrasil/yg-secrets.yaml. Note that ${envVar} is also the key the openai provider reads.`,
+      };
+    } else if (!apiKey) {
       keyWarning = {
         what: `No API key found${envVar ? ` in $${envVar}` : ''}; wrote the config without one.`,
         why: 'An API provider needs a key before the reviewer can run; init records the config anyway so setup is not blocked.',
@@ -419,4 +475,27 @@ export function resolveReviewerConfigFromFlags(opts: {
   }
 
   return { ok: true, config: { provider, model, endpoint, apiKey }, keyWarning };
+}
+
+// ---------------------------------------------------------------------------
+// Non-interactive availability probe (flag path)
+// ---------------------------------------------------------------------------
+
+/**
+ * The flag path's counterpart to the wizard's installation check: for a CLI
+ * provider, whether its binary runs on this machine. Returns a warning to print
+ * when it does not — the configuration is still written, as in the wizard, so a
+ * project can be set up before the CLI is installed — and nothing when it does.
+ * API providers are not contacted here; their missing key is reported by the
+ * resolver's own warning.
+ */
+export async function probeReviewerFromFlags(config: ResolvedReviewerConfig): Promise<IssueMessage | undefined> {
+  if (!CLI_PROVIDERS.includes(config.provider)) return undefined;
+  const result = await testCliProvider(config.provider);
+  if (result.ok) return undefined;
+  return {
+    what: `The ${config.provider} reviewer cannot run on this machine: ${result.error ?? 'its CLI did not answer'}.`,
+    why: 'The configuration was written anyway, so the project is set up; until the CLI runs, yg check --approve leaves every judgment-rule pair unverified.',
+    next: `Install or fix the CLI, then run yg check --approve.`,
+  };
 }

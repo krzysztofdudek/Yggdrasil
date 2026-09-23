@@ -29,7 +29,7 @@ defaults, and the agent-rules files (the `AGENTS.md` digest block, the
 identical for every agent — and walks
 you through one topic: which reviewer should verify your code (it asks for a
 provider, then a model, and — for an API provider — checks for a key). If you
-already run an agent CLI — **Claude Code, Codex, or Gemini CLI** — pick it: it
+already run an agent CLI — **Claude Code, Codex, Gemini CLI, or GitHub Copilot CLI** — pick it: it
 needs **no API key** and adds no separate API bill, only a check that the
 tool is on your PATH. Ollama runs locally with no API cost either. The API
 providers (Anthropic, OpenAI, Google) need a key, read only from an environment
@@ -72,7 +72,9 @@ yg init --provider claude-code
 ```
 
 `--model` defaults to `sonnet` for the `claude-code` provider only; every
-other provider requires `--model` explicitly. `--endpoint` defaults to
+other provider requires `--model` explicitly (`copilot-cli` takes one your Copilot
+plan allows, e.g. `--model auto`). For a CLI provider init checks that the
+CLI runs and warns if it does not; the configuration is written either way. `--endpoint` defaults to
 `http://localhost:11434` for `ollama`; an OpenAI-compatible provider
 requires it (no default).
 

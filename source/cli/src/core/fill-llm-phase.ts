@@ -35,6 +35,7 @@ import {
 } from './parse-cache-buckets.js';
 import { selectTierForAspect } from './tier-selection.js';
 import { createLlmProvider } from '../llm/index.js';
+import { probeProvider, REVIEWER_DEBUG_HINT } from '../llm/provider.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -59,8 +60,10 @@ export interface LlmPhaseResult {
   infraFailures: number;
   /** LLM pairs whose companion.mjs failed to resolve/run (no write). */
   companionRuntimeErrors: number;
-  /** Provider/tier identities behind the infra dispositions, for the closing summary. */
-  infraReport: Array<{ provider?: string; tier?: string }>;
+  /** Provider/tier identities behind the infra dispositions, for the closing
+   *  summary, each with the provider's own reason when one is known (binary not
+   *  found, no API key, HTTP 401, timed out …). */
+  infraReport: Array<{ provider?: string; tier?: string; reason?: string }>;
   /** Companion-failure notices, in dispatch order, for grouped emission by the caller. */
   companionRuntimeItems: InfraDiagnosticItem[];
   /** Infra notices (tier-unresolvable + per-tier pool failures), in dispatch
@@ -148,25 +151,21 @@ export async function runLlmPhase({
     const baseTier = group[0].tier;
     const provider = createLlmProvider(baseTier);
 
-    // Availability is an infra gate — if the provider is unreachable, every
-    // pair in this tier is an infra disposition (no write).
-    let available: boolean;
-    try {
-      available = await provider.isAvailable();
-    } catch (e) {
-      debugWrite(`[fill] provider.isAvailable threw for tier ${tierName}: ${e instanceof Error ? e.message : String(e)}`);
-      available = false;
-    }
-    if (!available) {
+    // Availability is an infra gate — if the provider cannot run, every pair in
+    // this tier is an infra disposition (no write). The provider says why in its
+    // own words: a missing binary, a missing key, a server that does not answer.
+    const probe = await probeProvider(provider, baseTier.provider);
+    if (!probe.available) {
+      debugWrite(`[fill] tier ${tierName} provider ${baseTier.provider} unavailable: ${probe.reason}`);
       result.infraFailures += group.length;
-      result.infraReport.push({ provider: baseTier.provider, tier: tierName });
+      result.infraReport.push({ provider: baseTier.provider, tier: tierName, reason: probe.reason });
       for (const item of group) {
         writer.emitEvent(item.pair.aspectId, toPosixPath(item.pair.unitKey), 'llm', 'infra', { tier: tierName, judge: judgeIdentity(baseTier) });
       }
       emitIssue({
-        what: `Reviewer provider '${baseTier.provider}' (tier '${tierName}') is unreachable — ${group.length} pair(s) left unverified.`,
-        why: 'The configured reviewer endpoint did not respond (availability check failed) — an infrastructure problem, not a code violation. No verdict was written.',
-        next: `Check the provider endpoint, network, and credentials, then re-run: yg check --approve`,
+        what: `Reviewer provider '${baseTier.provider}' (tier '${tierName}') cannot run: ${probe.reason}. ${group.length} pair(s) left unverified.`,
+        why: 'The reviewer failed its availability check before any pair was sent — an infrastructure problem, not a code violation. No verdict was written.',
+        next: `Fix the cause above, then re-run: yg check --approve. ${REVIEWER_DEBUG_HINT}`,
       });
       continue;
     }
@@ -236,13 +235,13 @@ export async function runLlmPhase({
         writer.emitEvent(item.pair.aspectId, toPosixPath(item.pair.unitKey), 'llm', 'companion-runtime-error', { tier: item.tierName, judge: judgeIdentity(baseTier) });
       } else if (outcome.kind === 'infra') {
         result.infraFailures += 1;
-        result.infraReport.push({ provider: baseTier.provider, tier: tierName });
+        result.infraReport.push({ provider: baseTier.provider, tier: tierName, reason: outcome.why });
         // Prefer the outcome's self-describing messageData when present; build a
         // fallback for a bare `why`. Collect for grouped emission after the tier loop.
         const messageData: IssueMessage = outcome.messageData ?? {
           what: `Reviewer could not verify aspect '${item.pair.aspectId}' on ${toPosixPath(item.pair.unitKey)} — left unverified.`,
           why: outcome.why,
-          next: `Resolve the provider/config problem, then re-run: yg check --approve`,
+          next: `Resolve the provider/config problem, then re-run: yg check --approve. ${REVIEWER_DEBUG_HINT}`,
         };
         result.poolInfraItems.push({ aspectId: item.pair.aspectId, unitKey: toPosixPath(item.pair.unitKey), messageData });
         writer.emitEvent(item.pair.aspectId, toPosixPath(item.pair.unitKey), 'llm', 'infra', { tier: item.tierName, judge: judgeIdentity(baseTier) });
