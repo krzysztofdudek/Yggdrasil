@@ -3,11 +3,7 @@ import { readFile } from 'node:fs/promises';
 import { parse as parseYaml } from 'yaml';
 import type { AspectStatus, NodeMeta, PortDef, Relation, RelationType } from '../model/graph.js';
 
-// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
-// a value import: importing the value (as opposed to the type already above)
-// would add this node's first real dependency edge onto cli/model/graph,
-// undeclared in the graph — not worth it for one reserved string.
-const DEFAULT_PORT_NAME = 'default';
+import { DEFAULT_PORT_NAME } from '../model/graph.js';
 import { parseAspectAttachment } from '../utils/when-parser.js';
 import type { WhenPredicate } from '../model/when.js';
 

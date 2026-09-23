@@ -80,12 +80,11 @@ describe('normalizeMappingPath', () => {
     // backslash->slash runs before the leading-./ strip, so .\src becomes ./src then src
     expect(normalizeMappingPath('.\\src\\a.ts')).toBe('src/a.ts');
   });
-  it('strips ONLY one leading ./ — a second ./ survives', () => {
-    // regex is anchored + non-global: '././x' -> './x'
-    expect(normalizeMappingPath('././x')).toBe('./x');
+  it('collapses every leading ./ (POSIX normalization) — the fs side resolves them too', () => {
+    expect(normalizeMappingPath('././x')).toBe('x');
   });
-  it('does NOT strip a ./ that is not at the start', () => {
-    expect(normalizeMappingPath('src/./a.ts')).toBe('src/./a.ts');
+  it('collapses a ./ segment that is not at the start', () => {
+    expect(normalizeMappingPath('src/./a.ts')).toBe('src/a.ts');
   });
   it('does NOT strip a leading ../ (only ./ is anchored)', () => {
     expect(normalizeMappingPath('../src/a.ts')).toBe('../src/a.ts');
@@ -101,8 +100,8 @@ describe('normalizeMappingPath', () => {
   it('strips multiple trailing slashes (one-or-more)', () => {
     expect(normalizeMappingPath('src/handlers///')).toBe('src/handlers');
   });
-  it('does NOT strip an interior slash run', () => {
-    expect(normalizeMappingPath('src//handlers')).toBe('src//handlers');
+  it('collapses an interior slash run', () => {
+    expect(normalizeMappingPath('src//handlers')).toBe('src/handlers');
   });
 
   // --- Empty / whitespace-only / combination cases ---

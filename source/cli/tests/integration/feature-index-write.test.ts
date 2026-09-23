@@ -6,7 +6,8 @@
  *     whose `contentHash` for a file EQUALS the pass's own content hash AND what a reader
  *     re-derives from the file bytes (the slice-3 match key),
  *   - `generatedAt` comes from the INJECTED clock (deterministic),
- *   - the writer self-ensures the gitignore line,
+ *   - the writer never edits .gitignore: it writes only where git already ignores the
+ *     index, and otherwise skips it and says so,
  *   - the four other `runCheck` call sites stay byproduct-free (portal, a fill's real
  *     re-check, a fill's dry-run re-check, and a plain read with no flag write NO index),
  *   - the write is best-effort (a write failure is swallowed, never throws, no partial file).
@@ -75,12 +76,14 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     w(
       root,
       '.yggdrasil/yg-config.yaml',
-      `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`,
+      `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`,
     );
     // One node owning six same-language files: five "normal" (few branches) + one outlier.
     w(root, '.yggdrasil/model/svc/yg-node.yaml', `name: Svc\ndescription: service unit\ntype: service\nmapping:\n  - src/svc\n`);
     const ifCounts = [1, 2, 3, 2, 1, 40]; // file5 is the branch-like outlier
     ifCounts.forEach((n, i) => w(root, `src/svc/file${i}.ts`, tsFileWithIfs(n)));
+    // The line `yg init` scaffolds: the index is written only where git ignores it.
+    w(root, '.yggdrasil/.gitignore', `${FEATURE_FIELD_FILENAME}\n`);
   });
 
   afterEach(() => rmSync(root, { recursive: true, force: true }));
@@ -140,15 +143,15 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     expect(index.v).toBe(2);
   });
 
-  it('self-ensures the .feature-field.json gitignore line on write', async () => {
+  it('never creates a .gitignore: with none, the index is skipped and the result says so', async () => {
+    rmSync(path.join(root, '.yggdrasil', '.gitignore'));
     const graph = await loadGraph(root);
-    // No .yggdrasil/.gitignore exists in this hand-built fixture yet.
+
+    const result = await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date() });
+
     expect(existsSync(path.join(root, '.yggdrasil', '.gitignore'))).toBe(false);
-
-    await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date() });
-
-    const gi = readFileSync(path.join(root, '.yggdrasil', '.gitignore'), 'utf-8');
-    expect(gi.split('\n').map((l) => l.trim())).toContain(FEATURE_FIELD_FILENAME);
+    expect(existsSync(indexAbs())).toBe(false);
+    expect(result.featureIndexNotIgnored).toBe(true);
   });
 
   it('a plain read (no flag) writes NO index', async () => {
@@ -165,19 +168,19 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
 
   it("a fill's real internal re-check writes NO index (byproduct-free call site)", async () => {
     const graph = await loadGraph(root);
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     expect(existsSync(indexAbs())).toBe(false);
   });
 
   it("a fill's dry-run internal re-check writes NO index (byproduct-free call site)", async () => {
     const graph = await loadGraph(root);
-    await runFill(graph, { coverageVisibleFiles: null, dryRun: true, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, dryRun: true, write: () => {} });
     expect(existsSync(indexAbs())).toBe(false);
   });
 
   it("a real fill with writeFeatureIndex:true maintains the index on its post-fill report", async () => {
     const graph = await loadGraph(root);
-    await runFill(graph, {
+    await runFill(graph, { isTTY: false, now: Date.now,
       coverageVisibleFiles: SVC_TRACKED,
       write: () => {},
       writeFeatureIndex: true,
@@ -192,7 +195,7 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
 
   it("a dry-run fill even WITH writeFeatureIndex:true writes NO index (returns before the report)", async () => {
     const graph = await loadGraph(root);
-    await runFill(graph, {
+    await runFill(graph, { isTTY: false, now: Date.now,
       coverageVisibleFiles: SVC_TRACKED, // a valid tracked set, so the ONLY reason nothing is written is the dry-run early return
       dryRun: true,
       write: () => {},
@@ -203,18 +206,16 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
   });
 
   it('is best-effort: a write failure is swallowed (no throw, no partial file)', async () => {
-    // Point rootPath under a regular FILE so every directory creation fails (ENOTDIR).
-    const bogusParent = path.join(root, 'not-a-dir');
-    writeFileSync(bogusParent, 'x', 'utf-8');
-    const badGraph = {
-      rootPath: path.join(bogusParent, 'sub'), // parent is a file → mkdir fails
-      nodes: new Map(),
-    } as unknown as Graph;
+    // A DIRECTORY squats on the index path (git ignores the path, so the writer
+    // gets as far as the write), so the atomic rename onto it fails.
+    const squatter = path.join(root, '.yggdrasil', FEATURE_FIELD_FILENAME);
+    mkdirSync(path.join(squatter, 'blocker'), { recursive: true });
+    const graph = await loadGraph(root);
 
     await expect(
-      writeFeatureIndex(badGraph, new Map(), new Map(), new Set(), { now: () => new Date() }),
-    ).resolves.toBeUndefined();
-    expect(existsSync(path.join(bogusParent, 'sub', FEATURE_FIELD_FILENAME))).toBe(false);
+      writeFeatureIndex(graph, new Map(), new Map(), new Set(), { now: () => new Date() }),
+    ).resolves.toEqual({ skippedNotIgnored: false });
+    expect(existsSync(path.join(squatter, 'blocker'))).toBe(true);
   });
 
   it('scopes to the tracked set: an owned file NOT in coverageVisibleFiles is excluded from the index', async () => {
@@ -233,18 +234,21 @@ describe('feature-field index — real pass, byproduct-free elsewhere, best-effo
     expect(existsSync(indexAbs())).toBe(false);
   });
 
-  it('appends the gitignore line once to a pre-existing file and no-ops when present', async () => {
+  it('leaves a tracked .gitignore without the line byte-identical, and a root-level ignore counts', async () => {
     // A .yggdrasil/.gitignore already exists WITHOUT the feature-field line.
     writeFileSync(path.join(root, '.yggdrasil', '.gitignore'), 'node_modules/\n', 'utf-8');
     const graph = await loadGraph(root);
 
-    await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date() });
-    await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date() }); // second call: no-op branch
+    const skipped = await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date() });
+    expect(readFileSync(path.join(root, '.yggdrasil', '.gitignore'), 'utf-8')).toBe('node_modules/\n');
+    expect(existsSync(indexAbs())).toBe(false);
+    expect(skipped.featureIndexNotIgnored).toBe(true);
 
-    const gi = readFileSync(path.join(root, '.yggdrasil', '.gitignore'), 'utf-8');
-    expect(gi).toContain('node_modules/'); // pre-existing content preserved
-    const occurrences = gi.split('\n').filter((l) => l.trim() === FEATURE_FIELD_FILENAME).length;
-    expect(occurrences).toBe(1); // appended once, never duplicated
+    // The repository root's .gitignore is as good as the graph's own.
+    writeFileSync(path.join(root, '.gitignore'), `.yggdrasil/${FEATURE_FIELD_FILENAME}\n`, 'utf-8');
+    const written = await runCheck(graph, SVC_TRACKED, { writeFeatureIndex: true, now: () => new Date() });
+    expect(existsSync(indexAbs())).toBe(true);
+    expect(written.featureIndexNotIgnored).toBeUndefined();
   });
 });
 
@@ -254,7 +258,7 @@ describe('runAttentionDump — in-process calibration view (writes nothing)', ()
   beforeEach(() => {
     root = mkdtempSync(path.join(tmpdir(), 'attn-dump-'));
     w(root, '.yggdrasil/yg-architecture.yaml', `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`);
-    w(root, '.yggdrasil/yg-config.yaml', `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`);
+    w(root, '.yggdrasil/yg-config.yaml', `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`);
     // A ≥ MIN_N family with one outlier, plus a below-MIN_N family (exercises the too-few note).
     w(root, '.yggdrasil/model/svc/yg-node.yaml', `name: Svc\ndescription: service unit\ntype: service\nmapping:\n  - src/svc\n`);
     [1, 2, 3, 2, 1, 40].forEach((n, i) => w(root, `src/svc/file${i}.ts`, tsFileWithIfs(n)));
@@ -306,7 +310,7 @@ describe('runAttentionDump — in-process calibration view (writes nothing)', ()
     const bare = mkdtempSync(path.join(tmpdir(), 'attn-bare-'));
     try {
       w(bare, '.yggdrasil/yg-architecture.yaml', `node_types:\n  doc:\n    description: 'docs'\n    log_required: false\n    when:\n      path: "**"\n`);
-      w(bare, '.yggdrasil/yg-config.yaml', `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`);
+      w(bare, '.yggdrasil/yg-config.yaml', `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`);
       // A node mapping only a non-source file → no parsed facts → no families.
       w(bare, '.yggdrasil/model/docs/yg-node.yaml', `name: Docs\ndescription: docs\ntype: doc\nmapping:\n  - README.md\n`);
       w(bare, 'README.md', '# hi\n');
@@ -361,6 +365,7 @@ describe('feature-field index — a type-covered file (no owning node) is admitt
     const dir = mkdtempSync(path.join(tmpdir(), 'feat-field-type-covered-'));
     try {
       cpSync(FIXTURE, dir, { recursive: true });
+      w(dir, ".yggdrasil/.gitignore", `${FEATURE_FIELD_FILENAME}\n`);
       // The fixture's own src/svc/handler.ts already matches ONLY the svc type (no
       // node owns it, no other type overlaps it — see the fixture's architecture
       // comment) and has 0 branches. Add 4 more pure-svc files (never touching
@@ -413,6 +418,7 @@ describe('feature-field index — a type-covered file (no owning node) is admitt
     const dir = mkdtempSync(path.join(tmpdir(), 'feat-field-type-covered-off-'));
     try {
       cpSync(FIXTURE, dir, { recursive: true });
+      w(dir, ".yggdrasil/.gitignore", `${FEATURE_FIELD_FILENAME}\n`);
       [0, 0, 0, 40].forEach((n, i) => w(dir, `src/svc/extra${i}.ts`, tsFileWithIfs(n)));
 
       const graphOn = await loadGraph(dir);

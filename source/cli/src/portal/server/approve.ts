@@ -55,8 +55,8 @@ function approveArgs(llm: boolean): string[] {
 /** The literal argument vector for the dry-run cost preview (never writes). */
 function dryRunArgs(llm: boolean): string[] {
   return llm
-    ? ['check', '--approve', '--dry-run']
-    : ['check', '--approve', '--only-deterministic', '--dry-run'];
+    ? ['check', '--approve', '--dry-run', '--json']
+    : ['check', '--approve', '--only-deterministic', '--dry-run', '--json'];
 }
 
 /** Spawn the CLI binary in `cwd` with `args`, capturing stdout/stderr and the exit code. */
@@ -133,28 +133,37 @@ export interface DryRunPreview {
   raw: string;
 }
 
-// The CLI's dry-run header (fill.ts step 3):
-//   "Filling N unverified pairs across M nodes — D deterministic (no cost), R reviewer calls (consensus included)"
-const BUDGET_RE =
-  /Filling\s+(\d+)\s+unverified pairs across\s+\d+\s+nodes\s+—\s+(\d+)\s+deterministic\s+\(no cost\),\s+(\d+)\s+reviewer calls/;
-
 /**
- * Parse the CLI's dry-run budget header out of its combined stdout/stderr into the typed
- * preview. Pure (no I/O) so it is directly unit-testable on captured CLI output; throws when
- * the header is absent (a dry-run always emits it — its absence means no preview ran).
+ * Read the cost preview out of the CLI's `yg-check/1` document (stdout of
+ * `--dry-run --json`), which carries it as numbers in `dryRunBudget`. The human
+ * header the CLI prints on stderr is never parsed for numbers — its wording is free
+ * to change — and is only carried verbatim as `raw` for display when present.
+ * Pure (no I/O); throws when the document is unreadable or carries no budget (a
+ * dry-run always carries one — its absence means no preview ran).
  */
-export function parseDryRunBudget(output: string): DryRunPreview {
-  const m = output.match(BUDGET_RE);
-  if (!m) {
+export function parseDryRunBudget(stdout: string, stderr: string): DryRunPreview {
+  let budget: { pairs?: unknown; deterministic?: unknown; reviewerCalls?: unknown } | undefined;
+  try {
+    budget = (JSON.parse(stdout) as { dryRunBudget?: typeof budget }).dryRunBudget;
+  } catch {
+    budget = undefined;
+  }
+  if (
+    budget === undefined ||
+    typeof budget.pairs !== 'number' ||
+    typeof budget.deterministic !== 'number' ||
+    typeof budget.reviewerCalls !== 'number'
+  ) {
     throw new Error(
-      `Could not parse the dry-run cost preview from the CLI output. Raw output:\n${output.trim()}`,
+      `Could not read the dry-run cost preview from the CLI's JSON document. Raw output:\n${`${stdout}\n${stderr}`.trim()}`,
     );
   }
+  const headerLine = stderr.split('\n').find((l) => l.startsWith('Filling '));
   return {
-    pairs: Number.parseInt(m[1], 10),
-    deterministic: Number.parseInt(m[2], 10),
-    reviewerCalls: Number.parseInt(m[3], 10),
-    raw: m[0],
+    pairs: budget.pairs,
+    deterministic: budget.deterministic,
+    reviewerCalls: budget.reviewerCalls,
+    raw: headerLine?.trim() ?? `${budget.pairs} pairs — ${budget.deterministic} deterministic (no cost), ${budget.reviewerCalls} reviewer calls`,
   };
 }
 
@@ -165,5 +174,5 @@ export function parseDryRunBudget(output: string): DryRunPreview {
  */
 export async function dryRunApproveViaCli(projectRoot: string, llm: boolean): Promise<DryRunPreview> {
   const result = await spawnCli(dryRunArgs(llm), projectRoot);
-  return parseDryRunBudget(`${result.stdout}\n${result.stderr}`);
+  return parseDryRunBudget(result.stdout, result.stderr);
 }

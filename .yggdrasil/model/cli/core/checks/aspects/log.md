@@ -52,3 +52,5 @@ The when-unknown-node reference check for node.id, part of adding node: { id } t
 Two reference-validation gaps closed: a when: clause naming the reserved default port no longer trips an unknown-port refusal (it evaluates correctly at runtime and the validator now knows it), and has_port referencing a port nothing declares now raises a non-blocking warning instead of matching nothing in total silence.
 ## [2026-09-22T13:01:46.564Z]
 The explanation of why consumes_port default is exempt from unknown-port validation pointed at a warning that an explicit default declaration used to draw. That warning was removed, so the comment now gives the remaining reason for the exemption: without it the idiom would be refused unless some node declared the port for no other purpose.
+## [2026-09-23T20:49:51.186Z]
+The reserved default port name is now imported from the one constant the model declares instead of being repeated as a private literal, so renaming the reserved port can no longer leave silent copies behind; the dependency on the model module is declared in the graph rather than hidden.

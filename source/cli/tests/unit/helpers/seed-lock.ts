@@ -79,7 +79,7 @@ import {
 } from '../../../src/core/pair-hash.js';
 import { ruleHashFor, tierHashViewFromTier } from '../../../src/core/pair-inputs.js';
 import { selectTierForAspect } from '../../../src/core/tier-selection.js';
-import { computeLogBaselineForNode } from '../../../src/core/log/log-gate.js';
+import { computeLogBaselineFromContent, readLogContent } from '../../../src/core/log/log-gate.js';
 
 // ── Public spec types ─────────────────────────────────────────────────────────
 
@@ -143,7 +143,7 @@ export async function seedLock(graph: Graph, spec: SeedLockSpec = {}): Promise<L
       if (fp !== undefined) nodeEntry.source = fp;
     }
     if (facts.log) {
-      const baseline = await computeLogBaselineForNode(projectRoot, nodePath);
+      const baseline = computeLogBaselineFromContent(await readLogContent(projectRoot, nodePath));
       if (baseline !== undefined) nodeEntry.log = baseline;
     }
     if (nodeEntry.source !== undefined || nodeEntry.log !== undefined) {

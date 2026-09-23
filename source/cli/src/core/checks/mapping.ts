@@ -417,9 +417,53 @@ export async function checkMappingOverlap(graph: Graph): Promise<ValidationIssue
 
 // --- Rule: Mapping paths should exist on disk (mapping-path-missing) ---
 
+/**
+ * When every segment of `relPath` exists on disk but at least one only under a
+ * different letter case, return the path as spelled on disk; otherwise null
+ * (exact match, or genuinely missing). Reads directory listings rather than
+ * trusting stat, because on a case-insensitive filesystem stat succeeds for any
+ * casing — the listing is the only host-independent source of the real name.
+ * `listings` caches one readdir per directory across the whole check.
+ */
+async function onDiskSpellingIfCaseDiffers(
+  projectRoot: string,
+  relPath: string,
+  listings: Map<string, string[] | null>,
+): Promise<string | null> {
+  const segments = relPath.split('/').filter((s) => s !== '' && s !== '.');
+  let dirRel = '';
+  let differs = false;
+  const real: string[] = [];
+  for (const segment of segments) {
+    if (segment === '..') return null;
+    let names = listings.get(dirRel);
+    if (names === undefined) {
+      try {
+        names = (await readSortedDir(path.join(projectRoot, dirRel))).map((e) => e.name);
+      } catch {
+        names = null;
+      }
+      listings.set(dirRel, names);
+    }
+    if (names === null) return null;
+    let name: string | undefined = names.includes(segment) ? segment : undefined;
+    if (name === undefined) {
+      const folded = segment.toLowerCase();
+      const candidates = names.filter((n) => n.toLowerCase() === folded);
+      if (candidates.length !== 1) return null;
+      name = candidates[0];
+      differs = true;
+    }
+    real.push(name);
+    dirRel = dirRel === '' ? name : `${dirRel}/${name}`;
+  }
+  return differs ? real.join('/') : null;
+}
+
 export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIssue[]> {
   const issues: ValidationIssue[] = [];
   const projectRoot = path.dirname(graph.rootPath);
+  const dirListings = new Map<string, string[] | null>();
   const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
   for (const [nodePath, node] of graph.nodes) {
     const mappingPaths = normalizeMappingPaths(node.meta.mapping).map(normalizePathForCompare);
@@ -448,6 +492,21 @@ export async function checkMappingPathsExist(graph: Graph): Promise<ValidationIs
           });
         }
       } else {
+        const realSpelling = await onDiskSpellingIfCaseDiffers(projectRoot, mp, dirListings);
+        if (realSpelling !== null) {
+          issues.push({
+            severity: 'error',
+            code: 'mapping-path-case-mismatch',
+            rule: 'mapping-path-case-mismatch',
+            ...issueMsg({
+              what: `Mapping path '${mp}' differs in letter case from the path on disk, '${realSpelling}'.`,
+              why: `A case-insensitive filesystem (macOS, Windows) resolves '${mp}' anyway, so the node's files are reviewed there, while ownership and coverage compare the text and see no match — and a case-sensitive checkout (Linux CI) does not find the path at all. The same graph would pass on one machine and fail on another.`,
+              next: `Change the mapping entry in yg-node.yaml to '${realSpelling}'.`,
+            }),
+            nodePath,
+          });
+          continue;
+        }
         const absPath = path.join(projectRoot, mp);
         try {
           await statPath(absPath);

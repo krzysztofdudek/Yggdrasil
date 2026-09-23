@@ -57,7 +57,7 @@ function makeFixture(label: string): string {
   w(
     dir,
     '.yggdrasil/yg-config.yaml',
-    `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`,
+    `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`,
   );
   w(dir, '.yggdrasil/model/svc/yg-node.yaml', `name: Svc\ndescription: service unit\ntype: service\nmapping:\n  - src/svc\n`);
   w(dir, 'src/svc/a.ts', 'export const a = 1;\n');

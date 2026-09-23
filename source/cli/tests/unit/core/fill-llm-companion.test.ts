@@ -89,7 +89,7 @@ function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
 }
 
 const V5_REVIEWER_CONFIG =
-  'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
+  'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -254,7 +254,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
       },
     }));
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // Reviewer ran exactly once (consensus 1). The companion hook now runs MORE than
     // once: since v5.2.0 the §4 prompt-size gate is unconditional (an omitted
@@ -310,7 +310,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     });
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     const entry = readLock(graph.rootPath).verdicts['llm-empty']?.['node:svc'];
     expect(entry?.verdict).toBe('approved');
@@ -375,7 +375,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
       async verifyAspect() { reviewerCalls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // Since v5.2.0 the §4 gate is unconditional (omitted max_prompt_chars → 50000),
     // so verify-lock resolves the companion LIVE to size the gate — running the A6
@@ -422,7 +422,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
       async verifyAspect() { reviewerCalls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // The transient taint settled, so the reviewer ran once and the verdict was written.
     expect(reviewerCalls).toBe(1);
@@ -448,7 +448,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     expect(reviewerCalls).toBe(0);
     expect(result.reviewerCallsMade).toBe(0);
@@ -486,7 +486,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
       async verifyAspect() { reviewerCalls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     expect(reviewerCalls).toBe(0);
     expect(result.reviewerCallsMade).toBe(0);
@@ -541,7 +541,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     expect(reviewerCalls).toBe(0);
     expect(result.reviewerCallsMade).toBe(0);
@@ -574,7 +574,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect() { reviewerCalls++; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
     expect(reviewerCalls).toBe(0);
     expect(result.reviewerCallsMade).toBe(0);
     expect(result.infraFailures).toBe(0);
@@ -602,7 +602,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider({
       async verifyAspect(prompt: string) { promptSeen = prompt; return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const }; },
     }));
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     const entry = readLock(graph.rootPath).verdicts['llm-self']?.['node:svc'];
     expect(entry?.verdict).toBe('approved');
@@ -647,7 +647,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     // it classifies the pair prompt-too-large on the first fill — before the
     // reviewer ever runs.
     const cfgWithLimit =
-      'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      max_prompt_chars: 2000\n      config:\n        model: llama3\n        temperature: 0\n';
+      'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      max_prompt_chars: 2000\n      config:\n        model: llama3\n        temperature: 0\n';
     await writeFile(path.join(yggRoot, 'yg-config.yaml'), cfgWithLimit);
     await writeFile(
       path.join(yggRoot, 'yg-architecture.yaml'),
@@ -686,7 +686,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // ZERO reviewer calls — the gate intercepted before the reviewer ran.
     expect(reviewerCalls).toBe(0);
@@ -720,7 +720,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     await mkdir(path.join(root, 'src'), { recursive: true });
     // Tier omits max_prompt_chars entirely — the 50000 default must apply.
     const cfgNoLimit =
-      'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
+      'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
     await writeFile(path.join(yggRoot, 'yg-config.yaml'), cfgNoLimit);
     await writeFile(
       path.join(yggRoot, 'yg-architecture.yaml'),
@@ -758,7 +758,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     }));
 
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // ZERO reviewer calls — the default gate intercepted before the reviewer ran.
     expect(reviewerCalls).toBe(0);
@@ -786,7 +786,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     await mkdir(path.join(root, 'src'), { recursive: true });
     await writeFile(
       path.join(yggRoot, 'yg-config.yaml'),
-      'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      max_prompt_chars: 2000\n      config:\n        model: llama3\n        temperature: 0\n',
+      'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      max_prompt_chars: 2000\n      config:\n        model: llama3\n        temperature: 0\n',
     );
     await writeFile(
       path.join(yggRoot, 'yg-architecture.yaml'),
@@ -818,7 +818,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
       }),
     );
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // Reviewer never called — the companion failed to resolve at the gate (gate precedence).
     expect(reviewerCalls).toBe(0);
@@ -837,7 +837,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     const graph = await loadGraph(root);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     const ce = result.checkResult.issues.find((i) => i.code === 'aspect-companion-runtime-error');
     expect(ce).toBeDefined();
@@ -850,7 +850,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     });
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
-    await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // The companion hook was NEVER invoked for a plain aspect (byte-identical path).
     expect(mockRunCompanionHook).not.toHaveBeenCalled();
@@ -898,7 +898,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     // The diagnostic surfaces with the aspect-companion-runtime-error code (the mirror
     // of the deterministic aspect-check-runtime-error), severity error (enforced).
@@ -934,7 +934,7 @@ describe('Task 5 — companion resolution in the LLM fill path', () => {
     const graph = await loadGraph(projectRoot);
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     const companionErrors = result.checkResult.issues.filter((i) => i.code === 'aspect-companion-runtime-error');
     expect(companionErrors.length).toBeGreaterThanOrEqual(2);

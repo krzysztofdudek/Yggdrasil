@@ -4,3 +4,5 @@ A layer above the agent — an orchestrator that derives work from the architect
 The text view's dependency line filters the implicit default port out of the printed port list before deciding whether to show a consumes annotation, so an ordinary relation that names no real port still prints with none, matching its appearance before every relation gained an implicit port.
 ## [2026-09-10T09:18:40.034Z]
 The text view for one component's ports no longer prints a version/test line — a port doesn't carry either field any more, and the line only ever showed a fixed placeholder for "no value" regardless of what was declared, so removing it drops a permanently-empty line rather than losing anything a reader could see.
+## [2026-09-23T20:49:32.940Z]
+The reserved default port name is now imported from the one constant the model declares instead of being repeated as a private literal, so renaming the reserved port can no longer leave silent copies behind; the dependency on the model module is declared in the graph rather than hidden.

@@ -19,6 +19,10 @@ relations:
     type: calls
   - target: cli/preamble
     type: calls
+  - target: cli/io/parsers/config
+    type: calls
+  - target: cli/exit-after-flush
+    type: calls
   - target: cli/tests/unit/cli
     type: uses
 mapping:

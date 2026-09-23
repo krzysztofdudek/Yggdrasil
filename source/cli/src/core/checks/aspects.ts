@@ -9,11 +9,7 @@ import type {
 } from '../../model/when.js';
 import { issueMsg } from './shared.js';
 
-// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
-// a value import: importing the value would add this module's first real
-// dependency edge onto cli/model/graph, undeclared in the graph — not worth
-// it for one reserved string. Same treatment as checks/architecture.ts.
-const DEFAULT_PORT_NAME = 'default';
+import { DEFAULT_PORT_NAME } from '../../model/graph.js';
 
 // --- Rule 2: All aspect references must point to defined aspects (aspect-undefined) ---
 

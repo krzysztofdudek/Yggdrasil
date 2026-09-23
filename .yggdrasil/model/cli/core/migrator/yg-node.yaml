@@ -11,5 +11,7 @@ relations:
     type: calls
   - target: cli/utils
     type: calls
+  - target: cli/io/parsers/config
+    type: calls
 mapping:
   - source/cli/src/core/migrator.ts

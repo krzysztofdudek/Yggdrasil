@@ -51,6 +51,7 @@ const ARCHITECTURE = [
 ].join('\n');
 
 const CONFIG = [
+  'version: "6.0.0"',
   'quality:',
   '  max_direct_relations: 10',
   'reviewer:',

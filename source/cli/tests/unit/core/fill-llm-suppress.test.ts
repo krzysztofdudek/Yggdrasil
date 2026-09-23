@@ -40,7 +40,7 @@ function makeMockProvider(overrides: Partial<LlmProvider> = {}): LlmProvider {
 }
 
 const V5_REVIEWER_CONFIG =
-  'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
+  'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
 
 const dirs: string[] = [];
 afterEach(async () => {
@@ -108,7 +108,7 @@ describe('fill-llm: reasonless yg-suppress marker fails closed', () => {
     );
 
     const w = makeWriter();
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
     // Reviewer NEVER called — the marker error fails closed before consensus.
     expect(verifyCalls).toBe(0);
@@ -145,7 +145,7 @@ describe('fill-llm: reasonless yg-suppress marker fails closed', () => {
       }),
     );
 
-    const result = await runFill(graph, { coverageVisibleFiles: null, write: () => {} });
+    const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: () => {} });
 
     expect(verifyCalls).toBe(1);
     expect(result.reviewerCallsMade).toBe(1);

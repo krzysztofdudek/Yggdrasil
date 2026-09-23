@@ -30,6 +30,29 @@ export async function loadRootGitignoreStack(projectRoot: string): Promise<Gitig
   }
 }
 
+/**
+ * Whether the repo's own .gitignore files (the root one and every one in a
+ * directory on the way down to the file) ignore `relPath`. Read-only: it answers
+ * the question, it never adds a line.
+ */
+export async function isFileGitignored(projectRoot: string, relPath: string): Promise<boolean> {
+  const segments = toPosixPath(relPath).split('/').filter((s) => s !== '');
+  const stack = await loadRootGitignoreStack(projectRoot);
+  let dir = projectRoot;
+  for (const segment of segments.slice(0, -1)) {
+    dir = join(dir, segment);
+    try {
+      const content = await readFile(join(dir, '.gitignore'), 'utf-8');
+      const ig = ignoreFactory();
+      ig.add(content);
+      stack.push({ dir, ig });
+    } catch (err) {
+      debugWrite(`[repo-scanner] .gitignore not readable in ${toPosixPath(dir)}: ${(err as Error).message}`);
+    }
+  }
+  return isIgnoredByStack(join(projectRoot, ...segments), stack);
+}
+
 export function isIgnoredByStack(
   absPath: string,
   stack: GitignoreEntry[],

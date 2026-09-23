@@ -36,7 +36,7 @@ describe('relation pass — edge cases (live)', () => {
       `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n  bag:\n    description: 'organizational (no mapping)'\n    log_required: false\n`,
       'utf-8',
     );
-    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`, 'utf-8');
   });
 
   afterEach(() => { rmSync(root, { recursive: true, force: true }); });

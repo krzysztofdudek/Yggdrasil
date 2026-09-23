@@ -1,7 +1,18 @@
 import { walk, report, inFile } from '@chrisdudek/yg/ast';
 
-// Identifiers that represent non-deterministic runtime state
-const NONDETERMINISM_CALLS = new Set(['Date.now', 'Math.random']);
+// Ambient runtime state, matched as a member REFERENCE rather than only as a
+// call: `Date.now.bind(Date)`, `const clock = Date.now` or `opts.now ?? Date.now`
+// read the clock just as surely as `Date.now()`, and a check that only saw calls
+// passed every one of them.
+const AMBIENT_MEMBERS = new Map([
+  ['Date.now', 'the wall clock'],
+  ['Math.random', 'a random source'],
+  ['performance.now', 'a monotonic clock'],
+  ['process.hrtime', 'a high-resolution clock'],
+  ['process.env', 'the environment'],
+  ['process.stdout', 'the process output stream (writes and its isTTY state)'],
+  ['process.stderr', 'the process error stream (writes and its isTTY state)'],
+]);
 
 // The two homes a direct-nondeterminism failure can occur in: the CLI's own
 // engine layer (core/**/*.ts) and this repo's own rule-script implementations
@@ -22,41 +33,31 @@ export function check(ctx) {
     if (!isCheckedFile(file)) continue;
 
     walk(file.ast.rootNode, (node) => {
-      // Catch Date.now() and Math.random() — member expressions inside call_expression
-      if (node.type === 'call_expression') {
-        const fn = node.childForFieldName('function');
-        if (fn && fn.type === 'member_expression') {
-          const obj = fn.childForFieldName('object');
-          const prop = fn.childForFieldName('property');
-          if (obj && prop) {
-            const key = `${obj.text}.${prop.text}`;
-            if (NONDETERMINISM_CALLS.has(key)) {
-              violations.push(
-                report(
-                  file,
-                  node,
-                  `non-deterministic call '${key}()' — this file must not access runtime state directly; inject via parameter`,
-                ),
-              );
-            }
-          }
+      // `new Date()` with no arguments reads the wall clock; `new Date(ts)` is a
+      // pure conversion of an injected value and stays allowed.
+      if (node.type === 'new_expression') {
+        const ctor = node.childForFieldName('constructor');
+        const args = node.childForFieldName('arguments');
+        if (ctor && ctor.text === 'Date' && (!args || args.namedChildCount === 0)) {
+          violations.push(
+            report(file, node, `'new Date()' reads the wall clock — this file must receive the time as an injected parameter`),
+          );
         }
-        return; // don't descend into children — avoids double-reporting member_expression below
+        return;
       }
 
-      // Catch process.env member access (not a call, so check member_expression separately)
+      // Any reference to an ambient member — called, bound, stored or passed.
+      // Matching the innermost `object.property` pair reports `process.stdout.write`
+      // once (at `process.stdout`), never again for the outer member.
       if (node.type === 'member_expression') {
         const obj = node.childForFieldName('object');
-        if (!obj || obj.text !== 'process') return;
         const prop = node.childForFieldName('property');
-        if (!prop || prop.text !== 'env') return;
-        // Only flag if this member_expression is not inside a call_expression already reported
+        if (!obj || !prop) return;
+        const key = `${obj.text}.${prop.text}`;
+        const what = AMBIENT_MEMBERS.get(key);
+        if (what === undefined) return;
         violations.push(
-          report(
-            file,
-            node,
-            `direct 'process.env' access — this file must receive environment values as injected parameters`,
-          ),
+          report(file, node, `direct '${key}' reference reads ${what} — this file must not access runtime state directly; inject via parameter`),
         );
       }
     });

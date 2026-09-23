@@ -21,7 +21,7 @@ async function setupProject(): Promise<string> {
   const yggRoot = path.join(root, '.yggdrasil');
   await mkdir(path.join(yggRoot, 'model', 'svc'), { recursive: true });
   await mkdir(path.join(root, 'src'), { recursive: true });
-  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n');
+  await writeFile(path.join(yggRoot, 'yg-config.yaml'), 'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n');
   await writeFile(path.join(yggRoot, 'yg-architecture.yaml'), 'node_types:\n  service:\n    description: s\n    log_required: false\n');
   await writeFile(path.join(yggRoot, 'model', 'svc', 'yg-node.yaml'), 'name: svc\ntype: service\ndescription: x\nmapping:\n  - src/svc.ts\naspects:\n  - det-pass\n');
   await writeFile(path.join(root, 'src', 'svc.ts'), 'export const x = 1;\n');
@@ -42,8 +42,8 @@ describe('approval exclusion', () => {
     const g1 = await loadGraph(root);
     const g2 = await loadGraph(root);
     const [a, b] = await Promise.allSettled([
-      runFill(g1, { coverageVisibleFiles: null, write: () => {} }),
-      runFill(g2, { coverageVisibleFiles: null, write: () => {} }),
+      runFill(g1, { coverageVisibleFiles: null, write: () => {}, isTTY: false, now: () => Date.now() }),
+      runFill(g2, { coverageVisibleFiles: null, write: () => {}, isTTY: false, now: () => Date.now() }),
     ]);
     expect(a.status).toBe('fulfilled');
     expect(b.status).toBe('rejected');
@@ -62,7 +62,7 @@ describe('approval exclusion', () => {
     const g = await loadGraph(root);
     const dead = Number(spawnSync(process.execPath, ['-e', 'process.stdout.write(String(process.pid))']).stdout.toString());
     writeFileSync(path.join(g.rootPath, APPROVE_LOCK_FILE_NAME), JSON.stringify({ pid: dead, host: hostname(), startedAt: new Date().toISOString(), command: 'yg check --approve', token: 'x' }));
-    await runFill(g, { coverageVisibleFiles: null, write: () => {} });
+    await runFill(g, { coverageVisibleFiles: null, write: () => {}, isTTY: false, now: () => Date.now() });
     expect(readLock(g.rootPath).verdicts['det-pass']?.['node:svc']?.verdict).toBe('approved');
   });
 
@@ -71,6 +71,6 @@ describe('approval exclusion', () => {
     dirs.push(root);
     const g = await loadGraph(root);
     writeFileSync(path.join(g.rootPath, APPROVE_LOCK_FILE_NAME), JSON.stringify({ pid: process.pid, host: hostname(), startedAt: new Date().toISOString(), command: 'yg check --approve', token: 'x' }));
-    await expect(runFill(g, { coverageVisibleFiles: null, write: () => {}, dryRun: true })).resolves.toBeDefined();
+    await expect(runFill(g, { coverageVisibleFiles: null, write: () => {}, isTTY: false, now: () => Date.now(), dryRun: true })).resolves.toBeDefined();
   });
 });

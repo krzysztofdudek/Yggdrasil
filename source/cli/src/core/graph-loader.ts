@@ -21,7 +21,7 @@ import { WhenPredicateInvalidError } from '../utils/file-when-parser.js';
 import type { ArchitectureLoadError } from '../model/graph.js';
 import type { IssueMessage } from '../model/validation.js';
 import { findYggRoot } from '../io/paths.js';
-import { detectVersion } from './migrator.js';
+import { readSchemaVersion } from './migrator.js';
 import { toPosixPath } from '../utils/posix.js';
 
 export const CLI_SUPPORTED_SCHEMA = '6.0.0';
@@ -81,15 +81,38 @@ export class OutdatedSchemaVersionError extends Error {
  */
 export class MalformedSchemaVersionError extends Error {
   readonly detectedVersion: string;
+  /**
+   * True when the field is not a YAML string at all — typically an unquoted
+   * `version: 5.1`, which YAML reads as a number. The fix differs (quote it),
+   * so callers word their message on it.
+   */
+  readonly notAString: boolean;
 
-  constructor(detectedVersion: string) {
+  constructor(detectedVersion: string, opts: { notAString?: boolean } = {}) {
     super(
-      `yg-config.yaml version "${detectedVersion}" is not valid semver, so the CLI ` +
-        `cannot determine graph compatibility. Restore the version field from version ` +
-        `control or re-run \`yg init\`.`,
+      opts.notAString
+        ? `yg-config.yaml version ${detectedVersion} is not a string (an unquoted YAML number), so the CLI ` +
+            `cannot determine graph compatibility. Write it as a quoted semver string, e.g. version: "6.0.0".`
+        : `yg-config.yaml version "${detectedVersion}" is not valid semver, so the CLI ` +
+            `cannot determine graph compatibility. Restore the version field from version ` +
+            `control or re-run \`yg init\`.`,
     );
     this.name = 'MalformedSchemaVersionError';
     this.detectedVersion = detectedVersion;
+    this.notAString = opts.notAString === true;
+  }
+}
+
+/**
+ * Thrown when yg-config.yaml exists but has no `version:` field. The field is
+ * what tells the CLI which graph schema it is reading; loading without it would
+ * fail OPEN exactly like a malformed version would. An expected USER condition
+ * (a deleted or never-written line), rendered as a clean what/why/next.
+ */
+export class MissingSchemaVersionError extends Error {
+  constructor() {
+    super('yg-config.yaml has no version: field, so the CLI cannot determine graph compatibility.');
+    this.name = 'MissingSchemaVersionError';
   }
 }
 
@@ -134,7 +157,18 @@ export async function loadGraph(
 ): Promise<Graph> {
   const yggRoot = await findYggRoot(projectRoot);
 
-  const detected = await detectVersion(yggRoot);
+  const versionRead = await readSchemaVersion(yggRoot);
+  // An absent or non-string version fails CLOSED, like a malformed one: every
+  // gate below needs a version to compare, so "no usable version" must never
+  // mean "load as the current schema". A null read (no readable config at all)
+  // is left to the config parser, which reports that file itself.
+  if (versionRead?.kind === 'absent') {
+    throw new MissingSchemaVersionError();
+  }
+  if (versionRead?.kind === 'not-string') {
+    throw new MalformedSchemaVersionError(versionRead.shown, { notAString: true });
+  }
+  const detected = versionRead?.kind === 'string' ? versionRead.value : null;
   // A present-but-unparseable version fails CLOSED. valid() short-circuits both
   // gt/lt gates below, so without this branch a malformed version ("5.1",
   // "latest") would slip past the gate entirely and let the graph load as if it

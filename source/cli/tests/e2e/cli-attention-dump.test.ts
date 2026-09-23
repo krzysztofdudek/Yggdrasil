@@ -2,8 +2,9 @@
 // CLI E2E — the SILENT feature-field index + hidden `--attention-dump`.
 //
 // Pins the public CLI surface (spawn the built bin.js):
-//   - `yg check` maintains a local `.yggdrasil/.feature-field.json` and self-ignores
-//     it (git never stages it),
+//   - `yg check` maintains a local `.yggdrasil/.feature-field.json` where git
+//     ignores it (git never stages it), and never edits the tracked .gitignore to
+//     make that so — without the line it skips the index and says so,
 //   - the hidden `--attention-dump` prints plain-language calibration output, exits 0,
 //     and writes NOTHING (the index on disk is untouched),
 //   - `yg check --approve --dry-run` writes no index (byproduct-free preview).
@@ -44,9 +45,11 @@ function tsFileWithIfs(n: number): string {
 function makeFixture(label: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-attn-${label}-`));
   w(dir, '.yggdrasil/yg-architecture.yaml', `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n`);
-  w(dir, '.yggdrasil/yg-config.yaml', `reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`);
+  w(dir, '.yggdrasil/yg-config.yaml', `version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n`);
   w(dir, '.yggdrasil/model/svc/yg-node.yaml', `name: Svc\ndescription: service unit\ntype: service\nmapping:\n  - src/svc\n`);
   [1, 2, 3, 2, 1, 40].forEach((n, i) => w(dir, `src/svc/file${i}.ts`, tsFileWithIfs(n)));
+  // The line `yg init` scaffolds; the index is written only where git ignores it.
+  w(dir, '.yggdrasil/.gitignore', '.feature-field.json\n');
   return dir;
 }
 
@@ -72,6 +75,45 @@ describe.skipIf(!distExists)('CLI E2E — feature-field index + --attention-dump
       // And the .yggdrasil/.gitignore carries the line.
       const gi = readFileSync(path.join(dir, '.yggdrasil', '.gitignore'), 'utf-8');
       expect(gi).toContain('.feature-field.json');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('a check never edits the tracked .gitignore: without the line it writes no index and prints the upgrade notice', () => {
+    const dir = makeFixture('no-line');
+    try {
+      const git = (args: string[]) => spawnSync('git', args, { cwd: dir, encoding: 'utf-8' });
+      git(['init', '-q']);
+      git(['config', 'user.email', 't@t.t']);
+      git(['config', 'user.name', 't']);
+      // Every line an older init wrote, minus the index's own.
+      const olderInitIgnore = 'yg-secrets.yaml\n.symbols-cache/\n.ast-cache/\n.type-class-cache/\n.debug.log\n.yg-lock.deterministic.json\n.events.jsonl\n';
+      w(dir, '.yggdrasil/.gitignore', olderInitIgnore);
+      git(['add', '-A']);
+      git(['commit', '-q', '-m', 'init']);
+
+      const res = run(['check'], dir);
+      expect(res.status).toBe(0);
+      expect(res.stdout + res.stderr).toContain("Run 'yg init --upgrade' to add the line");
+      expect(readFileSync(path.join(dir, '.yggdrasil', '.gitignore'), 'utf-8')).toBe(olderInitIgnore);
+      expect(existsSync(path.join(dir, INDEX_REL))).toBe(false);
+      // The tree the check ran over is exactly as committed.
+      expect(git(['status', '--porcelain']).stdout).toBe('');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('an equivalent ignore pattern counts: /.feature-field.json gets the index written and no line appended', () => {
+    const dir = makeFixture('equiv-line');
+    try {
+      w(dir, '.yggdrasil/.gitignore', '/.feature-field.json\n');
+      const res = run(['check'], dir);
+      expect(res.status).toBe(0);
+      expect(res.stdout + res.stderr).not.toContain('was not written');
+      expect(existsSync(path.join(dir, INDEX_REL))).toBe(true);
+      expect(readFileSync(path.join(dir, '.yggdrasil', '.gitignore'), 'utf-8')).toBe('/.feature-field.json\n');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -56,7 +56,7 @@ describe('relation PHP anti-false-positive (D8 soundness gate)', () => {
     );
     writeFileSync(
       path.join(root, '.yggdrasil', 'yg-config.yaml'),
-      `quality:\n  max_direct_relations: 10\n`,
+      `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`,
       'utf-8',
     );
     // composer.json PSR-4: App\ → src/. The single source of namespace→path truth.

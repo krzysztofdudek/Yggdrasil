@@ -1,5 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { freshPortalData, renderLivePage, readStaticAsset, loadingShell, errorPage } from './page.js';
+import { extractPortalData } from '../extract.js';
+import { renderPortalPage, readPortalAsset } from '../serializer.js';
+import { renderLoadingShell, renderErrorPage } from './boot-pages.js';
 import { runApproveViaCli, dryRunApproveViaCli, approveInProgress } from './approve.js';
 
 /**
@@ -139,7 +141,7 @@ export async function handleRequest(
       // The instant loading shell — no graph access, so the browser paints immediately
       // instead of staring at a blank page while the whole extraction + render runs. The
       // shell fetches /render and swaps it in (URL stays / → the opened hash route survives).
-      sendText(res, 200, 'text/html; charset=utf-8', loadingShell());
+      sendText(res, 200, 'text/html; charset=utf-8', renderLoadingShell());
       return;
     }
 
@@ -148,26 +150,28 @@ export async function handleRequest(
       // (the shell swaps this response into the document), so surface a readable HTML error
       // page, never the raw JSON blob the generic 500 handler would emit for an API route.
       try {
-        const data = await freshPortalData(config.projectRoot, config.writeEnabled);
-        const html = await renderLivePage(data);
+        // Fresh and read-only: extraction loads the graph committed-only and persists
+        // nothing, so any number of renders leaves the lock and caches byte-unchanged.
+        const data = await extractPortalData(config.projectRoot, { writeEnabled: config.writeEnabled });
+        const html = await renderPortalPage(data);
         sendText(res, 200, 'text/html; charset=utf-8', html);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        sendText(res, 500, 'text/html; charset=utf-8', errorPage(message));
+        sendText(res, 500, 'text/html; charset=utf-8', renderErrorPage(message));
       }
       return;
     }
 
     if (method === 'GET' && pathname === '/data') {
       // Refresh: re-extract fresh, persist nothing.
-      const data = await freshPortalData(config.projectRoot, config.writeEnabled);
+      const data = await extractPortalData(config.projectRoot, { writeEnabled: config.writeEnabled });
       sendJson(res, 200, data);
       return;
     }
 
     if (method === 'GET' && pathname.startsWith('/static/')) {
       const rel = pathname.slice('/static/'.length);
-      const asset = await readStaticAsset(rel);
+      const asset = await readPortalAsset(rel);
       if (!asset) {
         sendJson(res, 404, { error: 'not-found', path: pathname });
         return;

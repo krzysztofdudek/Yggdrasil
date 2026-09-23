@@ -1,11 +1,7 @@
 import path from 'node:path';
 import type { Graph } from '../../model/graph.js';
 
-// Mirrors model/graph.ts's exported DEFAULT_PORT_NAME as a literal rather than
-// a value import: importing the value would add several nodes' first real
-// dependency edge onto cli/model/graph, undeclared in the graph — not worth
-// it for one reserved string.
-const DEFAULT_PORT_NAME = 'default';
+import { DEFAULT_PORT_NAME } from '../../model/graph.js';
 import type { ValidationIssue, IssueMessage } from '../../model/validation.js';
 import { FileContentCache } from '../../io/file-content-cache.js';
 import { evaluateFileWhen } from '../file-when-evaluator.js';

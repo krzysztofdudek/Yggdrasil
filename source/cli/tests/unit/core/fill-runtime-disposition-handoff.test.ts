@@ -39,7 +39,7 @@ describe('the fill→check handoff for a disposition this run just watched happe
     mkdirSync(path.join(root, 'src', 'leafy'), { recursive: true });
     writeFileSync(
       path.join(yggRoot, 'yg-config.yaml'),
-      `${V5_REVIEWER_CONFIG}\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
+      `version: "6.0.0"\n${V5_REVIEWER_CONFIG}\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
     );
     writeFileSync(
       path.join(yggRoot, 'yg-architecture.yaml'),
@@ -56,7 +56,7 @@ describe('the fill→check handoff for a disposition this run just watched happe
     writeFileSync(path.join(root, 'src', 'leafy', 'a.ts'), 'export const a = 1;\n');
 
     const graph = await loadGraph(root);
-    const fill = await runFill(graph, { coverageVisibleFiles: ['src/leafy/a.ts'], write: () => {} });
+    const fill = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: ['src/leafy/a.ts'], write: () => {} });
 
     // The row this run's OWN fill attempt discovered — the ground truth
     // `renderTypeVisibilityBlock` below reads to name the reason.
@@ -101,7 +101,7 @@ describe('the fill→check handoff for a disposition this run just watched happe
     mkdirSync(path.join(root, 'src', 'leafy'), { recursive: true });
     writeFileSync(
       path.join(yggRoot, 'yg-config.yaml'),
-      `${V5_REVIEWER_CONFIG}\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
+      `version: "6.0.0"\n${V5_REVIEWER_CONFIG}\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
     );
     writeFileSync(
       path.join(yggRoot, 'yg-architecture.yaml'),
@@ -132,7 +132,7 @@ describe('the fill→check handoff for a disposition this run just watched happe
     );
 
     const graph = await loadGraph(root);
-    const fill = await runFill(graph, { coverageVisibleFiles: ['src/leafy/a.ts', 'src/svc/index.ts'], write: () => {} });
+    const fill = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: ['src/leafy/a.ts', 'src/svc/index.ts'], write: () => {} });
 
     // Both pairs really did runtime-error (sanity: the componented one is not
     // silently skipped for some unrelated reason).
@@ -160,7 +160,7 @@ describe('the fill→check handoff for a disposition this run just watched happe
     mkdirSync(path.join(root, 'src', 'readsy'), { recursive: true });
     writeFileSync(
       path.join(yggRoot, 'yg-config.yaml'),
-      `${V5_REVIEWER_CONFIG}\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
+      `version: "6.0.0"\n${V5_REVIEWER_CONFIG}\ncoverage:\n  required:\n    - src/\n  excluded: []\n  type_level: true\n`,
     );
     writeFileSync(
       path.join(yggRoot, 'yg-architecture.yaml'),
@@ -177,7 +177,7 @@ describe('the fill→check handoff for a disposition this run just watched happe
     writeFileSync(path.join(root, 'src', 'readsy', 'a.ts'), 'export const a = 1;\n');
 
     const graph = await loadGraph(root);
-    const fill = await runFill(graph, { coverageVisibleFiles: ['src/readsy/a.ts'], write: () => {} });
+    const fill = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: ['src/readsy/a.ts'], write: () => {} });
 
     expect(fill.checkResult.typeVisibility?.rows).toContainEqual({
       file: 'src/readsy/a.ts',

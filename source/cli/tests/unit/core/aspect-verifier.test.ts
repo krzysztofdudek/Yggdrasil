@@ -1,17 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
-import { verifyAspects, buildPrompt, verifyWithConsensus } from '../../../src/llm/aspect-verifier.js';
+import { buildPrompt, verifyWithConsensus } from '../../../src/llm/aspect-verifier.js';
 import type { LlmProvider, AspectResponse } from '../../../src/llm/types.js';
-
-function mockProvider(responses: Array<{ satisfied: boolean; reason: string }>): LlmProvider {
-  let callIndex = 0;
-  return {
-    verifyAspect: vi.fn(async (): Promise<AspectResponse> => {
-      const r = responses[callIndex++] ?? { satisfied: true, reason: 'ok' };
-      return { ...r, errorSource: 'codeViolation' };
-    }),
-    isAvailable: vi.fn(async () => true),
-  };
-}
 
 describe('buildPrompt', () => {
   it('includes the unified yg-suppress instruction in the task block', () => {
@@ -68,120 +57,6 @@ describe('buildPrompt', () => {
     expect(prompt).not.toContain('&lt;x&gt;');
     // The structural <file ...> wrapper the runner emits is still present.
     expect(prompt).toContain('<file path="src/a.ts">');
-  });
-});
-
-describe('verifyAspects', () => {
-  it('returns satisfied for passing aspect', async () => {
-    const provider = mockProvider([{ satisfied: true, reason: 'ok' }]);
-    const results = await verifyAspects({
-      provider,
-      aspects: [{ id: 'test', description: 'Test aspect', content: 'Must do X' }],
-      sourceFiles: [{ path: 'test.ts', content: 'export function x() {}' }],
-      nodeDescription: 'Test node',
-      nodePath: 'test/node',
-    });
-    expect(results['test']).toMatchObject({ satisfied: true, errorSource: 'codeViolation' });
-  });
-
-  it('returns not satisfied for failing aspect', async () => {
-    const provider = mockProvider([{ satisfied: false, reason: 'Missing X' }]);
-    const results = await verifyAspects({
-      provider,
-      aspects: [{ id: 'test', description: 'Test', content: 'Must do X' }],
-      sourceFiles: [{ path: 'test.ts', content: 'code' }],
-      nodeDescription: 'Test node',
-      nodePath: 'test/node',
-    });
-    expect(results['test']).toEqual({ satisfied: false, reason: 'Missing X', errorSource: 'codeViolation' });
-  });
-
-  it('sends exactly ONE prompt per aspect regardless of total source size (~39000 chars)', async () => {
-    // Previously the 8192 token budget chunked at ~30768 chars, so a ~39000-char
-    // node below the 40000 max_node_chars gate would still be split into 2 chunks
-    // and the aspect would be verified twice. After removing chunking it must be 1.
-    const bigContent = 'x'.repeat(19000);
-    const provider = mockProvider([{ satisfied: true, reason: 'ok' }]);
-    const results = await verifyAspects({
-      provider,
-      aspects: [{ id: 'test', description: 'Test', content: 'content' }],
-      sourceFiles: [
-        { path: 'a.ts', content: bigContent },
-        { path: 'b.ts', content: bigContent },
-      ],
-      nodeDescription: 'Test node',
-      nodePath: 'test/node',
-    });
-    expect(results['test'].satisfied).toBe(true);
-    // Must be exactly 1 call, not 2 (as the old chunking code would produce)
-    expect(provider.verifyAspect).toHaveBeenCalledTimes(1);
-  });
-
-  it('consensus majority-pass returns satisfied', async () => {
-    const provider = mockProvider([
-      { satisfied: true, reason: 'yes' },
-      { satisfied: true, reason: 'yes' },
-      { satisfied: false, reason: 'no' },
-    ]);
-    const results = await verifyAspects({
-      provider,
-      aspects: [{ id: 'test', description: 'Test', content: 'content' }],
-      sourceFiles: [{ path: 'test.ts', content: 'code' }],
-      nodeDescription: 'Test',
-      nodePath: 'test/node',
-      consensus: 3,
-    });
-    expect(results['test'].satisfied).toBe(true);
-    expect(provider.verifyAspect).toHaveBeenCalledTimes(3);
-  });
-
-  it('consensus majority-fail returns not satisfied', async () => {
-    const provider = mockProvider([
-      { satisfied: false, reason: 'no1' },
-      { satisfied: true, reason: 'yes' },
-      { satisfied: false, reason: 'no2' },
-    ]);
-    const results = await verifyAspects({
-      provider,
-      aspects: [{ id: 'test', description: 'Test', content: 'content' }],
-      sourceFiles: [{ path: 'test.ts', content: 'code' }],
-      nodeDescription: 'Test',
-      nodePath: 'test/node',
-      consensus: 3,
-    });
-    expect(results['test'].satisfied).toBe(false);
-  });
-
-  it('default consensus=1 calls provider once', async () => {
-    const provider = mockProvider([{ satisfied: true, reason: 'ok' }]);
-    await verifyAspects({
-      provider,
-      aspects: [{ id: 'test', description: 'Test', content: 'content' }],
-      sourceFiles: [{ path: 'test.ts', content: 'code' }],
-      nodeDescription: 'Test',
-      nodePath: 'test/node',
-    });
-    expect(provider.verifyAspect).toHaveBeenCalledTimes(1);
-  });
-
-  it('calls provider once per aspect for multiple aspects', async () => {
-    const provider = mockProvider([
-      { satisfied: true, reason: 'ok1' },
-      { satisfied: true, reason: 'ok2' },
-    ]);
-    const results = await verifyAspects({
-      provider,
-      aspects: [
-        { id: 'aspect1', description: 'First', content: 'Rule 1' },
-        { id: 'aspect2', description: 'Second', content: 'Rule 2' },
-      ],
-      sourceFiles: [{ path: 'test.ts', content: 'code' }],
-      nodeDescription: 'Test',
-      nodePath: 'test/node',
-    });
-    expect(provider.verifyAspect).toHaveBeenCalledTimes(2);
-    expect(results['aspect1'].satisfied).toBe(true);
-    expect(results['aspect2'].satisfied).toBe(true);
   });
 });
 

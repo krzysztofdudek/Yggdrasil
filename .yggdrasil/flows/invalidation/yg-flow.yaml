@@ -1,5 +1,5 @@
 name: Invalidation detection
-description: "Detect which stored verdicts no longer hold — yg check loads the graph, computes the expected (aspect, unit) pairs, and re-hashes each against current source and observations, surfacing every missing or stale pair as unverified without writing anything."
+description: "Detect which stored verdicts no longer hold — yg check loads the graph, computes the expected (aspect, unit) pairs, and re-hashes each against current source and observations, surfacing every missing or stale pair as unverified without recording or changing any verdict and without touching a tracked file. Its only writes are gitignored local byproducts (the structural attention index, and only where git already ignores it; the classification and parse caches)."
 aspects:
   - deterministic
   - what-why-next

@@ -484,7 +484,7 @@ describe('extractPortalData over a real tier-on fixture — a checked file is ne
     // FIXME comment makes this a genuine refusal, not a fabricated state.
     const graph = await loadGraph(dir);
     const gitFiles = await walkRepoFiles(dir);
-    await runFill(graph, { coverageVisibleFiles: gitFiles, trackedFiles: gitFiles, onlyDeterministic: true, write: () => {} });
+    await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: gitFiles, trackedFiles: gitFiles, onlyDeterministic: true, write: () => {} });
     const data = await extractPortalData(dir, { writeEnabled: false });
     return { data, dir };
   }

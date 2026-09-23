@@ -33,7 +33,7 @@ describe('runCheck — relation conformance computed live', () => {
       `node_types:\n  service:\n    description: 'unit'\n    log_required: false\n    when:\n      path: "**"\n    relations:\n      uses: [service]\n`,
       'utf-8',
     );
-    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `quality:\n  max_direct_relations: 10\n`, 'utf-8');
+    writeFileSync(path.join(root, '.yggdrasil', 'yg-config.yaml'), `version: "6.0.0"\nquality:\n  max_direct_relations: 10\n`, 'utf-8');
     writeNode(root, 'b', 'B', 'name: B\ntype: service\nmapping:\n  - src/b\n');
     mkdirSync(path.join(root, 'src', 'a'), { recursive: true });
     mkdirSync(path.join(root, 'src', 'b'), { recursive: true });

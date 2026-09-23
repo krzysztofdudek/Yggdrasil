@@ -232,10 +232,6 @@ export function getLanguageForExtension(ext: string, overrides?: Record<string, 
   return EXTENSION_TO_LANGUAGE[normalized] ?? null;
 }
 
-export function getExtensionsForLanguage(lang: string): string[] {
-  return LANGUAGES[lang]?.extensions ?? [];
-}
-
 export function getGrammarForExtension(ext: string): { wasmFile: string; wasmPackage: string } | null {
   const lang = getLanguageForExtension(ext.toLowerCase());
   if (lang === null) return null;

@@ -79,7 +79,7 @@ import type { ExpectedPair } from '../../src/core/pairs.js';
 import type { Graph, AspectDef } from '../../src/model/graph.js';
 
 const REVIEWER_CONFIG =
-  'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
+  'version: "6.0.0"\nreviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 1\n      config:\n        model: llama3\n        temperature: 0\n';
 
 function write(root: string, rel: string, content: string): void {
   const abs = path.join(root, rel);
