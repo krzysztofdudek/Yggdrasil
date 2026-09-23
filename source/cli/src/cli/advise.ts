@@ -1,6 +1,6 @@
 import type { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
@@ -132,16 +132,30 @@ function collectDeclaredRelations(graph: Graph): DeclaredRelation[] {
  * command's layer never has to import the relation-analysis subsystem.) The
  * candidates file is telemetry the miner writes; nothing here writes or runs it.
  */
-function readFamilyCandidatesSource(graph: Graph): FamilyCandidatesData | undefined {
+// Each producer writes its own `.family-candidates.<producer>.json`, so one producer's run never
+// erases another's families; the shared `.family-candidates.json` a producer wrote before that is
+// still read. Every file is gated on its own, and a file that cannot be read is omitted alone.
+const FAMILY_CANDIDATES_FILE = /^\.family-candidates(\.[a-z0-9][a-z0-9-]*)?\.json$/;
+
+function readFamilyCandidatesSource(graph: Graph): FamilyCandidatesData[] | undefined {
+  let names: string[];
   try {
-    const file = path.join(graph.rootPath, '.family-candidates.json');
-    if (!existsSync(file)) return undefined; // present-or-omit — absence is silent
-    const parsed: unknown = JSON.parse(readFileSync(file, 'utf-8'));
-    return parseFamilyCandidates(parsed);
+    if (!existsSync(graph.rootPath)) return undefined;
+    names = readdirSync(graph.rootPath).filter((n) => FAMILY_CANDIDATES_FILE.test(n)).sort();
   } catch (error) {
     debugWrite(`[advise] family candidates omitted: ${(error as Error).message}`);
     return undefined;
   }
+  const out: FamilyCandidatesData[] = [];
+  for (const name of names) {
+    try {
+      const parsed = parseFamilyCandidates(JSON.parse(readFileSync(path.join(graph.rootPath, name), 'utf-8')));
+      if (parsed !== undefined) out.push(name === '.family-candidates.json' ? parsed : { ...parsed, file: name });
+    } catch (error) {
+      debugWrite(`[advise] family candidates in ${name} omitted: ${(error as Error).message}`);
+    }
+  }
+  return out.length > 0 ? out : undefined; // present-or-omit — absence is silent
 }
 
 /**

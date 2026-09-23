@@ -3,7 +3,7 @@
 // calls, and it NEVER creates or writes any aspect (stability law V2): it only PROPOSES
 // candidate families as telemetry. It is a standalone `node scripts/family-without-law.mjs`
 // — NOT wired into `yg`, with no effect on any exit code, verdict, issue, or suggestedNext.
-// Its one write is the gitignored `.yggdrasil/.family-candidates.json` data file (Task 2's
+// Its one write is the gitignored `.yggdrasil/.family-candidates.yggdrasil-miner.json` data file (Task 2's
 // `yg advise` reads it); the write is best-effort and never throws into the caller.
 //
 // WHAT: within each language stratum, it clusters source files that are structurally
@@ -142,7 +142,9 @@ const DIST_BIN = path.join(CLI_DIR, 'dist', 'bin.js');
 const require = createRequire(path.join(CLI_DIR, 'package.json'));
 const YAML = require('yaml');
 
-const OUTPUT_BASENAME = '.family-candidates.json';
+// Its own file, never the shared one: each producer of family candidates writes
+// `.family-candidates.<producer>.json`, so neither erases the other's families.
+const OUTPUT_BASENAME = '.family-candidates.yggdrasil-miner.json';
 const out = (m = '') => process.stdout.write(m + '\n');
 // Diagnostics go to STDERR and only when YG_FAMILY_DEBUG is set — never to stdout (the roster)
 // or the JSON output, so turning it on can never perturb the mined result or its determinism.

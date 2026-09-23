@@ -147,7 +147,7 @@ export function parseFamilyCandidates(raw: unknown): FamilyCandidatesData | unde
 export function familyNominations(data: FamilyCandidatesData): Nomination[] {
   const out: Nomination[] = [];
   const sinceLabel = `local analysis since ${quoteData(data.ts)}`;
-  const provenance = `.family-candidates.json:${quoteData(data.ts)}`;
+  const provenance = `${quoteData(data.file ?? '.family-candidates.json')}:${quoteData(data.ts)}`;
   // Who measured and what "without a law" meant, as data. Only the miner's own gate
   // licenses the "no own, port, or narrow-ancestor rule" sentence; another producer's
   // gate answered a different question, so the sentence names that gate instead.

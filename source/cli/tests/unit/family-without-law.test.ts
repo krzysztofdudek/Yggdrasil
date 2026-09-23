@@ -63,24 +63,24 @@ function runMiner(root: string, ts: string): { status: number | null; stdout: st
 }
 
 function readCandidates(root: string): Candidates {
-  const p = path.join(root, '.yggdrasil', '.family-candidates.json');
+  const p = path.join(root, '.yggdrasil', '.family-candidates.yggdrasil-miner.json');
   return JSON.parse(readFileSync(p, 'utf-8')) as Candidates;
 }
 
 /** Copy the committed fixture to a scratch dir and strip any rebuildable caches, so the miner
  *  regenerates real shards through the normal parse path (never a stale/fabricated cache). Also
- *  removes the `.family-candidates.json` gitignore line so the writer's SELF-ENSURE is tested. */
+ *  removes the `.family-candidates.yggdrasil-miner.json` gitignore line so the writer's SELF-ENSURE is tested. */
 function stageFixture(name: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), `yg-family-${name}-`));
   cpSync(path.join(FIXTURES, name), dir, { recursive: true });
-  for (const cache of ['.ast-cache', '.symbols-cache', '.feature-field.json', '.family-candidates.json']) {
+  for (const cache of ['.ast-cache', '.symbols-cache', '.feature-field.json', '.family-candidates.yggdrasil-miner.json']) {
     rmSync(path.join(dir, '.yggdrasil', cache), { recursive: true, force: true });
   }
   const giPath = path.join(dir, '.yggdrasil', '.gitignore');
   if (existsSync(giPath)) {
     const kept = readFileSync(giPath, 'utf-8')
       .split('\n')
-      .filter((l) => l.trim() !== '.family-candidates.json')
+      .filter((l) => l.trim() !== '.family-candidates.yggdrasil-miner.json')
       .join('\n');
     writeFileSync(giPath, kept, 'utf-8');
   }
@@ -176,13 +176,13 @@ describe.skipIf(!distExists)('family-without-law miner — mono precision (exact
     try {
       // Pre-condition: stageFixture stripped the line, so the writer must add it.
       const giBefore = readFileSync(path.join(dir, '.yggdrasil', '.gitignore'), 'utf-8');
-      expect(giBefore).not.toContain('.family-candidates.json');
+      expect(giBefore).not.toContain('.family-candidates.yggdrasil-miner.json');
 
       runMiner(dir, FIXED_TS);
 
-      expect(existsSync(path.join(dir, '.yggdrasil', '.family-candidates.json'))).toBe(true);
+      expect(existsSync(path.join(dir, '.yggdrasil', '.family-candidates.yggdrasil-miner.json'))).toBe(true);
       const giAfter = readFileSync(path.join(dir, '.yggdrasil', '.gitignore'), 'utf-8');
-      expect(giAfter).toContain('.family-candidates.json');
+      expect(giAfter).toContain('.family-candidates.yggdrasil-miner.json');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

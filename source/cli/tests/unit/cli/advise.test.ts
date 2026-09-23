@@ -956,6 +956,26 @@ describe.skipIf(!distExists)('buildNominations — the family nomination names i
   });
 });
 
+describe.skipIf(!distExists)('yg advise — one family-candidates file per producer (spawned)', () => {
+  let projectRoot: string;
+  afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
+
+  it('reads every producer\'s own file, so neither erases the other\'s families', () => {
+    projectRoot = makeMinimalGraph('family-producers');
+    const grain = { ...(familyPayload('2026-06-01T00:00:00.000Z', 1) as Record<string, unknown>), producer: 'grain', gate: 'no-certified-convention' };
+    const miner = familyPayload('2026-06-02T00:00:00.000Z', 2) as { families: { id: string }[] } & Record<string, unknown>;
+    miner.families = miner.families.slice(1); // a different family from the grain one
+    writeFileSync(path.join(projectRoot, '.yggdrasil', '.family-candidates.grain.json'), JSON.stringify(grain));
+    writeFileSync(path.join(projectRoot, '.yggdrasil', '.family-candidates.yggdrasil-miner.json'), JSON.stringify({ ...miner, producer: 'yggdrasil-miner', gate: 'no-narrow-aspect' }));
+    const { status, stdout } = run(['advise', '--all'], projectRoot);
+    expect(status).toBe(0);
+    expect(stdout).toContain("Measured by 'grain'");
+    expect(stdout).toContain("Measured by 'yggdrasil-miner'");
+    expect(stdout).toContain('.family-candidates.grain.json:');
+    expect(stdout).toContain('.family-candidates.yggdrasil-miner.json:');
+  });
+});
+
 describe.skipIf(!distExists)('yg advise — T2 family-without-law (spawned)', () => {
   let projectRoot: string;
   beforeEach(() => {

@@ -164,6 +164,12 @@ export interface FamilyCandidatesData {
   /** The miner's injected timestamp — the `local analysis since <ts>` provenance. */
   ts: string;
   /**
+   * The file the families came from, when it is not the shared `.family-candidates.json`:
+   * each producer writes its own `.family-candidates.<producer>.json`, so one producer's
+   * run can never erase another's families. Named in the nomination's provenance.
+   */
+  file?: string;
+  /**
    * Who measured (`grain`, `yggdrasil-miner`, …), when the file says. Two producers
    * write this same document from two different oracles, so a nomination attributes
    * it. UNTRUSTED repo-derived DATA, rendered through `quoteData`. Absent on a file
@@ -239,7 +245,7 @@ export interface NominationSources {
    * one) → the class is silently omitted. Present-but-empty → the class runs and
    * produces nothing.
    */
-  familyCandidates?: FamilyCandidatesData;
+  familyCandidates?: FamilyCandidatesData | FamilyCandidatesData[];
   /**
    * The non-trivial structural-quotient cycles (T2 class B), computed at the CLI
    * boundary from the committed graph's DECLARED relations only (no relation pass —
@@ -1121,7 +1127,8 @@ export function buildNominations(graph: Graph, sources: NominationSources): Nomi
   // --- T2: family-without-law (below all T1) — runs only when the CLI supplied a
   //     FRESH candidates payload; absent / stale / garbled ⇒ silently omitted ---
   if (sources.familyCandidates !== undefined) {
-    nominations.push(...familyNominations(sources.familyCandidates));
+    const files = Array.isArray(sources.familyCandidates) ? sources.familyCandidates : [sources.familyCandidates];
+    for (const data of files) nominations.push(...familyNominations(data));
   }
 
   // --- T2: architecture-cut (below family) — one item per non-trivial quotient

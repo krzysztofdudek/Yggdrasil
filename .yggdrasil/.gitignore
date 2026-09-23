@@ -7,7 +7,9 @@ yg-secrets.yaml
 .drill-results.jsonl*
 .feature-field.json
 .family-candidates.json
+.family-candidates.*.json
 .yg-fill-divergence.log*
 .type-class-cache/
 *.tmp
 .yg-packages-versions.json
+.family-candidates.yggdrasil-miner.json
