@@ -18,6 +18,9 @@ describe('renderFillEvent', () => {
       .toBe('fill  3 pairs · 3 script (free) · 0 reviewer calls\n');
     const withSkipped = renderFillEvent({ type: 'dispatch', counts: { fillPairs: 4, nodeCount: 1, fileCount: 2, detPairs: 4, reviewerCallBudget: 0, skippedLlmPairs: 1, skippedOutsideLlmPairs: 0 } });
     expect(withSkipped).toBe('fill  4 pairs · 4 script (free) · 0 reviewer calls\nfill  1 reviewer pair left alone — script rules only this run\n');
+    // A run that only leaves reviewer pairs alone says just that, no line of zeros.
+    expect(renderFillEvent({ type: 'dispatch', counts: { fillPairs: 0, nodeCount: 0, fileCount: 0, detPairs: 0, reviewerCallBudget: 0, skippedLlmPairs: 3, skippedOutsideLlmPairs: 0 } }))
+      .toBe('fill  3 reviewer pairs left alone — script rules only this run\n');
   });
 
   it('dispatch: a fill with nothing to do says nothing', () => {
@@ -49,7 +52,11 @@ describe('renderFillEvent', () => {
     expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, detApproved: 2, detRefused: 1 } }))
       .toBe('fill  done — 2 passed · 1 refused · 0 failed · 0 reviewer calls\n');
     expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, detApproved: 1, skippedLlmPairs: 24 } }))
-      .toBe('fill  done — 1 passed · 0 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone\nnext: yg check --approve  (reviews the pairs left alone)\n');
+      .toBe('fill  done — 1 passed · 0 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone\n');
+    // The step that reviews them is the report's own next:/then: — a run prints one.
+    expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, detApproved: 1, skippedLlmPairs: 3, reviewerConfigured: false } })).not.toContain('next:');
+    // A run that judged nothing and only left pairs alone prints no row of zeros.
+    expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, skippedLlmPairs: 3 } })).toBe('fill  done — 3 reviewer pairs left alone\n');
   });
 
   // Issue 210 (m11): a run that called the reviewer used to end with no line at
@@ -86,7 +93,8 @@ describe('renderFillEvent', () => {
       type: 'interrupted', saved: 3, total: 8, flushed: true,
       message: { what: 'Interrupted — 3 of 8 pairs have a verdict saved from this run.', why: 'A signal stopped the run.', next: 'Re-run: yg check --approve' },
     });
-    expect(line).toBe('\r\u001b[2Kwarning: Interrupted — 3 of 8 pairs have a verdict saved from this run.\n  why:  A signal stopped the run.\nnext: Re-run: yg check --approve\n');
+    // Said while the run ends, before its report: a fix: field, never a next: line.
+    expect(line).toBe('\r\u001b[2Kwarning: Interrupted — 3 of 8 pairs have a verdict saved from this run.\n  why:  A signal stopped the run.\n  fix:  Re-run: yg check --approve\n');
   });
 
   // Issue 209 (m13): a consensus split is visible where the pair is reported.
@@ -116,6 +124,18 @@ describe('renderFillEvent', () => {
     expect(dry).not.toContain('lib');
     expect(dry).toContain('  2 script pairs — free, not listed\n');
     expect(dry).toContain('note: 2 reviewer calls is an upper bound');
+    // A paid fill is the user's decision.
+    expect(dry).toContain('Nothing was written; running yg check --approve is paid — ask the user first.\n');
+  });
+
+  it('dry run: caps the priced list like every list, and names the free lane when no reviewer is configured', () => {
+    const pairs = Array.from({ length: 15 }, (_, i) => ({ lane: 'llm' as const, aspectId: 'b', unit: `node:n${i}`, reviewerCalls: 1 }));
+    const dry = renderFillEvent({ type: 'dry-run', nodes: [{ nodePath: 'n', pairs: [...pairs, { lane: 'det', aspectId: 'a', unit: 'node:n' }] }], files: [], reviewerCallBudget: 15, reviewerConfigured: false });
+    expect(dry.split('\n').filter((l) => / — 1 reviewer call$/.test(l))).toHaveLength(12);
+    expect(dry).toContain('  … +3 more  (yg check --details)\n');
+    // The full run would stop before recording anything: the preview names the one that works.
+    expect(dry).toContain('Nothing was written; run yg check --approve --only-deterministic to fill the script pairs.\n');
+    expect(dry).not.toContain('run yg check --approve to fill');
   });
 
   it('a preview with nothing to price still says it is a preview, over the zero budget', () => {

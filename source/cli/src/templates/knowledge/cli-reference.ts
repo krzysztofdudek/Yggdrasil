@@ -51,10 +51,10 @@ error[refused] no-todo — 8 violations in 8 nodes
 error[unverified] 24 pairs with no verdict yet
   at:   readable-names  24 pairs · 24 nodes · reviewer
   why:  The lock holds no entry for this pair: …
-  fix:  yg check --approve  (24 reviewer pairs · paid)
+  fix:  yg check --approve  (24 reviewer pairs · paid — ask the user first)
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid)
+then: yg check --approve  (24 reviewer pairs · paid — ask the user first)
 \`\`\`
 
 - The verdict line: \`yg check: PASS|FAIL|ABORTED\`, the finding counts, then the
@@ -66,7 +66,7 @@ then: yg check --approve  (24 reviewer pairs · paid)
   \`… +K more  (<command that lists them all>)\`), \`why:\` (once per block) and
   \`fix:\`. A fix that differs only by node is printed once with \`<node>\` and ends
   \`for each node above\`; a fill names its cost (\`(24 script pairs · free)\`,
-  \`(24 reviewer pairs · paid)\`).
+  \`(24 reviewer pairs · paid — ask the user first)\`).
 - Labels: \`refused\` (a rule refused the code — error if enforced, warning if
   advisory), \`unmapped\` (required files no node owns), \`uncovered\` (files outside
   coverage.required — never blocking), \`unverified\` (no valid verdict; the cause
@@ -83,7 +83,11 @@ then: yg check --approve  (24 reviewer pairs · paid)
   its block and what still needs a fix when other blocks exist. \`then:\` is the
   step after it. When the report holds exactly one error block (or, with no
   errors, one finding) whose \`fix:\` already is the step, there is no \`next:\`.
-  Read the \`next:\` line and do that.
+  A fill states the cost of the whole command it names; one whose first block is
+  script pairs alone is \`yg check --approve --only-deterministic\` (free). A step
+  that says \`ask the user first\` — a paid fill, configuring a reviewer — is the
+  user's decision: ask, never run it on your own. Read the \`next:\` line and do
+  that.
 - A \`partial: …\` line under the verdict line means part of the graph did not load;
   the findings may be symptoms of it — fix it first.
 
@@ -240,8 +244,13 @@ against a branch, \`groups\` (one per text block: \`code\`, \`label\`, \`subject
 \`cause\`, shared \`why\`/\`next\`, member indexes), \`suggestedNext\` — the text of the
 report's own \`next:\` line, or null — and \`next\`, the same step as an object:
 \`{command, text, target, cost: {free, reviewerPairs}, remaining: {needsFix,
-fillable}, then}\` (\`command\` is an argv array, or null when the step is not one
-runnable command; \`then\` is the text of the \`then:\` line).
+fillable, needsUser, waitingOnReviewer}, requiresUser, then}\` (\`command\` is an
+argv array, or null when the step is not one runnable command; \`cost\` is what
+running \`command\` costs — the whole command; \`requiresUser\` is true for a
+paid fill or a decision that is the user's — ask before running it; \`then\` is
+the text of the \`then:\` line). \`notes\` carries the report's \`note:\` lines.
+\`--json --compact\` leaves out approved pairs and each issue's \`why\`/\`next\`
+its group states (\`compact: true\`) — for a reader that pays per token.
 
 Per pair: the rule, the subject (\`unit\`), the effective \`status\` that decides
 whether a finding blocks, what the lock says (\`verdict\`), who answers
@@ -276,8 +285,10 @@ final report), in lines that start with \`fill\`:
 fill  24 pairs · 24 script (free) · 0 reviewer calls
 fill  24 reviewer pairs left alone — script rules only this run
 fill  done in 3s — 16 passed · 8 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone
-next: yg check --approve  (reviews the pairs left alone)
 \`\`\`
+
+The fill prints no \`next:\` of its own: the report after it names the one step
+(its \`then:\` names the paid run for the pairs left alone).
 
 A pair gets its own line only when it could not be judged
 (\`fill  not judged  <aspect> @ <unit>\`) or a consensus split

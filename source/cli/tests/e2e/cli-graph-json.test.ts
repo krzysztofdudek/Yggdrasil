@@ -214,9 +214,10 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --json and yg node --json', 
       expect(status).toBe(1);
       // A refusal under --json also answers on stdout: the yg-error/1 document.
       expect(JSON.parse(stdout).schema).toBe('yg-error/1');
-      expect(stderr).toContain("Node 'services/nope' does not exist in the graph.");
+      expect(stderr).toContain("error[node-not-found]: node 'services/nope' is not in the graph");
       expect(stderr).toContain('directory under .yggdrasil/model/');
-      expect(stderr).toContain('yg tree');
+      expect(stderr).toContain('next: yg find "services/nope"');
+      expect(JSON.parse(stdout).next.command).toEqual(['yg', 'find', 'services/nope']);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

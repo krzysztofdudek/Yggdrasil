@@ -27,7 +27,7 @@ import { registerPackCommand } from './cli/pack.js';
 import { registerMarketplaceCommand } from './cli/marketplace.js';
 import { registerPrimeCommand } from './cli/prime.js';
 import { registerRemovedVerdictCommand } from './cli/verdict-removed.js';
-import { registerHelpCommand } from './cli/help.js';
+import { registerHelpCommand, withoutColourFlags } from './cli/help.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -107,6 +107,8 @@ process.on('unhandledRejection', (reason) => {
 });
 
 try {
+  // Colour flags work on every command (see withoutColourFlags).
+  process.argv = [...process.argv.slice(0, 2), ...withoutColourFlags(process.argv.slice(2))];
   program.parse();
 } catch (err) {
   process.stderr.write(`error[internal]: ${(err as Error).message}\nnext: this is a bug — file an issue with the command you ran and this output\n`);

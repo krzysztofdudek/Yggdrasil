@@ -39,9 +39,15 @@ export function unverifiedMessage(params: {
 export function unverifiedCauseMessage(params: {
   aspectId: string;
   unitKey: string;
-  cause: 'stale' | 'never-reviewed' | 'deterministic-not-run' | 'reviewer-missing';
+  cause: 'stale' | 'keyed-by-earlier-release' | 'never-reviewed' | 'deterministic-not-run' | 'reviewer-missing';
 }): IssueMessage {
   switch (params.cause) {
+    case 'keyed-by-earlier-release':
+      return {
+        what: `The script verdict for aspect '${params.aspectId}' on ${params.unitKey} was keyed by an earlier Yggdrasil release.`,
+        why: 'Nothing this check reads has changed since the verdict: this release keys script verdicts on the grammar and runtime that parse the code (deterministic contract 2), so a verdict an earlier release or an earlier grammar recorded no longer matches its key. Re-running the script checks records it again, free and keyless.',
+        next: 'yg check --approve --only-deterministic',
+      };
     case 'stale':
       return {
         what: `The verdict for aspect '${params.aspectId}' on ${params.unitKey} is stale.`,

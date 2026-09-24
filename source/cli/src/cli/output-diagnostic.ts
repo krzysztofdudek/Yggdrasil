@@ -67,7 +67,22 @@ export interface CodeInfo {
   tier: Tier;
   /** Singular noun the members of a finding with this code are counted in. */
   noun: string;
+  /**
+   * Set when the remedy is the user's decision, never the agent's: the step a
+   * report's `next:` names for this code, worded as one to ask the user for.
+   * Its JSON `next.command` stays null and `next.requiresUser` is true, so no
+   * reader can run it blindly.
+   */
+  decision?: string;
 }
+
+/**
+ * The step that configures a reviewer, as a report names it: configuring one
+ * sends code to that provider on the user's account, so it is always asked
+ * for, never run. `--model` is required by every provider but claude-code, and
+ * the draft alternative stays in view.
+ */
+export const CONFIGURE_REVIEWER_STEP = 'ask the user first: yg init --provider <name> [--model <m>] configures a reviewer, or set the reviewer rules to status: draft';
 
 /**
  * Codes whose failure means the graph did not load as written: a
@@ -103,7 +118,7 @@ const REGISTRY: ReadonlyMap<string, CodeInfo> = new Map<string, CodeInfo>([
   ['uncovered-advisory', { label: 'uncovered', tier: 'T1', noun: 'file' }],
   ['log-conflict', { label: 'log-conflict', tier: 'T2', noun: 'node' }],
   ['log-entry-missing', { label: 'log-entry-missing', tier: 'T2', noun: 'node' }],
-  ['config-reviewer-missing', { label: 'config-reviewer-missing', tier: 'T2', noun: 'issue' }],
+  ['config-reviewer-missing', { label: 'config-reviewer-missing', tier: 'T2', noun: 'issue', decision: CONFIGURE_REVIEWER_STEP }],
   ['unverified', { label: 'unverified', tier: 'T3', noun: 'pair' }],
 ]);
 

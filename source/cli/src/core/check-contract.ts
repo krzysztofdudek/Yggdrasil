@@ -62,7 +62,11 @@ export interface CheckResult {
   suggestedNext: string | null;
   /** Count of aspect-violation-advisory warnings (subset of issues). Surfaced as a footer tally. */
   advisoryWarnings: number;
-  /** Count of (node, aspect) pairs where the aspect resolves to effective status 'draft'. */
+  /**
+   * Count of rules whose own status is 'draft' — their pairs are left out of
+   * the expected set, so how many pairs that is is never enumerated. Rendered
+   * as `N draft rules skipped`.
+   */
   draftSkipped: number;
   /**
    * Count of VERIFIED pairs whose reviewer kind is deterministic. Tallied from

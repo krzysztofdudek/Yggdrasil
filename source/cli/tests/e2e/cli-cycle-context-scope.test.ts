@@ -56,13 +56,13 @@ describe.skipIf(!distExists)('CLI E2E — structural cycle scope', () => {
       expect(check.all).not.toContain('aa -> bb');
 
       const unrelated = run(dir, ['context', '--node', 'zz']);
-      expect(unrelated.all).not.toContain('build-context blocked');
+      expect(unrelated.all).not.toContain('yg context cannot assemble');
       expect(unrelated.status).toBe(0);
       expect(run(dir, ['context', '--file', 'src/zz/index.ts']).status).toBe(0);
 
       const member = run(dir, ['context', '--node', 'cc']);
       expect(member.status).toBe(1);
-      expect(member.all).toContain('build-context blocked');
+      expect(member.all).toContain('yg context cannot assemble');
 
       const dependent = run(dir, ['context', '--node', 'aa']);
       expect(dependent.status).toBe(1);

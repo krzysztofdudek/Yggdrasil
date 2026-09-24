@@ -80,7 +80,7 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
       const header = live.split('\n')[0];
       expect(header).toMatch(/^yg check: FAIL {2}1 error {3}1 node · /);
       // The one block's fix IS the step, so no separate next: line repeats it.
-      expect(live).toContain('  fix:  yg check --approve  (1 reviewer pair · paid)');
+      expect(live).toContain('  fix:  yg check --approve  (1 reviewer pair · paid — ask the user first)');
       expect(live).not.toMatch(/^next:/m);
       const gs = doc('docs/getting-started.md');
       expect(textBlockContaining(gs, header)).toBe(live);

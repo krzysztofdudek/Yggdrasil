@@ -127,6 +127,14 @@ import { runProjectRelationPass } from '../relations/pass.js';
 import type { RelationPassResult } from '../relations/pass.js';
 import { count } from '../utils/count.js';
 
+/**
+ * What reviews the reviewer-rule pairs of a project with no reviewer: configuring
+ * one is the user's decision (it sends code to that provider), so it is asked
+ * for, with `--model` (required by every provider but claude-code) and the
+ * draft alternative in view.
+ */
+const CONFIGURE_REVIEWER_NEXT = 'Ask the user first: yg init --provider <name> [--model <m>] configures a reviewer, or set the reviewer rules to status: draft.';
+
 // ============================================================
 // Public surface
 // ============================================================
@@ -275,7 +283,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
 
   // ── Pre-dispatch header (EXACT) — printed by the preview below, or after the
   //    log gate for a real run, so a gated run never announces a fill. ──────
-  const writeHeader = (): void => {
+  const writeHeader = (withNoReviewerNote = true): void => {
     emit({
       type: 'dispatch',
       counts: {
@@ -292,12 +300,17 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     });
     // Judgment pairs in the fill set with no reviewer to call: only a preview or
     // an all-advisory project gets here (the structural gate stops the rest).
+    if (withNoReviewerNote) writeNoReviewerNote();
+  };
+  const writeNoReviewerNote = (): void => {
     if (!reviewerConfigured && llmPairs.length > 0) {
       // Structured what / why / next; the renderer lays it out under the header.
       const noReviewer = {
         what: `No reviewer is configured — the ${count(llmPairs.length, 'reviewer pair')} counted here cannot be reviewed.`,
-        why: 'Reviewer rules are decided only by the configured reviewer; this run fills the script rules and leaves these pairs unverified.',
-        next: "yg init --provider <name> [--model <m>] (the user's decision), or set the reviewer rule to status: draft.",
+        why: dryRun
+          ? 'Reviewer rules are decided only by the configured reviewer; a fill would record the script rules and leave these pairs unverified.'
+          : 'Reviewer rules are decided only by the configured reviewer; this run fills the script rules and leaves these pairs unverified.',
+        next: CONFIGURE_REVIEWER_NEXT,
       };
       emit({ type: 'no-reviewer', message: noReviewer });
     }
@@ -310,8 +323,11 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
   // log gate below (a cost preview must not require a fresh log entry); only the
   // step-1 structural/config gate, which already ran above, can abort a preview.
   if (dryRun) {
-    writeHeader();
-    emit(dryRunBreakdown(graph, { detPairs, llmPairs, aspectById, reviewerCallBudget }));
+    // The priced pairs first, then what a missing reviewer means for them, so
+    // the preview ends on its own caveat rather than on a list.
+    writeHeader(false);
+    emit({ ...dryRunBreakdown(graph, { detPairs, llmPairs, aspectById, reviewerCallBudget }), reviewerConfigured });
+    writeNoReviewerNote();
     const prunePreview = await previewPruneSummary(graph, lock, {
       typeCoverage: typeCoverageInput,
       detAspectIdsOnDisk,

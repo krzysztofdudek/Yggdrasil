@@ -7,7 +7,11 @@ exit: 1
   "what": "node 'nope' is not in the graph",
   "why": "A log belongs to a node, so the node must exist before its log can be read.",
   "next": {
-    "command": "yg find \"nope\"",
+    "command": [
+      "yg",
+      "find",
+      "nope"
+    ],
     "text": "yg find \"nope\""
   }
 }

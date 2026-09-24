@@ -42,7 +42,7 @@ describe.skipIf(!distExists)('CLI E2E — impact', () => {
   it('yg impact nonexistent node returns exit code 1', () => {
     const { status, stderr } = run(['impact', '--node', 'does/not/exist']);
     expect(status).toBe(1);
-    expect(stderr).toContain('Node not found');
+    expect(stderr).toContain("error[node-not-found]: node 'does/not/exist' is not in the graph");
   });
 
   it('yg impact without any mode returns exit 1', () => {

@@ -81,6 +81,7 @@ mapping:
   - source/cli/tests/unit/cli/check-render-header.test.ts
   - source/cli/tests/unit/cli/check-render-groups.test.ts
   - source/cli/tests/unit/cli/check-render-views.test.ts
+  - source/cli/tests/unit/cli/next-contract.test.ts
   - source/cli/tests/unit/cli/check-json.test.ts
   - source/cli/tests/unit/cli/check-type-visibility.test.ts
   - source/cli/tests/unit/cli/context-file-type-coverage.test.ts

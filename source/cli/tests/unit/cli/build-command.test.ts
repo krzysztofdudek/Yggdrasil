@@ -81,7 +81,7 @@ describe('context command (unit-like CLI contract)', () => {
       });
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain("Node 'does/not/exist' does not exist in the graph.");
+      expect(result.stderr).toContain("error[node-not-found]: node 'does/not/exist' is not in the graph");
       expect(result.stderr).not.toContain('This is a bug');
     });
   });
