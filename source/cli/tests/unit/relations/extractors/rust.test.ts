@@ -25,16 +25,22 @@ describe('rust extractor — uses()', () => {
     expect(s).not.toContain('Repo');
   });
 
-  it('emits the common module prefix for a grouped `use crate::{a::Foo, b::Bar};`', async () => {
-    // For existence the prefix module `crate` alone establishes the edge — both items
-    // resolve under it. (Idiomatic grouped imports share a deeper prefix; see next.)
+  it('emits every item of a crate-rooted group `use crate::{a::Foo, b::Bar};` on its own', async () => {
+    // The group prefix `crate` names no module; each item path is its own dependency
+    // (rustfmt imports_granularity = "Crate" / rust-analyzer merge-imports produce this).
     const { uses } = await run('use crate::{a::Foo, b::Bar};');
-    expect(specs(uses)).toEqual(['crate']);
+    expect(specs(uses)).toEqual(['crate::a::Foo', 'crate::b::Bar']);
   });
 
-  it('emits the deeper common prefix for `use crate::orders::{Order, sub::Deep};`', async () => {
+  it('joins each item to the deeper prefix `use crate::orders::{Order, sub::Deep};`', async () => {
+    // A path item (`sub::Deep`) names its own module, never the prefix module.
     const { uses } = await run('use crate::orders::{Order, sub::Deep};');
-    expect(specs(uses)).toEqual(['crate::orders']);
+    expect(specs(uses)).toEqual(['crate::orders::Order', 'crate::orders::sub::Deep']);
+  });
+
+  it('joins a `super::`-rooted group item by item `use super::{billing::Invoice, orders::Order};`', async () => {
+    const { uses } = await run('use super::{billing::Invoice, orders::Order};');
+    expect(specs(uses)).toEqual(['super::billing::Invoice', 'super::orders::Order']);
   });
 
   it('emits the prefix module for a glob `use crate::events::*;`', async () => {
@@ -80,12 +86,13 @@ describe('rust extractor — uses()', () => {
     expect(uses[0]?.line).toBe(3);
   });
 
-  it('emits the common module prefix ONCE for two items in one group', async () => {
-    // `use crate::orders::{Order, Other};` — both leaves share prefix `crate::orders`,
-    // which is emitted a single time (the group emits the common prefix, not each leaf).
+  it('emits each leaf of a group, all on the group`s line', async () => {
+    // `use crate::orders::{Order, Other};` — each leaf resolves on its own (to the module
+    // file when it is an item of `crate::orders`); the pass collapses same-line edges to
+    // one node into one finding.
     const { uses } = await run('use crate::orders::{Order, Other};');
-    expect(specs(uses)).toEqual(['crate::orders']);
-    expect(uses).toHaveLength(1);
+    expect(specs(uses)).toEqual(['crate::orders::Order', 'crate::orders::Other']);
+    expect(new Set(uses.map((u) => u.line))).toEqual(new Set([1]));
   });
 
   it('emits the prefix for a glob whose prefix is a PLAIN identifier `use foo::*;`', async () => {
@@ -121,11 +128,12 @@ describe('rust extractor — uses()', () => {
     expect(uses).toHaveLength(1);
   });
 
-  it('falls back to each item when the group prefix is an unrenderable scoped path `use ::foo::{Bar, Baz};`', async () => {
-    // `::foo` renders to undefined (no leftmost segment), so the joined group prefix is
-    // undefined → the fallback emits each item path (`Bar`, `Baz`) under an empty prefix.
+  it('emits nothing when the group prefix is an unrenderable scoped path `use ::foo::{Bar, Baz};`', async () => {
+    // `::foo` renders to undefined (no leftmost segment). Emitting the items bare (`Bar`,
+    // `Baz`) would re-root them at the top level, where a bare name can match an in-repo
+    // path dependency the code never named → silence over a guess.
     const { uses } = await run('use ::foo::{Bar, Baz};');
-    expect(specs(uses).sort()).toEqual(['Bar', 'Baz']);
+    expect(specs(uses)).toEqual([]);
   });
 
   it('emits nothing for a glob whose prefix is an unrenderable scoped path `use ::foo::*;`', async () => {
@@ -146,10 +154,10 @@ describe('rust extractor — uses()', () => {
     expect(specs(uses)).toEqual([]);
   });
 
-  it('keeps the `self` item of a group covered by the common prefix `use crate::a::{self, B};`', async () => {
-    // The `self` leaf means the prefix module itself, already covered by `crate::a`.
+  it('emits the prefix module for the `self` item of a group `use crate::a::{self, B};`', async () => {
+    // The `self` leaf means the prefix module itself; `B` resolves on its own.
     const { uses } = await run('use crate::a::{self, B};');
-    expect(specs(uses)).toEqual(['crate::a']);
+    expect(specs(uses)).toEqual(['crate::a', 'crate::a::B']);
   });
 
   it('emits a bare top-level identifier import `use foo;`', async () => {
@@ -171,12 +179,51 @@ describe('rust extractor — uses()', () => {
     expect(specs(uses)).toEqual([]);
   });
 
-  it('emits the OUTER common prefix once for a nested group `use crate::a::{b::{C, D}, e};`', async () => {
-    // The outer group`s common module prefix `crate::a` already covers every leaf and
-    // nested group under it, so it is emitted exactly once — the nested `b::{C, D}` is not
-    // separately descended.
+  it('descends a nested group with the accumulated prefix `use crate::a::{b::{C, D}, e};`', async () => {
     const { uses } = await run('use crate::a::{b::{C, D}, e};');
-    expect(specs(uses)).toEqual(['crate::a']);
+    expect(specs(uses)).toEqual(['crate::a::b::C', 'crate::a::b::D', 'crate::a::e']);
+  });
+
+  it('strips the raw-identifier prefix from every segment (`mod r#gen;`, `crate::r#gen::X`)', async () => {
+    const { uses } = await run('mod r#gen;\nuse crate::r#gen::r#try::X;\n');
+    expect(specs(uses)).toEqual(['self::gen', 'crate::gen::try::X']);
+  });
+
+  it('emits the crate name of `extern crate name as alias;` and drops the alias', async () => {
+    const { uses } = await run('extern crate core_lib as cl;\nextern crate self as me;\n');
+    expect(specs(uses)).toEqual(['core_lib']);
+  });
+});
+
+describe('rust extractor — inline modules rebase self/super to the file module', () => {
+  it('`use super::*` inside one inline `mod tests` is the file module itself (`self`)', async () => {
+    const { uses } = await run('mod tests {\n    use super::*;\n    use super::place as p;\n}\n');
+    expect(specs(uses)).toEqual(['self', 'self::place']);
+  });
+
+  it('`super::super::x` inside one inline module climbs once from the file module', async () => {
+    const { uses } = await run('mod tests {\n    use super::super::x::Y;\n}\n');
+    expect(specs(uses)).toEqual(['super::x::Y']);
+  });
+
+  it('`super` inside two nested inline modules pops one and keeps the outer one', async () => {
+    const { uses } = await run('mod outer {\n    mod inner {\n        use super::z::Z;\n    }\n}\n');
+    expect(specs(uses)).toEqual(['self::outer::z::Z']);
+  });
+
+  it('`self::` and a file-backed `mod x;` inside an inline module splice the inline path in', async () => {
+    const { uses } = await run('mod outer {\n    mod inner;\n    use self::inner::Deep;\n}\n');
+    expect(specs(uses)).toEqual(['self::outer::inner', 'self::outer::inner::Deep']);
+  });
+
+  it('`crate::` inside an inline module is unaffected', async () => {
+    const { uses } = await run('mod tests {\n    use crate::a::B;\n}\n');
+    expect(specs(uses)).toEqual(['crate::a::B']);
+  });
+
+  it('relative paths under a `#[path]`-relocated inline module are silenced', async () => {
+    const { uses } = await run('#[path = "elsewhere"]\nmod outer {\n    mod inner;\n    use super::x::Y;\n    use crate::a::B;\n}\n');
+    expect(specs(uses)).toEqual(['crate::a::B']);
   });
 });
 

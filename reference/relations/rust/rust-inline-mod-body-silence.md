@@ -25,7 +25,7 @@ name = "mycrate"
 pub struct Other;
 ```
 
-```rust path=src/c/lib.rs
+```rust path=src/c/app.rs
 mod foo {
     pub struct X;
 }

@@ -26,7 +26,7 @@ name = "mycrate"
 pub struct X;
 ```
 
-```rust path=src/c/lib.rs
+```rust path=src/c/mod.rs
 #[path = "custom/loc.rs"]
 mod foo;
 ```

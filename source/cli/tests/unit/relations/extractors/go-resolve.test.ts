@@ -3,7 +3,7 @@ import path from 'node:path';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 
-import { makeResolvePathToFile } from '../../../../src/relations/resolve-path.js';
+import { makeResolvePathToFile, parseGoModulePath, parseGoWorkUses } from '../../../../src/relations/resolve-path.js';
 import { resolveGoImport, type GoResolveDeps } from '../../../../src/relations/extractors/go-resolve.js';
 
 // The Go resolver maps an import PATH → a package directory → a representative
@@ -232,5 +232,148 @@ describe('resolveGoImport — pure unit (injected deps)', () => {
     // owner) — the downstream, exclusion-guarded owner lookup on that file is
     // what actually silences the edge, the same as a wholly-excluded package.
     expect(resolveGoImport('example.com/m/foo/bar', 'foo/x.go', allExcluded)).toBe('foo/bar/aux.go');
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Multi-module repositories: ancestor modules, go.work members, nested-module claims.
+describe('resolveGoImport — multi-module repositories (disk-backed)', () => {
+  let ws: string;
+  const put = (rel: string, text: string): void => {
+    mkdirSync(path.dirname(path.join(ws, rel)), { recursive: true });
+    writeFileSync(path.join(ws, rel), text, 'utf-8');
+  };
+  beforeEach(() => {
+    ws = mkdtempSync(path.join(tmpdir(), 'go-multi-'));
+  });
+  afterEach(() => {
+    rmSync(ws, { recursive: true, force: true });
+  });
+
+  it('a nested module importing its parent binds the parent module`s package', () => {
+    put('go.mod', 'module example.com/m\n');
+    put('creds/c.go', 'package creds\n');
+    put('sec/tls/go.mod', 'module example.com/m/sec/tls\n');
+    put('sec/tls/internal/util/u.go', 'package util\n');
+    put('internal/util/decoy.go', 'package util\n');
+    const resolve = makeResolvePathToFile(ws);
+    expect(resolve('example.com/m/creds', 'sec/tls/tls.go', 'go')).toBe('creds/c.go');
+    // The nested module's own path is the longer match → its own directory, never the decoy.
+    expect(resolve('example.com/m/sec/tls/internal/util', 'sec/tls/tls.go', 'go')).toBe('sec/tls/internal/util/u.go');
+  });
+
+  it('a go.work member binds another member`s package (single-line and block `use`)', () => {
+    put('go.work', 'go 1.22\n\nuse ./a // first\nuse (\n  "./b"\n  ../outside\n)\n');
+    put('a/go.mod', 'module example.com/a\n');
+    put('b/go.mod', 'module example.com/b\n');
+    put('b/lib/lib.go', 'package lib\n');
+    const resolve = makeResolvePathToFile(ws);
+    expect(resolve('example.com/b/lib', 'a/app/main.go', 'go')).toBe('b/lib/lib.go');
+    // Without the workspace the sibling module is external.
+    rmSync(path.join(ws, 'go.work'));
+    expect(makeResolvePathToFile(ws)('example.com/b/lib', 'a/app/main.go', 'go')).toBeUndefined();
+  });
+
+  it('a package directory claimed by a deeper go.mod with a different path is silenced', () => {
+    put('go.mod', 'module example.com/m\n');
+    put('vendorish/go.mod', 'module example.com/other\n');
+    put('vendorish/pkg/p.go', 'package pkg\n');
+    put('sub/go.mod', 'module example.com/m/sub\n');
+    put('sub/pkg/p.go', 'package pkg\n');
+    const resolve = makeResolvePathToFile(ws);
+    expect(resolve('example.com/m/vendorish/pkg', 'app/main.go', 'go')).toBeUndefined();
+    // A nested module whose own path names the same directory is consistent → bound.
+    expect(resolve('example.com/m/sub/pkg', 'app/main.go', 'go')).toBe('sub/pkg/p.go');
+  });
+
+  it('reads a quoted, raw-string, commented or block-form module path', () => {
+    expect(parseGoModulePath('module "example.com/q" // c\n')).toBe('example.com/q');
+    expect(parseGoModulePath('module `example.com/r`\n')).toBe('example.com/r');
+    expect(parseGoModulePath('// module example.com/no\nmodule example.com/yes\n')).toBe('example.com/yes');
+    expect(parseGoModulePath('module (\n  "example.com/b"\n)\n')).toBe('example.com/b');
+    expect(parseGoModulePath('module (example.com/c)\n')).toBe('example.com/c');
+    expect(parseGoModulePath('modulex example.com/no\n')).toBeUndefined();
+  });
+
+  it('reads go.work `use` directives in every form', () => {
+    expect(parseGoWorkUses('use ./a\nuse "./b"\nuse (\n ./c // x\n `./d`\n)\nuse (./e)\n')).toEqual([
+      './a',
+      './b',
+      './c',
+      './d',
+      './e',
+    ]);
+  });
+});
+
+describe('resolveGoImport — longest-prefix module pick (injected deps)', () => {
+  const baseDeps = (modules: Array<{ modulePath: string; moduleDir: string }>): GoResolveDeps => ({
+    modulePathFor: () => modules[0],
+    modulesFor: () => modules,
+    dirExists: () => true,
+    goFilesIn: (d) => [`${d}/x.go`],
+  });
+
+  it('picks the longest matching module path', () => {
+    const deps = baseDeps([
+      { modulePath: 'example.com/m/sub', moduleDir: 'sub' },
+      { modulePath: 'example.com/m', moduleDir: '' },
+    ]);
+    expect(resolveGoImport('example.com/m/sub/p', 'sub/a.go', deps)).toBe('sub/p/x.go');
+    expect(resolveGoImport('example.com/m/q', 'sub/a.go', deps)).toBe('q/x.go');
+  });
+
+  it('silences two candidates claiming the same longest path in different directories', () => {
+    const deps = baseDeps([
+      { modulePath: 'example.com/dup', moduleDir: 'one' },
+      { modulePath: 'example.com/dup', moduleDir: 'two' },
+    ]);
+    expect(resolveGoImport('example.com/dup/p', 'one/a.go', deps)).toBeUndefined();
+  });
+});
+
+describe('go.mod / go.work parsing — degenerate forms', () => {
+  it('an empty or empty-string module block declares nothing', () => {
+    expect(parseGoModulePath('module (\n)\n')).toBeUndefined();
+    expect(parseGoModulePath('module (\n  ""\n)\n')).toBeUndefined();
+    expect(parseGoModulePath('module ()\n')).toBeUndefined();
+    expect(parseGoModulePath('module ""\nmodule example.com/late\n')).toBe('example.com/late');
+  });
+
+  it('go.work: empty block, empty path and a non-use directive are ignored', () => {
+    expect(parseGoWorkUses('use (\n)\nuse ""\nusefoo ./x\ntoolchain go1.22\nuse (\n  ""\n)\n')).toEqual([]);
+  });
+});
+
+describe('resolveGoImport — go.work at the repository root', () => {
+  let ws: string;
+  const put = (rel: string, text: string): void => {
+    mkdirSync(path.dirname(path.join(ws, rel)), { recursive: true });
+    writeFileSync(path.join(ws, rel), text, 'utf-8');
+  };
+  beforeEach(() => {
+    ws = mkdtempSync(path.join(tmpdir(), 'go-work-root-'));
+  });
+  afterEach(() => {
+    rmSync(ws, { recursive: true, force: true });
+  });
+
+  it('a `use .` member is the repository-root module', () => {
+    put('go.work', 'use (\n  .\n  ./tools\n)\n');
+    put('go.mod', 'module example.com/root\n');
+    put('tools/go.mod', 'module example.com/tools\n');
+    put('lib/l.go', 'package lib\n');
+    put('tools/gen/g.go', 'package gen\n');
+    const resolve = makeResolvePathToFile(ws);
+    expect(resolve('example.com/tools/gen', 'lib/l.go', 'go')).toBe('tools/gen/g.go');
+    expect(resolve('example.com/root/lib', 'tools/gen/g.go', 'go')).toBe('lib/l.go');
+  });
+
+  it('a nested module root imported by its own path from the parent module is bound', () => {
+    put('go.mod', 'module example.com/m\n');
+    put('sub/go.mod', 'module example.com/m/sub\n');
+    put('sub/s.go', 'package sub\n');
+    const resolve = makeResolvePathToFile(ws);
+    expect(resolve('example.com/m/sub', 'app/main.go', 'go')).toBe('sub/s.go');
   });
 });

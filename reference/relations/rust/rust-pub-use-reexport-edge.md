@@ -25,13 +25,13 @@ name = "mycrate"
 pub struct Handler;
 ```
 
-```rust path=src/c/lib.rs
+```rust path=src/c/app.rs
 pub use crate::api::Handler;
 ```
 
 ## Expect
 
-- src/c/lib.rs:1 -> node:api      # `pub use` is identical to `use` for the edge; crate::api::Handler → src/api/mod.rs (node api)
+- src/c/app.rs:1 -> node:api      # `pub use` is identical to `use` for the edge; crate::api::Handler → src/api/mod.rs (node api)
 
 ## Why
 

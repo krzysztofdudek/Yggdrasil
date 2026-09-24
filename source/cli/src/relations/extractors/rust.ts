@@ -17,14 +17,36 @@ import { single } from './types.js';
  * (e.g. `crate::orders::Order`, `super::util::X`, `self::y`). The resolver
  * (`rust-resolve.ts`) maps that path → a `.rs` file through the crate module tree.
  *
- * GROUPED imports: for `use a::b::{C, D}` this emits the common module prefix
- * (`a::b`) ONCE rather than each leaf (`a::b::C`, `a::b::D`). For existence both
- * leaves resolve to the same file/node as the prefix module (C and D are items
- * inside module a::b, or are submodules under it), so the prefix alone establishes
- * the edge — and it is unambiguous (a leaf may be either a submodule or an item,
- * the prefix is always a module). A `self` item means the prefix module itself,
- * which the prefix already covers. A nested `scoped_use_list`
- * (`use a::{b::{C}}`) recurses, emitting the deeper common prefix.
+ * GROUPED imports: every item of a use tree is resolved ON ITS OWN, joined to the
+ * accumulated prefix. `use crate::{billing::Invoice, orders::Order}` emits
+ * `crate::billing::Invoice` and `crate::orders::Order` — two modules, two edges — and
+ * `use a::b::{C, D}` emits `a::b::C` and `a::b::D`, which the resolver's longest-match
+ * walk binds to the same module file when C and D are items of `a::b` (a same-line
+ * duplicate edge collapses downstream). The group prefix alone is never the target of an
+ * item that names a deeper path: binding `crate::domain::{billing::X}` to module `domain`
+ * would point the edge at the parent node. A `self` item means the prefix module itself
+ * and emits the prefix. A nested `scoped_use_list` (`use a::{b::{C}}`) recurses with the
+ * deeper prefix.
+ *
+ * INLINE MODULES are a level of the module tree. Inside `mod tests { … }`, `super` names
+ * the module that encloses `tests` (the FILE's own module), not the file module's parent,
+ * and `self` names `tests`. Every `self`/`super`-rooted specifier — and a file-backed
+ * `mod x;` — emitted from inside inline modules is therefore rebased before it leaves the
+ * extractor: each leading `super` first pops one enclosing inline module, and what is left
+ * of the inline chain is spliced in after `self` (`mod outer { mod inner; }` →
+ * `self::outer::inner`, whose file is `<module dir>/outer/inner.rs`). Only when there are
+ * more `super`s than enclosing inline modules does the remainder climb from the file's
+ * module. A `#[path]` attribute on an enclosing inline module moves its directory in ways a
+ * source-only walk cannot pin, so relative specifiers under one are silenced.
+ *
+ * RAW IDENTIFIERS: `r#gen` is the identifier `gen` (edition 2024 reserves `gen`, and
+ * `cargo fix` rewrites it to `r#gen`). The `r#` prefix is stripped from every segment so
+ * `mod r#gen;` and `crate::r#gen::X` probe `gen.rs`, the file rustc loads.
+ *
+ * EXTERN CRATE: `extern crate name [as alias];` emits the bare crate `name` (the alias is a
+ * local binding and is dropped). The resolver binds it only when `name` is an in-repo path
+ * dependency of the importing crate; `std`, registry crates and `extern crate self` stay
+ * silent.
  *
  * GLOB (`use a::b::*`) emits the prefix module `a::b`. RENAMED (`use a::b as c`)
  * strips the alias and emits the real path `a::b`. `pub use` (re-export) is
@@ -146,6 +168,51 @@ function isCrateRelativeRoot(specifier: string): boolean {
   return root === 'crate' || root === 'self' || root === 'super';
 }
 
+/** Strip the raw-identifier prefix `r#` from one path segment (`r#gen` → `gen`). */
+function unraw(segment: string): string {
+  return segment.startsWith('r#') ? segment.slice(2) : segment;
+}
+
+/** Strip `r#` from every `::` segment of a specifier. */
+function unrawPath(specifier: string): string {
+  return specifier.split('::').map(unraw).join('::');
+}
+
+/** The enclosing INLINE modules of `node`, outermost first: every `mod_item` ancestor that
+ *  has a body. `unpinned` is true when any of them carries a `#[path]` attribute, which
+ *  relocates its directory, or has no readable name (a malformed tree) — the caller then
+ *  emits nothing relative (silence over a guess). */
+function inlineModChain(node: Node): { names: string[]; unpinned: boolean } {
+  const names: string[] = [];
+  let unpinned = false;
+  for (let p: Node | null = node.parent; p !== null; p = p.parent) {
+    if (p.type !== 'mod_item' || p.childForFieldName('body') === null) continue;
+    const name = p.childForFieldName('name')?.text ?? '';
+    names.unshift(unraw(name));
+    if (name === '' || modHasPathOverride(p)) unpinned = true;
+  }
+  return { names, unpinned };
+}
+
+/**
+ * Rebase a `self`/`super`-rooted specifier emitted from inside the (non-empty) inline
+ * modules `names` (outermost first) so it reads relative to the FILE's module, which is what
+ * the resolver anchors on. Each leading `super` pops one inline module; the inline modules
+ * left over are spliced in after `self`; any `super`s beyond the inline depth climb from the
+ * file's module.
+ */
+function rebaseForInlineMods(specifier: string, names: readonly string[]): string {
+  const segs = specifier.split('::');
+  if (segs[0] === 'self') return ['self', ...names, ...segs.slice(1)].join('::');
+  let supers = 0;
+  while (supers < segs.length && segs[supers] === 'super') supers++;
+  const rest = segs.slice(supers);
+  if (supers <= names.length) {
+    return ['self', ...names.slice(0, names.length - supers), ...rest].join('::');
+  }
+  return [...new Array<string>(supers - names.length).fill('super'), ...rest].join('::');
+}
+
 /** True when `modItem` is preceded by a `#[path = "…"]` attribute that overrides its
  *  conventional file location. Attributes parse as preceding `attribute_item` siblings. */
 function modHasPathOverride(modItem: Node): boolean {
@@ -165,8 +232,18 @@ function uses(file: ParsedFile): DetectedDep[] {
   const out: DetectedDep[] = [];
   const seen = new Set<string>();
 
-  const emit = (specifier: string | undefined, node: Node): void => {
-    if (specifier === undefined || specifier === '') return;
+  const emit = (raw: string | undefined, node: Node): void => {
+    if (raw === undefined || raw === '') return;
+    let specifier = unrawPath(raw);
+    const root = specifier.split('::', 1)[0];
+    if (root === 'self' || root === 'super') {
+      // Relative to the module the node sits in: rebase across enclosing inline modules.
+      const chain = inlineModChain(node);
+      if (chain.names.length > 0) {
+        if (chain.unpinned) return; // a #[path]-relocated (or nameless) inline module → silence
+        specifier = rebaseForInlineMods(specifier, chain.names);
+      }
+    }
     const line = node.startPosition.row + 1;
     const dedupKey = `${specifier} ${line}`;
     if (seen.has(dedupKey)) return;
@@ -191,10 +268,14 @@ function uses(file: ParsedFile): DetectedDep[] {
         if (tail !== undefined) emit(join(prefix, tail), arg);
         return;
       }
+      case 'self': {
+        // `prefix::{self}` names the prefix module itself.
+        emit(prefix, arg);
+        return;
+      }
       case 'identifier':
       case 'crate':
-      case 'super':
-      case 'self': {
+      case 'super': {
         emit(join(prefix, arg.text), arg);
         return;
       }
@@ -216,25 +297,21 @@ function uses(file: ParsedFile): DetectedDep[] {
         return;
       }
       case 'scoped_use_list': {
-        // `prefix::{ items }` — extend the prefix with this group's path, then emit
-        // the COMMON module prefix once (existence: every item resolves to the same
-        // file/node as the prefix module). The leaf items are not individually emitted.
+        // `prefix::{ items }` — extend the prefix with this group's path, then resolve
+        // EVERY item on its own under that prefix: a path item (`billing::Invoice`) names
+        // its own module, never the prefix module. A group with no usable prefix
+        // (`use {a, b};`, non-idiomatic) resolves each item from the top level.
         const pre = prefixNode(arg);
         const groupPrefix =
           pre === null
             ? prefix
             : join(prefix, pre.type === 'scoped_identifier' ? pathText(pre) : pre.text);
-        if (groupPrefix !== undefined && groupPrefix !== '') {
-          emit(groupPrefix, arg);
-        } else {
-          // No usable common prefix (e.g. `use {a, b};` — rare, non-idiomatic):
-          // fall back to emitting each item path so the edge is not silently lost.
-          const list = arg.childForFieldName('list');
-          if (list !== null) {
-            for (let i = 0; i < list.namedChildCount; i++) {
-              const item = list.namedChild(i);
-              if (item !== null) handleArgument(item, '');
-            }
+        if (groupPrefix === undefined) return; // unrenderable prefix → silence
+        const list = arg.childForFieldName('list');
+        if (list !== null) {
+          for (let i = 0; i < list.namedChildCount; i++) {
+            const item = list.namedChild(i);
+            if (item !== null) handleArgument(item, groupPrefix);
           }
         }
         return;
@@ -261,6 +338,14 @@ function uses(file: ParsedFile): DetectedDep[] {
         if (name !== null) emit(`self::${name.text}`, node);
       }
       return undefined;
+    }
+
+    // `extern crate name [as alias];` → the bare crate name (never `self`); the resolver
+    // binds it only to an in-repo path dependency.
+    if (node.type === 'extern_crate_declaration') {
+      const name = node.childForFieldName('name');
+      if (name !== null && name.type === 'identifier' && name.text !== 'self') emit(name.text, node);
+      return false;
     }
 
     // Inline FQN in TYPE position — the outermost scoped_type_identifier carries the full path.
@@ -328,7 +413,7 @@ function declarations(file: ParsedFile): DeclaredSymbol[] {
 
 export const rustExtractor: DependencyExtractor = {
   languages: new Set(['rust']),
-  rev: 1,
+  rev: 2,
   declarations,
   uses,
 };

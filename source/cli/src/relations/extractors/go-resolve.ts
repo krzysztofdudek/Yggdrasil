@@ -40,6 +40,23 @@ export interface GoResolveDeps {
    * SHOULD cache this — it is stable for a given module root.
    */
   modulePathFor(fromFile: string): { modulePath: string; moduleDir: string } | undefined;
+  /**
+   * Optional. Every in-repo module the importing file can reach: its own module, every
+   * ANCESTOR module (a nested module importing its parent), and every `use` member of the
+   * nearest `go.work`. When supplied, an import binds through the candidate with the
+   * LONGEST module path that prefixes it (a package belongs to the module with the longest
+   * matching path); two candidates claiming the same longest path in different directories
+   * are contradictory and silence the import. Absent → only `modulePathFor`'s module.
+   */
+  modulesFor?(fromFile: string): Array<{ modulePath: string; moduleDir: string }>;
+  /**
+   * Optional. The module path declared by a go.mod directly in this repo-relative POSIX
+   * directory, or undefined when there is none. When supplied, a package directory that a
+   * DEEPER go.mod claims (a nested module between the matched module's root and the
+   * package) is accepted only when that nested module's own path names the same directory;
+   * otherwise the directory belongs to a different module and the import is silenced.
+   */
+  moduleAt?(repoRelDir: string): string | undefined;
   /** Does a directory exist at this repo-relative POSIX path? */
   dirExists(repoRelDir: string): boolean;
   /** Repo-relative POSIX paths of `.go` files directly in this directory (no recursion). */
@@ -88,7 +105,7 @@ export function resolveGoImport(
   fromFile: string,
   deps: GoResolveDeps,
 ): string | undefined {
-  const resolved = deps.modulePathFor(fromFile);
+  const resolved = pickModule(importPath, fromFile, deps);
   if (resolved === undefined) return undefined;
   const { modulePath, moduleDir } = resolved;
   if (modulePath === '') return undefined;
@@ -123,6 +140,7 @@ export function resolveGoImport(
   const cleanDir = repoRelDir === '.' ? '' : repoRelDir;
 
   if (!deps.dirExists(cleanDir)) return undefined;
+  if (claimedByOtherModule(importPath, moduleDir, cleanDir, deps)) return undefined;
 
   // Representative `.go` file in the package directory. Test files (`*_test.go`)
   // are excluded so the representative is a production source file; a directory
@@ -178,4 +196,51 @@ export function resolveGoImport(
   }
 
   return candidates[0];
+}
+
+/** The module an import binds through: without `modulesFor`, the nearest module; with it,
+ *  the candidate whose module path is the LONGEST prefix of the import path (undefined when
+ *  none matches, or when two candidates in different directories claim that same path). */
+function pickModule(
+  importPath: string,
+  fromFile: string,
+  deps: GoResolveDeps,
+): { modulePath: string; moduleDir: string } | undefined {
+  if (deps.modulesFor === undefined) return deps.modulePathFor(fromFile);
+  let best: { modulePath: string; moduleDir: string } | undefined;
+  let contradictory = false;
+  for (const m of deps.modulesFor(fromFile)) {
+    if (importPath !== m.modulePath && !importPath.startsWith(m.modulePath + '/')) continue;
+    if (best === undefined || m.modulePath.length > best.modulePath.length) {
+      best = m;
+      contradictory = false;
+    } else if (m.modulePath === best.modulePath && m.moduleDir !== best.moduleDir) {
+      contradictory = true;
+    }
+  }
+  return contradictory ? undefined : best;
+}
+
+/** True when a go.mod strictly below `moduleDir` and at or above `packageDir` makes the
+ *  package part of ANOTHER module whose own path does not name this same directory for
+ *  `importPath`. Without `moduleAt`, nothing is known and nothing is claimed. */
+function claimedByOtherModule(
+  importPath: string,
+  moduleDir: string,
+  packageDir: string,
+  deps: GoResolveDeps,
+): boolean {
+  if (deps.moduleAt === undefined || packageDir === moduleDir) return false;
+  const rel = moduleDir === '' ? packageDir : packageDir.slice(moduleDir.length + 1);
+  const segs = rel.split('/');
+  let dir = moduleDir;
+  for (let i = 0; i < segs.length; i++) {
+    dir = dir === '' ? segs[i] : `${dir}/${segs[i]}`;
+    const nested = deps.moduleAt(dir);
+    if (nested === undefined) continue;
+    const rest = segs.slice(i + 1).join('/');
+    const expected = rest === '' ? nested : `${nested}/${rest}`;
+    if (expected !== importPath) return true;
+  }
+  return false;
 }
