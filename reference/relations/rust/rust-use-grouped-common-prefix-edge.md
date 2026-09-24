@@ -8,10 +8,7 @@ cites: "Rust Reference — Use declarations (nested/grouped `use a::b::{C, D}`);
 
 ## Rule
 
-A grouped `use crate::a::b::{C, D};` imports multiple entities from the preceding
-module. Every leaf (`C`, `D`) is an item or submodule of `a::b`, so each resolves
-to the SAME file/node as the prefix module. The extractor emits the COMMON module
-prefix `crate::a::b` ONCE (file `src/a/b.rs`) — never a per-leaf phantom edge.
+A grouped `use crate::a::b::{C, D};` imports several items from the module before the braces. Every item of a use tree is resolved on its own, joined to that prefix: `crate::a::b::C` and `crate::a::b::D`. Here both leaves are items of module `a::b`, so the longest-match walk binds each to the module's file `src/a/b.rs` (node `a`), and the two same-line edges to one node are one finding. A leaf that is itself a submodule (`crate::a::{b}`) binds that submodule's file, exactly as the ungrouped `use crate::a::b;` would; items that are deeper paths are covered by rust-use-grouped-crate-root-edge and rust-use-grouped-nested-subpath-edge.
 
 ## Files
 
@@ -31,10 +28,8 @@ use crate::a::b::{C, D};
 
 ## Expect
 
-- src/c/use.rs:1 -> node:a      # the COMMON prefix crate::a::b → src/a/b.rs (node a), emitted once for the whole group
+- src/c/use.rs:1 -> node:a      # each leaf crate::a::b::C / crate::a::b::D falls back to the module file src/a/b.rs (node a)
 
 ## Why
 
-Per-leaf phantom edges (`crate::a::b::C`, `crate::a::b::D`) would over-count and
-could mis-resolve a leaf to a non-existent submodule file. The common module prefix
-is the exact, single dependency.
+Resolving each item the way its ungrouped `use` would resolve keeps grouped and split imports equivalent, which is what rustfmt and rust-analyzer assume when they merge or split them. Binding every item to the prefix module was only right when all items are leaves of that module.

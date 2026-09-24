@@ -49,6 +49,24 @@ describe('MATRIX — crate-relative use (the `::`-path IS the edge; resolves thr
   it('rust-use-grouped-common-prefix-edge', () => runCase('rust-use-grouped-common-prefix-edge'));
   it('rust-use-glob-prefix-module-edge', () => runCase('rust-use-glob-prefix-module-edge'));
   it('rust-pub-use-reexport-edge', () => runCase('rust-pub-use-reexport-edge'));
+  it('rust-use-grouped-crate-root-edge', () => runCase('rust-use-grouped-crate-root-edge'));
+  it('rust-use-grouped-nested-subpath-edge', () => runCase('rust-use-grouped-nested-subpath-edge'));
+  it('rust-use-crate-root-item-edge', () => runCase('rust-use-crate-root-item-edge'));
+  it('rust-raw-identifier-module-edge', () => runCase('rust-raw-identifier-module-edge'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MATRIX — Cargo targets and packages (bin / test crate roots, in-repo path dependencies, extern crate)', () => {
+  it('rust-bin-target-crate-root-edge', () => runCase('rust-bin-target-crate-root-edge'));
+  it('rust-integration-test-mod-common-edge', () => runCase('rust-integration-test-mod-common-edge'));
+  it('rust-workspace-path-dependency-edge', () => runCase('rust-workspace-path-dependency-edge'));
+  it('rust-extern-crate-alias-edge', () => runCase('rust-extern-crate-alias-edge'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MATRIX — inline modules are a level of the module tree (super/self and mod decls inside `mod x { … }`)', () => {
+  it('rust-inline-mod-tests-super-glob-silence', () => runCase('rust-inline-mod-tests-super-glob-silence'));
+  it('rust-mod-decl-inside-inline-mod-edge', () => runCase('rust-mod-decl-inside-inline-mod-edge'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -68,6 +86,7 @@ describe('MATRIX — silence forms (#[path] override / inline mod body / bare ro
   it('rust-inline-bare-root-silence', () => runCase('rust-inline-bare-root-silence'));
   it('rust-use-external-crate-silence', () => runCase('rust-use-external-crate-silence'));
   it('rust-macro-invocation-path-silence', () => runCase('rust-macro-invocation-path-silence'));
+  it('rust-macro-export-silence', () => runCase('rust-macro-export-silence'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

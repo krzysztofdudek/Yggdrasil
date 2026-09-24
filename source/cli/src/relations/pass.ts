@@ -614,6 +614,9 @@ export async function runRelationPass(
 
   // Resolve one file's detected uses into cross-node edges (shared by both paths below).
   const resolveDetected = (record: FileRecord, detected: DetectedDep[], resolvedDeps: ResolvedDep[]): void => {
+    // One site (file:line) depending on one node is one finding, however many specifiers on
+    // that line resolved there (a Rust use tree `a::b::{C, D}` names the same module twice).
+    const seenSites = new Set<string>();
     for (const dep of detected) {
       // Ordered first-unique-match-wins walk over the candidate group — the SINGLE
       // definition shared verbatim with the reference-case runner (resolveCandidateGroup).
@@ -621,6 +624,9 @@ export async function runRelationPass(
       // against the node's declared relations.
       const ownerNode = resolveCandidateGroup(dep.candidates, resolver, record.path, record.language!);
       if (ownerNode !== undefined) {
+        const site = `${dep.line}\0${ownerNode}`;
+        if (seenSites.has(site)) continue;
+        seenSites.add(site);
         resolvedDeps.push({ fromFile: record.path, line: dep.line, ownerNode });
       }
     }

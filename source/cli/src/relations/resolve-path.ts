@@ -5,7 +5,7 @@ import { resolvePythonModule } from './extractors/python-resolve.js';
 import { resolveGoImport, type GoResolveDeps } from './extractors/go-resolve.js';
 import { resolveJavaFqn, resolveJavaPackageFiles, type JavaResolveDeps } from './extractors/java-resolve.js';
 import { resolvePhpFqn, parsePsr4, type PhpResolveDeps } from './extractors/php-resolve.js';
-import { resolveRustPath, type RustResolveDeps } from './extractors/rust-resolve.js';
+import { resolveRustPath, type RustResolveDeps, type RustCrateRoot } from './extractors/rust-resolve.js';
 import { resolveIncludePath } from './extractors/include-resolve.js';
 import { resolveRubyRequireRelative } from './extractors/ruby-resolve.js';
 import { buildOwnerIndex } from './owner-index.js';
@@ -49,7 +49,7 @@ export function makeResolvePathToFile(
   const goDeps = makeGoResolveDeps(projectRoot, ownerOf, isExcluded);
   const javaDeps = makeJavaResolveDeps(projectRoot, exists, isExcluded);
   const phpDeps = makePhpResolveDeps(projectRoot, exists, isExcluded);
-  const rustDeps = makeRustResolveDeps(projectRoot);
+  const rustDeps = makeRustResolveDeps(projectRoot, exists);
   return (specifier, fromFile, language, isPackage = false) => {
     if (language === 'typescript' || language === 'tsx' || language === 'javascript') {
       return resolveTsPath(specifier, fromFile, exists);
@@ -152,76 +152,306 @@ export async function guardedResolve(
 
 /**
  * Build the disk-backed Rust resolution capabilities for a project root. A Rust path
- * (`crate::a::b`) resolves through the crate's module tree rooted at the crate's
- * `src/` directory. The crate root is the nearest ancestor of the importing file that
- * contains a `Cargo.toml`; its `src/` is the module-tree root, and `[package].name`
- * (hyphens → underscores) is the crate's own name so a path rooted at that name is
- * treated like `crate`. The discovery is CACHED per Cargo.toml directory — Cargo.toml
- * is stable across a single factory instance, so each manifest is read at most once.
+ * (`crate::a::b`) resolves through a crate's module tree. The PACKAGE is the nearest
+ * ancestor of the importing file that contains a `Cargo.toml`; which CRATE of that package
+ * the file belongs to follows Cargo's target auto-discovery (`src/lib.rs` / `src/main.rs`
+ * for `src/**`, `src/bin/<x>.rs` and `src/bin/<x>/main.rs`, `tests/`, `examples/`,
+ * `benches/`, `build.rs`) — see `rustTargetFor`. The package's crate name (`[lib].name`,
+ * else `[package].name`, hyphens → underscores) addresses its library from any target.
  *
- * No Cargo.toml ancestor → undefined crate root, which the resolver treats as silence
- * (it never guesses a source root).
+ * In-repo PATH DEPENDENCIES (`[dependencies]`, `[dev-dependencies]`,
+ * `[build-dependencies]` and their `[target.*]` forms; inline `{ path = … }`, the
+ * `[dependencies.<name>]` table form, and `{ workspace = true }` inherited from the nearest
+ * `[workspace.dependencies]`) map the name code uses (`package =` renames honoured) to that
+ * crate's library tree. A path that leaves the repository, or points at a directory with no
+ * Cargo.toml, is ignored.
+ *
+ * Every manifest and crate-root file is read at most once per factory instance (cached) —
+ * they are stable across one pass. No Cargo.toml ancestor → undefined crate root, which the
+ * resolver treats as silence (it never guesses a source root).
  *
  * NOTE: makeResolvePathToFile's deps are pure filesystem access;
- * reading Cargo.toml there is fine — it reads a file, it does not parse source.
+ * reading Cargo.toml / a crate-root file there is fine — it reads a file, it does not parse
+ * source into a tree.
  */
-function makeRustResolveDeps(projectRoot: string): RustResolveDeps {
-  // Cache: Cargo.toml directory (repo-rel POSIX, '' = root) → { srcDir, crateName }.
-  const byDir = new Map<string, { srcDir: string; crateName: string | undefined } | undefined>();
+function makeRustResolveDeps(
+  projectRoot: string,
+  exists: (repoRelPosix: string) => boolean,
+): RustResolveDeps {
+  // Cache: directory (repo-rel POSIX, '' = root) → the Cargo.toml read there (null = none).
+  const manifestByDir = new Map<string, CargoManifest | null>();
+  // Cache: directory → the nearest Cargo.toml directory at or above it (null = none).
+  const packageDirByDir = new Map<string, string | null>();
+  // Cache: crate-root file → its text with comments stripped ('' when unreadable).
+  const rootTextByFile = new Map<string, string>();
 
-  /** Read `[package].name` from a Cargo.toml at the given repo-rel dir, or undefined.
-   *  A minimal TOML scan: find the `[package]` section, then the first `name = "..."`
-   *  before the next `[section]`. Hyphens in the package name map to underscores (the
-   *  crate identifier rule). */
-  function readCrateName(repoRelDir: string): string | undefined {
-    const abs = path.join(projectRoot, repoRelDir, 'Cargo.toml');
-    let text: string;
-    try {
-      text = readFileSync(abs, 'utf-8');
-    } catch {
-      return undefined;
-    }
-    let inPackage = false;
-    for (const rawLine of text.split('\n')) {
-      const line = rawLine.trim();
-      if (line.startsWith('[')) {
-        inPackage = line === '[package]';
-        continue;
+  function manifestAt(dir: string): CargoManifest | undefined {
+    if (!manifestByDir.has(dir)) {
+      let text: string | undefined;
+      try {
+        text = readFileSync(path.join(projectRoot, dir, 'Cargo.toml'), 'utf-8');
+      } catch {
+        text = undefined;
       }
-      if (!inPackage) continue;
-      const m = line.match(/^name\s*=\s*["']([^"']+)["']/);
-      if (m) return m[1].replace(/-/g, '_');
+      manifestByDir.set(dir, text === undefined ? null : parseCargoManifest(text));
+    }
+    return manifestByDir.get(dir) ?? undefined;
+  }
+
+  /** The nearest directory at or above `dir` holding a Cargo.toml, or undefined. */
+  function packageDirFrom(dir: string): string | undefined {
+    const visited: string[] = [];
+    let cur = dir;
+    let found: string | null = null;
+    for (;;) {
+      const cached = packageDirByDir.get(cur);
+      if (cached !== undefined) {
+        found = cached;
+        break;
+      }
+      visited.push(cur);
+      if (existsSync(path.join(projectRoot, cur, 'Cargo.toml'))) {
+        found = cur;
+        break;
+      }
+      if (cur === '') break;
+      const parent = path.posix.dirname(cur);
+      cur = parent === '.' ? '' : parent;
+    }
+    for (const v of visited) packageDirByDir.set(v, found);
+    return found ?? undefined;
+  }
+
+  function dirOf(file: string): string {
+    const d = path.posix.dirname(toPosix(file));
+    return d === '.' ? '' : d;
+  }
+
+  function under(dir: string, sub: string): string | undefined {
+    const joined = path.posix.normalize(dir === '' ? sub : path.posix.join(dir, sub));
+    if (joined === '..' || joined.startsWith('../') || path.posix.isAbsolute(joined)) return undefined;
+    return joined === '.' ? '' : joined;
+  }
+
+  /** The library tree of the package at `pkgDir`. */
+  function libTreeOf(pkgDir: string, manifest: CargoManifest | undefined): { srcDir: string; rootFiles: string[] } {
+    const rootFile = under(pkgDir, manifest?.libPath ?? 'src/lib.rs') ?? under(pkgDir, 'src/lib.rs')!;
+    return { srcDir: dirOf(rootFile), rootFiles: [rootFile] };
+  }
+
+  function crateRootFor(fromFile: string): RustCrateRoot | undefined {
+    const file = toPosix(fromFile);
+    const pkgDir = packageDirFrom(dirOf(file));
+    if (pkgDir === undefined) return undefined;
+    const manifest = manifestAt(pkgDir);
+    const crateName = manifest?.crateName;
+    const lib = libTreeOf(pkgDir, manifest);
+    const rel = pkgDir === '' ? file : file.slice(pkgDir.length + 1);
+    // Target sub-paths are package-relative and never climb, so a plain join is exact.
+    const at = (sub: string): string => (pkgDir === '' || sub === '' ? pkgDir + sub : `${pkgDir}/${sub}`);
+    const target = rustTargetFor(rel, (sub) => exists(at(sub)), manifest?.libPath);
+    return {
+      srcDir: at(target.srcDir),
+      crateName,
+      rootFiles: target.rootFiles.map(at),
+      fileIsRoot: target.fileIsRoot,
+      lib,
+    };
+  }
+
+  function dependencyFor(fromFile: string, name: string): { srcDir: string; rootFiles: string[] } | undefined {
+    const pkgDir = packageDirFrom(dirOf(toPosix(fromFile)));
+    if (pkgDir === undefined) return undefined;
+    const manifest = manifestAt(pkgDir);
+    if (manifest === undefined) return undefined;
+    for (const [key, spec] of manifest.dependencies) {
+      let depDir: string | undefined;
+      let rename = spec.package;
+      if (spec.path !== undefined) {
+        depDir = under(pkgDir, spec.path);
+      } else if (spec.workspace) {
+        // `{ workspace = true }` → the nearest ancestor manifest with a matching
+        // `[workspace.dependencies]` entry; its path is relative to that manifest.
+        let cur: string | undefined = pkgDir;
+        while (cur !== undefined) {
+          const ws = manifestAt(cur);
+          const inherited = ws?.workspaceDependencies.get(key);
+          if (inherited !== undefined) {
+            if (inherited.path !== undefined) depDir = under(cur, inherited.path);
+            rename = rename ?? inherited.package;
+            break;
+          }
+          if (cur === '') break;
+          const parent = path.posix.dirname(cur);
+          cur = packageDirFrom(parent === '.' ? '' : parent);
+        }
+      }
+      if (depDir === undefined) continue; // registry / git / out-of-repo → external
+      const depManifest = manifestAt(depDir);
+      if (depManifest === undefined) continue; // no Cargo.toml there → not a crate
+      // The name code uses: the dependency key when renamed with `package =`, else the
+      // target library's own crate name.
+      const codeName = rename !== undefined ? normalizeCrateName(key) : (depManifest.crateName ?? normalizeCrateName(key));
+      if (codeName !== name) continue;
+      return libTreeOf(depDir, depManifest);
     }
     return undefined;
   }
 
-  /** Find the nearest ancestor directory of `fromFile` that contains a Cargo.toml,
-   *  then return its `src/` directory and crate name. Walks up to (and including) the
-   *  project root. */
-  function crateRootFor(
-    fromFile: string,
-  ): { srcDir: string; crateName: string | undefined } | undefined {
-    let dir = path.posix.dirname(toPosix(fromFile));
-    if (dir === '.') dir = '';
-    for (;;) {
-      if (byDir.has(dir)) {
-        const cached = byDir.get(dir);
-        if (cached !== undefined) return cached;
-      } else if (existsSync(path.join(projectRoot, dir, 'Cargo.toml'))) {
-        const srcDir = dir === '' ? 'src' : path.posix.join(dir, 'src');
-        const entry = { srcDir, crateName: readCrateName(dir) };
-        byDir.set(dir, entry);
-        return entry;
-      } else {
-        byDir.set(dir, undefined);
+  function rootDeclares(rootFile: string, name: string): boolean {
+    let text = rootTextByFile.get(rootFile);
+    if (text === undefined) {
+      try {
+        text = stripRustComments(readFileSync(path.join(projectRoot, rootFile), 'utf-8'));
+      } catch {
+        text = '';
       }
-      if (dir === '') return undefined; // reached the root without a Cargo.toml
-      const parent = path.posix.dirname(dir);
-      dir = parent === '.' ? '' : parent;
+      rootTextByFile.set(rootFile, text);
     }
+    return rustFileDeclares(text, name);
   }
 
-  return { crateRootFor };
+  return { crateRootFor, dependencyFor, rootDeclares };
+}
+
+/** Which Cargo target a package-relative `.rs` path belongs to, following Cargo's target
+ *  auto-discovery. `srcDir` is the target's module-tree root and `rootFiles` its crate-root
+ *  files in probe order (both package-relative); `fileIsRoot` says whether `rel` IS the
+ *  root. A shared helper under `tests/` (`tests/common/mod.rs`) belongs to whichever test
+ *  crate declares it, so it gets the `tests/` tree with no root file to bind items to. */
+export function rustTargetFor(
+  rel: string,
+  existsInPackage: (sub: string) => boolean,
+  libPath?: string,
+): { srcDir: string; rootFiles: string[]; fileIsRoot: boolean } {
+  const segs = rel.split('/');
+  if (segs[0] === 'src' && segs[1] === 'bin' && segs.length >= 3) {
+    if (segs.length === 3) return { srcDir: 'src/bin', rootFiles: [rel], fileIsRoot: true };
+    const dir = `src/bin/${segs[2]}`;
+    const main = `${dir}/main.rs`;
+    return { srcDir: dir, rootFiles: [main], fileIsRoot: rel === main };
+  }
+  if ((segs[0] === 'tests' || segs[0] === 'examples' || segs[0] === 'benches') && segs.length >= 2) {
+    if (segs.length === 2) return { srcDir: segs[0], rootFiles: [rel], fileIsRoot: true };
+    const dir = `${segs[0]}/${segs[1]}`;
+    const main = `${dir}/main.rs`;
+    if (existsInPackage(main)) return { srcDir: dir, rootFiles: [main], fileIsRoot: rel === main };
+    return { srcDir: segs[0], rootFiles: [], fileIsRoot: false };
+  }
+  if (rel === 'build.rs') return { srcDir: '', rootFiles: [rel], fileIsRoot: true };
+  const libRoot = path.posix.normalize(libPath ?? 'src/lib.rs');
+  const mainRoot = 'src/main.rs';
+  if (rel === libRoot || rel === mainRoot) return { srcDir: path.posix.dirname(rel), rootFiles: [rel], fileIsRoot: true };
+  return { srcDir: 'src', rootFiles: [libRoot, mainRoot], fileIsRoot: false };
+}
+
+/** The parts of a Cargo.toml the Rust resolver needs. */
+interface CargoDependencySpec {
+  path?: string;
+  package?: string;
+  workspace: boolean;
+}
+interface CargoManifest {
+  crateName: string | undefined;
+  libPath: string | undefined;
+  dependencies: Map<string, CargoDependencySpec>;
+  workspaceDependencies: Map<string, CargoDependencySpec>;
+}
+
+function normalizeCrateName(name: string): string {
+  return name.replace(/-/g, '_');
+}
+
+const DEP_TABLE = /^(?:target\..+\.)?(?:dependencies|dev-dependencies|dev_dependencies|build-dependencies|build_dependencies)$/;
+const DEP_SUBTABLE = /^(?:target\..+\.)?(?:dependencies|dev-dependencies|dev_dependencies|build-dependencies|build_dependencies)\.(.+)$/;
+
+/** A minimal, line-oriented Cargo.toml reader: `[package].name`, `[lib].name` / `.path`,
+ *  and the path / package / workspace fields of dependency entries (inline tables and the
+ *  `[dependencies.<name>]` table form) plus `[workspace.dependencies]`. Anything it does
+ *  not recognise is ignored, which can only lose an edge, never invent one. */
+export function parseCargoManifest(text: string): CargoManifest {
+  let packageName: string | undefined;
+  let libName: string | undefined;
+  let libPath: string | undefined;
+  const dependencies = new Map<string, CargoDependencySpec>();
+  const workspaceDependencies = new Map<string, CargoDependencySpec>();
+  let section = '';
+  let subtable: { into: Map<string, CargoDependencySpec>; key: string } | undefined;
+
+  const unquote = (v: string): string => v.trim().replace(/^["']|["']$/g, '');
+  const stringField = (body: string, field: string): string | undefined => {
+    const m = new RegExp(`(?:^|[\\s,{])${field}\\s*=\\s*(?:"([^"]*)"|'([^']*)')`).exec(body);
+    return m ? (m[1] ?? m[2]) : undefined;
+  };
+  const specOf = (body: string): CargoDependencySpec => ({
+    path: stringField(body, 'path'),
+    package: stringField(body, 'package'),
+    workspace: /(?:^|[\s,{])workspace\s*=\s*true\b/.test(body),
+  });
+
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.replace(/\s+#.*$/, '').trim();
+    if (line === '' || line.startsWith('#')) continue;
+    const header = /^\[\[?\s*([^\]]+?)\s*\]\]?$/.exec(line);
+    if (header) {
+      section = header[1].split('.').map((p) => unquote(p)).join('.');
+      subtable = undefined;
+      const sub = DEP_SUBTABLE.exec(section);
+      const wsSub = /^workspace\.dependencies\.(.+)$/.exec(section);
+      if (wsSub) subtable = { into: workspaceDependencies, key: unquote(wsSub[1]) };
+      else if (sub) subtable = { into: dependencies, key: unquote(sub[1]) };
+      if (subtable && !subtable.into.has(subtable.key)) subtable.into.set(subtable.key, { workspace: false });
+      continue;
+    }
+    const kv = /^("[^"]+"|'[^']+'|[A-Za-z0-9_.-]+)\s*=\s*(.*)$/.exec(line);
+    if (!kv) continue;
+    const key = unquote(kv[1]);
+    const value = kv[2].trim();
+    if (subtable) {
+      const spec = subtable.into.get(subtable.key)!;
+      if (key === 'path') spec.path = unquote(value);
+      else if (key === 'package') spec.package = unquote(value);
+      else if (key === 'workspace') spec.workspace = value === 'true';
+      continue;
+    }
+    if (section === 'package' && key === 'name') packageName = unquote(value);
+    else if (section === 'lib' && key === 'name') libName = unquote(value);
+    else if (section === 'lib' && key === 'path') libPath = unquote(value);
+    else if (DEP_TABLE.test(section) || section === 'workspace.dependencies') {
+      const into = section === 'workspace.dependencies' ? workspaceDependencies : dependencies;
+      if (!into.has(key)) into.set(key, value.startsWith('{') ? specOf(value) : { workspace: false });
+    }
+  }
+  const name = libName ?? packageName;
+  return {
+    crateName: name === undefined ? undefined : normalizeCrateName(name),
+    libPath,
+    dependencies,
+    workspaceDependencies,
+  };
+}
+
+/** Rust source with `//` line comments and `/* … *\/` block comments blanked (string
+ *  contents are not special-cased: a stray match can only fail to find a name, or find one
+ *  a comment-like string mentions — both keep the lookup conservative enough for a root
+ *  file's own declarations). */
+function stripRustComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ');
+}
+
+/** Does Rust source `text` declare an item called `name` (struct / enum / union / trait /
+ *  type / fn / const / static / mod / macro_rules!) or bring it into scope with a `use`? */
+export function rustFileDeclares(text: string, name: string): boolean {
+  const id = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const decl = new RegExp(
+    `\\b(?:struct|enum|union|trait|type|fn|const|static|mod)\\s+(?:r#)?${id}\\b|\\bmacro_rules!\\s*(?:r#)?${id}\\b`,
+  );
+  if (decl.test(text)) return true;
+  const word = new RegExp(`(?:^|[^A-Za-z0-9_#])(?:r#)?${id}(?![A-Za-z0-9_])`);
+  for (const m of text.matchAll(/\buse\s+[^;]*;/g)) {
+    if (word.test(m[0])) return true;
+  }
+  return false;
 }
 
 /**
@@ -251,15 +481,7 @@ function makeGoResolveDeps(
     } catch {
       return undefined;
     }
-    // First non-comment `module <path>` line wins. go.mod is line-oriented; the
-    // module directive is mandatory and appears once.
-    for (const rawLine of text.split('\n')) {
-      const line = rawLine.trim();
-      if (line === '' || line.startsWith('//')) continue;
-      const m = line.match(/^module\s+(\S+)/);
-      if (m) return m[1];
-    }
-    return undefined;
+    return parseGoModulePath(text);
   }
 
   /** Find the nearest ancestor directory of `fromFile` that contains a go.mod, then
@@ -291,6 +513,66 @@ function makeGoResolveDeps(
     }
   }
 
+  /** The module path of a go.mod directly in `dir`, or undefined (cached with the walk). */
+  function moduleAt(dir: string): string | undefined {
+    if (!moduleByDir.has(dir)) {
+      moduleByDir.set(dir, existsSync(path.join(projectRoot, dir, 'go.mod')) ? readModulePath(dir) : undefined);
+    }
+    return moduleByDir.get(dir);
+  }
+
+  // Cache: directory → the `use` member directories of the nearest go.work at or above it.
+  const workMembersByDir = new Map<string, string[]>();
+
+  /** Member module directories (repo-rel POSIX) of the nearest go.work at or above `dir`. */
+  function workMembersFrom(dir: string): string[] {
+    const cached = workMembersByDir.get(dir);
+    if (cached !== undefined) return cached;
+    let members: string[] = [];
+    const abs = path.join(projectRoot, dir, 'go.work');
+    if (existsSync(abs)) {
+      let text: string;
+      try {
+        text = readFileSync(abs, 'utf-8');
+      } catch {
+        text = '';
+      }
+      for (const use of parseGoWorkUses(text)) {
+        const joined = path.posix.normalize(dir === '' ? use : path.posix.join(dir, use));
+        if (joined === '..' || joined.startsWith('../') || path.posix.isAbsolute(joined)) continue;
+        members.push(joined === '.' ? '' : joined);
+      }
+    } else if (dir !== '') {
+      const parent = path.posix.dirname(dir);
+      members = workMembersFrom(parent === '.' ? '' : parent);
+    }
+    workMembersByDir.set(dir, members);
+    return members;
+  }
+
+  /** Every in-repo module reachable from `fromFile`: each go.mod from the file's directory
+   *  up to the root (nearest first), plus the members of the nearest go.work. */
+  function modulesFor(fromFile: string): Array<{ modulePath: string; moduleDir: string }> {
+    const out: Array<{ modulePath: string; moduleDir: string }> = [];
+    let dir = path.posix.dirname(toPosix(fromFile));
+    if (dir === '.') dir = '';
+    const start = dir;
+    for (;;) {
+      const mod = moduleAt(dir);
+      if (mod !== undefined) out.push({ modulePath: mod, moduleDir: dir });
+      if (dir === '') break;
+      const parent = path.posix.dirname(dir);
+      dir = parent === '.' ? '' : parent;
+    }
+    for (const member of workMembersFrom(start)) {
+      const mod = moduleAt(member);
+      if (mod !== undefined && !out.some((m) => m.moduleDir === member)) {
+        out.push({ modulePath: mod, moduleDir: member });
+      }
+    }
+    return out;
+  }
+
   function dirExists(repoRelDir: string): boolean {
     const abs = path.resolve(projectRoot, repoRelDir);
     try {
@@ -317,7 +599,84 @@ function makeGoResolveDeps(
     return out;
   }
 
-  return { modulePathFor, dirExists, goFilesIn, ownerOf, isExcluded };
+  return { modulePathFor, modulesFor, moduleAt, dirExists, goFilesIn, ownerOf, isExcluded };
+}
+
+/** Strip a go.mod / go.work line comment and surrounding space. */
+function goLine(raw: string): string {
+  return raw.replace(/\/\/.*$/, '').trim();
+}
+
+/** Unquote a go.mod token: `"x"` (interpreted string) or a backtick raw string; a bare
+ *  token is returned as is. */
+function goUnquote(token: string): string {
+  const t = token.trim();
+  if (t.length >= 2 && ((t.startsWith('"') && t.endsWith('"')) || (t.startsWith('`') && t.endsWith('`')))) {
+    return t.slice(1, -1);
+  }
+  return t;
+}
+
+/** The module path declared by go.mod text: `module x`, `module "x"`, ``module `x` ``, or
+ *  the block form `module ( x )`. The first declaration wins; undefined when there is none. */
+export function parseGoModulePath(text: string): string | undefined {
+  let inBlock = false;
+  for (const rawLine of text.split('\n')) {
+    const line = goLine(rawLine);
+    if (line === '') continue;
+    if (inBlock) {
+      if (line === ')') {
+        inBlock = false;
+        continue;
+      }
+      const path0 = goUnquote(line);
+      return path0 === '' ? undefined : path0;
+    }
+    const m = /^module(?:\s+|(?=[("`]))(.*)$/.exec(line);
+    if (!m) continue;
+    const rest = m[1].trim();
+    if (rest === '(') {
+      inBlock = true;
+      continue;
+    }
+    if (rest.startsWith('(') && rest.endsWith(')')) {
+      const inner = goUnquote(rest.slice(1, -1));
+      return inner === '' ? undefined : inner;
+    }
+    const value = goUnquote(rest);
+    if (value !== '') return value;
+  }
+  return undefined;
+}
+
+/** The directories named by `use` directives in go.work text (single-line and block form,
+ *  quoted or bare), as written — relative to the go.work directory. */
+export function parseGoWorkUses(text: string): string[] {
+  const out: string[] = [];
+  let inBlock = false;
+  for (const rawLine of text.split('\n')) {
+    const line = goLine(rawLine);
+    if (line === '') continue;
+    if (inBlock) {
+      if (line === ')') {
+        inBlock = false;
+        continue;
+      }
+      const dir = goUnquote(line);
+      if (dir !== '') out.push(dir);
+      continue;
+    }
+    const m = /^use(?:\s+|(?=\())(.*)$/.exec(line);
+    if (!m) continue;
+    const rest = m[1].trim();
+    if (rest === '(') {
+      inBlock = true;
+      continue;
+    }
+    const dir = goUnquote(rest.startsWith('(') && rest.endsWith(')') ? rest.slice(1, -1) : rest);
+    if (dir !== '') out.push(dir);
+  }
+  return out;
 }
 
 /**
