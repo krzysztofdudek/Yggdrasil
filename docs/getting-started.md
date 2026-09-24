@@ -377,6 +377,27 @@ only the deterministic pairs and writes the gitignored cache. See
   run: npx @chrisdudek/yg check --no-approve
 ```
 
+On a large repository, restore the local cache before those steps so the rebuild
+fills only what changed since the cached run:
+
+```yaml
+- name: Restore the Yggdrasil cache
+  uses: actions/cache@v4
+  with:
+    path: |
+      .yggdrasil/.yg-lock.deterministic.json
+      .yggdrasil/.ast-cache
+    key: yg-${{ runner.os }}-${{ github.sha }}
+    restore-keys: yg-${{ runner.os }}-
+```
+
+This is safe to restore because every cached verdict is keyed by a hash of the
+inputs it judged: an entry whose inputs changed reads as unverified and is
+filled again, so a stale cache costs a refill, never a false green. A cache is
+as trusted as the run that wrote it, so restore only caches your own branches
+produced — GitHub Actions already keeps a fork's pull request from writing a
+cache the base branch reads.
+
 If check fails, it means a pair's inputs changed without being re-verified.
 Tell the agent: "resolve all yg check issues" and it will run `yg check
 --approve`, fix violations, and re-verify until check passes.

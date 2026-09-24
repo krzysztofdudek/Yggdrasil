@@ -10,7 +10,7 @@ import type { CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
-import { detConcurrencyForThisMachine, detTaskBudgetMs } from './det-concurrency.js';
+import { detConcurrencyForThisMachine, detWorkerCeilingForThisMachine, detTaskBudgetMs } from './det-concurrency.js';
 import { getHeadSha } from '../utils/git.js';
 import { sweepStaleTempFiles } from '../io/atomic-write.js';
 import { walkRepoFiles, listGitTrackedFiles, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
@@ -25,6 +25,7 @@ import { buildCheckJson, checkJsonIssueOf } from '../core/check-json.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';
 import { fail, notice } from './output.js';
 import { textFillSink } from '../formatters/fill-text.js';
+import { withRunScope } from '../io/run-scope-cache.js';
 
 /**
  * Resolve the effective approve mode from explicit CLI flags and graph config.
@@ -175,7 +176,9 @@ export function registerCheckCommand(program: Command): void {
     // Hidden calibration instrument: print the raw per-file structural measurements grouped by
     // family, with the outliers marked, then exit 0. Writes nothing, makes no LLM calls.
     .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
-    .action(async (opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; coverage?: boolean; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }, cmd: Command) => {
+    // One run scope for the whole command (io/run-scope-cache.ts): every walk in it
+    // reads each directory's listing and .gitignore once, not once per consumer.
+    .action((opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; coverage?: boolean; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }, cmd: Command) => withRunScope(async () => {
       try {
         // --approve and --no-approve set ONE option, so commander silently keeps
         // whichever came last: `--approve --no-approve` read, `--no-approve
@@ -567,6 +570,7 @@ export function registerCheckCommand(program: Command): void {
               // worker carries its own copy of the graph and its own ASTs. See
               // cli/det-concurrency.ts.
               detConcurrency: detConcurrencyForThisMachine(),
+              detWorkerCeiling: detWorkerCeilingForThisMachine,
               detTaskBudgetMs: detTaskBudgetMs(),
               // The dry-run budget preview is the command's RESULT on that path,
               // so it goes to stdout — except under --json, where stdout carries
@@ -715,6 +719,6 @@ export function registerCheckCommand(program: Command): void {
         debugWrite(`[check] error: ${(error as Error).message}`);
         abortOnUnexpectedError(error, 'running check');
       }
-    });
+    }));
 }
 

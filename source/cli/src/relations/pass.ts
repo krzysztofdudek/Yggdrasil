@@ -27,6 +27,7 @@ import type {
   DeclaredSymbol,
   DetectedDep,
 } from './extractors/types.js';
+import { mapBounded, IO_CONCURRENCY } from '../utils/bounded-map.js';
 
 export interface NodeViolations {
   verdict: 'approved' | 'refused';
@@ -245,14 +246,15 @@ export async function runRelationPass(
     const mapping = node.meta.mapping ?? [];
     if (mapping.length === 0) continue;
     const files = await expandMappingPathsWithinOwnGraph(projectRoot, mapping, coverage);
-    for (const rel of files) {
-      if (recordByPath.has(rel)) continue; // already enumerated under another node
-      let content: string;
-      try {
-        content = await readFile(path.join(projectRoot, rel), 'utf-8');
-      } catch {
-        continue; // unreadable → skip
-      }
+    // A node's new files are read together rather than one awaited read at a
+    // time (which left a large repository's run waiting on the disk); records
+    // are still added in mapping order, so nothing downstream sees a change.
+    const fresh = [...new Set(files)].filter((rel) => !recordByPath.has(rel));
+    const contents = await mapBounded(fresh, IO_CONCURRENCY,
+      (rel) => readFile(path.join(projectRoot, rel), 'utf-8').catch(() => null));
+    for (const [i, rel] of fresh.entries()) {
+      const content = contents[i];
+      if (content === null || content === undefined) continue; // unreadable → skip
       const language = getLanguageForExtension(path.extname(rel));
       const record: FileRecord = {
         path: rel,
@@ -505,12 +507,19 @@ export async function runRelationPass(
     list.push(record);
   }
 
+  // Files are resolved several at a time (a cold run otherwise waits on each
+  // cache write in turn); each parse is synchronous once its grammar is loaded,
+  // so at most one tree is alive at a time either way. Results are recorded in
+  // file order, exactly as the one-at-a-time loop recorded them.
   const factsByPath = new Map<string, FileFacts>();
-  for (const record of fileRecords) {
-    if (!record.language) continue;
+  const factsInOrder = await mapBounded(fileRecords, IO_CONCURRENCY, async (record) => {
+    if (!record.language) return null;
     const extractor = deps.extractorFor(record.language);
-    if (!extractor) continue;
-    const facts = await loadOrExtractFacts(record, extractor);
+    if (!extractor) return null;
+    return loadOrExtractFacts(record, extractor);
+  });
+  for (const [i, record] of fileRecords.entries()) {
+    const facts = factsInOrder[i];
     if (facts) factsByPath.set(record.path, facts);
   }
 

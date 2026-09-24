@@ -19,6 +19,11 @@ import { minimatch } from 'minimatch';
  * leading climb above the root, which the mapping-escapes-repo check refuses.
  */
 export function normalizeMappingPath(p: string): string {
+  // Fast path: most paths reaching here are already canonical (repo-relative
+  // POSIX paths from a walk, or entries normalized once already), and this runs
+  // on both sides of every file-versus-mapping comparison. A path that none of
+  // the steps below would change is returned as is.
+  if (isCanonicalMappingPath(p)) return p;
   const cleaned = p
     .trim()
     .replace(/\\/g, '/')
@@ -26,6 +31,21 @@ export function normalizeMappingPath(p: string): string {
     .replace(/\/+$/, '');
   if (cleaned === '') return '';
   return path.posix.normalize(cleaned).replace(/\/+$/, '');
+}
+
+/**
+ * True when `normalizeMappingPath(p)` would return `p` unchanged: non-empty, no
+ * surrounding whitespace, no backslash, no leading './', no trailing '/', and no
+ * '.' / '..' segment or empty segment for `path.posix.normalize` to collapse.
+ */
+function isCanonicalMappingPath(p: string): boolean {
+  if (p === '' || p.trim() !== p) return false;
+  if (p.includes('\\') || p.includes('//')) return false;
+  if (p.endsWith('/')) return false;
+  for (const segment of p.split('/')) {
+    if (segment === '.' || segment === '..') return false;
+  }
+  return true;
 }
 
 /**

@@ -7,8 +7,9 @@ import { type Ignore, type Options as IgnoreOptions } from 'ignore';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { isExcludedByCoverage } from '../utils/coverage-exclusion.js';
-import { mappingEntryMatchesFile } from '../utils/mapping-path.js';
+import { mappingEntrySet } from '../utils/mapping-index.js';
 import { normalizeMappingPaths } from './paths.js';
+import { runCaches } from './run-scope-cache.js';
 import type { CoverageConfig, Graph } from '../model/graph.js';
 
 const require = createRequire(import.meta.url);
@@ -18,16 +19,39 @@ export type GitignoreEntry = { dir: string; ig: Ignore };
 
 const YGGDRASIL_DIRNAME = '.yggdrasil';
 
-export async function loadRootGitignoreStack(projectRoot: string): Promise<GitignoreEntry[]> {
+async function readGitignoreIn(dir: string): Promise<Ignore | null> {
   try {
-    const content = await readFile(join(projectRoot, '.gitignore'), 'utf-8');
+    const content = await readFile(join(dir, '.gitignore'), 'utf-8');
     const ig = ignoreFactory();
     ig.add(content);
-    return [{ dir: projectRoot, ig }];
+    return ig;
   } catch (err) {
-    debugWrite(`[repo-scanner] root .gitignore not readable: ${(err as Error).message}`);
-    return [];
+    debugWrite(`[repo-scanner] .gitignore not readable in ${toPosixPath(dir)}: ${(err as Error).message}`);
+    return null;
   }
+}
+
+/**
+ * The parsed `.gitignore` of `dir` (null when it has none, or it cannot be
+ * read). Inside a run scope (io/run-scope-cache.ts) each directory's file is read and
+ * parsed once per run — every walk of the same directory shares it; outside
+ * one it is read on every call. Every walk in this module and in io/hash.ts
+ * reads `.gitignore` through here.
+ */
+function gitignoreIn(dir: string): Promise<Ignore | null> {
+  const caches = runCaches();
+  if (caches === undefined) return readGitignoreIn(dir);
+  let parsed = caches.gitignore.get(dir) as Promise<Ignore | null> | undefined;
+  if (parsed === undefined) {
+    parsed = readGitignoreIn(dir);
+    caches.gitignore.set(dir, parsed);
+  }
+  return parsed;
+}
+
+export async function loadRootGitignoreStack(projectRoot: string): Promise<GitignoreEntry[]> {
+  const ig = await gitignoreIn(projectRoot);
+  return ig !== null ? [{ dir: projectRoot, ig }] : [];
 }
 
 /**
@@ -82,15 +106,8 @@ export function isIgnoredByStack(
  * same files.
  */
 export async function withLocalGitignore(dir: string, stack: GitignoreEntry[]): Promise<GitignoreEntry[]> {
-  try {
-    const content = await readFile(join(dir, '.gitignore'), 'utf-8');
-    const ig = ignoreFactory();
-    ig.add(content);
-    return [...stack, { dir, ig }];
-  } catch (err) {
-    debugWrite(`[repo-scanner] local .gitignore not readable in ${dir}: ${(err as Error).message}`);
-    return stack;
-  }
+  const ig = await gitignoreIn(dir);
+  return ig !== null ? [...stack, { dir, ig }] : stack;
 }
 
 /**
@@ -325,15 +342,7 @@ async function walkForNestedProjectRoots(
     }
   }
 
-  let localStack = stack;
-  try {
-    const content = await readFile(join(dir, '.gitignore'), 'utf-8');
-    const ig = ignoreFactory();
-    ig.add(content);
-    localStack = [...stack, { dir, ig }];
-  } catch (err) {
-    debugWrite(`[repo-scanner] findNestedProjectRoots: local .gitignore not readable in ${dir}: ${(err as Error).message}`);
-  }
+  const localStack = await withLocalGitignore(dir, stack);
 
   const subdirs: string[] = [];
   for (const entry of entries) {
@@ -575,12 +584,13 @@ export async function listMappedButExcludedFiles(
   for (const node of graph.nodes.values()) {
     allMappings.push(...normalizeMappingPaths(node.meta.mapping));
   }
+  const mappingIndex = mappingEntrySet(allMappings);
   const out: string[] = [];
   for (const raw of coverageVisibleFiles) {
     const normalized = toPosixPath(raw.trim());
     if (normalized.startsWith(yggPrefix + '/') || normalized === yggPrefix) continue;
     if (!isExcludedFromGraph(normalized, exclusion)) continue;
-    if (allMappings.some((mp) => mappingEntryMatchesFile(mp, normalized))) out.push(normalized);
+    if (mappingIndex.matchesAny(normalized)) out.push(normalized);
   }
   return out;
 }

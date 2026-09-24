@@ -79,8 +79,22 @@ export async function validate(
    * `yg context`'s validation) — behaves exactly as before the tier existed.
    */
   typeCoverage?: TypeCoverageInput,
+  /**
+   * `onlyNodes`: the caller reads only issues about these nodes and issues with
+   * no node, so the checks that read the disk once per node (the type `when`
+   * match, the mapping-entry existence and gitignore checks) run over these
+   * nodes alone. Every graph-wide check still runs over the whole graph, so no
+   * issue about a listed node and no nodeless issue is lost. `yg context` uses
+   * it: its cost then follows the component asked about, not the repository.
+   * Absent ⇒ every node, as before.
+   */
+  opts?: { onlyNodes?: ReadonlySet<string> },
 ): Promise<ValidationResult> {
   const issues: ValidationIssue[] = [];
+  // The per-node disk checks' view of the graph: every node, or the listed ones.
+  const perNodeGraph: Graph = opts?.onlyNodes === undefined
+    ? graph
+    : { ...graph, nodes: new Map([...graph.nodes].filter(([nodePath]) => opts.onlyNodes!.has(nodePath))) };
 
   if (graph.configError) {
     // The parser's own message is WHAT happened (its first line, then any
@@ -188,16 +202,16 @@ export async function validate(
 
   // Stage 4: per-node checks.
   issues.push(...checkTypeWithoutWhenWithMapping(graph));
-  const whenMismatchOutcome = await checkTypeWhenMismatch(graph, cache);
+  const whenMismatchOutcome = await checkTypeWhenMismatch(perNodeGraph, cache);
   issues.push(...whenMismatchOutcome.issues);
   const allUnreadable: ValidationIssue[] = [...whenMismatchOutcome.unreadable];
-  issues.push(...(await checkFileMappingGitignored(graph)));
+  issues.push(...(await checkFileMappingGitignored(perNodeGraph)));
 
   issues.push(...checkRelationTargets(graph));
   issues.push(...checkNoCycles(graph));
   issues.push(...(await checkMappingOverlap(graph)));
   issues.push(...checkMappingEscapesRepo(graph));
-  issues.push(...(await checkMappingPathsExist(graph)));
+  issues.push(...(await checkMappingPathsExist(perNodeGraph)));
   issues.push(...checkBrokenFlowRefs(graph));
   issues.push(...(await checkDirectoriesHaveNodeYaml(graph)));
   issues.push(...checkUnpairedEvents(graph));

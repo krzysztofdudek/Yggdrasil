@@ -113,7 +113,7 @@ function cacheForTask(slot: DetWorkerCacheSlot, bucketKey: string | undefined): 
  * `slot`, when given, lets consecutive tasks from the same bucket share parsed
  * trees. It changes only how much parsing happens: `runStructureAspect` receives
  * the same inputs and returns the same result either way, and the cache is
- * content-gated (`prewarmupAstCache` compares content, never mere presence), so
+ * content-gated (`parseIntoCache` compares content, never mere presence), so
  * a file edited between two tasks is still re-parsed with its current bytes.
  */
 export async function runDetTask(

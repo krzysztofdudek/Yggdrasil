@@ -360,3 +360,55 @@ describe('isValidFeatureVector', () => {
     ).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The cursor walk against the Node-per-child walk it replaced (kept here as the
+// reference): same counts, same depths, same categories, over real source —
+// every TypeScript file of this CLI's own src/structure and src/relations.
+// ---------------------------------------------------------------------------
+function referenceCountFeatures(root: Node, language: string): FeatureVector {
+  const vocab = FEATURE_VOCAB[language];
+  const lookup = new Map<string, FeatureCategory>();
+  for (const category of ALL_FEATURE_CATEGORIES) {
+    for (const t of vocab?.[category] ?? []) lookup.set(t, category);
+  }
+  const categories = Object.fromEntries(ALL_FEATURE_CATEGORIES.map((c) => [c, 0])) as Record<FeatureCategory, number>;
+  let nodeCount = 0;
+  const depths: number[] = [];
+  const visit = (node: Node, depth: number): void => {
+    let childDepth = depth;
+    if (node.isNamed) {
+      nodeCount++;
+      depths.push(depth);
+      const category = lookup.get(node.type);
+      if (category !== undefined) categories[category]++;
+      childDepth = depth + 1;
+    }
+    for (let i = 0; i < node.childCount; i++) {
+      const child = node.child(i);
+      if (child !== null) visit(child, childDepth);
+    }
+  };
+  visit(root, 0);
+  const sorted = [...depths].sort((a, b) => a - b);
+  const rank = (p: number): number => sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil(p * sorted.length) - 1))]!;
+  return { nodeCount, depthQuartiles: [rank(0.25), rank(0.5), rank(0.75)], categories };
+}
+
+describe('countFeatures — cursor walk matches the per-node walk', () => {
+  it('produces the identical vector for every file of two real source directories', async () => {
+    const srcRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '../../../src');
+    const { readdirSync } = await import('node:fs');
+    const files = ['structure', 'relations']
+      .flatMap((dir) => readdirSync(path.join(srcRoot, dir)).filter((f) => f.endsWith('.ts')).map((f) => path.join(srcRoot, dir, f)));
+    expect(files.length).toBeGreaterThan(20);
+    for (const file of files) {
+      const src = readFileSync(file, 'utf-8');
+      const [actual, expected] = await withParsedFile(file, src, (tree) => [
+        countFeatures(tree.rootNode, 'typescript'),
+        referenceCountFeatures(tree.rootNode, 'typescript'),
+      ]);
+      expect(actual, file).toEqual(expected);
+    }
+  });
+});

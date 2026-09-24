@@ -10,7 +10,7 @@ export interface File {
   path: string;
   /** raw file content */
   content: string;
-  /** parsed tree-sitter Tree, eagerly attached for files of a registered language; undefined otherwise. May carry parse errors (inspect ast.rootNode.hasError). */
+  /** parsed tree-sitter Tree for files of a registered language, built on first read; undefined otherwise. May carry parse errors (inspect ast.rootNode.hasError). */
   ast?: unknown;
   /** language id from the extension registry (e.g. 'typescript'); undefined for files with no registered grammar */
   language?: string;

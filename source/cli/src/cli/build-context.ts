@@ -44,6 +44,7 @@ import { toPosixPath } from '../utils/posix.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
 import { fail } from './output.js';
+import { withRunScope } from '../io/run-scope-cache.js';
 
 type CandidateNode = { nodePath: string; fileCount: number };
 
@@ -310,12 +311,12 @@ async function attachLockObservability(
 ): Promise<void> {
   // ── Per-aspect subject counts from the expected-pair set (this node only) ──
   // includeDraft so draft aspects (also listed in the node view) get a count.
-  // typeCoverage is real classification data (below), threaded for correctness;
-  // it changes nothing here today — the `p.nodePath === nodePath` filter two
-  // lines down can never match a nodeless pair — but keeps this call site from
-  // silently answering about a component-only universe.
-  const typeCoverage = await computeTypeCoverageForContext(graph);
-  const { pairs } = await computeExpectedPairs(graph, { includeDraft: true, typeCoverage });
+  // Only this node's pairs are enumerated (onlyNodes): the `p.nodePath ===
+  // nodePath` filter below keeps nothing else, and a nodeless pair — the only
+  // thing the type classification would add — can never match it, so neither
+  // every other node's mapping nor the whole-repository classification is
+  // worked out just to be discarded.
+  const { pairs } = await computeExpectedPairs(graph, { includeDraft: true, onlyNodes: new Set([nodePath]) });
   const subjects: Record<string, NodeAspectSubjects> = {};
   for (const aspect of data.aspects) {
     const aspectPairs = pairs.filter((p) => p.nodePath === nodePath && p.aspectId === aspect.id);
@@ -588,11 +589,15 @@ export function registerBuildCommand(program: Command): void {
 
         const relevantNodes = collectRelevantNodePaths(graph, nodePath);
 
-        const validationResult = await validate(graph, 'all');
+        // Only the per-node disk checks of the nodes this context draws on run;
+        // every graph-wide check still runs (validate's onlyNodes).
+        const validationResult = await validate(graph, 'all', undefined, undefined, { onlyNodes: relevantNodes });
         const relevantErrors = validationResult.issues.filter(
           (issue) =>
             issue.severity === 'error' &&
-            (!issue.nodePath || relevantNodes.has(issue.nodePath)),
+            (issue.cycleMembers
+              ? issue.cycleMembers.some((m) => relevantNodes.has(m))
+              : !issue.nodePath || relevantNodes.has(issue.nodePath)),
         );
         if (relevantErrors.length > 0) {
           const totalErrors = validationResult.issues.filter((i) => i.severity === 'error').length;
@@ -674,6 +679,7 @@ export function registerBuildCommand(program: Command): void {
     .option('--node <node-path>', 'Node path relative to .yggdrasil/model/')
     .option('--file <file-path>', 'Source file path — resolves owner node automatically')
     .option('--json', `Machine-readable output: one ${CONTEXT_JSON_SCHEMA} document on stdout instead of the text package. Same facts, same exit codes.`)
-    .action(contextAction);
+    // One run scope (io/run-scope-cache.ts): a directory is listed once per command.
+    .action((options: { node?: string; file?: string; json?: boolean }) => withRunScope(() => contextAction(options)));
 
 }

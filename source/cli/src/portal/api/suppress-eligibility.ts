@@ -1,5 +1,6 @@
 import { toPosixPath } from '../../utils/posix.js';
-import { mappingEntryMatchesFile, normalizeMappingPath } from '../../utils/mapping-path.js';
+import { normalizeMappingPath } from '../../utils/mapping-path.js';
+import { mappingEntrySet, type MappingIndex } from '../../utils/mapping-index.js';
 import { expandMappingPathsWithinOwnGraph } from '../../io/hash.js';
 import { NO_COVERAGE_EXCLUDED, resolveGraphExclusionSet, filterExcludedFromGraph } from '../../io/repo-scanner.js';
 import type { Graph, CoverageConfig } from '../../model/graph.js';
@@ -117,10 +118,22 @@ export function collectMappingEntries(graph: Graph): string[] {
   return entries;
 }
 
+/**
+ * The index over one `collectMappingEntries` result, built on first use and
+ * reused for as long as the caller holds that array: every caller asks about a
+ * whole repository's files against the same entries, and testing each file
+ * against each entry cost files × entries.
+ */
+const indexByEntries = new WeakMap<string[], MappingIndex<undefined>>();
+
 /** True when `relFile` is covered by a node's mapping (a honored-waiver site). */
 export function isMappedSource(relFile: string, mappingEntries: string[]): boolean {
-  const p = toPosixPath(relFile);
-  return mappingEntries.some((entry) => mappingEntryMatchesFile(entry, p));
+  let index = indexByEntries.get(mappingEntries);
+  if (index === undefined) {
+    index = mappingEntrySet(mappingEntries);
+    indexByEntries.set(mappingEntries, index);
+  }
+  return index.matchesAny(toPosixPath(relFile));
 }
 
 /**

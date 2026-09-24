@@ -1,0 +1,7 @@
+name: E2E Tests — A structural cycle blocks only the context it touches
+type: test-suite
+description: "Subprocess E2E for structural cycles: a cycle is reported once as its strongly connected component, without the non-cycle prefix of a depth-first path, and yg context refuses only for a node in the cycle or one drawing on a member — an unrelated node still gets its context."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-cycle-context-scope.test.ts

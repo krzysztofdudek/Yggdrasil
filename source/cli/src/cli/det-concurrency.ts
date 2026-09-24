@@ -61,6 +61,18 @@ const WORKER_FOOTPRINT_HEADROOM = 1.5;
  */
 const MIN_WORKER_FOOTPRINT_BYTES = 128 * 1024 * 1024;
 
+/**
+ * Resident bytes one parsed tree-sitter tree costs per byte of the source it was
+ * parsed from. Measured at about 17 for TypeScript (200 copies of an 800-line
+ * module: 8.2 MB of source, 138 MB of resident growth); rounded up.
+ *
+ * A worker keeps the trees of one parse-cache bucket — one rule on one node —
+ * and builds them only as a check asks for them, so the most a worker can hold
+ * is the largest bucket's files parsed. That, not a multiple of the parent's
+ * size, is what grows with a big component.
+ */
+const PARSE_FOOTPRINT_PER_SOURCE_BYTE = 20;
+
 /** Injected system facts, so this is testable without a machine to match. */
 export interface DetConcurrencyInputs {
   /** Logical cores available to this process. */
@@ -69,6 +81,14 @@ export interface DetConcurrencyInputs {
   totalMemoryBytes: number;
   /** Resident size of THIS process right now, in bytes. */
   processRssBytes: number;
+  /**
+   * Source bytes of the largest unit one worker may hold parsed (the largest
+   * parse-cache bucket of this fill), when the caller knows it. Given, a worker
+   * is estimated as the parent's footprint (the runtime, bundle and graph it
+   * duplicates) plus that unit's trees; absent, as the parent's footprint times
+   * a fixed headroom.
+   */
+  largestUnitSourceBytes?: number;
 }
 
 /**
@@ -83,7 +103,9 @@ export function resolveDetConcurrency(inputs: DetConcurrencyInputs): number {
   const byCores = Math.max(1, inputs.cores - 1);
   const perWorker = Math.max(
     MIN_WORKER_FOOTPRINT_BYTES,
-    Math.ceil(inputs.processRssBytes * WORKER_FOOTPRINT_HEADROOM),
+    inputs.largestUnitSourceBytes !== undefined
+      ? Math.ceil(inputs.processRssBytes + inputs.largestUnitSourceBytes * PARSE_FOOTPRINT_PER_SOURCE_BYTE)
+      : Math.ceil(inputs.processRssBytes * WORKER_FOOTPRINT_HEADROOM),
   );
   const budget = inputs.totalMemoryBytes * MEMORY_BUDGET_FRACTION;
   const byMemory = Math.floor(budget / perWorker);
@@ -100,6 +122,20 @@ export function detConcurrencyForThisMachine(): number {
     cores: availableParallelism(),
     totalMemoryBytes: totalmem(),
     processRssBytes: process.memoryUsage().rss,
+  });
+}
+
+/**
+ * The same ceiling, sized for a fill whose largest parse-cache bucket holds
+ * `largestUnitSourceBytes` of source — what the fill passes back once it knows
+ * its buckets (see RunFillOptions.detWorkerCeiling).
+ */
+export function detWorkerCeilingForThisMachine(largestUnitSourceBytes: number): number {
+  return resolveDetConcurrency({
+    cores: availableParallelism(),
+    totalMemoryBytes: totalmem(),
+    processRssBytes: process.memoryUsage().rss,
+    largestUnitSourceBytes,
   });
 }
 

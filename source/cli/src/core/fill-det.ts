@@ -73,6 +73,20 @@ async function reachExtraForType(
   return full;
 }
 
+/** computeNodeMappedFiles, once per node per run (see fillDetPair's nodeFilesMemo). */
+function nodeMappedFilesMemoised(
+  graph: Graph,
+  nodePath: string,
+  memo: Map<string, Promise<string[]>>,
+): Promise<string[]> {
+  let files = memo.get(nodePath);
+  if (files === undefined) {
+    files = computeNodeMappedFiles(graph, nodePath);
+    memo.set(nodePath, files);
+  }
+  return files;
+}
+
 /**
  * Fill one deterministic pair. Runs check.mjs through the structure runner with a
  * subjectScope WHENEVER the pair's subject set is NARROWER than the node's full
@@ -131,6 +145,13 @@ export async function fillDetPair(
   // own WASM instance, so a cache built on this thread cannot cross that
   // boundary; that branch is out of scope here (see fill.ts).
   parseCache?: ParseCache,
+  // Shared across every fillDetPair call THIS RUN, like reachCache: a node's
+  // full mapped-file set, keyed by node path. Deciding whether a pair's subject
+  // is narrower than its node needs that set, and a `per: file` rule asks once
+  // per subject — recomputing it walked and stat-ed the whole node every time,
+  // which made one node's fill quadratic in its size. The set is a snapshot of
+  // the mapping for this run, exactly as computeExpectedPairs' own expansion is.
+  nodeFilesMemo: Map<string, Promise<string[]>> = new Map(),
 ): Promise<DetFillOutcome> {
   const aspectDirAbs = path.join(projectRoot, '.yggdrasil', 'aspects', aspect.id);
   // The subject is narrowed iff it covers FEWER files than the node's full
@@ -142,7 +163,7 @@ export async function fillDetPair(
   // has no node to look up and would waste an I/O round-trip returning []).
   const subjectScope = pair.nodePath === undefined
     ? pair.subjectFiles
-    : ((await computeNodeMappedFiles(graph, pair.nodePath)).length > pair.subjectFiles.length
+    : ((await nodeMappedFilesMemoised(graph, pair.nodePath, nodeFilesMemo)).length > pair.subjectFiles.length
         ? pair.subjectFiles
         : undefined);
 

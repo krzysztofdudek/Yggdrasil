@@ -1,6 +1,7 @@
 import type { Graph } from '../model/graph.js';
 import { normalizeMappingPaths } from '../io/paths.js';
-import { mappingEntryMatchesFile, isGlobPattern, isBetterMappingOwner } from '../utils/mapping-path.js';
+import { isGlobPattern, isBetterMappingOwner, mappingEntryMatchesFile, normalizeMappingPath } from '../utils/mapping-path.js';
+import { MappingIndex } from '../utils/mapping-index.js';
 import { toPosixPath } from '../utils/posix.js';
 import { isExcludedFromGraph, type GraphExclusionSet } from '../io/repo-scanner.js';
 
@@ -33,27 +34,25 @@ export function buildOwnerIndex(nodes: Graph['nodes']): OwnerIndex {
     }
   }
 
+  // Candidates come from an index (utils/mapping-index.ts) rather than a scan
+  // of every entry per lookup; it returns the matching entries in entry order,
+  // so the winner below — and its tie-breaks — are what the scan picked.
+  const index = new MappingIndex(entries.map((e) => [e.mapping, e] as const));
+
   function ownerEntryOf(file: string): OwnerEntry | undefined {
     const f = toPosixPath(file.trim());
     let best: { nodePath: string; mapping: string; len: number; kind: OwnerEntry['kind'] } | undefined;
 
-    for (const e of entries) {
-      // Classify the match kind and hit together — the same predicate ownerOf
-      // used, split by which branch matched so presentation callers can render
-      // exact / directory / glob without re-deriving it.
-      let kind: OwnerEntry['kind'];
-      let hit: boolean;
-      if (e.glob) {
-        hit = mappingEntryMatchesFile(e.mapping, f);
-        kind = 'glob';
-      } else if (f === e.mapping) {
-        hit = true;
-        kind = 'exact';
-      } else {
-        hit = f.startsWith(e.mapping + '/');
-        kind = 'directory';
-      }
-      if (!hit) continue;
+    // The index matches on the normalized path; a caller's non-canonical
+    // spelling (rare — callers pass walk output) keeps the literal comparison
+    // the scan always made, so no answer changes.
+    const candidates = normalizeMappingPath(f) === f
+      ? index.matches(f).map((h) => h.value)
+      : entries.filter((e) => (e.glob ? mappingEntryMatchesFile(e.mapping, f) : f === e.mapping || f.startsWith(e.mapping + '/')));
+    for (const e of candidates) {
+      // Classify the match kind — split by which branch matched so presentation
+      // callers can render exact / directory / glob without re-deriving it.
+      const kind: OwnerEntry['kind'] = e.glob ? 'glob' : f === e.mapping ? 'exact' : 'directory';
 
       if (
         !best ||

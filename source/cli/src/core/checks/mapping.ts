@@ -18,10 +18,12 @@ import { toPosixPath } from '../../utils/posix.js';
 export async function checkFileMappingGitignored(graph: Graph): Promise<ValidationIssue[]> {
   const projectRoot = path.dirname(graph.rootPath);
   const coverage = graph.config.coverage ?? NO_COVERAGE_EXCLUDED;
-  const [walkedFiles, nestedProjectRoots] = await Promise.all([
-    walkRepoFiles(projectRoot).then((files) => new Set(files)),
-    findNestedProjectRoots(projectRoot),
-  ]);
+  const nestedProjectRoots = await findNestedProjectRoots(projectRoot);
+  // The repo walk answers only one question here — is an exactly-mapped file
+  // visible to it — so it runs on the first such file, not on every call: a
+  // graph mapping directories alone never pays for it.
+  let walked: Promise<Set<string>> | undefined;
+  const walkedFiles = (): Promise<Set<string>> => (walked ??= walkRepoFiles(projectRoot).then((files) => new Set(files)));
   const exclusion: GraphExclusionSet = { nestedRoots: nestedProjectRoots, coverage };
   const issues: ValidationIssue[] = [];
 
@@ -82,7 +84,7 @@ export async function checkFileMappingGitignored(graph: Graph): Promise<Validati
         continue;
       }
 
-      if (walkedFiles.has(norm)) continue;
+      if ((await walkedFiles()).has(norm)) continue;
 
       issues.push({
         severity: 'error',
@@ -635,7 +637,6 @@ export async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<Valida
 
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith('.')) continue;
       await scanDir(path.join(dirPath, entry.name), [...segments, entry.name]);
     }
   }
@@ -644,7 +645,6 @@ export async function checkDirectoriesHaveNodeYaml(graph: Graph): Promise<Valida
     const rootEntries = await readSortedDir(modelDir);
     for (const entry of rootEntries) {
       if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith('.')) continue;
       await scanDir(path.join(modelDir, entry.name), [entry.name]);
     }
   } catch {

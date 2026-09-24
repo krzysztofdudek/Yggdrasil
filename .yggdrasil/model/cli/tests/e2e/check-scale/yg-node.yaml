@@ -1,0 +1,9 @@
+name: E2E Tests — Check and context scale with the run, not the consumers
+type: test-suite
+description: "Subprocess E2E counting operations on a generated monorepo-shaped project: a plain yg check reads each .gitignore at most once and lists each directory a bounded number of times, and yg context for one component costs about what yg owner costs for a file in it."
+aspects: []
+relations:
+  - target: cli/tests/support
+    type: uses
+mapping:
+  - source/cli/tests/e2e/cli-check-scale.test.ts

@@ -44,7 +44,7 @@ export class StructureNodeContextUnavailableError extends Error {
  * disk content the verifier re-observes), so no content-dependent verdict can go
  * stale-green. Subject files (already hashed as subject inputs) and the no-
  * recorder case get a plain content property — nothing to defer. Mirrors
- * wrapNonSubjectFile in structure/hook-loader.ts.
+ * the non-subject siblings buildOwnFiles builds in structure/hook-loader.ts.
  */
 function makeGraphFile(
   repoRelPosixPath: string,
@@ -280,8 +280,8 @@ export function createCtxGraph(params: CtxGraphParams): CtxGraph {
       // inspects only `.path` (e.g. listing sibling test files by name) must
       // NOT fold every sibling's bytes into its verdict. Subject files are
       // already hashed as subject inputs, so they are never double-recorded
-      // and get a plain content property. (Mirrors wrapNonSubjectFile in
-      // hook-loader.ts.)
+      // and get a plain content property. (Mirrors buildOwnFiles' non-subject
+      // siblings in hook-loader.ts.)
       touchedFiles.push(p);
       files.push(makeGraphFile(p, content, bytes, recorder, subjectFiles));
     }

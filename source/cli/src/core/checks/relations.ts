@@ -78,56 +78,142 @@ export function checkRelationTargets(graph: Graph): ValidationIssue[] {
 
 // --- Rule 4: No circular dependencies ---
 
-export function checkNoCycles(graph: Graph): ValidationIssue[] {
-  const WHITE = 0;
-  const GRAY = 1;
-  const BLACK = 2;
-  const color = new Map<string, number>();
-  for (const p of graph.nodes.keys()) color.set(p, WHITE);
+const STRUCTURAL_RELATION_TYPES = new Set(['uses', 'calls', 'extends', 'implements']);
+const CYCLE_MEMBER_CAP = 12;
 
-  const issues: ValidationIssue[] = [];
-
-  function dfs(nodePath: string, pathSegments: string[]): boolean {
-    color.set(nodePath, GRAY);
-    const node = graph.nodes.get(nodePath)!;
-    const structuralTypes = new Set(['uses', 'calls', 'extends', 'implements']);
+/**
+ * Strongly connected components of the structural-relation graph (Tarjan,
+ * iterative so a deep graph cannot overflow the stack). Returns only the
+ * cyclic ones: more than one member, or one member relating to itself. Members
+ * are sorted, and components are ordered by their first member, so the report
+ * is stable run to run.
+ */
+export function structuralCycleComponents(graph: Graph): string[][] {
+  const edges = new Map<string, string[]>();
+  for (const [nodePath, node] of graph.nodes) {
+    const targets: string[] = [];
     for (const rel of node.meta.relations ?? []) {
-      const targetNode = graph.nodes.get(rel.target);
-      if (!targetNode) continue;
-      if (!structuralTypes.has(rel.type)) continue;
-      if (color.get(rel.target) === GRAY) {
-        const cyclePath = [...pathSegments, nodePath, rel.target];
-        issues.push({
-          severity: 'error',
-          code: 'structural-cycle',
-          rule: 'structural-cycle',
-          ...issueMsg({
-            what: `Circular dependency: ${cyclePath.join(' -> ')}.`,
-            why: `Cycles prevent deterministic context assembly and cascade tracking.`,
-            next: `Break the cycle: extract a shared interface, invert a dependency, or merge nodes.`,
-          }),
-        });
-        color.set(nodePath, BLACK);
-        return true;
-      }
-      if (color.get(rel.target) === WHITE) {
-        if (dfs(rel.target, [...pathSegments, nodePath])) {
-          color.set(nodePath, BLACK);
-          return true;
+      if (!STRUCTURAL_RELATION_TYPES.has(rel.type)) continue;
+      if (!graph.nodes.has(rel.target)) continue;
+      targets.push(rel.target);
+    }
+    edges.set(nodePath, targets);
+  }
+
+  const index = new Map<string, number>();
+  const low = new Map<string, number>();
+  const onStack = new Set<string>();
+  const stack: string[] = [];
+  const components: string[][] = [];
+  let counter = 0;
+
+  for (const root of graph.nodes.keys()) {
+    if (index.has(root)) continue;
+    const work: Array<{ node: string; next: number }> = [{ node: root, next: 0 }];
+    index.set(root, counter);
+    low.set(root, counter);
+    counter++;
+    stack.push(root);
+    onStack.add(root);
+    while (work.length > 0) {
+      const frame = work[work.length - 1]!;
+      const targets = edges.get(frame.node)!;
+      if (frame.next < targets.length) {
+        const target = targets[frame.next++]!;
+        if (!index.has(target)) {
+          index.set(target, counter);
+          low.set(target, counter);
+          counter++;
+          stack.push(target);
+          onStack.add(target);
+          work.push({ node: target, next: 0 });
+        } else if (onStack.has(target)) {
+          low.set(frame.node, Math.min(low.get(frame.node)!, index.get(target)!));
         }
+        continue;
+      }
+      work.pop();
+      const parent = work[work.length - 1];
+      if (parent) low.set(parent.node, Math.min(low.get(parent.node)!, low.get(frame.node)!));
+      if (low.get(frame.node) === index.get(frame.node)) {
+        const members: string[] = [];
+        let member: string;
+        do {
+          member = stack.pop()!;
+          onStack.delete(member);
+          members.push(member);
+        } while (member !== frame.node);
+        const selfLoop = members.length === 1 && edges.get(members[0]!)!.includes(members[0]!);
+        if (members.length > 1 || selfLoop) components.push(members.sort());
       }
     }
-    color.set(nodePath, BLACK);
-    return false;
   }
+  return components.sort((a, b) => (a[0]! < b[0]! ? -1 : a[0]! > b[0]! ? 1 : 0));
+}
 
-  for (const nodePath of graph.nodes.keys()) {
-    if (color.get(nodePath) === WHITE) {
-      dfs(nodePath, []);
+/** The shortest cycle through the component's first member, staying inside the component. */
+function shortestCycleIn(graph: Graph, members: string[]): string[] {
+  const inside = new Set(members);
+  const start = members[0]!;
+  const targetsOf = (n: string): string[] =>
+    (graph.nodes.get(n)?.meta.relations ?? [])
+      .filter((r) => STRUCTURAL_RELATION_TYPES.has(r.type) && inside.has(r.target))
+      .map((r) => r.target);
+  const prev = new Map<string, string>();
+  const queue: string[] = [start];
+  for (let i = 0; i < queue.length; i++) {
+    const n = queue[i]!;
+    for (const t of targetsOf(n)) {
+      if (t === start) {
+        const pathBack: string[] = [n];
+        let cur = n;
+        while (cur !== start) {
+          cur = prev.get(cur)!;
+          pathBack.push(cur);
+        }
+        return [...pathBack.reverse(), start];
+      }
+      if (!prev.has(t)) {
+        prev.set(t, n);
+        queue.push(t);
+      }
     }
   }
+  return [start, start];
+}
 
-  return issues;
+function formatCycle(cycle: string[]): string {
+  const hops = cycle.length - 1;
+  if (hops <= CYCLE_MEMBER_CAP) return cycle.join(' -> ');
+  return `${cycle.slice(0, CYCLE_MEMBER_CAP).join(' -> ')} -> … -> ${cycle[cycle.length - 1]!} (${hops} hops)`;
+}
+
+export function checkNoCycles(graph: Graph): ValidationIssue[] {
+  // One finding per strongly connected component, not per DFS path: the
+  // component is what has to be untangled, and a DFS path carried the walk's
+  // non-cycle prefix, so the reader chased hops that were never in a cycle.
+  // The members travel on the issue (cycleMembers) so `yg context` blocks only
+  // the nodes the cycle actually touches, not every node in the repository.
+  return structuralCycleComponents(graph).map((members) => {
+    const cycle = shortestCycleIn(graph, members);
+    const shown = members.length > CYCLE_MEMBER_CAP
+      ? `${members.slice(0, CYCLE_MEMBER_CAP).join(', ')}, … (${members.length} in all)`
+      : members.join(', ');
+    const what = members.length === cycle.length - 1
+      ? `Circular dependency: ${formatCycle(cycle)}.`
+      : `Circular dependency among ${members.length} nodes (${shown}); one cycle through them: ${formatCycle(cycle)}. The error clears when no structural relation leads back into the group.`;
+    return {
+      severity: 'error' as const,
+      code: 'structural-cycle',
+      rule: 'structural-cycle',
+      ...issueMsg({
+        what,
+        why: `Cycles prevent deterministic context assembly and cascade tracking.`,
+        next: `Break the cycle: extract a shared interface, invert a dependency, or merge nodes.`,
+      }),
+      cycleMembers: members,
+    };
+  });
 }
 
 // --- flow-node-broken: Broken flow refs (flow.nodes) ---

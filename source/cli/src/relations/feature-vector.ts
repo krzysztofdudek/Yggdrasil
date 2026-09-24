@@ -490,8 +490,14 @@ function depthQuartilesOf(depths: number[]): [number, number, number] {
  * does not increase depth, so the metric is a pure function of the named-node skeleton and
  * is resilient to how a grammar tokenizes punctuation. Only `node.isNamed` nodes are counted
  * toward `nodeCount`, `depthQuartiles`, and the category tallies — anonymous punctuation is
- * excluded (deterministic and structural). Child iteration mirrors `ast/walk.ts`
- * (`node.child(i)` over `childCount`).
+ * excluded (deterministic and structural). Every child is visited, named or
+ * anonymous, in order — the children `node.child(i)` over `childCount` yields.
+ *
+ * The walk uses one tree cursor rather than a `Node` per child: every tree
+ * read crosses into the parser's WebAssembly heap, and allocating a node object
+ * for every token of every file made this index a third of a cold run's parse
+ * time — for a signal that never gates. A cursor reads the same types in the
+ * same order at a fraction of the cost.
  */
 export function countFeatures(root: Node, language: string): FeatureVector {
   const lookup = reverseLookupFor(language);
@@ -506,21 +512,41 @@ export function countFeatures(root: Node, language: string): FeatureVector {
   let nodeCount = 0;
   const depths: number[] = [];
 
-  const visit = (node: Node, depth: number): void => {
-    let childDepth = depth;
-    if (node.isNamed) {
-      nodeCount++;
-      depths.push(depth);
-      const category = lookup.get(node.type);
-      if (category !== undefined) categories[category]++;
-      childDepth = depth + 1;
+  const cursor = root.walk();
+  try {
+    // childDepths[k]: the named depth the children of the k-th node on the
+    // current path are at. The cursor never leaves `root`'s subtree.
+    const childDepths: number[] = [];
+    let depth = 0;
+    for (;;) {
+      let childDepth = depth;
+      if (cursor.nodeIsNamed) {
+        nodeCount++;
+        depths.push(depth);
+        const category = lookup.get(cursor.nodeType);
+        if (category !== undefined) categories[category]++;
+        childDepth = depth + 1;
+      }
+      if (cursor.gotoFirstChild()) {
+        childDepths.push(childDepth);
+        depth = childDepth;
+        continue;
+      }
+      let moved = false;
+      while (childDepths.length > 0) {
+        if (cursor.gotoNextSibling()) {
+          depth = childDepths[childDepths.length - 1]!;
+          moved = true;
+          break;
+        }
+        cursor.gotoParent();
+        childDepths.pop();
+      }
+      if (!moved) break;
     }
-    for (let i = 0; i < node.childCount; i++) {
-      const child = node.child(i);
-      if (child !== null) visit(child, childDepth);
-    }
-  };
-  visit(root, 0);
+  } finally {
+    cursor.delete();
+  }
 
   return { nodeCount, depthQuartiles: depthQuartilesOf(depths), categories };
 }

@@ -34,7 +34,15 @@ description: "Cross-tier test support: a git-fixture isolation helper used by un
   each, and the normalisation that rewrites only what cannot repeat run to run
   (the temp directory, timestamps, durations, git object names, and the finishing
   order of parallel checks) while keeping every word, count and blank line. All
-  four helpers import only Node builtins and each other; nothing from src/**."
+  four helpers import only Node builtins and each other; nothing from src/**.
+
+  It also owns the scale instruments: a generator for a synthetic
+  monorepo-shaped project (hundreds of components, a few with thousands of
+  files, four deterministic rules, relations, gitignores) written in seconds and
+  deterministically, and a `node --import` preload that counts filesystem
+  operations and tree-sitter parses per thread, so a scale test pins how work
+  grows with input instead of timing a shared machine. Both import only Node
+  builtins."
 aspects: []
 relations: []
 mapping:
@@ -42,3 +50,5 @@ mapping:
   - source/cli/tests/support/git-fixture.ts
   - source/cli/tests/support/golden-corpus.ts
   - source/cli/tests/support/progressive-fixture.ts
+  - source/cli/tests/support/scale-fixture.ts
+  - source/cli/tests/support/fs-op-counter.mjs

@@ -1,6 +1,7 @@
 import type { CoverageConfig } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
-import { mappingEntryMatchesFile, normalizeMappingPath, isGlobPattern } from '../utils/mapping-path.js';
+import { isGlobPattern, normalizeMappingPath } from '../utils/mapping-path.js';
+import { mappingEntrySet } from '../utils/mapping-index.js';
 // type-only import — erased at runtime, no circular runtime dependency
 import type { CheckIssue } from './check.js';
 
@@ -94,10 +95,10 @@ export function blockingUnmappedPaths(
   mappingEntries: readonly string[],
   coverage: CoverageConfig,
 ): string[] {
-  const entries = mappingEntries.map(normalizeMappingPath).filter((e) => e !== '');
+  const index = mappingEntrySet(mappingEntries.map(normalizeMappingPath).filter((e) => e !== ''));
   const unmapped = paths
     .map((p) => toPosixPath(p))
-    .filter((p) => !entries.some((entry) => mappingEntryMatchesFile(entry, p)));
+    .filter((p) => !index.matchesAny(p));
   return partitionByCoverageTier(unmapped, coverage).required;
 }
 

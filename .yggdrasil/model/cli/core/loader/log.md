@@ -98,3 +98,5 @@ The environment-robustness fixes and the release work already merged met in this
 The graph-governance work met the release work already merged in this component. The missing-version and non-string-version refusals are now classified by the loader's own diagnosis, so the throwing loader used by the portal and the exiting wrapper used by commands give the same message, and upgrade reuses that text; a missing model directory still loads as an empty graph.
 ## [2026-09-23T23:00:43.167Z]
 A component yg-node.yaml that does not parse reports the parser's message as what happened and what not loading the component costs as why — the two were swapped, so the parser's excerpt sat under the rationale — and says whether the file is invalid YAML or valid YAML breaking the node schema.
+## [2026-09-24T01:25:06.792Z]
+Components whose model directory is dot-named, such as a mirror of .github or .vscode, were skipped by the model walk without a word, so every enforced rule they attached never ran and the check passed over code that violated it. They now load like any other component; a directory without a component definition still loads nothing.

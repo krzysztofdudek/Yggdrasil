@@ -2,13 +2,16 @@
  * REGRESSION: a `per: file` companion.mjs rule with N subjects on one node,
  * whose relation target maps M files, used to re-parse that node's own mapping
  * AND the relation target's mapped files on EVERY one of those N subject
- * resolutions — buildUnitCtx (structure/hook-loader.ts) prewarms both sets
- * before the hook body ever runs, so the waste reproduces even with a no-op
+ * resolutions — buildUnitCtx (structure/hook-loader.ts) prewarmed both sets
+ * before the hook body ever ran, so the waste reproduced even with a no-op
  * companion — and discarded every re-parse the moment each call returned
  * (resolveCompanionsForPair, core/companion-resolve.ts, built its own
- * throwaway parse cache per call). Sharing ONE parse cache across every
- * subject of the same (aspect, node) collapses that to one parse per distinct
- * file, with byte-identical resolved companions and observations either way.
+ * throwaway parse cache per call). Two changes answer it, pinned separately:
+ * trees are now parsed on first use (a hook that never asks for one parses
+ * nothing), and sharing ONE parse cache across every subject of the same
+ * (aspect, node) collapses the trees a hook does ask for to one parse per
+ * distinct file, with byte-identical resolved companions and observations
+ * either way.
  *
  * This repository ships zero companion hooks, so none of this reproduces
  * against its own graph — the fixture below is purpose-built. Only `parseFile`
@@ -27,24 +30,36 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 
-// Every parse this run performs is recorded here, by the path handed to the
-// parser. The counter lives inside the module replacement rather than being
-// read off a spy handle, so nothing outside the replacement ever holds a
-// reference to the parse entry point — a tree it returns is owned by whoever
-// asked for it, and that ownership must not be diluted by a test reaching for
-// the same function to observe it.
-const parsedPaths: string[] = [];
+// Every parse this run performs is recorded here, by the source text handed to
+// the parser (each fixture file's text is unique, so it names the file). Trees
+// are built synchronously on first use through the parser `loadedParserFor`
+// hands out, so that is where the count sits; the parser it wraps is the real
+// one. The counter lives inside the module replacement rather than being read
+// off a spy handle, so nothing outside the replacement ever holds a reference
+// to the parse entry point — a tree it returns is owned by whoever asked for
+// it, and that ownership must not be diluted by a test reaching for the same
+// function to observe it.
+const parsedSources: string[] = [];
 
 vi.mock('../../src/ast/parser.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../../src/ast/parser.js')>();
   return {
     ...actual,
-    parseFile: async (...args: Parameters<typeof actual.parseFile>) => {
-      parsedPaths.push(args[0]);
-      return actual.parseFile(...args);
+    loadedParserFor: (extension: string) => {
+      const parser = actual.loadedParserFor(extension);
+      if (!parser) return parser;
+      return {
+        parse: (source: string) => {
+          parsedSources.push(source);
+          return parser.parse(source);
+        },
+      } as unknown as ReturnType<typeof actual.loadedParserFor>;
     },
   };
 });
+
+const sourceOfA = (i: number): string => `export const a${i} = ${i};\n`;
+const sourceOfB = (i: number): string => `export const g${i} = ${i};\n`;
 
 
 // A second, independent call counter, at the actual disk-I/O boundary rather
@@ -105,14 +120,14 @@ function buildParseCountFixture(root: string, subjectCount: number, targetFileCo
     'node_types:\n  module:\n    description: m\n    log_required: false\n    relations:\n      uses: [module]\n',
   );
   const aMapping = Array.from({ length: subjectCount }, (_, i) => `src/a/f${i + 1}.ts`);
-  for (const [i, rel] of aMapping.entries()) write(root, rel, `export const a${i + 1} = ${i + 1};\n`);
+  for (const [i, rel] of aMapping.entries()) write(root, rel, sourceOfA(i + 1));
   write(
     root,
     '.yggdrasil/model/A/yg-node.yaml',
     `name: A\ntype: module\ndescription: a\nmapping:\n${aMapping.map((m) => `  - ${m}`).join('\n')}\n` +
-      `relations:\n  - type: uses\n    target: B\naspects:\n  - companion-noop\n`,
+      `relations:\n  - type: uses\n    target: B\naspects:\n  - companion-noop\n  - companion-parse\n`,
   );
-  for (let i = 1; i <= targetFileCount; i++) write(root, `src/b/g${i}.ts`, `export const g${i} = ${i};\n`);
+  for (let i = 1; i <= targetFileCount; i++) write(root, `src/b/g${i}.ts`, sourceOfB(i));
   write(root, '.yggdrasil/model/B/yg-node.yaml', 'name: B\ntype: module\ndescription: b\nmapping:\n  - src/b\n');
   write(
     root,
@@ -126,6 +141,24 @@ function buildParseCountFixture(root: string, subjectCount: number, targetFileCo
     "export function companion(ctx) {\n" +
       "  const b = ctx.graph.node('B');\n" +
       "  for (const f of b.files) void f.content.length; // touch every target file's content\n" +
+      "  return [];\n" +
+      "}\n",
+  );
+  // The same shape, but the hook asks for every target file's tree and its own
+  // subject's tree — the parses a shared cache exists to collapse.
+  write(
+    root,
+    '.yggdrasil/aspects/companion-parse/yg-aspect.yaml',
+    'name: companion-parse\ndescription: rule\nreviewer:\n  type: llm\nstatus: enforced\nscope:\n  per: file\n',
+  );
+  write(root, '.yggdrasil/aspects/companion-parse/content.md', '# rule\nparse\n');
+  write(
+    root,
+    '.yggdrasil/aspects/companion-parse/companion.mjs',
+    "export function companion(ctx) {\n" +
+      "  const b = ctx.graph.node('B');\n" +
+      "  for (const f of b.files) void ctx.parseAst(f, 'typescript').rootNode.type;\n" +
+      "  for (const f of ctx.files) void f.ast.rootNode.type;\n" +
       "  return [];\n" +
       "}\n",
   );
@@ -232,7 +265,7 @@ describe("companion parse-cache sharing across a per:file rule's subjects", () =
 
   beforeEach(() => {
     root = mkdtempSync(path.join(tmpdir(), 'yg-companion-parse-cache-'));
-    parsedPaths.length = 0;
+    parsedSources.length = 0;
     mockReaddir.mockClear();
   });
   afterEach(() => {
@@ -277,7 +310,7 @@ describe("companion parse-cache sharing across a per:file rule's subjects", () =
     expect(targetWalks).toHaveLength(1);
   });
 
-  it('without a shared cache, every subject independently re-parses the node\'s own files and every relation-target file', async () => {
+  it('a hook that never asks for a tree parses nothing — neither the node\'s own files nor any relation-target file', async () => {
     const subjectCount = 5;
     const targetFileCount = 12;
     buildParseCountFixture(root, subjectCount, targetFileCount);
@@ -292,14 +325,30 @@ describe("companion parse-cache sharing across a per:file rule's subjects", () =
       expect(resolved.kind).toBe('ok');
     }
 
-    // Every one of the N subjects independently re-parsed all N of A's own
-    // mapped files AND all M of B's relation-target files: N × (N + M) total
-    // parses, not (N + M) — the N×M-shaped waste described in the defect (here
-    // widened to also cover the node's own re-parsed mapping).
-    expect(parsedPaths.length).toBe(subjectCount * (subjectCount + targetFileCount));
+    // It used to be N × (N + M): every subject parsed all of A's own files and
+    // all of B's before the hook ran, whether the hook read a tree or not.
+    expect(parsedSources).toHaveLength(0);
+  });
+
+  it('without a shared cache, every subject re-parses the trees it asks for', async () => {
+    const subjectCount = 5;
+    const targetFileCount = 12;
+    buildParseCountFixture(root, subjectCount, targetFileCount);
+    const graph = await loadGraph(root);
+    const projectRoot = path.dirname(graph.rootPath);
+    const pairs = await companionPairsFor(graph, 'companion-parse');
+    expect(pairs).toHaveLength(subjectCount);
+    const aspect = aspectFor(graph, 'companion-parse');
+
+    for (const pair of pairs) {
+      const resolved = await resolveCompanionsForPair(graph, projectRoot, pair, aspect);
+      expect(resolved.kind).toBe('ok');
+    }
+
+    // Each subject parses its own file and all M target files: N × (1 + M).
+    expect(parsedSources).toHaveLength(subjectCount * (1 + targetFileCount));
     for (let i = 1; i <= targetFileCount; i++) {
-      const calls = parsedPaths.filter((p) => p === `src/b/g${i}.ts`);
-      expect(calls).toHaveLength(subjectCount);
+      expect(parsedSources.filter((src) => src === sourceOfB(i))).toHaveLength(subjectCount);
     }
   });
 
@@ -309,17 +358,16 @@ describe("companion parse-cache sharing across a per:file rule's subjects", () =
     buildParseCountFixture(root, subjectCount, targetFileCount);
     const graph = await loadGraph(root);
     const projectRoot = path.dirname(graph.rootPath);
-    const pairs = await companionPairsFor(graph, 'companion-noop');
-    const aspect = aspectFor(graph, 'companion-noop');
+    const pairs = await companionPairsFor(graph, 'companion-parse');
+    const aspect = aspectFor(graph, 'companion-parse');
 
-    // Baseline: resolve every subject independently (today's behavior — no
-    // shared cache passed) and keep each resolved result for the equivalence
-    // check below.
+    // Baseline: resolve every subject independently (no shared cache passed)
+    // and keep each resolved result for the equivalence check below.
     const baseline = [];
     for (const pair of pairs) {
       baseline.push(await resolveCompanionsForPair(graph, projectRoot, pair, aspect));
     }
-    parsedPaths.length = 0;
+    parsedSources.length = 0;
 
     // Now resolve the SAME subjects sharing ONE parse cache — exactly what
     // fill.ts's (aspectId, node) bucket now constructs and threads through.
@@ -329,11 +377,14 @@ describe("companion parse-cache sharing across a per:file rule's subjects", () =
       shared.push(await resolveCompanionsForPair(graph, projectRoot, pair, aspect, undefined, undefined, sharedCache));
     }
 
-    // Every distinct file — N own-mapping files + M relation-target files — is
+    // Every distinct file asked for — N subjects + M relation-target files — is
     // parsed exactly ONCE across the whole bucket, regardless of subject count.
-    expect(parsedPaths.length).toBe(subjectCount + targetFileCount);
+    expect(parsedSources).toHaveLength(subjectCount + targetFileCount);
     for (let i = 1; i <= targetFileCount; i++) {
-      expect(parsedPaths.filter((p) => p === `src/b/g${i}.ts`)).toHaveLength(1);
+      expect(parsedSources.filter((src) => src === sourceOfB(i))).toHaveLength(1);
+    }
+    for (let i = 1; i <= subjectCount; i++) {
+      expect(parsedSources.filter((src) => src === sourceOfA(i))).toHaveLength(1);
     }
 
     // The verdict-relevant output — resolved companions AND observations (the

@@ -341,9 +341,13 @@ async function scanModelDirectory(
       parent.children.push(node);
     }
 
+    // Dot-named directories are walked like any other: mirroring source paths
+    // under model/ puts CI and editor-config rules in model/.github/ and
+    // model/.vscode/, and skipping them dropped those nodes — and every enforced
+    // rule they attach — without a word. A directory without yg-node.yaml still
+    // stops the walk (the check above), so a stray hidden folder loads nothing.
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith('.')) continue;
 
       await scanModelDirectory(
         path.join(dirPath, entry.name),
@@ -356,7 +360,6 @@ async function scanModelDirectory(
   } else {
     for (const entry of entries) {
       if (!entry.isDirectory()) continue;
-      if (entry.name.startsWith('.')) continue;
 
       await scanModelDirectory(
         path.join(dirPath, entry.name),

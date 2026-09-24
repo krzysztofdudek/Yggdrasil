@@ -54,6 +54,24 @@ describe('resolveDetConcurrency', () => {
   });
 });
 
+describe('resolveDetConcurrency — sized from the largest unit a worker may parse', () => {
+  it('estimates a worker as the parent plus that unit\'s trees, not a multiple of the parent', () => {
+    const machine = { cores: 32, totalMemoryBytes: 16 * GB, processRssBytes: 400 * MB };
+    // A small unit: parent + trees stays well under the old 1.5 x parent guess.
+    expect(resolveDetConcurrency({ ...machine, largestUnitSourceBytes: 1 * MB }))
+      .toBeGreaterThan(resolveDetConcurrency(machine));
+  });
+
+  it('cuts the pool as the largest component grows', () => {
+    const machine = { cores: 32, totalMemoryBytes: 16 * GB, processRssBytes: 400 * MB };
+    const small = resolveDetConcurrency({ ...machine, largestUnitSourceBytes: 2 * MB });
+    const large = resolveDetConcurrency({ ...machine, largestUnitSourceBytes: 200 * MB });
+    expect(large).toBeLessThan(small);
+    // 8 GB budget / (400 MB + 200 MB x 20 = 4.4 GB) = 1 worker.
+    expect(large).toBe(1);
+  });
+});
+
 describe('detConcurrencyForThisMachine', () => {
   it('measures the real machine and returns a usable worker count', () => {
     const workers = detConcurrencyForThisMachine();

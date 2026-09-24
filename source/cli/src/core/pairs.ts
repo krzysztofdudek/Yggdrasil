@@ -44,6 +44,7 @@ import { toPosixPath } from '../utils/posix.js';
 import { nodeUnit, fileUnit } from '../model/lock.js';
 import { expandMappingPathsWithinOwnGraph, hashFile, hashString } from '../io/hash.js';
 import { probeUnreadable } from '../io/graph-fs.js';
+import { mapBounded, IO_CONCURRENCY } from '../utils/bounded-map.js';
 import { normalizeMappingPaths } from '../io/paths.js';
 import {
   computeEffectiveAspects,
@@ -204,6 +205,13 @@ export interface ComputePairsOptions {
    * exactly as it did before the tier existed.
    */
   typeCoverage?: TypeCoverageInput;
+  /**
+   * Enumerate only these components' pairs; nodeless (type-covered) pairs are
+   * skipped. For a caller that asks about one component (`yg context --node`)
+   * and would otherwise expand every node's mapping to throw all but one away.
+   * Absent ⇒ every node, plus the nodeless enumeration when `typeCoverage` is set.
+   */
+  onlyNodes?: ReadonlySet<string>;
 }
 
 /**
@@ -421,6 +429,7 @@ export async function computeExpectedPairs(
   const readabilityCache = new Map<string, string | null>(); // absPath → unreadable reason | null
 
   for (const [nodePath, node] of graph.nodes) {
+    if (opts?.onlyNodes !== undefined && !opts.onlyNodes.has(nodePath)) continue;
     // Expand the node's mapped files (gitignore-aware, child carve-out applied).
     const rawMapping = normalizeMappingPaths(node.meta.mapping);
     if (rawMapping.length === 0) continue; // no mapping → no pairs for this node
@@ -523,6 +532,14 @@ export async function computeExpectedPairs(
       // never excludes a file the reviewer was meant to see. This covers ALL
       // aspects; the scope.files branch above already excluded+recorded files
       // whose content predicate could not read them, so they never reach here.
+      // The probes for files not seen yet run together, not one awaited
+      // syscall at a time: a node of thousands of files otherwise spends the
+      // run waiting on the disk. Results land in the same cache, in the same
+      // shape, and the loop below reads them in subject order as before.
+      const unprobed = [...new Set(subjectFiles.map((f) => path.resolve(projectRoot, f)))]
+        .filter((abs) => !readabilityCache.has(abs));
+      const probed = await mapBounded(unprobed, IO_CONCURRENCY, (abs) => probeUnreadable(abs));
+      unprobed.forEach((abs, i) => readabilityCache.set(abs, probed[i]!));
       const readableSubjects: string[] = [];
       for (const filePath of subjectFiles) {
         const absPath = path.resolve(projectRoot, filePath);
@@ -591,7 +608,7 @@ export async function computeExpectedPairs(
   const drops: PairDrop[] = [];
   const uncomputableTypeCoverage: UncomputableTypeCoverage[] = [];
   const coverageConfig = graph.config.coverage ?? DEFAULT_COVERAGE;
-  for (const [file, typeId] of opts?.typeCoverage?.covered ?? []) {
+  for (const [file, typeId] of opts?.onlyNodes === undefined ? opts?.typeCoverage?.covered ?? [] : []) {
     // The one exclusion authority (isExcludedByCoverage) — a file under an
     // excluded root is skipped entirely, not even classified into a drop. This
     // is the SAME authority computeTypeCoverage itself already applied to reach

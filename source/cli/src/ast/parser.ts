@@ -112,6 +112,33 @@ export async function getParser(extension: string): Promise<Parser> {
   return parser;
 }
 
+/**
+ * Load, on this thread, the grammar of every extension in `extensions` that has
+ * one (extensions without a grammar are skipped), so a later synchronous parse
+ * ({@link loadedParserFor}) can use it. Loading is the only asynchronous part of
+ * parsing; doing it up front for a unit's extensions lets its trees be built on
+ * first use instead of all at once before the check runs.
+ */
+export async function loadGrammarsFor(extensions: Iterable<string>): Promise<void> {
+  const seen = new Set<string>();
+  for (const ext of extensions) {
+    const info = getGrammarForExtension(ext);
+    if (!info || seen.has(info.wasmFile)) continue;
+    seen.add(info.wasmFile);
+    await getParser(ext);
+  }
+}
+
+/**
+ * The parser for `extension` if its grammar is already loaded on this thread,
+ * else undefined. Never loads anything — see {@link loadGrammarsFor}.
+ */
+export function loadedParserFor(extension: string): Parser | undefined {
+  const info = getGrammarForExtension(extension);
+  if (!info) return undefined;
+  return parserCache.get(info.wasmFile);
+}
+
 export async function parseFile(filePath: string, content: string): Promise<Tree> {
   const ext = path.extname(filePath);
   const parser = await getParser(ext);
