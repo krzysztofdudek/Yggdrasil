@@ -6,8 +6,9 @@ description: "Subprocess E2E pinning that the check gate tells the truth about
   advisory judgment rule with no reviewer never blocks, an infrastructure
   failure is named on the report and in the machine document, an async check
   that throws still reaches the report, a reason-less suppress marker is
-  warned about early, a log conflict met mid-merge is resolved by the command
-  the check names, retry lines keep the invoked flags, broken graph files do
+  warned about early, a log conflict met mid-merge, mid-rebase or
+  mid-cherry-pick is resolved by the command the check names and the result
+  passes an approving check, retry lines keep the invoked flags, broken graph files do
   not produce misattributed follow-ons, unusable candidate files are named,
   unverified pairs are grouped by cause, and non-pair findings are counted as
   issues. Real spawned binary over the lifecycle fixture."

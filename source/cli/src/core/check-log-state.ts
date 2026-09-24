@@ -72,7 +72,7 @@ export async function classifyLogStateFromLock(
         rule: 'log-conflict',
         messageData: {
           what: `Log contains git conflict markers at ${logRel}`,
-          why: 'A conflict-markered log.md cannot be validated. While the merge is still in progress, merge-resolve writes the union of both sides (every entry, in date order) and records its baseline — nothing to edit by hand.',
+          why: 'A conflict-markered log.md cannot be validated. While the merge, rebase or cherry-pick is still stopped on the conflict, merge-resolve writes the union of both sides (every entry, in date order) and records its baseline — nothing to edit by hand.',
           next: `yg log merge-resolve --node ${nodePathPosix}`,
         },
         nodePath,

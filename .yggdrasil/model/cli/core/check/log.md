@@ -294,3 +294,5 @@ The permission to execute companion hooks became a required member of the check 
 The security fixes (read-only commands no longer run repository companion hooks, symlinked rule sources refused, committed credentials blocked, portal Host check on every route with a shared cached extraction) and the scale fixes (per-command walk cache, mapping index, linear deterministic fill, cycle-scoped context) met in this component at merge. Both merged cleanly at source level and the merged code carries both behaviours; this entry records that the combination is what the verdicts now answer for.
 ## [2026-09-24T01:54:35.967Z]
 The list of mapped but excluded files that the check result carries is now normalised with the shared POSIX path helper, like every other path the result reports, so a consumer never receives a native separator or a trailing slash.
+## [2026-09-24T02:30:18.704Z]
+The log-conflict message now says merge-resolve writes the union while a merge, rebase or cherry-pick is stopped on the conflict, since the command it names now handles all three; saying merge only made a reader at a rebase stop doubt the one command that works there.
