@@ -16,7 +16,7 @@
  */
 import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
-import { ZERO_CLASSIFYING_TYPES_NOTICE, FEATURE_INDEX_NOT_IGNORED_NOTICE, OUTSIDE_CODES } from '../core/check-codes.js';
+import { ZERO_CLASSIFYING_TYPES_NOTICE, FEATURE_INDEX_NOT_IGNORED_NOTICE, OUTSIDE_CODES, isConfigLoadFailure } from '../core/check-codes.js';
 import { countOutside } from '../core/check-progressive.js';
 import { issueViolations } from '../core/check-json.js';
 import { COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, getIssueLabel } from './group-issues.js';
@@ -527,10 +527,10 @@ export function formatOwed(owed: CheckIssue[], emoji = useEmoji): string {
  * on every ordinary run.
  */
 function renderPartialResultBanner(result: CheckResult): string | undefined {
-  const failed = result.issues.filter((i) => i.severity === 'error' && GRAPH_INVALID_CODES.has(i.code));
+  const failed = result.issues.filter((i) => i.severity === 'error' && (GRAPH_INVALID_CODES.has(i.code) || isConfigLoadFailure(i)));
   if (failed.length === 0) return undefined;
   const parts: string[] = [];
-  if (failed.some((i) => i.code === 'config-invalid')) parts.push('yg-config.yaml did not load, so its defaults were used');
+  if (failed.some((i) => isConfigLoadFailure(i))) parts.push('yg-config.yaml did not load, so its defaults were used');
   if (failed.some((i) => i.code === 'architecture-invalid')) parts.push('yg-architecture.yaml did not load, so no architecture rule was checked');
   const components = [...new Set(failed.filter((i) => i.code === 'yaml-invalid' && i.nodePath !== undefined).map((i) => toPosixPath(i.nodePath!)))];
   const otherYaml = failed.filter((i) => i.code === 'yaml-invalid' && i.nodePath === undefined).length;

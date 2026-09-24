@@ -122,3 +122,5 @@ The security fixes (read-only commands no longer run repository companion hooks,
 A validation scope naming a node that does not exist now points at a find command for that name instead of telling the reader to check the path and try again.
 ## [2026-09-24T08:43:27.547Z]
 The reason on the existing silent-missing-files waiver no longer addresses the reviewer: it only states the fact that makes the rule inapplicable here (every file and directory read is delegated to the loader and parsers). The reviewer treats text written at it inside a reviewed file as an attempt to steer the verdict, so the old wording refused the whole file on unrelated rules. Which rule is waived, and over which lines, is unchanged.
+## [2026-09-24T13:49:31.624Z]
+Unknown top-level configuration keys are reported as their own blocking config-unknown-key findings, one per key, naming the file, the key and the likely intended key. They are separate from a configuration that did not load, so the schema-independent checks keep running against the configuration that is actually in effect.

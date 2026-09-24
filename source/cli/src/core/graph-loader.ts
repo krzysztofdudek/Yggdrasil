@@ -9,7 +9,7 @@ import type {
   YggConfig,
   ArchitectureDef,
 } from '../model/graph.js';
-import { parseConfig, ConfigParseError } from '../io/config-parser.js';
+import { parseConfigDetailed, ConfigParseError, unknownConfigKeyMessage, type UnknownConfigKey } from '../io/config-parser.js';
 import { parseNodeYaml } from '../io/node-parser.js';
 import { parseAspect } from '../io/aspect-parser.js';
 import { parsePackageManifest } from '../io/package-manifest-parser.js';
@@ -186,14 +186,24 @@ export async function loadGraph(
   let configError: string | undefined;
   let configErrorCode: string | undefined;
   let configErrorMessage: IssueMessage | undefined;
+  let configUnknownKeys: Graph['configUnknownKeys'];
+  const withMessages = (keys: UnknownConfigKey[]): Graph['configUnknownKeys'] =>
+    keys.map((u) => ({ ...u, messageData: unknownConfigKeyMessage(u) }));
   let config = FALLBACK_CONFIG;
   try {
     // noSecrets threads the committed-only read down to the config parser: when set,
     // yg-secrets.yaml is never opened or merged. Default (unset) is unchanged.
-    config = await parseConfig(path.join(yggRoot, 'yg-config.yaml'), { skipSecretsOverlay: options.noSecrets });
+    // Unknown top-level keys come back beside the parsed configuration rather than
+    // as a failure: the key sets nothing, so the rest of the configuration is kept
+    // and the validator reports the key itself (config-unknown-key).
+    const parsed = await parseConfigDetailed(path.join(yggRoot, 'yg-config.yaml'), { skipSecretsOverlay: options.noSecrets });
+    config = parsed.config;
+    if (parsed.unknownKeys.length > 0) configUnknownKeys = withMessages(parsed.unknownKeys);
   } catch (error) {
     if (error instanceof ConfigParseError) {
       // Structured config error — always capture (never rethrow), propagate structured message
+      const alsoUnknown = (error as ConfigParseError & { unknownKeys?: UnknownConfigKey[] }).unknownKeys;
+      if (alsoUnknown && alsoUnknown.length > 0) configUnknownKeys = withMessages(alsoUnknown);
       configErrorMessage = error.messageData;
       configErrorCode = error.code;
       configError = error.messageData.what;
@@ -230,6 +240,7 @@ export async function loadGraph(
     configError,
     configErrorCode,
     configErrorMessage,
+    ...(configUnknownKeys && { configUnknownKeys }),
     nodeParseErrors: nodeParseErrors.length > 0 ? nodeParseErrors : undefined,
     aspectParseErrors: aspectsLoad.parseErrors.length > 0 ? aspectsLoad.parseErrors : undefined,
     nodes,

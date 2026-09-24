@@ -100,3 +100,5 @@ The graph-governance work met the release work already merged in this component.
 A component yg-node.yaml that does not parse reports the parser's message as what happened and what not loading the component costs as why — the two were swapped, so the parser's excerpt sat under the rationale — and says whether the file is invalid YAML or valid YAML breaking the node schema.
 ## [2026-09-24T01:25:06.792Z]
 Components whose model directory is dot-named, such as a mirror of .github or .vscode, were skipped by the model walk without a word, so every enforced rule they attached never ran and the check passed over code that violated it. They now load like any other component; a directory without a component definition still loads nothing.
+## [2026-09-24T13:49:29.847Z]
+The loader keeps the parsed configuration when unknown top-level keys are its only problem and hands the keys, each with its message, to the validator. Falling back to the default configuration over a typo produced false unmapped files, a false missing reviewer and uncounted verdicts, all pointing the user away from the one key to fix.

@@ -144,6 +144,44 @@ version: "4.0.0"
     await rm(tmpDir, FIXTURE_RM_OPTIONS);
   });
 
+  it('keeps the rest of the configuration when unknown top-level keys are its only problem', async () => {
+    const { parseConfigDetailed, ConfigUnknownKeysError } = await import('../../../src/io/config-parser.js');
+    const tmpDir = await mkdtemp(path.join(tmpdir(), 'yg-cfg-unknown-kept-'));
+    try {
+      await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "6.0.0"\nparalel: 4\ncoverage:\n  excluded: [docs/]\nreviewer:\n  tiers:\n    standard:\n      provider: claude-code\n      consensus: 1\n      config:\n        model: haiku\n', 'utf-8');
+      await writeFile(path.join(tmpDir, 'yg-secrets.yaml'), 'reviwer: {}\n', 'utf-8');
+      const { config, unknownKeys } = await parseConfigDetailed(path.join(tmpDir, 'yg-config.yaml'));
+      expect(unknownKeys).toEqual([
+        { file: 'yg-config.yaml', key: 'paralel', suggestion: 'parallel' },
+        { file: 'yg-secrets.yaml', key: 'reviwer', suggestion: 'reviewer' },
+      ]);
+      expect(Object.keys(config.reviewer?.tiers ?? {})).toEqual(['standard']);
+      expect(config.coverage?.excluded).toEqual(['docs/']);
+      // parseConfig still refuses, and the refusal carries the parsed configuration.
+      const err = await parseConfig(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ConfigUnknownKeysError);
+      expect((err as InstanceType<typeof ConfigUnknownKeysError>).config.reviewer).toBeDefined();
+    } finally {
+      await rm(tmpDir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
+  it('carries the unknown keys on a different config error found after them', async () => {
+    const { parseConfigDetailed } = await import('../../../src/io/config-parser.js');
+    const tmpDir = await mkdtemp(path.join(tmpdir(), 'yg-cfg-unknown-plus-'));
+    try {
+      await writeFile(path.join(tmpDir, 'yg-config.yaml'), 'version: "6.0.0"\nparalel: 4\nparallel: -1\n', 'utf-8');
+      const err = await parseConfigDetailed(path.join(tmpDir, 'yg-config.yaml')).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(ConfigParseError);
+      expect((err as ConfigParseError).code).toBe('config-invalid');
+      expect((err as ConfigParseError & { unknownKeys?: unknown[] }).unknownKeys).toEqual([
+        { file: 'yg-config.yaml', key: 'paralel', suggestion: 'parallel' },
+      ]);
+    } finally {
+      await rm(tmpDir, FIXTURE_RM_OPTIONS);
+    }
+  });
+
   it('reads the schema version field one way: absent, string, or not a string (as written)', async () => {
     const { parseSchemaVersionText } = await import('../../../src/io/config-parser.js');
     expect(parseSchemaVersionText('parallel: 2\n')).toEqual({ kind: 'absent' });

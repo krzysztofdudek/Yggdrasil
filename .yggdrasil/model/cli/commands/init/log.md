@@ -116,3 +116,5 @@ A migration warning after an upgrade is printed in the one output grammar — th
 A migration warning in the interactive upgrade reads in the same labelled grammar as the non-interactive one, and the steps after a migration are next: and then: lines.
 ## [2026-09-24T10:25:48.374Z]
 The steps after a migration are printed through the output layer's next and then helpers, the same lines every report ends with.
+## [2026-09-24T13:49:36.576Z]
+An upgrade is when a key an older release ignored starts to block, and a key in the local secrets overlay is never seen by CI, so init --upgrade lists the unknown top-level keys of both configuration files with the fix for each instead of leaving the first check on one machine to discover them.

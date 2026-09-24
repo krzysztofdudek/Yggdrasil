@@ -8,7 +8,8 @@ import { DEFAULT_ARCHITECTURE } from '../templates/default-config.js';
 import { installRules, DEPRECATED_PLATFORMS, type InstallReport } from '../templates/platform.js';
 import { loadGraph, CLI_SUPPORTED_SCHEMA, schemaVersionFieldIssue } from '../core/graph-loader.js';
 import { blockingUnmappedPaths } from '../core/check-coverage-tiers.js';
-import { DEFAULT_COVERAGE, readRulesArtifactsConfig } from '../io/config-parser.js';
+import { DEFAULT_COVERAGE, readRulesArtifactsConfig, parseConfigDetailed, unknownConfigKeyMessage, type UnknownConfigKey } from '../io/config-parser.js';
+import type { IssueMessage } from '../model/validation.js';
 import type { RulesArtifactsConfig } from '../model/graph.js';
 import { DEFAULT_RULES_ARTIFACTS } from '../model/graph.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE } from '../core/check-codes.js';
@@ -447,6 +448,13 @@ export interface VersionUpgradeResult {
   migrationWarnings: string[];
   /** Lines this run appended to `.yggdrasil/.gitignore` and `.gitattributes` (empty entries on a no-op). */
   housekeeping: HousekeepingTopUp[];
+  /**
+   * One what/why/next per top-level key yg-config.yaml or the local
+   * yg-secrets.yaml carries that the configuration does not know. An upgrade is
+   * the moment a key an older release ignored starts to block, so it says so
+   * here rather than leaving the first `yg check` to find it.
+   */
+  unknownConfigKeys: IssueMessage[];
   /** True when a migration withheld the version bump (incomplete upgrade). */
   withheld: boolean;
   /**
@@ -562,6 +570,24 @@ async function currentExcludedCount(projectRoot: string): Promise<number> {
   }
 }
 
+/**
+ * The unknown top-level keys of yg-config.yaml and the local yg-secrets.yaml,
+ * as messages. Best-effort like the predictions above: a configuration that
+ * fails to parse for another reason reports only the unknown keys found before
+ * that failure, and an unreadable one reports nothing — `yg check` names the
+ * rest.
+ */
+async function readUnknownConfigKeys(yggRoot: string): Promise<IssueMessage[]> {
+  try {
+    const { unknownKeys } = await parseConfigDetailed(path.join(yggRoot, 'yg-config.yaml'));
+    return unknownKeys.map(unknownConfigKeyMessage);
+  } catch (e: unknown) {
+    debugWrite(`[init] unknown-key scan: ${e instanceof Error ? e.message : String(e)}`);
+    const found = (e as { unknownKeys?: UnknownConfigKey[] }).unknownKeys ?? [];
+    return found.map(unknownConfigKeyMessage);
+  }
+}
+
 export async function runVersionUpgrade(
   projectRoot: string,
   yggRoot: string,
@@ -603,6 +629,7 @@ export async function runVersionUpgrade(
   const excludedCount = await currentExcludedCount(projectRoot);
 
   return {
+    unknownConfigKeys: await readUnknownConfigKeys(yggRoot),
     rulesPaths: report.written,
     rulesRemoved: report.removed,
     rulesSkipped: report.skipped,
@@ -704,6 +731,9 @@ async function existingInit(projectRoot: string): Promise<void> {
     }
     if (result.exclusionNotice) {
       p.log.warning(result.exclusionNotice);
+    }
+    for (const unknown of result.unknownConfigKeys) {
+      p.log.warning(buildIssueMessage(unknown));
     }
 
     const landedVersion = (await detectVersion(yggRoot)) ?? currentVersion;
@@ -888,6 +918,9 @@ export function registerInitCommand(program: Command): void {
           }
           if (result.exclusionNotice) {
             process.stdout.write(chalk.yellow(`${result.exclusionNotice}\n`));
+          }
+          for (const unknown of result.unknownConfigKeys) {
+            process.stdout.write(chalk.yellow(`${buildIssueMessage(unknown)}\n`));
           }
           return;
         }

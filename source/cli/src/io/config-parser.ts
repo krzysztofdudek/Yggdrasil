@@ -128,17 +128,55 @@ function closestKnownKey(key: string): string | undefined {
   return best !== undefined && bestDistance <= Math.min(3, Math.max(1, Math.floor(key.length / 3))) ? best : undefined;
 }
 
-function rejectUnknownTopLevelKeys(raw: Record<string, unknown>, filename: string): void {
+/**
+ * One top-level key the configuration does not know, with the file it sits in
+ * (`yg-config.yaml`, or the local `yg-secrets.yaml` overlay) and the known key
+ * it is plausibly a typo of, when there is one.
+ */
+export interface UnknownConfigKey {
+  file: string;
+  key: string;
+  suggestion?: string;
+}
+
+function findUnknownTopLevelKeys(raw: Record<string, unknown>, filename: string): UnknownConfigKey[] {
+  const found: UnknownConfigKey[] = [];
   for (const key of Object.keys(raw)) {
     if (KNOWN_TOP_LEVEL_KEYS.includes(key)) continue;
     const suggestion = closestKnownKey(key);
-    throw new ConfigParseError({
-      what: `${filename}: unknown top-level key '${key}'.`,
-      why: `yg-config.yaml accepts only: ${KNOWN_TOP_LEVEL_KEYS.join(', ')}. An unrecognized key is almost always a typo, and a silently ignored typo means the configuration in effect quietly differs from what the file appears to say (a misspelled block falls back to its default).`,
-      next: suggestion
-        ? `Did you mean '${suggestion}'? Rename the key, or remove it.`
-        : `Rename the key to one of: ${KNOWN_TOP_LEVEL_KEYS.join(', ')}, or remove it.`,
-    }, 'config-unknown-key');
+    found.push({ file: filename, key, ...(suggestion !== undefined && { suggestion }) });
+  }
+  return found;
+}
+
+/**
+ * The what/why/next of one unknown top-level key. The key is ignored and the
+ * rest of the file stays in effect, so the message is about the key alone; for
+ * the gitignored overlay it also says why nobody else sees the error.
+ */
+export function unknownConfigKeyMessage(u: UnknownConfigKey): IssueMessage {
+  const where = `.yggdrasil/${u.file}`;
+  const local = u.file === 'yg-secrets.yaml'
+    ? ' This file is local and gitignored, so CI and the rest of the team do not see this error; only this machine does.'
+    : '';
+  return {
+    what: `${where}: unknown top-level key '${u.key}'.`,
+    why: `The configuration accepts only: ${KNOWN_TOP_LEVEL_KEYS.join(', ')}. An unrecognized key is almost always a typo, and whatever it was meant to set is not in effect: the key is ignored and the rest of the configuration applies.${local}`,
+    next: u.suggestion
+      ? `Did you mean '${u.suggestion}'? Rename '${u.key}' to '${u.suggestion}' in ${where}, or remove it.`
+      : `Rename '${u.key}' in ${where} to one of: ${KNOWN_TOP_LEVEL_KEYS.join(', ')}, or remove it.`,
+  };
+}
+
+/**
+ * A configuration that parsed except for unknown top-level keys. Thrown by
+ * {@link parseConfig} for callers that treat any configuration problem as
+ * fatal; the graph loader uses {@link parseConfigDetailed} instead, keeps
+ * {@link config} and reports the keys.
+ */
+export class ConfigUnknownKeysError extends ConfigParseError {
+  constructor(public unknownKeys: UnknownConfigKey[], public config: YggConfig) {
+    super(unknownConfigKeyMessage(unknownKeys[0]), 'config-unknown-key');
   }
 }
 
@@ -297,9 +335,49 @@ const PROVIDER_DEFAULTS: Record<string, Partial<LlmConfig>> = {
   'gemini-cli': { model: 'gemini-2.5-flash' },
 };
 
+/**
+ * Parse yg-config.yaml (and, unless skipped, its yg-secrets.yaml overlay).
+ * Throws {@link ConfigParseError} on any problem, unknown top-level keys
+ * included ({@link ConfigUnknownKeysError}, which still carries the parsed
+ * configuration).
+ */
 export async function parseConfig(
   filePath: string,
   opts?: { skipSecretsOverlay?: boolean },
+): Promise<YggConfig> {
+  const { config, unknownKeys } = await parseConfigDetailed(filePath, opts);
+  if (unknownKeys.length > 0) throw new ConfigUnknownKeysError(unknownKeys, config);
+  return config;
+}
+
+/**
+ * {@link parseConfig}, but unknown top-level keys are returned beside the
+ * configuration instead of thrown. An unknown key sets nothing, so the rest of
+ * the configuration is exactly what the files say; falling back to defaults
+ * because of one would drop the coverage exclusions, the reviewer and every
+ * other setting over a typo. Any other problem still throws; when unknown keys
+ * were found too, the thrown error carries them as `unknownKeys`.
+ */
+export async function parseConfigDetailed(
+  filePath: string,
+  opts?: { skipSecretsOverlay?: boolean },
+): Promise<{ config: YggConfig; unknownKeys: UnknownConfigKey[] }> {
+  let unknownKeys: UnknownConfigKey[] = [];
+  try {
+    const config = await parseConfigInner(filePath, opts, (found) => { unknownKeys = found; });
+    return { config, unknownKeys };
+  } catch (err) {
+    if (err instanceof ConfigParseError && unknownKeys.length > 0) {
+      (err as ConfigParseError & { unknownKeys?: UnknownConfigKey[] }).unknownKeys = unknownKeys;
+    }
+    throw err;
+  }
+}
+
+async function parseConfigInner(
+  filePath: string,
+  opts: { skipSecretsOverlay?: boolean } | undefined,
+  reportUnknownKeys: (found: UnknownConfigKey[]) => void,
 ): Promise<YggConfig> {
   const filename = path.basename(filePath);
   const content = await readFile(filePath, 'utf-8');
@@ -324,9 +402,12 @@ export async function parseConfig(
   // is unchanged — the overlay is loaded and merged exactly as before.
   const overlay = opts?.skipSecretsOverlay ? undefined : await loadConfigOverlay(path.dirname(filePath));
   // Each file is checked under its own name, so a typo in the gitignored overlay
-  // is reported where it actually is.
-  rejectUnknownTopLevelKeys(baseRaw, filename);
-  if (overlay) rejectUnknownTopLevelKeys(overlay, 'yg-secrets.yaml');
+  // is reported where it actually is. Collected, not thrown: an unknown key sets
+  // nothing, so parsing the rest goes on (see parseConfigDetailed).
+  reportUnknownKeys([
+    ...findUnknownTopLevelKeys(baseRaw, filename),
+    ...(overlay ? findUnknownTopLevelKeys(overlay, 'yg-secrets.yaml') : []),
+  ]);
 
   // coverage.type_level is committed-only: capture its value from baseRaw
   // (the committed yg-config.yaml, before any overlay merge) so a gitignored
