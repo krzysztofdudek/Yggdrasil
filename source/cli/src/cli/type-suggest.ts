@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
@@ -18,7 +17,7 @@ import { projectRootFromGraph, resolveFileArg } from '../io/paths.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { toPosixPath } from '../utils/posix.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
-import { warn } from './output.js';
+import { warn, paint, writeOut } from './output.js';
 
 /**
  * Core logic for `yg type-suggest --file <path>`.
@@ -46,7 +45,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     : undefined;
 
   if (repoRelPath.startsWith('.yggdrasil/')) {
-    process.stdout.write(
+    writeOut(
       `\n${buildIssueMessage({
         what: `This path is inside .yggdrasil/ — auto-exempt from classification.`,
         why: 'The graph\'s own directory is never classified. Type matching does not apply here.',
@@ -75,7 +74,7 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
     const cause = exclusionSource === 'nested-project'
       ? `it sits inside a separate project's own boundary (a nested .yggdrasil/ graph, or its own .git — a checkout, submodule, or worktree)`
       : `it matches a coverage.excluded root in yg-config.yaml`;
-    process.stdout.write(
+    writeOut(
       buildIssueMessage({
         what: `${repoRelPath} is excluded from graph coverage by design.`,
         why: `This path is never matched against any architecture type because ${cause}.`,
@@ -95,19 +94,19 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   }
 
   if (!existsSync(absPath)) {
-    process.stdout.write(`\n(File does not exist — evaluating path predicates only)\n\n`);
+    writeOut(`\n(File does not exist — evaluating path predicates only)\n\n`);
     const result = await classifyFile(absPath, repoRelPath, graph, cache, classCache);
     if (result.matches.length > 0) {
-      process.stdout.write(`Matching types (path-only check):\n`);
+      writeOut(`Matching types (path-only check):\n`);
       for (const m of result.matches) {
-        process.stdout.write(`  ${chalk.dim('?')} ${m.typeId}\n`);
+        writeOut(`  ${paint.dim('?')} ${m.typeId}\n`);
         const traced = renderTrace(m.trace, '      ');
-        if (traced) process.stdout.write(traced + '\n');
+        if (traced) writeOut(traced + '\n');
       }
     } else {
-      process.stdout.write(`No type's path predicate matches this file path.\n`);
+      writeOut(`No type's path predicate matches this file path.\n`);
     }
-    process.stdout.write(
+    writeOut(
       `\nnext: create the file, then run yg type-suggest --file ${repoRelPath} again for the full check\n\n`,
     );
     return;
@@ -116,19 +115,19 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   const result = await classifyFile(absPath, repoRelPath, graph, cache, classCache);
 
   if (result.matches.length === 0) {
-    process.stdout.write(`\nNo type's \`when\` matches this file.\n\n`);
+    writeOut(`\nNo type's \`when\` matches this file.\n\n`);
     if (result.closest.length > 0) {
-      process.stdout.write(`Closest types (top 3, ranked by satisfied-fraction):\n`);
+      writeOut(`Closest types (top 3, ranked by satisfied-fraction):\n`);
       for (const c of result.closest) {
-        process.stdout.write(
+        writeOut(
           `  ${c.typeId} — predicate evaluates to false (score: ${c.score.toFixed(2)})\n`,
         );
         const traced = renderTrace(c.trace, '      ');
-        if (traced) process.stdout.write(traced + '\n');
+        if (traced) writeOut(traced + '\n');
       }
     }
     printUnreadableTypes(result.unreadable);
-    process.stdout.write(
+    writeOut(
       `\nnext: one of three —\n` +
         `  1. move the file under a path an existing type's when matches\n` +
         `  2. change the file so it satisfies a type's content predicate\n` +
@@ -138,21 +137,21 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
   }
 
   if (result.matches.length === 1) {
-    process.stdout.write(`\nMatching types:\n`);
-    process.stdout.write(`  ${chalk.green('✓')} ${result.matches[0].typeId}\n`);
+    writeOut(`\nMatching types:\n`);
+    writeOut(`  ${paint.green('✓')} ${result.matches[0].typeId}\n`);
     const traced = renderTrace(result.matches[0].trace, '      ');
-    if (traced) process.stdout.write(traced + '\n');
+    if (traced) writeOut(traced + '\n');
     printUnreadableTypes(result.unreadable);
-    process.stdout.write('\n');
+    writeOut('\n');
     return;
   }
 
-  process.stdout.write(`\nMultiple types match:\n`);
+  writeOut(`\nMultiple types match:\n`);
   for (const m of result.matches) {
-    process.stdout.write(`  ${chalk.green('✓')} ${m.typeId} — full when satisfied\n`);
+    writeOut(`  ${paint.green('✓')} ${m.typeId} — full when satisfied\n`);
   }
   printUnreadableTypes(result.unreadable);
-  process.stdout.write(
+  writeOut(
     `\n${buildIssueMessage({
       what: 'The architecture has overlapping when predicates between these types.',
       why: 'A file must match exactly one type, or its rules and its place in the graph are ambiguous.',
@@ -168,9 +167,9 @@ export async function typeSuggestCommand(file: string, projectRoot: string): Pro
  */
 function printUnreadableTypes(unreadable: { typeId: string; reason: string }[]): void {
   if (unreadable.length === 0) return;
-  process.stdout.write(`\nCould not be evaluated (predicate unreadable):\n`);
+  writeOut(`\nCould not be evaluated (predicate unreadable):\n`);
   for (const u of unreadable) {
-    process.stdout.write(`  ${chalk.yellow('?')} ${u.typeId} — ${u.reason}\n`);
+    writeOut(`  ${paint.yellow('?')} ${u.typeId} — ${u.reason}\n`);
   }
 }
 

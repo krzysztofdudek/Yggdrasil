@@ -101,3 +101,9 @@ The CLI now speaks one output grammar: every finding is a block headed error[lab
 A repeat run whose refusals disagree names its step on a next: line.
 ## [2026-09-24T09:20:21.915Z]
 The refusal for a file that already has an owning component names the command with the rule the user asked for filled in, instead of an <id> placeholder.
+## [2026-09-24T13:50:48.855Z]
+Every byte this command prints now goes through the output layer: stdout and stderr through writeOut and writeErr, colour through paint, instead of process.stdout.write, process.stderr.write and a chalk import of its own. The repository now refuses a direct stream write, a console call or a chalk import outside that layer, so that where output goes, what guards it and when it is decorated are decided in one place and cannot drift command by command again, as they had across hundreds of write sites before the layer existed. Its help says the assembled prompts, not prompt(s): a hand-rolled plural is refused across the shipped source.
+## [2026-09-24T14:08:15.879Z]
+The notice that a rule is not attached to the node it is run against is written through the output layer's notice, headed note:, and its next step says to ask the user to approve the architecture change first, the one phrasing every human sign-off uses so an agent never reads a passive 'for the user to approve' as leave to go ahead.
+## [2026-09-24T14:12:00.436Z]
+When a rule has no pair on the node or file it is run against, the command says so through the output layer as a note with a why and a next step (yg context on that node or file, which lists what does apply), instead of a bare line on stdout with no step: the same kind of explanation as the not-attached notice beside it, in the same grammar.

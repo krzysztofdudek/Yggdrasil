@@ -24,7 +24,7 @@ import {
   type AspectLogJsonEntry,
 } from '../formatters/aspect-log-json.js';
 import type { AspectDef, Graph } from '../model/graph.js';
-import { failAndExit } from './output.js';
+import { failAndExit, writeOut } from './output.js';
 
 /**
  * `yg aspects log add` / `yg aspects log read` — a rule's own history, written
@@ -86,7 +86,7 @@ export function registerAspectsLogCommand(aspects: Command): void {
         });
         if (!result.ok) failAndExit(result.error);
 
-        process.stdout.write(
+        writeOut(
           `Added a log entry to rule '${aspect.id}'.\nTimestamp: ${result.datetime}\n`,
         );
       } catch (error) {
@@ -139,10 +139,10 @@ export function registerAspectsLogCommand(aspects: Command): void {
         if (!result.ok) failAndExit(result.error);
 
         if (opts.json === true) {
-          process.stdout.write(formatAspectLogJson(buildDocument(aspect, result.entries)));
+          writeOut(formatAspectLogJson(buildDocument(aspect, result.entries)));
           return;
         }
-        process.stdout.write(renderEntries(aspect, result.entries));
+        writeOut(renderEntries(aspect, result.entries));
       } catch (error) {
         abortOnUnexpectedError(error, "reading a rule's log");
       }

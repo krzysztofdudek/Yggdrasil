@@ -14,7 +14,6 @@
  * word (with one block and nothing to add, there is no `next:` at all) — and
  * the same step is the JSON document's `suggestedNext` and `next`.
  */
-import chalk from 'chalk';
 import type { CheckIssue, CheckResult } from '../core/check.js';
 import { ZERO_CLASSIFYING_TYPES_NOTICE, FEATURE_INDEX_NOT_IGNORED_NOTICE, OUTSIDE_CODES } from '../core/check-codes.js';
 import { countOutside } from '../core/check-progressive.js';
@@ -23,7 +22,7 @@ import { COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, getIssueLabel } from
 import { renderHeader, useEmoji, renderTypeVisibilityBlock, renderByteGuardNotice, renderBaselineNoiseNotice, renderExternalJudgesNotice } from './check-render-header.js';
 import { buildBlocks, renderBlocks, costWords, type CheckBlock } from './check-render-groups.js';
 import { GRAPH_INVALID_CODES } from './output-diagnostic.js';
-import { count, MEMBER_CAP, verdict, next as nextLine, thenStep as thenLine, note } from './output.js';
+import { count, MEMBER_CAP, verdict, next as nextLine, thenStep as thenLine, note, paint } from './output.js';
 import type { CheckJsonDocument, CheckJsonGroup, CheckJsonIssue, CheckJsonNext } from '../formatters/check-json.js';
 import { toPosixPath } from '../utils/posix.js';
 
@@ -313,7 +312,7 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   // The graph did not load as written: say so before anything else, in every
   // view, because everything below was computed without the part that failed.
   const partial = renderPartialResultBanner(result);
-  if (partial !== undefined) lines.push('', emoji ? chalk.yellow(partial) : partial);
+  if (partial !== undefined) lines.push('', emoji ? paint.yellow(partial) : partial);
 
   if (view.kind === 'summary') {
     lines.push('', ...(view.by === 'nodes' ? summaryByNode(result.issues) : summaryByCode(all)));
@@ -345,7 +344,7 @@ export function formatOutput(result: CheckResult, view: CheckView = { kind: 'ful
   }
 
   const standing = notes(result);
-  if (standing.length > 0) lines.push('', ...standing.map((t) => (emoji ? chalk.dim(note(t)) : note(t))));
+  if (standing.length > 0) lines.push('', ...standing.map((t) => (emoji ? paint.dim(note(t)) : note(t))));
 
   lines.push(...stepLines(step), '');
   return lines.join('\n');

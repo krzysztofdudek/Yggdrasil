@@ -1,4 +1,3 @@
-import chalk from 'chalk';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { lt as semverLt, valid as validSemver } from 'semver';
@@ -42,6 +41,7 @@ import {
   withCommandLock,
 } from './pack-source.js';
 import type { Fetched, Want } from './pack-source.js';
+import { paint, writeOut } from './output.js';
 
 /**
  * source/cli/src/cli/pack-update.ts — `yg pack update`: replace an installed
@@ -123,7 +123,7 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
     const lock = await readLock(projectRoot);
     const names = name === undefined ? Object.keys(lock.packages).sort() : [name];
     if (names.length === 0) {
-      process.stdout.write('No packages are installed.\n');
+      writeOut('No packages are installed.\n');
       return 0;
     }
     if (name !== undefined && !Object.prototype.hasOwnProperty.call(lock.packages, name)) {
@@ -176,7 +176,7 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
       const applied: string[] = [];
       let failure: { name: string; message: IssueMessage } | null = null;
       for (const plan of plans) {
-        for (const note of plan.notes) process.stdout.write(`${note}\n`);
+        for (const note of plan.notes) writeOut(`${note}\n`);
         if (plan.action === 'none') continue;
         if (plan.action === 'record' && plan.record !== undefined) {
           current = { schema: 'yg-packages/1', packages: { ...current.packages, [plan.name]: plan.record } };
@@ -213,8 +213,8 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
         const verb = opts.reinstall === true ? 'Reinstalled' : 'Updated';
         const change = opts.reinstall === true ? plan.entry.version : `${plan.entry.version} → ${install.manifest.version}`;
         const from = install.fetched.tag === undefined ? '' : ` (${install.fetched.tag}, commit ${shortCommit(install.fetched.commit)})`;
-        process.stdout.write(chalk.green(`${verb} '${plan.name}' ${change}${from}.\n`));
-        for (const line of install.summary) process.stdout.write(`${line}\n`);
+        writeOut(paint.green(`${verb} '${plan.name}' ${change}${from}.\n`));
+        for (const line of install.summary) writeOut(`${line}\n`);
       }
 
       const observed: Record<string, string[]> = {};
@@ -228,7 +228,7 @@ export async function runUpdate(name: string | undefined, opts: UpdateOptions): 
       await rememberObservedVersions(graph.rootPath, observed, Object.keys(observed).length > 0);
 
       if (applied.length > 0) {
-        process.stdout.write('\nRules whose content changed need judging again. Run: yg check --approve\n');
+        writeOut('\nRules whose content changed need judging again. Run: yg check --approve\n');
       }
       if (failure !== null) {
         const notReached = plans
@@ -323,7 +323,7 @@ async function planUpdate(
     const differs = differingFiles(entry.files, newHashes.value);
     if (differs.length > 0) {
       failWith({
-        what: `What the source publishes as '${pkgName}' ${entry.version} today is not what this repository installed:\n${differs.map((f) => `  ${repoRelativePackagePath(f)}`).join('\n')}`,
+        what: `What the source publishes as '${pkgName}' ${entry.version} today is not what this repository installed:\n${differs.map((f) => repoRelativePackagePath(f)).join('\n')}`,
         why: 'A reinstall puts back exactly what the record says was installed, file for file. The source no longer has that, so nothing could be put back faithfully. Nothing was changed.',
         next: `Restore the copy from version control instead (git checkout -- .yggdrasil/aspects/${installDirRelative(entry.package)}), or take a published version with yg pack update ${pkgName} --to <version>.`,
       });
@@ -350,7 +350,7 @@ async function planUpdate(
         entry,
         action: 'none',
         notes: [
-          chalk.yellow(
+          paint.yellow(
             `'${pkgName}' is at ${installed}, but ${fetched.tag} now points at commit ${shortCommit(fetched.commit)}, not the recorded ${shortCommit(entry.commit)}. ` +
               `Nothing was changed. Run: yg pack verify ${pkgName}`,
           ),
@@ -402,7 +402,7 @@ async function planUpdate(
   const attached = attachmentsOf(graph, new Set(removed.map((r) => `${idPrefix}/${r}`)), idPrefix);
   if (attached.length > 0) {
     failWith({
-      what: `${target} of '${pkgName}' no longer ships ${removed.map((r) => `'${r}'`).join(', ')}, and the graph still names it:\n${attached.map((a) => `  ${a.aspectId} — ${a.where}`).join('\n')}`,
+      what: `${target} of '${pkgName}' no longer ships ${removed.map((r) => `'${r}'`).join(', ')}, and the graph still names it:\n${attached.map((a) => `${a.aspectId} — ${a.where}`).join('\n')}`,
       why: 'Replacing the copy would leave those references pointing at a rule that is gone, and every check would fail on the dangling names rather than on anything real. Nothing was updated.',
       next: 'Detach the rules listed above (or attach whatever replaces them in the new version), then run this again.',
     });
@@ -465,7 +465,7 @@ async function describeUpdate(
   const added = manifest.aspects.filter((r) => !oldRules.includes(r));
   if (added.length > 0) lines.push(`  new rules: ${added.join(', ')}`);
   if (removed.length > 0) {
-    lines.push(chalk.yellow(`  rules no longer shipped, removed with their adaptations: ${removed.join(', ')}`));
+    lines.push(paint.yellow(`  rules no longer shipped, removed with their adaptations: ${removed.join(', ')}`));
   }
 
   const oldManifestResult = await parsePackageManifest(path.join(oldRootAbs, PACKAGE_FILENAME));
@@ -500,7 +500,7 @@ async function describeUpdate(
     for (const key of Object.keys(oldKeys).filter((k) => !(k in newKeys)).sort()) {
       lines.push(
         mine.has(key)
-          ? chalk.yellow(`  ${rule}: setting ${key} is gone, and your ${ADAPT_FILENAME} still sets it — the graph refuses to load until you remove it there`)
+          ? paint.yellow(`  ${rule}: setting ${key} is gone, and your ${ADAPT_FILENAME} still sets it — the graph refuses to load until you remove it there`)
           : `  ${rule}: setting ${key} is gone`,
       );
     }

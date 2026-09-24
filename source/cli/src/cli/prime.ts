@@ -8,6 +8,7 @@ import type { PackageRepoKind } from '../templates/knowledge/packages-and-market
 import { MARKETPLACE_FILENAME, PACKAGES_LOCK_FILENAME } from '../model/packages.js';
 import { cliVersion } from './cli-version.js';
 import { abortOnUnexpectedError } from './preamble.js';
+import { writeOut } from './output.js';
 
 /**
  * Whether this repository publishes packages, consumes them, or neither.
@@ -42,11 +43,11 @@ export function registerPrimeCommand(program: Command): void {
     .action((options: { digest?: boolean }) => {
       try {
         if (options.digest) {
-          process.stdout.write(digestBlockBody(cliVersion()));
+          writeOut(digestBlockBody(cliVersion()));
           return;
         }
         const kind = packageRepoKind(process.cwd());
-        process.stdout.write(
+        writeOut(
           `Yggdrasil v${cliVersion()} — agent operating manual, printed fresh from the installed CLI.\n\n` +
             `${AGENT_RULES_CONTENT}\n` +
             (kind === null ? '' : marketplaceNoticeLine(kind)) +

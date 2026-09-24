@@ -40,3 +40,5 @@ The type suggestion report ends in a labelled next: step for each outcome and re
 A path inside .yggdrasil/ keeps its familiar auto-exempt wording as the what of the labelled block, with the reason on the why line.
 ## [2026-09-24T10:05:55.693Z]
 Overlapping types are reported as a labelled what, why and next block instead of a hand-laid sentence and a bare next line.
+## [2026-09-24T13:51:10.077Z]
+Every byte this command prints now goes through the output layer: stdout and stderr through writeOut and writeErr, colour through paint, instead of process.stdout.write, process.stderr.write and a chalk import of its own. The repository now refuses a direct stream write, a console call or a chalk import outside that layer, so that where output goes, what guards it and when it is decorated are decided in one place and cannot drift command by command again, as they had across hundreds of write sites before the layer existed.

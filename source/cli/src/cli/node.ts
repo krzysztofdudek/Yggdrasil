@@ -6,7 +6,7 @@ import { NODE_JSON_SCHEMA, formatNodeJson } from '../formatters/node-json.js';
 import type { NodeJsonDocument } from '../formatters/node-json.js';
 import { buildNodeDocument } from '../core/graph/machine-documents.js';
 import { toPosixPath } from '../utils/posix.js';
-import { fail } from './output.js';
+import { fail, writeOut } from './output.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
@@ -80,7 +80,7 @@ export function registerNodeCommand(program: Command): void {
         }
 
         const doc = buildNodeDocument(graph, nodePath);
-        process.stdout.write(options.json === true ? formatNodeJson(doc) : renderNodeText(doc));
+        writeOut(options.json === true ? formatNodeJson(doc) : renderNodeText(doc));
       } catch (error) {
         debugWrite(`[node] command failed: ${error instanceof Error ? error.message : String(error)}`);
         abortOnUnexpectedError(error, 'reading the component');

@@ -1,5 +1,4 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
 import path from 'node:path';
 import { statSync, accessSync, constants as fsConstants } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -38,7 +37,7 @@ import {
 import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, LlmConfig } from '../model/graph.js';
-import { fail, field } from './output.js';
+import { fail, field, paint, writeErr, writeOut, notice } from './output.js';
 
 /** One `file:line` (or `file:start-end`) a reviewer's reason cites. */
 export interface CitedLocation { file: string; start: number; end: number }
@@ -181,9 +180,9 @@ function probeUnusablePath(absPath: string): UnusablePathReason | undefined {
  * Deterministic runs print the stamp LEADING (results complete before print);
  * LLM runs stream per-pair lines and print a trailing summary stamp.
  */
-const DET_SATISFIED_STAMP = `yg aspect-test: ${chalk.green('satisfied')} — No violations.\n`;
+const DET_SATISFIED_STAMP = `yg aspect-test: ${paint.green('satisfied')} — No violations.\n`;
 function detRefusedStamp(count: number): string {
-  return `yg aspect-test: ${chalk.red('refused')} — ${count} violation${count === 1 ? '' : 's'}\n`;
+  return `yg aspect-test: ${paint.red('refused')} — ${count} violation${count === 1 ? '' : 's'}\n`;
 }
 
 /**
@@ -215,18 +214,18 @@ async function runStructureUnitAndReport(
     const result2 = await runOnce();
     if (!determinismMatches(result.violations, result2.violations)) {
       writeNonDeterministicError(aspectId, result.violations, result2.violations);
-      process.stdout.write(DIAGNOSTIC_FOOTER);
+      writeOut(DIAGNOSTIC_FOOTER);
       await exitAfterFlush(1);
     }
   }
   if (result.violations.length === 0) {
-    process.stdout.write(DET_SATISFIED_STAMP);
-    process.stdout.write(DIAGNOSTIC_FOOTER);
+    writeOut(DET_SATISFIED_STAMP);
+    writeOut(DIAGNOSTIC_FOOTER);
     return;
   }
-  process.stdout.write(detRefusedStamp(result.violations.length));
+  writeOut(detRefusedStamp(result.violations.length));
   printStructureViolations(result.violations);
-  process.stdout.write(DIAGNOSTIC_FOOTER);
+  writeOut(DIAGNOSTIC_FOOTER);
   await exitAfterFlush(1);
 }
 
@@ -236,7 +235,7 @@ export function registerAspectTestCommand(program: Command): void {
     .description(
       'Run an aspect check without modifying the lock — against a graph node (--node), a file enforced by its architecture ' +
       'type alone (--file, no owning component), or ad-hoc files (--files, no graph attachment at all). ' +
-      'For reviewer rules, --dry-run prints the assembled prompt(s) without making any reviewer call. ' +
+      'For reviewer rules, --dry-run prints the assembled prompts without making any reviewer call. ' +
       'For companion aspects, --dry-run runs the companion hook live and prints resolved companion paths.',
     )
     .requiredOption('--aspect <id>', 'aspect id to run')
@@ -244,7 +243,7 @@ export function registerAspectTestCommand(program: Command): void {
     .option('--file <path>', 'source file enforced by its architecture type alone, no owning component (uses the architecture-derived read allowance, not a node mapping — see --files for the UNGRAPHED ad-hoc form)')
     .option('--files <paths...>', 'ad-hoc source files to check (deterministic aspects only; NO graph attachment — see --file for a graph-attached, type-covered file)')
     .option('--check-determinism', 'run the check twice and fail if results differ (deterministic aspects only)')
-    .option('--dry-run', 'for reviewer rules: print the assembled prompt(s) to stdout, make no reviewer call (companion hook runs live)')
+    .option('--dry-run', 'for reviewer rules: print the assembled prompts to stdout, make no reviewer call (companion hook runs live)')
     .option('--repeat <n>', 'for reviewer rules: re-run each unit N times (N >= 2) to measure how consistently the reviewer judges the same prompt (self-consistency, not correctness); not valid with --dry-run, --files, or deterministic aspects')
     .option('--tier <name>', 'run the same pairs under a named reviewer tier from the merged config (dry-fit before a model swap); diagnostic — no graph edits, no lock writes')
     .action(async (opts) => {
@@ -409,7 +408,7 @@ export function registerAspectTestCommand(program: Command): void {
           }
 
           const llmExit = await runLlmAspectTest(graph, projectRoot, aspect, target, opts.dryRun ?? false, repeatN, typeof opts.tier === 'string' ? opts.tier : undefined);
-          process.stdout.write(DIAGNOSTIC_FOOTER);
+          writeOut(DIAGNOSTIC_FOOTER);
           // Refused or incomplete (fail-closed) units exit 1, per the documented
           // 'exit 1 on violations or refusals' contract.
           if (llmExit !== 0) await exitAfterFlush(llmExit);
@@ -486,11 +485,11 @@ export function registerAspectTestCommand(program: Command): void {
             const effective = computeEffectiveAspects(node, graph);
             const attached = effective.has(aspect.id);
             if (!attached) {
-              process.stderr.write(`${buildIssueMessage({
-                what: `Note: aspect '${aspect.id}' is not attached to node '${nodePath}' — running the check ad-hoc against its files.`,
+              notice({
+                what: `Aspect '${aspect.id}' is not attached to node '${nodePath}' — running the check ad-hoc against its files.`,
                 why: 'yg check will not produce a verdict for this pair, so what this run prints is a diagnostic only.',
-                next: `To have yg check judge it, attach aspect '${aspect.id}' to node '${nodePath}' (or to an ancestor or its type) — an architecture change for the user to approve.`,
-              })}\n`);
+                next: `To have yg check judge it, attach aspect '${aspect.id}' to node '${nodePath}' (or to an ancestor or its type) — an architecture change: ask the user to approve it first.`,
+              });
             }
           } catch (e) {
             debugWrite(`[aspect-test] effectiveness precheck failed for ${aspect.id} on ${nodePath}: ${e instanceof Error ? e.message : String(e)}`);
@@ -581,18 +580,18 @@ export function registerAspectTestCommand(program: Command): void {
           const result2 = await runOnce();
           if (!determinismMatches(result.violations, result2.violations)) {
             writeNonDeterministicError(opts.aspect, result.violations, result2.violations);
-            process.stdout.write(DIAGNOSTIC_FOOTER);
+            writeOut(DIAGNOSTIC_FOOTER);
             await exitAfterFlush(1);
           }
         }
         if (result.violations.length === 0) {
-          process.stdout.write(DET_SATISFIED_STAMP);
-          process.stdout.write(DIAGNOSTIC_FOOTER);
+          writeOut(DET_SATISFIED_STAMP);
+          writeOut(DIAGNOSTIC_FOOTER);
           return;
         }
-        process.stdout.write(detRefusedStamp(result.violations.length));
+        writeOut(detRefusedStamp(result.violations.length));
         printAstViolations(result.violations);
-        process.stdout.write(DIAGNOSTIC_FOOTER);
+        writeOut(DIAGNOSTIC_FOOTER);
         await exitAfterFlush(1);
       } catch (e: unknown) {
         debugWrite(`[aspect-test] run failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -924,9 +923,13 @@ async function runLlmAspectTest(
 
   if (myPairs.length === 0) {
     const label = target.kind === 'node' ? `node '${target.nodePath}'` : `file '${target.file}'`;
-    process.stdout.write(
-      `No pairs for aspect '${aspect.id}' on ${label} — the aspect has an empty subject set or does not apply to this ${target.kind === 'node' ? 'node' : 'file'}.\n`,
-    );
+    notice({
+      what: `No pairs for aspect '${aspect.id}' on ${label} — the aspect has an empty subject set or does not apply to this ${target.kind === 'node' ? 'node' : 'file'}.`,
+      why: 'There is nothing for the reviewer to judge here, so no reviewer call was made.',
+      next: target.kind === 'node'
+        ? `yg context --node ${target.nodePath} lists the rules that apply to it and the files it maps.`
+        : `yg context --file ${target.file} lists the rules that apply to it.`,
+    });
     return 0;
   }
 
@@ -1017,7 +1020,7 @@ async function runLlmAspectTest(
     // call (repeat N × units), so the cost is visible up front.
     if (repeat >= 2) {
       const units = myPairs.length;
-      process.stdout.write(
+      writeOut(
         `repeat ${repeat} × ${units} unit${units === 1 ? '' : 's'} = ${repeat * units} reviewer calls\n`,
       );
     }
@@ -1092,14 +1095,14 @@ async function runLlmAspectTest(
             emitDiag(pair.unitKey, 'infra', promptHash);
             // Infrastructure, not a code violation — same routing as every other
             // provider-error report in this file (stderr, never stdout).
-            process.stderr.write(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, `reviewer threw: ${e instanceof Error ? e.message : String(e)}`))}\n`);
+            writeErr(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, `reviewer threw: ${e instanceof Error ? e.message : String(e)}`))}\n`);
             continue;
           }
           if (!response.satisfied && response.errorSource === 'provider') {
             debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${response.reason}`);
             providerErrorRuns++;
             emitDiag(pair.unitKey, 'infra', promptHash);
-            process.stderr.write(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, response.reason))}\n`);
+            writeErr(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, response.reason))}\n`);
             continue;
           }
           if (response.satisfied) satisfiedRuns++;
@@ -1114,13 +1117,13 @@ async function runLlmAspectTest(
             total: 1,
           });
           const verdict = response.satisfied ? 'satisfied' : 'refused';
-          process.stdout.write(`${pair.unitKey} run ${i}/${repeat}: ${verdict} — ${response.reason}\n`);
+          writeOut(`${pair.unitKey} run ${i}/${repeat}: ${verdict} — ${response.reason}\n`);
         }
 
         const validRuns = satisfiedRuns + refusedRuns;
         if (validRuns === 0) {
           // Every run erred — the unit was never actually judged. Fail closed.
-          process.stdout.write(`  stability: not measured — all ${repeat} runs returned provider errors\n`);
+          writeOut(`  stability: not measured — all ${repeat} runs returned provider errors\n`);
           skippedCount++;
           continue;
         }
@@ -1129,18 +1132,18 @@ async function runLlmAspectTest(
         const excludedNote = providerErrorRuns > 0
           ? ` (${providerErrorRuns} provider-error run${providerErrorRuns === 1 ? '' : 's'} excluded)`
           : '';
-        process.stdout.write(`  stability: ${satisfiedRuns}/${validRuns} satisfied${excludedNote}\n`);
+        writeOut(`  stability: ${satisfiedRuns}/${validRuns} satisfied${excludedNote}\n`);
         // The verdict ratio says whether the reviewer refuses consistently; it
         // does not say whether it refuses for the same REASONS. Compare the
         // locations the refusals cited.
         if (refusedRuns >= 2) {
           const overlap = citationOverlap(refusalReasons);
           if (overlap === undefined) {
-            process.stdout.write(`  cited violations: not compared — fewer than two refusals cited a file:line\n`);
+            writeOut(`  cited violations: not compared — fewer than two refusals cited a file:line\n`);
           } else {
-            process.stdout.write(`  cited violations: ${overlap.common} of ${overlap.union} cited location${overlap.union === 1 ? '' : 's'} named by every refusal\n`);
+            writeOut(`  cited violations: ${overlap.common} of ${overlap.union} cited location${overlap.union === 1 ? '' : 's'} named by every refusal\n`);
             if (overlap.common * 2 < overlap.union) {
-              process.stdout.write(
+              writeOut(
                 `  The refusals name mostly different violations from run to run, so fixing one run's list will not settle the next.\n` +
                   `next: sharpen the rule's content.md until it names what counts, before editing code to a list that moves\n`,
               );
@@ -1197,26 +1200,26 @@ async function runLlmAspectTest(
       const voteSuffix = votes.length > 1
         ? ` [votes ${tally.satisfied}/${tally.total}]`
         : '';
-      process.stdout.write(`${pair.unitKey}: ${verdict} — ${response.reason}${voteSuffix}\n`);
+      writeOut(`${pair.unitKey}: ${verdict} — ${response.reason}${voteSuffix}\n`);
     }
 
     // Summary stamp — the caller prints the footer directly after it.
     const total = myPairs.length;
     if (skippedCount > 0) {
-      process.stdout.write(`yg aspect-test: ${chalk.red('incomplete')} — ${skippedCount} of ${total} units could not be verified\n`);
+      writeOut(`yg aspect-test: ${paint.red('incomplete')} — ${skippedCount} of ${total} units could not be verified\n`);
       return 1;
     }
     if (refusedCount > 0) {
-      process.stdout.write(`yg aspect-test: ${chalk.red('refused')} — ${refusedCount} of ${total} units refused\n`);
+      writeOut(`yg aspect-test: ${paint.red('refused')} — ${refusedCount} of ${total} units refused\n`);
       return 1;
     }
-    process.stdout.write(`yg aspect-test: ${chalk.green('satisfied')} — ${total} unit${total === 1 ? '' : 's'} satisfied\n`);
+    writeOut(`yg aspect-test: ${paint.green('satisfied')} — ${total} unit${total === 1 ? '' : 's'} satisfied\n`);
     return 0;
   } else {
     // --dry-run: print assembled prompt(s), no reviewer/LLM calls.
     // For companion aspects: runs the companion hook live (same resolution as --approve),
     // prints resolved companion paths/labels, then includes them in the prompt.
-    process.stdout.write('yg aspect-test: dry-run — prompt preview only, no verdict\n');
+    writeOut('yg aspect-test: dry-run — prompt preview only, no verdict\n');
     for (const pair of myPairs) {
       const files: PromptFileInput[] = [];
       for (const rel of pair.subjectFiles) {
@@ -1244,13 +1247,13 @@ async function runLlmAspectTest(
         }
         companions = resolved.companions;
         // Print resolved companion paths/labels BEFORE the prompt for this unit.
-        process.stdout.write(`--- companions for ${pair.unitKey} ---\n`);
+        writeOut(`--- companions for ${pair.unitKey} ---\n`);
         if (companions.length === 0) {
-          process.stdout.write('  (none)\n');
+          writeOut('  (none)\n');
         } else {
           for (const c of companions) {
             const labelSuffix = c.label !== undefined ? ` (${c.label})` : '';
-            process.stdout.write(`  ${c.path}${labelSuffix}\n`);
+            writeOut(`  ${c.path}${labelSuffix}\n`);
           }
         }
       }
@@ -1268,8 +1271,8 @@ async function runLlmAspectTest(
         scope: aspect.scope,
       });
 
-      process.stdout.write(`=== prompt for ${pair.unitKey} ===\n`);
-      process.stdout.write(prompt + '\n');
+      writeOut(`=== prompt for ${pair.unitKey} ===\n`);
+      writeOut(prompt + '\n');
     }
   }
   return 0;
@@ -1299,10 +1302,10 @@ function writeNonDeterministicError(aspectId: string, run1: AnyViolation[], run2
       why: `Two consecutive runs returned different violations. This indicates the check.mjs has side effects or depends on non-deterministic state.`,
       next: `Review check.mjs to ensure it depends only on its inputs and produces stable output.`,
     });
-  process.stderr.write('Run 1:\n');
-  process.stderr.write(JSON.stringify(sorted1, null, 2) + '\n');
-  process.stderr.write('Run 2:\n');
-  process.stderr.write(JSON.stringify(sorted2, null, 2) + '\n');
+  writeErr('Run 1:\n');
+  writeErr(JSON.stringify(sorted1, null, 2) + '\n');
+  writeErr('Run 2:\n');
+  writeErr(JSON.stringify(sorted2, null, 2) + '\n');
 }
 
 // ============================================================
@@ -1318,7 +1321,7 @@ function printAstViolations(violations: AstViolation[]): void {
   // The block template's at: field — each violation where it is, then what it says.
   const entries = [...byFile.entries()].sort(([a], [b]) => a.localeCompare(b));
   const rows = entries.flatMap(([file, vs]) => vs.sort((a, b) => a.line - b.line).map((v) => `${file}:${v.line}  ${v.message}`));
-  process.stdout.write(field('at', rows, false).join('\n') + '\n');
+  writeOut(field('at', rows, false).join('\n') + '\n');
 }
 
 function printStructureViolations(violations: StructureViolation[]): void {
@@ -1341,5 +1344,5 @@ function printStructureViolations(violations: StructureViolation[]): void {
       rows.push(typeof v.line === 'number' ? `${file}:${v.line}  ${v.message}` : `${file}  ${v.message}`);
     }
   }
-  process.stdout.write(field('at', rows, false).join('\n') + '\n');
+  writeOut(field('at', rows, false).join('\n') + '\n');
 }

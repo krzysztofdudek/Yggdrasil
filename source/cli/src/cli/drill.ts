@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import { registerDrillAddCommand } from './drill-add.js';
-import chalk from 'chalk';
 import path from 'node:path';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
@@ -23,7 +22,7 @@ import {
   type DrillRunSetup,
 } from '../core/drill-runner.js';
 import type { AspectDef, Graph, LlmConfig } from '../model/graph.js';
-import { fail } from './output.js';
+import { fail, paint, writeErr, writeOut } from './output.js';
 import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { IssueMessage } from '../model/validation.js';
 import { formatDrillJson, DRILL_JSON_SCHEMA, type DrillJsonDocument } from '../formatters/drill-json.js';
@@ -114,11 +113,11 @@ export function registerDrillCommand(program: Command): void {
           if (json) {
             const src: 'dev' | 'holdout' = typeof opts.dir === 'string' ? 'holdout' : 'dev';
             const label = typeof opts.corpus === 'string' ? opts.corpus : src === 'holdout' ? path.basename(path.resolve(projectRoot, where)) : 'dev';
-            process.stdout.write(formatDrillJson(drillDocument(aspect.id, { label, source: src, path: where }, [], new Map(), 0)));
+            writeOut(formatDrillJson(drillDocument(aspect.id, { label, source: src, path: where }, [], new Map(), 0)));
             return;
           }
           const filter = typeof opts.case === 'string' ? ` matching '${opts.case}'` : '';
-          process.stdout.write(
+          writeOut(
             `yg drill '${aspect.id}': no ${typeof opts.dir === 'string' ? 'holdout ' : ''}case corpus found under ${where}${filter} — nothing to run. Drills are regression fixtures, not a build gate.\n`,
           );
           return;
@@ -130,7 +129,7 @@ export function registerDrillCommand(program: Command): void {
         const details = new Map<DrillResult, IssueMessage>();
         const sink: DrillSink | undefined = json
           ? {
-              budget: (line) => process.stderr.write(line + '\n'),
+              budget: (line) => writeErr(line + '\n'),
               caseResult: (result, detail) => { if (detail !== undefined) details.set(result, detail); },
             }
           : undefined;
@@ -147,9 +146,9 @@ export function registerDrillCommand(program: Command): void {
         const src = cases[0].src;
         const corpus = cases[0].corpus;
         if (json) {
-          process.stdout.write(formatDrillJson(drillDocument(aspect.id, { label: corpus, source: src, path: where }, summary.results, details, summary.exitCode)));
+          writeOut(formatDrillJson(drillDocument(aspect.id, { label: corpus, source: src, path: where }, summary.results, details, summary.exitCode)));
         } else {
-          process.stdout.write(drillSummaryFooter(aspect.id, summary.counts, corpus, src) + '\n');
+          writeOut(drillSummaryFooter(aspect.id, summary.counts, corpus, src) + '\n');
         }
 
         if (summary.exitCode !== 0) await exitAfterFlush(summary.exitCode);
@@ -188,10 +187,10 @@ export interface DrillSink {
 }
 
 const TEXT_SINK: DrillSink = {
-  budget: (line) => process.stdout.write(line + '\n'),
+  budget: (line) => writeOut(line + '\n'),
   caseResult: (result, detail) => {
     renderCaseResult(result);
-    if (detail !== undefined) process.stdout.write(`${buildIssueMessage(detail).split('\n').map((l) => `    ${l}`).join('\n')}\n`);
+    if (detail !== undefined) writeOut(`${buildIssueMessage(detail).split('\n').map((l) => `    ${l}`).join('\n')}\n`);
   },
 };
 
@@ -288,11 +287,11 @@ function short(hash: string): string {
 }
 
 const OUTCOME_LABEL: Record<DrillResult['outcome'], string> = {
-  pass: chalk.green('pass       '),
-  miss: chalk.red('MISS       '),
-  'false-alarm': chalk.red('FALSE-ALARM'),
-  unrun: chalk.yellow('unrun      '),
-  unsupported: chalk.dim('unsupported'),
+  pass: paint.green('pass       '),
+  miss: paint.red('MISS       '),
+  'false-alarm': paint.red('FALSE-ALARM'),
+  unrun: paint.yellow('unrun      '),
+  unsupported: paint.dim('unsupported'),
 };
 
 /**
@@ -306,7 +305,7 @@ function renderCaseResult(result: DrillResult): void {
     result.got === 'unrun' || result.got === 'unsupported'
       ? `expected ${result.case.expect}`
       : `expected ${result.case.expect}, got ${result.got}`;
-  process.stdout.write(
+  writeOut(
     `${OUTCOME_LABEL[result.outcome]}  ${result.case.caseLabel}  [${verdictPart}]  (case ${short(result.caseHash)} · rule ${short(result.ruleHash)})\n`,
   );
 }

@@ -1,16 +1,15 @@
 import { Command } from 'commander';
-import chalk from 'chalk';
 import { KNOWLEDGE_TOPICS } from '../templates/knowledge/index.js';
 import { abortOnUnexpectedError } from './preamble.js';
-import { fail } from './output.js';
+import { fail, paint, writeOut } from './output.js';
 
 export function listKnowledge(): void {
-  process.stdout.write('\nAvailable knowledge topics:\n\n');
+  writeOut('\nAvailable knowledge topics:\n\n');
   const sorted = Object.entries(KNOWLEDGE_TOPICS).sort(([a], [b]) => a.localeCompare(b));
   for (const [name, topic] of sorted) {
-    process.stdout.write(`  ${chalk.bold(name.padEnd(28))} ${topic.summary}\n`);
+    writeOut(`  ${paint.bold(name.padEnd(28))} ${topic.summary}\n`);
   }
-  process.stdout.write('\nTo read a topic: yg knowledge read <name>\n\n');
+  writeOut('\nTo read a topic: yg knowledge read <name>\n\n');
 }
 
 export function readKnowledge(name: string): void {
@@ -24,7 +23,7 @@ export function readKnowledge(name: string): void {
     process.exit(1);
   }
   const topic = KNOWLEDGE_TOPICS[name];
-  process.stdout.write(topic.content);
+  writeOut(topic.content);
 }
 
 export function registerKnowledgeCommand(program: Command): void {

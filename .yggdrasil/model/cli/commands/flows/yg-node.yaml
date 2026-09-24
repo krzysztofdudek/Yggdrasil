@@ -3,6 +3,8 @@ type: command
 description: Lists all flows with metadata in YAML format via yg flows
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/tests/unit/cli

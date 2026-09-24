@@ -31,6 +31,7 @@ import type { LockFile } from '../model/lock.js';
 import type { VerifiedPair } from './verify-lock.js';
 import { toPosixPath } from '../utils/posix.js';
 import { debugWrite } from '../utils/debug-log.js';
+import { count } from '../utils/count.js';
 
 /**
  * Write the live-computed prompt size onto every still-valid LLM entry that has
@@ -59,7 +60,7 @@ export async function backfillPromptSizes(
     updated += 1;
   }
   if (updated > 0) {
-    debugWrite(`[fill] recorded prompt size on ${updated} pre-existing verdict(s)`);
+    debugWrite(`[fill] recorded prompt size on ${count(updated, 'pre-existing verdict')}`);
     await persistLock();
   }
   return updated;

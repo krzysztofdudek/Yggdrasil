@@ -1,5 +1,4 @@
 import type { Command } from 'commander';
-import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { quoteData } from '../core/advise-nominations.js';
@@ -10,7 +9,7 @@ import {
   INCIDENT_TAGS,
   INCIDENTS_FILENAME,
 } from '../io/incidents-store.js';
-import { failAndExit } from './output.js';
+import { failAndExit, paint, writeOut } from './output.js';
 
 function handleError(error: unknown): never {
   debugWrite(`[incident] command failed: ${(error as Error).message}`);
@@ -68,8 +67,10 @@ export function registerIncidentCommand(program: Command): void {
           });
         }
 
-        // Injected UTC clock at the boundary (wave-5/6 pattern) — the store keeps no
-        // Date.now of its own, so tests can pin the datetime deterministically.
+        // When the incident was recorded: an audit timestamp of the record, like a
+        // log entry's date. The command is the boundary that reads the clock; the
+        // incident store keeps no clock of its own, so it stays same-input,
+        // same-output and a test can pin the datetime it is handed.
         const isoDatetime = new Date().toISOString();
         appendIncident(graph.rootPath, {
           tag: opts.tag,
@@ -78,8 +79,8 @@ export function registerIncidentCommand(program: Command): void {
           aspect: opts.aspect,
         });
 
-        process.stdout.write(
-          chalk.green(
+        writeOut(
+          paint.green(
             `Recorded incident [${opts.tag}]${opts.aspect !== undefined ? ` attributed to ${opts.aspect}` : ''} at ${isoDatetime} in .yggdrasil/${INCIDENTS_FILENAME}\n`,
           ),
         );
@@ -96,10 +97,10 @@ export function registerIncidentCommand(program: Command): void {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
         const { entries, present } = readIncidents(graph.rootPath);
         if (!present || entries.length === 0) {
-          process.stdout.write('No incidents recorded.\n');
+          writeOut('No incidents recorded.\n');
           return;
         }
-        process.stdout.write(
+        writeOut(
           `${entries.length} incident${entries.length === 1 ? '' : 's'} on record:\n\n`,
         );
         for (const entry of entries) {
@@ -107,7 +108,7 @@ export function registerIncidentCommand(program: Command): void {
           // so it may carry control bytes. Neutralize it through the same helper the
           // advise feed uses to render untrusted repo strings as inert inline data —
           // a raw control byte must never reach the terminal.
-          process.stdout.write(`## [${entry.datetime}] ${quoteData(entry.tag)}\n`);
+          writeOut(`## [${entry.datetime}] ${quoteData(entry.tag)}\n`);
         }
       } catch (error) {
         handleError(error);

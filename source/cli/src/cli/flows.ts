@@ -3,6 +3,7 @@ import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { initDebugLog } from '../utils/debug-log.js';
 import { appendToDebugLog } from '../io/debug-log-writer.js';
 import type { Graph } from '../model/graph.js';
+import { writeOut, count } from './output.js';
 
 export function formatFlowsOutput(graph: Graph): string {
   if (graph.flows.length === 0) return '(no flows defined)\n';
@@ -14,7 +15,7 @@ export function formatFlowsOutput(graph: Graph): string {
       ? `${flow.name} — ${flow.description}`
       : flow.name;
     lines.push(displayName);
-    lines.push(`  Participants: ${flow.nodes.length} nodes (${flow.nodes.sort().join(', ')})`);
+    lines.push(`  Participants: ${count(flow.nodes.length, 'node')} (${flow.nodes.sort().join(', ')})`);
     if (flow.aspects && flow.aspects.length > 0) {
       lines.push(`  Aspects: ${flow.aspects.join(', ')}`);
     }
@@ -32,7 +33,7 @@ export function registerFlowsCommand(program: Command): void {
       try {
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
-        process.stdout.write(formatFlowsOutput(graph));
+        writeOut(formatFlowsOutput(graph));
       } catch (error) {
         abortOnUnexpectedError(error, 'listing flows');
       }

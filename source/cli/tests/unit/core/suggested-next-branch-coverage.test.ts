@@ -319,7 +319,7 @@ describe('computeSuggestedNext — issues with a field missing', () => {
 
   it('agrees in number for one uncovered file, and reads a missing count as zero', () => {
     expect(run([partial({ severity: 'error', code: 'unmapped-files', uncoveredCount: 1 }, 'x')])).toBe(
-      'yg context --file <uncovered-path>\n  1 file need coverage — bootstrap workflow',
+      'yg context --file <uncovered-path>\n  1 file needs coverage — bootstrap workflow',
     );
     expect(run([partial({ severity: 'error', code: 'unmapped-files' }, 'x')])).toBe(
       'yg context --file <uncovered-path>\n  0 files need coverage — bootstrap workflow',

@@ -14,6 +14,7 @@ import type { Graph } from '../model/graph.js';
 import { toPosixPath } from '../utils/posix.js';
 import { formatSuppressionsJson, SUPPRESSIONS_JSON_SCHEMA } from '../formatters/suppressions-json.js';
 import type { SuppressionsJsonDocument, SuppressionsJsonMarker, SuppressionsJsonRange, SuppressionsJsonWarning } from '../formatters/suppressions-json.js';
+import { paint, writeOut } from './output.js';
 
 /**
  * The type-level classification lattice's `covered` files (coverage.type_level),
@@ -143,7 +144,7 @@ export function registerSuppressionsCommand(program: Command): void {
           await computeTypeCoveredFilesForSuppressions(graph, repoFiles),
           graph.config.coverage ?? NO_COVERAGE_EXCLUDED,
         );
-        process.stdout.write(options.json === true ? formatSuppressionsJson(buildSuppressionsJson(report)) : formatSuppressionsOutput(report));
+        writeOut(options.json === true ? formatSuppressionsJson(buildSuppressionsJson(report)) : formatSuppressionsOutput(report, paint.yellow));
         // Always exit 0 — this is a purely informational command
       } catch (error) {
         abortOnUnexpectedError(error, 'scanning suppressions');

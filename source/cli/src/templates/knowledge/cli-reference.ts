@@ -518,7 +518,7 @@ refusals, or an incomplete run. Aspect status never gates aspect-test: a draft
 aspect runs here exactly like an enforced one (drafts stay dormant only in
 \`yg check\` / \`--approve\`). Use \`--dry-run\` for a zero-cost prompt preview
 while authoring; a run without \`--dry-run\` makes a real reviewer call.
-\`--dry-run\` prints the assembled prompt(s) including resolved companions, runs
+\`--dry-run\` prints the assembled prompts including resolved companions, runs
 the companion hook live (if present), but makes no reviewer or LLM calls and
 does not write the lock.
 \`--check-determinism\` runs a deterministic check twice and fails if the
@@ -613,7 +613,7 @@ Each case resolves to one of five outcomes:
 
 Deterministic aspects run locally and FREE. LLM aspects go through the same
 production prompt path the reviewer uses and BILL the reviewer — the
-reviewer-call budget (\`<L> LLM case(s) × consensus <c>\`) prints BEFORE the first
+reviewer-call budget (\`<L> reviewer-rule cases × consensus <c>\`) prints BEFORE the first
 call. Exit is \`1\` on any MISS or FALSE-ALARM, else \`2\` if any case is unrun,
 else \`0\`. Failure output shows only the corpus label, content hashes, and
 pass/fail — never the case source. \`yg drill\` writes only a local, gitignored

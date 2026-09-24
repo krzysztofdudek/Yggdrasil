@@ -345,7 +345,7 @@ exit: 1
     {
       "code": "uncovered-advisory",
       "severity": "warning",
-      "what": "4 coverage-visible files outside any required coverage root.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md",
+      "what": "4 coverage-visible files outside any required coverage root.\n.clinerules/yggdrasil.md\n.gitattributes\nAGENTS.md\nCLAUDE.md",
       "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
       "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
       "files": [

@@ -165,7 +165,7 @@ export function parseDryRunBudget(stdout: string, stderr: string): DryRunPreview
     pairs: budget.pairs,
     deterministic: budget.deterministic,
     reviewerCalls: budget.reviewerCalls,
-    raw: headerLine?.trim() ?? `${budget.pairs} pairs — ${budget.deterministic} deterministic (no cost), ${budget.reviewerCalls} reviewer calls`,
+    raw: headerLine?.trim() ?? `pairs: ${budget.pairs} — deterministic (no cost): ${budget.deterministic}, reviewer calls: ${budget.reviewerCalls}`,
   };
 }
 

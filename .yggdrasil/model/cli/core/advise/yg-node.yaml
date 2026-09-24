@@ -25,6 +25,8 @@ description: "Pure advise engine — turns the graph's live attention signals in
   one this repository's own reviewer prompt runs closest to its ceiling on, and a
   source with a single entry point is the cheapest thing to move."
 relations:
+  - target: cli/utils
+    type: calls
   - target: cli/core/checks/aspects
     type: calls
   - target: cli/core/pair-inputs

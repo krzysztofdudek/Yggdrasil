@@ -22,6 +22,8 @@ description: >-
   it never gates.
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/preamble
     type: calls
   - target: cli/utils

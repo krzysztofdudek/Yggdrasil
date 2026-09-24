@@ -124,7 +124,7 @@ export async function classifyLogStateFromLock(
     const violations = validateFormat(logContent);
     if (violations.length > 0) {
       const logFormatMd = {
-        what: `Log format invalid at ${logRel}:\n${violations.map((v) => `  line ${v.line}: ${v.reason} — ${v.detail}`).join('\n')}`,
+        what: `Log format invalid at ${logRel}:\n${violations.map((v) => `line ${v.line}: ${v.reason} — ${v.detail}`).join('\n')}`,
         why: 'Log format must be parseable for indexing and integrity.',
         next: 'Fix format violations (or git checkout) and re-run yg check.',
       };

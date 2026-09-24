@@ -101,6 +101,7 @@ import {
   MIN_N,
   Z_ADMIT,
 } from './feature-index-write.js';
+import { count } from '../utils/count.js';
 
 // ── Public surface ─────────────────────────────────────────
 
@@ -600,7 +601,7 @@ export async function runAttentionDump(graph: Graph, coverageVisibleFiles: strin
   out.push('verdict, and it never affects whether your build passes.');
   out.push(
     `Sensitivity in effect: ${Z_ADMIT} (higher flags fewer, more extreme files); a group needs at ` +
-      `least ${MIN_N} same-language files before anything is compared at all.`,
+      `least ${count(MIN_N, 'same-language file')} before anything is compared at all.`,
   );
   out.push('');
 
@@ -614,7 +615,7 @@ export async function runAttentionDump(graph: Graph, coverageVisibleFiles: strin
     const [, owner, language] = key.split('\x00'); // keys are node\x00<nodeId>\x00<language> here
     const tooFew = members.length < MIN_N;
     const note = tooFew ? ' — too few files to compare; nothing flagged here' : '';
-    out.push(`${owner} · ${language}  (${members.length} file${members.length === 1 ? '' : 's'}${note})`);
+    out.push(`${owner} · ${language}  (${count(members.length, 'file')}${note})`);
     for (const m of [...members].sort((a, b) => a.path.localeCompare(b.path, 'en'))) {
       const c = m.fv.categories;
       out.push(`  ${toPosixPath(m.path)}`);

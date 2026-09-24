@@ -11,7 +11,7 @@ import { FileContentCache } from '../io/file-content-cache.js';
 import { computeExpectedPairs, type TypeCoverageInput } from '../core/pairs.js';
 import { readLock } from '../io/lock-store.js';
 import { verifyPairs } from '../core/verify-lock.js';
-import { fail } from './output.js';
+import { fail, writeOut } from './output.js';
 import { escapeControls } from '../utils/terminal-safe.js';
 
 /** Schema id of `yg tree --json`. */
@@ -111,7 +111,7 @@ export function registerTreeCommand(program: Command): void {
             nodes,
             typeCovered: counts ?? null,
           };
-          process.stdout.write(`${JSON.stringify(doc, null, 2)}\n`);
+          writeOut(`${JSON.stringify(doc, null, 2)}\n`);
           return;
         }
 
@@ -119,16 +119,16 @@ export function registerTreeCommand(program: Command): void {
           const desc = n.description === null ? '' : options.long === true ? n.description : shortDescription(n.description);
           // Node paths, types and descriptions are repository text: shown, never obeyed by the terminal.
           const line = desc !== '' ? `${n.path} [${n.type}] — ${desc}` : `${n.path} [${n.type}]`;
-          process.stdout.write(`${escapeControls(line)}\n`);
+          writeOut(`${escapeControls(line)}\n`);
         }
         // An empty graph must still say it ran: a blank listing reads as a
         // failure. (--root always names an existing node, so it never lands here.)
         if (nodes.length === 0) {
-          process.stdout.write('no nodes yet\nnext: yg knowledge read onboarding  (how to map existing code)\n');
+          writeOut('no nodes yet\nnext: yg knowledge read onboarding  (how to map existing code)\n');
         }
 
         const summary = counts !== undefined ? typeCoveredSummaryLine(counts, scopedToRoot) : undefined;
-        if (summary) process.stdout.write(summary + '\n');
+        if (summary) writeOut(summary + '\n');
       } catch (error) {
         abortOnUnexpectedError(error, 'building the tree');
       }

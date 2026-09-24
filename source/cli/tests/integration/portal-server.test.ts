@@ -422,13 +422,14 @@ describe('portal loopback server — dry-run preview + the one Approve write (te
 describe('portal loopback server — handler error surfaces as a structured 500 (never a silent 200)', () => {
   let handle: ServerHandle;
   let bogusRoot: string;
+  const operatorLines: string[] = [];
 
   beforeAll(async () => {
     // A temp dir with NO .yggdrasil/ graph: extractPortalData throws → the router must
     // surface a structured 500, never a silent success.
     bogusRoot = mkdtempSync(path.join(tmpdir(), 'yg-portal-bogus-'));
     tmpDirs.push(bogusRoot);
-    handle = await startServer({ projectRoot: bogusRoot, port: 0, writeEnabled: true });
+    handle = await startServer({ projectRoot: bogusRoot, port: 0, writeEnabled: true, onInternalError: (line) => { operatorLines.push(line); } });
   }, 60_000);
 
   afterAll(async () => {
@@ -441,6 +442,9 @@ describe('portal loopback server — handler error surfaces as a structured 500 
     const body = (await res.json()) as { error: string; message: string };
     expect(body.error).toBe('internal');
     expect(typeof body.message).toBe('string');
+    // The full reason goes to whoever runs the portal, through the sink the
+    // command supplied — the server writes to no stream of its own.
+    expect(operatorLines.some((l) => l.startsWith('[portal] request handler error (GET /data): '))).toBe(true);
   }, 60_000);
 
   it('GET /render on a project with no graph returns a human-readable HTML error page (not raw JSON)', async () => {

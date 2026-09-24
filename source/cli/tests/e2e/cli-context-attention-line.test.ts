@@ -27,7 +27,7 @@ const distExists = existsSync(BIN_PATH);
 
 /** The verbatim advisory line (RZ-21). `<lang>` is the humanized family language. */
 const ATTENTION_LINE =
-  "This file is structurally unusual among this node's other TypeScript files — worth a closer read; no action required.";
+  "This file is structurally unusual next to the rest of this node's TypeScript code — worth a closer read; no action required.";
 
 function run(args: string[], cwd: string): { stdout: string; stderr: string; status: number | null } {
   const result = spawnSync('node', [BIN_PATH, ...args], { cwd, encoding: 'utf-8' });
@@ -185,7 +185,7 @@ describe.skipIf(!distExists)('CLI E2E — yg context --file advisory attention l
       const ctx = run(['context', '--file', 'src/svc/file5.ts'], dir);
       expect(ctx.status).toBe(0); // never blocks
       expect(ctx.stdout).toContain(
-        "This file is structurally unusual among this file's matched type's other TypeScript files — worth a closer read; no action required.",
+        "This file is structurally unusual next to the rest of this file's matched type's TypeScript code — worth a closer read; no action required.",
       );
       // Never claims a node owns the comparison — there is none in this fixture.
       expect(ctx.stdout).not.toContain("this node's other");

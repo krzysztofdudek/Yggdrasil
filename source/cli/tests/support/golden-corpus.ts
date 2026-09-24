@@ -386,6 +386,25 @@ scope:
     ],
   },
   {
+    // Code that crosses components the graph never connected: one service
+    // imports two others without declaring the relation — the edges a
+    // relation finding lists.
+    name: 'relations',
+    build(): string {
+      const root = freshDir('relations');
+      gitInit(root);
+      serviceGraph(root, { count: 3, todo: [], reviewerRule: false });
+      write(root, 'src/svc-01/index.ts', `// svc-01\nimport { value2 } from '../svc-02/index.js';\nimport { value3 } from '../svc-03/index.js';\nexport const value1 = value2 + value3;\n`);
+      installRules(root);
+      return root;
+    },
+    cases: [
+      { name: 'fill-only-deterministic', args: ['check', '--approve', '--only-deterministic'] },
+      { name: 'check', args: ['check'] },
+      { name: 'check-json', args: ['check', '--json'] },
+    ],
+  },
+  {
     // What a failing command says, across commands.
     name: 'errors',
     build(): string {

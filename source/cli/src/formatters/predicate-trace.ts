@@ -10,6 +10,30 @@ export function renderTrace(trace: PredicateTrace, indent = ''): string {
   return lines.join('\n');
 }
 
+/**
+ * The same trace on one line, for a what/why/next message: the renderer lays a
+ * message out, so a message carries no indentation of its own. A group reads
+ * `✗ all_of [✓ path matches "src/**", ✗ content does not match "x"]`.
+ */
+export function renderTraceInline(trace: PredicateTrace): string {
+  const mark = trace.result ? '✓' : '✗';
+  switch (trace.kind) {
+    case 'atom-path':
+    case 'atom-content': {
+      const verb = trace.result ? 'matches' : 'does not match';
+      const detail = trace.detail ? ` (${trace.detail})` : '';
+      return `${mark} ${trace.kind === 'atom-path' ? 'path' : 'content'} ${verb} "${trace.pattern}"${detail}`;
+    }
+    case 'all_of':
+    case 'any_of':
+      return `${mark} ${trace.kind} [${trace.children.map(renderTraceInline).join(', ')}]`;
+    case 'not':
+      return `${mark} not [${renderTraceInline(trace.child)}]`;
+    case 'exempt':
+      return `${mark} exempt: ${trace.reason}`;
+  }
+}
+
 function renderNode(node: PredicateTrace, indent: string, lines: string[]): void {
   const mark = node.result ? '✓' : '✗';
 

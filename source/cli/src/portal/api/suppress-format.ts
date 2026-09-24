@@ -1,6 +1,6 @@
-import chalk from 'chalk';
 import type { SuppressionMarkerInfo } from '../../ast/suppress.js';
 import type { SuppressionsReport } from './suppress-scan.js';
+import { count } from '../../utils/count.js';
 
 /**
  * portal/api/suppress-format — renders the suppression scan (suppress-scan.ts's
@@ -29,7 +29,13 @@ function describeWaivedLines(file: string, m: SuppressionMarkerInfo, report: Sup
   return to >= from ? ` → waives lines ${from}-${to}` : ' → waives nothing (the enable closes it at once)';
 }
 
-export function formatSuppressionsOutput(report: SuppressionsReport): string {
+/**
+ * The `yg suppressions` text inventory. `highlight` decorates the wildcard tag
+ * and the warning headings; the command passes the output layer's colour, so
+ * this module decides the words and never imports a colour library itself.
+ * Left out, the text is plain.
+ */
+export function formatSuppressionsOutput(report: SuppressionsReport, highlight: (text: string) => string = (text) => text): string {
   const lines: string[] = [];
 
   if (report.fileEntries.length === 0) {
@@ -44,7 +50,7 @@ export function formatSuppressionsOutput(report: SuppressionsReport): string {
   for (const { file, markers } of report.fileEntries) {
     lines.push(`  ${file}`);
     for (const m of markers) {
-      const wildcardTag = m.wildcard ? chalk.yellow(' [wildcard]') : '';
+      const wildcardTag = m.wildcard ? highlight(' [wildcard]') : '';
       // A file-head unclosed disable renders as the sanctioned whole-file form.
       const isFileLevel = report.fileLevelKeys?.has(`${file}:${m.line}`) ?? false;
       const kindTag = isFileLevel ? 'file-level' : m.kind === 'single' ? 'single' : m.kind === 'disable' ? 'disable' : 'enable';
@@ -56,7 +62,7 @@ export function formatSuppressionsOutput(report: SuppressionsReport): string {
 
   // Tally
   const fileCount = report.fileEntries.length;
-  lines.push(`Total: ${report.totalMarkers} marker${report.totalMarkers === 1 ? '' : 's'} across ${fileCount} file${fileCount === 1 ? '' : 's'}.`);
+  lines.push(`Total: ${count(report.totalMarkers, 'marker')} across ${count(fileCount, 'file')}.`);
 
   // Warnings
   // Each warning as a block of the one grammar: `warning[<code>] <what>`,
@@ -65,7 +71,7 @@ export function formatSuppressionsOutput(report: SuppressionsReport): string {
   for (const w of records) {
     const [what, ...rest] = w.message.split('\n');
     lines.push('');
-    lines.push(chalk.yellow(`warning${w.code !== '' ? `[${w.code}]` : ''} ${what}`));
+    lines.push(highlight(`warning${w.code !== '' ? `[${w.code}]` : ''} ${what}`));
     for (const l of rest) {
       lines.push(l.startsWith('next: ') ? `  fix:  ${l.slice('next: '.length)}` : l.startsWith('      ') ? `  ${l}` : l);
     }

@@ -1,10 +1,9 @@
 // yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (TTY-aware truncation, color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
-import chalk from 'chalk';
 import type { CheckResult } from '../core/check.js';
 import type { TypeVisibilityReason, TypeVisibilityReport } from '../core/type-visibility.js';
 import { describeTypeVisibilityReason, describeChainTermination } from '../core/type-visibility.js';
 import { describeCascadeCycle } from '../core/type-effective.js';
-import { count, verdict } from './output.js';
+import { count, verdict, decorated } from './output.js';
 
 // ── Emoji gate ─────────────────────────────────────────────
 
@@ -18,7 +17,7 @@ import { count, verdict } from './output.js';
  * Exported so tests can read the current gate value; the optional `useEmoji`
  * parameter on `formatOutput` allows tests to override it without mocking.
  */
-export const useEmoji: boolean = chalk.level > 0;
+export const useEmoji: boolean = decorated;
 
 // ── Header ─────────────────────────────────────────────────
 
@@ -182,7 +181,7 @@ export function renderCoverageRequiresNothingNotice(result: CheckResult): string
     .filter((i) => i.code === 'uncovered-advisory')
     .reduce((n, i) => n + (i.uncoveredCount ?? 0), 0);
   if (uncovered === 0) return undefined;
-  return `Nothing is required to be covered, so the ${uncovered} uncovered file${uncovered === 1 ? '' : 's'} this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.`;
+  return `Nothing is required to be covered, so the ${count(uncovered, 'uncovered file')} this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.`;
 }
 
 /**
@@ -221,9 +220,9 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
       ].filter((p) => p !== '');
       // The split is said whenever the files are not all node-owned.
       const saySplit = split.length > 1 || (split.length === 1 && nodeOwned === 0);
-      metrics.push(`${nodeOwned + typeCovered + excluded}/${result.totalFiles} files covered${saySplit ? ` (${split.join(' · ')})` : ''}`);
+      metrics.push(`${nodeOwned + typeCovered + excluded}/${count(result.totalFiles, 'file')} covered${saySplit ? ` (${split.join(' · ')})` : ''}`);
     } else {
-      metrics.push(`${result.coveredFiles}/${result.totalFiles} files covered`);
+      metrics.push(`${result.coveredFiles}/${count(result.totalFiles, 'file')} covered`);
     }
   }
   const verifiedTotal = result.verifiedDet + result.verifiedLlm;
@@ -453,7 +452,7 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
     if (countsOnly) {
       const droppedTotal = droppedForDisplay.reduce((n, d) => n + d.count, 0);
       const uncomputableSuffix = uncomputableTotal > 0
-        ? `, ${uncomputableTotal} file${uncomputableTotal === 1 ? '' : 's'} could not have ${uncomputableTotal === 1 ? 'its' : 'their'} rules worked out (aspect implies cycle)`
+        ? `, ${count(uncomputableTotal, 'file')} could not have ${uncomputableTotal === 1 ? 'its' : 'their'} rules worked out (aspect implies cycle)`
         : '';
       const enforcedUnverified = unverifiedInstanceTotal(result, block.enforcedCounts, block.files);
       const advisoryUnverified = unverifiedInstanceTotal(result, block.advisoryCounts, block.files);
@@ -462,7 +461,7 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
       // match `droppedTotal`'s own "instance(s)" a few words later, not the immediately
       // preceding "N rule(s) enforced" it qualifies.
       lines.push(
-        `  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered — ` +
+        `  '${block.typeId}' — ${count(block.files.length, 'file')} covered — ` +
         `${block.enforcedCounts.length} rule${block.enforcedCounts.length === 1 ? '' : 's'} enforced${enforcedUnverified > 0 ? ` (${enforcedUnverified} unverified instance${enforcedUnverified === 1 ? '' : 's'})` : ''}, ` +
         `${block.advisoryCounts.length} advisory${advisoryUnverified > 0 ? ` (${advisoryUnverified} unverified instance${advisoryUnverified === 1 ? '' : 's'})` : ''}, ${droppedTotal} attached-but-not-enforced instance${droppedTotal === 1 ? '' : 's'}${uncomputableSuffix}`,
       );
@@ -470,7 +469,7 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
     }
     const shown = block.files.slice(0, FILE_LIST_CAP);
     const overflow = block.files.length > FILE_LIST_CAP ? ` ... and ${block.files.length - FILE_LIST_CAP} more` : '';
-    lines.push(`  '${block.typeId}' — ${block.files.length} file${block.files.length === 1 ? '' : 's'} covered: ${shown.join(', ')}${overflow}`);
+    lines.push(`  '${block.typeId}' — ${count(block.files.length, 'file')} covered: ${shown.join(', ')}${overflow}`);
     if (block.uncomputable.length > 0) {
       lines.push('    Rules could not be worked out:');
       for (const line of renderUncomputableGroups(block.uncomputable)) lines.push(`      ${line}`);
@@ -494,7 +493,7 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
   if (uc.count > 0) {
     lines.push('');
     const suffix = countsOnly ? '.' : ':';
-    lines.push(`${uc.count} file${uc.count === 1 ? '' : 's'} matched by a type could not have ${uc.count === 1 ? 'its' : 'their'} rules worked out${suffix}`);
+    lines.push(`${count(uc.count, 'file')} matched by a type could not have ${uc.count === 1 ? 'its' : 'their'} rules worked out${suffix}`);
     if (!countsOnly) {
       for (const line of renderUncomputableGroups(uc.groups)) lines.push(`  ${line}`);
     }
@@ -504,7 +503,7 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
     const g = zeroEnforcementGrammar(zc.count);
     lines.push('');
     const suffix = countsOnly ? '.' : ':';
-    lines.push(`${zc.count} file${zc.count === 1 ? '' : 's'} matched by a type ${g.has} no rules that apply to ${g.it} — ${g.subject} ${g.satisfy} coverage with no enforcement${suffix}`);
+    lines.push(`${count(zc.count, 'file')} matched by a type ${g.has} no rules that apply to ${g.it} — ${g.subject} ${g.satisfy} coverage with no enforcement${suffix}`);
     if (!countsOnly) {
       for (const f of zc.samples) lines.push(`  - ${f}`);
       if (zc.count > zc.samples.length) lines.push(`  ... and ${zc.count - zc.samples.length} more`);

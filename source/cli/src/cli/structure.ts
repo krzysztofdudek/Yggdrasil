@@ -21,6 +21,7 @@ import {
   type DeclaredRelation,
   type StructEdge,
 } from '../core/graph-metrics.js';
+import { writeOut } from './output.js';
 
 /**
  * `yg structure` — a READ-ONLY structural dashboard over the graph.
@@ -341,7 +342,7 @@ export function registerStructureCommand(program: Command): void {
         const detected = (await computeDetectedEdges(graph, projectRoot)) ?? new Map();
         const widening = await computeTypeWidening(graph, projectRoot);
 
-        process.stdout.write(renderStructure(graph, detected, widening));
+        writeOut(renderStructure(graph, detected, widening));
       } catch (error) {
         abortOnUnexpectedError(error, 'rendering the structural dashboard');
       }

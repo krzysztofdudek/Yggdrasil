@@ -1,6 +1,5 @@
 import { Command } from 'commander';
 import { lt, valid } from 'semver';
-import chalk from 'chalk';
 import { writeFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import * as p from '@clack/prompts';
@@ -37,7 +36,7 @@ import {
   ensureYggdrasilGitignore,
   writeRulesArtifactsConfig,
 } from './init-scaffold.js';
-import { fail, next, thenStep } from './output.js';
+import { fail, next, thenStep, paint, writeOut } from './output.js';
 
 // The .gitattributes / .gitignore maintenance helpers now live in the scaffold
 // sibling; re-exported here so tests and existing importers resolve them from
@@ -80,7 +79,7 @@ function ensureKnownProvider(provider: string): asserts provider is ReviewerProv
  */
 function noticeDeprecatedPlatform(platform: string | undefined): void {
   if (!platform) return;
-  process.stdout.write(chalk.yellow(`${buildIssueMessage({
+  writeOut(paint.yellow(`${buildIssueMessage({
     what: `--platform ${platform} is deprecated and was ignored.`,
     why: 'Rules are now installed universally for every agent at once (AGENTS.md digest + CLAUDE.md import + .clinerules) — there is no per-platform choice.',
     next: 'Drop --platform from this invocation; everything else works unchanged.',
@@ -247,7 +246,7 @@ async function freshInit(
 ): Promise<void> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
 
-  p.intro(chalk.bold('Yggdrasil Setup'));
+  p.intro(paint.bold('Yggdrasil Setup'));
 
   p.log.info(
     'Yggdrasil enforces architectural rules on AI-generated code.\n' +
@@ -281,7 +280,7 @@ async function freshInit(
 
   await ensureGitattributes(projectRoot);
 
-  p.outro(chalk.green(
+  p.outro(paint.green(
     reviewerConfig
       ? `Yggdrasil initialized.\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing. Run yg check to get started.`
       : `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n${ZERO_CLASSIFYING_TYPES_NOTICE}\nAll changes are plain files — review them with git diff before committing. Run yg check to get started.`,
@@ -333,13 +332,13 @@ async function persistReviewerConfig(
   if (apiKey) {
     await writeSecretsFile(yggRoot, apiKey);
   } else if (resolved.keyWarning) {
-    process.stdout.write(chalk.yellow(`${buildIssueMessage(resolved.keyWarning)}\n`));
+    writeOut(paint.yellow(`${buildIssueMessage(resolved.keyWarning)}\n`));
   }
   // The same installation check the wizard runs, reported as a warning: a
   // missing CLI should surface here, not at the first yg check --approve.
   const unavailable = await probeReviewerFromFlags(resolved.config);
   if (unavailable) {
-    process.stdout.write(chalk.yellow(`${buildIssueMessage(unavailable)}\n`));
+    writeOut(paint.yellow(`${buildIssueMessage(unavailable)}\n`));
   }
 }
 
@@ -377,7 +376,7 @@ export async function freshInitNonInteractive(
   await persistReviewerConfig(yggRoot, resolved);
   await ensureGitattributes(projectRoot);
 
-  process.stdout.write(chalk.green(
+  writeOut(paint.green(
     `Yggdrasil initialized (provider: ${resolved.config.provider}, model: ${resolved.config.model}).\n` +
     `${ZERO_CLASSIFYING_TYPES_NOTICE}\n` +
     'All changes are plain files — review them with git diff before committing.\n' +
@@ -416,7 +415,7 @@ export async function freshInitKeyless(
 ): Promise<void> {
   await createYggdrasilStructure(projectRoot, yggRoot, cliVersion(), artifacts);
   await ensureGitattributes(projectRoot);
-  process.stdout.write(chalk.green(
+  writeOut(paint.green(
     `Yggdrasil initialized keyless — no reviewer configured, no keys, nothing to pay.\n${KEYLESS_WORKING_NOW}\n` +
     `  ${ZERO_CLASSIFYING_TYPES_NOTICE}\n` +
     '  All changes are plain files — review them with git diff before committing.\n' +
@@ -650,8 +649,8 @@ export async function existingInitNonInteractive(
       provider: opts.provider, model: opts.model, endpoint: opts.endpoint,
     });
     await persistReviewerConfig(yggRoot, resolved);
-    process.stdout.write(
-      chalk.green(`Reviewer configured (provider: ${resolved.config.provider}, model: ${resolved.config.model}).\n`),
+    writeOut(
+      paint.green(`Reviewer configured (provider: ${resolved.config.provider}, model: ${resolved.config.model}).\n`),
     );
   }
 
@@ -662,10 +661,10 @@ export async function existingInitNonInteractive(
       cliVersion(),
       opts.rulesArtifacts ?? await readRulesArtifactsConfig(yggRoot),
     );
-    process.stdout.write(chalk.green(`${renderArtifactSummary(report)}\n`));
+    writeOut(paint.green(`${renderArtifactSummary(report)}\n`));
     const blocked = await predictCoverageBlockers(projectRoot, managedRootFiles(report));
     if (blocked.length > 0) {
-      process.stdout.write(chalk.yellow(`${renderCoverageBlockedWarning(blocked)}\n`));
+      writeOut(paint.yellow(`${renderCoverageBlockedWarning(blocked)}\n`));
     }
   }
 }
@@ -677,7 +676,7 @@ export async function existingInitNonInteractive(
 async function existingInit(projectRoot: string): Promise<void> {
   const yggRoot = path.join(projectRoot, '.yggdrasil');
 
-  p.intro(chalk.bold('Yggdrasil Configuration'));
+  p.intro(paint.bold('Yggdrasil Configuration'));
 
   // Check for pending migrations. The graph version is the SCHEMA version — it
   // advances only when the graph format changes, not on every package release —
@@ -710,7 +709,7 @@ async function existingInit(projectRoot: string): Promise<void> {
     p.log.info(next('yg check  (verify the graph)'));
     p.log.info(thenStep('yg check --approve  (record verdicts for the graph)'));
     p.outro(
-      chalk.green(
+      paint.green(
         `Migrated from ${currentVersion} to ${landedVersion}.\n` +
         renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping }),
       ),
@@ -736,7 +735,7 @@ async function existingInit(projectRoot: string): Promise<void> {
       if (result.exclusionNotice) {
         p.log.warning(result.exclusionNotice);
       }
-      p.outro(chalk.green(renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping })));
+      p.outro(paint.green(renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping })));
       break;
     }
     case 'reviewer': {
@@ -746,14 +745,14 @@ async function existingInit(projectRoot: string): Promise<void> {
       // rewriting the config to nothing would discard a working setup on what
       // reads as a decline.
       if (!reviewerConfig) {
-        p.outro(chalk.green('No reviewer selected — the existing reviewer configuration is unchanged.'));
+        p.outro(paint.green('No reviewer selected — the existing reviewer configuration is unchanged.'));
         break;
       }
       await writeReviewerConfig(yggRoot, reviewerConfig);
       if (reviewerConfig.apiKey) {
         await writeSecretsFile(yggRoot, reviewerConfig.apiKey);
       }
-      p.outro(chalk.green('Reviewer configured.'));
+      p.outro(paint.green('Reviewer configured.'));
       break;
     }
   }
@@ -860,7 +859,7 @@ export function registerInitCommand(program: Command): void {
             fail({
                   what:
                     'Migration withheld — the version bump was NOT applied.\n' +
-                    result.migrationWarnings.map((w) => `  - ${w}`).join('\n'),
+                    result.migrationWarnings.join('\n'),
                   why: 'A migration step could not be safely applied, so the chain stopped and yg-config.yaml was left at its prior version. Reporting success here would hide an incomplete upgrade from agents and CI.',
                   next: 'Fix the listed configuration problems, then re-run yg init --upgrade.',
                 });
@@ -868,8 +867,8 @@ export function registerInitCommand(program: Command): void {
           }
 
           if (result.migrationWarnings.length > 0) {
-            process.stdout.write(
-              chalk.yellow(
+            writeOut(
+              paint.yellow(
                 result.migrationWarnings
                   .map((w) => buildIssueMessage({ what: `warning: ${w}`, why: 'The upgrade migrated the graph but could not carry this over as written.', next: 'yg check' }))
                   .join('\n') + '\n',
@@ -877,17 +876,17 @@ export function registerInitCommand(program: Command): void {
             );
           }
 
-          process.stdout.write(
+          writeOut(
             `${renderArtifactSummary({ written: result.rulesPaths, removed: result.rulesRemoved, skipped: result.rulesSkipped, leftover: result.rulesLeftover, housekeeping: result.housekeeping })}\n`,
           );
           // An upgrading project that requires its whole tree gets these files
           // as new blocking errors on its very next check. Say so here, where
           // the files were just written, and name the stanza that settles it.
           if (result.coverageBlocked.length > 0) {
-            process.stdout.write(chalk.yellow(`${renderCoverageBlockedWarning(result.coverageBlocked)}\n`));
+            writeOut(paint.yellow(`${renderCoverageBlockedWarning(result.coverageBlocked)}\n`));
           }
           if (result.exclusionNotice) {
-            process.stdout.write(chalk.yellow(`${result.exclusionNotice}\n`));
+            writeOut(paint.yellow(`${result.exclusionNotice}\n`));
           }
           return;
         }
@@ -946,7 +945,7 @@ export function registerInitCommand(program: Command): void {
           if (artifactOptOut) {
             const artifacts = await existingRulesArtifacts(yggRoot, options);
             const report = await installRules(projectRoot, cliVersion(), artifacts);
-            process.stdout.write(chalk.green(`${renderArtifactSummary(report)}\n`));
+            writeOut(paint.green(`${renderArtifactSummary(report)}\n`));
           }
 
           // --platform alone must NOT change whether the interactive menu
@@ -978,7 +977,7 @@ export function registerInitCommand(program: Command): void {
           } else if (options.platform) {
             await existingInitNonInteractive(projectRoot, yggRoot, { platform: options.platform });
           } else {
-            process.stdout.write(chalk.yellow(`${buildIssueMessage({
+            writeOut(paint.yellow(`${buildIssueMessage({
               what: '.yggdrasil/ already exists and no reconfiguration flag was given (no TTY to open the menu).',
               why: 'Reconfiguration needs either the interactive menu or an explicit flag; a bare non-interactive run has nothing to do.',
               next: 'Pass one: --provider <name> [--model <m>] to set the judge, or --upgrade to refresh agent rules.',

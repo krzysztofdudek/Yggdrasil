@@ -17,6 +17,7 @@ import type { CheckIssue } from './check.js';
  */
 export { normalizeRoot, matchesRoot, isExcludedByCoverage } from '../utils/coverage-exclusion.js';
 import { isExcludedByCoverage, normalizeRoot, matchesRoot } from '../utils/coverage-exclusion.js';
+import { count } from '../utils/count.js';
 
 /**
  * Split uncovered files into the error tier (matches a `required` root) and the
@@ -122,7 +123,7 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
   if (uncoveredFiles.length <= sampleSize) {
     // Small count: files listed directly, guidance after
     coverageMd = {
-      what: `${uncoveredFiles.length} source file${uncoveredFiles.length === 1 ? '' : 's'} not covered by any node.\n${sample.map(f => '  ' + f).join('\n')}`,
+      what: `${count(uncoveredFiles.length, 'source file')} not covered by any node.\n${sample.join('\n')}`,
       why: 'No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).',
       next: `Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.`,
     };
@@ -132,7 +133,7 @@ export function buildCoverageIssue(uncoveredFiles: string[], totalGitFiles: numb
       ? 'Establish coverage: create nodes for active areas first, expand coverage incrementally.'
       : 'Add to an existing node mapping, or create a new node.';
     coverageMd = {
-      what: `${uncoveredFiles.length} source files have no graph coverage.\nExamples:\n${sample.map(f => '  ' + f).join('\n')}\n... and ${remaining} more`,
+      what: `${count(uncoveredFiles.length, 'source file')} have no graph coverage.\nExamples:\n${sample.join('\n')}\n... and ${remaining} more`,
       why: 'No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).',
       next: `${guidance} yg context --file <path> lists candidate owners.`,
     };
@@ -196,14 +197,14 @@ export function buildCoverageAdvisoryIssue(uncoveredFiles: string[]): CheckIssue
   const sample = uncoveredFiles.slice(0, 5);
   const remaining = uncoveredFiles.length - sample.length;
   const body = uncoveredFiles.length <= 5
-    ? sample.map(f => '  ' + f).join('\n')
-    : `${sample.map(f => '  ' + f).join('\n')}\n... and ${remaining} more`;
+    ? sample.join('\n')
+    : `${sample.join('\n')}\n... and ${remaining} more`;
   return {
     severity: 'warning',
     code: 'uncovered-advisory',
     rule: 'uncovered-advisory',
     messageData: {
-      what: `${uncoveredFiles.length} coverage-visible file${uncoveredFiles.length === 1 ? '' : 's'} outside any required coverage root.\n${body}`,
+      what: `${count(uncoveredFiles.length, 'coverage-visible file')} outside any required coverage root.\n${body}`,
       why: 'Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.',
       next: 'Map these files to a node, or add their root to coverage.required to make this an error.',
     },

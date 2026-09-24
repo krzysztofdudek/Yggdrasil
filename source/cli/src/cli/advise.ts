@@ -2,7 +2,6 @@ import type { Command } from 'commander';
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import path from 'node:path';
-import chalk from 'chalk';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { debugWrite } from '../utils/debug-log.js';
 import {
@@ -59,7 +58,7 @@ import {
 import { isValidReviewByDate } from '../io/aspect-parser.js';
 import { countLiveDeviationFiles } from '../core/feature-index-read.js';
 import type { Graph } from '../model/graph.js';
-import { failAndExit, count, field, heading, decorated } from './output.js';
+import { failAndExit, count, field, heading, decorated, paint, writeOut } from './output.js';
 
 /** The hard cap on rendered nominations (spec §7.2). `--all` removes it. */
 const NOMINATION_CAP = 10;
@@ -801,7 +800,7 @@ function renderAdviseVerdict(attention: string[], visible: VisibleNomination[]):
 /** The attention section: one aggregate line per class, no ranking. */
 function renderAttention(lines: string[]): string {
   const body = lines.length === 0 ? ['  none right now'] : lines.map((l) => `  ${l}`);
-  return [decorated ? chalk.bold('attention') : 'attention', ...body].join('\n');
+  return [decorated ? paint.bold('attention') : 'attention', ...body].join('\n');
 }
 
 /**
@@ -831,7 +830,7 @@ function renderNominations(
   showIds: boolean,
   showAll: boolean,
 ): string {
-  const parts: string[] = [decorated ? chalk.bold('nominations') : 'nominations'];
+  const parts: string[] = [decorated ? paint.bold('nominations') : 'nominations'];
 
   if (visible.length === 0) {
     parts.push('  none right now');
@@ -968,7 +967,7 @@ async function recordDecision(
   summary: string,
 ): Promise<void> {
   await appendDecision(graph.rootPath, decision);
-  process.stdout.write(chalk.green(`${summary}\n`));
+  writeOut(paint.green(`${summary}\n`));
 }
 
 export function registerAdviseCommand(program: Command): void {
@@ -1029,7 +1028,7 @@ export function registerAdviseCommand(program: Command): void {
         ];
 
         if (opts.json === true) {
-          process.stdout.write(formatAdviseJson(buildAdviseJson(attention, visible, hidden)));
+          writeOut(formatAdviseJson(buildAdviseJson(attention, visible, hidden)));
           return;
         }
 
@@ -1041,7 +1040,7 @@ export function registerAdviseCommand(program: Command): void {
           renderNominations(visible, hidden, opts.ids ?? false, opts.all ?? false),
           '',
         ].join('\n');
-        process.stdout.write(output);
+        writeOut(output);
         // Always exit 0 when the graph loads — this is a read-only attention layer,
         // never a gate (G4).
       } catch (error) {
@@ -1073,8 +1072,8 @@ export function registerAdviseCommand(program: Command): void {
         const declared = parsed.alreadyDeclared > 0
           ? ` ${parsed.alreadyDeclared} relation${parsed.alreadyDeclared === 1 ? '' : 's'} the graph already declares ${parsed.alreadyDeclared === 1 ? 'was' : 'were'} not imported.`
           : '';
-        process.stdout.write(
-          chalk.green(
+        writeOut(
+          paint.green(
             `Recorded ${fresh.length} proposal${fresh.length === 1 ? '' : 's'} from '${quoteData(parsed.records[0]?.source ?? 'the document')}'.${held}${declared}\n`,
           ) +
             'They are proposals, not decisions: each appears in yg advise for you to weigh, dismiss or defer.\n',

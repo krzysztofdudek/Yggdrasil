@@ -93,10 +93,10 @@ error[refused] requires-audit — refused on payments
   at:   payments  chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
   why:  Every mutation emits an audit event
   fix:  Four exits — the verdict is recorded for this exact code, so re-running the reviewer changes nothing:
-          1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
-          2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
-          3. Propose a `yg-suppress` to the user for a deliberate exception — ask the user to approve the reason.
-          4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
+        1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
+        2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+        3. Propose a `yg-suppress` to the user for a deliberate exception — ask the user to approve the reason.
+        4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
 
 next: change the code of payments so it satisfies requires-audit
 ```

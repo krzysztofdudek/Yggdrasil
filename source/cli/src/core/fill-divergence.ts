@@ -21,6 +21,7 @@ import type { LockFile } from '../model/lock.js';
 import type { IssueMessage } from '../model/validation.js';
 import { outsideTwin } from './check-codes.js';
 import { toPosixPath } from '../utils/posix.js';
+import { count } from '../utils/count.js';
 
 /** The finding a pair with no valid verdict produces in the report. */
 const UNVERIFIED_CODE = 'unverified';
@@ -98,7 +99,7 @@ export function buildDivergenceDump(
   lines.push(
     `fill-convergence-divergence: toFill=${s.toFill} postUnverified=${s.postUnverified} lockWrites=${s.lockWrites}`,
   );
-  lines.push(`enumerated ${unverifiedPairs.length} unverified pair(s):`);
+  lines.push(`enumerated ${count(unverifiedPairs.length, 'unverified pair')}:`);
 
   // Reserve the header lines already pushed and one line for a possible overflow
   // note, so the total (header + body + overflow) never exceeds the cap.
@@ -122,7 +123,7 @@ export function buildDivergenceDump(
  */
 export function divergenceNotice(s: DivergenceShape): IssueMessage {
   return {
-    what: `Verification claimed nothing needed checking, yet ${s.postUnverified} rule check(s) are still unverified after the run — and no results were recorded in between.`,
+    what: `Verification claimed nothing needed checking, yet ${count(s.postUnverified, 'rule check')} ${s.postUnverified === 1 ? 'is' : 'are'} still unverified after the run — and no results were recorded in between.`,
     why: 'The pre-run and post-run tallies disagree with no change between them, so those checks would otherwise be left silently unverified instead of converging. The evidence has been recorded locally so this is observable rather than lost.',
     next: 'Inspect .yggdrasil/.yg-fill-divergence.log for the affected checks and their recorded hashes, then re-run: yg check --approve',
   };

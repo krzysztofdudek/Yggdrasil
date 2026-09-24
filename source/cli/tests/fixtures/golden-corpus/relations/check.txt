@@ -1,0 +1,24 @@
+$ yg check
+exit: 1
+--- stdout
+yg check: FAIL  1 error · 1 warning   4 nodes · 3/7 files covered · 3 pairs verified (script)
+
+error[relation-undeclared-dependency] Node 'app/svc-01' has undeclared dependencies on other nodes:
+  at:   app/svc-01
+          src/svc-01/index.ts:2 → app/svc-02
+          src/svc-01/index.ts:3 → app/svc-03
+  why:  A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.
+  fix:  Declare the missing relations in .yggdrasil/model/app/svc-01/yg-node.yaml (or remove the dependency if it is not legitimate):
+        app/svc-02: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-02, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.
+        app/svc-03: allowed relation types [uses, calls, extends, implements, emits, listens]. Add - { target: app/svc-03, type: uses } under relations: in .yggdrasil/model/app/svc-01/yg-node.yaml.
+
+warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
+  at:   .clinerules/yggdrasil.md
+        .gitattributes
+        AGENTS.md
+        CLAUDE.md
+  why:  Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
+  fix:  Map these files to a node, or add their root to coverage.required to make this an error.
+
+next: edit .yggdrasil/model/app/svc-01/yg-node.yaml
+--- stderr

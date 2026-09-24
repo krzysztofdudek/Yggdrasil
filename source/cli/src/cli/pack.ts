@@ -1,5 +1,4 @@
 import type { Command } from 'commander';
-import chalk from 'chalk';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import { parseDocument, isSeq } from 'yaml';
@@ -59,7 +58,7 @@ import {
 import { runUpdate } from './pack-update.js';
 import type { UpdateOptions } from './pack-update.js';
 import { cliVersion } from './cli-version.js';
-import { fail } from './output.js';
+import { fail, paint, writeOut } from './output.js';
 
 /**
  * `yg pack` — install law published by someone else, keep it as they published
@@ -309,8 +308,8 @@ async function runNew(rawName: string): Promise<number> {
   const manifestText = await readTextFile(manifestPath);
   await atomicWriteFile(manifestPath, withPackageEntry(manifestText, name, '0.1.0'));
 
-  process.stdout.write(
-    `\n${chalk.green('Package scaffolded')}: ${PACKAGES_DIR}/${name}\n\n` +
+  writeOut(
+    `\n${paint.green('Package scaffolded')}: ${PACKAGES_DIR}/${name}\n\n` +
       `  ${PACKAGE_FILENAME.padEnd(36)}version, the Yggdrasil it needs, its rules and their settings\n` +
       `  ${`${SCAFFOLD_ASPECT}/yg-aspect.yaml`.padEnd(36)}one rule\n` +
       `  ${`${SCAFFOLD_ASPECT}/check.mjs`.padEnd(36)}what it refuses, reading ctx.config.${SCAFFOLD_CONFIG_KEY}\n` +
@@ -478,21 +477,21 @@ async function runAdd(rawSpec: string, opts: { as?: string }): Promise<number> {
 
       const fileCount = Object.keys(result.value.files).length;
       const from = fetched.tag === undefined ? '' : ` from ${fetched.tag} (commit ${shortCommit(fetched.commit)})`;
-      process.stdout.write(
-        chalk.green(
+      writeOut(
+        paint.green(
           `Installed '${manifest.name}' ${manifest.version}${from} into .yggdrasil/aspects/${installDirRelative(installId)}/ ` +
             `(${manifest.aspects.length} ${manifest.aspects.length === 1 ? 'rule' : 'rules'}, ${fileCount} ${fileCount === 1 ? 'file' : 'files'}).\n`,
         ),
       );
       for (const aspectDir of manifest.aspects) {
-        process.stdout.write(`  ${idPrefix}/${aspectDir}\n`);
+        writeOut(`  ${idPrefix}/${aspectDir}\n`);
       }
       if (spec.version !== undefined) {
-        process.stdout.write(`\nPinned at ${spec.version}: yg pack update leaves it there until you move it with --to.\n`);
+        writeOut(`\nPinned at ${spec.version}: yg pack update leaves it there until you move it with --to.\n`);
       }
       if (kind === 'directory') {
-        process.stdout.write(
-          chalk.yellow(
+        writeOut(
+          paint.yellow(
             `\n'${toPosixPath(resolved.location)}' is a plain directory, not a git repository, so there was no published version to take: ` +
               'its files were copied as they are on disk, and the record names no tag or commit. ' +
               'Install from the marketplace repository to get a version others can reproduce.\n',
@@ -500,14 +499,14 @@ async function runAdd(rawSpec: string, opts: { as?: string }): Promise<number> {
         );
       }
       if (recorded.strippedCredentials) {
-        process.stdout.write(
-          chalk.yellow(`\nThe credentials written into the URL were not recorded; the record names ${recorded.source}. Give git a credential helper instead.\n`),
+        writeOut(
+          paint.yellow(`\nThe credentials written into the URL were not recorded; the record names ${recorded.source}. Give git a credential helper instead.\n`),
         );
       }
-      process.stdout.write(
+      writeOut(
         '\nAttach a rule to a component by its full name above. Do not edit the copied files — ' +
           `change a rule in the ${ADAPT_FILENAME} written beside it.\n` +
-          chalk.yellow(
+          paint.yellow(
             'These rules run their author\'s code in this process on every check. Only what they read is fenced, not what they run.\n',
           ),
       );
@@ -528,12 +527,12 @@ async function runList(): Promise<number> {
   const lock = await readLock(projectRoot);
   const names = Object.keys(lock.packages).sort((a, b) => (a < b ? -1 : 1));
   if (names.length === 0) {
-    process.stdout.write(`No packages installed.\n\nInstall one with: yg pack add <url-or-path>#<package>\n`);
+    writeOut(`No packages installed.\n\nInstall one with: yg pack add <url-or-path>#<package>\n`);
     return 0;
   }
 
   const drift = await collectPackagesDrift(projectRoot, lock);
-  process.stdout.write(`${names.length} installed:\n\n`);
+  writeOut(`${names.length} installed:\n\n`);
   for (const name of names) {
     const entry = lock.packages[name];
     const intact = isCopyIntact(drift.byPackage.get(name));
@@ -542,9 +541,9 @@ async function runList(): Promise<number> {
       entry.tag !== undefined
         ? `${entry.tag}, commit ${shortCommit(entry.commit)}`
         : 'no tag recorded — read from a plain directory, or installed by an earlier release';
-    process.stdout.write(
+    writeOut(
       `  ${name}  ${entry.version}  ${requested === REQUESTED_LATEST ? 'follows the newest version' : `pinned at ${requested}`}  ` +
-        `${intact ? chalk.green('copy untouched') : chalk.red('copy changed')}\n` +
+        `${intact ? paint.green('copy untouched') : paint.red('copy changed')}\n` +
         `    from ${entry.source}  (${provenance})\n` +
         `    at   .yggdrasil/aspects/${installDirRelative(entry.package)}/\n`,
     );
@@ -552,8 +551,8 @@ async function runList(): Promise<number> {
 
   const stale = names.filter((n) => !isCopyIntact(drift.byPackage.get(n)));
   if (stale.length > 0) {
-    process.stdout.write(
-      chalk.red(
+    writeOut(
+      paint.red(
         `\nA changed copy no longer runs what its package published, and yg check refuses it. ` +
           `Put your change in ${ADAPT_FILENAME} instead, and restore the copy with: yg pack update <name> --reinstall\n`,
       ),
@@ -580,7 +579,7 @@ async function runList(): Promise<number> {
     observed[name] = tags;
     const newer = newerThanInstalled(tags, entry.version);
     if (newer.length > 0) {
-      process.stdout.write(
+      writeOut(
         `\n'${name}' also publishes: ${newer.join(', ')}  — take one with: yg pack update ${name} --to ${newer[newer.length - 1]}\n`,
       );
     }
@@ -613,7 +612,7 @@ async function runVerify(name: string | undefined): Promise<number> {
     }
     const names = name === undefined ? Object.keys(lock.packages).sort() : [name];
     if (names.length === 0) {
-      process.stdout.write('No packages are installed.\n');
+      writeOut('No packages are installed.\n');
       return 0;
     }
 
@@ -660,10 +659,10 @@ async function runVerify(name: string | undefined): Promise<number> {
         }
 
         if (problems.length === 0) {
-          process.stdout.write(chalk.green(`'${pkgName}' ${entry.version} — the copy is exactly ${against}.\n`));
+          writeOut(paint.green(`'${pkgName}' ${entry.version} — the copy is exactly ${against}.\n`));
         } else {
           failed += 1;
-          process.stdout.write(chalk.red(`'${pkgName}' ${entry.version} does not verify:\n`) + problems.map((p) => `  ${p}\n`).join(''));
+          writeOut(paint.red(`'${pkgName}' ${entry.version} does not verify:\n`) + problems.map((p) => `  ${p}\n`).join(''));
         }
       }
     } finally {
@@ -671,7 +670,7 @@ async function runVerify(name: string | undefined): Promise<number> {
     }
 
     if (failed > 0) {
-      process.stdout.write(
+      writeOut(
         `\nA copy that does not match its source is not what its publisher released. ` +
           `Restore an edited copy with yg pack update <name> --reinstall; ask the publisher about a tag that moved.\n`,
       );
@@ -706,7 +705,7 @@ async function runRemove(name: string): Promise<number> {
     const attached = attachmentsOf(graph, own, idPrefix);
     if (attached.length > 0) {
       failWith({
-        what: `'${name}' is still in use:\n${attached.map((a) => `  ${a.where}  → ${a.aspectId}`).join('\n')}`,
+        what: `'${name}' is still in use:\n${attached.map((a) => `${a.where}  → ${a.aspectId}`).join('\n')}`,
         why: 'Removing its rules while something still names them would leave the graph pointing at law that is no longer there, and every check would fail on the dangling names rather than on anything real. Nothing was removed.',
         next: 'Detach the rules from everything listed above, then run this again.',
       });
@@ -718,14 +717,14 @@ async function runRemove(name: string): Promise<number> {
     delete rest[name];
     await writePackagesLock(projectRoot, { schema: 'yg-packages/1', packages: rest });
 
-    process.stdout.write(chalk.green(`Removed '${name}' — its rules and its record are gone.\n`));
+    writeOut(paint.green(`Removed '${name}' — its rules and its record are gone.\n`));
     if (adapted > 0) {
-      process.stdout.write(
+      writeOut(
         `Its ${adapted} ${adapted === 1 ? 'adaptation' : 'adaptations'} (${ADAPT_FILENAME}) went with it; version control still has ${adapted === 1 ? 'it' : 'them'}.\n`,
       );
     }
     if (Object.keys(rest).length === 0) {
-      process.stdout.write(`.yggdrasil/${PACKAGES_LOCK_FILENAME} now records nothing installed.\n`);
+      writeOut(`.yggdrasil/${PACKAGES_LOCK_FILENAME} now records nothing installed.\n`);
     }
     return 0;
   });

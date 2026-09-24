@@ -664,7 +664,7 @@ or map it to a node). See "A file enforced by its architecture type alone" in
 being unavailable means for a check running this way.
 
 Every run leads with a one-line verdict stamp (\`yg aspect-test: satisfied — No
-violations.\` or \`yg aspect-test: refused — N violation(s)\`) and ends with the
+violations.\` or \`yg aspect-test: refused — N violations\`) and ends with the
 footer \`diagnostic only — lock unchanged; yg check judges the lock against your
 files, not this run\`. Exits 1 if violations exist. Use during \`check.mjs\`
 development, against both compliant and non-compliant inputs, to confirm no false

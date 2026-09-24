@@ -84,3 +84,7 @@ The sharpen nomination claimed the reviewer judged the same input inconsistently
 Every human sign-off in the attention feed is phrased the same way — ask the user to approve it first — instead of three different wordings, one of which addressed the reader as 'your approval', which an agent reads as licence to approve itself; the incidents line says none in words, and a label that read 'regime unknown' now says which reviewer is unknown.
 ## [2026-09-24T10:25:48.786Z]
 The churning type-covered file nomination names the file in its next step.
+## [2026-09-24T13:51:10.907Z]
+A candidate rule family and a deviation count are counted with count() from utils/count.ts, which this node now calls, so a single file reads in the singular and the verb agrees. Counts are written with count() and plural() from utils/count.ts, never a hand-rolled plural (word(s)) or a noun with its plural spliced on, because the repository now refuses both across the shipped source: the same fact read '1 node(s)' here and '1 nodes' there, and an agent parsing the text met a different spelling from every module.
+## [2026-09-24T14:08:16.818Z]
+The uncovered-hot-spot nomination names the node in its next step instead of saying 'here': the node is known and already quoted in what, and a next step leaves a placeholder only for what a person must supply.

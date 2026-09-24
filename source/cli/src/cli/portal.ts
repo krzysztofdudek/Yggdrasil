@@ -8,6 +8,7 @@ import { toPosixPath } from '../utils/posix.js';
 import { extractPortalData } from '../portal/extract.js';
 import { emitStatic } from '../portal/serializer.js';
 import { startServer } from '../portal/server/server.js';
+import { writeErr, writeOut } from './output.js';
 
 /**
  * Options for `yg portal`.
@@ -74,7 +75,7 @@ async function runPortal(options: PortalOptions): Promise<void> {
     await emitStatic(data, outPath);
     // outPath (path.resolve) is OS-native; normalize only the displayed path —
     // emitStatic/openInBrowser keep the native form for filesystem access.
-    process.stdout.write(`Portal page written to ${toPosixPath(outPath)}\n`);
+    writeOut(`Portal page written to ${toPosixPath(outPath)}\n`);
     if (options.open) {
       await openInBrowser(outPath);
     }
@@ -94,11 +95,12 @@ async function servePortal(projectRoot: string, options: PortalOptions): Promise
     projectRoot,
     port: options.port ?? DEFAULT_PORT,
     writeEnabled: options.write,
+    onInternalError: (line) => { writeErr(line); },
   });
 
   const mode = options.write ? '' : ' (view-only — Approve disabled)';
-  process.stdout.write(`Portal running at ${handle.url}${mode}\n`);
-  process.stdout.write('Press Ctrl+C to stop.\n');
+  writeOut(`Portal running at ${handle.url}${mode}\n`);
+  writeOut('Press Ctrl+C to stop.\n');
 
   // Graceful shutdown on interrupt so the port is released cleanly.
   const shutdown = (): void => {

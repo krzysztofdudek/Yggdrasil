@@ -663,7 +663,7 @@ describe.skipIf(!distExists)('CLI E2E — flows extended (multi-aspect / dry-run
         flows.stdout.indexOf('PaymentSettlement'),
       );
       // The second flow shows its single participant and its aspect.
-      expect(flows.stdout).toContain('Participants: 1 nodes (services/payments)');
+      expect(flows.stdout).toContain('Participants: 1 node (services/payments)');
       expect(flows.stdout).toContain('Aspects: requires-named-export');
     } finally {
       rmSync(dir, { recursive: true, force: true });

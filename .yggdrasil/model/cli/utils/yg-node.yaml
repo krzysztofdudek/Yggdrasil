@@ -30,6 +30,10 @@ description: Shared helper functions — debug logging, git introspection, path
   entry, with exactly mappingEntryMatchesFile's answers) and the bounded async
   map used for repository-wide file I/O, so a large repository is neither read
   one awaited call at a time nor opened all at once.
+  It also owns count and plural — a number and its noun, agreeing — so the
+  engine, the formatters and the relations subsystem write a count the way the
+  command layer's output module (which re-exports them) does, since they may
+  call utility but not the command layer.
 aspects:
   - posix-paths-output
 relations: [ { target: cli/model/graph, type: uses } ]
@@ -55,3 +59,4 @@ mapping:
   - source/cli/src/utils/file-when-parser.ts
   - source/cli/src/utils/validate-check-module.ts
   - source/cli/src/utils/rules-artifact-names.ts
+  - source/cli/src/utils/count.ts

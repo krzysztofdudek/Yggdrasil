@@ -32,7 +32,7 @@ import { toPosixPath } from '../utils/posix.js';
 import { resolveGraphExclusionSet, isExcludedFromGraph, NO_COVERAGE_EXCLUDED } from '../io/repo-scanner.js';
 import { IMPACT_JSON_SCHEMA, formatImpactJson } from '../formatters/impact-json.js';
 import { buildImpactDocument } from '../core/graph/machine-documents.js';
-import { fail, plural } from './output.js';
+import { fail, plural, writeErr, writeOut } from './output.js';
 
 import { DEFAULT_PORT_NAME } from '../model/graph.js';
 
@@ -124,8 +124,8 @@ export function registerImpactCommand(program: Command): void {
                 why: 'The per-pair cost model tracks subject-file edits; rule and companion hash changes are not modeled as per-pair subjects.',
                 next: 'To estimate the cost of editing an aspect rule or companion, run yg impact --aspect <id>.',
               }) + '\n';
-              if (asJson) process.stderr.write(redirect);
-              else process.stdout.write(redirect);
+              if (asJson) writeErr(redirect);
+              else writeOut(redirect);
               await exitAfterFlush(0);
               return;
             }
@@ -148,8 +148,8 @@ export function registerImpactCommand(program: Command): void {
                 why: 'This path sits inside a separate project\'s own boundary, or matches a coverage.excluded root — no node enforces it and no aspect can read it, so editing it invalidates nothing.',
                 next: 'No action needed.',
               }) + '\n';
-              if (asJson) process.stderr.write(excluded);
-              else process.stdout.write(excluded);
+              if (asJson) writeErr(excluded);
+              else writeOut(excluded);
               await exitAfterFlush(0);
               return;
             }
@@ -182,7 +182,7 @@ export function registerImpactCommand(program: Command): void {
               // No component owns the file, so there is no subject a
               // yg-impact/1 document could name — that document's subject is a
               // component, always. Say so, and keep the text view's exit code.
-              process.stderr.write(
+              writeErr(
                 buildIssueMessage({
                   what: `No component owns ${repoRelative}.`,
                   why: `A ${IMPACT_JSON_SCHEMA} document describes the blast radius of one COMPONENT, so a file with no owning component has no subject to report on. Its rules, if its architecture type governs it, are still real.`,
@@ -208,11 +208,11 @@ export function registerImpactCommand(program: Command): void {
               const summary = summarizeImpact(ownerlessSet, graph, lock);
               if (ownerlessSet.typeCoverage?.covered.has(repoRelative)) {
                 const preview = await computeGraduationPreview(graph, repoRelative, ownerlessSet.typeCoverage, ownerlessSet.allPairs);
-                process.stdout.write(renderGraduationPreview(preview));
+                writeOut(renderGraduationPreview(preview));
               }
               // Render the Total and exit. This is an ADD over the old
               // behavior which early-exited with no cost.
-              process.stdout.write(renderImpactTotal(summary, repoRelative, { isTTY: process.stdout.isTTY ?? false }));
+              writeOut(renderImpactTotal(summary, repoRelative));
               await exitAfterFlush(0);
               return;
             }
@@ -223,7 +223,7 @@ export function registerImpactCommand(program: Command): void {
             if (set) fileImpact = { summary: summarizeImpact(set, graph, lock), repoRelative };
             // Under --json the owner resolution is already carried by the
             // document's own subject, and stdout must hold the document alone.
-            if (!asJson) process.stdout.write(`${ownerResult.file} -> ${ownerResult.nodePath}\n`);
+            if (!asJson) writeOut(`${ownerResult.file} -> ${ownerResult.nodePath}\n`);
             options.node = ownerResult.nodePath;
           }
 
@@ -256,7 +256,7 @@ export function registerImpactCommand(program: Command): void {
             // queries; it does not pay for the lock-backed cost report the text
             // view ends with, because a cost estimate is not part of the
             // contract a consumer reads.
-            process.stdout.write(formatImpactJson(buildImpactDocument(graph, nodePath)));
+            writeOut(formatImpactJson(buildImpactDocument(graph, nodePath)));
             await exitAfterFlush(0);
             return;
           }
@@ -320,10 +320,10 @@ export function registerImpactCommand(program: Command): void {
             }
           }
 
-          process.stdout.write(`Impact of changes in ${nodePath}:\n\n`);
-          process.stdout.write('Directly dependent:\n');
+          writeOut(`Impact of changes in ${nodePath}:\n\n`);
+          writeOut('Directly dependent:\n');
           if (direct.length === 0) {
-            process.stdout.write('  (none)\n');
+            writeOut('  (none)\n');
           } else {
             for (const dep of direct) {
               const rel = relationFrom.get(`${dep}->${nodePath}`);
@@ -336,30 +336,30 @@ export function registerImpactCommand(program: Command): void {
                 : rel
                   ? ` (${rel.type})`
                   : '';
-              process.stdout.write(`  <- ${dep}${annot}\n`);
+              writeOut(`  <- ${dep}${annot}\n`);
             }
           }
 
           if (eventDependents.length > 0) {
-            process.stdout.write('\nEvent-connected:\n');
+            writeOut('\nEvent-connected:\n');
             for (const { path: p, type, eventName } of eventDependents.sort((a, b) => (a.path < b.path ? -1 : a.path > b.path ? 1 : 0))) {
-              process.stdout.write(`  ${p} (${type}: ${eventName})\n`);
+              writeOut(`  ${p} (${type}: ${eventName})\n`);
             }
           }
-          process.stdout.write('\nTransitively dependent:\n');
+          writeOut('\nTransitively dependent:\n');
           if (chains.length === 0) {
-            process.stdout.write('  (none)\n');
+            writeOut('  (none)\n');
           } else {
             for (const chain of chains) {
-              process.stdout.write(`  ${chain}\n`);
+              writeOut(`  ${chain}\n`);
             }
           }
 
           const descendants = collectDescendants(graph, nodePath);
           if (descendants.length > 0) {
-            process.stdout.write('\nDescendants (hierarchy impact):\n');
+            writeOut('\nDescendants (hierarchy impact):\n');
             for (const desc of descendants) {
-              process.stdout.write(`  ${desc}\n`);
+              writeOut(`  ${desc}\n`);
             }
           }
 
@@ -378,17 +378,17 @@ export function registerImpactCommand(program: Command): void {
             }
             descIndirectPaths = filteredIndirect;
             if (filteredChains.length > 0) {
-              process.stdout.write('\nIndirectly affected (structural dependents of descendants):\n');
+              writeOut('\nIndirectly affected (structural dependents of descendants):\n');
               for (const chain of filteredChains) {
-                process.stdout.write(`  ${chain}\n`);
+                writeOut(`  ${chain}\n`);
               }
             }
           }
 
-          process.stdout.write(
+          writeOut(
             `\nFlows: ${flows.length > 0 ? flows.join(', ') : '(none)'}\n`,
           );
-          process.stdout.write(
+          writeOut(
             `Aspects: ${aspectsInScope.length > 0 ? aspectsInScope.join(', ') : '(none)'}\n`,
           );
 
@@ -431,34 +431,34 @@ export function registerImpactCommand(program: Command): void {
             }
           }
           if (coAspectNodes.length > 0) {
-            process.stdout.write('Nodes sharing aspects:\n');
+            writeOut('Nodes sharing aspects:\n');
             for (const { path: p, shared } of coAspectNodes.sort((a, b) =>
               a.path < b.path ? -1 : a.path > b.path ? 1 : 0,
             )) {
-              process.stdout.write(`  ${p} (${shared.join(', ')})\n`);
+              writeOut(`  ${p} (${shared.join(', ')})\n`);
             }
           }
           if (ubiquitousAspects.length > 0) {
-            process.stdout.write(
+            writeOut(
               `  (${ubiquitousAspects.length} ubiquitous aspect${ubiquitousAspects.length === 1 ? '' : 's'} omitted — they don't indicate a real dependency)\n`,
             );
           }
 
           const allAffected = new Set([...allDependents, ...descendants, ...eventDependents.map((e) => e.path), ...descIndirectPaths]);
-          process.stdout.write(
+          writeOut(
             `\nBlast radius: ${allAffected.size} ${plural(allAffected.size, 'node')}, ${flows.length} ${plural(flows.length, 'flow')}, ${aspectsInScope.length} ${plural(aspectsInScope.length, 'aspect')}\n`,
           );
           if (fileImpact) {
-            process.stdout.write(renderImpactTotal(fileImpact.summary, fileImpact.repoRelative, { isTTY: process.stdout.isTTY ?? false }));
+            writeOut(renderImpactTotal(fileImpact.summary, fileImpact.repoRelative));
           } else {
-            process.stdout.write(renderNodeFillCost(await computeNodeFillCost(graph, nodePath, lock), 'node'));
+            writeOut(renderNodeFillCost(await computeNodeFillCost(graph, nodePath, lock), 'node'));
           }
           if (allAffected.size >= 10) {
-            process.stdout.write(`  High blast radius.\nnext: review the direct dependents above before changing this node\n`);
+            writeOut(`  High blast radius.\nnext: review the direct dependents above before changing this node\n`);
           } else if (allAffected.size > 0) {
-            process.stdout.write(`next: review the direct dependents above before changing this node\n`);
+            writeOut(`next: review the direct dependents above before changing this node\n`);
           }
-          process.stdout.write(
+          writeOut(
             '\n' + buildIssueMessage({
               what: `You are about to change node ${toPosixPath(nodePath)}.`,
               why: 'Dependents listed above may be affected by changes to this node.',

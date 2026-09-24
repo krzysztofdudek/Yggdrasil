@@ -44,15 +44,10 @@ guardTerminalOutput();
 
 // ── Counts ─────────────────────────────────────────────────
 
-/** `noun` or its plural, by `n`. The plural defaults to `noun + 's'`. */
-export function plural(n: number, noun: string, pluralNoun = `${noun}s`): string {
-  return n === 1 ? noun : pluralNoun;
-}
-
-/** `n` and its noun, agreeing: `1 pair`, `2 pairs`, `0 pairs`. */
-export function count(n: number, noun: string, pluralNoun?: string): string {
-  return `${n} ${plural(n, noun, pluralNoun)}`;
-}
+// count() and plural() live in utils/count.ts, so the engine and the
+// formatters (which may not import the command layer) write counts the same
+// way; re-exported here as part of the grammar every command speaks.
+export { count, plural } from '../utils/count.js';
 
 // ── Lists ──────────────────────────────────────────────────
 
@@ -101,6 +96,24 @@ export function list(items: readonly string[], opts: ListOptions = {}): string[]
 export const decorated: boolean = chalk.level > 0;
 
 /**
+ * Colour for the words a text view highlights — the one door to chalk in the
+ * CLI. Decoration only: each is the identity whenever colour is off (NO_COLOR,
+ * a pipe, TERM=dumb), so no meaning may live in a colour alone. A command that
+ * needs a colour takes it from here instead of importing chalk, so what
+ * decorates and when is decided in one place.
+ */
+export const paint = {
+  red: (text: string): string => chalk.red(text),
+  green: (text: string): string => chalk.green(text),
+  yellow: (text: string): string => chalk.yellow(text),
+  dim: (text: string): string => chalk.dim(text),
+  bold: (text: string): string => chalk.bold(text),
+} as const;
+
+/** One of {@link paint}'s colours, for a helper that takes the colour as an argument. */
+export type Paint = (text: string) => string;
+
+/**
  * The field labels a block uses, in the order it uses them. Always lowercase,
  * always present when the field is: a line with no label is continuation of
  * the field above it, never a field of its own.
@@ -141,8 +154,8 @@ export function heading(severity: HeadingSeverity, label: string | undefined, su
   const sep = opts.colon === true ? ': ' : ' ';
   if (!colour) return `${tag}${sep}${subject}`;
   const glyph = severity === 'error' ? '✗ ' : severity === 'warning' ? '! ' : '';
-  const paint = severity === 'error' ? chalk.red : severity === 'warning' ? chalk.yellow : (t: string) => t;
-  return `${paint(`${glyph}${tag}`)}${sep}${chalk.bold(subject)}`;
+  const tone = severity === 'error' ? chalk.red : severity === 'warning' ? chalk.yellow : (t: string) => t;
+  return `${tone(`${glyph}${tag}`)}${sep}${chalk.bold(subject)}`;
 }
 
 /**
@@ -218,8 +231,28 @@ export interface TextSink {
   write(text: string): void;
 }
 
-export const stdoutSink: TextSink = { write: (text) => { process.stdout.write(text); } };
-export const stderrSink: TextSink = { write: (text) => { process.stderr.write(text); } };
+/**
+ * Write text to stdout — a report, a listing, a JSON document. Every command
+ * writes its output through this (or {@link writeErr}) rather than calling
+ * process.stdout.write itself, so the one place that decides where output
+ * goes, and what guards it (terminal safety, installed when this module
+ * loads), is here. Returns the stream's backpressure answer, as the stream does.
+ */
+export function writeOut(text: string): boolean {
+  return process.stdout.write(text);
+}
+
+/**
+ * Write text to stderr — progress, a prompt, a hint around a result. An error,
+ * a notice or a warning goes through {@link fail}, {@link notice} or
+ * {@link warn} instead, which render it in the one grammar first.
+ */
+export function writeErr(text: string): boolean {
+  return process.stderr.write(text);
+}
+
+export const stdoutSink: TextSink = { write: (text) => { writeOut(text); } };
+export const stderrSink: TextSink = { write: (text) => { writeErr(text); } };
 
 /** A JSON document on stdout: pretty-printed, one trailing newline. */
 export function writeJsonDocument(doc: unknown, sink: TextSink = stdoutSink): void {
@@ -293,7 +326,7 @@ function asDiagnostic(d: Diagnostic | IssueMessage, code: string): Diagnostic {
  */
 export function fail(d: Diagnostic | IssueMessage, code?: string, opts: { document?: boolean } = {}): void {
   const diag = asDiagnostic(d, code ?? (isDiagnostic(d) ? d.code : inferErrorCode(d.what)));
-  process.stderr.write(`${block(diag, 'error')}\n`);
+  writeErr(`${block(diag, 'error')}\n`);
   // `document: false` for a command whose JSON answer to this outcome is its
   // own document (written next), so stdout still carries exactly one.
   if (isJsonOutput() && opts.document !== false) writeJsonDocument(errorDocument(diag));
@@ -323,7 +356,7 @@ export function failAndExit(d: Diagnostic | IssueMessage, code?: string): never 
  * held back by CI, a scope the run could not measure), never for a failure.
  */
 export function notice(d: Diagnostic | IssueMessage): void {
-  process.stderr.write(`${block(d, 'note')}\n`);
+  writeErr(`${block(d, 'note')}\n`);
 }
 
 /**
@@ -333,5 +366,5 @@ export function notice(d: Diagnostic | IssueMessage): void {
  * means for the outcome.
  */
 export function warn(d: Diagnostic | IssueMessage, code?: string): void {
-  process.stderr.write(`${block(d, 'warning', code)}\n`);
+  writeErr(`${block(d, 'warning', code)}\n`);
 }

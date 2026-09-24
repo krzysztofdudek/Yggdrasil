@@ -28,7 +28,7 @@ import { readLock } from '../io/lock-store.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { runProjectRelationPass } from '../relations/pass.js';
 import type { TypedEdgeIndex } from '../relations/pass.js';
-import { fail } from './output.js';
+import { fail, writeOut } from './output.js';
 
 function normalizeForMatch(inputPath: string): string {
   return toPosixPath(inputPath.trim());
@@ -146,7 +146,7 @@ export function registerOwnerCommand(program: Command): void {
         // One answer, two forms: the text a person reads, or the yg-owner/1
         // document — the same facts, so a consumer never parses the sentence.
         const answer = (doc: Omit<OwnerJsonDocument, 'schema'>, text: string): void => {
-          process.stdout.write(options.json === true ? `${JSON.stringify({ schema: OWNER_JSON_SCHEMA, ...doc }, null, 2)}\n` : text);
+          writeOut(options.json === true ? `${JSON.stringify({ schema: OWNER_JSON_SCHEMA, ...doc }, null, 2)}\n` : text);
         };
         if (!options.file) {
           // Emit a structured what/why/next error instead of Commander's bare

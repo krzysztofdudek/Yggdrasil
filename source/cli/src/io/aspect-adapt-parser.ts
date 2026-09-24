@@ -110,7 +110,7 @@ export async function parseAspectAdapt(
       messageData: {
         what: `${filePath} is a ${Array.isArray(raw) ? 'list' : typeof raw}, not a mapping.`,
         why: 'An adaptation sets named keys over the rule it sits beside, so it has to be a mapping of key to value.',
-        next: `Write ${filePath} as a YAML mapping, e.g.\n  status: advisory`,
+        next: `Write ${filePath} as a YAML mapping, e.g. status: advisory`,
       },
     };
   }

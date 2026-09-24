@@ -8,7 +8,7 @@ import { walkRepoFiles } from '../io/repo-scanner.js';
 import { scanUncoveredFiles } from '../core/check.js';
 import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
-import { fail } from './output.js';
+import { fail, writeOut, warn } from './output.js';
 
 const TOP_N = 5;
 
@@ -64,9 +64,9 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
     const coverage = await computeTypeCoverageCached(graph, uncovered, new FileContentCache());
     typeCoverage = [...coverage.covered.entries()].map(([file, typeId]) => ({ file, typeId }));
   }
-  const docs = await buildIndex(graph, typeCoverage);
+  const docs = await buildIndex(graph, typeCoverage, (m) => { warn(m); });
   if (docs.length === 0) {
-    process.stdout.write(opts.json === true
+    writeOut(opts.json === true
       ? `${JSON.stringify({ schema: FIND_JSON_SCHEMA, query: query.trim(), results: [] }, null, 2)}\n`
       : 'Empty graph, nothing to search.\n');
     return 0;
@@ -93,12 +93,12 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
         next: doc.kind === 'node' ? `yg context --node ${id}` : doc.kind === 'file' ? `yg context --file ${id}` : null,
       });
     }
-    process.stdout.write(`${JSON.stringify({ schema: FIND_JSON_SCHEMA, query: query.trim(), results: rows }, null, 2)}\n`);
+    writeOut(`${JSON.stringify({ schema: FIND_JSON_SCHEMA, query: query.trim(), results: rows }, null, 2)}\n`);
     return 0;
   }
   if (results.length === 0) {
-    process.stdout.write('No matches.\n');
-    process.stdout.write(
+    writeOut('No matches.\n');
+    writeOut(
       '\nnext: run yg tree for the full graph, or re-query with sharper keywords.\n',
     );
     return 0;
@@ -109,7 +109,7 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
   // the rendered score is interpretable: the top result is 1.00 and the rest are
   // its fraction. results are score-sorted, so results[0] carries the max.
   const maxScore = results[0]?.score ?? 0;
-  process.stdout.write('Top entry points (ranked by relevance):\n\n');
+  writeOut('Top entry points (ranked by relevance):\n\n');
   // The top result's document drives the terminal Next line (node vs aspect).
   let topDoc: IndexedDocument | undefined;
   for (let i = 0; i < results.length; i++) {
@@ -136,15 +136,15 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
       shownTerms.join(', ') + (overflow > 0 ? ` (+${overflow} more)` : '');
     const score = (maxScore > 0 ? (r.score ?? 0) / maxScore : 0).toFixed(2);
     const docPath = toPosixPath(doc.path);
-    process.stdout.write(`${i + 1}. ${docPath.padEnd(40)} score: ${score}\n`);
-    process.stdout.write(`   Kind: ${doc.kind}\n`);
-    if (doc.type) process.stdout.write(`   Type: ${doc.type}\n`);
+    writeOut(`${i + 1}. ${docPath.padEnd(40)} score: ${score}\n`);
+    writeOut(`   Kind: ${doc.kind}\n`);
+    if (doc.type) writeOut(`   Type: ${doc.type}\n`);
     if (doc.kind === 'aspect') {
-      process.stdout.write(`   status: ${doc.status ?? 'enforced'}\n`);
+      writeOut(`   status: ${doc.status ?? 'enforced'}\n`);
     }
-    process.stdout.write(`   Description: "${doc.description}"\n`);
-    if (matched) process.stdout.write(`   Matched: ${matched}\n`);
-    process.stdout.write('\n');
+    writeOut(`   Description: "${doc.description}"\n`);
+    if (matched) writeOut(`   Matched: ${matched}\n`);
+    writeOut('\n');
   }
 
   // Terminal Next: derived from the TOP result's Kind. A node result is an
@@ -156,11 +156,11 @@ export async function findCommand(query: string, projectRoot: string, opts: { js
     if (topDoc.kind === 'node') {
       // Strip the leading `model/` so the path is a valid --node argument.
       const nodeArg = toPosixPath(topDoc.path).replace(/^model\//, '');
-      process.stdout.write(`next: yg context --node ${nodeArg}\n`);
+      writeOut(`next: yg context --node ${nodeArg}\n`);
     } else if (topDoc.kind === 'file') {
-      process.stdout.write(`next: yg context --file ${toPosixPath(topDoc.path)}\n`);
+      writeOut(`next: yg context --file ${toPosixPath(topDoc.path)}\n`);
     } else {
-      process.stdout.write(
+      writeOut(
         `next: read .yggdrasil/${toPosixPath(topDoc.path)} — this is a rule, not an entry-point node (do not pass it to --node).\n`,
       );
     }

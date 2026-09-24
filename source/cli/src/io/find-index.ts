@@ -2,7 +2,9 @@ import { readFile, lstat } from 'node:fs/promises';
 import path from 'node:path';
 import MiniSearch from 'minisearch';
 import type { AspectStatus, Graph } from '../model/graph.js';
+import type { IssueMessage } from '../model/validation.js';
 import { debugWrite } from '../utils/debug-log.js';
+import { toPosixPath } from '../utils/posix.js';
 
 const MAX_BODY_BYTES = 1_048_576; // 1 MiB
 
@@ -35,8 +37,17 @@ export interface TypeCoveredIndexEntry {
  * `typeCoverage` is optional and omitted or empty produces byte-identical
  * output to today — no 'file' documents at all, so a flag-off or coverage-less
  * caller pays nothing beyond the argument itself.
+ *
+ * A log body the index cannot take whole (too large, a symlink, unreadable) is
+ * reported through `onWarning` as a what/why/next message, never written to a
+ * stream here: this module returns data, and the command that asked for the
+ * index renders the warning in the CLI's one grammar.
  */
-export async function buildIndex(graph: Graph, typeCoverage?: TypeCoveredIndexEntry[]): Promise<IndexedDocument[]> {
+export async function buildIndex(
+  graph: Graph,
+  typeCoverage?: TypeCoveredIndexEntry[],
+  onWarning: (message: IssueMessage) => void = () => {},
+): Promise<IndexedDocument[]> {
   const projectRoot = path.dirname(graph.rootPath);
   const docs: IndexedDocument[] = [];
 
@@ -50,13 +61,19 @@ export async function buildIndex(graph: Graph, typeCoverage?: TypeCoveredIndexEn
         const raw = await readFile(logPath, 'utf-8');
         const truncated = truncateTail(raw, MAX_BODY_BYTES);
         if (truncated !== raw) {
-          process.stderr.write(
-            `log.md for node '${nodePath}' exceeds 1 MiB — body truncated for indexing\nLarge logs are truncated to keep search index memory bounded.\nThis does not affect append-only integrity. No action required.\n`,
-          );
+          onWarning({
+            what: `log.md for node '${nodePath}' exceeds 1 MiB — its body was truncated for indexing.`,
+            why: 'Large logs are truncated to keep the search index\'s memory bounded; the log itself, and its append-only integrity, are untouched.',
+            next: 'Nothing to do.',
+          });
         }
         body = truncated;
       } else if (st.isSymbolicLink()) {
-        process.stderr.write(`warning: skipping symlinked log.md at ${path.relative(projectRoot, logPath)}\n`);
+        onWarning({
+          what: `Skipping the symlinked log.md at ${toPosixPath(path.relative(projectRoot, logPath))}.`,
+          why: 'A symlinked log.md can point anywhere on disk, so its content is never read into the search index.',
+          next: 'Replace the symlink with a regular file if its entries should be searchable.',
+        });
       /* v8 ignore next 2 -- hardlink (nlink>1, !symlink): skip silently; not testable without root */
       } else {
         /* skip hardlink */
@@ -65,9 +82,11 @@ export async function buildIndex(graph: Graph, typeCoverage?: TypeCoveredIndexEn
       const e = err as NodeJS.ErrnoException;
       debugWrite(`[find-index] log.md read for ${nodePath}: ${e.message}`);
       if (e.code !== 'ENOENT') {
-        process.stderr.write(
-          `Cannot read log.md for node '${nodePath}': ${e.message}\nNode will be indexed without log body — search results may be less relevant.\nCheck file permissions or restore from git.\n`,
-        );
+        onWarning({
+          what: `Cannot read log.md for node '${nodePath}': ${e.message}`,
+          why: 'The node is indexed without its log body, so search results may be less relevant.',
+          next: 'Check the file\'s permissions, or restore it from git.',
+        });
       }
     }
 

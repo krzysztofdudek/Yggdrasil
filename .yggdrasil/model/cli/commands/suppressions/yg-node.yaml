@@ -21,6 +21,8 @@ description: >-
   cli/aspects.ts rather than in cli/formatters.
 aspects: []
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/portal/engine-api
     type: calls
   - target: cli/tests/unit/cli

@@ -8,7 +8,9 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   count, plural, list, overflowLine, block, verdict, next, fixPointer,
   fail, failAndExit, notice, setJsonOutput, isJsonOutput, errorDocument, ERROR_JSON_SCHEMA, MEMBER_CAP,
+  writeOut, writeErr, paint,
 } from '../../../src/cli/output.js';
+import { count as utilCount, plural as utilPlural } from '../../../src/utils/count.js';
 import { codeInfo, tierRank, fromIssueMessage, toIssueMessage, GRAPH_INVALID_CODES } from '../../../src/cli/output-diagnostic.js';
 
 afterEach(() => {
@@ -147,5 +149,28 @@ describe('fail / failAndExit / notice', () => {
   it('errorDocument carries a null command when the fix is prose', () => {
     const doc = errorDocument(fromIssueMessage({ what: 'w', why: 'y', next: 'Fix the YAML.' }, { code: 'yaml-invalid' }));
     expect(doc.next).toEqual({ command: null, text: 'Fix the YAML.' });
+  });
+});
+
+describe('the streams and colour go through the layer', () => {
+  it('writeOut and writeErr write the text as given, to stdout and to stderr', () => {
+    const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    expect(writeOut('report\n')).toBe(true);
+    expect(writeErr('progress\n')).toBe(true);
+    expect(out).toHaveBeenCalledWith('report\n');
+    expect(err).toHaveBeenCalledWith('progress\n');
+  });
+
+  it('paint keeps the words: with colour off it is the identity', () => {
+    for (const tone of [paint.red, paint.green, paint.yellow, paint.dim, paint.bold]) {
+      // eslint-disable-next-line no-control-regex
+      expect(tone('refused').replace(/\x1b\[[0-9;]*m/g, '')).toBe('refused');
+    }
+  });
+
+  it('count and plural are the utility the engine uses — one definition', () => {
+    expect(count).toBe(utilCount);
+    expect(plural).toBe(utilPlural);
   });
 });

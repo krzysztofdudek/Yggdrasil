@@ -41,6 +41,7 @@ import type { CheckIssue } from './check-contract.js';
 import { emitPairIssue } from './check-pair-issues.js';
 import { classifyLogStateFromLock, classifyLogRequirement } from './check-log-state.js';
 import { classifyAspectStatusDrift } from './check-aspect-status.js';
+import { count } from '../utils/count.js';
 
 /** What one lock-verification phase produces for the report the orchestrator assembles. */
 export interface LockPhaseResult {
@@ -208,7 +209,7 @@ export async function runLockPhase(args: {
       const scope =
         pf.fileCount === 1
           ? examplePath
-          : `${pf.fileCount} ${lang} files, e.g. ${examplePath}`;
+          : `${count(pf.fileCount, `${lang} file`)}, e.g. ${examplePath}`;
       lockIssues.push({
         severity: 'error',
         code: 'relation-parse-failed',
