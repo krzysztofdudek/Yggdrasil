@@ -221,7 +221,7 @@ describe('kotlin SYMBOL-TABLE resolution — the half this language validates', 
         expect(st.resolveUnique('kotlin', 'com.acme.dup.Thing')).toBeUndefined();
 
         // Through the resolver the use also resolves to undefined — silence, never a flag.
-        const ownerIndex = { ownerOf: () => 'someNode' };
+        const ownerIndex = { ownerOf: (f: string) => f.split('/')[1] }; // src/<node>/… — the two declaring files are two NODES
         const resolver = makeResolver({ ownerIndex: ownerIndex as never, symbolTable: st, resolvePathToFile: () => undefined });
         const importHint = kotlinExtractor.uses(consumer).find((u) => u.candidates[0].kind === 'symbol')!;
         expect(resolver.resolve(importHint.candidates[0], consumer.path, 'kotlin')).toBeUndefined();

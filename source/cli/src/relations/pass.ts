@@ -16,6 +16,7 @@ import {
   assembleCsharpCandidates,
   type CsharpExtract,
 } from './extractors/csharp.js';
+import { buildCsharpProjectScopes, type CsharpGlobalFacts } from './extractors/csharp-project.js';
 import { extractorForLanguage } from './extractors/registry.js';
 import { loadFacts, writeFacts, factsKey, astCacheDir } from './facts-cache.js';
 import { guardedResolve } from './resolve-path.js';
@@ -540,34 +541,33 @@ export async function runRelationPass(
     }
   }
 
-  // 4.5 C# global-using pre-pass (R5). A `global using N;` declared in ANY C# file is a
-  //     project-wide import that qualifies bare names in EVERY C# file. Aggregate every C#
-  //     file's `global using` namespace prefixes once, then inject the set into each file's
-  //     candidate assembly below (as the lowest using tier). This is the one cross-file scope
-  //     channel the per-file extractor cannot see on its own. Implicit/SDK global usings remain
-  //     invisible to a source-only tool → the names they would import stay silenced (correct).
-  //     Also aggregate every file's `global using Alias = N.Type;` project-wide aliases (A12):
-  //     a global-using alias declared in ANY file is usable in EVERY file, resolved in the
-  //     declaring file's context (the alias RHS is fully-qualified, so the captured FQN is the
-  //     target). A later same-named global alias overwrites an earlier one (last-wins is benign:
-  //     a genuine cross-file collision is a compile error C# itself rejects; our zero-FP floor is
-  //     that a file-local alias of the same name always takes precedence, enforced in assembly).
-  //     This reads from the CACHED per-file C# extract (`facts.csharp.scope.globalPrefixes /
-  //     globalAliases`) — NO C# re-parse — but MUST still complete (aggregate ALL C# files)
-  //     BEFORE per-node assembly: a `global using` in any file changes another file's bare-name
-  //     resolution, so the full aggregate is the input to every per-node `assembleCsharpCandidates`
-  //     call below.
+  // 4.5 C# global-using pre-pass (R5), scoped per PROJECT (M6/M7). A `global using N;` /
+  //     `global using A = N.T;` applies to every file of the project that declares it — the
+  //     nearest-ancestor `.csproj` — never to another project's files. `buildCsharpProjectScopes`
+  //     groups the C# files by project, unions each project's declared global usings and aliases
+  //     with the `<Using>` items and SDK implicit usings of its MSBuild files, and returns each
+  //     file's project scope; files under no `.csproj` share one implicit project (the pre-scoping
+  //     behaviour). A global alias name with 2+ distinct targets in one scope is passed through as
+  //     such and silenced at assembly (never last-writer-wins). This reads the CACHED per-file C#
+  //     extract (`facts.csharp.scope.globalPrefixes / globalAliases`) — NO C# re-parse — and MUST
+  //     complete before per-node assembly: a `global using` in any file of a project changes
+  //     another file's bare-name resolution.
   const csharpRecords = recordsByLanguage.get('csharp') ?? [];
-  const projectGlobalUsings = new Set<string>();
-  const projectGlobalUsingAliases = new Map<string, string>();
+  const csharpGlobalFacts: CsharpGlobalFacts[] = [];
   for (const record of csharpRecords) {
     const facts = factsByPath.get(record.path);
     if (!facts || facts.csharp === null) continue;
-    for (const prefix of facts.csharp.scope.globalPrefixes) projectGlobalUsings.add(prefix);
-    for (const [name, fqn] of facts.csharp.scope.globalAliases) projectGlobalUsingAliases.set(name, fqn);
+    csharpGlobalFacts.push({
+      path: record.path,
+      globalPrefixes: facts.csharp.scope.globalPrefixes,
+      globalAliases: facts.csharp.scope.globalAliases,
+    });
   }
-  const csharpGlobalUsings = [...projectGlobalUsings];
-  const csharpGlobalUsingAliases = [...projectGlobalUsingAliases.entries()];
+  const csharpScopes = buildCsharpProjectScopes(projectRoot, csharpGlobalFacts);
+  const csharpOptionsFor = (file: string): { projectGlobalUsings: string[]; projectGlobalUsingAliases: Array<[string, string]> } => {
+    const scope = csharpScopes.get(file);
+    return { projectGlobalUsings: scope?.usings ?? [], projectGlobalUsingAliases: scope?.aliases ?? [] };
+  };
 
   // 5. Resolver composes owner index + symbol table + injected path resolution.
   const resolver = makeResolver({
@@ -724,10 +724,7 @@ export async function runRelationPass(
         // from factsByPath — skip it, exactly as `if (!parsed) continue;` did.
         const facts = factsByPath.get(record.path);
         if (!facts || facts.csharp === null) continue;
-        const detected = assembleCsharpCandidates(facts.csharp, {
-          projectGlobalUsings: csharpGlobalUsings,
-          projectGlobalUsingAliases: csharpGlobalUsingAliases,
-        });
+        const detected = assembleCsharpCandidates(facts.csharp, csharpOptionsFor(record.path));
         resolveDetected(record, detected, resolvedDeps);
         if (hasTypeCovered) addTypedEdges(record, detected);
         continue;
@@ -782,10 +779,7 @@ export async function runRelationPass(
     if (record.language === 'csharp') {
       const facts = factsByPath.get(record.path);
       if (!facts || facts.csharp === null) continue;
-      const detected = assembleCsharpCandidates(facts.csharp, {
-        projectGlobalUsings: csharpGlobalUsings,
-        projectGlobalUsingAliases: csharpGlobalUsingAliases,
-      });
+      const detected = assembleCsharpCandidates(facts.csharp, csharpOptionsFor(record.path));
       addTypedEdges(record, detected);
       continue;
     }

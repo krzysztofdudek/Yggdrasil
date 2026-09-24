@@ -290,7 +290,7 @@ describe('ruby SYMBOL-TABLE resolution — unique resolves, reopened silences', 
 
         expect(st.resolveUnique('ruby', 'Widget')).toBeUndefined();
 
-        const ownerIndex = { ownerOf: () => 'someNode' };
+        const ownerIndex = { ownerOf: (f: string) => f.split('/')[1] }; // src/<node>/… — the two declaring files are two NODES
         const resolver = makeResolver({
           ownerIndex: ownerIndex as never,
           symbolTable: st,

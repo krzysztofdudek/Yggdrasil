@@ -188,3 +188,50 @@ describe('resolver — Ruby lexical gates and external roots', () => {
     });
   });
 });
+
+// B4: ambiguity is counted by OWNER NODE, not by file. A declaration split across several files
+// of ONE node (C# partial classes, `Result`/`Result<T>` in separate files, Kotlin expect/actual,
+// overloads spread over files) names exactly one target; only a split across 2+ nodes — or one
+// involving an unmapped file — stays ambiguous. Language-agnostic by construction.
+describe('resolver — owner-node ambiguity (B4)', () => {
+  const byDir = { ownerOf: (f: string) => (f.startsWith('vendor/') ? undefined : f.split('/')[1]) };
+  for (const language of ['csharp', 'kotlin']) {
+    it(`${language}: 2 files of the SAME node resolve to that node (first file reported)`, () => {
+      const st = new SymbolTable();
+      st.declare(language, 'app.Thing', 'src/core/b.x');
+      st.declare(language, 'app.Thing', 'src/core/a.x');
+      const r = makeResolver({ ownerIndex: byDir as any, symbolTable: st, resolvePathToFile: () => undefined });
+      expect(r.classify({ kind: 'symbol', symbolKey: 'app.Thing' }, 'src/use/u.x', language)).toEqual({
+        kind: 'resolved', ownerNode: 'core', resolvedFile: 'src/core/a.x',
+      });
+      expect(r.resolve({ kind: 'symbol', symbolKey: 'app.Thing' }, 'src/use/u.x', language)).toEqual({
+        ownerNode: 'core', resolvedFile: 'src/core/a.x',
+      });
+    });
+    it(`${language}: files in 2 different nodes stay ambiguous`, () => {
+      const st = new SymbolTable();
+      st.declare(language, 'app.Thing', 'src/core/a.x');
+      st.declare(language, 'app.Thing', 'src/other/a.x');
+      const r = makeResolver({ ownerIndex: byDir as any, symbolTable: st, resolvePathToFile: () => undefined });
+      expect(r.classify({ kind: 'symbol', symbolKey: 'app.Thing' }, 'src/use/u.x', language)).toEqual({ kind: 'ambiguous' });
+      expect(r.resolve({ kind: 'symbol', symbolKey: 'app.Thing' }, 'src/use/u.x', language)).toBeUndefined();
+    });
+    it(`${language}: a mapped file plus an UNMAPPED file stays ambiguous (the unmapped one may be the binding)`, () => {
+      const st = new SymbolTable();
+      st.declare(language, 'app.Thing', 'src/core/a.x');
+      st.declare(language, 'app.Thing', 'vendor/a.x');
+      const r = makeResolver({ ownerIndex: byDir as any, symbolTable: st, resolvePathToFile: () => undefined });
+      expect(r.classify({ kind: 'symbol', symbolKey: 'app.Thing' }, 'src/use/u.x', language)).toEqual({ kind: 'ambiguous' });
+    });
+  }
+  it('a symbol SET (CS0104) whose members all live in one node resolves to it', () => {
+    const st = new SymbolTable();
+    st.declare('csharp', 'A.Foo', 'src/core/a.cs');
+    st.declare('csharp', 'B.Foo', 'src/core/b.cs');
+    const r = makeResolver({ ownerIndex: byDir as any, symbolTable: st, resolvePathToFile: () => undefined });
+    const set = [{ symbolKey: 'A.Foo' }, { symbolKey: 'B.Foo' }];
+    expect(r.classify({ kind: 'symbol', symbolKey: 'A.Foo', set }, 'src/use/u.cs', 'csharp')).toEqual({
+      kind: 'resolved', ownerNode: 'core', resolvedFile: 'src/core/a.cs',
+    });
+  });
+});

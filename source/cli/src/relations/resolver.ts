@@ -183,7 +183,9 @@ function rubyGate(
   if (files.size === 0) {
     return hint.rubyAnchor !== undefined && symbolTable.has('ruby', hint.rubyAnchor) ? 'ambiguous' : undefined;
   }
-  if (files.size === 1 && hint.rubyInheritGuard !== undefined && symbolTable.hasNestedTail('ruby', hint.rubyInheritGuard)) {
+  // >= 1, not === 1: several defining files of ONE node now bind too (owner-node ambiguity), and
+  // the inheritance hazard is the same however many files that node spreads the constant over.
+  if (files.size >= 1 && hint.rubyInheritGuard !== undefined && symbolTable.hasNestedTail('ruby', hint.rubyInheritGuard)) {
     return 'ambiguous';
   }
   return undefined;
@@ -233,18 +235,39 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
     return memberFiles(language, hint.symbolKey, hint.nestedOnly === true);
   };
 
+  /**
+   * The symbol-axis outcome for a hint's distinct defining files, counted by OWNER NODE (B4):
+   * one file → that file (mapped or not, as before); 2+ files that ALL belong to the same owner
+   * node → that node, reported with the lexicographically first file; 2+ files spanning 2+ owners,
+   * or including any unmapped file → ambiguous. Language-agnostic: C# partial classes and the
+   * `Result` / `Result<T>` split, Kotlin expect/actual and overloads spread over files, and any
+   * other declaration split across files of ONE node name exactly one dependency target — the
+   * ambiguity that must silence is between NODES, never between files of one node.
+   */
+  const symbolOutcome = (files: Set<string>): Classification => {
+    if (files.size === 0) return { kind: 'absent' };
+    const sorted = [...files].sort();
+    if (sorted.length === 1) {
+      const ownerNode = deps.ownerIndex.ownerOf(sorted[0]);
+      // Resolved-but-UNMAPPED is the D7 non-event → absent (continue), never ambiguous.
+      return ownerNode ? { kind: 'resolved', ownerNode, resolvedFile: sorted[0] } : { kind: 'absent' };
+    }
+    const owners = new Set<string | undefined>(sorted.map((f) => deps.ownerIndex.ownerOf(f)));
+    if (owners.size !== 1 || owners.has(undefined)) return { kind: 'ambiguous' };
+    return { kind: 'resolved', ownerNode: [...owners][0] as string, resolvedFile: sorted[0] };
+  };
+
   const resolve: TargetResolver['resolve'] = (hint, fromFile, language) => {
-    let file: string | undefined;
     if (hint.kind === 'symbol') {
       if (language === 'ruby' && rubyGate(hint, undefined, deps.symbolTable) !== undefined) return undefined;
       const files = hintFiles(hint, language);
       if (language === 'ruby' && rubyGate(hint, files, deps.symbolTable) !== undefined) return undefined;
-      if (files.size !== 1) return undefined;    // 0 → unresolved; ≥2 → ambiguous → silence
-      file = [...files][0];
-    } else {
-      file = deps.resolvePathToFile(hint.specifier, fromFile, language, hint.isPackage);
+      const outcome = symbolOutcome(files);
+      // absent / ambiguous (2+ owners) → silence; resolved (one file, or one owner) → edge.
+      return outcome.kind === 'resolved' ? { ownerNode: outcome.ownerNode, resolvedFile: outcome.resolvedFile } : undefined;
     }
-    if (!file) return undefined;                 // unresolved / ambiguous → silence
+    const file = deps.resolvePathToFile(hint.specifier, fromFile, language, hint.isPackage);
+    if (!file) return undefined;                 // unresolved → silence
     const ownerNode = deps.ownerIndex.ownerOf(file);
     if (!ownerNode) return undefined;            // UNMAPPED target → coverage matter, never a violation (D7)
     return { ownerNode, resolvedFile: file };
@@ -263,19 +286,15 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
       }
       // Symbol axis: collect the distinct files this hint maps to — the union across its `set`
       // members (CS0104 / co-definition), each honoring `nestedOnly` (R4), or the lone
-      // `symbolKey`'s verbatim + guarded `+`-splits. ≥2 distinct files is a real ambiguity
-      // (silence the group); 0 is absent (continue); exactly one is the candidate binding.
+      // `symbolKey`'s verbatim + guarded `+`-splits. Files spanning ≥2 owner nodes is a real
+      // ambiguity (silence the group); 0 is absent (continue); one file or one owner binds
+      // (B4, see symbolOutcome).
       const files = hintFiles(hint, language);
       if (language === 'ruby') {
         const forced = rubyGate(hint, files, deps.symbolTable);
         if (forced !== undefined) return { kind: forced };
       }
-      if (files.size === 0) return { kind: 'absent' };
-      if (files.size >= 2) return { kind: 'ambiguous' };
-      const file = [...files][0];
-      const ownerNode = deps.ownerIndex.ownerOf(file);
-      // Resolved-but-UNMAPPED is the D7 non-event → absent (continue), never ambiguous.
-      return ownerNode ? { kind: 'resolved', ownerNode, resolvedFile: file } : { kind: 'absent' };
+      return symbolOutcome(files);
     }
     // Path axis (PHP/Java/TS/JS/Py/Go/Rust/C/C++): resolution maps to AT MOST ONE file,
     // so there is no `ambiguous` outcome on the path axis — only resolved or absent.

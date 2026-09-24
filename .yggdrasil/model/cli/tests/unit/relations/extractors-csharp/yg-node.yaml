@@ -17,3 +17,4 @@ relations:
 mapping:
   - source/cli/tests/unit/relations/extractors/csharp.test.ts
   - source/cli/tests/unit/relations/extractors/csharp-branch-coverage.test.ts
+  - source/cli/tests/unit/relations/extractors/csharp-project.test.ts
