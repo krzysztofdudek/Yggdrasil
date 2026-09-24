@@ -37,7 +37,7 @@ import {
   ensureYggdrasilGitignore,
   writeRulesArtifactsConfig,
 } from './init-scaffold.js';
-import { fail } from './output.js';
+import { fail, next, thenStep } from './output.js';
 
 // The .gitattributes / .gitignore maintenance helpers now live in the scaffold
 // sibling; re-exported here so tests and existing importers resolve them from
@@ -697,7 +697,7 @@ async function existingInit(projectRoot: string): Promise<void> {
       p.log.info(action);
     }
     for (const warning of result.migrationWarnings) {
-      p.log.warning(warning);
+      p.log.warning(buildIssueMessage({ what: `warning: ${warning}`, why: 'The upgrade migrated the graph but could not carry this over as written.', next: 'yg check' }));
     }
     if (result.coverageBlocked.length > 0) {
       p.log.warning(renderCoverageBlockedWarning(result.coverageBlocked));
@@ -707,9 +707,8 @@ async function existingInit(projectRoot: string): Promise<void> {
     }
 
     const landedVersion = (await detectVersion(yggRoot)) ?? currentVersion;
-    p.log.step('Next steps:');
-    p.log.info('1. Run yg check to verify graph integrity');
-    p.log.info('2. Run yg check --approve to record verdicts for the graph');
+    p.log.info(next('yg check  (verify the graph)'));
+    p.log.info(thenStep('yg check --approve  (record verdicts for the graph)'));
     p.outro(
       chalk.green(
         `Migrated from ${currentVersion} to ${landedVersion}.\n` +
@@ -871,9 +870,9 @@ export function registerInitCommand(program: Command): void {
           if (result.migrationWarnings.length > 0) {
             process.stdout.write(
               chalk.yellow(
-                'Migration warnings:\n' +
-                  result.migrationWarnings.map((w) => `  - ${w}`).join('\n') +
-                  '\n',
+                result.migrationWarnings
+                  .map((w) => buildIssueMessage({ what: `warning: ${w}`, why: 'The upgrade migrated the graph but could not carry this over as written.', next: 'yg check' }))
+                  .join('\n') + '\n',
               ),
             );
           }

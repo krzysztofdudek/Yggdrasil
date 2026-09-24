@@ -207,6 +207,6 @@ describe('logAdd (core)', () => {
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logAdd({ graph, nodePath: 'missing', reasonText: 'x', nowMs: 1000 });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.what).toContain('Node not found');
+    if (!result.ok) expect(result.error.what).toContain('is not in the graph');
   });
 });

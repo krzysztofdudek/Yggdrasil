@@ -104,16 +104,21 @@ describe.skipIf(!distExists)('CLI E2E — a repository with no packages', () => 
       const filled = run(['check', '--approve', '--only-deterministic'], dir);
       expect(filled.status).toBe(0);
 
-      expect(filled.all).toContain('deterministic (no cost)');
+      expect(filled.all).toMatch(/^fill {2}\d+ pairs? · \d+ script \(free\) · 0 reviewer calls$/m);
+
 
       // Second run over the same recorded verdicts: nothing to fill, nothing billed.
       const again = run(['check', '--approve', '--only-deterministic'], dir);
       expect(again.status).toBe(0);
-      expect(again.all).toContain('all expected pairs hold valid verdicts');
-      expect(again.all).toContain('0 reviewer calls made');
-      // Nothing needed re-judging.
-      expect(again.all).toContain('Filling 0 unverified pairs');
-      expect(again.all).toContain('1 verified (1 deterministic, 0 LLM)');
+      // Nothing needed re-judging: a fill with nothing to do prints no fill
+      // progress at all (so no reviewer call and no refill either).
+      expect(again.all).not.toMatch(/^fill /m);
+      expect(again.all).toContain('yg check: PASS');
+      expect(again.all).toContain('1 pair verified');
+      // The one verified pair is the deterministic one the earlier release recorded.
+      const doc = JSON.parse(run(['check', '--json'], dir).stdout) as { totals: { verified: { deterministic: number; llm: number } } };
+      expect(doc.totals.verified).toEqual({ deterministic: 1, llm: 0 });
+
       for (const word of NEW_VOCABULARY) expect(again.all).not.toContain(word);
     } finally {
       rmSync(dir, { recursive: true, force: true });

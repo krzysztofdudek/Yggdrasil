@@ -317,7 +317,7 @@ async function runNew(rawName: string): Promise<number> {
       `  ${`${SCAFFOLD_ASPECT}/drills/violates-…`.padEnd(36)}a case it must refuse\n` +
       `  ${`${SCAFFOLD_ASPECT}/drills/satisfies-…`.padEnd(36)}a case it must let through\n` +
       `\n${MARKETPLACE_FILENAME} now publishes '${name}' at 0.1.0.\n` +
-      `Next: write the rule, run \`yg marketplace check\`, then tag it \`pack/${name}@0.1.0\`.\n\n`,
+      `next: write the rule, run \`yg marketplace check\`, then tag it \`pack/${name}@0.1.0\`.\n\n`,
   );
   return 0;
 }

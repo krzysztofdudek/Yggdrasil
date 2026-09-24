@@ -594,13 +594,14 @@ describe('bounty3: formatSuppressionsOutput rendering', () => {
     expect(out).toContain('No active suppression markers found.');
   });
 
-  it('warnings section header counts the warnings', () => {
+  it('every warning renders as its own warning block (no counted section header)', () => {
     const out = formatSuppressionsOutput({
       fileEntries: [{ file: 'a.ts', markers: [{ line: 1, aspectId: 'x', kind: 'single', wildcard: false, reason: 'r' }] }],
       totalMarkers: 1,
       warnings: ['first warning text', 'second warning text'],
     });
-    expect(out).toContain('Warnings (2):');
+    expect(out).not.toContain('Warnings (');
+    expect(out.match(/^warning\b/gm) ?? []).toHaveLength(2);
     expect(out).toContain('first warning text');
     expect(out).toContain('second warning text');
   });

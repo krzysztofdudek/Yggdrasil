@@ -7,7 +7,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   count, plural, list, overflowLine, block, verdict, next, fixPointer,
-  fail, failAndExit, notice, setJsonOutput, isJsonOutput, errorDocument, ERROR_SCHEMA, MEMBER_CAP,
+  fail, failAndExit, notice, setJsonOutput, isJsonOutput, errorDocument, ERROR_JSON_SCHEMA, MEMBER_CAP,
 } from '../../../src/cli/output.js';
 import { codeInfo, tierRank, fromIssueMessage, toIssueMessage, GRAPH_INVALID_CODES } from '../../../src/cli/output-diagnostic.js';
 
@@ -49,10 +49,10 @@ describe('list', () => {
 });
 
 describe('block / verdict / next / fixPointer', () => {
-  it('renders what, why and next on three lines, keeping multi-line what whole', () => {
-    expect(block({ what: 'a\n  b', why: 'w', next: 'n' })).toBe('a\n  b\nw\nn');
+  it('renders an error[code] heading, a labelled why and a next line, keeping multi-line what whole', () => {
+    expect(block({ what: 'a\n  b', why: 'w', next: 'n' })).toBe('error[command-error]: a\n  b\n  why:  w\nnext: n');
     const d = fromIssueMessage({ what: 'a\n  b', why: 'w', next: 'n' }, { code: 'x' });
-    expect(block(d)).toBe('a\n  b\nw\nn');
+    expect(block(d)).toBe('error[x]: a\n  b\n  why:  w\nnext: n');
   });
 
   it('states a verdict as `<command>: <STATUS>  <tail>`', () => {
@@ -61,7 +61,7 @@ describe('block / verdict / next / fixPointer', () => {
   });
 
   it('prints the next step with its suffix', () => {
-    expect(next('yg check --approve', '  (fills 2)')).toBe('Next: yg check --approve  (fills 2)');
+    expect(next('yg check --approve', '  (fills 2)')).toBe('next: yg check --approve  (fills 2)');
   });
 
   it('keeps a heading-introduced list whole and trims a plain fix to its first line', () => {
@@ -72,7 +72,8 @@ describe('block / verdict / next / fixPointer', () => {
 
 describe('code registry', () => {
   it('labels the refusal codes as the report does, and defaults every other code to itself', () => {
-    expect(codeInfo('aspect-violation-enforced').label).toBe('enforced');
+    expect(codeInfo('aspect-violation-enforced').label).toBe('refused');
+    expect(codeInfo('aspect-violation-advisory').label).toBe('refused');
     expect(codeInfo('unmapped-files').label).toBe('unmapped');
     expect(codeInfo('relation-broken')).toEqual({ label: 'relation-broken', tier: 'T1', noun: 'issue' });
   });
@@ -104,12 +105,12 @@ describe('diagnostic conversions', () => {
 });
 
 describe('fail / failAndExit / notice', () => {
-  it('writes `Error: what / why / next` to stderr and nothing to stdout by default', () => {
+  it('writes `error[code]: what / why: / next:` to stderr and nothing to stdout by default', () => {
     const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     const out = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
     fail({ what: 'Node nope not found.', why: 'It must exist.', next: 'yg tree' });
     const text = err.mock.calls.map((c) => String(c[0])).join('');
-    expect(text).toContain('Error: Node nope not found.\nIt must exist.\nyg tree');
+    expect(text).toContain('error[node-not-found]: Node nope not found.\n  why:  It must exist.\nnext: yg tree');
     expect(text.endsWith('\n')).toBe(true);
     expect(out).not.toHaveBeenCalled();
   });
@@ -122,7 +123,7 @@ describe('fail / failAndExit / notice', () => {
     fail({ what: 'Node nope not found.', why: 'It must exist.', next: 'yg tree' }, 'node-not-found');
     const doc = JSON.parse(out.mock.calls.map((c) => String(c[0])).join(''));
     expect(doc).toEqual({
-      schema: ERROR_SCHEMA,
+      schema: ERROR_JSON_SCHEMA,
       code: 'node-not-found',
       what: 'Node nope not found.',
       why: 'It must exist.',
@@ -140,7 +141,7 @@ describe('fail / failAndExit / notice', () => {
   it('notice writes a prefixed block to stderr', () => {
     const err = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
     notice({ what: 'w', why: 'y', next: 'n' });
-    expect(err.mock.calls.map((c) => String(c[0])).join('')).toContain('Notice: w\ny\nn');
+    expect(err.mock.calls.map((c) => String(c[0])).join('')).toContain('note: w\n  why:  y\nnext: n');
   });
 
   it('errorDocument carries a null command when the fix is prose', () => {

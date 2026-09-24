@@ -227,7 +227,9 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
       expect(fill.status).toBe(1);
       // The parent id IS waived by its exact-id marker; the child id is NOT —
       // a parent-id suppress provides no hierarchical cover for the child.
-      expect(fill.stderr).toContain('[det] family/child on node:services/payments — refused');
+      // Reported as a refused block naming the rule, with the node and file in its at: line.
+      expect(fill.stdout).toMatch(/(error|warning)\[refused\] family\/child — /);
+      expect(fill.stdout).toContain('services/payments  src/services/payments.ts:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -262,7 +264,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).not.toContain('refused');
+      // No refusal: no refused block in the report, no non-zero refused count on the closing fill line.
+      expect(fill.all).not.toMatch(/\[refused|· [1-9]\d* refused/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -377,7 +380,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).not.toContain('refused');
+      // No refusal: no refused block in the report, no non-zero refused count on the closing fill line.
+      expect(fill.all).not.toMatch(/\[refused|· [1-9]\d* refused/);
       // The bare enable is valid syntax — no missing-reason rejection fired.
       expect(fill.all).not.toContain('missing reason');
       expect(fill.all).not.toContain('aspect-check-runtime-error');
@@ -422,8 +426,9 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
       const draftFill = run(['check', '--approve'], dir);
       expect(draftFill.status).toBe(0);
       // The draft aspect is skipped — no fill pair, no refusal.
-      expect(draftFill.stdout).not.toContain('banflip on node:services/payments');
-      expect(draftFill.all).not.toContain('refused');
+      expect(draftFill.stdout).not.toContain('banflip — ');
+      // No refusal: no refused block in the report, no non-zero refused count on the closing fill line.
+      expect(draftFill.all).not.toMatch(/\[refused|· [1-9]\d* refused/);
 
       // Promote banflip draft -> advisory. The aspect is now live; the SAME
       // suppress (unchanged) waives the violation it now produces.
@@ -438,7 +443,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
       // The now-active aspect is waived by the suppress — it approves, with no
       // advisory warning and no refusal: the suppress that was inert under draft
       // is now effective.
-      expect(advisoryFill.all).not.toContain('refused');
+      // No refusal: no refused block in the report, no non-zero refused count on the closing fill line.
+      expect(advisoryFill.all).not.toMatch(/\[refused|· [1-9]\d* refused/);
       // The final check is green — the waived advisory aspect leaks no warning.
       const check = run(['check'], dir);
       expect(check.status).toBe(0);
@@ -477,8 +483,11 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
       // Advisory violation does NOT block the fill, but IS surfaced as refused +
       // a non-blocking advisory warning.
       expect(advisoryFill.status).toBe(0);
-      expect(advisoryFill.stderr).toContain('[det] banflip on node:services/payments — refused');
-      expect(advisoryFill.all).toContain('advisory');
+      // Reported as a refused block naming the rule, with the node and file in its at: line.
+      expect(advisoryFill.stdout).toMatch(/(error|warning)\[refused\] banflip — /);
+      expect(advisoryFill.stdout).toContain('services/payments  src/services/payments.ts:');
+      expect(advisoryFill.stdout).toContain('warning[refused] banflip — ');
+      expect(advisoryFill.stderr).toContain('now stands at advisory');
       expect(advisoryFill.all).toContain('banflip');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -519,7 +528,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).not.toContain('refused');
+      // No refusal: no refused block in the report, no non-zero refused count on the closing fill line.
+      expect(fill.all).not.toMatch(/\[refused|· [1-9]\d* refused/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -554,7 +564,9 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.stderr).toContain('[det] ban-bar on node:services/payments — refused');
+      // Reported as a refused block naming the rule, with the node and file in its at: line.
+      expect(fill.stdout).toMatch(/(error|warning)\[refused\] ban-bar — /);
+      expect(fill.stdout).toContain('services/payments  src/services/payments.ts:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -585,7 +597,8 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).not.toContain('refused');
+      // No refusal: no refused block in the report, no non-zero refused count on the closing fill line.
+      expect(fill.all).not.toMatch(/\[refused|· [1-9]\d* refused/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -611,7 +624,9 @@ describe.skipIf(!distExists)('CLI E2E — deterministic suppress: hierarchy / em
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.stderr).toContain('[det] no-todo-comments on node:services/orders — refused');
+      // Reported as a refused block naming the rule, with the node and file in its at: line.
+      expect(fill.stdout).toMatch(/(error|warning)\[refused\] no-todo-comments — /);
+      expect(fill.stdout).toContain('services/orders  src/services/orders.ts:');
       // The block comment was parsed (no missing-reason error) — it simply did
       // not match the violated aspect id.
       expect(fill.all).not.toContain('missing reason');

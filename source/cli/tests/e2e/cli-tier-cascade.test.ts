@@ -118,13 +118,13 @@ async function fillGreen(dir: string, endpoint: string): Promise<void> {
   expect(JSON.parse(lockEntry(dir, HAS_DOC, PAYMENTS)!).verdict).toBe('approved');
 }
 
-/** Assert both LLM pairs render as unverified in `yg check` (exit 1). */
+/** Assert both LLM pairs render as unverified in `yg check --details` (exit 1). */
 function expectBothUnverified(all: string): void {
-  // Grouped view: one `unverified` group for the aspect, with both nodes listed.
-  expect(all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-  expect(all).toContain(`aspect '${HAS_DOC}'`);
-  expect(all).toContain('- services/orders');
-  expect(all).toContain('- services/payments');
+  // One `error[unverified]` block (the cause in its subject); the uncapped
+  // --details view lists each pair as "<aspect> @ <node>".
+  expect(all).toMatch(/^error\[unverified\] 2 pairs (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout)/m);
+  expect(all).toContain(`${HAS_DOC} @ services/orders`);
+  expect(all).toContain(`${HAS_DOC} @ services/payments`);
 }
 
 // Two-tier config (default = standard) used to exercise the default-flip
@@ -184,7 +184,8 @@ describe.skipIf(!distExists)('CLI E2E — tier-NAME identity (only the resolved 
 
       const refill = await runAsync(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.all).toContain('Filling 0 unverified pairs');
+      // Nothing to fill: a fill with nothing to do prints no fill line at all.
+      expect(refill.all).not.toMatch(/^fill {2}/m);
       expect(mock.chatCount() - callsBefore).toBe(0); // nothing re-reviewed
 
       const check = await runAsync(['check'], dir);
@@ -208,7 +209,8 @@ describe.skipIf(!distExists)('CLI E2E — tier-NAME identity (only the resolved 
 
       const refill = await runAsync(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.all).toContain('Filling 0 unverified pairs');
+      // Nothing to fill: a fill with nothing to do prints no fill line at all.
+      expect(refill.all).not.toMatch(/^fill {2}/m);
       expect(mock.chatCount() - callsBefore).toBe(0);
 
       const check = await runAsync(['check'], dir);
@@ -231,7 +233,8 @@ describe.skipIf(!distExists)('CLI E2E — tier-NAME identity (only the resolved 
 
       const refill = await runAsync(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.all).toContain('Filling 0 unverified pairs');
+      // Nothing to fill: a fill with nothing to do prints no fill line at all.
+      expect(refill.all).not.toMatch(/^fill {2}/m);
       expect(mock.chatCount() - callsBefore).toBe(0);
 
       const check = await runAsync(['check'], dir);
@@ -272,7 +275,7 @@ reviewer:
 `,
       );
 
-      const check = await runAsync(['check'], dir);
+      const check = await runAsync(['check', '--details'], dir);
       expect(check.status).toBe(1);
       expectBothUnverified(check.all);
     } finally {
@@ -299,7 +302,7 @@ reviewer:
       // without touching the aspect itself.
       patchConfig(dir, 'default: standard', 'default: deep');
 
-      const check = await runAsync(['check'], dir);
+      const check = await runAsync(['check', '--details'], dir);
       expect(check.status).toBe(1);
       expectBothUnverified(check.all);
     } finally {
@@ -351,7 +354,8 @@ reviewer:
       // The next fill finds NOTHING to do — every pair still holds a valid verdict.
       const refill = await runAsync(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.all).toContain('Filling 0 unverified pairs');
+      // Nothing to fill: a fill with nothing to do prints no fill line at all.
+      expect(refill.all).not.toMatch(/^fill {2}/m);
       expect(mock.chatCount() - callsBefore).toBe(0); // zero reviewer calls
 
       // And a plain check stays green.
@@ -399,7 +403,8 @@ reviewer:
 
       const refill = await runAsync(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.all).toContain('Filling 0 unverified pairs');
+      // Nothing to fill: a fill with nothing to do prints no fill line at all.
+      expect(refill.all).not.toMatch(/^fill {2}/m);
       expect(mock.chatCount() - callsBefore).toBe(0);
 
       const check = await runAsync(['check'], dir);

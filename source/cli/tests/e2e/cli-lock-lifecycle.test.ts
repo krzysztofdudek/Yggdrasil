@@ -115,18 +115,17 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       expect(existsSync(nondetLockPath(dir))).toBe(false);
       const cold = run(['check'], dir);
       expect(cold.status).toBe(1);
-      expect(cold.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      // Grouped view: an unverified group for the aspect lists the node; the
-      // per-issue `what` ("No valid verdict ...") is no longer in the default body.
-      expect(cold.all).toContain("aspect 'no-todo-comments'");
-      expect(cold.all).toContain('- services/orders');
+      expect(cold.all).toMatch(/error\[unverified\] \d+ pairs? (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)/);
+      // The unverified block counts the aspect's pairs in the default view; --details names each pair.
+      expect(cold.all).toMatch(/at:\s+no-todo-comments {2}2 pairs · 2 nodes · script/);
+      expect(run(['check', '--details'], dir).all).toContain('no-todo-comments @ services/orders');
       // suggestedNext points at the fill command.
-      expect(cold.all).toContain('Next: yg check --approve');
+      expect(cold.all).toMatch(/^next: yg check --approve/m);
 
       // --- FILL ---
       const fill = await runAsync(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).toContain('Filling');
+      expect(fill.all).toMatch(/^fill {2}\d+ pairs? · /m);
 
       // Lock content sane: valid JSON, version 1, sorted keys, entries present.
       const lock = readLock(dir);
@@ -155,12 +154,12 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       appendFileSync(ordersFile(dir), '\nexport const extra = 1;\n');
       const drifted = run(['check'], dir);
       expect(drifted.status).toBe(1);
-      expect(drifted.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
+      expect(drifted.all).toMatch(/error\[unverified\] \d+ pairs? (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)/);
       // Grouped view: the edited node's pairs go unverified and list orders.
-      expect(drifted.all).toContain('- services/orders');
+      expect(drifted.all).toMatch(/@ services\/orders$/m);
       // payments was untouched — its verdict stays valid (it is never listed as an
-      // unverified member, so no `- services/payments` line appears).
-      expect(drifted.all).not.toContain('- services/payments');
+      // unverified member, so no `@ services/payments` line appears).
+      expect(drifted.all).not.toContain('@ services/payments');
 
       // --- RE-FILL → verified again. Only the edited node's pairs re-run. ---
       const callsBeforeRefill = mock.chatCount();
@@ -193,7 +192,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       // First verification of a non-empty mapping with log_required → gate fires.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.all).toMatch(/No (fresh )?log entry for node/);
+      expect(fill.all).toContain('error[log-entry-missing]');
       expect(fill.all).toContain('services/orders');
       // The blocked node's pairs were NOT verified — no lock entry written for it.
       // readLock merges the triad and tolerates absent files (empty sections),
@@ -216,7 +215,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
       expect(fill.all).not.toContain('log-entry-missing');
-      expect(fill.all).not.toContain('No fresh log entry');
+      expect(fill.all).not.toContain('error[log-entry-missing]');
       // Closure recorded BOTH the source fingerprint and the log baseline.
       const lock = readLock(dir);
       expect(typeof lock.nodes['services/orders'].source).toBe('string');
@@ -240,14 +239,14 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       // so the refusal is a real verdict — the cycle stays open (node not green).
       const fill1 = run(['check', '--approve'], dir);
       expect(fill1.status).toBe(1);
-      expect(fill1.all).toContain('[det] no-todo-comments on node:services/orders — refused');
-      expect(fill1.all).not.toContain('No fresh log entry');
+      expect(fill1.all).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
+      expect(fill1.all).not.toContain('error[log-entry-missing]');
 
       // Fix the code WITHOUT adding a new entry; fill again — same single entry
       // must still satisfy the gate (one entry per cycle until positive closure).
       writeFileSync(ordersFile(dir), readFileSync(ordersFile(dir), 'utf-8').replace('\n// TODO: temporary\n', '\n'), 'utf-8');
       const fill2 = run(['check', '--approve'], dir);
-      expect(fill2.all).not.toContain('No fresh log entry');
+      expect(fill2.all).not.toContain('error[log-entry-missing]');
       expect(fill2.status).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -270,7 +269,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       // The pairs are now unverified (rule hash changed) but the SOURCE fingerprint
       // is unchanged → the log gate must NOT fire on the re-fill.
       const refill = run(['check', '--approve'], dir);
-      expect(refill.all).not.toContain('No fresh log entry');
+      expect(refill.all).not.toContain('error[log-entry-missing]');
       expect(refill.status).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -325,14 +324,16 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       const ay = aspectYaml(dir, 'no-todo-comments');
       writeFileSync(ay, readFileSync(ay, 'utf-8').replace('status: enforced', 'status: draft'), 'utf-8');
       const draftFill = run(['check', '--approve'], dir);
-      expect(draftFill.all).toContain('Filling 0 unverified pairs');
+      // Nothing to fill: no fill count line and no closing fill line.
+      expect(draftFill.all).not.toMatch(/^fill {2}(\d+ pairs? ·|done )/m);
       expect(readLock(dir).verdicts['no-todo-comments']['node:services/orders']).toBeDefined();
 
       // Flip back to enforced — the verdict survives the status flips → reused, no re-fill.
       writeFileSync(ay, readFileSync(ay, 'utf-8').replace('status: draft', 'status: enforced'), 'utf-8');
       const backFill = run(['check', '--approve'], dir);
-      expect(backFill.all).toContain('Filling 0 unverified pairs');
-      expect(backFill.all).toContain('0 reviewer calls made');
+      // Nothing to fill and no reviewer call: a fill with nothing to do prints no fill count or closing line.
+      expect(backFill.all).not.toMatch(/^fill {2}(\d+ pairs? ·|done )/m);
+      expect(backFill.all).not.toMatch(/[1-9]\d* reviewer calls?/);
       expect(run(['check'], dir).status).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -363,7 +364,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: lifecycle / closure / GC'
       // the deleted node's pruned entries — that is the intended, informative
       // report of what GC just did, not a leftover.
       expect(refill.all).not.toMatch(/unverified[^\n]*services\/payments|services\/payments[^\n]*unverified/);
-      expect(refill.all).toContain('node:services/payments — node deleted');
+      expect(refill.all).toContain('@ services/payments — node deleted');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -162,7 +162,7 @@ At the end of a successful `yg check --approve` run, the lock is rewritten canon
 
 An entry is pruned only when the run can *positively* prove its pair is gone. Anything the run could not settle either way is retained instead — a node whose own rule set could not be computed this run (an `implies` cycle, reported separately), a file whose subject content was unreadable this run, and a file the type-level classifier could not decide a type for this run (reported as ambiguous). Each of those keeps its stored verdict untouched rather than losing it to an inconclusive run.
 
-`--approve` and `--dry-run` (a preview computed over a disposable copy — it writes nothing) both print a one-line summary whenever anything is actually pruned, split into billed (LLM) vs. free (deterministic) counts with the reason per entry; nothing prints when nothing was pruned. Under `--only-deterministic` the rewrite is scoped to the gitignored cache, so a keyless CI run never rewrites — or prunes — the two committed files.
+`--approve` and `--dry-run` (a preview computed over a disposable copy — it writes nothing) both print a summary whenever anything is actually pruned — `fill  pruned 3 stale verdicts (1 reviewer · 2 script)` — followed by one indented `<aspect> @ <unit> — <reason>` line per entry; nothing prints when nothing was pruned. Under `--only-deterministic` the rewrite is scoped to the gitignored cache, so a keyless CI run never rewrites — or prunes — the two committed files.
 
 ## Merge conflicts
 

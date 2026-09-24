@@ -4,7 +4,7 @@ import type { CheckResult } from '../core/check.js';
 import type { TypeVisibilityReason, TypeVisibilityReport } from '../core/type-visibility.js';
 import { describeTypeVisibilityReason, describeChainTermination } from '../core/type-visibility.js';
 import { describeCascadeCycle } from '../core/type-effective.js';
-import { count } from './output.js';
+import { count, verdict } from './output.js';
 
 // ── Emoji gate ─────────────────────────────────────────────
 
@@ -185,59 +185,60 @@ export function renderCoverageRequiresNothingNotice(result: CheckResult): string
   return `Nothing is required to be covered, so the ${uncovered} uncovered file${uncovered === 1 ? '' : 's'} this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.`;
 }
 
-export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji): string {
-  let verdict: string;
-  if (errorCount > 0) {
-    // auto-filled marker is a PASS qualifier only — never shown on FAIL.
-    verdict = chalk.red('yg check: FAIL');
-  } else if (autoFilled && warningCount > 0) {
-    verdict = `${chalk.green('yg check: PASS')} (auto-filled, ${warningCount} warning${warningCount === 1 ? '' : 's'})`;
-  } else if (autoFilled) {
-    verdict = `${chalk.green('yg check: PASS')} (auto-filled)`;
-  } else if (warningCount > 0) {
-    verdict = `${chalk.green('yg check: PASS')} (${warningCount} warning${warningCount === 1 ? '' : 's'})`;
-  } else {
-    verdict = chalk.green('yg check: PASS');
-  }
-
-  const emojiPrefix = emoji ? (errorCount > 0 ? '❌ ' : '✅ ') : '';
+/**
+ * The verdict line every check report opens with:
+ *
+ *   yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified
+ *
+ * `yg check: <STATUS>` first — the one anchor an external parser keys on —
+ * then the finding counts (none on a clean PASS), then the size of what was
+ * checked. A count of zero is never printed as a segment. `view` names a
+ * narrowed view (`top 2`, `aspect no-todo`), so a shortened report can never
+ * read as the whole one; the counts it carries are always the whole run's.
+ */
+export function renderHeader(result: CheckResult, errorCount: number, warningCount: number, autoFilled = false, emoji = useEmoji, view?: string): string {
+  const status = errorCount > 0 ? 'FAIL' : 'PASS';
+  const findings = [
+    errorCount > 0 ? count(errorCount, 'error') : '',
+    warningCount > 0 ? count(warningCount, 'warning') : '',
+    // A PASS a configured auto-approve reached by filling first says so; a FAIL never does.
+    autoFilled && errorCount === 0 ? 'auto-filled' : '',
+  ].filter((p) => p !== '');
 
   const metrics: string[] = [count(result.nodeCount, 'node')];
-
   if (result.totalFiles > 0) {
     if (result.typeLevel) {
-      // Three honest terms, not a flat percentage. "node-owned" is
-      // nodeOwnedFiles (an actual node mapping), NEVER the legacy
-      // coveredFiles (which also folds in excluded-root files) — an
-      // excluded file gets its own term instead. Flag off is byte-identical
-      // below, using coveredFiles exactly as before.
+      // Three honest terms, not a flat percentage: files a node maps, files
+      // their architecture type covers, files the graph excludes. A term that
+      // is zero is left out.
       const nodeOwned = result.nodeOwnedFiles ?? 0;
       const typeCovered = result.typeCoveredCount ?? 0;
       const excluded = result.excludedFiles ?? 0;
-      metrics.push(`${nodeOwned + typeCovered + excluded}/${result.totalFiles} files (${nodeOwned} node-owned, ${typeCovered} type-covered, ${excluded} excluded)`);
-    } else if (result.coveredFiles < result.totalFiles) {
-      metrics.push(`${result.coveredFiles}/${result.totalFiles} files (${Math.round((result.coveredFiles / result.totalFiles) * 100)}%)`);
+      const split = [
+        nodeOwned > 0 ? `${nodeOwned} node-owned` : '',
+        typeCovered > 0 ? `${typeCovered} type-covered` : '',
+        excluded > 0 ? `${excluded} excluded` : '',
+      ].filter((p) => p !== '');
+      // The split is said whenever the files are not all node-owned.
+      const saySplit = split.length > 1 || (split.length === 1 && nodeOwned === 0);
+      metrics.push(`${nodeOwned + typeCovered + excluded}/${result.totalFiles} files covered${saySplit ? ` (${split.join(' · ')})` : ''}`);
     } else {
-      metrics.push(`${result.coveredFiles}/${result.totalFiles} files`);
+      metrics.push(`${result.coveredFiles}/${result.totalFiles} files covered`);
     }
   }
-
-  metrics.push(count(result.aspectCount, 'aspect'));
-  metrics.push(count(result.flowCount, 'flow'));
-
   const verifiedTotal = result.verifiedDet + result.verifiedLlm;
   if (verifiedTotal > 0) {
-    metrics.push(`${verifiedTotal} verified (${result.verifiedDet} deterministic, ${result.verifiedLlm} LLM)`);
+    const split = result.verifiedDet > 0 && result.verifiedLlm > 0
+      ? ` (${result.verifiedDet} script · ${result.verifiedLlm} reviewer)`
+      : result.verifiedDet > 0 ? ' (script)' : ' (reviewer)';
+    metrics.push(`${count(verifiedTotal, 'pair')} verified${split}`);
   }
-
-  if (result.draftSkipped > 0) {
-    metrics.push(`${result.draftSkipped} draft`);
-  }
-
+  if (result.draftSkipped > 0) metrics.push(`${count(result.draftSkipped, 'draft pair')} skipped`);
   const changeScope = renderChangeScope(result, errorCount);
   if (changeScope !== undefined) metrics.push(changeScope);
 
-  return `${emojiPrefix}${verdict}  ${metrics.join(' · ')}`;
+  const tail = [findings.join(' · '), metrics.join(' · '), view !== undefined ? `view: ${view}` : ''].filter((p) => p !== '').join('   ');
+  return verdict('yg check', status, tail, emoji);
 }
 
 // ── Type-visibility block ───────────────────────────────────

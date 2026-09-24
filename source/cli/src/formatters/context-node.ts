@@ -192,16 +192,16 @@ export function formatNodeContext(data: NodeContextData): string {
     lines.push(`Dependents (${data.dependentCount}):`);
     if (data.dependentCount >= 16) {
       lines.push(`  HIGH blast radius — changes cascade to ${data.dependentCount} nodes.`);
-      lines.push(`  Strongly recommended: yg impact --node ${posixPath(data.path)}`);
+      lines.push(`next: yg impact --node ${posixPath(data.path)}  (strongly recommended before editing)`);
     } else if (data.dependentCount >= 6) {
       lines.push(`  Moderate blast radius — changes trigger cascade review on ${data.dependentCount} nodes.`);
-      lines.push(`  Run: yg impact --node ${posixPath(data.path)}`);
+      lines.push(`next: yg impact --node ${posixPath(data.path)}`);
     } else {
       // 1-5: plain list of dependent node paths
       for (const dep of data.dependentPaths ?? []) {
         lines.push(`  ${posixPath(dep)}`);
       }
-      lines.push(`  Run: yg impact --node ${posixPath(data.path)}`);
+      lines.push(`next: yg impact --node ${posixPath(data.path)}`);
     }
     lines.push('');
   }
@@ -224,7 +224,9 @@ export function formatNodeContext(data: NodeContextData): string {
   }
 
   // Workflow footer
-  lines.push(`After modifying source files in this node: run yg check, then yg check --approve`);
+  lines.push('After modifying source files in this node:');
+  lines.push('next: yg check');
+  lines.push('then: yg check --approve');
   lines.push('');
 
   return lines.join('\n');

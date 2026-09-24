@@ -589,7 +589,7 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress on a type-covered file who
       // violation text, not the process exit code.
       const before = run(['check', '--approve', '--only-deterministic'], dir);
       expect(before.status).toBe(1);
-      expect(before.stdout).toContain('src/pics/readme.md:3: contains BANNED');
+      expect(before.stdout).toContain('src/pics/readme.md:3  contains BANNED');
       expect(run(['suppressions'], dir).stdout).toContain('No active suppression markers found.');
 
       // Insert the marker on the line immediately ABOVE "BANNED" — a single
@@ -689,7 +689,7 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress on a mapped file an ordina
       const notesPath = path.join(dir, '.yggdrasil', 'meta', 'notes.md');
 
       const before = run(['check', '--approve', '--only-deterministic'], dir);
-      expect(before.stdout).toContain('.yggdrasil/meta/notes.md:3: contains BANNED');
+      expect(before.stdout).toContain('.yggdrasil/meta/notes.md:3  contains BANNED');
       expect(run(['suppressions'], dir).stdout).not.toContain('.yggdrasil/meta/notes.md');
 
       writeFileSync(
@@ -701,7 +701,7 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress on a mapped file an ordina
       );
 
       const after = run(['check', '--approve', '--only-deterministic'], dir);
-      expect(after.stdout).not.toContain('.yggdrasil/meta/notes.md:3: contains BANNED');
+      expect(after.stdout).not.toContain('.yggdrasil/meta/notes.md:3  contains BANNED');
 
       const inventory = run(['suppressions'], dir);
       expect(inventory.stdout).toContain('.yggdrasil/meta/notes.md');
@@ -720,7 +720,7 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress on a mapped file an ordina
       const generatedPath = path.join(dir, 'generated', 'g.ts');
 
       const before = run(['check', '--approve', '--only-deterministic'], dir);
-      expect(before.stdout).toContain('generated/g.ts:2: contains BANNED');
+      expect(before.stdout).toContain('generated/g.ts:2  contains BANNED');
       expect(run(['suppressions'], dir).stdout).not.toContain('generated/g.ts');
 
       writeFileSync(
@@ -732,7 +732,7 @@ describe.skipIf(!distExists)('CLI E2E — yg-suppress on a mapped file an ordina
       );
 
       const after = run(['check', '--approve', '--only-deterministic'], dir);
-      expect(after.stdout).not.toContain('generated/g.ts:2: contains BANNED');
+      expect(after.stdout).not.toContain('generated/g.ts:2  contains BANNED');
 
       const inventory = run(['suppressions'], dir);
       expect(inventory.stdout).toContain('generated/g.ts');

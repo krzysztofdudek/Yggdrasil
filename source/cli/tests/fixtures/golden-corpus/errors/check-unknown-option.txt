@@ -2,4 +2,5 @@ $ yg check --message
 exit: 1
 --- stdout
 --- stderr
-error: unknown option '--message'
+error[usage]: unknown option '--message'
+next: yg check --help

@@ -3,13 +3,13 @@
  *
  * `yg check` on a project with a configured reference branch gates only what the CURRENT change
  * is accountable for: a violation already present on the reference, that the change never
- * touched, is named and counted but does not block (it renders as an `enforced (outside
- * changes)` WARNING and the run still exits 0). The portal, over the SAME on-disk project, was
+ * touched, is named and counted but does not block (it renders as a `warning[refused-outside]`
+ * block and the run still exits 0). The portal, over the SAME on-disk project, was
  * deliberately wired the opposite way (`portal/engine-api.ts::runPortalCheck` passes
  * `changeScope: undefined` unconditionally, threaded and pinned inert since the parity-aspect
  * task that introduced `changeScope` — see that call site's own comment): it always renders the
  * whole project's standing picture, so the SAME violation renders as a plain blocking ERROR
- * there, with no "(outside changes)" annotation at all.
+ * there, with no `-outside` label twin at all.
  *
  * This is the intended split, not a bug to reconcile: the command is read by whoever made the
  * change and is judged against it; the page is read by someone who did not necessarily make that
@@ -63,7 +63,14 @@ test.describe('progressive scope divergence: the CLI excuses inherited debt, the
       const scoped = runCheck(fixture.dir);
       expect(scoped.status, `expected the scoped gate to PASS (beta's TODO predates this branch and was never touched by it):\n${scoped.out}`).toBe(0);
       expect(scoped.out).toContain('1 obligation outside your changes vs main (1 changed input)');
-      expect(scoped.out).toContain('enforced (outside changes)');
+      // The inherited refusal is a WARNING block carrying the `-outside` label twin — named
+      // (rule + node), never silently dropped from the scoped report.
+      // ANSI-stripped first: the spawned child can see color support in Playwright's own
+      // environment even when a plain shell spawn would not.
+      // eslint-disable-next-line no-control-regex -- stripping a real ANSI escape sequence requires matching the ESC control byte itself.
+      const scopedPlain = scoped.out.replace(/\u001b\[[0-9;]*m/g, '');
+      expect(scopedPlain).toMatch(/^\S*\s*warning\[refused-outside\] no-todo-comments — 1 violation in beta/m);
+      expect(scopedPlain).not.toMatch(/error\[refused/);
 
       // THE PORTAL, over the IDENTICAL on-disk project (same branch checked out, same
       // recorded lock) — opened for real in Chromium. It must show beta's TODO as a plain
@@ -79,13 +86,13 @@ test.describe('progressive scope divergence: the CLI excuses inherited debt, the
       ).toHaveCount(1);
       await expect(
         group.locator('.cov-pill'),
-        'DIVERGENCE IS INTENTIONAL, not a parity bug: the scoped command above just reported this exact violation as a non-blocking WARNING ("enforced (outside changes)") because the current branch never touched beta — but the portal answers for the PROJECT, not for one working tree\'s diff, so the identical violation must still read as a blocking ERROR here. If this ever renders "warning" instead, the portal has started scoping itself to a change like the CLI does, and the one surface that still shows the whole truth to a reader who did not make that change has quietly disappeared.',
+        'DIVERGENCE IS INTENTIONAL, not a parity bug: the scoped command above just reported this exact violation as a non-blocking WARNING ("warning[refused-outside]") because the current branch never touched beta — but the portal answers for the PROJECT, not for one working tree\'s diff, so the identical violation must still read as a blocking ERROR here. If this ever renders "warning" instead, the portal has started scoping itself to a change like the CLI does, and the one surface that still shows the whole truth to a reader who did not make that change has quietly disappeared.',
       ).toContainText('error');
       await expect(
         group.locator('.cov-worow-id'),
-        'the group label must be the BASE label ("enforced"), with no "(outside changes)" suffix — that suffix exists only on the twin issue a change SCOPE produces, and the portal is deliberately never given one (see runPortalCheck)',
-      ).toContainText('enforced');
-      await expect(group.locator('.cov-worow-id')).not.toContainText('outside changes');
+        'the group label must be the BASE label ("refused"), with no "-outside" suffix — that suffix exists only on the twin issue a change SCOPE produces, and the portal is deliberately never given one (see runPortalCheck)',
+      ).toContainText('refused');
+      await expect(group.locator('.cov-worow-id')).not.toContainText('outside');
       await expect(group).toContainText(/beta/i);
       await expect(group).toContainText('TODO comment found');
 

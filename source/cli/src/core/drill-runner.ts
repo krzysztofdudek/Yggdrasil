@@ -28,6 +28,7 @@
 import path from 'node:path';
 
 import type { AspectDef } from '../model/graph.js';
+import type { IssueMessage } from '../model/validation.js';
 import type { DrillResultLine } from '../io/drill-results-store.js';
 import { ruleHashFor, contentFor } from './pair-inputs.js';
 import { hashBytes } from '../io/hash.js';
@@ -110,7 +111,7 @@ export interface DrillDeps {
   /** Called per case after classification, with the verbatim detail line for an
    *  unrun/unsupported case (undefined for pass/miss/false-alarm). The command
    *  renders; the runner owns the message text so it stays a single source. */
-  onCaseResult(result: DrillResult, detail?: string): void;
+  onCaseResult(result: DrillResult, detail?: IssueMessage): void;
 }
 
 /** A wired-up drill run: the context every case is dispatched under, and the
@@ -153,31 +154,57 @@ function drillBudgetLine(
   consensus: number,
   detCases: number,
 ): string {
-  return `yg drill: budgeting ${reviewerCalls} reviewer call(s) for '${aspectId}' — ${llmCases} LLM case(s) × consensus ${consensus}; ${detCases} deterministic case(s) run free.`;
+  return `yg drill: budgeting ${reviewerCalls} reviewer ${reviewerCalls === 1 ? 'call' : 'calls'} for '${aspectId}' — ${llmCases} reviewer-rule ${llmCases === 1 ? 'case' : 'cases'} × consensus ${consensus}; ${detCases} script ${detCases === 1 ? 'case' : 'cases'} run free.`;
 }
 
-function drillUnsupportedGraphCtxLine(aspectId: string): string {
-  return `unsupported: check '${aspectId}' reads graph context (node/subject/graph/fs/parseAst/parseYaml/parseJson/parseToml); drill v1 runs check.mjs over case files only. Recorded, not scored.`;
+// Why a case was not scored, as a structured what/why/next the command renders
+// in the CLI's one grammar — never a finished sentence of the engine's own.
+function drillUnsupportedGraphCtxLine(aspectId: string): IssueMessage {
+  return {
+    what: `unsupported: check '${aspectId}' reads graph context (node/subject/graph/fs/parseAst/parseYaml/parseJson/parseToml).`,
+    why: 'yg drill runs check.mjs over case files only, so a check that reads the graph cannot be exercised here; the case is recorded, not scored.',
+    next: `yg aspect-test --aspect ${aspectId} --node <a node it applies to>`,
+  };
 }
 
-function drillUnsupportedCompanionLine(aspectId: string): string {
-  return `unsupported: aspect '${aspectId}' ships companion.mjs; drill v1 cannot assemble per-unit companions without a graph. Recorded, not scored.`;
+function drillUnsupportedCompanionLine(aspectId: string): IssueMessage {
+  return {
+    what: `unsupported: aspect '${aspectId}' ships companion.mjs.`,
+    why: 'yg drill cannot assemble per-unit companions without a graph, so the case is recorded, not scored.',
+    next: `yg aspect-test --aspect ${aspectId} --node <a node it applies to>`,
+  };
 }
 
-function drillUnrunPromptTooLargeLine(chars: number, limit: number): string {
-  return `unrun: assembled prompt is ${chars} chars, over the tier's limit of ${limit}. Split the case or raise the tier's max_prompt_chars.`;
+function drillUnrunPromptTooLargeLine(chars: number, limit: number): IssueMessage {
+  return {
+    what: `unrun: assembled prompt is ${chars} chars, over the tier's limit of ${limit}.`,
+    why: 'An over-limit prompt risks a truncated and false verdict, so the case was not sent.',
+    next: "split the case, or raise the tier's max_prompt_chars in .yggdrasil/yg-config.yaml",
+  };
 }
 
-function drillUnrunDeterministicLine(aspectId: string): string {
-  return `unrun: check '${aspectId}' could not be evaluated over this case (source parse or runtime error). Recorded, not scored.`;
+function drillUnrunDeterministicLine(aspectId: string, files: string[]): IssueMessage {
+  return {
+    what: `unrun: check '${aspectId}' could not be evaluated over this case.`,
+    why: 'The check hit a source parse or runtime error, so the case is recorded, not scored.',
+    next: `yg aspect-test --aspect ${aspectId} --files ${files.join(' ')}`,
+  };
 }
 
-function drillUnrunReviewerLine(aspectId: string): string {
-  return `unrun: reviewer could not evaluate aspect '${aspectId}' on this case (infrastructure error). Recorded, not scored.`;
+function drillUnrunReviewerLine(aspectId: string): IssueMessage {
+  return {
+    what: `unrun: the reviewer could not evaluate aspect '${aspectId}' on this case.`,
+    why: 'An infrastructure error left the case without a verdict, so it is recorded, not scored.',
+    next: `fix the reviewer connection or configuration in .yggdrasil/yg-config.yaml, then yg drill --aspect ${aspectId}`,
+  };
 }
 
-function drillUnrunSuppressLine(aspectId: string): string {
-  return `unrun: a case file for aspect '${aspectId}' has a yg-suppress marker missing its required reason. Recorded, not scored.`;
+function drillUnrunSuppressLine(aspectId: string): IssueMessage {
+  return {
+    what: `unrun: a case file for aspect '${aspectId}' has a yg-suppress marker with no reason.`,
+    why: 'A marker without a reason waives nothing and cannot be sized, so the case is recorded, not scored.',
+    next: 'add a reason to the marker in the case file, or remove it',
+  };
 }
 
 export function drillSummaryFooter(
@@ -381,7 +408,7 @@ export async function runDrills(
   const ruleHash = ruleHashOf(aspect);
   const results: DrillResult[] = [];
 
-  const record = (result: DrillResult, detail?: string): void => {
+  const record = (result: DrillResult, detail?: IssueMessage): void => {
     results.push(result);
     deps.onCaseResult(result, detail);
   };
@@ -395,7 +422,7 @@ export async function runDrills(
         got === 'unsupported'
           ? drillUnsupportedGraphCtxLine(aspect.id)
           : got === 'unrun'
-            ? drillUnrunDeterministicLine(aspect.id)
+            ? drillUnrunDeterministicLine(aspect.id, c.files)
             : undefined;
       record({ case: c, got, outcome: classifyOutcome(c.expect, got), kind: 'deterministic', caseHash, ruleHash }, detail);
     }
@@ -445,7 +472,7 @@ export async function runDrills(
     let got: DrillResult['got'] = 'satisfied';
     let voteSat = 0;
     let voteTotal = 0;
-    let unrunDetail: string | undefined;
+    let unrunDetail: IssueMessage | undefined;
     for (const unit of units) {
       const outcome = await reviewOneUnit(
         aspect,
@@ -491,7 +518,7 @@ async function reviewOneUnit(
   unit: PromptFileInput[],
   ctx: DrillRunContext,
   deps: DrillDeps,
-): Promise<DrillReviewResult | { kind: 'unrun'; detail: string }> {
+): Promise<DrillReviewResult | { kind: 'unrun'; detail: IssueMessage }> {
   let suppressedRanges;
   try {
     suppressedRanges = await resolveSuppressedRangesForPrompt(

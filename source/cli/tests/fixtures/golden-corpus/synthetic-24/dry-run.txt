@@ -1,55 +1,31 @@
 $ yg check --approve --dry-run
 exit: 0
 --- stdout
-Dry run — a cost preview: nothing below is filled or written.
-Filling 24 unverified pairs across 24 nodes — 0 deterministic (no cost), 24 reviewer calls (consensus included)
-  app/svc-01
-    [llm] readable-names on node:app/svc-01 — 1 reviewer call
-  app/svc-02
-    [llm] readable-names on node:app/svc-02 — 1 reviewer call
-  app/svc-03
-    [llm] readable-names on node:app/svc-03 — 1 reviewer call
-  app/svc-04
-    [llm] readable-names on node:app/svc-04 — 1 reviewer call
-  app/svc-05
-    [llm] readable-names on node:app/svc-05 — 1 reviewer call
-  app/svc-06
-    [llm] readable-names on node:app/svc-06 — 1 reviewer call
-  app/svc-07
-    [llm] readable-names on node:app/svc-07 — 1 reviewer call
-  app/svc-08
-    [llm] readable-names on node:app/svc-08 — 1 reviewer call
-  app/svc-09
-    [llm] readable-names on node:app/svc-09 — 1 reviewer call
-  app/svc-10
-    [llm] readable-names on node:app/svc-10 — 1 reviewer call
-  app/svc-11
-    [llm] readable-names on node:app/svc-11 — 1 reviewer call
-  app/svc-12
-    [llm] readable-names on node:app/svc-12 — 1 reviewer call
-  app/svc-13
-    [llm] readable-names on node:app/svc-13 — 1 reviewer call
-  app/svc-14
-    [llm] readable-names on node:app/svc-14 — 1 reviewer call
-  app/svc-15
-    [llm] readable-names on node:app/svc-15 — 1 reviewer call
-  app/svc-16
-    [llm] readable-names on node:app/svc-16 — 1 reviewer call
-  app/svc-17
-    [llm] readable-names on node:app/svc-17 — 1 reviewer call
-  app/svc-18
-    [llm] readable-names on node:app/svc-18 — 1 reviewer call
-  app/svc-19
-    [llm] readable-names on node:app/svc-19 — 1 reviewer call
-  app/svc-20
-    [llm] readable-names on node:app/svc-20 — 1 reviewer call
-  app/svc-21
-    [llm] readable-names on node:app/svc-21 — 1 reviewer call
-  app/svc-22
-    [llm] readable-names on node:app/svc-22 — 1 reviewer call
-  app/svc-23
-    [llm] readable-names on node:app/svc-23 — 1 reviewer call
-  app/svc-24
-    [llm] readable-names on node:app/svc-24 — 1 reviewer call
-This budget of 24 reviewer calls is an UPPER BOUND — a node with an enforced deterministic refusal has its LLM fills skipped this run, and a fresh refusal or infra disposition can leave a pair unfilled. Nothing was written; run yg check --approve to fill.
+fill  dry run — a cost preview; nothing is filled or written
+fill  24 pairs · 0 script (free) · 24 reviewer calls (consensus included)
+  readable-names @ app/svc-01 — 1 reviewer call
+  readable-names @ app/svc-02 — 1 reviewer call
+  readable-names @ app/svc-03 — 1 reviewer call
+  readable-names @ app/svc-04 — 1 reviewer call
+  readable-names @ app/svc-05 — 1 reviewer call
+  readable-names @ app/svc-06 — 1 reviewer call
+  readable-names @ app/svc-07 — 1 reviewer call
+  readable-names @ app/svc-08 — 1 reviewer call
+  readable-names @ app/svc-09 — 1 reviewer call
+  readable-names @ app/svc-10 — 1 reviewer call
+  readable-names @ app/svc-11 — 1 reviewer call
+  readable-names @ app/svc-12 — 1 reviewer call
+  readable-names @ app/svc-13 — 1 reviewer call
+  readable-names @ app/svc-14 — 1 reviewer call
+  readable-names @ app/svc-15 — 1 reviewer call
+  readable-names @ app/svc-16 — 1 reviewer call
+  readable-names @ app/svc-17 — 1 reviewer call
+  readable-names @ app/svc-18 — 1 reviewer call
+  readable-names @ app/svc-19 — 1 reviewer call
+  readable-names @ app/svc-20 — 1 reviewer call
+  readable-names @ app/svc-21 — 1 reviewer call
+  readable-names @ app/svc-22 — 1 reviewer call
+  readable-names @ app/svc-23 — 1 reviewer call
+  readable-names @ app/svc-24 — 1 reviewer call
+note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written; run yg check --approve to fill.
 --- stderr

@@ -335,15 +335,16 @@ describe.skipIf(!distExists)('CLI E2E — advanced flow-aspect mechanics (condit
       const fill = run(['check', '--approve'], dir);
       // Service participant: predicate TRUE → enforced flow aspect applies → refuse.
       expect(fill.status).toBe(1);
-      // Fill-time progress ([det] lines) go to STDERR; grouped report to STDOUT.
-      expect(fill.stderr).toContain('[det] no-todo-comments on node:services/orders — refused');
-      expect(fill.stdout).toContain('enforced');
-      expect(fill.stdout).toContain('services/orders');
+      // Fill-time progress goes to STDERR (its closing line counts exactly one
+      // refusal); the report to STDOUT names it as an enforced error on orders.
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
 
       // Gateway participant: predicate FALSE → no-todo-comments never reaches it,
       // so there is NO such pair for the gateway — the identical TODO is not
       // judged. The gateway's own requires-named-export still approves.
-      expect(fill.stderr).not.toContain('no-todo-comments on node:gateways/api');
+      expect(fill.stdout).not.toContain('gateways/api  src/');
+      expect(fill.stdout).not.toContain('no-todo-comments @ gateways/api');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -371,20 +372,18 @@ describe.skipIf(!distExists)('CLI E2E — advanced flow-aspect mechanics (condit
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0); // advisory does NOT block the fill
-      // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
-      expect(fill.stderr).toContain('[det] no-flowwip on node:services/payments — refused');
-      // Rendered as a non-blocking advisory warning. The grouped renderer drops
-      // the per-issue "(advisory — not blocking)" suffix; non-blocking is now
-      // proven by the WARNING section (not an error), the `advisory` group label,
-      // and the PASS verdict with a warning count (exit 0 already asserted above).
+      // Fill-time progress goes to STDERR; its closing line counts the refusal.
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      // Rendered as a non-blocking advisory warning: a warning[refused] block
+      // (not an error) and the PASS verdict with a warning count (exit 0
+      // already asserted above).
       // A second warning group (`rules-digest-stale`) is always present too —
       // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
       // .clinerules digest artifacts, and the committed-digest staleness gate
       // flags that on every `yg check --approve` here.
-      expect(fill.stdout).toContain('advisory');
-      expect(fill.stdout).toContain("aspect 'no-flowwip'");
-      expect(fill.stdout).toMatch(/Warnings \(\d+\)( in \d+ groups)?:/);
-      expect(fill.stdout).toContain('yg check: PASS (2 warnings)');
+      expect(fill.stdout).toContain('warning[refused] no-flowwip — 1 violation in services/payments');
+      expect(fill.stdout).not.toContain('error[');
+      expect(fill.stdout).toContain('yg check: PASS  2 warnings');
       expect(fill.stdout).toContain('rules-digest-stale');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -409,8 +408,8 @@ describe.skipIf(!distExists)('CLI E2E — advanced flow-aspect mechanics (condit
       expect(check.status).toBe(0); // advisory warning does NOT fail check
       expect(check.stdout).toContain('PASS');
       expect(check.stdout).toContain('warning');
-      // The warning names the participant, the advisory aspect, and is marked advisory.
-      expect(check.stdout).toContain('advisory');
+      // The warning names the participant and the advisory aspect, as a warning.
+      expect(check.stdout).toContain('warning[refused] no-flowwip — 1 violation in services/payments');
       expect(check.stdout).toContain('services/payments');
       expect(check.stdout).toContain('no-flowwip');
     } finally {
@@ -441,7 +440,7 @@ describe.skipIf(!distExists)('CLI E2E — advanced flow-aspect mechanics (condit
       expect(check.status).toBe(1); // enforced violation BLOCKS check
       expect(check.stdout).toContain('FAIL');
       // Rendered as an enforced error naming the participant and the flow aspect.
-      expect(check.stdout).toContain('enforced');
+      expect(check.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/payments');
       expect(check.stdout).toContain('services/payments');
       expect(check.stdout).toContain('no-todo-comments');
     } finally {
@@ -561,9 +560,13 @@ describe.skipIf(!distExists)('CLI E2E — advanced flow-aspect mechanics (condit
       expect(check.status).toBe(1);
       expect(check.stdout).toContain('unverified');
       expect(check.stdout).toContain('no-flowguard');
-      // Both participants are named in the unverified findings.
-      expect(check.stdout).toContain('services/orders');
-      expect(check.stdout).toContain('services/payments');
+      // The capped default view lists the rule once with its pair/node count…
+      expect(check.stdout).toMatch(/no-flowguard {2}2 pairs · 2 nodes · script/);
+      // …and the uncapped per-aspect view names both participants.
+      const byAspect = run(['check', '--aspect', 'no-flowguard'], dir);
+      expect(byAspect.stdout).toContain('no-flowguard @ services/orders');
+      expect(byAspect.stdout).toContain('no-flowguard @ services/payments');
+
 
       // Sanity: context confirms the new aspect reaches a participant via the flow.
       const ctx = run(['context', '--node', 'services/orders'], dir);

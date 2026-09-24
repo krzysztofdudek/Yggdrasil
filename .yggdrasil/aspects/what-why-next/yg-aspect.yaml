@@ -1,5 +1,5 @@
 name: WhatWhyNext
-description: Agent-visible diagnostic messages must use the what/why/next structure via buildIssueMessage
+description: Agent-visible diagnostic messages answer what, why and next, and are printed in the CLI's one lowercase-labelled output grammar through the output layer or buildIssueMessage
 review_by: 2027-07-06
 reviewer:
   type: llm

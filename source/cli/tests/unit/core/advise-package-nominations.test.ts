@@ -61,7 +61,7 @@ describe('an installed package with a newer version', () => {
     const [item] = packageUpdateNominations([SIGNAL], TODAY);
     expect(item.why).toContain('Nothing is wrong with the version you have');
     expect(item.next).toContain('yg pack update house-style');
-    expect(item.next).toContain("Requires the user's approval.");
+    expect(item.next).toContain('ask the user to approve it first.');
   });
 
   it("attributes the version numbers to the source rather than to this graph", () => {

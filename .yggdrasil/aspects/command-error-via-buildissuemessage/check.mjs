@@ -7,7 +7,7 @@ import { walk, report, inFile, closest } from '@chrisdudek/yg/ast';
 // the enclosing scope — never as a substring — so a function merely NAMED
 // `fail`, a `failAndExit` read as `fail`, or an unrelated `detail(` can never
 // pass for a call to one of them.
-const ALLOWED_HELPERS = new Set(['loadGraphOrAbort', 'abortOnUnexpectedError', 'fail', 'failAndExit', 'notice', 'block']);
+const ALLOWED_HELPERS = new Set(['loadGraphOrAbort', 'abortOnUnexpectedError', 'fail', 'failAndExit', 'notice', 'warn', 'block']);
 
 /** True when `scope` contains a call whose callee is one of ALLOWED_HELPERS. */
 function callsAllowedHelper(scope) {
@@ -36,6 +36,29 @@ const FUNCTION_KINDS = [
 // Fallback window (chars) for a write at module scope with no enclosing function.
 const FALLBACK_WINDOW = 400;
 
+// The labels of the grammar every command speaks in are lowercase —
+// `why:`, `fix:`, `next:`, `then:`, `note:`, `warning:`, `error[code]:` — and a
+// line that opens with the capitalised label of the old grammar (`Why: `,
+// `Fix: `, `Next: `, `Then: `, `Error: `, `Notice: `, `Warning: `, and the
+// drill-in's `Next (this group): `) is text written around the output layer
+// instead of through it. Matched at the start of a line of a string literal or
+// a template string only: prose that merely contains "Next:" mid-sentence, and
+// comments, are not output.
+const LEGACY_LABEL = /(?:^|\n|\\n)[ \t]*(?:Why|Fix|Next|Then|Error|Notice|Warning|Next \(this group\)): /;
+
+// A count written with a hand-rolled plural — `${n} pair(s)` — instead of the
+// output layer's count()/plural(), which make the noun agree with the number.
+const HAND_PLURAL = /\$\{[^}]+\}(?:[ \t]+[\w-]+)*[ \t]+[\w-]+\(s\)/;
+
+/** Every string literal and template string in a file. */
+function stringNodes(root) {
+  const out = [];
+  walk(root, (n) => {
+    if (n.type === 'string' || n.type === 'template_string') out.push(n);
+  });
+  return out;
+}
+
 export function check(ctx) {
   const violations = [];
   for (const file of ctx.files) {
@@ -43,6 +66,23 @@ export function check(ctx) {
     if (!inFile(file, { glob: '**/src/cli/*.ts' })) continue;
 
     const fileText = file.ast.rootNode.text;
+
+    for (const str of stringNodes(file.ast.rootNode)) {
+      const text = str.text.slice(1, -1);
+      if (LEGACY_LABEL.test(text)) {
+        violations.push(
+          report(
+            file,
+            str,
+            'a line in the old grammar (a capitalised `Why:` / `Fix:` / `Next:` / `Then:` / `Error:` / `Notice:` / `Warning:` label) — output goes through the output layer (fail / notice / warn / block / field / next / then / note) or buildIssueMessage, whose labels are lowercase',
+          ),
+        );
+      } else if (str.type === 'template_string' && HAND_PLURAL.test(text)) {
+        violations.push(
+          report(file, str, 'a count with a hand-rolled plural (`${n} pair(s)`) — use count() or plural() from the output layer, so the noun agrees with the number'),
+        );
+      }
+    }
 
     walk(file.ast.rootNode, (node) => {
       if (node.type !== 'call_expression') return;

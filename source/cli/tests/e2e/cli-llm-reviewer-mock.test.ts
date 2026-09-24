@@ -92,21 +92,18 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       pointReviewer(dir, mock.endpoint);
       const r = await runAsync(['check', '--approve'], dir);
       expect(r.status).toBe(1);
-      expect(r.all).toContain('[llm] has-doc-comment on node:services/orders — refused');
+      expect(r.all).toMatch(/^fill {2}done in .* — 4 approved · 2 refused · 0 failed · 2 reviewer calls/m);
+      expect(r.all).toContain('error[refused] has-doc-comment — refused on 2 nodes');
       expect(mock.chatCount()).toBe(2);
 
       // Plain `yg check` renders the cached refusal WITHOUT re-calling the reviewer.
       const before = mock.chatCount();
       const check = await runAsync(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.all).toContain('enforced');
-      expect(check.all).toContain('has-doc-comment');
-      // The cached refusal renders as an `enforced` group for the aspect; the group
-      // header (the old "...cached verdict — the reviewer did NOT re-run..." what
-      // line 0) is no longer a per-issue line. The member node line carries the
-      // retained refusal detail (refusals are a FULL_WHAT code) — the reviewer reason.
-      expect(check.all).toContain("aspect 'has-doc-comment'");
-      expect(check.all).toContain('- services/orders  Reviewer reason: the file has no leading comment');
+      // The cached refusal renders as a blocking error[refused] block for the
+      // aspect; each node's member line carries the reviewer reason.
+      expect(check.all).toContain('error[refused] has-doc-comment — refused on 2 nodes');
+      expect(check.all).toMatch(/^ {2}at: +services\/orders +the file has no leading comment$/m);
       // The reviewer's reason is folded into the stored verdict (asserted directly
       // against the lock — the `yg check` renderer prints only the first `what`
       // line; `yg aspect-test` would print the full body).
@@ -171,6 +168,8 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       const r = await runAsync(['check', '--approve'], dir);
       expect(mock.chatCount()).toBe(6);
       expect(r.status).toBe(0);
+      // A split consensus is named per pair on the fill's progress stream.
+      expect(r.all).toContain('fill  approved by 2 of 3 votes  has-doc-comment @ services/orders');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -189,7 +188,9 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       const r = await runAsync(['check', '--approve'], dir);
       expect(mock.chatCount()).toBe(6);
       expect(r.status).toBe(1);
-      expect(r.all).toContain('[llm] has-doc-comment on node:services/orders — refused');
+      expect(r.all).toContain('error[refused] has-doc-comment — refused on 2 nodes');
+      // The split is named per pair: two of the three votes refused it.
+      expect(r.all).toContain('fill  refused by 2 of 3 votes  has-doc-comment @ services/orders');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -241,7 +242,8 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       expect(mock.chatCount()).toBe(0); // reviewer skipped for draft
       expect(r.status).toBe(0);
       // The remaining deterministic aspects still fill — only the LLM aspect is dormant.
-      expect(r.all).toContain('0 reviewer calls (consensus included)');
+      expect(r.all).toMatch(/^fill {2}4 pairs · 4 script \(free\) · 0 reviewer calls$/m);
+      expect(r.all).toMatch(/^fill {2}done in .* — 4 approved · 0 refused · 0 failed · 0 reviewer calls$/m);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -257,11 +259,11 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       const r = await runAsync(['check', '--approve'], dir);
       expect(mock.chatCount()).toBeGreaterThanOrEqual(1); // advisory IS still reviewed
       expect(r.status).toBe(0); // but does not block
-      expect(r.all).toContain('[llm] has-doc-comment on node:services/orders — refused');
+      expect(r.all).toMatch(/^fill {2}done in .* · 2 refused · /m);
       // The advisory refusal renders as a non-blocking warning in the subsequent check.
       const check = await runAsync(['check'], dir);
       expect(check.status).toBe(0);
-      expect(check.all).toContain('advisory');
+      expect(check.all).toContain('warning[refused] has-doc-comment — refused on 2 nodes');
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -424,7 +426,7 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
       expect(r.stdout).not.toContain('refused');
       expect(r.stdout).not.toContain('satisfied');
       // The infra cause is a bespoke what/why/next on stderr with the pinned prefix.
-      expect(r.stderr).toMatch(/^Error: /);
+      expect(r.stderr).toMatch(/^error\[[\w-]+\]: /);
       expect(r.stderr).toContain('missing its required reason');
       // Fail closed: the pair never reached the reviewer, nothing was recorded.
       expect(mock.chatCount()).toBe(0);
@@ -462,8 +464,8 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via in-process 
         expect(r.stdout).not.toContain('refused');
         expect(r.stdout).not.toContain('satisfied');
         // The infra cause is a bespoke what/why/next on stderr, with the pinned
-        // Error: prefix and provider-error language (never code-refusal language).
-        expect(r.stderr).toMatch(/^Error: /);
+        // error[<code>]: prefix and provider-error language (never code-refusal language).
+        expect(r.stderr).toMatch(/^error\[[\w-]+\]: /);
         expect(r.stderr).toContain('provider error');
         // Diagnostic only: nothing recorded.
         expect(existsSync(nondetLockPath(dir))).toBe(false);

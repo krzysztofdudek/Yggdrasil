@@ -20,8 +20,9 @@
 // deep-merge yg-secrets.yaml overlay (config-parser.ts's own documented seam for
 // exactly this kind of local, non-committed override — the tier NAME is the only
 // verdict-hash input, so this invalidates no recorded verdict), runs a plain, read-only
-// `yg check` (no --approve — nothing is written), and parses every resulting "Assembled
-// reviewer prompt … is N chars" line. The override is restored to its exact original
+// `yg check --json` (no --approve — nothing is written), and parses every resulting
+// "Assembled reviewer prompt … is N chars" sentence out of the `what` of each
+// `prompt-too-large` issue in the JSON document. The override is restored to its exact original
 // bytes (or removed, if none existed) before this script exits, success or failure — a
 // trap-style restore that never leaves the repo's real reviewer config altered.
 //
@@ -70,11 +71,10 @@
 // ... nothing to measure" and exit 0, on a graph that still has every LLM pair it always
 // had — the gauge going dead without a sound. `parsePromptTooLargeEntries` cross-checks
 // every sentence it parses against a count of a different kind: how many issues in the
-// same output carry the STABLE `prompt-too-large` issue code (a fixed identifier the
-// renderer looks up, never prose a wording pass touches) at the start of their own line.
-// The two always agree when the sentence parses correctly — a graph-wide run against
-// this repository confirms it (1030 sentences, 1030 coded lines) — so any disagreement
-// throws instead of silently reporting the (wrong) smaller number. And a run that
+// same JSON document carry the STABLE `prompt-too-large` issue code (`issues[].code`, a
+// fixed identifier, never prose a wording pass touches). The two always agree when the
+// sentence parses correctly, so any disagreement throws instead of silently reporting
+// the (wrong) smaller number. And a run that
 // measures ZERO pairs is only ever legitimate when the graph declares no LLM aspect at
 // all: `countDeclaredLlmAspects` reads that fact from every aspect the SAME graph-wide
 // walk the engine's own loader performs (`readAspectFacts` recurses every subdirectory,
@@ -86,12 +86,12 @@
 // prints, so a graph that DOES declare an LLM aspect but measured zero pairs anyway
 // fails loudly instead of printing the same quiet "nothing to measure" a genuinely
 // LLM-free graph is entitled to. `assertMeasurementComplete` adds a THIRD, independent
-// cross-check on top: the same run's own header line — "`N verified (D deterministic, L
-// LLM)`", computed from the verification result rather than from any issue text — must
-// report an LLM-verified count no greater than the number of prompt-too-large pairs this
-// script actually parsed; a killed or `maxBuffer`-truncated child can under-report the
-// issue text without touching that header figure, and the shortfall is exactly what
-// gives a truncated run away. And `computeTierMargins` never reports a "tightest margin
+// cross-check on top: the same run's own `totals.verified.llm` — computed from the
+// verification result rather than from any issue text — must be no greater than the
+// number of prompt-too-large pairs this script actually parsed; a shortfall means the
+// run is incomplete. (A killed or `maxBuffer`-truncated child cannot slip through as a
+// shorter list either: its output is no longer one whole JSON document, and
+// `parseCheckDocument` refuses it outright.) And `computeTierMargins` never reports a "tightest margin
 // anywhere" for a tier it could not resolve a committed ceiling for — a skipped tier
 // used to fall through to the next one, silently leaving `Infinity` as the answer
 // whenever every measured tier turned out to be unresolvable; now any unresolved tier
@@ -226,38 +226,60 @@ export function classifyZeroMeasurement(declaredLlmAspectCount) {
 }
 
 /**
- * Exact rendering `check-render-groups.ts` uses for a `prompt-too-large`
- * issue's leading label (`getIssueLabel`): two spaces, the code, two spaces,
- * then the issue's own text — present whether or not the issue also carries
- * a node path (see `parsePromptTooLargeEntries` below). The code is a fixed
- * identifier the renderer looks up, never free-form prose, so it cannot
- * drift the way a what/why/next sentence can.
+ * Parse the captured stdout of `yg check --json` into its `yg-check/1`
+ * document. Throws — never returns a partial result — when the text is not
+ * one whole JSON document (a killed or `maxBuffer`-truncated child leaves a
+ * cut-off document behind), when the schema is not `yg-check/1`, or when the
+ * `issues` array is missing. Pure: takes the captured stdout text in, no
+ * filesystem access, no process state.
  */
-const PROMPT_TOO_LARGE_LABEL_RE = /^ {2}prompt-too-large {2}/gm;
+export function parseCheckDocument(stdout) {
+  let doc;
+  try {
+    doc = JSON.parse(stdout);
+  } catch (e) {
+    throw new Error(
+      `yg check --json did not print one whole JSON document (${e.message}) — the captured output is incomplete ` +
+        `(a killed or truncated child process) or not JSON at all. Re-run this step rather than trust any margin.`,
+    );
+  }
+  if (!isPlainObject(doc) || doc.schema !== 'yg-check/1' || !Array.isArray(doc.issues)) {
+    throw new Error(
+      `yg check --json printed a document that is not a yg-check/1 report with an issues array (schema: ` +
+        `${JSON.stringify(isPlainObject(doc) ? doc.schema : undefined)}). Update scripts/prompt-headroom.mjs to the new shape.`,
+    );
+  }
+  return doc;
+}
 
 /**
  * Parse every "Assembled reviewer prompt ... is N chars, over the 'X' tier
- * limit of ..." sentence out of a `yg check --details` run, AND cross-check
- * the count against a wording-independent count of the same fact: how many
- * lines in the same output carry the stable `prompt-too-large` issue code.
- * The two always agree when the sentence's wording matches this parser —
- * they disagree only when something changed the sentence out from under it
- * (an engine wording pass, most commonly), in which case this throws rather
- * than silently returning the smaller (wrong) count. Pure: takes the
- * captured stdout text in, no filesystem access, no process state.
+ * limit of ..." sentence out of the `what` of the issues in a `yg check
+ * --json` document, AND cross-check the count against a wording-independent
+ * count of the same fact: how many issues in the same document carry the
+ * stable `prompt-too-large` code. The two always agree when the sentence's
+ * wording matches this parser — they disagree only when something changed the
+ * sentence out from under it (an engine wording pass, most commonly), in
+ * which case this throws rather than silently returning the smaller (wrong)
+ * count. Every issue's `what` is scanned, not only the coded ones, so a
+ * sentence that turns up under some other code also counts as a
+ * disagreement. Pure: takes the parsed document in, no filesystem access.
  */
-export function parsePromptTooLargeEntries(stdout) {
-  const lineRe = /Assembled reviewer prompt for aspect '([^']+)' on (\S+) is (\d+) chars, over the '([^']+)' tier limit of \d+\./g;
+export function parsePromptTooLargeEntries(doc) {
+  const sentenceRe = /Assembled reviewer prompt for aspect '([^']+)' on (\S+) is (\d+) chars, over the '([^']+)' tier limit of \d+\./g;
   const entries = [];
-  let match;
-  while ((match = lineRe.exec(stdout))) {
-    entries.push({ aspectId: match[1], unitKey: match[2], chars: Number(match[3]), tierName: match[4] });
+  let codedCount = 0;
+  for (const issue of doc.issues) {
+    if (issue?.code === 'prompt-too-large') codedCount++;
+    const what = typeof issue?.what === 'string' ? issue.what : '';
+    for (const match of what.matchAll(sentenceRe)) {
+      entries.push({ aspectId: match[1], unitKey: match[2], chars: Number(match[3]), tierName: match[4] });
+    }
   }
-  const codeLabelCount = (stdout.match(PROMPT_TOO_LARGE_LABEL_RE) ?? []).length;
-  if (entries.length !== codeLabelCount) {
+  if (entries.length !== codedCount) {
     throw new Error(
-      `parsed ${entries.length} "Assembled reviewer prompt ..." sentence(s) but ${codeLabelCount} issue(s) in the same ` +
-        `output carried the stable 'prompt-too-large' code — the engine's sentence wording likely changed out from under ` +
+      `parsed ${entries.length} "Assembled reviewer prompt ..." sentence(s) but ${codedCount} issue(s) in the same ` +
+        `document carried the stable 'prompt-too-large' code — the engine's sentence wording likely changed out from under ` +
         `this script's regex. Update the sentence pattern in scripts/prompt-headroom.mjs to match the new wording, then re-run.`,
     );
   }
@@ -265,43 +287,42 @@ export function parsePromptTooLargeEntries(stdout) {
 }
 
 /**
- * The independent LLM-verified count `yg check`'s own header line reports
- * for THIS SAME run — the "`N verified (D deterministic, L LLM)`" segment
- * `check-render-header.ts` prints, computed from the verification result
- * itself rather than from any issue text. Absent entirely means the header
- * printed no verified segment at all, which only happens when the run's
- * total verified count (deterministic + LLM) is exactly zero — so 0 is the
- * correct reading there, not a parse failure. Anchored on a leading digit so
- * it cannot mistake the unrelated "`N unverified (D deterministic-free, L
- * LLM)`" segment for a match: "verified (" is a substring of "unverified (",
- * but no digit ever sits directly in front of "verified" inside that word.
- * Pure: takes the captured stdout text in, no filesystem access.
+ * The independent LLM-verified count `yg check` reports for THIS SAME run —
+ * `totals.verified.llm` of the JSON document, computed from the verification
+ * result itself rather than from any issue text. Throws when the field is
+ * missing or not a non-negative integer: a count this script cannot read is
+ * not one it may silently treat as zero. Pure: takes the parsed document in.
  */
-export function parseHeaderVerifiedLlmCount(stdout) {
-  const match = /\d+ verified \(\d+ deterministic, (\d+) LLM\)/.exec(stdout);
-  return match ? Number(match[1]) : 0;
+export function readVerifiedLlmCount(doc) {
+  const llm = doc?.totals?.verified?.llm;
+  if (typeof llm !== 'number' || !Number.isInteger(llm) || llm < 0) {
+    throw new Error(
+      `yg check --json carries no non-negative integer totals.verified.llm (got ${JSON.stringify(llm)}) — cannot ` +
+        `cross-check this run's completeness. Update scripts/prompt-headroom.mjs to the new shape.`,
+    );
+  }
+  return llm;
 }
 
 /**
  * Throws when `entries` (the prompt-too-large pairs this run parsed) is
- * fewer than this SAME run's own header-reported LLM-verified count — the
- * invariant a complete run always satisfies. Under the 1-char override every
- * declared LLM pair either trips the gate fresh (landing in `entries` with
- * no prior valid verdict) or keeps its prior valid verdict while flagged
- * oversized (landing in `entries` AND still counting toward the header's
- * LLM-verified tally) — so `entries.length` can never legitimately fall
- * short of the header's own LLM-verified count. A shortfall means this run's
- * captured output is incomplete (a killed or `maxBuffer`-truncated child),
- * not that there was genuinely less to measure. Pure: takes the parsed
- * entries and the captured stdout text in, no filesystem access.
+ * fewer than this SAME run's own LLM-verified count (`totals.verified.llm`)
+ * — the invariant a complete run always satisfies. Under the 1-char override
+ * every declared LLM pair either trips the gate fresh (landing in `entries`
+ * with no prior valid verdict) or keeps its prior valid verdict while flagged
+ * oversized (landing in `entries` AND still counting toward the LLM-verified
+ * tally) — so `entries.length` can never legitimately fall short of that
+ * count. A shortfall means this run's result is incomplete, not that there
+ * was genuinely less to measure. Pure: takes the parsed entries and the
+ * parsed document in, no filesystem access.
  */
-export function assertMeasurementComplete(entries, stdout) {
-  const headerLlmVerified = parseHeaderVerifiedLlmCount(stdout);
-  if (entries.length < headerLlmVerified) {
+export function assertMeasurementComplete(entries, doc) {
+  const verifiedLlm = readVerifiedLlmCount(doc);
+  if (entries.length < verifiedLlm) {
     throw new Error(
-      `measured ${entries.length} prompt-too-large pair(s) but this run's own header reports ${headerLlmVerified} verified ` +
-        `LLM pair(s) — a complete run always measures at least as many pairs as its own header's LLM-verified count, so this ` +
-        `shortfall means the captured output is incomplete (a killed or truncated child process). Re-run this step rather ` +
+      `measured ${entries.length} prompt-too-large pair(s) but this run's own totals report ${verifiedLlm} verified ` +
+        `LLM pair(s) — a complete run always measures at least as many pairs as its own LLM-verified count, so this ` +
+        `shortfall means the result is incomplete (a killed or truncated child process). Re-run this step rather ` +
         `than trust the margin below.`,
     );
   }
@@ -507,23 +528,21 @@ async function main() {
     // would replace their real settings wholesale.
     writeFileSync(SECRETS_PATH, buildOverrideSecretsText(originalSecrets, [...tierLimits.keys()]));
 
-    // --details: the ungrouped, one-block-per-issue view. Plain `yg check`'s default
-    // grouped view caps how many distinct groups it prints (falling back to "run
-    // --top <n> or --aspect <id>" beyond that) — with every LLM pair now tripping the
-    // gate, the pair count alone spans far more groups than that cap allows, and a
-    // capped view would silently under-report exactly the tail this script exists to
-    // find. --details has no such cap: every pair renders its own block.
+    // --json: the machine document. Its `issues` array carries every issue, one entry
+    // per pair, with no display cap — a text view caps its member lists and blocks, and
+    // a capped view would silently under-report exactly the tail this script exists to
+    // find.
     const { error, out } = await new Promise((resolve) => {
       const child = execFile(
         'node',
-        [BIN_PATH, 'check', '--details'],
+        [BIN_PATH, 'check', '--json'],
         { cwd: REPO_ROOT, encoding: 'utf-8', maxBuffer: 64 * 1024 * 1024 },
         (err, childStdout) => resolve({ error: err, out: childStdout ?? '' }),
       );
       currentChild = child;
     });
     // `yg check` exits 1 whenever anything is unverified/oversized — expected here
-    // (every LLM pair now trips the 1-char ceiling). Its stdout is still the report,
+    // (every LLM pair now trips the 1-char ceiling). Its stdout is still the document,
     // captured above regardless of exit code.
     stdout = out;
     if (error && !stdout) fail(`yg check produced no output (${error.message}). Restoring config and stopping.`);
@@ -533,8 +552,9 @@ async function main() {
 
   let entries;
   try {
-    entries = parsePromptTooLargeEntries(stdout);
-    assertMeasurementComplete(entries, stdout);
+    const doc = parseCheckDocument(stdout);
+    entries = parsePromptTooLargeEntries(doc);
+    assertMeasurementComplete(entries, doc);
   } catch (e) {
     fail(e.message);
   }

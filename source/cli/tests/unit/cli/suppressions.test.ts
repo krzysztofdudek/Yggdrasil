@@ -421,8 +421,7 @@ describe('formatSuppressionsOutput', () => {
       warnings: ['Warning: ghost-aspect does not exist'],
     };
     const out = formatSuppressionsOutput(report);
-    expect(out).toContain('Warnings');
-    expect(out).toContain('ghost-aspect does not exist');
+    expect(out).toMatch(/^warning\b.*ghost-aspect does not exist$/m);
   });
 });
 

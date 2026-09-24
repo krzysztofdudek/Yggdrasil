@@ -63,11 +63,11 @@ const GOLDEN_TEXT = `Active suppression markers:
 
 Total: 5 markers across 4 files.
 
-Warnings (1):
-  yg-suppress(no-console) at src/under.ts:2 waives a check labeled errs: under.
-  suppress targets an under-approximating check — such checks produce no false positives by design; either the errs label is wrong or this code path deserves a second look.
-  Remove the waiver and re-examine the flagged code, or correct the aspect's errs label if 'under' is inaccurate.
+warning[waives-under] yg-suppress(no-console) at src/under.ts:2 waives a check labeled errs: under.
+  why:  suppress targets an under-approximating check — such checks produce no false positives by design; either the errs label is wrong or this code path deserves a second look.
+  fix:  Remove the waiver and re-examine the flagged code, or correct the aspect's errs label if 'under' is inaccurate.
 `;
+
 
 describe('suppressions --json report fields — real fixture scan (portal-suppress-forms)', () => {
   it('report.ranges matches the real disable/enable pairs: a closed range.ts pair, and whole.ts open at the file head', async () => {

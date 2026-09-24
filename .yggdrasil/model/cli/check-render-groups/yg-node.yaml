@@ -1,18 +1,6 @@
 name: Check Render Groups
 type: command-support
-description: "Renders grouped and --details issue output for yg check: the
-  Errors/Warnings sections, per-group and per-issue blocks, the unmapped-files
-  compact block, and the CAP_NODES/GROUP_CAP truncation logic. Reads the
-  useEmoji accessibility gate (owned by check-render-header) as the default
-  emoji parameter on its own section renderers. A -outside twin's gloss and
-  Fix line are derived from SCOPED_CODES/baseCodeOfOutsideTwin rather than
-  hand-listed: LABEL_GLOSS carries the twin of every glossed base code, and
-  every Fix: line (single block, unmapped-files block, grouped shared line,
-  grouped per-member divergent line) is suppressed for one — the classifier
-  leaves messageData untouched, so a twin's next still names the finding's own
-  remedy (e.g. unverified's yg check --approve), which would mislead for a
-  finding the change is not accountable for and contradict the run's own
-  standing next step for everything outside the change."
+description: "Turns the findings of a check run into blocks and renders them, in the one template every finding uses: a heading `error[label] subject` or `warning[label] subject`, then lowercase labelled fields — at: (the members), why: (stated once per block), fix: — never an unlabelled line. It groups findings by code and rule and then splits a group by the why its members carry, so members whose why differs (a node that drifted beside one never verified, two node types) become blocks of their own and no why is ever printed twice in one block; a why or fix that differs between members only by their own node is stated once with <node> in it (a fix then ends 'for each node above'). The label comes from the code registry; the subject says what the block is about in a sentence (a refusal's rule and how many violations in which units, an unverified block's cause, how many files belong to no node). Members are listed per kind: a refusal one line per violation (unit, file:line, message), an unverified block one line per rule in a capped view and one `rule @ unit` line per pair in an uncapped one, a coverage block one file per line, anything else its unit beside what it says, with identical entries collapsed. A capped list ends with how much it cut and the command that shows the rest. Blocks sort errors first by tier — the graph did not load, code and graph errors, gate prerequisites, pending — then warnings. A finding outside a measured change keeps its why but gets no fix. A fill's fix carries what it costs (script pairs free, reviewer pairs paid). Colour and glyphs are decoration only, off in a pipe."
 mapping:
   - source/cli/src/cli/check-render-groups.ts
 relations:

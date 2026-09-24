@@ -75,25 +75,25 @@ describe('yg find integration', () => {
     expect(printed).toMatch(/aspects\/audit-logging/);
   });
 
-  it('appends a Next: yg context --node line for a node-kind top result', async () => {
+  it('appends a next: yg context --node line for a node-kind top result', async () => {
     const root = await richGraph();
     const out: string[] = [];
     vi.spyOn(process.stdout, 'write').mockImplementation((s: unknown) => { out.push(String(s)); return true; });
     await findCommand('subscription cancellation', root);
-    expect(out.join('')).toContain('Next: yg context --node billing/cancel');
+    expect(out.join('')).toContain('next: yg context --node billing/cancel');
   });
 
-  it('appends a Next: read … (rule, not a node) line for an aspect-kind top result', async () => {
+  it('appends a next: read … (rule, not a node) line for an aspect-kind top result', async () => {
     const root = await richGraph();
     const out: string[] = [];
     vi.spyOn(process.stdout, 'write').mockImplementation((s: unknown) => { out.push(String(s)); return true; });
     await findCommand('audit events', root);
     expect(out.join('')).toContain(
-      'Next: read .yggdrasil/aspects/audit-logging — this is a rule, not an entry-point node (do not pass it to --node).',
+      'next: read .yggdrasil/aspects/audit-logging — this is a rule, not an entry-point node (do not pass it to --node).',
     );
   });
 
-  it('a type-covered file surfaces as a Kind: file result with Next: yg context --file, never --node', async () => {
+  it('a type-covered file surfaces as a Kind: file result with next: yg context --file, never --node', async () => {
     // A fresh copy — findCommand is read-only, but this fixture carries pinned
     // counts other suites rely on, so it is never driven from its committed path.
     const root = await mkdtemp(path.join(tmpdir(), 'yg-find-typecov-'));
@@ -111,8 +111,8 @@ describe('yg find integration', () => {
     const printed = out.join('');
     expect(printed).toMatch(/Kind: file/);
     expect(printed).toContain('src/svc/handler.ts');
-    expect(printed).toContain('Next: yg context --file src/svc/handler.ts');
-    expect(printed).not.toContain('Next: yg context --node');
+    expect(printed).toContain('next: yg context --file src/svc/handler.ts');
+    expect(printed).not.toContain('next: yg context --node');
     expect(err.join('')).toBe('');
   });
 });

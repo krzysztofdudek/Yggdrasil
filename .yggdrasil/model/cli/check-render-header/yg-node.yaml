@@ -1,9 +1,6 @@
 name: Check Render Header
 type: command-support
-description: "Renders the yg check verdict/metrics header line — PASS/FAIL, node
-  count, the flag-off coverage percentage or flag-on node-owned/type-covered/
-  excluded three-bucket split, aspect/flow counts, verified-pair split, draft
-  count. Owns the useEmoji accessibility gate every render file reads. Also
+description: "Renders the yg check verdict line — `yg check: PASS|FAIL` (the anchor external parsers key on), then the finding counts (errors, warnings, auto-filled), then what was checked: node count, files covered (the flag-on node-owned/type-covered/excluded split when more than one term is non-zero), pairs verified (split into script and reviewer when both occur), draft pairs skipped, the change-scope segment, and a view: tag for a narrowed view; a zero segment is never printed. Owns the useEmoji accessibility gate every render file reads. Also
   renders the per-type visibility block: which rules a type-covered file's
   type enforces, which run but only warn (their own heading, never folded
   into 'Enforced'), which are attached but do not (with reason counts, capped

@@ -61,19 +61,21 @@ function run(args: string[], cwd: string): { status: number | null; stdout: stri
 /** The header line — the first line of every report, in every view. */
 const headerOf = (stdout: string): string => stdout.split('\n')[0];
 
-/** Everything the report prints under Errors, up to the warnings subheader. */
-function errorSection(stdout: string): string {
-  const from = stdout.indexOf('Errors (');
-  if (from < 0) return '';
-  const to = stdout.indexOf('Warnings (');
-  return to < 0 ? stdout.slice(from) : stdout.slice(from, to);
+/**
+ * Every finding block of one severity, in report order: each block opens with
+ * its `error[<label>]` / `warning[<label>]` heading and runs to the blank line
+ * that closes it.
+ */
+function blocksOf(stdout: string, severity: 'error' | 'warning'): string {
+  const blocks = stdout.split(/\n\s*\n/);
+  return blocks.filter((b) => b.startsWith(`${severity}[`)).join('\n\n');
 }
 
-/** Everything the report prints under Warnings. */
-function warningSection(stdout: string): string {
-  const from = stdout.indexOf('Warnings (');
-  return from < 0 ? '' : stdout.slice(from);
-}
+/** Every error block the report prints. */
+const errorSection = (stdout: string): string => blocksOf(stdout, 'error');
+
+/** Every warning block the report prints. */
+const warningSection = (stdout: string): string => blocksOf(stdout, 'warning');
 
 /**
  * The violation line a component's TODO produces, as the report prints it.
@@ -83,7 +85,7 @@ function warningSection(stdout: string): string {
  * subject of these cases is which SECTION the finding lands in, never where in
  * the file it was found.
  */
-const TODO_IN = (dir: string): RegExp => new RegExp(`src/${dir}/${dir}\\.ts:\\d+: TODO comment found`);
+const TODO_IN = (dir: string): RegExp => new RegExp(`src/${dir}/${dir}\\.ts:\\d+  TODO comment found`);
 
 /** Run a git command in the fixture, failing loudly rather than silently. */
 function git(dir: string, args: string[]): void {

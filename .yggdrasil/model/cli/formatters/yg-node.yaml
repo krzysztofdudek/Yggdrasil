@@ -3,7 +3,7 @@ type: formatter
 description: >-
   Output formatting for the graph's answers, converting structured data to text
   for a person and to versioned JSON documents for a layer above the agent.
-  Eight machine forms live here, each owning its own schema constant, its
+  Ten machine forms live here, each owning its own schema constant, its
   document types and its serializer: the context package (every rule with its
   effective status, reviewer kind, cascade channel and the node/type chain it
   inherits along), the blast radius of one component (the ports it publishes
@@ -15,7 +15,10 @@ description: >-
   terms, the standing floor a measured change stands on, who judged outside the
   configured reviewer — verdicts an older lock may still hold — and the reason
   for the exit code), the rule inventory (each rule's kind, status, review date,
-  drill-corpus size and reach), a rule's own log (its entries and every change
+  drill-corpus size and reach), the rule health view as its own document (per
+  rule its counts, its catch/exposure signal and the plain-words reading, with
+  null for a question never asked), one drill run (the five outcome counts,
+  every case with what it expected and what it got, and the corpus), a rule's own log (its entries and every change
   of its standing), the proposals `yg advise` makes with the signals behind
   them, and the waiver inventory's shape (every `yg-suppress` marker with its kind, its
   resolved range and its reason, every warning with a stable code, and the
@@ -44,11 +47,13 @@ mapping:
   - source/cli/src/formatters/advise-json.ts
   - source/cli/src/formatters/aspect-log-json.ts
   - source/cli/src/formatters/aspect-status-messages.ts
+  - source/cli/src/formatters/aspects-health-json.ts
   - source/cli/src/formatters/aspects-json.ts
   - source/cli/src/formatters/check-json.ts
   - source/cli/src/formatters/context-file.ts
   - source/cli/src/formatters/context-json.ts
   - source/cli/src/formatters/context-node.ts
+  - source/cli/src/formatters/drill-json.ts
   - source/cli/src/formatters/fill-text.ts
   - source/cli/src/formatters/impact-json.ts
   - source/cli/src/formatters/lock-issue-messages.ts

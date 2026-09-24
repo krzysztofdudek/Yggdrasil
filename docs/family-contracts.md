@@ -19,6 +19,13 @@ A check fails when this page and the code disagree — in either direction, in a
 | Attention feed (`yg advise --json`) | `yg-advise/1` | Yggdrasil | Horde — `audit` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Rule history (`yg aspects log read --json`) | `yg-aspect-log/1` | Yggdrasil | Horde — `law` | before 6.0.0 | [CLI Reference](/cli-reference) |
 | Waiver inventory (`yg suppressions --json`) | `yg-suppressions/1` | Yggdrasil | Horde — `land` | 6.0.0 | [CLI Reference](/cli-reference) |
+| Drill run (`yg drill --json`) | `yg-drill/1` | Yggdrasil | Horde — the rule ladder's drill evidence (`node.mjs` `runDrill`) | 6.1.0 | [CLI Reference](/cli-reference) |
+| Rule health (`yg aspects --health --json`) — its own document, not the rule list | `yg-aspects-health/1` | Yggdrasil | Horde — the wave close's `audit` (quiet rules) | 6.1.0 | [CLI Reference](/cli-reference) |
+| Command error (any command run with `--json` that fails) | `yg-error/1` | Yggdrasil | Horde — every document read (`node.mjs` `ygJson`) | 6.1.0 | [CLI Reference](/cli-reference) |
+| Node list (`yg tree --json`) | `yg-tree/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
+| File owner (`yg owner --json`) | `yg-owner/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
+| Search results (`yg find --json`) | `yg-find/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
+| Component log (`yg log read --json`) | `yg-log/1` | Yggdrasil | no external consumer | 6.1.0 | [CLI Reference](/cli-reference) |
 | Marketplace manifest (`yg-marketplace.yaml`) | `yg-marketplace/1` | the marketplace author | Yggdrasil — `yg pack add` / `update` / `list`, `yg marketplace check` | 6.0.0 | [Packages](/packages) |
 | Package manifest (`yg-package.yaml`) | `yg-package/1` | the package author | Yggdrasil — `yg pack`, `yg marketplace check` | 6.0.0 | [Packages](/packages) |
 | Package record (`.yggdrasil/yg-packages.yaml`) — what is installed, not a verdict lock | `yg-packages/1` | Yggdrasil — `yg pack` | Yggdrasil — the `package-file-modified` rail and `yg advise`; no external consumer | 6.0.0; the optional `requested`, `tag`, `commit` and `identity` fields arrived in 6.1.0, and a record without them is still read | [Packages](/packages) |
@@ -66,6 +73,6 @@ That rule has one recorded exception, taken deliberately in 6.0.0. Normalising e
 
 Two halves, both deterministic, no network and no clock.
 
-In Yggdrasil, `source/cli/tests/unit/repo/family-contracts-invariant.test.ts` reads every `*_JSON_SCHEMA` constant out of `source/cli/src/formatters/` and requires each one on this page, and requires every `yg-…/N` id on this page to be either one of those constants or on a named whitelist of documents produced elsewhere. The assertion runs both ways on purpose: one direction alone lets a row for a document that no longer exists sit here forever.
+In Yggdrasil, `source/cli/tests/unit/repo/family-contracts-invariant.test.ts` reads every `*_JSON_SCHEMA` constant out of `source/cli/src/formatters/` and `source/cli/src/cli/` and requires each one on this page, and requires every `yg-…/N` id on this page to be either one of those constants or on a named whitelist of documents produced elsewhere. The assertion runs both ways on purpose: one direction alone lets a row for a document that no longer exists sit here forever.
 
 In Grain, the seam job — the only CI that has all three checkouts at once — scans Horde's scripts for the schema ids they read, collects the ids Grain writes, and requires every one of them on this page. Drift in any of the three repositories turns that job red.

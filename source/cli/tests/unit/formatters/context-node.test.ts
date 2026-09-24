@@ -66,7 +66,7 @@ describe('formatNodeContext', () => {
     // Parent
     expect(output).toContain('Parent: cli/core (module)');
     // Workflow footer — lock vocabulary, never the retired `yg approve`.
-    expect(output).toContain('After modifying source files in this node: run yg check, then yg check --approve');
+    expect(output).toContain('After modifying source files in this node:\nnext: yg check\nthen: yg check --approve');
     expect(output).not.toContain('yg approve');
   });
 
@@ -168,13 +168,13 @@ describe('formatNodeContext', () => {
   it('shows consequence framing for 6+ dependents', () => {
     const output = formatNodeContext(makeNodeData({ dependentCount: 8, dependentPaths: [] }));
     expect(output).toContain("Moderate blast radius — changes trigger cascade review on 8 nodes");
-    expect(output).toContain('Run: yg impact');
+    expect(output).toContain('next: yg impact');
   });
 
   it('shows HIGH blast radius for 16+ dependents', () => {
     const output = formatNodeContext(makeNodeData({ dependentCount: 20, dependentPaths: [] }));
     expect(output).toContain('HIGH blast radius');
-    expect(output).toContain('Strongly recommended: yg impact');
+    expect(output).toContain('(strongly recommended before editing)');
   });
 
   it('shows plain list for 1-5 dependents', () => {
@@ -254,7 +254,7 @@ describe('formatNodeContext', () => {
       dependentPaths: undefined,
     }));
     expect(output).toContain('Dependents (2):');
-    expect(output).toContain('Run: yg impact');
+    expect(output).toContain('next: yg impact');
   });
 
   it('uses singular for 1 aspect', () => {

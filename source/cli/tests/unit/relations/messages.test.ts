@@ -139,7 +139,7 @@ describe('relationRefusedMessage', () => {
     const m = relationRefusedMessage(graph, 'a', [viol('src/a/foo.ts', 9, 'g')]);
     expect(m.next).toContain('no relation type is allowed from service to gateway');
     expect(m.next).toContain('.yggdrasil/yg-architecture.yaml');
-    expect(m.next).toContain('requires confirming the architecture change');
+    expect(m.next).toContain('ask the user to approve an architecture change');
     // No stanza for a dead-end.
     expect(m.next).not.toContain('- target: g');
   });

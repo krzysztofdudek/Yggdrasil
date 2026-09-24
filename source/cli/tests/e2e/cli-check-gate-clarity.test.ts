@@ -2,15 +2,15 @@
 // CLI E2E — the check gate tells the truth about what blocks it and what to do.
 //
 // Every scenario here is one an adopter met where the report, the `--json`
-// document or the `Next:` line pointed at a command that could not help — or
+// document or the `next:` line pointed at a command that could not help — or
 // where the command itself stopped for a reason that did not apply to it:
 //
 //   1. keyless project + one judgment rule: the free gate still fills the
-//      script rules, a preview still previews, and `Next:` names the missing
+//      script rules, a preview still previews, and `next:` names the missing
 //      reviewer instead of an `--approve` that aborts
 //   2. an advisory judgment rule with no reviewer never blocks
 //   3. an infrastructure failure (reviewer unreachable, check.mjs that cannot
-//      run) is named on the report and in `--json`, and `Next:` points at it
+//      run) is named on the report and in `--json`, and `next:` points at it
 //   4. an async check.mjs that throws still reaches the report
 //   5. a reason-less yg-suppress marker is warned about before it matters
 //   6. a log conflict met mid-merge, mid-rebase or mid-cherry-pick resolves with
@@ -56,7 +56,7 @@ function git(args: string[], cwd: string): string {
 }
 
 interface JsonIssue { code: string; severity: string; cause?: string; next: string; what: string; why: string }
-interface JsonDoc { issues: JsonIssue[]; suggestedNext: string | null; exit: { code: number } }
+interface JsonDoc { issues: JsonIssue[]; suggestedNext: string | null; next: { command: string[] } | null; exit: { code: number } }
 
 function json(r: Run): JsonDoc {
   return JSON.parse(r.stdout) as JsonDoc;
@@ -107,7 +107,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         // Still red: the enforced judgment rule has no judge.
         expect(r.status).toBe(1);
         expect(r.stdout).toContain('config-reviewer-missing');
-        expect(r.stdout).toContain('unverified (no reviewer configured)');
+        expect(r.stdout).toMatch(/^error\[unverified\] \d+ pairs? with no reviewer configured to judge them$/m);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -171,7 +171,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
   });
 
   describe('3. an infrastructure failure is on the report, not only on stderr', () => {
-    it('names reviewer-unreachable and check-failed-to-run, and Next points at a fix', () => {
+    it('names reviewer-unreachable and check-failed-to-run, and next: points at a fix', () => {
       const dir = project('infra');
       try {
         edit(dir, '.yggdrasil/yg-config.yaml', (s) => s.replace(/endpoint:.*/, 'endpoint: "http://127.0.0.1:9"'));
@@ -185,9 +185,10 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(doc.suggestedNext).not.toBe('yg check --approve');
         // The text report carries the same.
         const text = run(['check', '--approve'], dir);
-        expect(text.stdout).toContain('unverified (reviewer unreachable this run)');
-        expect(text.stdout).toContain('unverified (check.mjs failed to run)');
-        expect(text.stdout).not.toMatch(/Next: yg check --approve\s*$/m);
+        expect(text.stdout).toMatch(/^error\[unverified\] \d+ pairs? left unjudged — the reviewer was unreachable this run$/m);
+        expect(text.stdout).toMatch(/^error\[unverified\] \d+ pairs? whose check\.mjs failed to run$/m);
+        expect(text.stdout).not.toMatch(/^next: yg check --approve\s*$/m);
+        expect(text.stdout).toMatch(/^next: \S/m);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -206,8 +207,8 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const r = run(['check', '--approve', '--only-deterministic'], dir);
         expect(r.stderr).not.toContain('Error: f.read is not a function');
         expect(r.stdout).toContain('yg check: FAIL');
-        expect(r.stdout).toContain('unverified (check.mjs failed to run)');
-        expect(r.stdout).toContain('Fix: Refactor check to be synchronous.');
+        expect(r.stdout).toMatch(/^error\[unverified\] \d+ pairs? whose check\.mjs failed to run$/m);
+        expect(r.stdout).toContain('  fix:  Refactor check to be synchronous.');
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -266,7 +267,8 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(readFileSync(logPath, 'utf-8')).toMatch(/^<{7}/m);
 
         const doc = json(run(['check', '--json'], dir));
-        expect(doc.suggestedNext).toBe('yg log merge-resolve --node services/payments');
+        expect(doc.next?.command.join(' ')).toBe('yg log merge-resolve --node services/payments');
+    expect(doc.suggestedNext).toMatch(/^yg log merge-resolve --node services\/payments(\s|$)/);
 
         const r = run(['log', 'merge-resolve', '--node', 'services/payments'], dir);
         expect(r.status).toBe(0);
@@ -340,7 +342,8 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
     }
     const doc = json(run(['check', '--json'], dir));
     expect(doc.issues.some((i) => i.code === 'log-conflict')).toBe(true);
-    expect(doc.suggestedNext).toBe('yg log merge-resolve --node services/payments');
+    expect(doc.next?.command.join(' ')).toBe('yg log merge-resolve --node services/payments');
+    expect(doc.suggestedNext).toMatch(/^yg log merge-resolve --node services\/payments(\s|$)/);
     const r = run(['log', 'merge-resolve', '--node', 'services/payments'], dir);
     git(['add', '-A'], dir);
     return r;
@@ -359,6 +362,17 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
   /** base (approved) → branch feat-a with two approved entries → main with one approved entry, written after them. */
   function divergedProject(label: string): { dir: string; main: string } {
     const dir = project(label);
+    // A setup step that fails removes its own directory: the caller's
+    // try/finally has not started yet, so it could not.
+    try {
+      return buildDiverged(dir);
+    } catch (e) {
+      rmSync(dir, FIXTURE_RM_OPTIONS);
+      throw e;
+    }
+  }
+
+  function buildDiverged(dir: string): { dir: string; main: string } {
     dropJudgmentRule(dir);
     makeServiceLogRequired(dir);
     run(['log', 'add', '--node', 'services/payments', '--reason', 'initial'], dir);
@@ -508,6 +522,16 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
      */
     function chainProject(label: string): { dir: string; main: string } {
       const dir = project(label);
+      // As divergedProject: a failed setup removes its own directory.
+      try {
+        return buildChain(dir);
+      } catch (e) {
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+        throw e;
+      }
+    }
+
+    function buildChain(dir: string): { dir: string; main: string } {
       dropJudgmentRule(dir);
       makeServiceLogRequired(dir);
       run(['log', 'add', '--node', 'services/payments', '--reason', 'initial'], dir);
@@ -607,8 +631,9 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         makeServiceLogRequired(dir);
         const r = run(['check', '--approve', '--only-deterministic'], dir);
         expect(r.status).toBe(1);
-        expect(r.stderr).not.toContain('Filling ');
-        expect(r.stdout).toContain('then re-run: yg check --approve --only-deterministic');
+        expect(r.stderr).not.toMatch(/^fill {2}/m);
+        expect(r.stdout).toMatch(/^then: yg check --approve --only-deterministic$/m);
+        expect(r.stdout).toContain('Then re-run yg check --approve --only-deterministic.');
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -622,7 +647,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         appendFileSync(path.join(dir, 'src', 'services', 'orders.ts'), '// TODO refuse\n');
         const r = run(['check', '--approve', '--only-deterministic'], dir);
         expect(r.stderr).not.toContain('all expected pairs hold valid verdicts');
-        expect(r.stderr).toMatch(/0 reviewer calls made — .*\d+ deterministic pairs? filled \(\d+ approved, [1-9]\d* refused\)/);
+        expect(r.stderr).toMatch(/^fill {2}done in .* — \d+ approved · [1-9]\d* refused · \d+ failed · 0 reviewer calls/m);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
@@ -743,12 +768,12 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const freshCauses = fresh.issues.filter((i) => i.code === 'unverified').map((i) => i.cause);
         expect(freshCauses.every((c) => c === 'deterministic-not-run')).toBe(true);
         expect(fresh.suggestedNext).toBe('yg check --approve --only-deterministic');
-        expect(run(['check'], dir).stdout).toContain('unverified (deterministic check not run on this checkout — free)');
+        expect(run(['check'], dir).stdout).toMatch(/^error\[unverified\] \d+ pairs? whose script check has not run on this checkout — free to run$/m);
         // Filled, then the code moves: the verdict is stale, not "not yet reviewed".
         run(['check', '--approve', '--only-deterministic'], dir);
         appendFileSync(path.join(dir, 'src', 'services', 'orders.ts'), '// moved\n');
         const text = run(['check'], dir).stdout;
-        expect(text).toContain('unverified (stale — inputs changed since the verdict)');
+        expect(text).toMatch(/^error\[unverified\] \d+ pairs? whose inputs changed since the verdict$/m);
         expect(json(run(['check', '--json'], dir)).issues.some((i) => i.cause === 'stale')).toBe(true);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -762,8 +787,10 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
       try {
         edit(dir, '.yggdrasil/model/services/orders/yg-node.yaml', (s) => s.replace('mapping:', 'mapping: 5\nx:'));
         const text = run(['check'], dir).stdout;
-        expect(text).toMatch(/yaml-invalid {2}1 issue {2}/);
-        expect(text).not.toMatch(/yaml-invalid {2}1 pairs/);
+        // A non-pair finding is one block with no pair count, and counts as one error issue in the verdict line.
+        expect(text).toMatch(/^error\[yaml-invalid\] yg-node\.yaml in services\/orders /m);
+        expect(text).not.toMatch(/^error\[yaml-invalid\].*\bpairs?\b/m);
+        expect(text).toMatch(/^yg check: FAIL {2}5 errors · /m);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }

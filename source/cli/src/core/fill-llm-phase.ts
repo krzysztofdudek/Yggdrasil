@@ -187,7 +187,7 @@ export async function runLlmPhase({
         writer.emitEvent(item.pair.aspectId, toPosixPath(item.pair.unitKey), 'llm', 'infra', { tier: tierName, judge: judgeIdentity(baseTier) });
       }
       const unreachable: IssueMessage = {
-        what: `Reviewer provider '${baseTier.provider}' (tier '${tierName}') cannot run: ${probe.reason}. ${group.length} pair(s) left unverified.`,
+        what: `Reviewer provider '${baseTier.provider}' (tier '${tierName}') cannot run: ${probe.reason}. ${group.length} ${group.length === 1 ? 'pair' : 'pairs'} left unverified.`,
         why: 'The reviewer failed its availability check before any pair was sent — an infrastructure problem, not a code violation. No verdict was written.',
         next: `Fix the cause above, then re-run: yg check --approve. ${REVIEWER_DEBUG_HINT}`,
       };

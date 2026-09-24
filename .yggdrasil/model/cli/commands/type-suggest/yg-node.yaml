@@ -8,6 +8,8 @@ description: Suggests which node_type a file fits based on architecture `when`
 aspects:
   - posix-paths-output
 relations:
+  - target: cli/output
+    type: calls
   - target: cli/core/loader
     type: calls
   - target: cli/core/type-classifier

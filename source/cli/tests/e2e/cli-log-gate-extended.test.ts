@@ -201,7 +201,10 @@ function buildMergeRepo(label: string, resolvedLog: string): string {
   return repo;
 }
 
-const GATE_FIRED = "No fresh log entry for node 'services/orders' — mandatory before recording verdicts when its source drifted.";
+// The drift gate's own why: printed only when --approve stops on a component whose source drifted with no fresh entry.
+const GATE_FIRED = "This component's source has drifted from the state its recorded verdicts were written over";
+// The gate names the drifted node in its block's at: line.
+const GATE_NAMES_ORDERS = /at:\s+services\/orders$/m;
 
 describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node-path syntax, merge-resolve paths', () => {
   // =========================================================================
@@ -265,10 +268,11 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       const { status, all } = run(['check', '--approve'], dir);
       expect(status).toBe(1);
       expect(all).toContain(GATE_FIRED);
+      expect(all).toMatch(GATE_NAMES_ORDERS);
       expect(all).toContain("Node type 'service' has log_required: true");
       expect(all).toContain('yg log add --node services/orders');
       // The fix must not push an agent into inventing a WHY for a change it did not make.
-      expect(all).toContain("if you did not make this change, ask the user for the reason");
+      expect(all).toContain("If you did not make this change, ask the user for the reason");
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -304,6 +308,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // Even with every aspect advisory, a missing log hard-stops the run: the gate
       // message prints, exit is 1, and the normal yg-check report is NOT rendered.
       expect(all).toContain(GATE_FIRED);
+      expect(all).toMatch(GATE_NAMES_ORDERS);
       expect(all).toContain("Node type 'service' has log_required: true");
       expect(status).toBe(1);
       // Hard stop → no report of the tree: the abort is reported under its own
@@ -337,22 +342,25 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
 
       // Source change, no log entry at all, no prior baseline.
       writeFileSync(ordersFile(dir), readFileSync(ordersFile(dir), 'utf-8') + '\nexport const d = 4;\n', 'utf-8');
-      const { status, stderr, all } = run(['check', '--approve'], dir);
+      const { status, stdout, stderr, all } = run(['check', '--approve'], dir);
 
       // Zero pairs to fill, yet the requirement still bites: the live check demands
       // an entry regardless of aspect/pair state, and the run ends red. In the
       // grouped post-fill check body the per-issue `what`
       // ("No fresh log entry for node '<node>'") is gone for the non-FULL_WHAT
       // log-entry-missing code; assert the group label/code, the now-visible why,
-      // the Fix naming the node, and the `- <node>` line instead.
+      // the fix naming the node, and the block's `at:` member line instead.
       expect(status).toBe(1);
       expect(all).toContain('log-entry-missing');
       expect(all).toContain("has log_required: true — every source change needs a log entry");
       expect(all).toContain('yg log add --node services/orders');
-      expect(all).toContain('- services/orders');
-      expect(all).toContain("if you did not make this change, ask the user for the reason");
-      // Fill progress goes to STDERR; final report to STDOUT.
-      expect(stderr).toContain('Filling 0 unverified pairs across 0 nodes');
+      expect(all).toMatch(/at:\s+services\/orders$/m);
+      expect(all).toContain("If you did not make this change, ask the user for the reason");
+      // Zero pairs to fill: a fill with nothing to do prints no fill line on STDERR,
+      // and the verdict line shows every pair skipped as draft with none verified.
+      expect(stderr).not.toContain('fill  ');
+      expect(stdout).toMatch(/^yg check: FAIL .* · 3 draft pairs skipped$/m);
+      expect(stdout).not.toContain('pairs verified');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -461,11 +469,11 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // In the grouped read-only check body the per-issue `what`
       // ("No fresh log entry for node '<node>'") is gone for the non-FULL_WHAT
       // log-entry-missing code; assert the group label/code, the now-visible why,
-      // the Fix naming the node, and the `- <node>` line instead.
+      // the fix naming the node, and the block's `at:` member line instead.
       expect(plain.all).toContain('log-entry-missing');
       expect(plain.all).toContain("has log_required: true — every source change needs a log entry");
       expect(plain.all).toContain('yg log add --node services/orders');
-      expect(plain.all).toContain('- services/orders');
+      expect(plain.all).toMatch(/at:\s+services\/orders$/m);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -738,8 +746,8 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'add', '--node', 'services/ghost', '--reason', 'x'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Node not found: services/ghost');
-      expect(all).toContain('before log entries can be added');
+      expect(all).toContain("error[node-not-found]: node 'services/ghost' is not in the graph");
+      expect(all).toContain('A log entry belongs to a node, so the node must exist first.');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -750,7 +758,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
     try {
       const { status, all } = run(['log', 'read', '--node', 'services/ghost'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Node not found: services/ghost');
+      expect(all).toContain("error[node-not-found]: node 'services/ghost' is not in the graph");
       expect(all).toContain('before its log can be read');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -763,7 +771,7 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // node-not-found fires before the merge-commit check, so no git repo needed.
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/ghost'], dir);
       expect(status).toBe(1);
-      expect(all).toContain('Node not found: services/ghost');
+      expect(all).toContain("error[node-not-found]: node 'services/ghost' is not in the graph");
       expect(all).toContain('before its log can be merge-resolved');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);

@@ -140,9 +140,15 @@ describe.skipIf(!distExists)('CLI E2E — yg advise C8 structural-deviation line
       expect(matches).toHaveLength(1); // ONE aggregate line, no per-file spam
       expect(Number(matches[0][1])).toBe(2); // stale entry excluded
 
-      // The line lives in Attention (before Nominations), is a bare count, and never
-      // names a file or a dimension — no per-file detail leaks into the feed.
-      expect(stdout.indexOf('deviate structurally')).toBeLessThan(stdout.indexOf('Nominations'));
+      // The line lives in the attention section (before the nominations section),
+      // is a bare count, and never names a file or a dimension — no per-file
+      // detail leaks into the feed.
+      const attentionAt = stdout.search(/^attention$/m);
+      const nominationsAt = stdout.search(/^nominations$/m);
+      expect(attentionAt).toBeGreaterThan(-1);
+      expect(nominationsAt).toBeGreaterThan(-1);
+      expect(stdout.indexOf('deviate structurally')).toBeGreaterThan(attentionAt);
+      expect(stdout.indexOf('deviate structurally')).toBeLessThan(nominationsAt);
       expect(stdout).not.toContain('src/svc/a.ts');
       expect(stdout).not.toContain('branch-like');
     } finally {

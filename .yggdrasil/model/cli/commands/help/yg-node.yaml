@@ -1,0 +1,21 @@
+name: HelpCommand
+type: command
+description: "The CLI's description of itself and of its own usage errors. It
+  replaces the flat list of commands with one grouped by what a reader is doing
+  (daily work, exploring the graph, working on rules, setting up), one line
+  each, with three examples; gives every command's own help the same one line,
+  its options in one style (capitalised, no closing full stop, a numeric
+  default unquoted), two or three examples, and its long description as an
+  About paragraph; and reports every error the argument parser raises (an
+  unknown option, a missing argument, an unknown command) in the one error
+  grammar, as a usage error whose next step is that command's help — a JSON
+  invocation also gets the machine form of the error. It registers after every
+  other command, because it describes what they registered."
+aspects: []
+relations:
+  - target: cli/output
+    type: calls
+  - target: cli/tests/unit/cli
+    type: uses
+mapping:
+  - source/cli/src/cli/help.ts

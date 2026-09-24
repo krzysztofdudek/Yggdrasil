@@ -89,22 +89,20 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       expect(status).toBe(0);
       // Free work covers all three components; paid work covers the one the
       // change reached. The header quotes the bill this run would actually run up.
-      expect(stdout).toContain(
-        'Filling 4 unverified pairs across 3 nodes — 3 deterministic (no cost), 1 reviewer calls (consensus included)',
-      );
+      expect(stdout).toContain('fill  4 pairs · 3 script (free) · 1 reviewer call');
       // And it says what it is NOT buying, so the smaller bill never reads as
       // "there was nothing else".
       expect(stdout).toContain(
-        '2 LLM pairs outside this change — run `yg check --full --approve` to review them.',
+        'fill  2 reviewer pairs outside this change left alone',
       );
       // The breakdown names the one paid subject and neither of the others…
-      expect(stdout).toContain('[llm] has-doc-comment on node:alpha — 1 reviewer call');
-      expect(stdout).not.toContain('[llm] has-doc-comment on node:beta');
-      expect(stdout).not.toContain('[llm] has-doc-comment on node:gamma');
+      expect(stdout).toContain('  has-doc-comment @ alpha — 1 reviewer call');
+      expect(stdout).not.toContain('has-doc-comment @ beta');
+      expect(stdout).not.toContain('has-doc-comment @ gamma');
       // …while the free checks, one per component, are counted rather than
       // listed: a preview lists what costs something.
-      expect(stdout).toContain('3 deterministic pairs — free, not listed');
-      expect(stdout).not.toContain('[det] no-todo-comments');
+      expect(stdout).toContain('  3 script pairs — free, not listed');
+      expect(stdout).not.toContain('no-todo-comments @');
       // A preview writes nothing and asks nobody anything.
       expect(mock.chatCount()).toBe(0);
       expect(reviewedUnits(fixture.dir)).toEqual([]);
@@ -116,8 +114,8 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
 
       const { stdout } = await runAsync(['check', '--approve', '--dry-run', '--full'], fixture.dir);
 
-      expect(stdout).toContain('3 reviewer calls (consensus included)');
-      expect(stdout).toContain('[llm] has-doc-comment on node:beta — 1 reviewer call');
+      expect(stdout).toContain('fill  6 pairs · 3 script (free) · 3 reviewer calls');
+      expect(stdout).toContain('  has-doc-comment @ beta — 1 reviewer call');
       expect(stdout).not.toContain('outside this change');
     });
 
@@ -129,13 +127,11 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       const { status, stdout } = await runAsync(['check', '--approve', '--dry-run'], fixture.dir);
 
       expect(status).toBe(0);
+      expect(stdout).toContain('fill  3 pairs · 3 script (free) · 0 reviewer calls');
       expect(stdout).toContain(
-        'Filling 3 unverified pairs across 3 nodes — 3 deterministic (no cost), 0 reviewer calls (consensus included)',
+        'fill  3 reviewer pairs outside this change left alone',
       );
-      expect(stdout).toContain(
-        '3 LLM pairs outside this change — run `yg check --full --approve` to review them.',
-      );
-      expect(stdout).not.toContain('[llm] has-doc-comment');
+      expect(stdout).not.toContain('has-doc-comment @');
       expect(mock.chatCount()).toBe(0);
     });
   });
@@ -156,8 +152,9 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       // obligations this change did not reach are still waiting for a reviewer.
       expect(reviewedUnits(fixture.dir)).toEqual(['node:alpha']);
       // The run says what it bought and what it left…
-      expect(stderr).toContain('1 reviewer calls (consensus included)');
-      expect(stderr).toContain('2 LLM pairs outside this change');
+      expect(stderr).toContain('fill  4 pairs · 3 script (free) · 1 reviewer call');
+      expect(stderr).toContain('fill  2 reviewer pairs outside this change left alone');
+      expect(stderr).toMatch(/fill {2}done in .* · 1 reviewer call · 2 reviewer pairs outside this change left alone\nnext: yg check --full --approve {2}\(reviews the pairs outside this change\)/);
       // …and passes: what it left is reported, without blocking.
       expect(status).toBe(0);
       expect(stdout).toContain('yg check: PASS');
@@ -173,10 +170,10 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       expect(mock.chatCount()).toBe(0);
       expect(reviewedUnits(fixture.dir)).toEqual([]);
       // Never "all expected pairs hold valid verdicts": three of them do not.
-      expect(stderr).toContain(
-        '0 reviewer calls made — 3 LLM pairs outside this change left unverified.',
+      expect(stderr).toMatch(
+        /fill {2}done in .* · 0 reviewer calls · 3 reviewer pairs outside this change left alone\nnext: yg check --full --approve {2}\(reviews the pairs outside this change\)/,
       );
-      expect(stderr).not.toContain('all expected pairs hold valid verdicts');
+      expect(stderr).toContain('fill  3 reviewer pairs outside this change left alone');
       // And a run that deliberately filled nothing is not a convergence failure:
       // the sentinel that watches for a fill accomplishing nothing stays silent.
       expect(stderr).not.toContain('Verification claimed nothing needed checking');
@@ -193,13 +190,14 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
 
       // alpha was in scope and would have been reviewed — the refusal is what
       // stopped it, and the run says so.
-      expect(stderr).toContain('1 reviewer calls (consensus included)');
-      expect(stderr).toContain("LLM fills for node 'alpha' skipped");
+      expect(stderr).toContain('fill  4 pairs · 3 script (free) · 1 reviewer call');
+      expect(stderr).toContain("Reviewer pairs for node 'alpha' skipped — an enforced script rule already refuses it.");
+      expect(stderr).toMatch(/fill {2}done in .* · 0 reviewer calls .*· reviewer skipped on 1 unit a script rule refuses/);
       expect(mock.chatCount()).toBe(0);
       expect(reviewedUnits(fixture.dir)).toEqual([]);
       // The refusal the change caused blocks; the ones it inherited do not.
       expect(status).toBe(1);
-      expect(stdout).toContain('src/alpha/alpha.ts:1: TODO comment found');
+      expect(stdout).toContain('alpha  src/alpha/alpha.ts:1  TODO comment found');
     });
   });
 
@@ -277,10 +275,11 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       fixture.commit('src/gamma/gamma.ts', '// gamma, documented.\nexport const gamma = 3;\nexport const unexplained = 5;\n');
       const { status, stdout, stderr } = await runAsync(['check', '--approve'], fixture.dir);
 
-      expect(stdout).toContain("No fresh log entry for node 'gamma'");
+      expect(stdout).toContain('yg check: ABORTED  nothing recorded — 1 node needs a log entry first');
+      expect(stdout).toMatch(/^error\[log-entry-missing\] 1 node changed with no log entry\n {2}at: {3}gamma$/m);
       expect(status).toBe(1);
       // Nothing was recorded over it — the gate stops the whole run.
-      expect(stderr).not.toContain('reviewer calls made');
+      expect(stderr).not.toMatch(/^fill {2}/m);
     });
 
     it('reports that same unexplained edit on a plain read', async () => {
@@ -291,7 +290,7 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       const { status, stdout } = await runAsync(['check', '--no-approve', '--full'], fixture.dir);
 
       expect(status).toBe(1);
-      expect(stdout).toContain("No fresh log entry for node 'gamma'");
+      expect(stdout).toMatch(/^error\[log-entry-missing\] 1 node changed with no log entry\n {2}at: {3}gamma$/m);
     });
 
     // The other half of the same property, and the reason spending the entry is
@@ -305,8 +304,8 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       const second = await runAsync(['check', '--approve'], fixture.dir);
       const third = await runAsync(['check', '--approve'], fixture.dir);
 
-      expect(second.stderr).not.toContain('No fresh log entry');
-      expect(third.stderr).not.toContain('No fresh log entry');
+      expect(second.all).not.toContain('log-entry-missing');
+      expect(third.all).not.toContain('log-entry-missing');
       expect(second.status).toBe(0);
       expect(third.status).toBe(0);
     });
@@ -318,7 +317,7 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
 
       const { stdout } = await runAsync(['check', '--no-approve', '--full'], fixture.dir);
 
-      expect(stdout).toContain("- gamma  aspect 'has-doc-comment'");
+      expect(stdout).toMatch(/^error\[unverified\] .*\n {2}at: {3}has-doc-comment @ gamma$/m);
     });
   });
 
@@ -371,7 +370,8 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       expect(plain.status).toBe(0);
       // The recording run is not, and it names the component it is waiting on.
       expect(recording.status).toBe(1);
-      expect(recording.stdout).toContain("No fresh log entry for node 'alpha'");
+      expect(recording.stdout).toContain('yg check: ABORTED  nothing recorded — 1 node needs a log entry first');
+      expect(recording.stdout).toMatch(/^error\[log-entry-missing\] 1 node changed with no log entry\n {2}at: {3}alpha$/m);
       // The reason has to survive the collision above: someone reading a green
       // read and a red recording run together must be able to tell that the
       // drift is measured from the recorded verdicts, not from their branch.
@@ -381,7 +381,7 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       // gamma's free check was ready to run and record, and did not, because one
       // OTHER component owes an entry. Byte-identical record, no fill summary.
       expect(recorded()).toBe(before);
-      expect(recording.stderr).not.toContain('reviewer calls made');
+      expect(recording.stderr).not.toMatch(/^fill {2}/m);
     });
 
     it('records again once the entry the gate asked for exists', () => {
@@ -390,10 +390,11 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       run(['log', 'add', '--node', 'alpha', '--reason', 'Explaining the move that happened on the reference.'], fixture.dir);
       const { status, stderr } = run(['check', '--approve'], fixture.dir);
 
-      expect(stderr).not.toContain('No fresh log entry');
+      expect(stderr).not.toContain('log-entry-missing');
       // The free half is whole-project, so both inherited drifts are re-checked
       // and recorded even though the change reached neither.
-      expect(stderr).toContain('Filling 2 unverified pairs across 2 nodes — 2 deterministic (no cost)');
+      expect(stderr).toContain('fill  2 pairs · 2 script (free) · 0 reviewer calls');
+      expect(stderr).toMatch(/fill {2}done in .* — 2 approved · 0 refused · 0 failed/);
       // beta's TODO still refuses — inherited, so the run stays green.
       expect(status).toBe(0);
     });

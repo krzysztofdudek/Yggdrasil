@@ -150,6 +150,17 @@ function edgesOf(issue: CheckIssue): CheckJsonEdge[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
+/**
+ * A refusal's violations as structured rows — the list its `what` carries
+ * under `Violations:` — or undefined for any other finding. One reader of that
+ * list, shared by the text report and this document, so the two can never
+ * list different violations.
+ */
+export function issueViolations(issue: CheckIssue): CheckJsonViolation[] | undefined {
+  if (!VIOLATION_CODES.has(issue.code) && !VIOLATION_CODES.has(issue.code.replace(/-outside$/, ''))) return undefined;
+  return violationsOf(issue.messageData.what);
+}
+
 function issueOf(issue: CheckIssue): CheckJsonIssue {
   const row: CheckJsonIssue = {
     code: issue.code,
@@ -167,10 +178,8 @@ function issueOf(issue: CheckIssue): CheckJsonIssue {
     const sep = unitKey.indexOf(':');
     if (sep > 0) row.unitRef = { kind: unitKey.startsWith('node:') ? 'node' : 'file', path: unitKey.slice(sep + 1) };
   }
-  if (VIOLATION_CODES.has(issue.code) || VIOLATION_CODES.has(issue.code.replace(/-outside$/, ''))) {
-    const violations = violationsOf(issue.messageData.what);
-    if (violations !== undefined) row.violations = violations;
-  }
+  const violations = issueViolations(issue);
+  if (violations !== undefined) row.violations = violations;
   const edges = edgesOf(issue);
   if (edges !== undefined) row.edges = edges;
   if (issue.uncoveredFiles !== undefined) row.files = issue.uncoveredFiles.map(toPosixPath);

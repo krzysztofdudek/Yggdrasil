@@ -97,7 +97,7 @@ export function reasonlessMarkerMessage(file: string, line: number, aspect: stri
   return {
     what: `yg-suppress marker at ${file}:${line} has no reason.`,
     why: 'A reason is required. A marker without one waives nothing: as soon as the check flags a line it covers, the fill rejects the marker (malformed-suppress-marker) and leaves the pair unverified — until then nothing else reports it.',
-    next: `Add the reason after the marker (\`yg-suppress(${aspect}) <why this is acceptable>\` — the user approves the reason), or remove the marker.`,
+    next: `Add the reason after the marker in ${file}:${line} (\`yg-suppress(${aspect}) <why this is acceptable>\`) and ask the user to approve it first, or remove the marker.`,
   };
 }
 

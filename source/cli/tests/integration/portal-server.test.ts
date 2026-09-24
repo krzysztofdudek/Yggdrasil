@@ -535,9 +535,12 @@ describe('parseDryRunBudget — the engine budget header parse', () => {
   });
 
   it('carries the human header line verbatim as raw when the CLI printed one', () => {
-    const header = 'Filling 5 unverified pairs across 3 nodes — 2 deterministic (no cost), 7 reviewer calls (consensus included)';
+    // The fill's own count line, after the dry-run line that says what the run is.
+    const header = 'fill  5 pairs · 2 script (free) · 7 reviewer calls';
     const doc = JSON.stringify({ schema: 'yg-check/1', dryRunBudget: { pairs: 5, nodes: 3, files: 0, deterministic: 2, reviewerCalls: 7 } });
-    expect(parseDryRunBudget(doc, `${header}\nmore\n`).raw).toBe(header);
+    const stderr = `fill  dry run — a cost preview; nothing is filled or written\n${header}\nmore\n`;
+    expect(parseDryRunBudget(doc, stderr).raw).toBe(header);
+
   });
 
   it('throws when the document carries no budget (no preview ran), or is not JSON', () => {

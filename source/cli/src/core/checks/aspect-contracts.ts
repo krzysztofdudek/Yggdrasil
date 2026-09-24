@@ -585,7 +585,7 @@ export function checkReviewOverdue(graph: Graph, todayUtc: Date): ValidationIssu
     const msgData: IssueMessage = {
       what: `Aspect '${aspect.id}' is past its review_by date (${aspect.reviewBy}).`,
       why: 'A review_by date is a standing request to re-examine whether this rule still earns its place — the date has passed, so the rule is running unreviewed.',
-      next: 'Ask the user to renew or retire this rule — propose a new review_by date or a demotion; never change the date without their approval.',
+      next: 'Propose a new review_by date or a demotion, and ask the user to approve it first — never change the date yourself.',
     };
     issues.push({
       severity: 'warning',
@@ -665,7 +665,7 @@ export async function checkAspectReferences(graph: Graph): Promise<ValidationIss
       const msgData: IssueMessage = {
         what: `Aspect '${aspect.id}' declares 'references: []' (empty list).`,
         why: `empty list has no effect; this is likely a mid-edit state.`,
-        next: `either populate the list, or remove the 'references:' line entirely.`,
+        next: `Populate the list in .yggdrasil/aspects/${aspect.id}/yg-aspect.yaml, or remove its 'references:' line.`,
       };
       issues.push({
         severity: 'warning',

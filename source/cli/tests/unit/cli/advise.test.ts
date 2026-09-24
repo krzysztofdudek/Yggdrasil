@@ -192,12 +192,12 @@ describe.skipIf(!distExists)('yg advise — Step 1: sections, precedence, proven
   });
   afterEach(() => rmSync(projectRoot, { recursive: true, force: true }));
 
-  it('renders Attention + Nominations, ordered by class precedence, exit 0', () => {
+  it('renders the attention + nominations sections, ordered by class precedence, exit 0', () => {
     const { status, stdout } = run(['advise'], projectRoot);
     expect(status).toBe(0);
 
     // Attention: the C7 tunnel aggregate line with a real, positive count.
-    expect(stdout).toContain('Attention');
+    expect(stdout).toMatch(/^attention$/m);
     const m = stdout.match(
       /(\d+) dependencies jump across distant parts of the architecture — run yg structure to see them/,
     );
@@ -205,7 +205,7 @@ describe.skipIf(!distExists)('yg advise — Step 1: sections, precedence, proven
     expect(Number(m![1])).toBeGreaterThanOrEqual(1);
 
     // Nominations: suppress-anomaly ABOVE dead-attach ABOVE orphaned ABOVE overdue.
-    expect(stdout).toContain('Nominations');
+    expect(stdout).toMatch(/^nominations$/m);
     const iSuppress = stdout.indexOf('is risky (wildcard)');
     const iDead = stdout.indexOf('has a rule source but is effective on zero nodes');
     const iOrphan = stdout.indexOf('is defined but not referenced');
@@ -216,19 +216,19 @@ describe.skipIf(!distExists)('yg advise — Step 1: sections, precedence, proven
     expect(iOverdue).toBeGreaterThan(iOrphan);
   });
 
-  it('quotes the suppress evidence with provenance and ends every NEXT with the approval note', () => {
+  it('quotes the suppress evidence with provenance and puts the approval note in every fix', () => {
     const { stdout } = run(['advise'], projectRoot);
     // Provenance-quoted marker (RZ-5 injection hygiene): repo text is DATA, not prose.
     expect(stdout).toMatch(/marker '\*' at src\/auth\/auth\.controller\.ts:\d+/);
     expect(stdout).toContain('suppress reason: "test wildcard waiver"');
     // Every nomination names a human action requiring approval.
-    const approvals = stdout.match(/Requires the user's approval/g) ?? [];
-    const nominations = stdout.match(/ {4}(marker|Its attach|Orphaned aspects|A review_by)/g) ?? [];
+    const approvals = stdout.match(/ask the user to approve it first/g) ?? [];
+    const nominations = stdout.match(/^nomination\[/gm) ?? [];
     expect(approvals.length).toBeGreaterThanOrEqual(nominations.length);
     expect(approvals.length).toBeGreaterThanOrEqual(4);
-    // The action line is labelled like every other Next: in the CLI, and speaks
-    // about the user in the third person — the reader is usually an agent.
-    const nextLines = stdout.match(/^ {4}Next: .*Requires the user's approval\.$/gm) ?? [];
+    // The action line is the block's fix: line, and speaks about the user in the
+    // third person — the reader is usually an agent.
+    const nextLines = stdout.match(/^ {2}fix: {2}.*ask the user to approve it first\b.*$/gm) ?? [];
     expect(nextLines.length).toBe(approvals.length);
     expect(stdout).not.toContain('requires your approval');
   });
@@ -255,13 +255,11 @@ describe.skipIf(!distExists)('yg advise — Step 2: cap, --all, --ids (spawned)'
     expect(status).toBe(0);
     const shown = (stdout.match(/is risky \(wildcard\)/g) ?? []).length;
     expect(shown).toBe(10);
-    expect(stdout).toMatch(/and \d+ more nomination/);
-    expect(stdout).toContain(`${MARKERS - 10} more`);
-    // Pinned to the exact pre-existing footer wording: `yg advise` output is
-    // unconditional (not gated by `coverage.type_level`), so it is held to the
-    // same flag-off byte-identity contract as every other command — this exact
-    // string must never drift without a matching entry in CHANGELOG.md.
-    expect(stdout).toContain('more nominations not shown — run yg advise --all to see them all.');
+    // Pinned to the exact footer wording: `yg advise` output is unconditional
+    // (not gated by `coverage.type_level`), so it is held to the same flag-off
+    // byte-identity contract as every other command — this exact string must
+    // never drift without a matching entry in CHANGELOG.md.
+    expect(stdout).toContain(`… +${MARKERS - 10} more  (yg advise --all)`);
   });
 
   it('--all removes the cap and shows every nomination', () => {
@@ -274,7 +272,7 @@ describe.skipIf(!distExists)('yg advise — Step 2: cap, --all, --ids (spawned)'
   it('--ids prints the stable <classKey>:<key> under each nomination', () => {
     const { status, stdout } = run(['advise', '--ids'], projectRoot);
     expect(status).toBe(0);
-    expect(stdout).toMatch(/id: suppress-anomaly:src\/auth\/auth\.controller\.ts:\d+/);
+    expect(stdout).toMatch(/^ {2}id: {3}suppress-anomaly:src\/auth\/auth\.controller\.ts:\d+$/m);
   });
 });
 
@@ -444,7 +442,7 @@ describe.skipIf(!distExists)('yg advise — id-surface injection hygiene (spawne
     expect(status).toBe(0);
     expect(rawControlBytes(stdout)).toBe(0);
     // Still rendered — the bytes are folded to a space, never dropped or line-broken.
-    expect(stdout).toContain(`id: ${SANITIZED}`);
+    expect(stdout).toContain(`id:   ${SANITIZED}`);
   });
 
   it('the dismiss "known ids" error join neutralizes control bytes in the listed ids', () => {
@@ -519,7 +517,7 @@ describe.skipIf(!distExists)('yg advise — drill-miss is gated to the current i
     const { status, stdout } = run(['advise', '--all', '--ids'], projectRoot);
     expect(status).toBe(0);
     // The in-corpus dev case surfaces as a LIVE regression alarm, id and all.
-    expect(stdout).toContain('id: drill-miss:requires-audit/violates-in-dev/case');
+    expect(stdout).toContain('id:   drill-miss:requires-audit/violates-in-dev/case');
     expect(stdout).toContain("A regression case for rule 'requires-audit' is no longer caught.");
     // The orphan (dev, case gone from the corpus) and the holdout (external
     // measurement) produce NOTHING — nothing left to re-drill or retire.
@@ -1019,7 +1017,7 @@ describe.skipIf(!distExists)('yg advise — T2 family-without-law (spawned)', ()
 
     // NEXT names the exact action and ends with the literal consent suffix.
     expect(stdout).toContain('Create a draft aspect scoped to');
-    expect(stdout).toMatch(/for these 5 files, then supply the rationale — never invent it — requires the user's consent\./);
+    expect(stdout).toMatch(/for these 5 files, then supply the rationale — never invent it — and ask the user to approve it first\./);
 
     // Exactly one family item (one planted family).
     expect((stdout.match(/A candidate rule family —/g) ?? []).length).toBe(1);
@@ -1028,7 +1026,7 @@ describe.skipIf(!distExists)('yg advise — T2 family-without-law (spawned)', ()
   it('--ids shows the family stable id under the item', () => {
     const { status, stdout } = run(['advise', '--ids'], projectRoot);
     expect(status).toBe(0);
-    expect(stdout).toContain('id: family-without-law:family-typescript-fam0');
+    expect(stdout).toContain('id:   family-without-law:family-typescript-fam0');
   });
 
   it('omits the class silently when the candidates file is absent', () => {
@@ -1084,7 +1082,7 @@ describe.skipIf(!distExists)('yg advise — T2 architecture-cut (spawned)', () =
       expect(status).toBe(0);
       expect(stdout).toContain("Module groups 'ga', 'gb' depend on each other in a loop.");
       expect(stdout).toContain('structure quotient depth 1');
-      expect(stdout).toContain("Consider a cut between these module groups, or declare a contract (a port) across the boundary — requires the user's consent.");
+      expect(stdout).toContain("Consider a cut between these module groups, or declare a contract (a port) across the boundary — ask the user to approve it first.");
       // Exactly one item (the finer depth-2 view of the same loop is suppressed).
       expect((stdout.match(/depend on each other in a loop/g) ?? []).length).toBe(1);
       // NEVER the internal graph-theory terms in user-facing output.
@@ -1137,7 +1135,7 @@ describe.skipIf(!distExists)('yg advise — T2 shares the JOINT cap with T1 (non
     expect(overdueShown).toBe(true); // the T0 outranks every family
     // 13 total, cap 10 → 1 T0 + 9 families shown (NOT 1 + 10 = 11: the cap is joint).
     expect(familiesShown).toBe(9);
-    expect(stdout).toMatch(/and 3 more nomination/);
+    expect(stdout).toContain('… +3 more  (yg advise --all)');
   });
 
   it('--all lifts the cap and shows every family', () => {

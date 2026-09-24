@@ -130,11 +130,38 @@ export function runCheck(cwd: string): { out: string; status: number | null } {
   // has not carried since 6.0.0. The count-parity specs read their
   // ground truth out of that listing (the repo-wide zero-enforcement and
   // uncomputable roll-ups the portal's own ledger must agree with), so it has
-  // to be asked for by name here. It only ADDS the block: every other count
-  // these specs parse — the header split, Errors(N)/Warnings(N), the rule
-  // groups — is byte-identical with and without it.
+  // to be asked for by name here. It only ADDS the block. The counts, the
+  // coverage split and the finding groups are read from `runCheckJson` instead.
   const res = spawnSync('node', [BIN_PATH, 'check', '--coverage'], { cwd, encoding: 'utf-8' });
   return { out: (res.stdout ?? '') + (res.stderr ?? ''), status: res.status };
+}
+
+/**
+ * The slice of `yg check --json`'s `yg-check/1` document the count-parity specs read: the
+ * error/warning totals, the coverage split, and the finding groups the text report renders
+ * as one `error[…]` / `warning[…]` block each.
+ */
+export interface CheckJsonDoc {
+  schema: string;
+  totals: { errors: number; warnings: number; verified: { deterministic: number; llm: number } };
+  coverage: { files: number; covered: number; nodeOwned: number | null; typeCovered: number | null; excluded: number | null };
+  groups: Array<{ code: string; label: string; cause?: string; severity: 'error' | 'warning'; subject: string; why: string; members: number[] }>;
+  issues: Array<{ code: string; label: string; severity: 'error' | 'warning'; what: string }>;
+}
+
+/**
+ * Spawn `yg check --json` over `cwd` and parse its `yg-check/1` document — the CLI's own
+ * machine-readable report, carrying the same counts and groups the text report prints, so a
+ * parity spec compares the portal against the CLI's facts rather than against a regex over
+ * its prose layout. Throws when stdout is not a `yg-check/1` document.
+ */
+export function runCheckJson(cwd: string): { doc: CheckJsonDoc; status: number | null } {
+  // A repo-sized document runs to megabytes; spawnSync's 1 MiB default would cut it off mid-string.
+  const res = spawnSync('node', [BIN_PATH, 'check', '--json'], { cwd, encoding: 'utf-8', maxBuffer: 512 * 1024 * 1024 });
+  if (res.error) throw res.error;
+  const doc = JSON.parse(res.stdout ?? '') as CheckJsonDoc;
+  if (doc.schema !== 'yg-check/1') throw new Error(`yg check --json printed schema ${JSON.stringify(doc.schema)}, not yg-check/1:\n${res.stdout}\n${res.stderr}`);
+  return { doc, status: res.status };
 }
 
 /**

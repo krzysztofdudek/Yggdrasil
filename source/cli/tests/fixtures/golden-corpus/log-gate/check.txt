@@ -1,53 +1,39 @@
 $ yg check
 exit: 1
 --- stdout
-yg check: FAIL  25 nodes · 24/28 files (86%) · 1 aspect · 0 flows
+yg check: FAIL  48 errors · 1 warning   25 nodes · 24/28 files covered
 
-Errors (48) in 2 groups:
+error[log-entry-missing] 24 nodes changed with no log entry
+  at:   app/svc-01
+        app/svc-02
+        app/svc-03
+        app/svc-04
+        app/svc-05
+        app/svc-06
+        app/svc-07
+        app/svc-08
+        app/svc-09
+        app/svc-10
+        app/svc-11
+        app/svc-12
+        … +12 more  (yg check --details)
+  why:  Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.
+  fix:  yg log add --node <node> --reason '<why this change was made>'  for each node above
+        Then re-run yg check --approve. If you did not make this change, ask the user for the reason — never invent one.
 
-  log-entry-missing  24 issues  24 nodes
-            Node type 'service' has log_required: true — every source change needs a log entry capturing WHY. The requirement is a property of the node type plus a source change, independent of aspects; yg check stays red until a fresh entry exists.
-            Fix: yg log add --node <node> --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one  (for each node below)
-            - app/svc-01  No fresh log entry for node 'app/svc-01' — its source changed but no justification entry exists.
-            - app/svc-02  No fresh log entry for node 'app/svc-02' — its source changed but no justification entry exists.
-            - app/svc-03  No fresh log entry for node 'app/svc-03' — its source changed but no justification entry exists.
-            - app/svc-04  No fresh log entry for node 'app/svc-04' — its source changed but no justification entry exists.
-            - app/svc-05  No fresh log entry for node 'app/svc-05' — its source changed but no justification entry exists.
-            - app/svc-06  No fresh log entry for node 'app/svc-06' — its source changed but no justification entry exists.
-            - app/svc-07  No fresh log entry for node 'app/svc-07' — its source changed but no justification entry exists.
-            - app/svc-08  No fresh log entry for node 'app/svc-08' — its source changed but no justification entry exists.
-            - app/svc-09  No fresh log entry for node 'app/svc-09' — its source changed but no justification entry exists.
-            - app/svc-10  No fresh log entry for node 'app/svc-10' — its source changed but no justification entry exists.
-            - app/svc-11  No fresh log entry for node 'app/svc-11' — its source changed but no justification entry exists.
-            - app/svc-12  No fresh log entry for node 'app/svc-12' — its source changed but no justification entry exists.
-            ... and 12 more (yg check --details)
+error[unverified] 24 pairs whose script check has not run on this checkout — free to run
+  at:   no-todo  24 pairs · 24 nodes · script
+  why:  Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
+  fix:  yg check --approve --only-deterministic  (24 script pairs · free)
 
-  unverified (deterministic check not run on this checkout — free)  24 pairs  24 nodes
-            Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.
-            Fix: yg check --approve --only-deterministic  (24 script pairs, free)
-            - app/svc-01  aspect 'no-todo'
-            - app/svc-02  aspect 'no-todo'
-            - app/svc-03  aspect 'no-todo'
-            - app/svc-04  aspect 'no-todo'
-            - app/svc-05  aspect 'no-todo'
-            - app/svc-06  aspect 'no-todo'
-            - app/svc-07  aspect 'no-todo'
-            - app/svc-08  aspect 'no-todo'
-            - app/svc-09  aspect 'no-todo'
-            - app/svc-10  aspect 'no-todo'
-            - app/svc-11  aspect 'no-todo'
-            - app/svc-12  aspect 'no-todo'
-            ... and 12 more (yg check --aspect no-todo)
+warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
+  at:   .clinerules/yggdrasil.md
+        .gitattributes
+        AGENTS.md
+        CLAUDE.md
+  why:  Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
+  fix:  Map these files to a node, or add their root to coverage.required to make this an error.
 
-Warnings (1):
-
-  uncovered (4)
-            .clinerules/yggdrasil.md
-            .gitattributes
-            AGENTS.md
-            CLAUDE.md
-            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
-            Fix: Map these files to a node, or add their root to coverage.required to make this an error.
-
-Next: yg log add --node app/svc-01 --reason '<why this change was made>', then re-run: yg check --approve — if you did not make this change, ask the user for the reason; never invent one
+next: yg log add --node app/svc-01 --reason '<why this change was made>'  (log-entry-missing)
+then: yg check --approve --only-deterministic  (24 script pairs · free)
 --- stderr

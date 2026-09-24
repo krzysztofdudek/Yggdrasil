@@ -27,6 +27,7 @@ import { registerPackCommand } from './cli/pack.js';
 import { registerMarketplaceCommand } from './cli/marketplace.js';
 import { registerPrimeCommand } from './cli/prime.js';
 import { registerRemovedVerdictCommand } from './cli/verdict-removed.js';
+import { registerHelpCommand } from './cli/help.js';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
@@ -76,6 +77,9 @@ registerPackCommand(program);
 registerMarketplaceCommand(program);
 registerPrimeCommand(program);
 registerRemovedVerdictCommand(program);
+// Last: it describes the commands registered above (grouped root help, each
+// command's summary and examples) and routes their parser errors.
+registerHelpCommand(program);
 
 /**
  * A reader that closes its end of our output pipe (`yg check --approve | head`)
@@ -95,15 +99,16 @@ function tolerateClosedPipe(stream: NodeJS.WriteStream): void {
 tolerateClosedPipe(process.stdout);
 tolerateClosedPipe(process.stderr);
 
+// The last resort, in the one error grammar: nothing reached here was
+// classified by a command, so it is reported as internal.
 process.on('unhandledRejection', (reason) => {
-  const msg = reason instanceof Error ? reason.message : String(reason);
-  process.stderr.write(`Error: ${msg}\n`);
+  process.stderr.write(`error[internal]: ${reason instanceof Error ? reason.message : String(reason)}\nnext: this is a bug — file an issue with the command you ran and this output\n`);
   process.exit(1);
 });
 
 try {
   program.parse();
 } catch (err) {
-  process.stderr.write(`Error: ${(err as Error).message}\n`);
+  process.stderr.write(`error[internal]: ${(err as Error).message}\nnext: this is a bug — file an issue with the command you ran and this output\n`);
   process.exit(1);
 }

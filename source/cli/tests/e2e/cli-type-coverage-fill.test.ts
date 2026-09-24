@@ -93,7 +93,8 @@ describe.skipIf(!distExists)('CLI E2E — type-covered-file fill', () => {
       // The det gate: a.ts's OWN enforced refusal skips a.ts's OWN paid
       // review — never written, never called.
       expect(lock.verdicts['llm-leaf-rule']?.['file:src/leaf/a.ts']).toBeUndefined();
-      expect(fill.all).toContain("LLM fills for file 'src/leaf/a.ts' skipped — an enforced deterministic check already refused it.");
+      expect(fill.all).toContain("warning: Reviewer pairs for file 'src/leaf/a.ts' skipped — an enforced script rule already refuses it.");
+      expect(fill.all).toMatch(/^fill {2}done in .* · reviewer skipped on 1 unit a script rule refuses$/m);
 
       // THE GATE PIN: b.ts's paid review still ran and was recorded — a.ts's
       // refusal did not leak onto the OTHER file matching the same type. This
@@ -110,32 +111,49 @@ describe.skipIf(!distExists)('CLI E2E — type-covered-file fill', () => {
     }
   }, 30000);
 
-  it('the pre-dispatch header counts components and files separately when nodeless pairs exist', async () => {
+  it('the pre-dispatch budget counts components and files separately when nodeless pairs exist', async () => {
     const dir = copyMergedFixture();
     const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'mock-approve' }) });
     try {
       addReviewer(dir, mock.endpoint);
+      // The human fill line counts pairs by kind only (`fill  N pairs · S script
+      // (free) · R reviewer calls`) — it names no subject count a file could be
+      // folded into.
       const fill = await runAsync(['check', '--approve'], dir);
-      // At least one real component (owned/forbidden, from the base fixture)
-      // AND at least one file (a.ts/b.ts) are both in this run's fill set —
-      // the combined wording must appear, never a bare "N nodes" that would
-      // silently fold the files into (or hide them from) the component count.
-      expect(fill.all).toMatch(/Filling \d+ unverified pairs across \d+ components and \d+ files/);
+      expect(fill.all).toMatch(/^fill {2}\d+ pairs · \d+ script \(free\) · \d+ reviewer calls \(consensus included\)$/m);
+      expect(fill.all).not.toMatch(/^fill .*\d+ (?:nodes|components)/m);
+
+      // The subject split lives in the budget document: at least one real
+      // component (owned/forbidden, from the base fixture) AND at least one file
+      // (a.ts/b.ts) are both in the fill set, counted apart — never files folded
+      // into (or hidden from) the component count.
+      const fresh = copyMergedFixture();
+      try {
+        addReviewer(fresh, mock.endpoint);
+        const preview = await runAsync(['check', '--approve', '--dry-run', '--json'], fresh);
+        const budget = (JSON.parse(preview.stdout) as { dryRunBudget: { nodes: number; files: number } }).dryRunBudget;
+        expect(budget.nodes).toBeGreaterThan(0);
+        expect(budget.files).toBeGreaterThan(0);
+      } finally {
+        rmSync(fresh, { recursive: true, force: true });
+      }
+
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
     }
   }, 30000);
 
-  it('--dry-run renders a "Files enforced by their type" section with no phantom component line', async () => {
+  it('--dry-run lists each type-covered file as its own billed unit with no phantom component line', async () => {
     const dir = copyMergedFixture();
     const mock = await startMockReviewer({ respond: () => ({ satisfied: true, reason: 'mock-approve' }) });
     try {
       addReviewer(dir, mock.endpoint);
       const preview = await runAsync(['check', '--approve', '--dry-run'], dir);
-      expect(preview.all).toContain('Files enforced by their type');
-      expect(preview.all).toContain('src/leaf/a.ts');
-      expect(preview.all).toContain('src/leaf/b.ts');
+      expect(preview.all).toContain('fill  dry run — a cost preview; nothing is filled or written');
+      expect(preview.all).toContain('  llm-leaf-rule @ src/leaf/a.ts — 1 reviewer call');
+      expect(preview.all).toContain('  llm-leaf-rule @ src/leaf/b.ts — 1 reviewer call');
+
       // No reviewer calls made during a preview.
       expect(mock.chatCount()).toBe(0);
       expect(preview.all).not.toMatch(/component 'undefined'|node 'undefined'/);

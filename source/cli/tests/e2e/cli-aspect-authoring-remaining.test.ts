@@ -472,12 +472,15 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring remaining paths (pars
       appendFileSync(guidance, '\nAdditional guidance appended to change the input.\n');
       const invalidated = run(['check'], dir);
       expect(invalidated.status).toBe(1);
-      expect(invalidated.stdout).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      // Grouped view: a single unverified group (unverified groups by code only,
-      // no aspect in header); the aspect appears on each body-line instead.
-      expect(invalidated.stdout).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)\s+2 pairs\s+2 nodes$/m);
-      expect(invalidated.stdout).toContain("- services/orders  aspect 'has-doc-comment'");
-      expect(invalidated.stdout).toContain("- services/payments  aspect 'has-doc-comment'");
+      // One unverified block whose subject names the cause (the reference moved
+      // the inputs); the capped view lists the rule once with its pair/node count.
+      expect(invalidated.stdout).toContain('error[unverified] 2 pairs whose inputs changed since the verdict\n');
+      expect(invalidated.stdout).toContain('  at:   has-doc-comment  2 pairs · 2 nodes · reviewer\n');
+      // The uncapped view names each invalidated pair.
+      const details = run(['check', '--details'], dir);
+      expect(details.stdout).toContain('has-doc-comment @ services/orders');
+      expect(details.stdout).toContain('has-doc-comment @ services/payments');
+
 
       // A clean re-fill re-runs the reviewer on both pairs and restores them.
       const refill = await runAsync(['check', '--approve'], dir);

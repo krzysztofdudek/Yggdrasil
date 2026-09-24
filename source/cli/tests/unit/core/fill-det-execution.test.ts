@@ -367,7 +367,7 @@ describe('tainted re-run-once → runtime-error fail-closed (unit-pinned)', () =
     expect(result.runtimeErrors).toBe(1);
 
     // The runtime-error class notice line was printed.
-    expect(w.text()).toContain('deterministic check(s) failed to run at fill time');
+    expect(w.text()).toContain('1 script check failed to run at fill time');
   });
 });
 
@@ -456,7 +456,7 @@ describe('dry-run cost preview (no writes)', () => {
   it('renders the per-node breakdown for a MIX of det + LLM pairs, writes nothing, returns zero counters', async () => {
     // Two aspects on one node — a deterministic (free) and an LLM (consensus 1)
     // pair, both unverified. dryRun must:
-    //   - print the [det]/[llm] breakdown lines (the byNode split branches),
+    //   - list the billed (reviewer) pair and count the free script pair (the byNode split branches),
     //   - resolve the LLM pair's consensus exactly as the header does,
     //   - print the upper-bound caveat,
     //   - write NOTHING and return all counters 0.
@@ -488,12 +488,12 @@ describe('dry-run cost preview (no writes)', () => {
 
     const out = w.text();
     // Billed pairs listed, free ones counted.
-    expect(out).toContain('svc');
-    expect(out).toContain('[llm] llm-a on node:svc — 1 reviewer call');
-    expect(out).toContain('1 deterministic pair — free, not listed');
-    expect(out).not.toContain('[det] det-a');
+    expect(out).toContain('fill  dry run — a cost preview; nothing is filled or written\n');
+    expect(out).toContain('  llm-a @ svc — 1 reviewer call\n');
+    expect(out).toContain('  1 script pair — free, not listed\n');
+    expect(out).not.toContain('det-a @');
     // The upper-bound caveat (the dry-run-only closing line).
-    expect(out).toContain('is an UPPER BOUND');
+    expect(out).toContain('note: 1 reviewer call is an upper bound');
     expect(out).toContain('Nothing was written; run yg check --approve to fill.');
 
     // Structural no-write guarantee: NO verdict landed in any lock file.
@@ -503,10 +503,10 @@ describe('dry-run cost preview (no writes)', () => {
     expect(lock.nodes['svc']).toBeUndefined();
   });
 
-  it('dry-run under --only-deterministic shows ONLY the [det] line (the onlyDeterministic split)', async () => {
+  it('dry-run under --only-deterministic counts ONLY the script pair and never prices the reviewer pair (the onlyDeterministic split)', async () => {
     // Same mix, but onlyDeterministic narrows the dry-run breakdown's LLM group to
     // [] — exercising the `onlyDeterministic ? [] : ...` branch inside the dry-run
-    // block. The [llm] line must NOT appear; the [det] line must.
+    // block. The reviewer pair must NOT be priced; the script pair must be counted.
     const { projectRoot } = await setupProject({
       aspects: [
         { id: 'det-a', kind: 'deterministic', status: 'enforced', rule: DET_PASS },
@@ -523,9 +523,9 @@ describe('dry-run cost preview (no writes)', () => {
     });
 
     const out = w.text();
-    expect(out).toContain('1 deterministic pair — free, not listed');
+    expect(out).toContain('  1 script pair — free, not listed\n');
     // onlyDeterministic drops the LLM pair from the preview entirely.
-    expect(out).not.toContain('[llm] llm-a');
+    expect(out).not.toContain('llm-a @');
     // Still a no-write preview.
     expect(result.reviewerCallsMade).toBe(0);
     const lock = readLock(graph.rootPath);
@@ -534,8 +534,8 @@ describe('dry-run cost preview (no writes)', () => {
 
   it('groups multiple pairs under the same node (the byNode list-append branch)', async () => {
     // Two det aspects on one node → the second pair appends to the existing list
-    // (the `byNode.get(p.nodePath) ?? []` non-empty branch). Both [det] lines must
-    // render under the single node header.
+    // (the `byNode.get(p.nodePath) ?? []` non-empty branch). Both pairs must sit
+    // under the single node, and the text counts them as free script pairs.
     const { projectRoot } = await setupProject({
       aspects: [
         { id: 'det-a', kind: 'deterministic', status: 'enforced', rule: DET_PASS },
@@ -551,7 +551,7 @@ describe('dry-run cost preview (no writes)', () => {
     const dry = events.find((e): e is Extract<FillEvent, { type: 'dry-run' }> => e.type === 'dry-run');
     expect(dry!.nodes.map((n) => n.nodePath)).toEqual(['svc']);
     expect(dry!.nodes[0].pairs.map((p) => p.aspectId)).toEqual(['det-a', 'det-b']);
-    expect(renderFillEvent(dry!)).toContain('2 deterministic pairs — free, not listed');
+    expect(renderFillEvent(dry!)).toContain('  2 script pairs — free, not listed\n');
   });
 });
 

@@ -120,6 +120,6 @@ describe('logRead (core)', () => {
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logRead({ graph, nodePath: 'nonexistent' });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.what).toContain('Node not found');
+    if (!result.ok) expect(result.error.what).toContain('is not in the graph');
   });
 });

@@ -220,7 +220,7 @@ describe('deterministic-first ordering + det gate', () => {
     // The LLM pair was NOT written (skipped, still unverified).
     expect(lock.verdicts['llm-a']?.['node:svc']).toBeUndefined();
     // The skip notice was emitted.
-    expect(w.text()).toContain("LLM fills for node 'svc' skipped — an enforced deterministic check already refused it.");
+    expect(w.text()).toContain("Reviewer pairs for node 'svc' skipped — an enforced script rule already refuses it.");
   });
 
   it('honors a CACHED enforced det refusal on a second run (LLM still skipped)', async () => {
@@ -371,7 +371,7 @@ describe('detGateKey cross-contamination — real fill run, componentless pairs'
     // a.ts's llm-leaf-rule was correctly skipped by ITS OWN file's refusal.
     expect(lock.verdicts['llm-leaf-rule']?.['file:src/leaf/a.ts']).toBeUndefined();
     // The skip notice names the FILE, never a phantom component.
-    expect(w.text()).toContain("LLM fills for file 'src/leaf/a.ts' skipped — an enforced deterministic check already refused it.");
+    expect(w.text()).toContain("Reviewer pairs for file 'src/leaf/a.ts' skipped — an enforced script rule already refuses it.");
     expect(w.text()).not.toMatch(/component 'undefined'|node 'undefined'/);
   });
 });

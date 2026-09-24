@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { formatOutput } from '../../../src/cli/check-render-views.js';
-import { renderGroup } from '../../../src/cli/check-render-groups.js';
-import { groupIssues } from '../../../src/cli/group-issues.js';
+import { formatOutput, type CheckView } from '../../../src/cli/check-render-views.js';
+import { buildBlocks, renderBlocks } from '../../../src/cli/check-render-groups.js';
+import { MEMBER_CAP } from '../../../src/cli/output.js';
 import type { CheckResult, CheckIssue } from '../../../src/core/check.js';
 import {
   llmRefusedMessage,
@@ -11,34 +11,39 @@ import {
 } from '../../../src/formatters/lock-issue-messages.js';
 import { typeGateForbiddenMessage } from '../../../src/relations/messages.js';
 
-/** Strip ANSI color codes so block-line counting is deterministic. */
+/** Strip ANSI color codes so line matching is deterministic. */
 function stripAnsi(s: string): string {
   // eslint-disable-next-line no-control-regex
   return s.replace(/\x1b\[[0-9;]*m/g, '');
 }
 
-/** Count rendered issue BLOCKS — a block begins with two-space-indented
- *  "<label>  <node>  <what>" (or the compact "<label> (<n>)" unmapped block).
- *  Continuation lines (Why:/Fix:/indented detail) are NOT block starts. */
-function countBlocks(out: string): number {
-  const clean = stripAnsi(out);
-  return clean
-    .split('\n')
-    .filter((l) => /^ {2}\S/.test(l) && !/^ {2}(Why:|Fix:)/.test(l))
-    .length;
+/** The heading lines of a report: one per block. */
+function headings(out: string): string[] {
+  return stripAnsi(out).split('\n').filter((l) => /^(error|warning)\[/.test(l));
+}
+
+/** Lines of one field (`at`, `why`, `fix`) across a report, continuation lines included. */
+function fieldLines(out: string, label: 'at' | 'why' | 'fix'): string[] {
+  const lines = stripAnsi(out).split('\n');
+  const got: string[] = [];
+  let inField = false;
+  for (const l of lines) {
+    if (/^ {2}[a-z]+: {1,}/.test(l)) inField = l.startsWith(`  ${label}:`);
+    else if (!/^ {8}/.test(l)) inField = false;
+    if (inField) got.push(l);
+  }
+  return got;
 }
 
 /**
- * Unit tests for the `yg check` grouped/--details render layer
- * (check-render-groups.ts): the Errors/Warnings sections, per-group and
- * per-issue blocks, the unmapped-files compact block, and the
- * CAP_NODES/GROUP_CAP truncation logic. These exercise the rendering
+ * Unit tests for the `yg check` finding blocks (check-render-groups.ts): how
+ * issues become blocks (`error[label] subject` / `at:` / `why:` / `fix:`), and
+ * how the views bound their member lists. These exercise the rendering
  * directly against constructed CheckResult objects — no spawned binary, no
  * build — so they pin the agent-facing OUTPUT contract:
- *   - refusal issues must render their FULL `what` (reviewer reason / violation
- *     list), not just line 1;
- *   - advisory warnings (aspect-violation AND unverified) must carry the
- *     "(advisory — not blocking)" hint and a next pointer.
+ *   - a refusal renders its FULL detail (reviewer reason / violation list), not
+ *     just its first line;
+ *   - an advisory finding is a warning block with its fix, never an error.
  */
 
 function baseResult(issues: CheckIssue[]): CheckResult {
@@ -61,8 +66,18 @@ function baseResult(issues: CheckIssue[]): CheckResult {
   };
 }
 
+/** A whole report, undecorated. */
+function report(issues: CheckIssue[], view: CheckView = { kind: 'full' }): string {
+  return stripAnsi(formatOutput(baseResult(issues), view, false, false));
+}
+
+/** Just the blocks, undecorated. */
+function blocks(issues: CheckIssue[], capMembers = true): string {
+  return stripAnsi(renderBlocks(buildBlocks(issues), { capMembers }, false).join('\n'));
+}
+
 describe('check render — refusal detail (full what)', () => {
-  it('renders grouped block with reviewer reason line for an enforced LLM refusal', () => {
+  it('renders a refused block with the reviewer\'s reason for an enforced LLM refusal', () => {
     const reason =
       'The handler does not emit an audit-log entry on the failure branch.\n' +
       'Line 42: catch block returns without logging the rejected request.';
@@ -72,6 +87,7 @@ describe('check render — refusal detail (full what)', () => {
       rule: 'aspect-violation-enforced',
       nodePath: 'orders/handler',
       aspectId: 'audit-logging',
+      pairKind: 'llm',
       messageData: llmRefusedMessage({
         aspectId: 'audit-logging',
         unitKey: 'orders/handler#audit-logging',
@@ -79,28 +95,28 @@ describe('check render — refusal detail (full what)', () => {
       }),
     };
 
-    const out = stripAnsi(formatOutput(baseResult([issue])));
+    const out = report([issue]);
 
-    // Grouped grammar: group header with label, pair/node counts, aspect id.
-    expect(out).toContain("enforced  1 pair  1 node  aspect 'audit-logging'");
-    // perMemberReason: the first detail line of `what` (line 1) appears on the member.
-    expect(out).toContain('Reviewer reason: The handler does not emit an audit-log entry on the failure branch.');
-    // The three-exits Fix block must reach the agent — including the yg-suppress exit.
+    // Heading: the registry label, the rule, and where it was refused.
+    expect(out).toContain('error[refused] audit-logging — refused on orders/handler');
+    // The reviewer's whole reason reaches the member line — both of its lines.
+    expect(out).toContain('  at:   orders/handler  The handler does not emit an audit-log entry on the failure branch. Line 42: catch block returns without logging the rejected request.');
+    // The exits fix must reach the agent — including the yg-suppress exit.
+    expect(out).toContain('  fix:  Four exits — the verdict is recorded for this exact code, so re-running the reviewer changes nothing:');
     expect(out).toContain('yg-suppress');
-    // Member line for the node.
-    expect(out).toContain('- orders/handler');
   });
 
-  it('renders grouped block with violation header for an enforced det refusal', () => {
+  it('renders a refused block with every violation line for an enforced det refusal', () => {
     const reason =
-      'src/a.ts:10 — forbidden import of database client\n' +
-      'src/b.ts:22 — forbidden import of database client';
+      'src/a.ts:10: forbidden import of database client\n' +
+      'src/b.ts:22: forbidden import of database client';
     const issue: CheckIssue = {
       severity: 'error',
       code: 'aspect-violation-enforced',
       rule: 'aspect-violation-enforced',
       nodePath: 'ui/page',
       aspectId: 'ui-no-direct-db',
+      pairKind: 'deterministic',
       messageData: detRefusedMessage({
         aspectId: 'ui-no-direct-db',
         unitKey: 'ui/page#ui-no-direct-db',
@@ -108,29 +124,26 @@ describe('check render — refusal detail (full what)', () => {
       }),
     };
 
-    const out = stripAnsi(formatOutput(baseResult([issue])));
+    const out = report([issue]);
 
-    // Group header present.
-    expect(out).toContain("enforced  1 pair  1 node  aspect 'ui-no-direct-db'");
-    // perMemberReason: what line 1 ('Violations:') appears on the member.
-    expect(out).toContain('Violations:');
-    // The actual violation file:line entries must appear — the fix ensures lines 2+ of
-    // messageData.what (the actionable src:line detail) are NOT silently dropped.
-    expect(out).toContain('src/a.ts:10 — forbidden import of database client');
-    expect(out).toContain('src/b.ts:22 — forbidden import of database client');
-    // Fix line present.
-    expect(out).toContain('Fix: Fix the listed violations');
-    // Member line for the node.
-    expect(out).toContain('- ui/page');
+    expect(out).toContain('error[refused] ui-no-direct-db — 2 violations in ui/page');
+    // The actual violation file:line entries must appear — the actionable
+    // detail is never silently dropped.
+    expect(out).toContain('  at:   ui/page  src/a.ts:10  forbidden import of database client');
+    expect(out).toContain('src/b.ts:22  forbidden import of database client');
+    expect(out).toContain('  fix:  Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.');
+    // The step points at the first violation's line.
+    expect(out).toContain('next: edit src/a.ts:10');
   });
 
-  it('renders a grouped block for a prompt-too-large issue with Fix: remedies', () => {
+  it('renders a prompt-too-large block with its remedies', () => {
     const issue: CheckIssue = {
       severity: 'error',
       code: 'prompt-too-large',
       rule: 'prompt-too-large',
       nodePath: 'big/node',
       aspectId: 'some-aspect',
+      pairKind: 'llm',
       messageData: promptTooLargeMessage({
         aspectId: 'some-aspect',
         unitKey: 'big/node#some-aspect',
@@ -140,24 +153,24 @@ describe('check render — refusal detail (full what)', () => {
       }),
     };
 
-    const out = stripAnsi(formatOutput(baseResult([issue])));
-    // Group header present with correct label and aspect.
-    expect(out).toContain("prompt-too-large  1 pair  1 node  aspect 'some-aspect'");
+    const out = report([issue]);
+    expect(headings(out)).toHaveLength(1);
+    expect(headings(out)[0]).toMatch(/^error\[prompt-too-large\] .*'some-aspect'/);
+    expect(out).toContain('  at:   big/node');
     // The safety-ordered remedies from `next` still reach the agent.
     expect(out).toContain('Narrow scope.files');
-    // Member line for the node.
-    expect(out).toContain('- big/node');
   });
 });
 
-describe('check render — advisory warning hints', () => {
-  it('renders a grouped warning block for an advisory aspect-violation warning with fix pointer', () => {
+describe('check render — advisory warnings', () => {
+  it('renders a warning block for an advisory refusal, with its reason and fix', () => {
     const issue: CheckIssue = {
       severity: 'warning',
       code: 'aspect-violation-advisory',
       rule: 'aspect-violation-advisory',
       nodePath: 'orders/handler',
       aspectId: 'audit-logging',
+      pairKind: 'llm',
       messageData: llmRefusedMessage({
         aspectId: 'audit-logging',
         unitKey: 'orders/handler#audit-logging',
@@ -165,70 +178,82 @@ describe('check render — advisory warning hints', () => {
       }),
     };
 
-    const out = stripAnsi(formatOutput(baseResult([issue])));
-    // Grouped grammar: group header with advisory label and aspect.
-    expect(out).toContain("advisory  1 pair  1 node  aspect 'audit-logging'");
-    // Reason appears in member detail (perMemberReason: true for aspect-violation-advisory).
-    expect(out).toContain('missing audit entry');
-    // Fix block must include the three-exits next.
+    const out = report([issue]);
+    expect(out.split('\n')[0]).toBe('yg check: PASS  1 warning   1 node');
+    expect(out).toContain('warning[refused] audit-logging — refused on orders/handler');
+    expect(out).toContain('  at:   orders/handler  missing audit entry');
     expect(out).toContain('yg-suppress');
   });
 
-  it('renders a grouped warning block for an advisory unverified warning with Fix pointer', () => {
+  it('renders a warning block for an advisory unverified pair, with its fix', () => {
     const issue: CheckIssue = {
       severity: 'warning',
       code: 'unverified',
       rule: 'unverified',
       nodePath: 'orders/handler',
       aspectId: 'audit-logging',
+      pairKind: 'llm',
       messageData: unverifiedMessage({
         aspectId: 'audit-logging',
         unitKey: 'orders/handler#audit-logging',
       }),
     };
 
-    const out = stripAnsi(formatOutput(baseResult([issue])));
-    // Grouped grammar: unverified groups by CODE ONLY — no aspect in the header.
-    expect(out).toContain("unverified (not yet reviewed)  1 pair  1 node");
-    // The aspect appears on the member body line, not the header.
-    expect(out).toContain("- orders/handler  aspect 'audit-logging'");
-    // The header does NOT carry an aspect segment (unverified spans aspects).
-    expect(out).not.toContain("unverified (not yet reviewed)  1 pair  1 node  aspect 'audit-logging'");
-    // The next pointer must be present so the agent knows how to clear it.
-    expect(out).toContain('yg check --approve');
+    const out = report([issue]);
+    // Unverified groups by CODE (and cause) — the heading names no rule; the
+    // member line names the pair.
+    expect(out).toContain('warning[unverified] 1 pair with no verdict yet');
+    expect(out).toContain('  at:   audit-logging @ orders/handler');
+    expect(out).toContain('  fix:  yg check --approve  (1 reviewer pair · paid)');
   });
 
-  it('does NOT add the advisory hint to an enforced (error-mode) unverified issue', () => {
+  it('a fix with nothing to cost never prints an empty cost', () => {
+    // An unverified pair whose kind is not known has no cost to state.
     const issue: CheckIssue = {
       severity: 'error',
       code: 'unverified',
       rule: 'unverified',
       nodePath: 'orders/handler',
       aspectId: 'audit-logging',
+      messageData: unverifiedMessage({ aspectId: 'audit-logging', unitKey: 'orders/handler#audit-logging' }),
+    };
+    expect(report([issue])).not.toContain('()');
+  });
+
+  it('an enforced (error-mode) unverified pair is an error block, never an advisory one', () => {
+    const issue: CheckIssue = {
+      severity: 'error',
+      code: 'unverified',
+      rule: 'unverified',
+      nodePath: 'orders/handler',
+      aspectId: 'audit-logging',
+      pairKind: 'llm',
       messageData: unverifiedMessage({
         aspectId: 'audit-logging',
         unitKey: 'orders/handler#audit-logging',
       }),
     };
 
-    const out = formatOutput(baseResult([issue]));
-    expect(out).not.toContain('(advisory — not blocking)');
+    const out = report([issue]);
+    expect(out).toContain('error[unverified] 1 pair with no verdict yet');
+    expect(out).not.toContain('warning[');
+    expect(out).not.toContain('advisory');
   });
 });
 
 /**
  * A finding put outside the change is rendered by the SAME code paths as the
  * finding it mirrors — grouped block, repo-level block, --details block,
- * unmapped-files block. Two things change deliberately: the glossed label
- * gets the same "(outside changes)" marker every other twin label carries,
- * and the Fix: line is left off, because `next` still names the mirrored
- * finding's OWN remedy (messageData is untouched by the classifier) — which
- * would mislead for a finding this change is not accountable for and
- * contradict the run's own standing next step (`yg check --full`) for
- * everything outside the change. Why: is unaffected — the rationale is still
- * true regardless of scope.
+ * coverage block. Two things change deliberately: the label carries the
+ * `-outside` suffix every twin label carries (and the subject says "outside
+ * your changes"), and the fix: field is left off, because `next` still names
+ * the mirrored finding's OWN remedy (messageData is untouched by the
+ * classifier) — which would mislead for a finding this change is not
+ * accountable for and contradict the run's own standing next step
+ * (`yg check --full`) for everything outside the change. why: is unaffected —
+ * the rationale is still true regardless of scope.
  */
-describe('check render — -outside twins: gloss and Fix suppression', () => {
+describe('check render — -outside twins: label and fix suppression', () => {
   function outsideUnverified(nodePath: string, aspectId = 'audit-logging'): CheckIssue {
     return {
       severity: 'warning',
@@ -236,32 +261,29 @@ describe('check render — -outside twins: gloss and Fix suppression', () => {
       rule: 'unverified',
       nodePath,
       aspectId,
+      pairKind: 'llm',
       messageData: unverifiedMessage({ aspectId, unitKey: `${nodePath}#${aspectId}` }),
     } as CheckIssue;
   }
 
-  it('glosses the twin exactly like its mirror, plus the outside marker', () => {
-    const [g] = groupIssues([outsideUnverified('orders/handler')]);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    expect(out).toContain('unverified (not yet reviewed) (outside changes)  1 pair  1 node');
+  it('labels the twin exactly like its mirror, plus the outside marker', () => {
+    const out = blocks([outsideUnverified('orders/handler')]);
+    expect(out).toContain('warning[unverified-outside] 1 pair with no verdict yet — outside your changes');
   });
 
-  it('omits the Fix: line for a grouped twin (code-only group, shared next)', () => {
-    const [g] = groupIssues([outsideUnverified('a'), outsideUnverified('b')]);
-    expect(g.sharedNext).toBe('yg check --approve'); // the mirrored finding's own remedy
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    expect(out).not.toContain('Fix:');
+  it('omits the fix: field for a grouped twin (code-only group, shared next)', () => {
+    const [issue] = [outsideUnverified('svc/a')];
+    expect(issue.messageData.next).toBe('yg check --approve'); // the mirrored finding's own remedy
+    const out = blocks([outsideUnverified('svc/a'), outsideUnverified('svc/b')]);
+    expect(headings(out)).toHaveLength(1);
+    expect(out).not.toContain('fix:');
     expect(out).not.toContain('yg check --approve');
-    // The rationale is unaffected — still present (the grouped shared-why line
-    // carries the raw text with no "Why:" label, same as it always has).
+    // The rationale is unaffected — still present, once.
+    expect(fieldLines(out, 'why')).toHaveLength(1);
     expect(out).toContain('The lock holds no entry for this pair');
   });
 
-  it('omits the per-member Fix: line for a divergent twin group', () => {
+  it('omits the per-member fix for a divergent twin group', () => {
     // relation-undeclared-dependency carries a node-specific `next` — divergent
     // across members even before scoping. Its twin must suppress ALL of them,
     // not just a shared one.
@@ -276,24 +298,22 @@ describe('check render — -outside twins: gloss and Fix suppression', () => {
         next: `Add a relation entry in ${nodePath}/yg-node.yaml.`,
       },
     } as CheckIssue);
-    const [g] = groupIssues([divergent('svc-a'), divergent('svc-b')]);
-    expect(g.divergentNext).toBe(true);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    expect(out).not.toContain('Fix:');
+    const out = blocks([divergent('svc-a'), divergent('svc-b')]);
+    expect(out).not.toContain('fix:');
     expect(out).not.toContain('yg-node.yaml');
-    // The per-member `what` detail (the actual violation line) still renders.
-    expect(out).toContain('undeclared dependency on other');
+    // The per-member detail (the actual violation line) still renders.
+    expect(out).toContain('src/svc-a.ts:3 → undeclared dependency on other');
+    expect(out).toContain('src/svc-b.ts:3 → undeclared dependency on other');
   });
 
-  it('omits the Fix: line for a twin in the --details (ungrouped) view', () => {
-    const out = stripAnsi(formatOutput(baseResult([outsideUnverified('orders/handler')]), { kind: 'details' }));
-    expect(out).not.toContain('Fix:');
-    expect(out).toContain('Why:');
+  it('omits the fix: field for a twin in the --details view, and points next at the audit', () => {
+    const out = report([outsideUnverified('orders/handler')], { kind: 'details' });
+    expect(out).not.toContain('fix:');
+    expect(out).toContain('  why:  ');
+    expect(out).toContain('next: yg check --full  (1 obligation outside your changes)');
   });
 
-  it('omits the Fix: line for the inherited half of a split coverage finding', () => {
+  it('omits the fix: field for the inherited half of a split coverage finding', () => {
     const issue: CheckIssue = {
       severity: 'warning',
       code: 'unmapped-files-outside',
@@ -306,31 +326,32 @@ describe('check render — -outside twins: gloss and Fix suppression', () => {
         next: 'Check ownership candidates: yg context --file <path>',
       },
     };
-    const out = stripAnsi(formatOutput(baseResult([issue])));
-    expect(out).not.toContain('Fix:');
-    expect(out).toContain('Why:');
-    expect(out).toContain('src/inherited.ts');
+    const out = report([issue]);
+    expect(out).toContain('warning[unmapped-outside] 1 file belongs to no node — outside your changes');
+    expect(out).not.toContain('fix:');
+    expect(out).toContain('  why:  Files without graph coverage');
+    expect(out).toContain('  at:   src/inherited.ts');
   });
 
-  it('keeps the Fix: line for the SAME code when it is NOT put outside the change', () => {
+  it('keeps the fix: field for the SAME code when it is NOT put outside the change', () => {
     // Control: the suppression is keyed on the twin code, not on `unverified`
-    // in general — an in-scope unverified pair still gets its Fix: line.
+    // in general — an in-scope unverified pair still gets its fix.
     const inScope: CheckIssue = {
       severity: 'error',
       code: 'unverified',
       rule: 'unverified',
       nodePath: 'orders/handler',
       aspectId: 'audit-logging',
+      pairKind: 'llm',
       messageData: unverifiedMessage({ aspectId: 'audit-logging', unitKey: 'orders/handler#audit-logging' }),
     };
-    const out = stripAnsi(formatOutput(baseResult([inScope])));
-    expect(out).toContain('Fix: yg check --approve');
+    expect(report([inScope])).toContain('  fix:  yg check --approve');
   });
 });
 
-describe('check render — renderGroup', () => {
-  it('renders ONE grouped block for an aspect failing on many nodes', () => {
-    const issues: CheckIssue[] = ['a', 'b', 'c'].map((n) => ({
+describe('check render — blocks', () => {
+  it('renders ONE block for a rule unverified on many nodes, the rule on its member line', () => {
+    const issues: CheckIssue[] = ['svc/a', 'svc/b', 'svc/c'].map((n) => ({
       severity: 'error',
       code: 'unverified',
       rule: 'unverified',
@@ -339,22 +360,16 @@ describe('check render — renderGroup', () => {
       nodePath: n,
       messageData: unverifiedMessage({ aspectId: 'audit-logging', unitKey: n }),
     } as CheckIssue));
-    const [g] = groupIssues(issues);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    // Unverified collapses by CODE ONLY: no aspect in group header.
-    expect(out).toContain("unverified (not yet reviewed)  3 pairs  3 nodes");
-    expect(out).not.toContain("unverified (not yet reviewed)  3 pairs  3 nodes  aspect 'audit-logging'");
-    // Aspect appears on each member body line.
-    expect(out).toContain("- a  aspect 'audit-logging'");
-    expect(out).toContain("- b  aspect 'audit-logging'");
-    expect(out).toContain("- c  aspect 'audit-logging'");
-    expect((out.match(/Fix: yg check --approve/g) ?? []).length).toBe(1);
+    const out = blocks(issues);
+    // Unverified collapses by CODE: the heading names no rule...
+    expect(headings(out)).toEqual(['error[unverified] 3 pairs with no verdict yet']);
+    // ...the member line does, with its count.
+    expect(out).toContain('  at:   audit-logging  3 pairs · 3 nodes · reviewer');
+    expect((out.match(/fix: {2}yg check --approve/g) ?? []).length).toBe(1);
   });
 
-  it('refused group STILL shows aspect in header (per-(code,aspectId) grouping retained)', () => {
-    const issues: CheckIssue[] = ['a', 'b'].map((n) => ({
+  it('a refused block names its rule in the heading (per-(code, rule) grouping retained)', () => {
+    const issues: CheckIssue[] = ['svc/a', 'svc/b'].map((n) => ({
       severity: 'error',
       code: 'aspect-violation-enforced',
       rule: 'aspect-violation-enforced',
@@ -363,19 +378,14 @@ describe('check render — renderGroup', () => {
       nodePath: n,
       messageData: llmRefusedMessage({ aspectId: 'audit-logging', unitKey: n, reason: 'missing entry' }),
     } as CheckIssue));
-    const [g] = groupIssues(issues);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    // Refused groups group by (code, aspectId) — aspect still in header.
-    expect(out).toContain("enforced  2 pairs  2 nodes  aspect 'audit-logging'");
+    expect(headings(blocks(issues))).toEqual(['error[refused] audit-logging — refused on 2 nodes']);
   });
 
   // A finding about repository files, not about any component. Counting a
-  // missing node as one printed "1 pair  1 node" and an empty `- ` bullet,
+  // missing node as one printed "1 pair  1 node" and an empty bullet,
   // reporting a component the graph does not contain and, in the web view,
   // linking to a page that cannot exist.
-  it('a repo-level issue (no nodePath) renders with no pair/node counts and no node bullet', () => {
+  it('a repo-level issue (no nodePath) renders with no pair/node counts and no member line', () => {
     const issues: CheckIssue[] = [{
       severity: 'warning',
       code: 'rules-digest-stale',
@@ -386,76 +396,63 @@ describe('check render — renderGroup', () => {
         next: 'yg init --upgrade',
       },
     } as CheckIssue];
-    const [g] = groupIssues(issues);
-    expect(g.nodeCount).toBe(0);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    expect(out).not.toMatch(/\d+ pairs/);
-    expect(out).not.toMatch(/\d+ nodes/);
-    expect(out).not.toMatch(/^\s+- /m);
+    const out = blocks(issues);
+    expect(out).not.toMatch(/\d+ pairs?/);
+    expect(out).not.toMatch(/\d+ nodes?/);
+    expect(out).not.toContain('at:');
     // The finding's own content, its rationale and its fix all still render.
-    expect(out).toContain('  rules-digest-stale');
-    expect(out).toContain('.clinerules/yggdrasil.md is missing');
-    expect(out).toContain('Why: Agents read the committed digest');
-    expect(out).toContain('Fix: yg init --upgrade');
+    expect(out).toContain('warning[rules-digest-stale] Committed agent-rules digest is out of sync: .clinerules/yggdrasil.md is missing');
+    expect(out).toContain('  why:  Agents read the committed digest');
+    expect(out).toContain('  fix:  yg init --upgrade');
   });
 });
 
-// ── Fix 4: divergent per-node `next`/`why` renders per-member ──────────────────
-describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s command', () => {
-  it('a log-entry-missing group of 2 nodes names a command for EACH node (one templated line), never only the first', () => {
-    const issues: CheckIssue[] = [
-      {
-        severity: 'error', code: 'log-entry-missing', rule: 'log-entry-missing', nodePath: 'billing/charge',
-        messageData: {
-          what: "No fresh log entry for node 'billing/charge' — its source changed but no justification entry exists.",
-          why: "Node type 'command' has log_required: true.",
-          next: "yg log add --node billing/charge --reason '<justification>', then re-run: yg check --approve",
-        },
-      } as CheckIssue,
-      {
-        severity: 'error', code: 'log-entry-missing', rule: 'log-entry-missing', nodePath: 'orders/handler',
-        messageData: {
-          what: "No fresh log entry for node 'orders/handler' — its source changed but no justification entry exists.",
-          why: "Node type 'command' has log_required: true.",
-          next: "yg log add --node orders/handler --reason '<justification>', then re-run: yg check --approve",
-        },
-      } as CheckIssue,
-    ];
-    const out = stripAnsi(formatOutput(baseResult(issues)));
+// ── Divergent per-node `next`/`why` ──────────────────
+describe('check render — a per-node fix surfaces EACH node\'s command', () => {
+  it('a log-entry-missing block of 2 nodes names a command for EACH node (one templated line), never only the first', () => {
+    const issues: CheckIssue[] = ['billing/charge', 'orders/handler'].map((n) => ({
+      severity: 'error', code: 'log-entry-missing', rule: 'log-entry-missing', nodePath: n,
+      messageData: {
+        what: `No fresh log entry for node '${n}' — its source changed but no justification entry exists.`,
+        why: "Node type 'command' has log_required: true.",
+        next: `yg log add --node ${n} --reason '<justification>', then re-run: yg check --approve`,
+      },
+    } as CheckIssue));
+    const out = report(issues);
     // The two commands differ only by the node path, so ONE templated line
-    // stands for both — and says it applies to each node listed under it.
-    expect(out).toContain("Fix: yg log add --node <node> --reason '<justification>', then re-run: yg check --approve  (for each node below)");
-    expect(out).toMatch(/^ {12}- billing\/charge {2}/m);
-    expect(out).toMatch(/^ {12}- orders\/handler {2}/m);
-    // The misleading SINGLE shared "Fix:" line naming only the first node must NOT appear.
-    expect(out).not.toContain('Fix: yg log add --node billing/charge');
-    expect(out).not.toContain('Fix: yg log add --node orders/handler');
+    // stands for both — and says it applies to each node listed above it.
+    expect(out).toContain("  fix:  yg log add --node <node> --reason '<justification>', then re-run: yg check --approve  for each node above");
+    expect(out).toContain('  at:   billing/charge');
+    expect(out).toContain('        orders/handler');
+    // A fix: line naming only one node must NOT appear.
+    expect(out).not.toContain('fix:  yg log add --node billing/charge');
+    expect(out).not.toContain('fix:  yg log add --node orders/handler');
+    // next: fills the first node in.
+    expect(out).toContain("next: yg log add --node billing/charge --reason '<justification>'");
   });
 
-  it('a relation-target-forbidden group with divergent why surfaces BOTH why variants', () => {
+  it('a relation-target-forbidden pair with divergent why surfaces BOTH why variants and BOTH fixes', () => {
     const issues: CheckIssue[] = [
       {
         severity: 'error', code: 'relation-target-forbidden', rule: 'relation-target-forbidden', nodePath: 'a/x',
-        messageData: { what: 'forbidden on a/x', why: "Allowed targets for 'uses' from type 'svc': [repo]", next: "Change the relation type for a/x." },
+        messageData: { what: 'forbidden on a/x', why: "Allowed targets for 'uses' from type 'svc': [repo]", next: 'Change the relation type for a/x.' },
       } as CheckIssue,
       {
         severity: 'error', code: 'relation-target-forbidden', rule: 'relation-target-forbidden', nodePath: 'b/y',
         messageData: { what: 'forbidden on b/y', why: "Type 'svc' denies relation 'uses' by default.", next: "Open 'uses' for type 'svc' (for b/y)." },
       } as CheckIssue,
     ];
-    const out = stripAnsi(formatOutput(baseResult(issues)));
-    // Both distinct why variants reach the agent.
-    expect(out).toContain("Allowed targets for 'uses' from type 'svc'");
-    expect(out).toContain("Type 'svc' denies relation 'uses' by default");
-    // Both distinct next commands reach the agent.
-    expect(out).toContain('Change the relation type for a/x.');
-    expect(out).toContain("Open 'uses' for type 'svc' (for b/y).");
+    const out = report(issues);
+    // Each why is stated once, in a block of its own.
+    expect(headings(out)).toHaveLength(2);
+    expect(out).toContain("  why:  Allowed targets for 'uses' from type 'svc'");
+    expect(out).toContain("  why:  Type 'svc' denies relation 'uses' by default");
+    expect(out).toContain('  fix:  Change the relation type for a/x.');
+    expect(out).toContain("  fix:  Open 'uses' for type 'svc' (for b/y).");
   });
 
-  it('a SHARED-fix group (LLM refusal, identical next) still collapses to ONE Fix line', () => {
-    const issues: CheckIssue[] = ['a', 'b', 'c'].map((n) => ({
+  it('a SHARED-fix block (LLM refusal, identical next) states its fix ONCE', () => {
+    const issues: CheckIssue[] = ['svc/a', 'svc/b', 'svc/c'].map((n) => ({
       severity: 'error',
       code: 'aspect-violation-enforced',
       rule: 'aspect-violation-enforced',
@@ -464,24 +461,20 @@ describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s c
       nodePath: n,
       messageData: llmRefusedMessage({ aspectId: 'audit-logging', unitKey: n, reason: `reason-${n}` }),
     } as CheckIssue));
-    const out = stripAnsi(formatOutput(baseResult(issues)));
-    // The shared three-exits Fix block renders exactly once (collapsed).
-    const fixLineCount = out.split('\n').filter((l) => /^ {12}Fix: /.test(l)).length;
-    expect(fixLineCount).toBe(1);
-    // Per-member reason still shows each node's distinct reason (FULL_WHAT path).
-    expect(out).toContain('reason-a');
-    expect(out).toContain('reason-b');
-    expect(out).toContain('reason-c');
+    const out = report(issues);
+    expect(out.split('\n').filter((l) => l.startsWith('  fix:'))).toHaveLength(1);
+    // Each member still shows its own reason.
+    expect(out).toContain('  at:   svc/a  reason-svc/a');
+    expect(out).toContain('        svc/b  reason-svc/b');
+    expect(out).toContain('        svc/c  reason-svc/c');
   });
 
   // type-relation-forbidden findings carry no nodePath (a finding is about a
-  // (fromType, toType) PAIR, not a graph node), so groupIssues scores them
-  // nodeCount === 0 and renderGroup dispatches to renderRepoLevelGroup — which,
-  // before this fix, suppressed `next` entirely whenever it diverged across
-  // members (no per-member fallback, unlike renderGroup's own emitDivergentDetail),
-  // leaving the agent with NO Fix line at all once 2+ distinct forbidden pairs
-  // were present in the same run.
-  it('TWO distinct forbidden type pairs (repo-level, no nodePath) each render their OWN Fix line', () => {
+  // (fromType, toType) PAIR, not a graph node). Two distinct forbidden pairs
+  // in one run carry two different fixes; each must reach the agent with its
+  // actual remedy, never only the first, and never only the heading that
+  // introduces the remedy list.
+  it('TWO distinct forbidden type pairs (repo-level, no nodePath) each render their OWN fix', () => {
     const issues: CheckIssue[] = [
       {
         severity: 'error', code: 'type-relation-forbidden', rule: 'type-relation-forbidden',
@@ -498,34 +491,20 @@ describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s c
         }),
       } as CheckIssue,
     ];
-    const [g] = groupIssues(issues);
-    expect(g.nodeCount).toBe(0); // confirms the repo-level render path is the one under test
-    expect(g.divergentNext).toBe(true); // each pair's Fix names its own fromType/toType
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    expect(out).toContain("'svc' -> 'owner-type'");
-    expect(out).toContain("'web' -> 'db'");
-    const fixLines = out.split('\n').filter((l) => /^ {12}Fix: /.test(l));
-    expect(fixLines).toHaveLength(2);
+    const out = blocks(issues);
+    expect(out).toContain("from type 'svc' to type 'owner-type'");
+    expect(out).toContain("from type 'web' to type 'db'");
+    const fix = fieldLines(out, 'fix').join('\n');
+    expect(fix).toContain("add a relations entry for 'svc' -> 'owner-type'");
+    expect(fix).toContain("add a relations entry for 'web' -> 'db'");
   });
 
   // type-strict-orphan (core/checks/mapping.ts) carries neither nodePath nor
   // unitKey, so many unrelated files satisfying the SAME strict type land in
-  // ONE repo-level group. Mix in a second, genuinely different strict type and
-  // the group scores divergentWhy/divergentNext true across ALL its members —
-  // exactly the shape a real repository hits with two `enforce: strict` types
-  // both missing mappings. No `type_level` config is involved anywhere in this
-  // fixture: `type-strict-orphan` predates the type-tier feature and fires
-  // with the tier off. Before this fix, the per-member fallback added for the
-  // (tier-only) type-relation-forbidden gate fired for this code too, printing
-  // an identical boilerplate Why/Fix pair after every single orphaned file —
-  // a 200-file strict type produced 200 near-duplicate sentences. The fix
-  // scopes the per-member fallback to `perMemberReason` codes (today, only the
-  // type gate), so a non-gate divergent group renders exactly what it always
-  // did: each member's own `what`, and nothing else — the flag-off byte stays
-  // untouched by this release for every code that predates it.
-  it('a divergent repo-level group OUTSIDE the type gate renders no per-member Why/Fix at all', () => {
+  // ONE repo-level block. A per-member fix list for such a block must stay
+  // bounded like the member list is: a 200-file strict type once produced
+  // 200 near-duplicate sentences.
+  it('a divergent repo-level block states its why once and keeps its fix bounded', () => {
     const orphan = (relPath: string, typeId: string): CheckIssue => ({
       severity: 'error', code: 'type-strict-orphan', rule: 'type-strict-orphan',
       messageData: {
@@ -535,36 +514,26 @@ describe('check render — Fix 4: divergent per-node fix surfaces EACH node\'s c
       },
     } as CheckIssue);
     const issues: CheckIssue[] = [
-      ...Array.from({ length: 5 }, (_, i) => orphan(`src/suite/case-${i}.test.ts`, 'test-suite')),
+      ...Array.from({ length: 20 }, (_, i) => orphan(`src/suite/case-${i}.test.ts`, 'test-suite')),
       orphan('src/other/thing.ts', 'other-type'),
     ];
-    const [g] = groupIssues(issues);
-    expect(g.nodeCount).toBe(0);
-    expect(g.fileCount).toBe(0); // repo-level: no nodePath, no `file:`-prefixed unitKey
-    expect(g.divergentWhy).toBe(true); // 'test-suite' text != 'other-type' text
-    expect(g.divergentNext).toBe(true);
-    expect(g.perMemberReason).toBe(false); // type-strict-orphan is not a FULL_WHAT_CODES code
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    // No Why:/Fix: line anywhere — matches the pre-existing (pre-release)
-    // rendering for this divergent case exactly; only the shared-block guards
-    // below the loop could still fire, and they are gated on `!divergentWhy`.
-    expect(out).not.toMatch(/^ {12}Why: /m);
-    expect(out).not.toMatch(/^ {12}Fix: /m);
-    // Every member's own `what` (the specific file) still renders — that part
-    // of the grouping was never in question.
-    for (let i = 0; i < 5; i++) {
-      expect(out).toContain(`src/suite/case-${i}.test.ts`);
-    }
-    expect(out).toContain('src/other/thing.ts');
+    const out = blocks(issues);
+    // One block per why, each stating it once.
+    expect(headings(out)).toHaveLength(2);
+    expect(out.split('\n').filter((l) => l.startsWith('  why:'))).toHaveLength(2);
+    // The fix never grows with the member count past the cap a member list has.
+    expect(fieldLines(out, 'fix').length).toBeLessThanOrEqual(MEMBER_CAP + 2);
+    // Every member's own file still renders in the uncapped view.
+    const all = blocks(issues, false);
+    for (let i = 0; i < 20; i++) expect(all).toContain(`src/suite/case-${i}.test.ts`);
+    expect(all).toContain('src/other/thing.ts');
   });
 });
 
-describe('check render — grouped full view (task 1.3)', () => {
-  it('header counts reconcile: 2 unverified(x) + 1 refused(y) → Errors (3) in 2 groups:', () => {
+describe('check render — counts reconcile', () => {
+  it('2 unverified(x) + 1 refused(y) → a verdict line of 3 errors, a refused block of 1 and an unverified block of 2', () => {
     const issues: CheckIssue[] = [
-      ...['a', 'b'].map((n) => ({
+      ...['svc/a', 'svc/b'].map((n) => ({
         severity: 'error',
         code: 'unverified',
         rule: 'unverified',
@@ -579,61 +548,57 @@ describe('check render — grouped full view (task 1.3)', () => {
         rule: 'aspect-violation-enforced',
         aspectId: 'y',
         pairKind: 'llm',
-        nodePath: 'a',
-        messageData: llmRefusedMessage({ aspectId: 'y', unitKey: 'a', reason: 'r' }),
+        nodePath: 'svc/a',
+        messageData: llmRefusedMessage({ aspectId: 'y', unitKey: 'svc/a', reason: 'r' }),
       } as CheckIssue,
     ];
-    const out = stripAnsi(formatOutput(baseResult(issues)));
-    expect(out).toContain('Errors (3) in 2 groups:');
+    const out = report(issues);
+    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors   1 node');
+    // Code and graph errors (T1) before pending pairs (T3).
+    expect(headings(out)).toEqual(['error[refused] y — refused on svc/a', 'error[unverified] 2 pairs with no verdict yet']);
+    expect(out).toContain('  at:   x  2 pairs · 2 nodes · reviewer');
   });
 });
 
-describe('check render — --details view (task 2.1)', () => {
-  it('produces THREE separate per-issue blocks for 3 unverified issues on the same aspect across 3 nodes', () => {
-    const issues: CheckIssue[] = ['node-a', 'node-b', 'node-c'].map((n) => ({
-      severity: 'error',
-      code: 'unverified',
-      rule: 'unverified',
-      aspectId: 'audit-logging',
-      pairKind: 'llm',
-      nodePath: n,
-      messageData: unverifiedMessage({ aspectId: 'audit-logging', unitKey: `${n}#audit-logging` }),
-    } as CheckIssue));
+describe('check render — --details view', () => {
+  const three: CheckIssue[] = ['node-a', 'node-b', 'node-c'].map((n) => ({
+    severity: 'error',
+    code: 'unverified',
+    rule: 'unverified',
+    aspectId: 'audit-logging',
+    pairKind: 'llm',
+    nodePath: n,
+    messageData: unverifiedMessage({ aspectId: 'audit-logging', unitKey: `${n}#audit-logging` }),
+  } as CheckIssue));
 
-    const detailsOut = stripAnsi(formatOutput(baseResult(issues), { kind: 'details' }));
-    const fullOut    = stripAnsi(formatOutput(baseResult(issues), { kind: 'full' }));
-
-    // --details must render THREE individual blocks (one per issue), not one grouped block.
-    expect(countBlocks(detailsOut)).toBe(3);
-    // Each node appears in its own "unverified … <node>" block.
-    expect(detailsOut).toContain('unverified  node-a');
-    expect(detailsOut).toContain('unverified  node-b');
-    expect(detailsOut).toContain('unverified  node-c');
-    // The default grouped view collapses these into ONE block.
-    expect(countBlocks(fullOut)).toBe(1);
+  it('lists every pair of a rule on its own line, where the default view collapses them into one', () => {
+    const detailsOut = report(three, { kind: 'details' });
+    const fullOut = report(three, { kind: 'full' });
+    expect(detailsOut).toContain('  at:   audit-logging @ node-a');
+    expect(detailsOut).toContain('        audit-logging @ node-b');
+    expect(detailsOut).toContain('        audit-logging @ node-c');
+    expect(fullOut).toContain('  at:   audit-logging  3 pairs · 3 nodes · reviewer');
+    expect(fullOut).not.toContain('@ node-a');
   });
 
-  it('still renders the true Errors(N) header and Next line in --details view', () => {
-    const issues: CheckIssue[] = ['node-a', 'node-b'].map((n) => ({
-      severity: 'error',
-      code: 'unverified',
-      rule: 'unverified',
-      aspectId: 'audit-logging',
-      pairKind: 'llm',
-      nodePath: n,
-      messageData: unverifiedMessage({ aspectId: 'audit-logging', unitKey: `${n}#audit-logging` }),
-    } as CheckIssue));
-
-    const out = stripAnsi(formatOutput(baseResult(issues), { kind: 'details' }));
-    expect(out).toContain('Errors (2):');
-    expect(out).toMatch(/\nNext: /);
+  it('keeps the true verdict line and the same next: as the default view', () => {
+    const forbidden = {
+      severity: 'error', code: 'relation-target-forbidden', rule: 'relation-target-forbidden', nodePath: 'a/x',
+      messageData: { what: 'forbidden on a/x', why: 'w', next: 'Change the relation type for a/x.' },
+    } as CheckIssue;
+    const issues = [...three.slice(0, 2), forbidden];
+    const out = report(issues, { kind: 'details' });
+    expect(out.split('\n')[0]).toBe('yg check: FAIL  3 errors   1 node   view: details');
+    const nextOf = (text: string): string[] => text.split('\n').filter((l) => /^(next|then): /.test(l));
+    expect(nextOf(out)).toEqual(nextOf(report(issues)));
+    expect(nextOf(out)[0]).toBe('next: Change the relation type for a/x  (relation-target-forbidden)');
   });
 });
 
 
-// ── Nodeless (type-covered-file) members — two-block rendering ───────────────
+// ── Nodeless (type-covered-file) members ───────────────
 
-describe('renderGroup — nodeless members', () => {
+describe('blocks — nodeless members', () => {
   function fileIssue(unitKey: string, aspectId = 'own-file-rule'): CheckIssue {
     return {
       severity: 'error',
@@ -659,69 +624,34 @@ describe('renderGroup — nodeless members', () => {
     } as CheckIssue;
   }
 
-  it('a nodeless member renders its FILE, never an empty bullet or the literal word "undefined"', () => {
-    const [g] = groupIssues([fileIssue('file:src/leaf/a.ts')]);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    expect(out).toContain('- src/leaf/a.ts');
+  it('a nodeless member renders its FILE, never an empty member or the literal word "undefined"', () => {
+    const out = blocks([fileIssue('file:src/leaf/a.ts')]);
+    expect(out).toContain('  at:   own-file-rule @ src/leaf/a.ts');
     expect(out).not.toMatch(/undefined/);
-    expect(out).not.toMatch(/^\s*-\s*$/m); // no bare empty bullet line
+    expect(out).not.toMatch(/@ *$/m);
   });
 
-  it('renders components in one block and files in a SEPARATE block after them', () => {
-    const [g] = groupIssues([
-      nodeIssue('svc-a'),
-      fileIssue('file:src/leaf/a.ts'),
-      nodeIssue('svc-b'),
-      fileIssue('file:src/leaf/b.ts'),
-    ]);
-    expect(g.nodeCount).toBe(2);
-    expect(g.fileCount).toBe(2);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    const svcAIdx = out.indexOf('- svc-a');
-    const svcBIdx = out.indexOf('- svc-b');
-    const fileAIdx = out.indexOf('- src/leaf/a.ts');
-    const fileBIdx = out.indexOf('- src/leaf/b.ts');
-    expect([svcAIdx, svcBIdx, fileAIdx, fileBIdx].every((i) => i >= 0)).toBe(true);
-    // Every component bullet precedes every file bullet.
-    expect(Math.max(svcAIdx, svcBIdx)).toBeLessThan(Math.min(fileAIdx, fileBIdx));
+  it('a block mixing components and files counts both, and lists each in the uncapped view', () => {
+    const issues = [nodeIssue('svc-a'), fileIssue('file:src/leaf/a.ts'), nodeIssue('svc-b'), fileIssue('file:src/leaf/b.ts')];
+    expect(blocks(issues)).toContain('  at:   own-file-rule  4 pairs · 2 nodes · 2 files · script');
+    const all = blocks(issues, false);
+    for (const u of ['svc-a', 'svc-b', 'src/leaf/a.ts', 'src/leaf/b.ts']) expect(all).toContain(`own-file-rule @ ${u}`);
   });
 
-  it('the group header names BOTH components and files when the group mixes them', () => {
-    const [g] = groupIssues([nodeIssue('svc-a'), fileIssue('file:src/leaf/a.ts')]);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    expect(out).toContain('2 pairs  1 node, 1 file');
+  it('a block that is ALL file-level (zero components) is not treated as repo-level — it counts and lists its files', () => {
+    const issues = [fileIssue('file:src/leaf/a.ts'), fileIssue('file:src/leaf/b.ts')];
+    expect(blocks(issues)).toContain('  at:   own-file-rule  2 pairs · 2 files · script');
+    const all = blocks(issues, false);
+    expect(all).toContain('own-file-rule @ src/leaf/a.ts');
+    expect(all).toContain('own-file-rule @ src/leaf/b.ts');
   });
 
-  it('a group that is ALL file-level (zero real components) is not treated as repo-level — it still gets per-file bullets', () => {
-    const [g] = groupIssues([fileIssue('file:src/leaf/a.ts'), fileIssue('file:src/leaf/b.ts')]);
-    expect(g.nodeCount).toBe(0);
-    expect(g.fileCount).toBe(2);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    expect(out).toContain('2 pairs  2 files');
-    expect(out).toContain('- src/leaf/a.ts');
-    expect(out).toContain('- src/leaf/b.ts');
-  });
-
-  it('a file member never consumes the component block’s cap (independent caps, in every sink)', () => {
-    const nodeMembers = Array.from({ length: 13 }, (_, i) => nodeIssue(`svc-${i}`));
-    const fileMembers = [fileIssue('file:src/leaf/only-file.ts')];
-    const [g] = groupIssues([...nodeMembers, ...fileMembers]);
-    const lines: string[] = [];
-    renderGroup(g, lines, { capMembers: true });
-    const out = stripAnsi(lines.join('\n'));
-    // 13 components > CAP_NODES(12) → component block truncates ("... and 1 more").
-    expect(out).toContain('... and 1 more');
-    // The lone file member still renders — it was never displaced by the
-    // component overflow, because it lives in its own block with its own cap.
-    expect(out).toContain('- src/leaf/only-file.ts');
+  it('a file member is never hidden behind the component members (counted when capped, listed when not)', () => {
+    const issues = [...Array.from({ length: 13 }, (_, i) => nodeIssue(`svc-${i}`)), fileIssue('file:src/leaf/only-file.ts')];
+    expect(blocks(issues)).toContain('  at:   own-file-rule  14 pairs · 13 nodes · 1 file · script');
+    const all = blocks(issues, false);
+    expect(all).toContain('own-file-rule @ src/leaf/only-file.ts');
+    expect(all.split('\n').filter((l) => / @ svc-\d+$/.test(l))).toHaveLength(13);
   });
 });
 

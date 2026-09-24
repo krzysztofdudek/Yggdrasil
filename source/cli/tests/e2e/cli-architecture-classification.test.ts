@@ -211,12 +211,11 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('type-when-mismatch');
-      // Per-issue WHAT ("File '...' is in mapping of node '...'") is gone in the
-      // grouped renderer; assert the group's shared `why` (which names the type),
+      // Assert the block's shared `why` (which names the type),
       // the offending node line, and the Fix hints that convey the same intent.
       expect(all).toContain("When a node is declared as type 'service', every file in its mapping must satisfy the type's when predicate");
       expect(all).toContain("satisfies service.when");
-      expect(all).toContain('- widget');
+      expect(all).toContain('  at:   widget\n');
       // The remediation hints point the agent at type-suggest for the file.
       expect(all).toContain('yg type-suggest --file src/widget.ts');
     } finally {
@@ -247,10 +246,10 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('type-when-mismatch');
-      // Per-issue WHAT is gone in the grouped renderer; assert the group's shared
+      // Assert the block's
       // `why` (which names the type) and the offending node line instead.
       expect(all).toContain("When a node is declared as type 'command', every file in its mapping must satisfy the type's when predicate");
-      expect(all).toContain('- cmd');
+      expect(all).toContain('  at:   cmd\n');
       // The grouped Fix block names the content-predicate type to refactor against.
       expect(all).toContain('satisfies command.when');
     } finally {
@@ -283,11 +282,11 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('type-when-mismatch');
-      // Per-issue WHAT is gone in the grouped renderer; assert the group's shared
+      // Assert the block's
       // `why`, the offending node line, and the Fix hint naming the test file
       // (the `not` atom excluded it from command.when).
       expect(all).toContain("When a node is declared as type 'command', every file in its mapping must satisfy the type's when predicate");
-      expect(all).toContain('- cmd');
+      expect(all).toContain('  at:   cmd\n');
       expect(all).toContain('yg type-suggest --file src/foo.test.ts');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -361,11 +360,10 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('type-strict-misplaced');
-      // Per-issue WHAT (the file + strict type) is gone in the grouped renderer;
-      // assert the group's shared `why` (which names the strict type), the owner
+      // Assert the block's shared `why` (which names the strict type), the owner
       // node line, and the Fix remediation that conveys the same intent.
       expect(all).toContain("Type 'secure' has enforce: strict");
-      expect(all).toContain('- widget');
+      expect(all).toContain('  at:   widget\n');
       expect(all).toContain("Change 'widget' type to 'secure' if conceptually correct.");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -435,7 +433,7 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('strict-overlap-conflict');
-      // Per-issue WHAT is gone in the grouped renderer; assert the group's shared
+      // Assert the block's
       // `why` explaining the impossible-to-satisfy double-strict overlap.
       expect(all).toContain('Both types declare enforce: strict');
       // The grouped Fix block names both conflicting types (sorted: audited before secure).
@@ -483,11 +481,10 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       const { status, all } = run(['check'], dir);
       expect(status).toBe(1);
       expect(all).toContain('type-without-when-with-mapping');
-      // Per-issue WHAT (naming the node + organizational type) is gone in the
-      // grouped renderer; assert the group's shared `why`, the offending node
+      // Assert the block's shared `why`, the offending node
       // line, and the Fix naming the organizational type to add a `when` to.
       expect(all).toContain('Types without `when` are organizational (parent-only). Nodes of such types cannot have mapped files.');
-      expect(all).toContain('- widget');
+      expect(all).toContain('  at:   widget\n');
       expect(all).toContain("Add a `when` predicate to type 'module'");
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -606,20 +603,16 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
     });
     try {
       // Fill is repo-wide (no per-node scoping); the type-default deterministic
-      // aspect refuses on the planted token. The fill line names the [det] pair
-      // and `refused`; the post-fill render names the aspect + the refusal.
+      // aspect refuses on the planted token. The fill's closing line counts the
+      // refusal; the post-fill render names the aspect + the refusal.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.all).toContain('[det] own-type-rule on node:handler — refused');
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
       expect(fill.all).toContain('own-type-rule');
-      // The post-fill grouped render names the aspect in the group header
-      // (enforced ... aspect 'own-type-rule') and lists the refusing node with its
-      // deterministic Violations tail (FULL_WHAT detail is retained per-node). The
-      // old per-issue WHAT line 0 ("Aspect '...' is refused on <unit> ...") is now
-      // the group-level header and no longer rendered verbatim per issue.
-      expect(fill.all).toContain("enforced");
-      expect(fill.all).toContain("aspect 'own-type-rule'");
-      expect(fill.all).toContain('- handler');
+      // The post-fill render is an error[refused] block (enforced) naming the
+      // aspect and the refusing node, with the violation as its member line.
+      expect(fill.all).toContain('error[refused] own-type-rule — 1 violation in handler');
+      expect(fill.all).toContain('  at:   handler  src/services/handler.ts:1  ');
       expect(fill.all).toContain('own-type-rule: FORBIDDEN_OWN found.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -657,16 +650,13 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       // on the planted token at the nested descendant node:svc/handler.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.all).toContain('[det] parent-type-rule on node:svc/handler — refused');
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
       expect(fill.all).toContain('parent-type-rule');
-      // The post-fill grouped render names the ancestor-type aspect in the group
-      // header and lists the nested descendant node with its deterministic
-      // Violations tail (FULL_WHAT detail is retained per-node). The old per-issue
-      // WHAT line 0 ("Aspect '...' is refused on <unit> ...") is now the group
-      // header and no longer rendered verbatim per issue.
-      expect(fill.all).toContain("enforced");
-      expect(fill.all).toContain("aspect 'parent-type-rule'");
-      expect(fill.all).toContain('- svc/handler');
+      // The post-fill render is an error[refused] block (enforced) naming the
+      // ancestor-type aspect and the nested descendant node, with the violation
+      // as its member line.
+      expect(fill.all).toContain('error[refused] parent-type-rule — 1 violation in svc/handler');
+      expect(fill.all).toContain('  at:   svc/handler  src/services/handler.ts:1  ');
       expect(fill.all).toContain('parent-type-rule: FORBIDDEN_PARENT found.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -779,7 +769,8 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       expect(stdout).toContain('Multiple types match:');
       expect(stdout).toContain('alpha — full when satisfied');
       expect(stdout).toContain('beta — full when satisfied');
-      expect(stdout).toContain('Architecture has overlapping when between types.');
+      expect(stdout).toContain('The architecture has overlapping when predicates between these types.');
+      expect(stdout).toContain('next: compare each type');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -30,7 +30,7 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     data = await extractPortalData(REPO_ROOT, { writeEnabled: false });
   }, 180_000);
 
-  it('cli/tests/unit/cli/general leads fan-out at 29, ahead of cli/entry at 26', () => {
+  it('cli/tests/unit/cli/general leads fan-out at 30, ahead of cli/entry at 28', () => {
     // The tie this test used to pin (cli/core/fill and cli/tests/unit/cli/general
     // both at 24, alphabetical order breaking it) is gone: the check command's
     // own unit-test umbrella (cli/tests/unit/cli/general) picked up three more
@@ -42,7 +42,9 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // cli/core/check-codes' real code set rather than a hand-listed copy, and at
     // 29 since its test files started copying committed fixtures through the
     // shared test-support helper (cli/tests/support) instead of a bare recursive
-    // copy — a test-harness edge, not another engine seam this umbrella reaches.
+    // copy — a test-harness edge, not another engine seam this umbrella reaches —
+    // and at 30 since it declared its `uses` edge to cli/output, the one output
+    // grammar its tests (check-render-groups, help, output) import directly.
     // Below it, the tie that used to sit at 24 has been broken: cli/core/fill
     // declared its own `calls` edge to cli/core/progressive-scope when the fill
     // stage began deciding which reviewer work a measured change is accountable
@@ -73,15 +75,17 @@ describe('portal rest derivation (hubs / residue / worklist / boundary) — real
     // dogfood entry recorded against this very file.
     expect(data.hubs.fanOut.length).toBeGreaterThan(0);
     expect(data.hubs.fanOut[0].path).toBe('cli/tests/unit/cli/general');
-    expect(data.hubs.fanOut[0].count).toBe(29);
+    expect(data.hubs.fanOut[0].count).toBe(30);
     expect(data.hubs.fanOut[1].path).toBe('cli/entry');
     // 27 since the marketplace command joined, 26 again since the verdict
     // command left (the configured reviewer is the only judge), 27 again since
-    // a hidden stub took its name to point callers at the replacement: the
+    // a hidden stub took its name to point callers at the replacement, 28 since
+    // the grouped `yg help` registration joined: the
     // dispatcher necessarily references one node per command, so this number
     // moves by one with every command the CLI gains or loses — that is the
     // dispatcher working, and its own node carries a reviewed allowance saying so.
-    expect(data.hubs.fanOut[1].count).toBe(27);
+    expect(data.hubs.fanOut[1].count).toBe(28);
+
     expect(data.hubs.fanOut[2].path).toBe('cli/core/fill');
     expect(data.hubs.fanOut[2].count).toBe(26);
     expect(data.hubs.fanOut[3].path).toBe('cli/core/check');
@@ -395,10 +399,13 @@ describe('portal rest builders — additional honest branches', () => {
     const { groups, coverage } = buildWorklist({ issues } as unknown as CheckResult);
 
     // (Minor 3a) Real priority-ranked order — errors first, never sorted away by a `.sort()`
-    // that would let a warnings-before-errors bug through.
+    // that would let a warnings-before-errors bug through. Errors run by tier: graph-invalid
+    // (lock-invalid), then code/graph fixes (the refusal), then gate prerequisites
+    // (log-entry-missing), then pending verdicts (unverified).
     expect(groups.map((g) => g.code)).toEqual([
-      'lock-invalid', 'log-entry-missing', 'unverified', 'aspect-violation-enforced', 'unverified',
+      'lock-invalid', 'aspect-violation-enforced', 'log-entry-missing', 'unverified', 'unverified',
     ]);
+
     expect(groups.map((g) => g.severity)).toEqual(['error', 'error', 'error', 'error', 'warning']);
 
     const unverifiedGroups = groups.filter((g) => g.code === 'unverified');

@@ -15,6 +15,11 @@ import { computeTypeCoverageCached } from '../core/type-coverage.js';
 import { FileContentCache } from '../io/file-content-cache.js';
 import type { Graph, AspectStatus, AspectDef } from '../model/graph.js';
 import { ASPECTS_JSON_SCHEMA, formatAspectsJson } from '../formatters/aspects-json.js';
+import {
+  ASPECTS_HEALTH_JSON_SCHEMA,
+  formatAspectsHealthJson,
+  type AspectsHealthJsonDocument,
+} from '../formatters/aspects-health-json.js';
 import { registerAspectsLogCommand } from './aspects-log.js';
 import { readAspectLog } from '../core/log/aspect-log.js';
 import { parseStatusEntry } from '../core/log/aspect-status.js';
@@ -533,6 +538,25 @@ export interface AspectHealthRow {
    * input, never a gate.
    */
   wrongRuleCell: string;
+  /**
+   * The same row as values, for the machine form (`yg-aspects-health/1`): the
+   * cells above are words for a table, these are the counts behind them. A
+   * question that was never asked is `null`, never `0`.
+   */
+  values: {
+    refused: number;
+    unverified: number;
+    files: number | null;
+    errs: string | null;
+    age: string | null;
+    catch: number | null;
+    exposure: number | null;
+    signal: string | null;
+    /** The plain-words line the table prints for this rule under "Signal detail", without the id prefix. */
+    reading: string | null;
+    falseBlocks: { count: number; blocks: number; thinData: boolean; reading: string | null } | null;
+    wrongRuleIncidents: number;
+  };
 }
 
 export interface AspectHealth {
@@ -569,6 +593,8 @@ export interface AspectHealth {
    * byte-identical `--health` output to before the column existed.
    */
   typeLevelEnabled: boolean;
+  /** The telemetry window line of the false-block notes ("Local telemetry since …"), or null when none is printed. */
+  telemetry: string | null;
 }
 
 /**
@@ -717,23 +743,19 @@ function buildSignalNotes(
   sortedAspects: AspectDef[],
   signals: ReadonlyMap<string, AspectHealthSignal>,
   drillStatuses: ReadonlyMap<string, DrillStatus>,
-): string[] {
-  const notes: string[] = [];
+): Map<string, string> {
+  const notes = new Map<string, string>();
   for (const aspect of sortedAspects) {
     const sig = signals.get(aspect.id);
     if (sig === undefined || sig.exposure === 0) continue;
     const pct = Math.round(sig.pointEstimate * 100);
     if (sig.label === 'decorative?') {
       const cross = covenantLine(drillStatuses.get(aspect.id) ?? 'none');
-      notes.push(
-        `${aspect.id}: ${cross} (0 of ${sig.exposure} recorded checks; estimated catch rate ~${pct}%).`,
-      );
+      notes.set(aspect.id, `${cross} (0 of ${sig.exposure} recorded checks; estimated catch rate ~${pct}%).`);
     } else if (sig.uncertaintyWide && sig.catch > 0) {
       // Caveat only where there is a real catch rate to over-trust; a never-caught
       // thin rule's story is already told by its catch=0 / signal=quiet cells.
-      notes.push(
-        `${aspect.id}: estimated catch rate ~${pct}% — uncertainty range is wide (few observations).`,
-      );
+      notes.set(aspect.id, `estimated catch rate ~${pct}% — uncertainty range is wide (few observations).`);
     }
   }
   return notes;
@@ -753,8 +775,8 @@ function buildFpNotes(
   fpSignals: ReadonlyMap<string, AspectFalsePositiveSignal>,
   telemetrySince: string | undefined,
   committedNote: string | undefined,
-): string[] {
-  const detail: string[] = [];
+): { telemetry: string | null; byAspect: Map<string, string> } {
+  const detail = new Map<string, string>();
   let hasBlocks = false;
   for (const aspect of sortedAspects) {
     const sig = fpSignals.get(aspect.id);
@@ -771,14 +793,15 @@ function buildFpNotes(
           ? 'overturned after a suppress range changed'
           : 'waived by a suppress marker';
     const thin = sig.thinData ? ', few observations' : '';
-    detail.push(
-      `${aspect.id}: ${sig.fp} of ${sig.blocks} recorded block${sig.blocks === 1 ? '' : 's'} later ${how} (estimated false-block rate ~${pct}%${thin}).`,
+    detail.set(
+      aspect.id,
+      `${sig.fp} of ${sig.blocks} recorded block${sig.blocks === 1 ? '' : 's'} later ${how} (estimated false-block rate ~${pct}%${thin}).`,
     );
   }
-  if (!hasBlocks) return [];
+  if (!hasBlocks) return { telemetry: null, byAspect: detail };
   const since = telemetrySince ?? 'the first recorded event';
-  const caveat = committedNote ? ` Shared LLM events included (${committedNote}).` : '';
-  return [`Local telemetry since ${since}.${caveat}`, ...detail];
+  const caveat = committedNote ? ` Shared reviewer events included (${committedNote}).` : '';
+  return { telemetry: `Local telemetry since ${since}.${caveat}`, byAspect: detail };
 }
 
 export function computeAspectHealth(
@@ -847,12 +870,18 @@ export function computeAspectHealth(
   let hasUnverified = false;
   let hasWrongRuleAttribution = false;
   const sorted = [...graph.aspects].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+  const signalReadings = buildSignalNotes(sorted, signals, drillStatuses);
+  const fp = buildFpNotes(sorted, fpSignals, telemetrySince, committedNote);
   for (const aspect of sorted) {
     const agg = byAspect.get(aspect.id);
     const pairs = agg?.pairs ?? 0;
     const refused = renderRefusedCell(pairs, agg?.refused ?? 0, agg?.unknown ?? 0);
     if (refused.includes(UNVERIFIED)) hasUnverified = true;
-    const cells = signalCells(signals.get(aspect.id));
+    const sig = signals.get(aspect.id);
+    const cells = signalCells(sig);
+    const exposed = sig !== undefined && sig.exposure > 0;
+    const fpSig = fpSignals.get(aspect.id);
+    const age = ruleAges.get(aspect.id);
     const wrongRuleCount = wrongRuleByAspect.get(aspect.id) ?? 0;
     if (wrongRuleCount > 0) hasWrongRuleAttribution = true;
     rows.push({
@@ -869,14 +898,30 @@ export function computeAspectHealth(
       catchCell: cells.catchCell,
       exposureCell: cells.exposureCell,
       signalCell: cells.signalCell,
-      fpCellValue: fpCell(fpSignals.get(aspect.id)),
+      fpCellValue: fpCell(fpSig),
       wrongRuleCell: wrongRuleCell(wrongRuleCount),
+      values: {
+        refused: agg?.refused ?? 0,
+        unverified: agg?.unknown ?? 0,
+        files: typeLevelEnabled ? (agg?.files.size ?? 0) : null,
+        errs: aspect.errs ?? null,
+        age: age ?? null,
+        catch: exposed ? sig.catch : null,
+        exposure: exposed ? sig.exposure : null,
+        signal: exposed ? sig.label : null,
+        reading: signalReadings.get(aspect.id) ?? null,
+        falseBlocks:
+          fpSig === undefined || fpSig.blocks === 0
+            ? null
+            : { count: fpSig.fp, blocks: fpSig.blocks, thinData: fpSig.thinData, reading: fp.byAspect.get(aspect.id) ?? null },
+        wrongRuleIncidents: wrongRuleCount,
+      },
     });
   }
 
-  const signalNotes = buildSignalNotes(sorted, signals, drillStatuses);
-  const fpNotes = buildFpNotes(sorted, fpSignals, telemetrySince, committedNote);
-  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes, hasWrongRuleAttribution, typeLevelEnabled };
+  const signalNotes = [...signalReadings].map(([id, text]) => `${id}: ${text}`);
+  const fpNotes = fp.telemetry === null ? [] : [fp.telemetry, ...[...fp.byAspect].map(([id, text]) => `${id}: ${text}`)];
+  return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes, hasWrongRuleAttribution, typeLevelEnabled, telemetry: fp.telemetry };
 }
 
 /** Column order is fixed by contract; other waves append columns to the right. */
@@ -973,6 +1018,34 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
   return lines.join('\n') + '\n';
 }
 
+/** The yg-aspects-health/1 document for a computed health view. */
+export function aspectsHealthDocument(health: AspectHealth): AspectsHealthJsonDocument {
+  return {
+    schema: ASPECTS_HEALTH_JSON_SCHEMA,
+    rules: health.rows.map((r) => ({
+      aspect: r.aspectId,
+      kind: r.kind,
+      status: r.status,
+      nodes: r.nodes,
+      files: r.values.files,
+      pairs: r.pairs,
+      refused: r.values.refused,
+      unverified: r.values.unverified,
+      suppresses: r.suppresses,
+      errs: r.values.errs,
+      age: r.values.age,
+      catch: r.values.catch,
+      exposure: r.values.exposure,
+      signal: r.values.signal,
+      reading: r.values.reading,
+      falseBlocks: r.values.falseBlocks,
+      wrongRuleIncidents: r.values.wrongRuleIncidents,
+    })),
+    wildcardMarkers: health.wildcardMarkers,
+    telemetry: health.telemetry,
+  };
+}
+
 /**
  * Assemble the `--health` view: read the lock, verify every pair against current
  * inputs (read-only — no writes, no reviewer calls), run a live suppress scan,
@@ -1021,7 +1094,7 @@ async function gatherInCorpusDrillResults(
   }
 }
 
-async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<string> {
+async function buildAspectsHealth(graph: Graph, nowMs: number): Promise<AspectHealth> {
   const projectRoot = path.dirname(graph.rootPath);
 
   const lock = readLock(graph.rootPath);
@@ -1103,7 +1176,7 @@ async function buildAspectsHealthOutput(graph: Graph, nowMs: number): Promise<st
     eventsResult.committedNote,
     wrongRuleByAspect,
   );
-  return formatAspectsHealthOutput(health);
+  return health;
 }
 
 /**
@@ -1129,7 +1202,7 @@ export function registerAspectsCommand(program: Command): void {
       '--health',
       'per-aspect health: pairs, hash-valid refusals, suppress markers, error direction, rule age, catch/exposure counts and reading, false-block (fp) count, and wrong-rule incidents attributed to the rule',
     )
-    .option('--json', `Machine-readable output: one ${ASPECTS_JSON_SCHEMA} document on stdout instead of the listing.`)
+    .option('--json', `Machine-readable output: one ${ASPECTS_JSON_SCHEMA} document on stdout instead of the listing; with --health, one ${ASPECTS_HEALTH_JSON_SCHEMA} document instead of the table.`)
     .option(
       '--reach',
       'With --json: add each rule\'s reach — every unit it judges, with the effective status there and the channel it arrived through. Draft rules included, so a rule not yet judging its subjects is never mistaken for one that reaches none.',
@@ -1138,12 +1211,12 @@ export function registerAspectsCommand(program: Command): void {
       try {
         const graph = await loadGraphOrAbort(process.cwd());
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
-        if (options.json === true && options.health === true) {
+        if (options.reach === true && options.health === true) {
           fail({
-            what: '--health cannot be combined with --json.',
-            why: '--health is a separate projection with its own columns — signals, rule age, suppress coverage, attributed incidents — and it costs a whole verification pass to compute. The machine document is the rule INVENTORY; folding a different, far more expensive report into it under the same schema would make one name mean two things.',
-            next: 'Run: yg aspects --json (the inventory), or yg aspects --health (the health projection).',
-          });
+            what: '--reach cannot be combined with --health.',
+            why: 'Reach enumerates the units each rule judges and belongs to the rule inventory (yg-aspects/1); the health view is a different projection with its own document (yg-aspects-health/1).',
+            next: 'Run: yg aspects --json --reach (the inventory with reach), or yg aspects --health --json (the health document).',
+          }, 'usage');
           process.exit(1);
         }
         if (options.reach === true && options.json !== true) {
@@ -1154,7 +1227,11 @@ export function registerAspectsCommand(program: Command): void {
           });
           process.exit(1);
         }
-        if (options.json === true) {
+        if (options.json === true && options.health === true) {
+          // Its own document, never folded into yg-aspects/1: the inventory keeps
+          // its meaning, and the health projection keeps its own name.
+          process.stdout.write(formatAspectsHealthJson(aspectsHealthDocument(await buildAspectsHealth(graph, Date.now()))));
+        } else if (options.json === true) {
           const projectRoot = path.dirname(graph.rootPath);
           const typeCoverage = await computeTypeCoverageForAspects(graph, projectRoot);
           process.stdout.write(
@@ -1165,7 +1242,7 @@ export function registerAspectsCommand(program: Command): void {
           // here at the command boundary (an observability timestamp — it records
           // how long ago each rule was created, not what any verdict is) and
           // threaded down so the pure renderers never read the clock themselves.
-          process.stdout.write(await buildAspectsHealthOutput(graph, Date.now()));
+          process.stdout.write(formatAspectsHealthOutput(await buildAspectsHealth(graph, Date.now())));
         } else {
           const typeCoverage = await computeTypeCoverageForAspects(graph, path.dirname(graph.rootPath));
           process.stdout.write(formatAspectsOutput(graph, typeCoverage));

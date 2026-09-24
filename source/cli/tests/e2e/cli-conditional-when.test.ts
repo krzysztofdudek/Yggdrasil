@@ -293,9 +293,11 @@ describe.skipIf(!distExists)('CLI E2E — conditional aspects (`when` predicate)
       //   orders   → predicate TRUE → aspect applies → refused on the TODO.
       //   payments → aspect not attached (and would be filtered) → TODO ignored.
       const fill = run(['check', '--approve'], dir);
-      // The fill prints the per-pair verdict for the orders node only.
-      expect(fill.all).toContain('[det] no-todo-comments on node:services/orders — refused');
-      expect(fill.all).not.toContain('node:services/payments — refused');
+      // The fill refuses exactly one pair (orders'), and the report names orders only.
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.all).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
+      expect(fill.all).not.toContain('no-todo-comments — 1 violation in services/payments');
+
 
       // The enforced refusal blocks the overall run.
       expect(fill.status).toBe(1);
@@ -303,11 +305,12 @@ describe.skipIf(!distExists)('CLI E2E — conditional aspects (`when` predicate)
       // A plain read renders the cached refusal and attributes it to orders, not payments.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      // Grouped view: a single enforced refusal group for the aspect, exactly one
-      // node (orders) listed — payments was gated FALSE and is absent.
-      expect(check.all).toContain("enforced  1 pair  1 node  aspect 'no-todo-comments'");
-      expect(check.all).toContain('- services/orders  Violations:');
-      expect(check.all).not.toContain('- services/payments');
+      // A single enforced refusal block for the aspect, exactly one node (orders)
+      // listed — payments was gated FALSE and is absent.
+      expect(check.all).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
+      expect(check.all).toContain('  at:   services/orders  src/services/orders.ts:');
+      expect(check.all).not.toContain('services/payments  src/services/payments.ts');
+
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

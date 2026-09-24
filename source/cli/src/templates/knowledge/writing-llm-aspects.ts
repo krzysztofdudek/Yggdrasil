@@ -332,7 +332,7 @@ that stays inconsistent across two runs, the pair fails closed: nothing is
 written, the pair stays unverified, and \`yg check --approve\` reports the
 per-pair what/why/next message with the token
 \`aspect-companion-runtime-error\`. A summary line is also emitted at the end
-of the fill run: "N companion resolution(s) failed to run at fill time —
+of the fill run: "N companion resolutions failed to run at fill time —
 left unverified (aspect-companion-runtime-error)." This mirrors the
 deterministic \`aspect-check-runtime-error\` pattern exactly. The hook never
 judges code — any judgment logic belongs in the LLM reviewer via \`content.md\`.

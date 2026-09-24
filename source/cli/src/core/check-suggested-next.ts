@@ -230,14 +230,16 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
       a.code.localeCompare(b.code, 'en') ||
       (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];
     const then = coverageErrors.length > 0
-      ? `\n  Then: ${coverageErrors[0].uncoveredCount ?? 0} files need coverage`
+      ? `\n  then: ${coverageErrors[0].uncoveredCount ?? 0} files need coverage`
       : '';
     // Nodeless: name the FILE from the unit key, not the graph dir; only a
     // genuinely repo-level issue (neither) falls back to '.yggdrasil'.
     const subject = first.nodePath
       ?? (first.unitKey?.startsWith('file:') ? first.unitKey.slice('file:'.length) : undefined)
       ?? '.yggdrasil';
-    return `Fix ${first.code} in ${toPosixPath(subject)}\n  1 of ${structuralErrors.length} structural error${structuralErrors.length === 1 ? '' : 's'}${then}`;
+    // The finding's own step, never its code restated (`Fix yaml-invalid in app`).
+    const step = first.messageData.next.split('\n')[0] || `See the ${first.code} finding on ${toPosixPath(subject)}`;
+    return `${step}\n  1 of ${structuralErrors.length} structural error${structuralErrors.length === 1 ? '' : 's'}${then}`;
   }
 
   // 7. coverage.
@@ -250,7 +252,8 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   const completenessErrors = errors.filter(i => COMPLETENESS_CODES.has(i.code));
   if (completenessErrors.length > 0) {
     const first = completenessErrors[0];
-    return `Fix ${first.code} for ${toPosixPath(first.nodePath ?? '')}\n  1 of ${completenessErrors.length} completeness error${completenessErrors.length === 1 ? '' : 's'} — post-modify workflow`;
+    const step = first.messageData.next.split('\n')[0] || `See the ${first.code} finding on ${toPosixPath(first.nodePath ?? '')}`;
+    return `${step}\n  1 of ${completenessErrors.length} completeness error${completenessErrors.length === 1 ? '' : 's'} — post-modify workflow`;
   }
 
   // 9. Any remaining error — architecture/strict codes outside the categories

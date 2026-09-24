@@ -306,16 +306,19 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
     try {
       const { status, stdout } = run(['check'], dir);
       expect(status).toBe(1);
-      // The four forbidden relations collapse into one grouped block keyed by
-      // the code, listing every offending pair under the declaring node.
+      // Each forbidden relation is its own block (each carries its own allowed
+      // targets as the why), every one located at the declaring node.
       expect(stdout).toContain('relation-target-forbidden');
-      // Grouped header carries the finding/node counts (4 issues, 1 node) —
-      // issues, not pairs: a forbidden relation is not a rule's verdict.
-      expect(stdout).toMatch(/relation-target-forbidden\s+4 issues\s+1 node/);
+      // Four findings, counted as errors — issues, not pairs: a forbidden
+      // relation is not a rule's verdict.
+      expect(stdout.split('\n')[0]).toContain('4 errors');
+      expect(stdout.match(/^error\[relation-target-forbidden\] /gm)).toHaveLength(4);
+      expect(stdout.match(/^error\[relation-target-forbidden\] .*\n {2}at: {3}app\/p$/gm)).toHaveLength(4);
+
       // The WHY enumerates the allowed targets for the relation type.
       expect(stdout).toContain("Allowed targets for 'calls' from type 'producer': [consumer]");
       // The declaring node is named in the group's node list.
-      expect(stdout).toContain('- app/p');
+      expect(stdout).toMatch(/^ {2}at: {3}app\/p$/m);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -345,7 +348,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       // The forbidden-target WHY enumerates the allowed targets for the type.
       expect(stdout).toContain("Allowed targets for 'emits' from type 'producer': [consumer]");
       // The forbidden relation is attributed to the declaring node.
-      expect(stdout).toContain('- app/p');
+      expect(stdout).toMatch(/^ {2}at: {3}app\/p$/m);
       // The unpaired emit is independently reported (a second group).
       expect(stdout).toContain('event-unpaired');
     } finally {
@@ -437,7 +440,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(status).toBe(1);
       expect(stdout).toContain('event-unpaired');
       // The unpaired emit is attributed to the emitter in the group node list.
-      expect(stdout).toContain('- app/p');
+      expect(stdout).toMatch(/^ {2}at: {3}app\/p$/m);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -464,7 +467,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(status).toBe(1);
       expect(stdout).toContain('event-unpaired');
       // The unpaired listen is attributed to the listener in the group node list.
-      expect(stdout).toContain('- app/c');
+      expect(stdout).toMatch(/^ {2}at: {3}app\/c$/m);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -607,7 +610,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(status).toBe(1);
       expect(stdout).toContain('event-unpaired');
       // The unpaired self-emit is attributed to the node in the group node list.
-      expect(stdout).toContain('- app/p');
+      expect(stdout).toMatch(/^ {2}at: {3}app\/p$/m);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -656,7 +659,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('structural-cycle');
       // The grouped block carries the shared cycle WHY and the break-the-cycle Fix.
       expect(stdout).toContain('Cycles prevent deterministic context assembly and cascade tracking.');
-      expect(stdout).toContain('Break the cycle: extract a shared interface, invert a dependency, or merge nodes.');
+      expect(stdout).toContain('— extract a shared interface, invert a dependency, or merge nodes.');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -706,7 +709,7 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('relation-target-forbidden');
       // The shared WHY enumerates the allowed targets; the declaring node is listed.
       expect(stdout).toContain("Allowed targets for 'calls' from type 'producer': [consumer]");
-      expect(stdout).toContain('- app/p');
+      expect(stdout).toMatch(/^ {2}at: {3}app\/p$/m);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -935,12 +938,13 @@ describe.skipIf(!distExists)('CLI E2E — relation-type matrix, event pairing, s
       expect(stdout).toContain('high-fan-out');
       // The grouped warning carries the shared fan-out WHY and the over-limit node.
       expect(stdout).toContain('High fan-out makes context packages large and suggests unclear separation of concerns.');
-      expect(stdout).toContain('- app/p');
+      expect(stdout).toMatch(/^ {2}at: {3}app\/p$/m);
       // A warning, not an error. A second warning group (`rules-digest-stale`)
       // is always present too — this fixture never ran `yg init`, so it
       // carries no AGENTS.md/CLAUDE.md/.clinerules digest artifacts, and the
       // committed-digest staleness gate flags that on every `yg check` here.
-      expect(stdout).toContain('Warnings (2)');
+      expect(stdout.split('\n')[0]).toContain('yg check: PASS  2 warnings');
+      expect(stdout).toContain('warning[high-fan-out] ');
       expect(stdout).toContain('rules-digest-stale');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);

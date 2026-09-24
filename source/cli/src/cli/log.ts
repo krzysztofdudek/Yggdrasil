@@ -12,7 +12,7 @@ import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import type { VerdictEvent } from '../io/events-store.js';
 import type { Graph } from '../model/graph.js';
-import { fail } from './output.js';
+import { fail, count } from './output.js';
 
 /**
  * True when `filePath` (a `file:` unit-key path) is REALLY owned by `nodePath` —
@@ -83,10 +83,10 @@ export function registerLogCommand(program: Command): void {
 
         if ((opts.reason !== undefined) === (opts.reasonFile !== undefined)) {
           fail({
-                what: 'Exactly one of --reason or --reason-file is required',
-                why: 'Cannot provide both, cannot provide neither.',
-                next: 'Pass --reason "<text>" OR --reason-file <path>.',
-              });
+                what: 'yg log add needs exactly one of --reason or --reason-file',
+                why: 'An entry has one text: given on the command line, or read from a file.',
+                next: `yg log add --node ${opts.node.trim().replace(/\/$/, '')} --reason '<why this change was made>'`,
+              }, 'usage');
           process.exit(1);
         }
 
@@ -98,7 +98,7 @@ export function registerLogCommand(program: Command): void {
               fail({
                     what: `--reason-file is not a regular file: ${opts.reasonFile}`,
                     why: 'Directory, device, socket, or named pipe is not a valid source for log entry body.',
-                    next: 'Provide a path to a regular text file containing the justification.',
+                    next: `yg log add --node ${opts.node.trim().replace(/\/$/, '')} --reason-file <a text file with the justification>`,
                   });
               process.exit(1);
             }
@@ -217,7 +217,7 @@ export function registerLogCommand(program: Command): void {
           if (evResult.committedNote !== undefined) {
             process.stdout.write(
               chalk.dim(
-                `includes ${evResult.committedCount} event(s) from the committed shared stream ` +
+                `includes ${count(evResult.committedCount, 'event')} from the committed shared stream ` +
                   `(${evResult.committedNote})\n`,
               ),
             );
@@ -294,7 +294,7 @@ export function registerLogCommand(program: Command): void {
           chalk.green(
             result.wroteUnion === true
               ? `Merge-resolve wrote the union of both sides into .yggdrasil/model/${result.nodePath}/log.md and verified it.\nLog baseline updated.\n` +
-                `Next: git add .yggdrasil/model/${result.nodePath}/log.md .yggdrasil/yg-lock.logs.json, finish the ${result.inProgress ?? 'merge'} (${OPERATION_COMMANDS[result.inProgress ?? 'merge'].finish}), then run yg check.\n`
+                `next: git add .yggdrasil/model/${result.nodePath}/log.md .yggdrasil/yg-lock.logs.json, finish the ${result.inProgress ?? 'merge'} (${OPERATION_COMMANDS[result.inProgress ?? 'merge'].finish}), then run yg check.\n`
               : `Merge-resolve verified for .yggdrasil/model/${result.nodePath}/log.md\nLog baseline updated.\n`,
           ),
         );

@@ -1,603 +1,498 @@
-// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (color/emoji); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
-import chalk from 'chalk';
+// yg-suppress-disable(deterministic) presentational adaptation to terminal capabilities (colour and glyphs); the verdict, counts, and exit code are invariant across environments, so this is not a determinism violation of the check result
+/**
+ * The findings of a check run as blocks — one template for every finding:
+ *
+ *   error[label] subject
+ *     at:   <member>  <unit>  <message>
+ *           <member>  …
+ *           … +K more  (<drill>)
+ *     why:  <why, stated once for the block>
+ *     fix:  <what to do>
+ *
+ * This module turns a list of issues into those blocks (the data: severity,
+ * label, tier, subject, members, why, fix, cost, and the one step a reader
+ * acts on first) and renders them. The views (check-render-views.ts) decide
+ * which blocks a report shows and how many members each lists; the words and
+ * the layout of a block are decided here and nowhere else.
+ *
+ * Every field is labelled, lowercase; a line with no label continues the field
+ * above it. The same why is never printed twice in one block: members whose
+ * why differs (a node that drifted beside one never verified) are split into
+ * blocks of their own, each stating its why once. A fix that differs between
+ * members only by the member's own node is stated once, with `<node>` in it.
+ */
 import type { CheckIssue } from '../core/check.js';
-import { SCOPED_CODES, baseCodeOfOutsideTwin } from '../core/check-codes.js';
-import { groupIssues, type IssueGroup, getIssueLabel, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, OUTSIDE_LABEL_SUFFIX, PAIR_CODES } from './group-issues.js';
-import { useEmoji } from './check-render-header.js';
-import { count, MEMBER_CAP } from './output.js';
+import { baseCodeOfOutsideTwin, type UnverifiedCause } from '../core/check-codes.js';
+import { issueViolations } from '../core/check-json.js';
+import { groupIssues, getIssueLabel, issuePriorityRank, issueTierRank, COVERAGE_GROUP_EXCLUDED_CODES, coverageBlockLabel, FULL_WHAT_CODES } from './group-issues.js';
+import { codeInfo, type Tier } from './output-diagnostic.js';
+import { count, MEMBER_CAP, field, heading, decorated } from './output.js';
 import { toPosixPath } from '../utils/posix.js';
 import { escapeControls } from '../utils/terminal-safe.js';
 
-/** Code sets for grouping errors by category. STRUCTURAL_CODES and
- *  COMPLETENESS_CODES are shared with the check engine via core/check-codes.ts
- *  so the rendered grouping and the summary tally cannot drift apart. */
-// `unmapped-files` / `uncovered-advisory` render through renderUnmappedBlock
-// (count + file list) — see COVERAGE_GROUP_EXCLUDED_CODES in group-issues.ts.
-// `mapping-path-missing` is NOT a coverage code: it carries a nodePath and
-// structured messageData, so it falls through to the normal validation-error
-// renderer (code + node path + what/why/next) — renderUnmappedBlock would
-// otherwise drop both the code and the offending node path.
-
 /**
- * Whether `code` is a `-outside` twin — every Fix: line below is suppressed
- * for one, in every shape it can render as (single block, unmapped-files
- * block, grouped shared line, grouped per-member divergent line).
- *
- * `messageData` is untouched by the classifier on purpose (check-progressive.ts's
- * `toOutsideTwin`: "the what/why/next a person reads describes the finding, not
- * its scope") — so `next` still reads exactly like the finding it mirrors, e.g.
- * `unverified`'s literal `yg check --approve`. That is the RIGHT remedy for the
- * finding it mirrors and the WRONG one to print here: this finding is a warning
- * specifically because the change did not reach it, `--approve` reviews the
- * WHOLE project rather than this one pair (docs/cli-reference.md), and the run's
- * own bottom line already names the one honest next step for everything outside
- * the change (`yg check --full` — computeSuggestedNext's standingOutsideLine).
- * Repeating the recording command per finding contradicts that line. Why: stays
- * — the rationale is still true of the finding regardless of scope.
- */
-function isOutsideFinding(code: string): boolean {
-  return baseCodeOfOutsideTwin(code) !== undefined;
-}
-
-// ── Details view: ungrouped, one block per issue ──────────
-
-/**
- * How much of a group a view shows. `capMembers` cuts each member list at
- * MEMBER_CAP rows and ends it with a runnable drill line; it is the VIEW's
- * decision (the drill-in and per-issue views show everything), never the
+ * How much of a block a view shows. `capMembers` cuts each member list at
+ * MEMBER_CAP lines and ends it with a runnable drill line; it is the VIEW's
+ * decision (the drill-in and details views show everything), never the
  * terminal's — a pipe gets the same bounded report a terminal does.
  */
 export interface GroupRenderOptions {
   capMembers: boolean;
 }
 
-/**
- * Render every issue as an individual block (no (code,aspectId) collapsing).
- * Coverage issues (`unmapped-files` / `uncovered-advisory`) render via
- * `renderUnmappedBlock`; all others via `renderIssueBlock`. Produces a flat
- * list of blocks separated by blank lines, matching the spacing used in
- * the --top view.
- */
-export function renderDetailsSection(issues: CheckIssue[], mode: 'error' | 'warning'): string {
-  const lines: string[] = [];
-  for (const issue of issues) {
-    lines.push('');
-    // Dispatch on the shared coverage set, not on literal codes: a coverage
-    // finding's file list lives on lines 2+ of its `what`, which the generic
-    // block renderer truncates away, so a code missing from this branch loses
-    // the whole content of the finding in THIS view while rendering fine in
-    // the others.
-    if (COVERAGE_GROUP_EXCLUDED_CODES.has(issue.code)) {
-      renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code), { capMembers: false });
-    } else {
-      renderIssueBlock(issue, lines, mode);
-    }
-  }
-  return lines.join('\n');
+/** What a fill named by a block's fix costs: script pairs are free, reviewer pairs are paid. */
+export interface BlockCost {
+  free: number;
+  reviewerPairs: number;
 }
 
-// ── Error section ──────────────────────────────────────────
-
-/** Maximum number of issue groups rendered before the overflow hint. */
-const GROUP_CAP = 12;
-
-/**
- * Render the Errors section using grouped blocks. Coverage issues
- * (`unmapped-files`) are separated out and rendered after the groups via
- * `renderUnmappedBlock`. All other errors are grouped with `groupIssues` and
- * rendered with `renderGroup`.
- *
- * Section sub-header:
- *   - M > 1 → `Errors (N) in M groups:` (N = total issues including coverage)
- *   - M === 1 (or zero non-coverage errors) → `Errors (N):`
- *
- * Group cap: at most GROUP_CAP (12) groups rendered; if more, an overflow hint
- * line is appended after the 12th.
- */
-export function renderErrorSection(errors: CheckIssue[], opts: GroupRenderOptions, emoji = useEmoji): string {
-  const unmapped = errors.filter(i => COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
-  const rest = errors.filter(i => !COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
-  const groups = groupIssues(rest);
-  const M = groups.length;
-  const N = errors.length;
-
-  const errPrefix = emoji ? '❌ ' : '';
-  const subheader = M > 1
-    ? chalk.red(`${errPrefix}Errors (${N}) in ${M} groups:`)
-    : chalk.red(`${errPrefix}Errors (${N}):`);
-  const lines: string[] = [subheader];
-
-  const shown = groups.slice(0, GROUP_CAP);
-  for (const g of shown) {
-    lines.push('');
-    renderGroup(g, lines, opts);
-  }
-  if (groups.length > GROUP_CAP) {
-    lines.push(`  ... in ${groups.length} groups — showing ${GROUP_CAP}; run yg check --top <n> or --aspect <id>`);
-  }
-
-  // Unmapped files — compact block with file list (unchanged)
-  for (const issue of unmapped) {
-    lines.push('');
-    renderUnmappedBlock(issue, lines, 'unmapped', opts);
-  }
-
-  return lines.join('\n');
+/** One finding block: the data a text view renders and the JSON document mirrors. */
+export interface CheckBlock {
+  severity: 'error' | 'warning';
+  /** The code every member shares. */
+  code: string;
+  /** The heading word — the code registry's label for `code`. */
+  label: string;
+  tier: Tier;
+  /** The rule the block is about, when all of it is about one. */
+  aspectId?: string;
+  /** For an unverified block: why its pairs have no verdict. */
+  cause?: UnverifiedCause;
+  /** The heading sentence. */
+  subject: string;
+  /** Why it matters — once for the whole block; undefined when there is none to say. */
+  why?: string;
+  /**
+   * What to do: the text as the members carry it, with `<node>` standing for
+   * each member's own node when the fixes differ by nothing else
+   * (`templated`). Undefined for a finding outside a measured change, whose
+   * remedy is the run's own `yg check --full` rather than a per-finding step.
+   */
+  fix?: string;
+  templated: boolean;
+  /** Per-member fixes that differ by more than the node: `<member>: <fix>` lines. */
+  divergentFix?: string[];
+  /** A fill's cost, when the fix is a fill. */
+  cost?: BlockCost;
+  /** The command that lists every member of this block. */
+  drill: string;
+  members: CheckIssue[];
+  /** How many units the block is about, in its registry noun (files for a coverage block). */
+  size: number;
+  /** A finding put outside a measured change. */
+  outside: boolean;
 }
 
-// ── Warning section ────────────────────────────────────────
+// ── Building blocks ────────────────────────────────────────
 
-/**
- * Render the Warnings section using grouped blocks. Coverage issues
- * (`uncovered-advisory`) are separated out and rendered after the groups via
- * `renderUnmappedBlock`. All other warnings are grouped with `groupIssues` and
- * rendered with `renderGroup`.
- *
- * Section sub-header:
- *   - M > 1 → `Warnings (N) in M groups:` (N = total warnings including coverage)
- *   - M === 1 (or zero non-coverage warnings) → `Warnings (N):`
- */
-export function renderWarningSection(warnings: CheckIssue[], opts: GroupRenderOptions, emoji = useEmoji): string {
-  const coverage = warnings.filter(i => COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
-  const rest = warnings.filter(i => !COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
-  const groups = groupIssues(rest);
-  const M = groups.length;
-  const N = warnings.length;
-
-  const warnPrefix = emoji ? '⚠️ ' : '';
-  const subheader = M > 1
-    ? chalk.yellow(`${warnPrefix}Warnings (${N}) in ${M} groups:`)
-    : chalk.yellow(`${warnPrefix}Warnings (${N}):`);
-  const lines: string[] = [subheader];
-
-  const shown = groups.slice(0, GROUP_CAP);
-  for (const g of shown) {
-    lines.push('');
-    renderGroup(g, lines, opts);
-  }
-  if (groups.length > GROUP_CAP) {
-    lines.push(`  ... in ${groups.length} groups — showing ${GROUP_CAP}; run yg check --top <n> or --aspect <id>`);
-  }
-
-  // Coverage warnings — compact block with file list. The label comes from the
-  // code, not from the section: this block now also carries the INHERITED half
-  // of a split coverage finding, which is an unmapped-files finding that does
-  // not block, not the advisory visibility tier, and calling it "uncovered"
-  // would merge two different facts under one word.
-  for (const issue of coverage) {
-    lines.push('');
-    renderUnmappedBlock(issue, lines, coverageBlockLabel(issue.code), opts);
-  }
-
-  return lines.join('\n');
-}
-
-// ── Per-issue block ────────────────────────────────────────
-
-/**
-/** Indent applied to continuation lines so they align under the block body. */
-const BLOCK_INDENT = '            ';
-
-/**
- * Render a single issue (non-cascade, non-unmapped) as a labelled block:
- *   <label>  <node-path>  <what summary>
- *            <…full what detail for refusal codes…>
- *            Why: <why>
- *            Fix: <next>
- * plus an (advisory — not blocking) note for advisory warnings.
- *
- * The complete multi-line `what` is shown for every code: the first line as the
- * block header, every subsequent line indented under it — the reviewer reason
- * or violation list of a refusal, the file list of a mapping finding, a parser's
- * own message. A line of `what` is never dropped in this view.
- *
- * Accesses issue.messageData.{what,why,next} directly — the structured renderer
- * pattern permitted by the what-why-next aspect for CLI renderers that need
- * labelled output instead of the flat buildIssueMessage concatenation.
- */
-function renderIssueBlock(issue: CheckIssue, lines: string[], mode: 'error' | 'warning'): void {
-  const md = issue.messageData;
-  const whatLines = md.what.split('\n');
-  const label = getIssueLabel(issue);
-  // A repo-level issue (no node) omits the node column entirely instead of
-  // leaving a blank one, which read as a stray double space before the summary.
-  const nodeSeg = issue.nodePath ? `  ${issue.nodePath}` : '';
-
-  lines.push(`  ${label}${nodeSeg}  ${whatLines[0]}`);
-  // Every remaining `what` line (reviewer reason, violation list, file list,
-  // parser message), indented under the header — the per-issue view is the one
-  // that shows a finding whole.
-  for (const extra of whatLines.slice(1)) {
-    if (extra.trim() === '') continue;
-    lines.push(`${BLOCK_INDENT}${extra}`);
-  }
-  if (md.why) {
-    lines.push(`${BLOCK_INDENT}Why: ${md.why}`);
-  }
-  if (md.next && !isOutsideFinding(issue.code)) {
-    // Advisory warnings never block: advisory aspect violations AND advisory
-    // unverified pairs (an unverified pair renders as a warning only when its
-    // effective status is advisory) both carry the not-blocking hint.
-    const isAdvisory =
-      mode === 'warning' &&
-      (issue.code === 'aspect-violation-advisory' || issue.code === 'unverified');
-    const fixSuffix = isAdvisory ? '  (advisory — not blocking)' : '';
-    // `next` may itself be multi-line (cached-refusal "three exits"); keep the
-    // full instruction, suffixing only the first line with the advisory hint.
-    const nextLines = md.next.split('\n');
-    lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}${fixSuffix}`);
-    for (const extra of nextLines.slice(1)) {
-      lines.push(`${BLOCK_INDENT}${extra}`);
-    }
-  }
-}
-
-/**
- * Render unmapped-files error (or uncovered-advisory warning) as a compact block with file list.
- * Derives all rendered content from issue.messageData (what/why/next) as required
- * by the what-why-next aspect. The terse format uses the count from messageData.what
- * and lists files from issue.uncoveredFiles (the structured data parallel to what).
- */
-export function renderUnmappedBlock(
-  issue: CheckIssue,
-  lines: string[],
-  label = 'unmapped',
-  opts: GroupRenderOptions = { capMembers: true },
-): void {
-  const md = issue.messageData;
-  const files = issue.uncoveredFiles ?? [];
-  // Use the authoritative structured count; fall back to file list length only
-  // if uncoveredCount was never set (should not happen in practice).
-  const fileCount = issue.uncoveredCount ?? files.length;
-  lines.push(`  ${label} (${fileCount})`);
-  // The file list (the same data as messageData.what's body lines). A capped
-  // view shows the first FILE_CAP and names the view that shows every one.
-  const shown = opts.capMembers ? files.slice(0, FILE_CAP) : files;
-  for (const f of shown) {
-    // A file name is repository text: a control sequence in it is shown, never obeyed.
-    lines.push(`            ${escapeControls(f)}`);
-  }
-  if (files.length > shown.length) {
-    lines.push(`            ... +${files.length - shown.length} (yg check --details)`);
-  }
-  if (md.why) {
-    lines.push(`            Why: ${md.why}`);
-  }
-  if (md.next && !isOutsideFinding(issue.code)) {
-    // Every line of the remedy: a second line (a follow-up step) is part of it.
-    const nextLines = md.next.split('\n');
-    lines.push(`            Fix: ${nextLines[0]}`);
-    for (const extra of nextLines.slice(1)) lines.push(`            ${extra.trim()}`);
-  }
-}
-
-// ── Grouped block render ───────────────────────────────────
-
-/** Files a coverage block lists before it elides the rest (the per-issue view lists all). */
-const FILE_CAP = 10;
-
-/**
- * Jargon glosses: machine token first, human gloss in parentheses (parseable by
- * tooling). Keyed by CODE, not by the rendered label — for every entry here
- * today the code and its untwinned label happen to be identical bare words
- * (`getIssueLabel('unverified') === 'unverified'`), which is what lets
- * {@link LABEL_GLOSS} below key off this table directly without a second
- * code→label lookup.
- */
-const BASE_LABEL_GLOSS: Record<string, string> = {
-  unverified: 'unverified (not yet reviewed)',
-  // The other labels an unverified pair can carry — one per cause
-  // (getIssueLabel). Each says in a few words why the pair has no verdict, so
-  // the group's Fix line reads as the answer to that, not to "not yet reviewed".
-  stale: 'unverified (stale — inputs changed since the verdict)',
-  'deterministic-not-run': 'unverified (deterministic check not run on this checkout — free)',
-  'reviewer-missing': 'unverified (no reviewer configured)',
-  'reviewer-unreachable': 'unverified (reviewer unreachable this run)',
-  'reviewer-failed': 'unverified (reviewer returned no verdict this run)',
-  'check-failed-to-run': 'unverified (check.mjs failed to run)',
-  'suppress-marker-invalid': 'unverified (yg-suppress marker has no reason)',
-};
-
-/**
- * {@link BASE_LABEL_GLOSS}, plus the twin gloss of every entry whose code has
- * an outside twin — DERIVED from `SCOPED_CODES`, never a hand-written second
- * copy, for the same reason `FULL_WHAT_CODES` and `CODE_ONLY_GROUP_CODES` are
- * (group-issues.ts's `withOutsideTwins`): a twin missing from this table would
- * fall through {@link glossLabel} unglossed, leaving `unverified (outside
- * changes)` on screen with no explanation of the jargon its own mirror
- * explains one line away. The twin's KEY is its rendered label — the base
- * label plus {@link OUTSIDE_LABEL_SUFFIX}, exactly what `getIssueLabel`
- * produces for it — and its VALUE is the base gloss with the same suffix
- * appended, so the one gloss sentence still ends by saying whose business the
- * finding is, same as every other twin label does.
- */
-const LABEL_GLOSS: Record<string, string> = Object.fromEntries(
-  Object.entries(BASE_LABEL_GLOSS).flatMap(([label, gloss]): Array<[string, string]> =>
-    // Every label here is an `unverified` pair's label, and `unverified` is a
-    // scoped code, so each one has an outside twin to gloss as well.
-    SCOPED_CODES.has('unverified')
-      ? [[label, gloss], [`${label}${OUTSIDE_LABEL_SUFFIX}`, `${gloss}${OUTSIDE_LABEL_SUFFIX}`]]
-      : [[label, gloss]],
-  ),
-);
-
-function glossLabel(label: string): string {
-  // Own-property guard: a reserved key inherited from Object.prototype
-  // ('constructor', 'toString', '__proto__', …) is present on LABEL_GLOSS via the
-  // prototype chain, so a bare `LABEL_GLOSS[label] ?? label` would surface the
-  // inherited value instead of the label itself. Treat a non-own key as absent —
-  // the same fall-through to `label` an unknown label already takes.
-  return Object.hasOwn(LABEL_GLOSS, label) ? LABEL_GLOSS[label] : label;
-}
-
-/**
- * Render a group whose members name no graph node — a repository-level finding
- * (the committed agent-rules digest is stale; the lock could not be read):
- *
- *   <glossLabel(label)>
- *            <each member's what, first line>
- *            <sharedWhy>
- *            Fix: <sharedNext>
- *
- * The node-shaped framing is dropped rather than filled with placeholders: a
- * count of pairs and nodes, and a `- ` bullet with nothing after it, describe a
- * component the graph does not contain. Every member's `what` is surfaced (it
- * is the whole content of such a finding), and the shared why/fix render once,
- * exactly as in the node case.
- */
-function renderRepoLevelGroup(group: IssueGroup, lines: string[]): void {
-  const isOutside = isOutsideFinding(group.code);
-  lines.push(`  ${glossLabel(group.label)}`);
-  // Per-member why/fix fires ONLY for `perMemberReason` codes (FULL_WHAT_CODES:
-  // today, only `type-relation-forbidden` ever reaches this repo-level branch —
-  // it names no node, one instance per (fromType, toType) pair, guaranteed to
-  // exist only when `coverage.type_level` is on). Every OTHER code that can be
-  // repo-level and divergent (`type-strict-orphan` mixing two `enforce: strict`
-  // types, say) predates this release and is unaffected by the flag — printing
-  // per-member detail for it changed flag-OFF output on real repos wholesale: a
-  // single boilerplate sentence with no per-member content beyond a file name
-  // repeated once per orphaned file, hundreds of times over on a large tree.
-  // Falling through to "no shared line either" (the two guards immediately
-  // below, unchanged) reproduces exactly what the pre-existing divergent case
-  // already rendered: the per-file `what` lines, nothing else. That gap is not
-  // new here and not this release's to close.
-  for (const m of group.members) {
-    for (const l of m.messageData.what.split('\n')) lines.push(`${BLOCK_INDENT}${l.replace(/\s+$/, '')}`);
-    if (group.perMemberReason && group.divergentWhy && m.messageData.why) {
-      lines.push(`${BLOCK_INDENT}Why: ${m.messageData.why.split('\n')[0]}`);
-    }
-    if (group.perMemberReason && group.divergentNext && m.messageData.next && !isOutside) {
-      const nextLines = m.messageData.next.split('\n');
-      lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}`);
-      for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);
-    }
-  }
-  if (group.sharedWhy && !group.divergentWhy) lines.push(`${BLOCK_INDENT}Why: ${group.sharedWhy}`);
-  if (group.sharedNext && !group.divergentNext && !isOutside) {
-    const nextLines = group.sharedNext.split('\n');
-    lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}`);
-    for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);
-  }
-}
-
-/**
- * The shared text of a per-member field whose members differ ONLY by their own
- * node path — `yg log add --node <node> …` for every node of a log gate, say.
- * Returns the text with each member's path replaced by `<node>` when that makes
- * every member's text identical, else undefined (a genuinely divergent field,
- * which keeps its per-member lines). One templated line instead of N copies
- * that differ by one token.
- */
-function memberTemplate(members: CheckIssue[], field: (m: CheckIssue) => string | undefined): string | undefined {
-  let template: string | undefined;
-  for (const m of members) {
-    const text = field(m);
-    if (text === undefined || text === '' || m.nodePath === undefined) return undefined;
-    const node = toPosixPath(m.nodePath);
-    if (!text.includes(node)) return undefined;
-    const t = text.split(node).join('<node>');
-    if (template === undefined) template = t;
-    else if (t !== template) return undefined;
-  }
-  return template;
-}
-
-/**
- * What the fill a group's Fix names will cost, when that Fix is a recording
- * run over unverified pairs: script pairs are free, reviewer pairs are paid.
- * Empty for every other group.
- */
-function costSuffix(group: IssueGroup): string {
-  if (group.code !== 'unverified' || !group.sharedNext.startsWith('yg check --approve')) return '';
-  const script = group.members.filter((m) => m.pairKind === 'deterministic').length;
-  const reviewer = group.members.filter((m) => m.pairKind === 'llm').length;
-  if (script > 0 && reviewer > 0) return `  (${count(script, 'script pair')} free, ${count(reviewer, 'reviewer pair')} paid)`;
-  if (script > 0) return `  (${count(script, 'script pair')}, free)`;
-  if (reviewer > 0) return `  (${count(reviewer, 'reviewer pair')}, paid)`;
+/** A member's subject: its node, else the file its pair judges, else nothing (a repo-level finding). */
+function unitOf(m: CheckIssue): string {
+  if (m.nodePath !== undefined) return toPosixPath(m.nodePath);
+  if (m.unitKey?.startsWith('file:')) return toPosixPath(m.unitKey.slice('file:'.length));
   return '';
 }
 
-/**
- * The command that shows every member of a group whose list was cut: the
- * group's own rule, or the one rule all its members share, drilled into with
- * `--aspect` (a view that never cuts); failing both, the per-issue view.
- */
-function drillFor(group: IssueGroup): string {
-  if (group.aspectId !== undefined) return `yg check --aspect ${group.aspectId}`;
-  const aspects = new Set(group.members.map((m) => m.aspectId));
+/** The pair a member is about, in the one pair notation every surface uses: `<aspect> @ <unit>`. */
+export function pairNotation(m: CheckIssue): string {
+  const unit = m.unitKey !== undefined ? toPosixPath(m.unitKey.replace(/^(node|file):/, '')) : unitOf(m);
+  return `${m.aspectId ?? '?'} @ ${unit}`;
+}
+
+/** `text` with the member's own node path replaced by `<node>`. */
+function templateOf(text: string, m: CheckIssue): string {
+  const node = m.nodePath !== undefined ? toPosixPath(m.nodePath) : undefined;
+  if (node === undefined || node === '') return text;
+  // Only where the path stands as a whole path: a short node name ('a') must
+  // not rewrite every letter of the sentence around it.
+  const escaped = node.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return text.replace(new RegExp(`(?<![\\w/.-])${escaped}(?![\\w/-])`, 'g'), '<node>');
+}
+
+/** The first line of a text, without a closing full stop (a heading carries none). */
+function headline(text: string): string {
+  return text.split('\n')[0].trim().replace(/\.$/, '');
+}
+
+/** The distinct units a block's members name, and how many are nodes and how many files. */
+function unitCounts(members: CheckIssue[]): { nodes: number; files: number } {
+  const nodes = new Set(members.filter((m) => m.nodePath !== undefined).map((m) => m.nodePath));
+  const files = new Set(members.filter((m) => m.nodePath === undefined && m.unitKey?.startsWith('file:')).map((m) => m.unitKey));
+  return { nodes: nodes.size, files: files.size };
+}
+
+/** `in 3 nodes`, `in 2 nodes and 1 file`, or `on app/svc-05` for one unit. */
+function whereWords(members: CheckIssue[], preposition = 'in'): string {
+  const units = [...new Set(members.map(unitOf).filter((u) => u !== ''))];
+  if (units.length === 1) return `${preposition} ${units[0]}`;
+  const { nodes, files } = unitCounts(members);
+  const parts = [nodes > 0 ? count(nodes, 'node') : '', files > 0 ? count(files, 'file') : ''].filter((p) => p !== '');
+  return parts.length > 0 ? `${preposition} ${parts.join(' and ')}` : '';
+}
+
+const CAUSE_SUBJECT: Record<UnverifiedCause, (pairs: string) => string> = {
+  'never-reviewed': (p) => `${p} with no verdict yet`,
+  stale: (p) => `${p} whose inputs changed since the verdict`,
+  'deterministic-not-run': (p) => `${p} whose script check has not run on this checkout — free to run`,
+  'reviewer-missing': (p) => `${p} with no reviewer configured to judge them`,
+  'reviewer-unreachable': (p) => `${p} left unjudged — the reviewer was unreachable this run`,
+  'reviewer-failed': (p) => `${p} left unjudged — the reviewer returned no verdict this run`,
+  'check-failed-to-run': (p) => `${p} whose check.mjs failed to run`,
+  'suppress-marker-invalid': (p) => `${p} under a yg-suppress marker that gives no reason`,
+};
+
+/** The heading sentence of a block. */
+function subjectOf(b: Omit<CheckBlock, 'subject'>, violations: number): string {
+  const base = baseCodeOfOutsideTwin(b.code) ?? b.code;
+  const outside = b.outside ? ' — outside your changes' : '';
+  const members = b.members;
+  if (base === 'aspect-violation-enforced' || base === 'aspect-violation-advisory') {
+    const where = whereWords(members);
+    return violations > 0
+      ? `${b.aspectId ?? ''} — ${count(violations, 'violation')} ${where}${outside}`
+      : `${b.aspectId ?? ''} — refused ${whereWords(members, 'on')}${outside}`;
+  }
+  if (base === 'unverified') {
+    const pairs = count(members.length, 'pair');
+    return `${CAUSE_SUBJECT[b.cause ?? 'never-reviewed'](pairs)}${outside}`;
+  }
+  if (base === 'unmapped-files') {
+    return `${count(b.size, 'file')} ${b.size === 1 ? 'belongs' : 'belong'} to no node${outside}`;
+  }
+  if (base === 'uncovered-advisory') {
+    return `${count(b.size, 'file')} ${b.size === 1 ? 'belongs' : 'belong'} to no node — not under coverage.required, so ${b.size === 1 ? 'it never blocks' : 'they never block'}`;
+  }
+  if (base === 'log-entry-missing') {
+    const n = unitCounts(members).nodes;
+    const first = members.every((m) => /first verdicts/.test(m.messageData.what));
+    return first
+      ? `${count(n, 'node')} ${n === 1 ? 'has' : 'have'} no log entry yet — one is owed before ${n === 1 ? 'its' : 'their'} first verdicts are recorded${outside}`
+      : `${count(n, 'node')} changed with no log entry${outside}`;
+  }
+  if (members.length === 1) return `${headline(members[0].messageData.what)}${outside}`;
+  const lines = new Set(members.map((m) => headline(m.messageData.what)));
+  if (lines.size === 1) return `${[...lines][0]}${outside}`;
+  // All of them say the same thing but for their own node: say it once, with
+  // <node> standing for each member listed below.
+  const templates = new Set(members.map((m) => headline(templateOf(m.messageData.what, m))));
+  if (templates.size === 1) return `${count(unitCounts(members).nodes || members.length, unitCounts(members).nodes > 0 ? 'node' : codeInfo(b.code).noun)}: ${[...templates][0]}${outside}`;
+  const where = whereWords(members);
+  return `${count(members.length, codeInfo(b.code).noun)}${where !== '' ? ` ${where}` : ''}${outside}`;
+}
+
+/** What a fill over these unverified members costs. */
+function costOf(members: CheckIssue[]): BlockCost {
+  return {
+    free: members.filter((m) => m.pairKind === 'deterministic').length,
+    reviewerPairs: members.filter((m) => m.pairKind === 'llm').length,
+  };
+}
+
+/** A block's cost, in words: `24 script pairs · free`, `24 reviewer pairs · paid`, or both. */
+export function costWords(cost: BlockCost): string {
+  const free = cost.free > 0 ? `${count(cost.free, 'script pair')} · free` : '';
+  const paid = cost.reviewerPairs > 0 ? `${count(cost.reviewerPairs, 'reviewer pair')} · paid` : '';
+  return [free, paid].filter((p) => p !== '').join(' + ');
+}
+
+/** The command that lists every member of a block. */
+function drillFor(code: string, aspectId: string | undefined, members: CheckIssue[]): string {
+  if (aspectId !== undefined) return `yg check --aspect ${aspectId}`;
+  const aspects = new Set(members.map((m) => m.aspectId));
   const [only] = [...aspects];
-  if (aspects.size === 1 && only !== undefined) return `yg check --aspect ${only}`;
+  if (aspects.size === 1 && only !== undefined && !COVERAGE_GROUP_EXCLUDED_CODES.has(code)) return `yg check --aspect ${only}`;
   return 'yg check --details';
 }
 
-/** One rendered member row: its lines, how many members it stands for, and the member whose detail follows it. */
-interface MemberRow {
-  lines: string[];
-  members: number;
-  first: CheckIssue;
+/**
+ * The fix a block states, from its members' own `next`: one shared text, or
+ * one text with `<node>` standing for each member's node, or — when the fixes
+ * differ by more than that — one line per member.
+ */
+function fixOf(members: CheckIssue[]): Pick<CheckBlock, 'fix' | 'templated' | 'divergentFix'> {
+  const texts = members.map((m) => m.messageData.next ?? '');
+  if (texts.every((t) => t === texts[0])) return { fix: texts[0] !== '' ? texts[0] : undefined, templated: false };
+  const templates = new Set(members.map((m) => templateOf(m.messageData.next ?? '', m)));
+  if (templates.size === 1) return { fix: [...templates][0], templated: true };
+  // Each member's own fix, whole (a heading-introduced list keeps its items),
+  // capped like the member list, the rest counted.
+  const shown = members.slice(0, MEMBER_CAP);
+  const lines = shown.flatMap((m) => {
+    const [first, ...rest] = (m.messageData.next ?? '').split('\n');
+    return [`${unitOf(m) || '(repository)'}: ${first}`, ...rest.map((l) => `  ${l.trimEnd()}`)];
+  });
+  if (members.length > shown.length) lines.push(`… +${members.length - shown.length} more  (yg check --details)`);
+  return { fix: undefined, templated: false, divergentFix: lines };
+}
+
+/** One block from members that share a code, a rule and a why. */
+function toBlock(members: CheckIssue[], aspectId: string | undefined): CheckBlock {
+  const first = members[0];
+  const code = first.code;
+  const outside = baseCodeOfOutsideTwin(code) !== undefined;
+  const isCoverage = COVERAGE_GROUP_EXCLUDED_CODES.has(code);
+  const violations = members.reduce((n, m) => n + (issueViolations(m)?.filter((v) => v.line !== null).length ?? 0), 0);
+  // One why for the block: the members' own when they all say the same,
+  // else the one they all say but for their own node, with `<node>` in it.
+  // A why is a reason, never a stack trace: frames a crash message carries are left to the JSON.
+  const whyOf = (m: CheckIssue): string => (m.messageData.why ?? '').split('\n').filter((l) => !/^\s+at\s.*(?:\(|:\d+:\d+)/.test(l)).join('\n');
+  const ownWhys = new Set(members.map(whyOf));
+  const whys = new Set(members.map((m) => templateOf(whyOf(m), m)));
+  const why = ownWhys.size === 1 ? [...ownWhys][0] : whys.size === 1 ? [...whys][0] : undefined;
+  const base = baseCodeOfOutsideTwin(code) ?? code;
+  const block: Omit<CheckBlock, 'subject'> = {
+    severity: first.severity === 'error' ? 'error' : 'warning',
+    code,
+    label: isCoverage ? coverageBlockLabel(code) : getIssueLabel(first),
+    tier: codeInfo(code).tier,
+    ...(aspectId !== undefined ? { aspectId } : {}),
+    ...(base === 'unverified' ? { cause: first.unverifiedCause ?? 'never-reviewed' } : {}),
+    ...(why !== undefined && why !== '' ? { why } : {}),
+    ...(outside ? { templated: false } : fixOf(members)),
+    ...(base === 'unverified' ? { cost: costOf(members) } : {}),
+    drill: drillFor(code, aspectId, members),
+    members,
+    size: isCoverage ? members.reduce((n, m) => n + (m.uncoveredCount ?? m.uncoveredFiles?.length ?? 0), 0) : members.length,
+    outside,
+  };
+  if (outside) delete block.fix;
+  return { ...block, subject: subjectOf(block, violations) };
 }
 
 /**
- * Render a single IssueGroup as a unified block:
- *   <glossLabel(label)>  <P> pairs  <M> nodes[  aspect '<id>']
- *   <sharedWhy>                         (shared, or templated over the node path)
- *   Fix: <sharedNext>[  (cost)]         (shared, or templated: "(for each node below)")
- *   - <node>  <what>  (one row per member; same (node, rule) file pairs collapse
- *       <continuation lines>             into one row naming how many files)
- *       Why: <member why>              (only when the why genuinely diverges)
- *       Fix: <member next>             (only when the fix genuinely diverges)
- *   ... and K more (<drill>)            (when the view caps and rows > MEMBER_CAP)
- *
- * Divergence handling: when the members carry node-specific `next` (and/or
- * `why`) — `log-entry-missing`, `relation-undeclared-dependency`, architecture
- * errors — a SINGLE shared line would name only the first node. If the members
- * differ only by their own node path, one templated line with `<node>` stands
- * for all of them; otherwise each member's own line is rendered beneath its row.
- *
- * The member list is capped by the VIEW (opts.capMembers), in every sink —
- * never by whether the output is a terminal — and a cut list always ends with
- * the command that shows the rest.
+ * Split members that share a code (and a rule) by the why they carry, so each
+ * block states one why once. Two members whose why differs only by their own
+ * node share one.
  */
-export function renderGroup(group: IssueGroup, lines: string[], opts: GroupRenderOptions): void {
-  const aspectSeg = group.aspectId ? `  aspect '${group.aspectId}'` : '';
-  // A repo-level group names no node AND no type-covered file (the committed
-  // agent-rules digest, an unreadable lock). Pair/node counts would both be
-  // fabrications there, so the header carries just the label, and the members
-  // render as plain detail lines with no bullet to leave empty. A group that is
-  // ALL file-level (nodeCount === 0 but fileCount > 0) is NOT repo-level.
-  if (group.nodeCount === 0 && group.fileCount === 0) {
-    renderRepoLevelGroup(group, lines);
-    return;
+function splitByWhy(members: CheckIssue[]): CheckIssue[][] {
+  const byWhy = new Map<string, CheckIssue[]>();
+  for (const m of members) {
+    const key = FULL_WHAT_CODES.has(m.code) ? '' : templateOf(m.messageData.why ?? '', m);
+    const list = byWhy.get(key) ?? [];
+    list.push(m);
+    byWhy.set(key, list);
   }
-  const countSeg = group.fileCount > 0
-    ? (group.nodeCount > 0 ? `${count(group.nodeCount, 'node')}, ${count(group.fileCount, 'file')}` : count(group.fileCount, 'file'))
-    : count(group.nodeCount, 'node');
-  // "pairs" only for verdict states; any other finding is counted as issues.
-  const countNoun = PAIR_CODES.has(group.code) ? 'pair' : 'issue';
-  lines.push(`  ${glossLabel(group.label)}  ${count(group.pairCount, countNoun)}  ${countSeg}${aspectSeg}`);
-  // A `-outside` twin group's Fix line — shared or per-member, below — is
-  // suppressed entirely: see isOutsideFinding's doc comment.
-  const isOutside = isOutsideFinding(group.code);
-  const whyTemplate = group.divergentWhy ? memberTemplate(group.members, (m) => m.messageData.why) : undefined;
-  const nextTemplate = group.divergentNext ? memberTemplate(group.members, (m) => m.messageData.next) : undefined;
-  const perMemberWhy = group.divergentWhy && whyTemplate === undefined;
-  const perMemberNext = group.divergentNext && nextTemplate === undefined;
-  const sharedWhy = group.divergentWhy ? whyTemplate : group.sharedWhy;
-  const sharedNext = group.divergentNext ? nextTemplate : group.sharedNext;
-  if (sharedWhy) lines.push(`${BLOCK_INDENT}${sharedWhy}`);
-  if (sharedNext && !isOutside) {
-    const nextLines = sharedNext.split('\n');
-    const suffix = nextTemplate !== undefined ? '  (for each node below)' : costSuffix(group);
-    lines.push(`${BLOCK_INDENT}Fix: ${nextLines[0]}${suffix}`);
-    for (const extra of nextLines.slice(1)) lines.push(`${BLOCK_INDENT}${extra}`);
-  }
-  // Per-member why/fix continuation, emitted under each row when divergent.
-  // Indented one level (two spaces) deeper than the bullet so it reads as a
-  // child of that node, matching the continuation indentation.
-  const MEMBER_DETAIL_INDENT = `${BLOCK_INDENT}  `;
-  const divergentDetail = (m: CheckIssue): string[] => {
-    const out: string[] = [];
-    if (perMemberWhy && m.messageData.why) out.push(`${MEMBER_DETAIL_INDENT}Why: ${m.messageData.why.split('\n')[0]}`);
-    if (perMemberNext && m.messageData.next && !isOutside) {
-      const nextLines = m.messageData.next.split('\n');
-      out.push(`${MEMBER_DETAIL_INDENT}Fix: ${nextLines[0]}`);
-      for (const extra of nextLines.slice(1)) out.push(`${MEMBER_DETAIL_INDENT}${extra}`);
-    }
-    return out;
-  };
+  return [...byWhy.values()];
+}
 
-  /**
-   * The rows for one block of members. `subjectFor` is what appears where the
-   * node path would — the real nodePath for a component member, or the FILE
-   * (never an empty bullet) for a nodeless one.
-   */
-  const buildRows = (blockMembers: CheckIssue[], subjectFor: (m: CheckIssue) => string): MemberRow[] => {
-    const rows: MemberRow[] = [];
-    if (group.perMemberReason) {
-      for (const m of blockMembers) {
-        // Every line AFTER line 0 (line 0 is the generic "Aspect X refused on
-        // UNIT" header the group header already conveys): the reviewer's reason,
-        // or the violation list under its "Violations:" heading.
-        const whatTail = m.messageData.what.split('\n').slice(1).map((l) => l.replace(/\s+$/, ''));
-        const rowLines = whatTail.length === 0
-          ? [`${BLOCK_INDENT}- ${subjectFor(m)}`]
-          : [`${BLOCK_INDENT}- ${subjectFor(m)}  ${whatTail[0].trim()}`, ...whatTail.slice(1).map((extra) => `${BLOCK_INDENT}  ${extra}`)];
-        rows.push({ lines: rowLines, members: 1, first: m });
-      }
-      return rows;
+/** Sort key of a block: errors first, then tier, then the fixed priority, then label and rule. */
+function compareBlocks(a: CheckBlock, b: CheckBlock): number {
+  if (a.severity !== b.severity) return a.severity === 'error' ? -1 : 1;
+  const ta = issueTierRank(a.members[0]);
+  const tb = issueTierRank(b.members[0]);
+  if (a.severity === 'error' && ta !== tb) return ta - tb;
+  const ra = issuePriorityRank(a.members[0]);
+  const rb = issuePriorityRank(b.members[0]);
+  if (ra !== rb) return ra - rb;
+  if (a.label !== b.label) return a.label.localeCompare(b.label, 'en');
+  const aa = a.aspectId ?? '';
+  const ab = b.aspectId ?? '';
+  if (aa !== ab) return aa.localeCompare(ab, 'en');
+  return b.members.length - a.members.length;
+}
+
+/**
+ * Every finding of a run as blocks, most urgent first: errors by tier
+ * (graph-invalid, code and graph, gate prerequisites, pending), then warnings.
+ * A coverage finding is a block of its own (its members are files); every
+ * other finding is grouped by code and rule, then split by why.
+ */
+export function buildBlocks(issues: CheckIssue[]): CheckBlock[] {
+  const blocks: CheckBlock[] = [];
+  for (const issue of issues) {
+    if (COVERAGE_GROUP_EXCLUDED_CODES.has(issue.code)) blocks.push(toBlock([issue], undefined));
+  }
+  const rest = issues.filter((i) => !COVERAGE_GROUP_EXCLUDED_CODES.has(i.code));
+  for (const severity of ['error', 'warning'] as const) {
+    for (const g of groupIssues(rest.filter((i) => (i.severity === 'error') === (severity === 'error')))) {
+      for (const part of splitByWhy(g.members)) blocks.push(toBlock(part, g.aspectId));
     }
-    // Members that name the same subject and the same rule — one pair per FILE
-    // of a per-file rule — collapse into one row that says how many files; a
-    // single such pair names its file. Everything else is a row of its own.
-    const byKey = new Map<string, CheckIssue[]>();
-    for (const m of blockMembers) {
-      const namesRule = group.aspectId === undefined && m.aspectId !== undefined;
-      const key = namesRule ? `${subjectFor(m)}\u0000${m.aspectId}` : `${subjectFor(m)}\u0000\u0000${m.messageData.what}`;
-      const list = byKey.get(key) ?? [];
-      list.push(m);
-      byKey.set(key, list);
-    }
-    for (const members of byKey.values()) {
-      const m = members[0];
-      const subject = subjectFor(m);
-      // For code-only groups (e.g. `unverified`) group.aspectId is undefined
-      // because the group spans multiple aspects: each row names its own rule.
-      const memberAspectSeg = group.aspectId === undefined && m.aspectId !== undefined ? `  aspect '${m.aspectId}'` : '';
-      const fileUnits = members.filter((x) => x.nodePath !== undefined && x.unitKey?.startsWith('file:'));
-      const unitSeg = members.length > 1
-        ? `  ${count(members.length, fileUnits.length === members.length ? 'file' : 'pair')}`
-        : fileUnits.length === 1 ? `  ${toPosixPath(fileUnits[0].unitKey!.slice('file:'.length))}` : '';
-      if (memberAspectSeg !== '') {
-        rows.push({ lines: [`${BLOCK_INDENT}- ${subject}${memberAspectSeg}${unitSeg}`], members: members.length, first: m });
-        continue;
-      }
-      // A finding with no rule: its own `what` says which node/file/predicate
-      // is broken — every line of it, the first beside the bullet and the rest
-      // (a file list, a parser message) beneath it.
-      const whatLines = (m.messageData.what ?? '').split('\n').map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim() !== '');
-      const head = whatLines.length > 0 ? `  ${whatLines[0]}` : '';
-      const repeat = members.length > 1 ? `  (${count(members.length, 'issue')})` : '';
-      rows.push({
-        lines: [`${BLOCK_INDENT}- ${subject}${head}${repeat}`, ...whatLines.slice(1).map((l) => `${BLOCK_INDENT}  ${l}`)],
-        members: members.length,
-        first: m,
+  }
+  return blocks.sort(compareBlocks);
+}
+
+// ── Rendering ──────────────────────────────────────────────
+
+/** One entry of a block's `at:` field: its lines, and how many members it stands for. */
+interface AtEntry {
+  lines: string[];
+  members: number;
+  units: Set<string>;
+}
+
+/** Pad a unit column so the lines after the first align under the message. */
+function padUnit(unit: string, width: number): string {
+  return unit.padEnd(width);
+}
+
+/** A refusal's entries: one line per violation (script rule) or per refusal (reviewer rule). */
+function refusalEntries(members: CheckIssue[]): AtEntry[] {
+  const width = Math.max(...members.map((m) => unitOf(m).length));
+  const out: AtEntry[] = [];
+  for (const m of members) {
+    const unit = unitOf(m);
+    const violations = issueViolations(m);
+    if (violations !== undefined && violations.length > 0) {
+      violations.forEach((v, i) => {
+        const where = v.line !== null && v.file !== '' ? `${v.file}:${v.line}  ` : v.file !== '' ? `${v.file}  ` : '';
+        const [msg, ...more] = v.message.split('\n');
+        const lead = i === 0 ? padUnit(unit, width) : ' '.repeat(width);
+        out.push({
+          lines: [`${lead}  ${where}${escapeControls(msg)}`.replace(/^(\S+)\s{3,}/, '$1  '), ...more.map((l) => `${' '.repeat(width)}    ${escapeControls(l)}`)],
+          members: i === 0 ? 1 : 0,
+          units: new Set([unit]),
+        });
       });
+      continue;
     }
-    return rows;
-  };
-
-  /** Render one block of members (its own rows, its own cap). */
-  const renderMemberBlock = (blockMembers: CheckIssue[], subjectFor: (m: CheckIssue) => string): void => {
-    const rows = buildRows(blockMembers, subjectFor);
-    const truncate = opts.capMembers && rows.length > MEMBER_CAP;
-    const shown = truncate ? rows.slice(0, MEMBER_CAP) : rows;
-    for (const row of shown) {
-      lines.push(...row.lines);
-      lines.push(...divergentDetail(row.first));
-    }
-    if (truncate) {
-      const hidden = rows.slice(MEMBER_CAP).reduce((sum, r) => sum + r.members, 0);
-      lines.push(`${BLOCK_INDENT}... and ${hidden} more (${drillFor(group)})`);
-    }
-  };
-
-  if (group.fileCount === 0) {
-    // One block, one cap, over every member (a stray member with neither
-    // nodePath nor a file: unitKey — never produced by any known issue path —
-    // still renders via the empty-subject fallback rather than vanishing).
-    renderMemberBlock(group.members, (m) => m.nodePath ?? '');
-  } else {
-    // Two blocks — components first, then files — each with its OWN cap, so a
-    // repo with hundreds of type-covered files can never fill the component
-    // cap with files and hide every component member.
-    const nodeMembers = group.members.filter((m) => m.nodePath !== undefined);
-    const fileMembers = group.members.filter((m) => m.nodePath === undefined && m.unitKey?.startsWith('file:'));
-    const otherMembers = group.members.filter(
-      (m) => m.nodePath === undefined && !m.unitKey?.startsWith('file:'),
-    );
-    renderMemberBlock([...nodeMembers, ...otherMembers], (m) => m.nodePath ?? '');
-    if (fileMembers.length > 0) {
-      renderMemberBlock(fileMembers, (m) => toPosixPath(m.unitKey!.slice('file:'.length)));
-    }
+    // A reviewer refusal: its reason, after the heading line the block already states.
+    const tail = m.messageData.what.split('\n').slice(1).map((l) => l.trim()).filter((l) => l !== '');
+    const reason = tail.map((l) => l.replace(/^Reviewer reason:\s*/, '')).join(' ');
+    out.push({ lines: [`${padUnit(unit, width)}  ${escapeControls(reason)}`.trimEnd()], members: 1, units: new Set([unit]) });
   }
+  return out;
+}
+
+/** An unverified block's entries: per pair, or — in a capped view — one line per rule. */
+function unverifiedEntries(members: CheckIssue[], capped: boolean): AtEntry[] {
+  if (!capped) return members.map((m) => ({ lines: [pairNotation(m)], members: 1, units: new Set([unitOf(m)]) }));
+  const byAspect = new Map<string, CheckIssue[]>();
+  for (const m of members) {
+    const list = byAspect.get(m.aspectId ?? '?') ?? [];
+    list.push(m);
+    byAspect.set(m.aspectId ?? '?', list);
+  }
+  const out: AtEntry[] = [];
+  for (const [aspect, list] of byAspect) {
+    if (list.length === 1) {
+      out.push({ lines: [pairNotation(list[0])], members: 1, units: new Set([unitOf(list[0])]) });
+      continue;
+    }
+    const { nodes, files } = unitCounts(list);
+    const kinds = new Set(list.map((m) => (m.pairKind === 'llm' ? 'reviewer' : 'script')));
+    const parts = [count(list.length, 'pair'), nodes > 0 ? count(nodes, 'node') : '', files > 0 ? count(files, 'file') : '', [...kinds].sort().join(' + ')];
+    out.push({ lines: [`${aspect}  ${parts.filter((p) => p !== '').join(' · ')}`], members: list.length, units: new Set(list.map(unitOf)) });
+  }
+  return out;
+}
+
+/** A coverage block's entries: one file per line. */
+function coverageEntries(members: CheckIssue[]): AtEntry[] {
+  const files = members.flatMap((m) => m.uncoveredFiles ?? []);
+  // A file name is repository text: a control sequence in it is shown, never obeyed.
+  return files.map((f) => ({ lines: [escapeControls(toPosixPath(f))], members: 1, units: new Set([f]) }));
+}
+
+/**
+ * Any other block's entries: its member's subject beside the first line of
+ * what it says (unless the heading already says it), every further line of
+ * that below it. Members that say the same thing about the same subject share
+ * one entry.
+ */
+function genericEntries(b: CheckBlock): AtEntry[] {
+  // The heading already says what every member says when there is one member,
+  // or when all of them say the same thing but for their own node: then an
+  // entry is just its member.
+  const single = b.members.length === 1 || new Set(b.members.map((m) => templateOf(m.messageData.what.split('\n')[0], m))).size === 1;
+  const byKey = new Map<string, CheckIssue[]>();
+  for (const m of b.members) {
+    const key = `${unitOf(m)}\u0000${m.messageData.what}`;
+    const list = byKey.get(key) ?? [];
+    list.push(m);
+    byKey.set(key, list);
+  }
+  const width = Math.max(0, ...b.members.map((m) => unitOf(m).length));
+  const out: AtEntry[] = [];
+  for (const list of byKey.values()) {
+    const m = list[0];
+    const unit = unitOf(m);
+    const lines = m.messageData.what.split('\n').map((l) => l.replace(/\s+$/, '')).filter((l) => l.trim() !== '');
+    const [head = '', ...rest] = lines;
+    const headSaid = single || headline(head) === headline(b.subject);
+    const repeat = list.length > 1 ? `  (${count(list.length, 'issue')})` : '';
+    let entryLines: string[];
+    if (unit === '') {
+      // A repository-level finding names no member: what it says IS the entry.
+      // Said by the heading, it has nothing left to list but its detail.
+      entryLines = headSaid ? rest.map((l) => l.trim()) : [`${head}${repeat}`, ...rest.map((l) => `  ${l.trim()}`)];
+    } else {
+      const first = headSaid ? `${unit}${repeat}` : `${padUnit(unit, width)}  ${head}${repeat}`;
+      entryLines = [first, ...rest.map((l) => `  ${l.trim()}`)];
+    }
+    if (entryLines.length > 0) out.push({ lines: entryLines.map((l) => escapeControls(l)), members: list.length, units: new Set([unit]) });
+  }
+  return out;
+}
+
+function entriesOf(b: CheckBlock, capped: boolean): AtEntry[] {
+  const base = baseCodeOfOutsideTwin(b.code) ?? b.code;
+  if (COVERAGE_GROUP_EXCLUDED_CODES.has(b.code)) return coverageEntries(b.members);
+  if (base === 'aspect-violation-enforced' || base === 'aspect-violation-advisory') return refusalEntries(b.members);
+  if (base === 'unverified') return unverifiedEntries(b.members, capped);
+  return genericEntries(b);
+}
+
+/**
+ * The `at:` field's lines, capped at MEMBER_CAP lines in a capped view; a cut
+ * list always ends with how much it cut and the command that shows the rest.
+ */
+function atLines(b: CheckBlock, opts: GroupRenderOptions): string[] {
+  const entries = entriesOf(b, opts.capMembers);
+  const out: string[] = [];
+  let used = 0;
+  let cut = -1;
+  for (let i = 0; i < entries.length; i++) {
+    if (opts.capMembers && used + entries[i].lines.length > MEMBER_CAP && used > 0) {
+      cut = i;
+      break;
+    }
+    out.push(...entries[i].lines);
+    used += entries[i].lines.length;
+  }
+  if (cut >= 0) {
+    const hidden = entries.slice(cut);
+    const base = baseCodeOfOutsideTwin(b.code) ?? b.code;
+    const refusal = base === 'aspect-violation-enforced' || base === 'aspect-violation-advisory';
+    // A refusal counts what it cut in violations (one line each); anything
+    // else in members.
+    const more = refusal ? hidden.reduce((n, e) => n + e.lines.length, 0) : hidden.reduce((n, e) => n + e.members, 0);
+    out.push(`… +${more} more  (${b.drill})`);
+  }
+  return out;
+}
+
+/** The text of a block's `fix:` field, cost and template note included. */
+function fixLines(b: CheckBlock): string[] {
+  if (b.fix !== undefined) {
+    const [first, ...rest] = b.fix.split('\n');
+    const cost = b.cost !== undefined ? costWords(b.cost) : '';
+    const suffix = b.templated ? '  for each node above' : cost !== '' && first.startsWith('yg check --approve') ? `  (${cost})` : '';
+    // Later lines keep their own indentation: a snippet (a YAML relation to
+    // add) is only correct as written.
+    return [`${first}${suffix}`, ...rest.map((l) => l.trimEnd())];
+  }
+  return b.divergentFix ?? [];
+}
+
+/** One block, as text. */
+export function renderBlock(b: CheckBlock, opts: GroupRenderOptions, colour = decorated): string[] {
+  const lines = [heading(b.severity, b.label, b.subject, { colour })];
+  lines.push(...field('at', atLines(b, opts), colour));
+  if (b.why !== undefined) lines.push(...field('why', b.why, colour));
+  lines.push(...field('fix', fixLines(b), colour));
+  return lines;
+}
+
+/** Blocks, each preceded by a blank line. */
+export function renderBlocks(blocks: CheckBlock[], opts: GroupRenderOptions, colour = decorated): string[] {
+  const out: string[] = [];
+  for (const b of blocks) {
+    out.push('');
+    out.push(...renderBlock(b, opts, colour));
+  }
+  return out;
+}
+
+/** How many units a block counts, in words: `24 pairs`, `4 files`. */
+export function blockSize(b: CheckBlock): string {
+  return count(b.size, codeInfo(b.code).noun);
 }

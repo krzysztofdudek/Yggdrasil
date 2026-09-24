@@ -117,7 +117,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: per-file scope / observat
       // relation pass finds nothing to flag. The edit leaves the node fully green.
       appendFileSync(path.join(base, 'c.gen.ts'), '\nexport const cc = 2;\n');
       const afterExcluded = run(['check'], dir);
-      expect(afterExcluded.all).not.toContain("No valid verdict for aspect 'no-todo-comments'");
+      expect(afterExcluded.all).not.toContain('no-todo-comments @');
       expect(afterExcluded.all).not.toContain('relation-undeclared-dependency');
       expect(afterExcluded.status).toBe(0); // excluded-file edit invalidates nothing
 
@@ -125,18 +125,16 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: per-file scope / observat
       appendFileSync(path.join(base, 'a.ts'), '\nexport const aa = 2;\n');
       const afterIncluded = run(['check'], dir);
       expect(afterIncluded.status).toBe(1);
-      // Grouped view: exactly ONE no-todo-comments pair (a.ts) went unverified.
-      // The per-file `what` detail is gone in the default view, but the group
-      // header proves only a single pair was invalidated (b.ts's pair stays valid).
-      expect(afterIncluded.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      // The aspect appears on the body line (not in the group header).
-      expect(afterIncluded.all).toContain("aspect 'no-todo-comments'");
-      expect(afterIncluded.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)\s+1 pair\s+1 node$/m);
-      expect(afterIncluded.all).toContain("- services/orders  aspect 'no-todo-comments'");
+      // Exactly ONE no-todo-comments pair (a.ts) went unverified; b.ts's pair stays valid.
+      expect(afterIncluded.all).toMatch(/error\[unverified\] \d+ pairs? (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)/);
+      // The block counts exactly one pair and its at: line names that pair — the a.ts file unit.
+      expect(afterIncluded.all).toMatch(/error\[unverified\] 1 pair (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)$/m);
+      expect(afterIncluded.all).toContain('no-todo-comments @ src/services/orders/a.ts');
+      expect(afterIncluded.all).not.toContain('src/services/orders/b.ts');
 
       // RE-FILL: exactly ONE pair re-verified (a.ts). b.ts carries its prior verdict.
       const refill = run(['check', '--approve'], dir);
-      expect(refill.all).toContain('Filling 1 unverified pairs');
+      expect(refill.all).toContain('fill  1 pair · 1 script (free) · 0 reviewer calls');
       expect(run(['check'], dir).status).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -233,9 +231,8 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: per-file scope / observat
       writeFileSync(path.join(dir, 'src', 'services', 'sibling.ts'), '// sibling\nexport const s = 1;\n');
       const afterList = run(['check'], dir);
       expect(afterList.status).toBe(1);
-      expect(afterList.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(afterList.all).toContain("aspect 'obs-rule'");
-      expect(afterList.all).toContain('- services/orders');
+      expect(afterList.all).toMatch(/error\[unverified\] \d+ pairs? (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)/);
+      expect(afterList.all).toContain('obs-rule @ services/orders');
       // Re-fill restores green (sibling is harmless to the rule).
       rmSync(path.join(dir, 'src', 'services', 'sibling.ts'), { force: true });
       run(['check', '--approve'], dir);
@@ -247,11 +244,11 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: per-file scope / observat
       writeFileSync(path.join(dir, 'src', 'extras', 'secret.ts'), '// secret\nexport const x = 1;\n');
       const afterExists = run(['check'], dir);
       expect(afterExists.status).toBe(1);
-      expect(afterExists.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(afterExists.all).toContain("aspect 'obs-rule'");
-      expect(afterExists.all).toContain('- services/orders');
+      expect(afterExists.all).toMatch(/error\[unverified\] \d+ pairs? (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)/);
+      expect(afterExists.all).toContain('obs-rule @ services/orders');
       const refillB = run(['check', '--approve'], dir);
-      expect(refillB.all).toContain('[det] obs-rule on node:services/orders — refused');
+      expect(refillB.all).toContain('error[refused] obs-rule — refused on services/orders');
+      expect(refillB.all).toContain('services/orders  secret.ts must not exist');
       // Restore green.
       rmSync(path.join(dir, 'src', 'extras', 'secret.ts'), { force: true });
       run(['check', '--approve'], dir);
@@ -261,9 +258,8 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: per-file scope / observat
       appendFileSync(nodeYaml(dir, 'services/payments'), '\n# byte-changing trailing comment\n');
       const afterGraph = run(['check'], dir);
       expect(afterGraph.status).toBe(1);
-      expect(afterGraph.all).toMatch(/unverified \((?:not yet reviewed|stale — inputs changed since the verdict|deterministic check not run on this checkout — free)\)/);
-      expect(afterGraph.all).toContain("aspect 'obs-rule'");
-      expect(afterGraph.all).toContain('- services/orders');
+      expect(afterGraph.all).toMatch(/error\[unverified\] \d+ pairs? (?:with no verdict yet|whose inputs changed since the verdict|whose script check has not run on this checkout — free to run)/);
+      expect(afterGraph.all).toContain('obs-rule @ services/orders');
       // Re-fill restores green (the node is still a service).
       run(['check', '--approve'], dir);
       expect(run(['check'], dir).status).toBe(0);

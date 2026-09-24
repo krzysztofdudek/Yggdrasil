@@ -278,6 +278,24 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
       // Method names never leak into operator-facing text.
       expect(out).not.toContain('beta-binomial');
       expect(out).not.toContain('Wilson');
+
+      // The same facts as a document (yg-aspects-health/1): the signal and the
+      // plain-words reading per rule, the reading verbatim as the table prints it.
+      const json = run(['aspects', '--health', '--json'], dir);
+      expect(json.status).toBe(0);
+      const doc = JSON.parse(json.stdout);
+      expect(doc.schema).toBe('yg-aspects-health/1');
+      const rule = (id: string) => doc.rules.find((r: { aspect: string }) => r.aspect === id);
+      expect(rule('has-doc-comment')).toMatchObject({ signal: 'decorative?', catch: 0, exposure: 25 });
+      expect(rule('has-doc-comment').reading).toContain('enforceable but never violated — may be deterring violations');
+      expect(out).toContain(`has-doc-comment: ${rule('has-doc-comment').reading}`);
+      expect(rule('no-todo-comments')).toMatchObject({ signal: 'active', catch: 5, exposure: 10 });
+      expect(rule('no-todo-comments').reading).toContain('uncertainty range is wide (few observations)');
+      expect(out).toContain(`no-todo-comments: ${rule('no-todo-comments').reading}`);
+      // A rule the table prints no sentence for has no reading.
+      expect(rule('requires-named-export')).toMatchObject({ exposure: 3, reading: null });
+      // A rule never judged has no signal — null, never a 0 that reads as clean.
+      expect(rule('wip-rule')).toMatchObject({ signal: null, catch: null, exposure: null });
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }
@@ -623,13 +641,14 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health counts type-covere
       // type `leaf`, live on the real node `owned` AND the two componentless
       // files matching the same type — a real refusal on a.ts, no reviewer call.
       const fill = run(['check', '--approve', '--only-deterministic'], dir);
-      expect(fill.all).toContain('[det] refuses-on-a on file:src/leaf/a.ts — refused');
+      expect(fill.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+      expect(fill.stdout).toContain('error[refused] refuses-on-a — 1 violation in src/leaf/a.ts');
 
       // `yg check` itself still fails on that refusal — the ground truth
       // `--health` must agree with.
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
-      expect(check.stdout).toContain("src/leaf/a.ts  Violations:");
+      expect(check.stdout).toMatch(/^ {2}at: +src\/leaf\/a\.ts {2}src\/leaf\/a\.ts:\d+ {2}/m);
 
       const health = run(['aspects', '--health'], dir);
       expect(health.status).toBe(0); // informational, never blocks

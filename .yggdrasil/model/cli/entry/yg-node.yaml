@@ -74,5 +74,7 @@ relations:
     type: calls
   - target: cli/commands/verdict-removed
     type: calls
+  - target: cli/commands/help
+    type: calls
 mapping:
   - source/cli/src/bin.ts

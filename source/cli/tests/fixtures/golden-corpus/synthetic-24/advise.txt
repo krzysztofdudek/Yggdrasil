@@ -1,11 +1,11 @@
 $ yg advise
 exit: 0
 --- stdout
-Attention
+yg advise: 1 attention item · 0 nominations
 
-  0 incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement
+attention
+  no incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement
 
-Nominations
-
-  No nominations right now.
+nominations
+  none right now
 --- stderr

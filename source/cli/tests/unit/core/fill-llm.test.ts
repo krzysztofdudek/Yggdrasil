@@ -250,9 +250,7 @@ describe('header + summary strings (exact)', () => {
     mockCreateLlmProvider.mockReturnValue(makeMockProvider());
     const w = makeWriter();
     await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
-    expect(w.text()).toContain(
-      'Filling 2 unverified pairs across 1 nodes — 1 deterministic (no cost), 1 reviewer calls (consensus included)',
-    );
+    expect(w.text()).toContain('fill  2 pairs · 1 script (free) · 1 reviewer call (consensus included)\n');
   });
 
   // The free-only run's header, pinned in BOTH directions: it counts what the run
@@ -274,22 +272,21 @@ describe('header + summary strings (exact)', () => {
     });
 
     // One pair will be filled — not the two that are unverified.
+    expect(w.text()).toContain('fill  1 pair · 1 script (free) · 0 reviewer calls\n');
     expect(w.text()).toContain(
-      'Filling 1 unverified pairs across 1 nodes — 1 deterministic (no cost), 0 reviewer calls (consensus included)',
+      'fill  1 reviewer pair left alone — script rules only this run\n',
     );
-    expect(w.text()).toContain(
-      'Deterministic-only mode — 1 LLM pair will NOT be reviewed this run; run `yg check --approve` to review it.',
-    );
-    // …and the closing summary never claims every pair holds a valid verdict.
-    expect(w.text()).toContain(
-      '0 reviewer calls made — deterministic-only mode; 1 LLM pair left unverified.',
-    );
-    expect(w.text()).not.toContain('all expected pairs hold valid verdicts');
+    // …and the closing summary never claims every pair holds a valid verdict:
+    // it names the reviewer pair it left alone.
+    expect(w.text()).toMatch(/fill {2}done in \d+\S* — 1 approved · 0 refused · 0 failed · 0 reviewer calls · 1 reviewer pair left alone\nnext: yg check --approve {2}\(reviews the pairs left alone\)\n/);
+    expect(w.text()).not.toMatch(/\bvalid\b/);
     // No reviewer was constructed at all — the count above is not merely unspent.
     expect(mockCreateLlmProvider).not.toHaveBeenCalled();
   });
 
-  it('prints the exact zero-calls summary when nothing is unverified', async () => {
+  // A fill with nothing to do prints nothing at all — no header, no closing
+  // line (the old "all expected pairs hold valid verdicts" claim is gone by design).
+  it('prints nothing when nothing is unverified', async () => {
     const { projectRoot } = await setupProject({
       aspects: [{ id: 'det-a', kind: 'deterministic', status: 'enforced', rule: DET_PASS }],
     });
@@ -300,7 +297,7 @@ describe('header + summary strings (exact)', () => {
     graph = await loadGraph(projectRoot);
     const w = makeWriter();
     await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
-    expect(w.text()).toContain('0 reviewer calls made — all expected pairs hold valid verdicts');
+    expect(w.text()).toBe('');
   });
 });
 
@@ -360,7 +357,7 @@ describe('infra fail-closed', () => {
     // The LLM pair was NOT written (provider down).
     expect(lock.verdicts['llm-a']?.['node:svc']).toBeUndefined();
     expect(result.infraFailures).toBeGreaterThan(0);
-    expect(w.text()).toContain('pairs failed on provider/config errors');
+    expect(w.text()).toMatch(/\b1 pair failed on provider\/config errors/);
     // The unverified LLM pair stays red on the report.
     expect(result.checkResult.issues.some((i) => i.code === 'unverified')).toBe(true);
   });
@@ -404,8 +401,9 @@ describe('zero-calls summary gated on runtimeErrors === 0 (side-fix B3)', () => 
     // The check crashed → runtime error (no write, no reviewer call).
     expect(result.runtimeErrors).toBeGreaterThan(0);
     expect(result.reviewerCallsMade).toBe(0);
-    // The zero-calls summary MUST NOT appear when there was a runtime error.
-    expect(w.text()).not.toContain('0 reviewer calls made — all expected pairs hold valid verdicts');
+    // The closing line MUST NOT read as clean when there was a runtime error: it counts the failure.
+    expect(w.text()).not.toMatch(/\bvalid\b/);
+    expect(w.text()).toMatch(/fill {2}done in \d+\S* — 0 approved · 0 refused · 1 failed · 0 reviewer calls\n/);
   });
 });
 
@@ -414,7 +412,7 @@ describe('zero-calls summary gated on runtimeErrors === 0 (side-fix B3)', () => 
 // =============================================================================
 
 describe('consensus=3 majority-approve', () => {
-  it('refuse/approve/approve votes → entry written approved, reviewerCallsMade=3, header shows 3 calls', async () => {
+  it('refuse/approve/approve votes → entry written approved, reviewerCallsMade=3, header shows 3 calls, the split is visible', async () => {
     const configConsensus3 =
       'reviewer:\n  tiers:\n    standard:\n      provider: ollama\n      consensus: 3\n      config:\n        model: llama3\n        temperature: 0\n';
     const { projectRoot } = await setupProject({
@@ -437,8 +435,11 @@ describe('consensus=3 majority-approve', () => {
     const w = makeWriter();
     const result = await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
 
-    // Header must show 3 reviewer calls (consensus included).
-    expect(w.text()).toContain('3 reviewer calls (consensus included)');
+    // Header must show 3 reviewer calls (consensus included in the budget).
+    expect(w.text()).toContain('fill  1 pair · 0 script (free) · 3 reviewer calls (consensus included)\n');
+    // The 2-of-3 split gets a line of its own.
+    expect(w.text()).toContain('fill  approved by 2 of 3 votes  llm-a @ svc\n');
+    expect(result.reviewerCallsMade).toBe(3);
 
     // The verdict entry must be approved (majority).
     const lock = readLock(graph.rootPath);
@@ -568,7 +569,7 @@ describe('fill — fail-closed edge branches', () => {
     // No verdict written — a provider error never becomes a `refused` verdict.
     expect(readLock(graph.rootPath).verdicts['llm-a']?.['node:svc']).toBeUndefined();
     expect(result.infraFailures).toBeGreaterThan(0);
-    expect(w.text()).toContain('pairs failed on provider/config errors');
+    expect(w.text()).toMatch(/\b1 pair failed on provider\/config errors/);
   });
 
   it('a reviewer THROW is infra → NO write', async () => {
@@ -613,7 +614,7 @@ describe('fill — fail-closed edge branches', () => {
     const w = makeWriter();
     await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: w.write, emitIssue: w.emitIssue });
     const text = w.text();
-    expect(text).toContain("Reviewer provider 'ollama' (tier 'standard') cannot run: 'claude' was not found on PATH — install Claude Code. 1 pair(s) left unverified.");
+    expect(text).toContain("Reviewer provider 'ollama' (tier 'standard') cannot run: 'claude' was not found on PATH — install Claude Code. 1 pair left unverified.");
     expect(text).not.toContain('endpoint did not respond');
     expect(text).toContain('set `debug: true` in .yggdrasil/yg-config.yaml');
     // The reason travels with the infra report, for the closing summary to show.

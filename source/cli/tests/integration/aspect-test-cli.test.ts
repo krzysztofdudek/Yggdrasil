@@ -142,7 +142,7 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stderr).toContain('--files cannot be used with LLM aspect');
+    expect(stderr).toContain('--files cannot be used with reviewer rule');
   });
 
   it('exits 1 when neither --node nor --files is provided', () => {
@@ -188,24 +188,27 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
     expect(stderr).toContain('--dry-run is not supported for deterministic aspect');
   });
 
-  // --- stderr contract: bespoke errors carry the 'Error: ' prefix ----------
+  // --- stderr contract: bespoke errors carry the 'error[<code>]: ' prefix ---
 
-  // Every bespoke aspect-test error path writes `Error: <what/why/next>` to
-  // stderr. Pin the prefix at POSITION 0 (regex ^Error: , not a substring
-  // match) on three representative paths, so stripping the prefix from the
-  // stderr writes is a test failure — a bare toContain('Error') would still
-  // pass on wording that merely mentions the word.
+  // Every bespoke aspect-test error path writes `error[<code>]: <what>` /
+  // `  why:  <why>` / `next: <step>` to stderr. Pin the prefix at POSITION 0
+  // (regex ^error\[...\]: , not a substring match) on three representative
+  // paths, so stripping the prefix from the stderr writes is a test failure —
+  // a bare toContain('error') would still pass on wording that merely
+  // mentions the word.
 
-  it("stderr starts with 'Error: ' when the aspect is not found", () => {
+  it("stderr starts with 'error[<code>]: ' when the aspect is not found", () => {
     const { stderr, status } = run(
       ['aspect-test', '--aspect', 'nonexistent', '--node', 'N'],
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stderr).toMatch(/^Error: /);
+    expect(stderr).toMatch(/^error\[[a-z-]+\]: /);
+    expect(stderr).toMatch(/^ {2}why: {2}/m);
+    expect(stderr).toMatch(/^next: /m);
   });
 
-  it("stderr starts with 'Error: ' when --files is used with an LLM aspect", () => {
+  it("stderr starts with 'error[<code>]: ' when --files is used with an LLM aspect", () => {
     const aspectDir = path.join(projectRoot, '.yggdrasil', 'aspects', 'llm-aspect');
     mkdirSync(aspectDir, { recursive: true });
     writeFileSync(
@@ -219,10 +222,12 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stderr).toMatch(/^Error: /);
+    expect(stderr).toMatch(/^error\[[a-z-]+\]: /);
+    expect(stderr).toMatch(/^ {2}why: {2}/m);
+    expect(stderr).toMatch(/^next: /m);
   });
 
-  it("stderr starts with 'Error: ' when the node is not found", () => {
+  it("stderr starts with 'error[<code>]: ' when the node is not found", () => {
     writeAspect(
       projectRoot,
       'det-prefix',
@@ -234,7 +239,9 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stderr).toMatch(/^Error: /);
+    expect(stderr).toMatch(/^error\[node-not-found\]: /);
+    expect(stderr).toMatch(/^ {2}why: {2}/m);
+    expect(stderr).toMatch(/^next: /m);
   });
 
   // --- --node mode (graph-aware ctx) ---------------------------------------
@@ -287,7 +294,7 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
     expect(stderr).toContain("'missing/node' not found");
   });
 
-  it('--node renders file violations with file path and line (L<line>)', () => {
+  it('--node renders file violations as <file>:<line>  <message>', () => {
     writeAspect(
       projectRoot,
       'with-file',
@@ -301,8 +308,7 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stdout).toContain('src/a.ts');
-    expect(stdout).toContain('L1: found issue');
+    expect(stdout).toContain('  at:   src/a.ts:1  found issue');
   });
 
   it('--node refusal: the verdict stamp is the first line, before any file path', () => {
@@ -376,7 +382,7 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
     expect(stdout).toContain('draft still runs');
   });
 
-  it('--node renders graph-level violations (no file) as <graph>:', () => {
+  it('--node renders graph-level violations (no file) as <graph>  <message>', () => {
     writeAspect(
       projectRoot,
       'graph-level',
@@ -388,7 +394,7 @@ describe.skipIf(!distExists)('yg aspect-test', () => {
       projectRoot,
     );
     expect(status).toBe(1);
-    expect(stdout).toContain('<graph>: graph violation');
+    expect(stdout).toContain('  at:   <graph>  graph violation');
   });
 
   it('--node surfaces a broken check (default export instead of named) with exit 1', () => {
@@ -582,7 +588,7 @@ export function check(ctx) {
     expect(stdout).toContain('No violations.');
   });
 
-  it('--files reports violations for a file using sync fs APIs (L<line>)', () => {
+  it('--files reports violations for a file using sync fs APIs (<file>:<line>)', () => {
     writeAspect(
       projectRoot,
       'async-fs',
@@ -597,7 +603,7 @@ export function check(ctx) {
     );
     expect(status).toBe(1);
     expect(stdout).toContain('src/bad.ts');
-    expect(stdout).toMatch(/L\d+: Use async fs APIs/);
+    expect(stdout).toMatch(/src\/bad\.ts:\d+ {2}Use async fs APIs/);
   });
 
   it('--files groups violations by file across multiple files', () => {

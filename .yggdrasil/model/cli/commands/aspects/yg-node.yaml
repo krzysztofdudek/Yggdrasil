@@ -16,7 +16,10 @@ description: >-
   the gate runs, never from a walk of its own, so the two can never disagree
   about what a rule reaches — and it enumerates draft rules too, which the gate
   omits because it does not judge them, so a rule that reaches nothing stays
-  distinguishable from one not yet judging what it reaches.
+  distinguishable from one not yet judging what it reaches. The health
+  projection answers in its own versioned document on request (--health
+  --json), never folded into the inventory's, so one schema name never means
+  two things.
 aspects: []
 max_direct_relations:
   limit: 21

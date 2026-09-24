@@ -726,7 +726,7 @@ describe('computeAspectHealth — false-block (fp) cell + notes', () => {
         '2026-07-01T00:00:00.000Z', 'machines on older CLIs do not contribute',
       ),
     );
-    expect(out).toContain('Shared LLM events included (machines on older CLIs do not contribute).');
+    expect(out).toContain('Shared reviewer events included (machines on older CLIs do not contribute).');
   });
 });
 

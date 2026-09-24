@@ -117,7 +117,7 @@ describe.skipIf(!distExists)('deterministic aspect lock lifecycle', () => {
     const fill = run(['check', '--approve'], root);
     expect(fill.status).toBe(0);
     // The pre-dispatch header (fill progress) goes to STDERR.
-    expect(fill.stderr).toMatch(/1 deterministic/);
+    expect(fill.stderr).toMatch(/fill {2}1 pair · 1 script \(free\)/);
 
     // 4. The lock records an approved verdict for (touches-a, node:N) and N's
     //    source fingerprint at positive closure.

@@ -97,13 +97,13 @@ const GOLDEN_TEXT_WITH_WILDCARD = `Active suppression markers:
 
 Total: 6 markers across 5 files.
 
-Warnings (2):
-  yg-suppress(no-console) at src/under.ts:2 waives a check labeled errs: under.
-  suppress targets an under-approximating check — such checks produce no false positives by design; either the errs label is wrong or this code path deserves a second look.
-  Remove the waiver and re-examine the flagged code, or correct the aspect's errs label if 'under' is inaccurate.
-  Wildcard suppression "*" at src/wild.ts:2 silences ALL aspects.
-  A wildcard suppresses every current and future aspect check on the affected code — including ones not yet written. This masks problems broadly and is hard to audit.
-  Replace "*" with the specific aspect id(s) you intend to suppress.
+warning[waives-under] yg-suppress(no-console) at src/under.ts:2 waives a check labeled errs: under.
+  why:  suppress targets an under-approximating check — such checks produce no false positives by design; either the errs label is wrong or this code path deserves a second look.
+  fix:  Remove the waiver and re-examine the flagged code, or correct the aspect's errs label if 'under' is inaccurate.
+
+warning[wildcard] Wildcard suppression "*" at src/wild.ts:2 silences ALL aspects.
+  why:  A wildcard suppresses every current and future aspect check on the affected code — including ones not yet written. This masks problems broadly and is hard to audit.
+  fix:  Replace "*" with the specific aspect id(s) you intend to suppress.
 `;
 
 describe.skipIf(!distExists)('CLI E2E — yg suppressions --json', () => {

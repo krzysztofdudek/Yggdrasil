@@ -136,9 +136,9 @@ describe.skipIf(!distExists)(
         // offending node is listed on its own line.
         expect(stdout).toContain('type-undefined');
         expect(stdout).toContain(
-          "Fix: Add 'ghost-type' to yg-architecture.yaml or change the node type.",
+          "  fix:  Add 'ghost-type' to yg-architecture.yaml or change the node type.",
         );
-        expect(stdout).toContain('- services/orders');
+        expect(stdout).toContain('  at:   services/orders\n');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -159,7 +159,7 @@ describe.skipIf(!distExists)(
         // declared it.
         expect(stdout).toContain('type-unknown-parent');
         expect(stdout).toContain(
-          "Fix: Add 'ghost-parent' to node_types or remove it from 'service.parents'.",
+          "  fix:  Add 'ghost-parent' to node_types or remove it from 'service.parents'.",
         );
       } finally {
         rmSync(dir, { recursive: true, force: true });
@@ -203,7 +203,7 @@ describe.skipIf(!distExists)(
         // misplaced node is listed on its own line.
         expect(stdout).toContain('parent-type-forbidden');
         expect(stdout).toContain("Allowed parent types for 'widget': [service]");
-        expect(stdout).toContain('- services/gizmo');
+        expect(stdout).toContain('  at:   services/gizmo\n');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -317,7 +317,7 @@ describe.skipIf(!distExists)(
         // declared it.
         expect(stdout).toContain('type-unknown-parent');
         expect(stdout).toContain(
-          "Fix: Add 'ghostxyz' to node_types or remove it from 'bb.parents'.",
+          "  fix:  Add 'ghostxyz' to node_types or remove it from 'bb.parents'.",
         );
         // The cycle error must NOT appear — unknown parent short-circuits it.
         expect(stdout).not.toContain('architecture-cycle');
@@ -788,7 +788,7 @@ describe.skipIf(!distExists)(
         // is listed on its own line.
         expect(stdout).toContain('relation-target-forbidden');
         expect(stdout).toContain("Allowed targets for 'calls' from type 'service': [module]");
-        expect(stdout).toContain('- services/orders');
+        expect(stdout).toContain('  at:   services/orders\n');
       } finally {
         rmSync(dir, { recursive: true, force: true });
       }
@@ -856,7 +856,7 @@ describe.skipIf(!distExists)(
         // remedy.
         expect(stdout).toContain('enforce-strict-without-when');
         expect(stdout).toContain(
-          "Fix: Either add a when predicate to type 'strictnowhen', or remove enforce: strict.",
+          "  fix:  Either add a when predicate to type 'strictnowhen', or remove enforce: strict.",
         );
       } finally {
         rmSync(dir, { recursive: true, force: true });

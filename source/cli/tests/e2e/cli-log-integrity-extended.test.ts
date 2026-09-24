@@ -283,11 +283,12 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
       const check = run(['check'], dir);
       expect(check.status).toBe(1);
       expect(check.all).toContain('log-format');
-      // The per-issue `what` ('Log format invalid at <path>') is gone in the
-      // grouped default view (log-format is not a FULL_WHAT code). Assert the
-      // group's now-visible shared why plus the offending node line instead.
+      // The block names the log file, the node, the offending line's reason and
+      // the shared why.
+      expect(check.all).toContain('error[log-format] Log format invalid at .yggdrasil/model/services/orders/log.md');
+      expect(check.all).toContain('  at:   services/orders\n');
+      expect(check.all).toContain("line 3: out_of_order — Datetime '2020-01-01T00:00:00.000Z' is not strictly greater than previous");
       expect(check.all).toContain('Log format must be parseable for indexing and integrity.');
-      expect(check.all).toContain('- services/orders');
       // read surfaces the per-line reason detail.
       const read = run(['log', 'read', '--node', 'services/orders'], dir);
       expect(read.status).toBe(1);
@@ -569,7 +570,9 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (append-only), format va
         dir,
       );
       expect(status).toBe(1);
-      expect(all).toContain('Exactly one of --reason or --reason-file is required');
+      expect(all).toContain('error[usage]: yg log add needs exactly one of --reason or --reason-file');
+      expect(all).toContain("next: yg log add --node services/orders --reason '<why this change was made>'");
+
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

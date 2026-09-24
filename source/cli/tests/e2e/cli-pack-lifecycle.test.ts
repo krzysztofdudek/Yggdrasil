@@ -280,11 +280,11 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
 
       const filled = run(['check', '--approve', '--only-deterministic'], dir);
       expect(filled.status).toBe(0);
-      expect(filled.all).toContain('deterministic (no cost)');
+      expect(filled.all).toContain('fill  2 pairs · 2 script (free) · 0 reviewer calls');
       // The recorded verdict is this rule's, and it holds on a plain check.
       const plain = run(['check'], dir);
       expect(plain.status).toBe(0);
-      expect(plain.stdout).toContain('2 verified');
+      expect(plain.stdout).toContain('2 pairs verified');
       expect(run(['aspects'], dir).stdout).toContain(RULE_A);
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -384,7 +384,7 @@ describe.skipIf(!distExists)('CLI E2E — yg pack: add, update, list, remove', (
       const after = run(['check'], dir);
       expect(after.status).toBe(0);
       expect(after.all).not.toContain('unverified');
-      expect(after.stdout).toContain('2 verified');
+      expect(after.stdout).toContain('2 pairs verified');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

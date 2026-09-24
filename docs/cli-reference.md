@@ -154,7 +154,7 @@ For `--node`, the output ends with a one-line cost summary that folds each LLM
 pair's resolved-tier consensus into the reviewer-call count:
 
 ```text
-  Editing this node re-verifies: 3 LLM pair(s) = 9 reviewer call(s) (consensus included); 2 deterministic = free; 4 currently-green verdict(s) re-rolled.
+  Editing this node re-verifies: 3 reviewer pairs = 9 reviewer calls (consensus included); 2 deterministic = free; 4 currently-green verdicts re-rolled.
 ```
 
 For `--file`, it ends with a precise `Total to re-verify:` block — billed
@@ -181,7 +181,7 @@ need no owner and are not errors:
   otherwise identical.
 - A file no component owns but its architecture type governs directly first
   prints a graduation preview — `Giving this file a component of its own
-  re-checks N check(s), M review(s) ≈ K reviewer call(s) — the pair hash folds
+  re-checks N checks, M reviews ≈ K reviewer calls — the pair hash folds
   nodePath, so every pair on this file re-verifies once it gains one, whether or
   not the rule itself changed.` — then the ordinary `Total to re-verify` block
   for the file's impact as it stands today, and exits 0. A file with no pairs of
@@ -244,10 +244,29 @@ what the lock says about each of those units is [`yg check
 may appear within `yg-impact/1`; only a change to an existing field's shape takes
 a new schema number.
 
+### Command errors {#command-errors}
+
+When a command cannot do what it was asked, it says so on stderr in the same grammar as a report block, and exits 1:
+
+```text
+error[node-not-found]: node 'nope' is not in the graph
+  why:  A log entry belongs to a node, so the node must exist first.
+next: yg find "nope"
+```
+
+The heading is `error[<code>]: <what>`; `why:` says why it is refused; `next:` is the one step to take. The code is the command's own when it names one (`aspect-not-found`, `lock-invalid`, …), else `node-not-found` for a node the graph does not hold, `usage` for a flag used wrongly, and `command-error` for the rest. A flag or argument the parser itself rejects is an `error[usage]` whose `next:` names the command's help:
+
+```text
+error[usage]: unknown option '--message'
+next: yg check --help
+```
+
+Every command's `--help` lists its flags, with examples; `yg --help` lists the commands. A notice a command prints before its result — something to know, not a failure — has the same shape headed `note:`, and a problem the command works around while it goes on is headed `warning:`.
+
 ### Errors under `--json` {#yg-error-json}
 
 A command that answers in JSON and fails still answers on stdout: besides its
-`Error:` text on stderr, it writes one `yg-error/1` document —
+`error[<code>]:` text on stderr (see [Command errors](#command-errors)), it writes one `yg-error/1` document —
 
 ```json
 {
@@ -309,19 +328,30 @@ verdict, the same fact the text report groups it by:
 Beside the prose, each finding carries what a consumer would otherwise have to
 parse out of it (every field additive, present only where it applies):
 
-- `label` — the heading the text report groups it under (`enforced`,
-  `unmapped`, the code itself, …);
+- `label` — the label in the heading of the text block it belongs to (`refused`,
+  `unmapped`, `uncovered`, `unverified`, `<label>-outside`, else the code itself —
+  see [Reading the report](#reading-the-report));
 - `unitRef: { kind, path }` — its subject in the same shape as a pair's `unit`;
 - `violations: [{ file, line, message }]` — a script refusal's locations, never cut;
 - `edges: [{ file, line, target }]` — the dependency edges a relation finding is about;
 - `files` — every file a coverage finding names, never cut (its `what` may list fewer).
 
-The document also carries the report's `groups` (`code`, `label`, `aspect`,
-`severity`, the shared `why` and `next` — `null` where members differ — and
-`members` as indexes into `issues`), so a consumer can read each rationale once,
-and `banner`: the partial-result line when a configuration, architecture,
-component or lock file did not load as written (every other number then
-describes a fallback), else `null`.
+The document also carries the report's `groups` — one per text block, in report order (`code`, `label`, `aspect`, `severity`, `subject` (the block heading), `cause` (on an unverified block), the shared `why` and `next` — `null` where members differ — and `members` as indexes into `issues`), so a consumer can read each rationale once — and `banner`: the `partial:` line when a configuration, architecture, component or lock file did not load as written (every other number then describes a fallback), else `null`.
+
+The step to take first comes twice. `suggestedNext` is the text of the report's own `next:` line (one line), or `null` when the report prints none. `next` is the same step as an object, or `null`:
+
+```json
+"next": {
+  "command": ["yg", "check", "--approve"],
+  "text": "yg check --approve",
+  "target": { "node": "payments" },
+  "cost": { "free": 0, "reviewerPairs": 1 },
+  "remaining": { "needsFix": 0, "fillable": 1 },
+  "then": null
+}
+```
+
+`command` is the step as an argument vector, `null` when it is not one runnable command (an edit, a step with a `<placeholder>`); `target` names what it acts on; `cost` is what a fill step costs (script pairs free, reviewer pairs paid); `remaining` counts the errors that still need a code or graph fix and the pairs a fill can settle; `then` is the text of the report's `then:` line, or `null`.
 
 When a recording run stops at a gate before recording anything — the
 mandatory-log gate, or the structural gate — the document is still written:
@@ -332,7 +362,7 @@ read-only report of the same tree.
 
 The infrastructure causes are ones re-running the same command cannot clear, so
 their `next` names the real fix, and once no pair a fill can settle is left,
-`suggestedNext` points there rather than back at the command that just failed. The four fill-time causes appear on the report of the
+`suggestedNext` and `next` point there rather than back at the command that just failed. The four fill-time causes appear on the report of the
 run that witnessed them; a later plain read, which only has the lock, shows such
 a pair as `never-reviewed` or `stale` again.
 
@@ -408,7 +438,7 @@ part of the component's own structure. A relation's port list is never empty
 the same way: naming none reports `default`, the port every component carries
 implicitly.
 
-A path naming no component is refused with what/why/next and exit 1. New fields
+A path naming no component is refused with an `error[node-not-found]` [command error](#command-errors) (`why:`, `next:`) and exit 1. New fields
 may appear within `yg-node/1`; only a change to an existing field's shape takes a
 new schema number.
 
@@ -442,63 +472,90 @@ yg check --approve --only-deterministic
 yg check --approve --dry-run
 ```
 
-Outputs: header (project, counts, coverage), errors grouped by rule — each group
-identifies the failing rule (`(code, aspectId)`) and lists the affected
-nodes/files compactly; `--details` expands to the old per-pair view; warnings,
-result (PASS/FAIL with group counts), and suggested next command. On color-capable
-terminals, verdict and error/warning headers include emoji decoration (stripped
-under `NO_COLOR` and in CI).
+#### Reading the report {#reading-the-report}
 
-The grouped view caps itself, so it is not an exhaustive dump — and the view
-decides the volume, not the terminal: a pipe (an agent, CI) gets exactly the
-report a terminal gets. At most 12 rule groups are rendered per section (Errors,
-Warnings); past that an overflow line appears — `... in M groups — showing 12;
-run yg check --top <n> or --aspect <id>`. Within a rendered group at most 12
-member rows are listed before an `... and K more (<command>)` line naming the view
-that lists the rest: `yg check --aspect <id>` for a group of one rule,
-`yg check --details` otherwise. `--top` caps the same way; `--summary` lists its
-24 busiest rows and counts the rest in one line. `--aspect` and `--details` list
-every member. The header's aggregate counts and the exit code are always the true
-ones, so a capped view can never read as a smaller problem — it just renders less
-of it.
+Every report `yg check` prints has one shape, the same in a terminal, a pipe, an agent and CI:
 
-A per-file rule's pairs on one component collapse into one row that counts them
-(`- app/a  aspect 'self-contained'  3 files`); a single such pair names its file.
-A group whose members' fixes differ only by the node prints one templated fix
-(`yg log add --node <node> …  (for each node below)`), and the unverified group's
-fix names what the fill costs (`(24 reviewer pairs, paid)`, `(10 script pairs,
-free)`).
+```text
+yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)
 
-When part of the graph did not load as written — `yg-config.yaml`,
-`yg-architecture.yaml`, a component's `yg-node.yaml` or the lock — the report
-opens with a `Partial result:` line saying what was left out, that finding's
-group comes first, and `Next:` names its fix: every other finding in such a run
-may be a symptom of it.
+error[refused] no-todo — 8 violations in 8 nodes
+  at:   app/svc-03  src/svc-03/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        app/svc-06  src/svc-06/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        …
+  why:  Unfinished work belongs in the tracker, not in shipped code.
+  fix:  Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.
 
-When `yg check --approve` stops at a gate before recording anything, the stop is
-reported on stdout like any result: a `yg check: ABORTED` verdict line, the
-gating findings through the same grouped view, and a `Next:` whose re-run keeps
-the flags you ran it with (under `--json`, the document described above with
-`exit.status: aborted`).
+error[relation-broken] Relation target 'app/svc-99' does not exist
+  at:   app/svc-05
+  why:  This node declares a dependency on a node the graph does not contain, so the relation cannot be checked. …
+  fix:  Correct the target in .yggdrasil/model/app/svc-05/yg-node.yaml relations, or remove the relation.
 
-When at least one pair is verified, the header appends `N verified (D
-deterministic, L LLM)` — splitting the green count into pairs machine-checked
-locally for free versus pairs an LLM actually reviewed, so a clean run never
-hides how much of it was reviewed by an LLM. On a fresh checkout with no local
-deterministic cache the deterministic figure honestly reads 0 until `yg check
---approve --only-deterministic` rebuilds it — those pairs are genuinely
-unverified, not a display glitch.
+error[unmapped] 1 file belongs to no node
+  at:   src/tools/gen.ts
+  why:  No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).
+  fix:  Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.
+
+error[unverified] 24 pairs with no verdict yet
+  at:   readable-names  24 pairs · 24 nodes · reviewer
+  why:  The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
+  fix:  yg check --approve  (24 reviewer pairs · paid)
+
+warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
+  at:   .clinerules/yggdrasil.md
+        …
+
+next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
+then: yg check --approve  (24 reviewer pairs · paid)
+```
+
+**The verdict line** comes first: `yg check: PASS`, `FAIL` or `ABORTED`, the finding counts (`34 errors · 1 warning`; a clean PASS has none), then the size of what was checked — nodes, `24/29 files covered` (with a `(node-owned · type-covered · excluded)` split, zero terms left out, when type-level coverage is on and the files are not all node-owned — e.g. `4/54 files covered (4 excluded)`), `16 pairs verified` (`(12 script · 4 reviewer)` when both kinds are present, else `(script)` or `(reviewer)`), `N draft pairs skipped`, and, on a project that measures changes against a branch, how much sits outside your change. A segment whose count is zero is never printed. A run that `auto_approve` filled before a PASS says `auto-filled`. A narrowed view ends the line with a `view:` tag — `view: top 2`, `view: aspect no-todo`, `view: summary`, `view: details` — and the counts on it are always the whole run's, so a shortened report never reads as a smaller problem.
+
+**Blocks** follow, one per finding group. The heading is `error[<label>] <subject>` or `warning[<label>] <subject>`; below it come lowercase, labelled fields — a line with no label continues the field above it:
+
+- `at:` — where: one line per member. A refusal lists `<unit>  <file>:<line>  <message>` per violation (a reviewer refusal: the unit and the reviewer's reason); a coverage block lists files; an unverified block lists one line per rule (`readable-names  24 pairs · 24 nodes · reviewer`, or `<aspect> @ <unit>` for a single pair). At most 12 members are listed, then `… +K more  (<command>)` names the view that lists the rest — `yg check --aspect <id>` for a block about one rule, `yg check --details` otherwise.
+- `why:` — the reason, stated once per block. Members whose reason differs are split into blocks of their own.
+- `fix:` — what to do. A fix that differs between members only by the node is stated once with `<node>` in it and ends `for each node above`; a fix that is a fill names what it costs, `(24 script pairs · free)` or `(24 reviewer pairs · paid)`.
+
+The label comes from one registry, and the JSON document's `label` field is the same word: `refused` (a rule's refusal — an error when the rule is enforced, a warning when it is advisory), `unmapped` (files under `coverage.required` that no node owns), `uncovered` (files outside it — never blocking), `unverified` (a pair with no valid verdict; the cause is in the subject: `with no verdict yet`, `whose inputs changed since the verdict`, `whose script check has not run on this checkout — free to run`, …), `<label>-outside` for a finding put outside a measured change (see `--full` below), and the code itself for everything else (`relation-broken`, `log-entry-missing`, `yaml-invalid`, …).
+
+**Block order** is urgency. Errors come first, by tier: the graph is invalid (a file that does not parse, an architecture that does not load); then code and graph errors (refusals, relations, coverage); then gate prerequisites (`log-entry-missing`, `log-conflict`, `config-reviewer-missing`); then pending work (`unverified`). Warnings follow.
+
+**After the blocks**, `note:` lines state standing facts that are not findings — never counted, never blocking (for example, that no architecture type declares `when:` yet). The report ends with `next:` and, sometimes, `then:`:
+
+- `next:` is the first step of the first block — the highest tier present. It is a concrete step (`edit src/svc-03/index.ts:2`, `yg log add --node app/svc-01 --reason '<why this change was made>'`, `yg check --approve  (24 reviewer pairs · paid)`), never a restated code, and never a fill while a code or graph error stands. When other blocks remain it is annotated with the block it belongs to and what still needs a fix: `(refused — 10 errors need a code or graph fix)`.
+- `then:` is the step after it — typically the fill, once the fixes are in.
+- There is no `next:` at all when the report holds exactly one error block (or, with no errors, one finding) whose `fix:` already is the step: the line would only repeat it.
+
+An agent reads the `next:` line and does that; `fix:` says what to do for each block.
+
+The view decides the volume, not the terminal: a pipe (an agent, CI) gets exactly the report a terminal gets. On color-capable terminals the verdict and the block headings get a glyph and colour (stripped under `NO_COLOR` and in CI); the words carry the meaning either way.
+
+When part of the graph did not load as written — `yg-config.yaml`, `yg-architecture.yaml`, a component's `yg-node.yaml` or the lock — a `partial:` line under the verdict says what was left out: `partial: 1 component file did not parse (app/svc-02), so that component was left out — the findings below were computed without it and may be symptoms of it; fix it first.` That finding's block comes first (it is graph-invalid), and `next:` names its fix.
+
+When `yg check --approve` stops at a gate before recording anything, the stop is reported on stdout like any result: a `yg check: ABORTED  nothing recorded — 24 nodes need a log entry first` verdict line, the gating block, and a `next:` / `then:` pair whose re-run is the command you ran, with its flags (under `--json`, the document described above with `exit.status: aborted`):
+
+```text
+yg check: ABORTED  nothing recorded — 24 nodes need a log entry first
+
+error[log-entry-missing] 24 nodes have no log entry yet — one is owed before their first verdicts are recorded
+  at:   app/svc-01
+        …
+  why:  Node type 'service' has log_required: true — …
+  fix:  yg log add --node <node> --reason '<why this change was made>'  for each node above
+        Then re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.
+
+next: yg log add --node app/svc-01 --reason '<why this change was made>'
+then: yg check --approve --only-deterministic
+```
+
+On a fresh checkout with no local deterministic cache, the script pairs are genuinely unverified — `error[unverified] N pairs whose script check has not run on this checkout — free to run` — and `pairs verified` counts none of them until `yg check --approve --only-deterministic` rebuilds the cache.
 
 Exit code 0 if fully clean, 1 if any errors found.
 
 #### `--top [N]`, `--summary`, `--details`, `--aspect <id>`, `--coverage`, and `--quiet` — output control
 
-The default output groups issues by rule. When a rule's fix is **node-specific**
-(the `Next:` command names the node — e.g. a per-node log entry, or declaring a
-dependency in one node's file), the group prints **each** affected node's own fix
-beneath its line, instead of a single shared `Fix:` that would name only the first
-node. Rules with a genuinely shared fix (reviewer refusals, unverified pairs)
-still collapse to one `Fix:` line.
+The default report shows every block, each member list capped at 12 (see [Reading the report](#reading-the-report)). A block whose fix is node-specific but otherwise shared states it once with `<node>` standing for each member's node, ending `for each node above`; a block whose members' fixes differ by more than that lists one `<unit>: <fix>` line per member.
 
 Four of the six flags named above are **read-only** views of the plain read and
 apply only to it: `--top`, `--summary`, `--details` and `--aspect`. They are
@@ -512,35 +569,34 @@ meaningful specifically *with* `--approve`, whose progress it suppresses, and is
 a harmless no-op on a plain read.
 
 ```bash
-yg check --top 5      # only the 5 highest-priority rule groups
-yg check --top        # only the single suggested-next group (flag with no value)
-yg check --summary    # per-node counts only — no per-issue blocks
-yg check --details    # ungrouped per-pair view (old full output)
-yg check --aspect <id>  # drill into one rule — all pairs for that aspect
-yg check --coverage   # ADD the per-type coverage listing (not a view; combines with everything except --json)
-yg check --approve --quiet  # suppress progress output during --approve (stderr)
+yg check --top 5        # only the first 5 blocks
+yg check --top          # only the block next: points at (flag with no value)
+yg check --summary      # one rollup line per severity — each label with its count
+yg check --summary nodes  # one row per node instead
+yg check --details      # every block, every member listed
+yg check --aspect <id>  # drill into one rule — its blocks, every member listed
+yg check --coverage     # ADD the per-type coverage listing (not a view; combines with everything except --json)
+yg check --approve --quiet  # suppress fill progress during --approve (stderr)
 ```
 
-`--top N` renders the N highest-priority **rule groups**, in the same priority
-order the `Next:` line draws from. A bare `--top` (no value) renders exactly
-one group — the suggested-next one, the one concrete thing to fix next. Among
-warnings, a finding put outside your change (see `--full` below) always sorts
-last: a run whose only warnings are inherited debt never buries a genuine
-advisory finding under it.
-`--summary` prints one line per node — `K unverified (J deterministic-free, L
-LLM), M refused` — plus an `outside changes` bucket for findings your change is
-not accountable for and an `other` bucket for every other non-pair error
-(coverage, log, relation, structural), so the per-node totals reconcile with
-the header.
-`--details` expands the output to the old per-pair view (useful when you need to
-see every individual file in a group). `--aspect <id>` restricts output to pairs
-of a single aspect, useful for drilling into one rule after seeing it in the
-grouped view — on a project that measures changes against a reference branch,
-the aspect-scoped header still names how much sits outside your change, same as
-the plain header. An **unknown / mistyped** `--aspect` id is a guided error naming
-the id (run `yg aspects` for the real list) rather than a misleading `0 of N`
-view; when a valid aspect simply has no issues this run while other errors remain,
-the drill-in still surfaces the global `Next:` so you are never left at a dead end.
+`--top N` renders the first N blocks, in the same order as the full report (so the first is the one `next:` points at), then `… +K more blocks  (yg check)`. A bare `--top` (no value) renders exactly one block. Among warnings, a finding put outside your change (see `--full` below) always sorts last: a run whose only warnings are inherited debt never buries a genuine advisory finding under it.
+
+`--summary` rolls the blocks up by label, one line per severity, with an unverified count split into what is free to fill and what needs the reviewer:
+
+```text
+yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)   view: summary
+
+errors    refused 8 · relation-broken 1 · unmapped 1 · unverified 24 (24 reviewer)
+warnings  uncovered 4
+
+next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
+then: yg check --approve  (24 reviewer pairs · paid)
+```
+
+Nothing is dropped: every finding the verdict line counts is under exactly one label. `--summary nodes` prints one row per node instead (or per file, or `(repository)` for a finding about neither) — each label with its count, the busiest 24 rows first, the rest counted in one `… +K more rows with N findings  (yg check --details)` line.
+
+`--details` renders every block with every member listed; an unverified block then lists `<aspect> @ <unit>` per pair instead of one line per rule. `--aspect <id>` renders only the blocks of that one rule, every member listed, and ends with that rule's own `next:` (or the run's, when the rule has none) — on a project that measures changes against a reference branch, its verdict line still names how much sits outside your change, same as the plain one. An **unknown / mistyped** `--aspect` id is an `error[aspect-not-found]` naming the known ids rather than a misleading empty view; a valid aspect with no findings this run prints `note: rule '<id>' has no findings in this run.` and the run's `next:`, so you are never left at a dead end.
+
 `--coverage` is not one of these views and is not mutually exclusive with any of
 them. It is the other axis — how much the run *enumerates*, rather than which
 issues it renders — and it ADDS the per-type coverage listing: which files each
@@ -562,16 +618,7 @@ yg check --approve --only-deterministic --coverage  # the CI gate, with the list
 yg check --summary --coverage                       # per-type counts only
 ```
 
-`--quiet` / `-q` silences the `--approve` fill-progress on stderr, leaving only the
-final report on stdout. With `--dry-run` the budget preview is the command's
-deliverable, so `--dry-run` wins over `--quiet` — the budget still prints on
-stdout; `--quiet` only suppresses the non-dry-run progress. The precedence holds
-under `--json` too, where stdout carries the document alone and the budget preview
-moves to stderr: `yg check --approve --dry-run --json --quiet` still prints the
-preview, on stderr, beside the document on stdout. The document itself carries the
-budget as numbers in its `dryRunBudget` field (`pairs`, `nodes`, `files`,
-`deterministic`, `reviewerCalls`), which is what a program should read instead of
-the preview text.
+`--quiet` / `-q` silences the `--approve` fill progress on stderr (the `fill  …` lines), leaving only the final report on stdout; it is not a view and changes nothing on a plain read. With `--dry-run` the budget preview is the command's deliverable, so `--dry-run` wins over `--quiet` — the budget still prints on stdout; `--quiet` only suppresses the non-dry-run progress. The precedence holds under `--json` too, where stdout carries the document alone and the budget preview moves to stderr: `yg check --approve --dry-run --json --quiet` still prints the preview, on stderr, beside the document on stdout. The document itself carries the budget as numbers in its `dryRunBudget` field (`pairs`, `nodes`, `files`, `deterministic`, `reviewerCalls`), which is what a program should read instead of the preview text.
 
 #### `--full` — answer for the whole project
 
@@ -584,11 +631,7 @@ in `yg schemas read config`). When it does, a plain `yg check` blocks only on
 what your change is accountable for; anything it inherited from that branch is
 still listed and still counted, as a warning that does not fail the build. The
 header says how much sits outside your change and what it was measured against.
-Every such warning reads exactly like the finding it mirrors — same label, same
-why — with one addition, `(outside changes)`, so it never reads as a raw
-internal code; its `Fix:` line is left off rather than repeating a command that
-would, for this one finding, be misleading (see below), since the WHY is still
-true regardless of who caused it.
+Every such warning reads exactly like the finding it mirrors — same why, the label with `-outside` appended (`refused-outside`, `unverified-outside`), and the heading ending `— outside your changes` — so it never reads as a raw internal code; its `fix:` line is left off rather than repeating a command that would, for this one finding, be misleading (see below), since the WHY is still true regardless of who caused it. When nothing of yours blocks, the report's `next:` is `yg check --full  (N obligations outside your changes)`.
 
 A run that records verdicts — `--approve`, or a bare run on a project
 configured to approve automatically — is measured the same way, so it reports
@@ -633,19 +676,7 @@ setting affects bare `yg check` only; CI scripts should always use explicit flag
 `--only-deterministic` on its own implies `--approve`. `--approve` together with
 `--no-approve` is refused as a usage error, whatever their order.
 
-**Guardrail:** every view always prints the true aggregate `Errors (N)` /
-`Warnings (N)` header and preserves the real exit code, so a narrowed view can
-never read as a clean build. When a `--top` slice leaves a section (Errors or
-Warnings) with a true count > 0 but no chosen groups, a parenthetical note is
-printed beneath that subheader instead of leaving it dangling empty. An invalid
-`--top` value — anything but a positive whole number: `0`, negative, fractional,
-non-numeric — is a guided error, never a silent full dump; for the single
-suggested-next group use bare `--top`. Use `--summary` and `--top` to orient, then drill into a specific
-rule group with `--aspect <id>` or the full view with plain `yg check`. Note that
-"the full view" is still subject to the 12-group cap described above: plain
-`yg check` is not exhaustive either, so reach for `--top <n>` or `--aspect <id>`
-to see past the twelfth group, and `--details` or `--summary` for the complete
-per-pair or per-node accounting.
+**Guardrail:** every view prints the same verdict line with the true counts and a `view:` tag, and preserves the real exit code, so a narrowed view can never read as a clean build. An invalid `--top` value — anything but a positive whole number: `0`, negative, fractional, non-numeric — is an `error[usage]`, never a silent full dump; for the single first block use bare `--top`. Use `--summary` and `--top` to orient, then drill into one rule with `--aspect <id>` or read the full report with plain `yg check`, which shows every block (member lists capped at 12); `--details` lists every member.
 
 #### `--approve` — fill unverified pairs
 
@@ -662,7 +693,7 @@ failures (provider unreachable, a `check.mjs` that throws, a `yg-suppress` marke
 with no reason, or a `companion.mjs` hook that fails to assemble a companion)
 write nothing and leave the pair unverified. The report that run prints names
 each such pair's cause and its real fix (the `cause` field under `--json`), and
-its `Next:` points at that fix — never back at the command that just failed —
+its `next:` points at that fix — never back at the command that just failed —
 once nothing a fill can still settle is left. A
 refusal is cached and final for unchanged inputs: re-running does not re-roll it.
 
@@ -677,21 +708,20 @@ to a project whose judgment rules are all advisory: then the finding is a warnin
 since advisory never blocks, and `--approve` fills the deterministic pairs.
 
 A `log_required` component whose source moved with no fresh log entry stops the
-run before its pre-dispatch header, so a stopped run never announces a fill. Every
-"then re-run" line names the command as it was invoked — `--only-deterministic`,
+run before its first `fill` line, so a stopped run never announces a fill. Every
+"then re-run" line — the block's `fix:` and the report's `then:` — names the command as it was invoked — `--only-deterministic`,
 `--dry-run` and `--full` included.
 
-`yg check --approve` prints a pre-dispatch header naming how many pairs and nodes
-it will fill and how many are deterministic (free) vs. reviewer calls. For a full
-preview before committing to the cost, use `--dry-run` (below); use `yg impact` to
-predict cost before an edit, and `yg aspect-test --dry-run` to preview a single LLM
-prompt.
+While it fills, `yg check --approve` reports on stderr in lines that start with `fill`, so they never read as the report's. It opens with one line naming how many pairs it will fill, how many are script pairs (free) and the reviewer-call budget (`(consensus included)` when there are reviewer calls), then — when reviewer pairs are left alone this run — a line saying how many and why:
 
-When no reviewer was called and nothing failed, the closing summary says what was
-done instead of a bare zero: how many deterministic pairs were filled (approved and
-refused), and which LLM pairs were left unverified and why. It reads `0 reviewer
-calls made — all expected pairs hold valid verdicts` only when there was nothing
-to fill at all.
+```text
+fill  24 pairs · 24 script (free) · 0 reviewer calls
+fill  24 reviewer pairs left alone — script rules only this run
+fill  done in 3s — 16 approved · 8 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone
+next: yg check --approve  (reviews the pairs left alone)
+```
+
+A pair gets a line of its own only when it did not simply pass or fail — it could not be judged (`fill  not judged  <aspect> @ <unit>`) or a consensus split on it (`fill  approved by 2 of 3 votes  <aspect> @ <unit>`); a refusal is in the report. On a terminal a single status line updates in place (`fill  37/50 · 3 refused · 12s  <pair>`); elsewhere a `fill  still working — 6/24, waiting on <pair>` line appears when nothing has finished for a while. The closing `fill  done in …` line counts what the fill approved, refused and could not judge, the reviewer calls it made and, where the provider reports them, the tokens and the cost at list price — then what it left alone. It never says the result is valid; the report below it says what stands. A fill with nothing to do prints nothing. When the fill prunes lock entries no longer expected, it says so: `fill  pruned 3 stale verdicts (1 reviewer · 2 script)`, then one indented `<aspect> @ <unit> — <reason>` line per entry. For a full preview before committing to the cost, use `--dry-run` (below); use `yg impact` to predict cost before an edit, and `yg aspect-test --dry-run` to preview a single reviewer prompt.
 
 #### Silent structural-deviation index
 
@@ -715,20 +745,18 @@ calls.
 
 #### `--dry-run` — free cost preview, no writes
 
-`yg check --approve --dry-run` is a cost preview. It runs the same structural gate,
-pair classification, and budget computation as a real fill, prints the pre-dispatch
-header (under a first line saying it is a dry run) plus a per-node breakdown of
-the pairs that cost something — each LLM pair labelled with its consensus call
-count, the free deterministic pairs counted in one line rather than listed — and,
-when a recording run would first stop on missing log entries, those findings; it
-prints no report of the tree under it. Then it exits 0 **without
-calling the reviewer, running any `check.mjs`, or writing a single byte to any lock
-file**. The reviewer-call total is an **upper bound**: a node with an enforced
-deterministic refusal has its LLM pairs skipped, and a fresh refusal or an
-infrastructure failure can leave a pair unfilled, so the real `--approve` bills at
-most that many calls. On a project that measures changes against a reference
-branch, the preview prices what your change is accountable for — the same work
-the real run would buy — and names how many reviewed rules it left outside it.
+`yg check --approve --dry-run` is a cost preview. It runs the same structural gate, pair classification, and budget computation as a real fill, and prints the pre-dispatch line under a first line saying it is a dry run, then one line per pair that costs something — each reviewer pair with its consensus call count — the free script pairs counted in one line rather than listed, and a closing `note:` that the total is an upper bound:
+
+```text
+fill  dry run — a cost preview; nothing is filled or written
+fill  24 pairs · 0 script (free) · 24 reviewer calls (consensus included)
+  readable-names @ app/svc-01 — 1 reviewer call
+  readable-names @ app/svc-02 — 1 reviewer call
+  …
+note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written; run yg check --approve to fill.
+```
+
+When a recording run would first stop on missing log entries, the preview prints those findings too; it prints no report of the tree under it. Then it exits 0 **without calling the reviewer, running any `check.mjs`, or writing a single byte to any lock file**. The reviewer-call total is an **upper bound**: a node with an enforced deterministic refusal has its reviewer pairs skipped, and a fresh refusal or an infrastructure failure can leave a pair unfilled, so the real `--approve` bills at most that many calls. On a project that measures changes against a reference branch, the preview prices what your change is accountable for — the same work the real run would buy — and names how many reviewed rules it left outside it.
 
 The preview always exits 0, even when enforced pairs are unverified — it never
 blocks the build. The only thing that aborts a preview is a broken configuration
@@ -752,7 +780,7 @@ committed lock files are left untouched. Then it reports, like any other check.
 
 This is the CI / pre-commit gate for the deterministic cache. A fresh checkout has
 no deterministic cache, so plain `yg check` reports those pairs as unverified — in
-a group of their own, `deterministic check not run on this checkout — free`, whose
+a block of their own, `error[unverified] N pairs whose script check has not run on this checkout — free to run`, whose
 fix is this command; running it rematerializes the cache for free and clears them,
 without a key and without touching a committed file. It runs in a project with no
 reviewer configured too: the judgment pairs stay unverified and name the missing
@@ -766,8 +794,8 @@ holds a verdict. On a project whose only recording run is this one, the newest
 log entry goes on satisfying the requirement for every later edit; plain `yg check`
 says so with the `log-cycle-open` warning until a full run closes the cycle.
 
-It is also honest about what it did not do: the header and the closing summary name
-the LLM pairs left unverified — they were skipped by design, not reviewed — and
+It is also honest about what it did not do: the opening `fill  N reviewer pairs left alone — …` line and the closing `fill  done …` line name
+the reviewer pairs left unverified — they were skipped by design, not reviewed — and
 point at a full `yg check --approve`. A deterministic-only run can never read as if
 it had verified everything. It does still re-hash the committed LLM verdicts, so a
 stale one is still caught in the trailing report.
@@ -1030,12 +1058,12 @@ With `coverage.type_level` on, a file satisfied by the type-level lattice (no
 node of its own) is also searchable — its `Kind` prints `file`, its `Type:`
 line names the matched classifying type, and its `Description` is that type's
 own description (types carry required descriptions). `yg find` prints one
-terminal `Next:` line for the whole search, drawn from the single top-ranked
-result: when that result is a type-covered file, `Next:` points at
+terminal `next:` line for the whole search, drawn from the single top-ranked
+result: when that result is a type-covered file, `next:` points at
 `yg context --file <path>`, never `yg context --node` — a type-covered file
 has no `yg-node.yaml` to look up. When a node or an aspect outranks the file,
 the file still appears in the list with its own `Kind`/`Type`/`Description`,
-but `Next:` follows the higher-ranked entry instead.
+but `next:` follows the higher-ranked entry instead.
 
 ### `yg aspects`
 
@@ -1105,13 +1133,30 @@ ancestor's type) / `port` / `implied` (reached only through another rule's
 `implies`), plus `typeCovered` — `--reach` below names the channel per subject)
 and how many cases sit in its drill corpus. The
 corpus is counted, never run. `--health` is a different and far more expensive
-projection and is refused together with `--json`. Each rule also carries the last
+projection with its own document: `yg aspects --health --json` prints
+`yg-aspects-health/1` (below), never folded into this one. Each rule also carries the last
 thing its own log recorded — when, and what it said about where the rule stands —
 so a reader of the document does not have to open files.
 
 ```bash
 yg aspects --json
 yg aspects --json --reach   # add the units behind the usage counts
+```
+
+`yg aspects --health --json` prints the health view as one `yg-aspects-health/1`
+document: `rules`, one per rule sorted by id, each with `aspect`, `kind`, `status`,
+`nodes`, `files` (`null` while `coverage.type_level` is off), `pairs`, `refused`
+(refusals that still hold), `unverified` (pairs with no valid verdict — never
+counted as clean), `suppresses`, `errs`, `age`, `catch`, `exposure`, `signal`
+(`active`, `quiet`, `decorative?`), `reading` (the plain-words sentence the table
+prints under "Signal detail" for that rule, or `null`), `falseBlocks` (`count`,
+`blocks`, `thinData`, `reading`, or `null` when the rule has blocked nothing) and
+`wrongRuleIncidents`; then `wildcardMarkers` and `telemetry` (the window the
+counts come from, or `null`). A rule never judged has `catch`, `exposure` and
+`signal` all `null`, never `0`. `--reach` is refused with `--health`.
+
+```bash
+yg aspects --health --json
 ```
 
 `--reach` adds a `reach.units` array to every rule: each subject it actually
@@ -1193,7 +1238,26 @@ to `yg context`) and **Nominations** (up to ten ranked, evidence-backed suggesti
 priority order). Each nomination
 states what it found, why — with the underlying evidence quoted verbatim as data (a waiver's
 own words, a case name, a file and line, shown in quotes with their source, never echoed as an
-instruction) — and the exact next step, which always ends by noting it needs your approval.
+instruction) — and the exact next step, which always ends `— ask the user to approve it first.`
+
+```text
+yg advise: 1 attention item · 2 nominations
+
+attention
+  no incidents on record — incidents are the only evidence from outside the graph that a rule missed something; record one with yg incident add when something escapes enforcement
+
+nominations
+
+nomination[dead-attach] Aspect 'no-console' has a rule source but is effective on zero nodes.
+  why:  Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.
+  fix:  Check the attach sites and 'when' predicate (yg impact --aspect no-console). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands — ask the user to approve it first.
+
+nomination[orphaned-aspect] Aspect 'no-console' is defined but not referenced by any node, architecture type, or flow.
+  why:  Orphaned aspects add noise to the graph without enforcing any requirements.
+  fix:  Either add it to a node/architecture/flow or remove it — ask the user to approve it first.
+```
+
+The first line counts both sections. Each attention item is one indented line; each nomination is a block in the same grammar as a `yg check` finding — `nomination[<class>] <what>`, `why:`, `fix:`, and with `--ids` an `id:` line. An empty section reads an indented `none right now`; past the cap a closing `… +K more  (yg advise --all)` line says how many are hidden.
 
 The nomination classes, highest priority first. The first five rest on the graph as it stands;
 the next five are read from local history and carry an honesty label while the evidence is thin;
@@ -1554,6 +1618,7 @@ yg drill --aspect no-direct-minimatch              # the in-repo corpus
 yg drill --aspect no-direct-minimatch --case 'violates-*/**'
 yg drill --aspect no-direct-minimatch --dir ../holdout --corpus holdout-v1
 yg drill --aspect has-doc-comment --dir ../holdout-nodeless --nodeless --corpus nodeless-v1
+yg drill --aspect no-direct-minimatch --json       # one yg-drill/1 document
 ```
 
 Each case resolves to `pass`, `MISS` (a `violates-*` case the rule failed to
@@ -1562,6 +1627,14 @@ a check error or an over-limit prompt), or `unsupported` (the rule needs context
 a single-file drill cannot supply). Deterministic drills run locally and free; an
 LLM aspect goes through the real reviewer and bills it (the call budget prints
 first). Exit `1` on any MISS/FALSE-ALARM, else `2` on any unrun, else `0`.
+
+`--json` prints one `yg-drill/1` document instead of the case lines: `aspect`,
+`corpus` (`label`, `source` — `dev` or `holdout` — and `path`), `counts` (`pass`,
+`miss`, `falseAlarm`, `unrun`, `unsupported`), `total`, `cases` (each with `case`,
+`expect`, `got`, `outcome`, `kind`, `caseHash`, `ruleHash`, `tier`, `votes`,
+`detail`) and `exitCode`, the same exit code the command ends with. An empty
+corpus is a document with `total: 0`, exit `0`. The reviewer budget line goes to
+stderr, and the sidecars are written as in a text run.
 
 `--nodeless` assembles every LLM case's prompt WITHOUT a node — the shape a
 real file enforced by its architecture type alone (no owning component)
@@ -1973,7 +2046,7 @@ yg adopt: accepted  .yggdrasil-proposal → .yggdrasil/
   Baseline        181 verdicts recorded locally, at no cost and with no key
   Recorded as     an entry in the log of 'repo-root'
 
-Next: yg check
+next: yg check
 ```
 
 **Already broken** is the number nothing else can tell you. A mined rule earns

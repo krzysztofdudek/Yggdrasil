@@ -84,36 +84,48 @@ export const GRAPH_INVALID_CODES: ReadonlySet<string> = new Set([
 
 /**
  * The codes whose label, tier or noun differs from the default (label = the
- * code itself, tier T1, noun "issue"). A Map, never an object literal, so a
- * lookup of an arbitrary code string can never land on an inherited
- * Object.prototype key.
+ * code itself, tier T1, noun "issue"). The label is the word in a report's
+ * heading brackets — `error[refused]` — and the same word the JSON document
+ * carries as `label` beside the full `code`, so a reader can match one to the
+ * other without a table. A Map, never an object literal, so a lookup of an
+ * arbitrary code string can never land on an inherited Object.prototype key.
  */
 const REGISTRY: ReadonlyMap<string, CodeInfo> = new Map<string, CodeInfo>([
   ['config-invalid', { label: 'config-invalid', tier: 'T0', noun: 'issue' }],
   ['architecture-invalid', { label: 'architecture-invalid', tier: 'T0', noun: 'issue' }],
-  ['yaml-invalid', { label: 'yaml-invalid', tier: 'T0', noun: 'issue' }],
+  ['yaml-invalid', { label: 'yaml-invalid', tier: 'T0', noun: 'file' }],
   ['lock-invalid', { label: 'lock-invalid', tier: 'T0', noun: 'issue' }],
-  ['aspect-violation-enforced', { label: 'enforced', tier: 'T1', noun: 'pair' }],
-  ['aspect-violation-advisory', { label: 'advisory', tier: 'T1', noun: 'pair' }],
+  ['aspect-violation-enforced', { label: 'refused', tier: 'T1', noun: 'pair' }],
+  ['aspect-violation-advisory', { label: 'refused', tier: 'T1', noun: 'pair' }],
   ['prompt-too-large', { label: 'prompt-too-large', tier: 'T1', noun: 'pair' }],
   ['aspect-companion-runtime-error', { label: 'aspect-companion-runtime-error', tier: 'T1', noun: 'pair' }],
   ['unmapped-files', { label: 'unmapped', tier: 'T1', noun: 'file' }],
   ['uncovered-advisory', { label: 'uncovered', tier: 'T1', noun: 'file' }],
-  ['log-entry-missing', { label: 'log-entry-missing', tier: 'T2', noun: 'node' }],
   ['log-conflict', { label: 'log-conflict', tier: 'T2', noun: 'node' }],
+  ['log-entry-missing', { label: 'log-entry-missing', tier: 'T2', noun: 'node' }],
   ['config-reviewer-missing', { label: 'config-reviewer-missing', tier: 'T2', noun: 'issue' }],
   ['unverified', { label: 'unverified', tier: 'T3', noun: 'pair' }],
 ]);
 
 const DEFAULT_TIER: Tier = 'T1';
 
+/** The suffix a finding put outside a measured change carries on its code and its label. */
+export const OUTSIDE_SUFFIX = '-outside';
+
 /**
  * What the registry knows about `code`. An unknown code (every code with no
- * special label) reads as itself, tier T1, counted in issues — the same thing
- * a report always printed for it.
+ * special label) reads as itself, tier T1, counted in issues. A finding put
+ * outside a measured change (`<code>-outside`) reads as its mirror with the
+ * same suffix on its label, in its mirror's tier.
  */
 export function codeInfo(code: string): CodeInfo {
-  return REGISTRY.get(code) ?? { label: code, tier: DEFAULT_TIER, noun: 'issue' };
+  const own = REGISTRY.get(code);
+  if (own !== undefined) return own;
+  if (code.endsWith(OUTSIDE_SUFFIX)) {
+    const base = REGISTRY.get(code.slice(0, -OUTSIDE_SUFFIX.length));
+    if (base !== undefined) return { ...base, label: `${base.label}${OUTSIDE_SUFFIX}` };
+  }
+  return { label: code, tier: DEFAULT_TIER, noun: 'issue' };
 }
 
 /** Sort key for a tier: T0 first. */

@@ -59,7 +59,7 @@ import {
 import { isValidReviewByDate } from '../io/aspect-parser.js';
 import { countLiveDeviationFiles } from '../core/feature-index-read.js';
 import type { Graph } from '../model/graph.js';
-import { failAndExit } from './output.js';
+import { failAndExit, count, field, heading, decorated } from './output.js';
 
 /** The hard cap on rendered nominations (spec §7.2). `--all` removes it. */
 const NOMINATION_CAP = 10;
@@ -793,33 +793,37 @@ async function gatherPackageUpdates(graph: Graph, projectRoot: string): Promise<
 // Rendering — two fixed sections (Attention, Nominations)
 // ---------------------------------------------------------------------------
 
-/** Render the Attention section: one aggregate line per class, no ranking. */
-function renderAttention(lines: string[]): string {
-  const body =
-    lines.length === 0
-      ? ['  No attention items right now.']
-      : lines.map((l) => `  ${l}`);
-  return [chalk.bold('Attention'), '', ...body].join('\n');
+/** The feed's first line: what it holds, counted. */
+function renderAdviseVerdict(attention: string[], visible: VisibleNomination[]): string {
+  return `yg advise: ${count(attention.length, 'attention item')} · ${count(visible.length, 'nomination')}`;
 }
 
-/** Render one nomination as a WHAT / WHY / NEXT block, optionally with its id. */
+/** The attention section: one aggregate line per class, no ranking. */
+function renderAttention(lines: string[]): string {
+  const body = lines.length === 0 ? ['  none right now'] : lines.map((l) => `  ${l}`);
+  return [decorated ? chalk.bold('attention') : 'attention', ...body].join('\n');
+}
+
+/**
+ * One nomination in the block template every finding uses:
+ * `nomination[<class>] <what>`, then `why:`, `fix:` (the human action, which
+ * always ends by asking the user to approve it) and, with --ids, `id:`.
+ */
 function renderNomination(nom: VisibleNomination, showIds: boolean): string[] {
-  const out: string[] = [];
-  const note = nom.note ? chalk.dim(` (${nom.note})`) : '';
-  out.push(`  ${nom.what}${note}`);
-  out.push(`    ${nom.why}`);
-  out.push(`    Next: ${nom.next}`);
+  const note = nom.note ? ` (${nom.note})` : '';
+  const kind = nom.id.split(':')[0];
+  const out = [heading('nomination', kind, `${nom.what}${note}`), ...field('why', nom.why), ...field('fix', nom.next)];
   // The id embeds raw repo strings (a file path, a drill-case name). Sanitize the
   // RENDERED form only — the canonical id stays intact for evidence-hash matching
   // and for the committed decision line — so no control byte reaches this surface.
-  if (showIds) out.push(chalk.dim(`    id: ${quoteData(nom.id)}`));
+  if (showIds) out.push(...field('id', quoteData(nom.id)));
   return out;
 }
 
 /**
- * Render the Nominations section: `visible` capped at 10 (unless `all`), each as
- * a WHAT / WHY / NEXT block; a footer counts what the cap hid; `--all` also lists
- * the currently-suppressed (dismissed / deferred) items.
+ * The nominations section: `visible` capped at 10 (unless `all`), each as a
+ * block; an overflow line counts what the cap hid and names the view that
+ * shows it; `--all` also lists the dismissed and deferred items.
  */
 function renderNominations(
   visible: VisibleNomination[],
@@ -827,36 +831,30 @@ function renderNominations(
   showIds: boolean,
   showAll: boolean,
 ): string {
-  const parts: string[] = [chalk.bold('Nominations'), ''];
+  const parts: string[] = [decorated ? chalk.bold('nominations') : 'nominations'];
 
   if (visible.length === 0) {
-    parts.push('  No nominations right now.');
+    parts.push('  none right now');
   } else {
     const cap = showAll ? visible.length : NOMINATION_CAP;
     const shown = visible.slice(0, cap);
     for (const nom of shown) {
-      parts.push(...renderNomination(nom, showIds));
       parts.push('');
+      parts.push(...renderNomination(nom, showIds));
     }
-    if (parts[parts.length - 1] === '') parts.pop();
-
     const hiddenByCap = visible.length - shown.length;
     if (hiddenByCap > 0) {
       parts.push('');
-      parts.push(
-        chalk.dim(
-          `  … and ${hiddenByCap} more nomination${hiddenByCap === 1 ? '' : 's'} not shown — run yg advise --all to see ${hiddenByCap === 1 ? 'it' : 'them all'}.`,
-        ),
-      );
+      parts.push(`… +${hiddenByCap} more  (yg advise --all)`);
     }
   }
 
   if (showAll && hidden.length > 0) {
     parts.push('');
-    parts.push(chalk.dim(`Dismissed / deferred (${hidden.length}):`));
+    parts.push(`dismissed or deferred (${hidden.length})`);
     for (const nom of hidden) {
-      parts.push(chalk.dim(`  ${nom.what}`));
-      if (showIds) parts.push(chalk.dim(`    id: ${quoteData(nom.id)}`));
+      parts.push(`  ${nom.what}`);
+      if (showIds) parts.push(...field('id', quoteData(nom.id)));
     }
   }
 
@@ -1036,6 +1034,8 @@ export function registerAdviseCommand(program: Command): void {
         }
 
         const output = [
+          renderAdviseVerdict(attention, visible),
+          '',
           renderAttention(attention),
           '',
           renderNominations(visible, hidden, opts.ids ?? false, opts.all ?? false),

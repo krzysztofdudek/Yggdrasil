@@ -123,7 +123,7 @@ describe('lock merge with virtual entries (git-level)', () => {
       // holds a valid verdict for the file it names.
       const after = await runAsync(['check', '--approve'], dir);
       expect(after.status).toBe(0);
-      expect(after.all).toMatch(/0 reviewer calls made/);
+      expect(after.all).toMatch(/^fill {2}done in .* · 0 reviewer calls$/m);
     } finally {
       await mock.close();
       rmSync(dir, FIXTURE_RM_OPTIONS);
@@ -166,7 +166,7 @@ describe('lock merge with virtual entries (git-level)', () => {
       // on disk (branch-a's content) — a clean pass with zero new bill.
       const after = await runAsync(['check', '--approve'], dir);
       expect(after.status).toBe(0);
-      expect(after.all).toMatch(/0 reviewer calls made/);
+      expect(after.all).toMatch(/^fill {2}done in .* · 0 reviewer calls$/m);
     } finally {
       await mock.close();
       rmSync(dir, FIXTURE_RM_OPTIONS);

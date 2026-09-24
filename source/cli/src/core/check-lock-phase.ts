@@ -143,8 +143,9 @@ export async function runLockPhase(args: {
     // Per-pair issues (verified → none; refused / unverified / prompt-too-large).
     // `emitPairIssue` emits nothing for a verified pair, so this is the only place
     // the verified/deterministic-vs-LLM split can be tallied.
+    const intents = new Map(graph.aspects.map((a) => [a.id, firstSentence(a.description)]));
     for (const vp of verification.pairs) {
-      lockIssues.push(...emitPairIssue(vp, runtimeRows, { reviewerConfigured: graph.config.reviewer !== undefined }));
+      lockIssues.push(...emitPairIssue(vp, runtimeRows, { reviewerConfigured: graph.config.reviewer !== undefined, ruleIntent: (id) => intents.get(id) }));
       if (vp.state.kind === 'verified') {
         if (vp.pair.kind === 'llm') verifiedLlm++;
         else verifiedDet++;
@@ -261,4 +262,15 @@ export async function runLockPhase(args: {
   }
 
   return { issues: lockIssues, verifiedDet, verifiedLlm, typeVisibility, featureFactsByPath, featureHashByPath, pairs };
+}
+
+/**
+ * The first sentence of a rule's description — what the rule is for, as the
+ * why of a refusal states it. Undefined for a rule with no description.
+ */
+function firstSentence(description: string | undefined): string | undefined {
+  const text = (description ?? '').replace(/\s+/g, ' ').trim();
+  if (text === '') return undefined;
+  const m = /^(.+?[.!?])(?:\s|$)/.exec(text);
+  return m !== null ? m[1] : text;
 }

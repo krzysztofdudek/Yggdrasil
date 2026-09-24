@@ -86,8 +86,7 @@ not its subject — and so is every use of a rule that names a changed file in i
 always was — nothing is skipped and nothing goes unchecked. Only at the end is
 each finding asked whether your change reached it. Those it did keep their name
 and their severity. Those it did not are re-coded to a twin of the same finding
-at warning severity, with `(outside changes)` appended and the `Fix:` line left
-off. Which findings are eligible for that at all is a fixed, declared set: the
+at warning severity: its label gains `-outside` (`refused-outside`, `unverified-outside`), its heading ends `— outside your changes`, and its `fix:` line is left off. Which findings are eligible for that at all is a fixed, declared set: the
 graph's own integrity is never in it, and neither is anything the run cannot
 attribute to a file or a component. See
 [What never becomes a warning](#what-never-becomes-a-warning).
@@ -107,42 +106,35 @@ rules your change reached and no others. See
 
 ## What a run looks like
 
-The header gains one segment: how many obligations sit outside your change, what
-they were measured against, and how many changed files the measurement
-accounted for.
+The verdict line gains one segment: how many obligations sit outside your change, what they were measured against, and how many changed files the measurement accounted for.
 
 ```text
-yg check: FAIL  84 nodes · 1204/1204 files · 37 aspects · 6 flows · 613 verified (512 deterministic, 101 LLM) · 12 obligations outside your changes vs origin/main (7 changed inputs)
+yg check: FAIL  2 errors · 12 warnings   84 nodes · 1204/1204 files covered · 613 pairs verified (512 script · 101 reviewer) · 12 obligations outside your changes vs origin/main (7 changed inputs)
 ```
 
-Findings your change reached are unchanged — same name, same severity, same
-`Fix:` line, still red. Findings it did not reach read exactly like the finding
-they mirror, with one phrase added:
+Findings your change reached are unchanged — same label, same severity, same `fix:` line, still red. Findings it did not reach read exactly like the finding they mirror, with `-outside` on the label and one phrase added to the heading:
 
 ```text
-  stale (inputs changed since the verdict) (outside changes)  1 pair  1 node
-            A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.
-            - beta  aspect 'no-todo-comments'
+warning[unverified-outside] 1 pair whose inputs changed since the verdict — outside your changes
+  at:   no-todo-comments @ beta
+  why:  A verdict was recorded, but its inputs changed since (a source edit, an aspect edit, or a changed reference), so it no longer counts. It is re-judged over the code as it stands now.
 ```
 
-The reason it fired is still there, because it is still true. What is missing is
-the `Fix:` line: for this one finding that command would send you to review the
-whole project, which is not the next step for someone who did not cause it.
+The reason it fired is still there, because it is still true. What is missing is the `fix:` line: for this one finding that command would send you to review the whole project, which is not the next step for someone who did not cause it.
 Among warnings, inherited ones always sort last, so they can never bury a
 warning your change is actually responsible for.
 
-When nothing of yours is blocking, the run's single next step points at the
-audit rather than at any one finding:
+When nothing of yours is blocking, the run's `next:` line points at the audit rather than at any one finding:
 
 ```text
-Next: 12 obligations outside your changes — run 'yg check --full' for the complete audit
+next: yg check --full  (12 obligations outside your changes)
 ```
 
 And on a checkout that carries no change at all, the header says so in words
 rather than with a zero:
 
 ```text
-yg check: PASS  84 nodes · 1204/1204 files · 37 aspects · 6 flows · 613 verified (512 deterministic, 101 LLM) · nothing in scope; 12 obligations outside your changes vs origin/main
+yg check: PASS  12 warnings   84 nodes · 1204/1204 files covered · 613 pairs verified (512 script · 101 reviewer) · nothing in scope; 12 obligations outside your changes vs origin/main
 ```
 
 That "nothing in scope" wording appears only when nothing is blocking; a run with
@@ -154,10 +146,10 @@ it.
 A repository that has just switched a mined graph on starts with a fixed
 population of refusals standing on code nobody in the current change wrote —
 advisory ones, which warn forever, and enforced ones this run is holding outside
-your change. When any are present, one line says so:
+your change. When any are present, one `note:` line after the findings says so:
 
 ```text
-44 advisory refusals stand on code this change did not touch — that is the baseline this repository already had, not a result of your change.
+note: 44 advisory refusals stand on code this change did not touch — that is the baseline this repository already had, not a result of your change.
 ```
 
 It is a statement of fact, not a finding: never counted, never blocking, and
@@ -258,15 +250,10 @@ Two things do that, and neither is confined to any one platform:
 - large-file storage, where the branch holds a pointer and your working copy
   holds the content.
 
-When that happens the run says so, in a line of its own beneath the header:
+When that happens the run says so, in a `note:` line of its own after the findings:
 
 ```text
-Content check: 12 findings kept in scope — the files behind them differ from
-'origin/main' although git reports no change there. If that happens to
-everything on every run, something is rewriting files between storage and your
-working copy (a committed .gitattributes 'text eol='/'filter=', or large-file
-storage) — nothing is then inherited, so 'yg check --approve' pays to review the
-whole project.
+note: Content check: 12 findings kept in scope — the files behind them differ from 'origin/main' although git reports no change there. If that happens to everything on every run, something is rewriting files between storage and your working copy (a committed .gitattributes 'text eol='/'filter=', or large-file storage) — nothing is then inherited, so 'yg check --approve' pays to review the whole project.
 ```
 
 That is the symptom of a project on which measuring changes cannot currently
@@ -284,9 +271,7 @@ finding is judged on git's report alone. That gets a line of its own too — a
 different one:
 
 ```text
-Content check skipped: 'origin/main' records file identifiers this version cannot
-reproduce, so findings were judged on git's report of what changed and nothing
-else.
+note: Content check skipped: 'origin/main' records file identifiers this version cannot reproduce, so findings were judged on git's report of what changed and nothing else.
 ```
 
 **The reference branch's file list could not be read.** It is read through a
@@ -465,9 +450,9 @@ one file fails on debt it never touched.
 It is loud, not silent. The run prints the cause and the fix before the report:
 
 ```text
-Notice: This change could not be measured against 'origin/main', so this run gated the whole project — every finding blocks, exactly as 'yg check --full' would report it.
-no merge-base with the configured reference could be found, and this is a shallow clone — the common ancestor is likely outside the truncated history.
-Deepen the history and re-run: `git fetch --unshallow` locally, or raise the checkout depth in the CI job (many default to depth 1).
+note: This change could not be measured against 'origin/main', so this run gated the whole project — every finding blocks, exactly as 'yg check --full' would report it.
+  why:  no merge-base with the configured reference could be found, and this is a shallow clone — the common ancestor is likely outside the truncated history.
+next: Deepen the history and re-run: `git fetch --unshallow` locally, or raise the checkout depth in the CI job (many default to depth 1).
 ```
 
 The fix is in the checkout, not in your code. `actions/checkout` documents

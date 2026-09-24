@@ -84,26 +84,21 @@ The reviewer compares text against code. Vague rules produce vague verdicts; spe
 ```text
 $ yg check --approve
 
-Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
+fill  1 pair · 0 script (free) · 1 reviewer call (consensus included)
+fill  done in 6s — 0 approved · 1 refused · 0 failed · 1 reviewer call
 
-yg check: FAIL  1 node · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspect · 0 flows
+yg check: FAIL  1 error   1 node · 5/5 files covered (1 node-owned · 4 excluded)
 
-Errors (1):
+error[refused] requires-audit — refused on payments
+  at:   payments  chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
+  why:  Every mutation emits an audit event
+  fix:  Four exits — the verdict is recorded for this exact code, so re-running the reviewer changes nothing:
+          1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
+          2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+          3. Propose a `yg-suppress` to the user for a deliberate exception — ask the user to approve the reason.
+          4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
 
-  enforced  1 pair  1 node  aspect 'requires-audit'
-            A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
-            Fix: Four exits:
-              1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
-              2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
-              3. Propose a `yg-suppress` to the user for a deliberate exception (user must approve the reason).
-              4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
-            - payments  Reviewer reason: chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
-
-Next: Four exits:
-  1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
-  2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
-  3. Propose a `yg-suppress` to the user for a deliberate exception (user must approve the reason).
-  4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
+next: change the code of payments so it satisfies requires-audit
 ```
 
 If the reviewer rejects compliant code, the rule is what misfired, so the fix is improving the aspect's `content.md` — make the rule clearer and more specific (exit 2). Sharpening the rule re-verifies every pair of the aspect. A `yg-suppress` marker is for a deliberate exception to a rule that is right (exit 3), not a way around a rule that misreads compliant code; while you decide which case you are in, `status: advisory` (exit 4) stops the refusal from blocking.

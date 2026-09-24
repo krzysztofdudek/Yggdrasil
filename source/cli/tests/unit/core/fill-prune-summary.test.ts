@@ -57,7 +57,7 @@ async function setupProject(): Promise<string> {
 }
 
 describe('GC prune summary — wording', () => {
-  it('prints "Pruned N stale verdict(s) — B billed, F free:" (the noun agreeing with N) plus one [kind] line per entry, when something is pruned', async () => {
+  it('prints "fill  pruned N stale verdict(s) (B reviewer · F script)" (the noun agreeing with N) plus one "<aspect> @ <unit> — <reason>" line per entry, when something is pruned', async () => {
     const projectRoot = await setupProject();
     const graph = await loadGraph(projectRoot);
     // Seed a stale entry for an aspect id that no longer exists at all — a
@@ -75,8 +75,8 @@ describe('GC prune summary — wording', () => {
     // The aspect no longer exists in the graph, so its kind cannot be read off
     // reviewer.type — but its verdicts live in the COMMITTED file, so the
     // summary correctly reports it billed, never silently free.
-    expect(out).toContain('Pruned 1 stale verdict — 1 billed, 0 free:');
-    expect(out).toContain('[llm] ghost-aspect on node:svc — aspect removed');
+    expect(out).toContain('fill  pruned 1 stale verdict (1 reviewer · 0 script)\n');
+    expect(out).toContain('  ghost-aspect @ svc — aspect removed\n');
   });
 
   it('prints NOTHING about pruning when nothing was pruned', async () => {
@@ -86,7 +86,7 @@ describe('GC prune summary — wording', () => {
     let out = '';
     await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: (s) => { out += s; } });
 
-    expect(out).not.toContain('Pruned');
+    expect(out).not.toContain('pruned');
     expect(out).not.toContain('stale verdict');
   });
 
@@ -100,7 +100,7 @@ describe('GC prune summary — wording', () => {
     let out = '';
     await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, dryRun: true, write: (s) => { out += s; } });
 
-    expect(out).toContain('Pruned 1 stale verdict — 1 billed, 0 free:');
+    expect(out).toContain('fill  pruned 1 stale verdict (1 reviewer · 0 script)\n');
     // The REAL committed lock is untouched — the stale entry is still there.
     const stillThere = readLock(graph.rootPath);
     expect(stillThere.verdicts['ghost-aspect']?.['node:svc']).toBeDefined();
@@ -153,8 +153,8 @@ describe('GC prune summary — wording', () => {
     // entry was never written away (scope: 'deterministic' never touches the
     // committed nondeterministic file), so claiming it as pruned would say a
     // write happened that did not.
-    expect(out).toContain('Pruned 1 stale verdict — 0 billed, 1 free:');
-    expect(out).toContain('[deterministic] ghost-det on node:svc');
+    expect(out).toContain('fill  pruned 1 stale verdict (0 reviewer · 1 script)\n');
+    expect(out).toContain('  ghost-det @ svc — ');
     expect(out).not.toContain('ghost-llm');
 
     // The committed nondeterministic file is BYTE-IDENTICAL to before — the
@@ -166,8 +166,8 @@ describe('GC prune summary — wording', () => {
     // A full `--approve` afterward actually prunes both, and says so.
     let out2 = '';
     await runFill(graph, { isTTY: false, now: Date.now, coverageVisibleFiles: null, write: (s) => { out2 += s; } });
-    expect(out2).toContain('Pruned 1 stale verdict — 1 billed, 0 free:');
-    expect(out2).toContain('[llm] ghost-llm on node:svc');
+    expect(out2).toContain('fill  pruned 1 stale verdict (1 reviewer · 0 script)\n');
+    expect(out2).toContain('  ghost-llm @ svc — ');
     // ghost-llm was the committed file's only entry — pruning it away leaves
     // nothing to persist, so the file is removed rather than rewritten empty
     // (io/lock-store.ts's writeOrRemoveSplitFile); its absence IS the proof.

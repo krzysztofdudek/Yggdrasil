@@ -252,10 +252,10 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(refused.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.all).toContain('- services/orders');
+      // The refusal block names the refused rule on the child node (an error:
+      // enforced), with the child's violation as its member line.
+      expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      expect(refused.all).toContain('  at:   services/orders  src/services/orders.ts');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -339,10 +339,10 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(refused.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.all).toContain('- services/orders');
+      // The refusal block names the refused rule on the child node (an error:
+      // enforced), with the child's violation as its member line.
+      expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      expect(refused.all).toContain('  at:   services/orders  src/services/orders.ts');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -378,10 +378,10 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(refused.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.all).toContain('- services/orders');
+      // The refusal block names the refused rule on the child node (an error:
+      // enforced), with the child's violation as its member line.
+      expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      expect(refused.all).toContain('  at:   services/orders  src/services/orders.ts');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -459,10 +459,10 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.stdout).toContain('no-banned-word');
-      // Fill-time progress ([det] line) goes to STDERR; grouped report to STDOUT.
-      expect(refused.stderr).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.stdout).toContain('- services/orders');
+      // Fill-time progress goes to STDERR (its closing line counts the refusal); the report to STDOUT.
+      expect(refused.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      // The refusal block (an error: enforced) names the node.
+      expect(refused.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -582,15 +582,14 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
       expect(fill.stdout).toContain('no-banned-word');
-      // Fill-time progress ([det] lines) go to STDERR; grouped report to STDOUT.
-      expect(fill.stderr).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists orders under the enforced group.
-      expect(fill.stdout).toContain('- services/orders');
+      // Fill-time progress goes to STDERR (its closing line counts the refusal); the report to STDOUT.
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      // The refusal block (an error: enforced) names orders.
+      expect(fill.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
       // payments is gated out of the flow aspect — no no-banned-word pair is
       // dispatched or refused for it (the only no-banned-word refusal is orders').
-      expect(fill.stderr).not.toContain(
-        '[det] no-banned-word on node:services/payments',
-      );
+      expect(fill.stdout).not.toContain('no-banned-word — 1 violation in services/payments');
+      expect(fill.stdout).not.toContain('services/payments  src/services/payments.ts');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -628,10 +627,10 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(refused.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.all).toContain('- services/orders');
+      // The refusal block names the refused rule on the child node (an error:
+      // enforced), with the child's violation as its member line.
+      expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      expect(refused.all).toContain('  at:   services/orders  src/services/orders.ts');
 
       // Drop the ch4 default — now ONLY the gated-FALSE ch2 path remains, so the
       // aspect disappears from the effective set entirely. Proves ch4 was the
@@ -681,10 +680,10 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.stdout).toContain('no-banned-word');
-      // Fill-time progress ([det] line) goes to STDERR; grouped report to STDOUT.
-      expect(refused.stderr).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.stdout).toContain('- services/orders');
+      // Fill-time progress goes to STDERR (its closing line counts the refusal); the report to STDOUT.
+      expect(refused.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      // The refusal block (an error: enforced) names the node.
+      expect(refused.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -707,7 +706,7 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       // The child is named in the downgrade group, the cascading ancestor source
       // is listed as a member, and the shared why explains the rule.
       expect(check.all).toContain('services/orders');
-      expect(check.all).toContain('- services');
+      expect(check.all).toContain('  at:   services  Aspect \'no-banned-word\'');
       expect(check.all).toContain(
         'An explicit attach-site status cannot relax (downgrade) what already cascades',
       );

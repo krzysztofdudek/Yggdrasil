@@ -98,14 +98,15 @@ describe('computeSuggestedNext', () => {
 
   it('names the alphabetically-first structural code and appends the coverage rider', () => {
     const issues: Issue[] = [
-      { severity: 'error', code: 'type-invalid', nodePath: 'b/n', messageData: md('x') },
-      { severity: 'error', code: 'aspect-undefined', nodePath: 'a/n', messageData: md('x') },
+      { severity: 'error', code: 'type-invalid', nodePath: 'b/n', messageData: md('FIX-TYPE-B') },
+      { severity: 'error', code: 'aspect-undefined', nodePath: 'a/n', messageData: md('FIX-ASPECT-A\nsecond line') },
       { severity: 'error', code: 'unmapped-files', uncoveredCount: 4, messageData: md('x') },
     ];
     const next = run(issues);
-    // 'aspect-undefined' sorts before 'type-invalid'.
-    expect(next).toContain('Fix aspect-undefined in a/n');
-    expect(next).toContain('Then: 4 files need coverage');
+    // 'aspect-undefined' sorts before 'type-invalid'; its own next (first line only) leads.
+    expect(next).toMatch(/^FIX-ASPECT-A\n {2}1 of 2 structural errors/);
+    expect(next).not.toContain('second line');
+    expect(next).toContain('then: 4 files need coverage');
   });
 
   it('renders the coverage bootstrap step when only unmapped files remain', () => {
@@ -116,9 +117,9 @@ describe('computeSuggestedNext', () => {
   });
 
   it('renders a completeness remedy for a missing description', () => {
-    const issues: Issue[] = [{ severity: 'error', code: 'description-missing', nodePath: 'x/y', messageData: md('x') }];
+    const issues: Issue[] = [{ severity: 'error', code: 'description-missing', nodePath: 'x/y', messageData: md('DESCRIBE-X-Y') }];
     const next = run(issues);
-    expect(next).toContain('Fix description-missing for x/y');
+    expect(next).toBe('DESCRIBE-X-Y\n  1 of 1 completeness error — post-modify workflow');
   });
 
   it('falls back to the alphabetically-first architecture error next', () => {
@@ -229,7 +230,7 @@ describe('computeSuggestedNext — findings outside the change', () => {
       { severity: 'warning', code: 'unmapped-files-outside', uncoveredCount: 5, messageData: md('x') },
     ];
     const next = run(issues);
-    expect(next).toContain('Then: 2 files need coverage');
+    expect(next).toContain('then: 2 files need coverage');
   });
 });
 
@@ -302,18 +303,18 @@ describe('computeSuggestedNext — issues with a field missing', () => {
     expect(run(issues)).toBe('NARROW-THE-TYPES');
   });
 
-  it('names a repo-level structural error by the graph directory, and a nodeless one by its file', () => {
-    expect(run([partial({ severity: 'error', code: 'duplicate-aspect-id' }, 'x')])).toBe('Fix duplicate-aspect-id in .yggdrasil\n  1 of 1 structural error');
-    const fileScoped = { ...partial({ severity: 'error', code: 'type-invalid' }, 'x'), unitKey: 'file:src/a.ts' } as Issue;
-    expect(run([fileScoped])).toBe('Fix type-invalid in src/a.ts\n  1 of 1 structural error');
+  it('names a repo-level structural error by the graph directory, and a nodeless one by its file, when the finding carries no next', () => {
+    expect(run([partial({ severity: 'error', code: 'duplicate-aspect-id' }, '')])).toBe('See the duplicate-aspect-id finding on .yggdrasil\n  1 of 1 structural error');
+    const fileScoped = { ...partial({ severity: 'error', code: 'type-invalid' }, ''), unitKey: 'file:src/a.ts' } as Issue;
+    expect(run([fileScoped])).toBe('See the type-invalid finding on src/a.ts\n  1 of 1 structural error');
   });
 
   it('reads an unmapped-files finding without a count as zero files in the structural rider', () => {
     const next = run([
-      partial({ severity: 'error', code: 'type-invalid', nodePath: 'a/n' }, 'x'),
+      partial({ severity: 'error', code: 'type-invalid', nodePath: 'a/n' }, 'FIX-TYPE'),
       partial({ severity: 'error', code: 'unmapped-files' }, 'x'),
     ]);
-    expect(next).toBe('Fix type-invalid in a/n\n  1 of 1 structural error\n  Then: 0 files need coverage');
+    expect(next).toBe('FIX-TYPE\n  1 of 1 structural error\n  then: 0 files need coverage');
   });
 
   it('agrees in number for one uncovered file, and reads a missing count as zero', () => {
@@ -325,12 +326,12 @@ describe('computeSuggestedNext — issues with a field missing', () => {
     );
   });
 
-  it('renders a completeness remedy with no node and a plural count', () => {
+  it('renders a completeness remedy with no node, no next and a plural count', () => {
     const next = run([
-      partial({ severity: 'error', code: 'description-missing' }, 'x'),
+      partial({ severity: 'error', code: 'description-missing' }, ''),
       partial({ severity: 'error', code: 'description-missing', nodePath: 'b/n' }, 'x'),
     ]);
-    expect(next).toBe('Fix description-missing for \n  1 of 2 completeness errors — post-modify workflow');
+    expect(next).toBe('See the description-missing finding on \n  1 of 2 completeness errors — post-modify workflow');
   });
 
   it('breaks a tie between remaining errors of one code by node, an absent node first', () => {

@@ -208,7 +208,7 @@ describe.skipIf(!distExists)('CLI E2E — a rule keeps its own history', () => {
 
       // The approving run records it, in the rule's own log.
       const recorded = approve(dir);
-      expect(recorded.all).toContain(`Rule '${RULE}' now stands at enforced (was advisory)`);
+      expect(recorded.all).toContain(`rule '${RULE}' now stands at enforced (was advisory) — written into its own log`);
       const log = readFileSync(logPath(dir), 'utf-8');
       expect(log).toContain('Status: advisory → enforced, changed outside the CLI');
 

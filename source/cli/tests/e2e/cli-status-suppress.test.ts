@@ -185,10 +185,12 @@ describe.skipIf(!distExists)('CLI E2E — status-flip drift/render semantics + s
 
       const refill = run(['check', '--approve'], dir);
       expect(refill.status).toBe(0);
-      expect(refill.stderr).toContain('Filling 0 unverified pairs');
-      // Fill progress (including "0 reviewer calls made" notice) goes to STDERR.
-      expect(refill.stderr).toContain('0 reviewer calls made — all expected pairs hold valid verdicts');
-      expect(refill.all).not.toContain('refused');
+      // A fill with no pair to judge prints no pair count and no closing line;
+      // the only fill output is the standing-change record on STDERR.
+      expect(refill.stderr).not.toMatch(/^fill {2}\d+ pairs? /m);
+      expect(refill.stderr).not.toMatch(/^fill {2}done /m);
+      expect(refill.stderr).toContain("fill  rule 'no-todo-comments' now stands at advisory (was enforced)");
+      expect(refill.all).not.toContain('[refused]');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -257,7 +259,8 @@ describe.skipIf(!distExists)('CLI E2E — status-flip drift/render semantics + s
       const fill = run(['check', '--approve'], dir);
       // Everything inside the bracket range is waived -> the pair approves.
       expect(fill.status).toBe(0);
-      expect(fill.all).not.toContain('refused');
+      expect(fill.all).toMatch(/^fill {2}done in .* · 0 refused · /m);
+      expect(fill.all).not.toContain('[refused]');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -286,9 +289,8 @@ describe.skipIf(!distExists)('CLI E2E — status-flip drift/render semantics + s
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.stderr).toContain('[det] no-todo-comments on node:services/payments — refused');
-      expect(fill.stdout).toContain('enforced');
-      expect(fill.stdout).toContain('no-todo-comments');
+      expect(fill.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+      expect(fill.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/payments');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -317,8 +319,9 @@ describe.skipIf(!distExists)('CLI E2E — status-flip drift/render semantics + s
 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.stderr).toContain('[det] no-todo-comments on node:services/orders — refused');
-      expect(fill.stdout).toContain('enforced');
+      expect(fill.stderr).toMatch(/^fill {2}done in .* · 1 refused · /m);
+      // Exactly ONE violation is recorded — the un-suppressed second TODO.
+      expect(fill.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
 
       // aspect-test surfaces the per-line detail: exactly ONE TODO is reported —
       // the un-suppressed second one. The single suppress covered only the line
@@ -336,7 +339,7 @@ describe.skipIf(!distExists)('CLI E2E — status-flip drift/render semantics + s
         .split('\n')
         .filter((l) => l.includes('TODO comment found'));
       expect(todoViolations.length).toBe(1);
-      expect(diag.stdout).toContain('L18:');
+      expect(diag.stdout).toMatch(/:18 {2}/);
       expect(diag.stdout).not.toContain('L17:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -370,7 +373,8 @@ describe.skipIf(!distExists)('CLI E2E — status-flip drift/render semantics + s
       // pair, regardless of the suppress marker.
       expect(fill.stdout).not.toContain('wip-rule on node:services/orders');
       // No violation, and no error about the suppress marker itself.
-      expect(fill.all).not.toContain('refused');
+      expect(fill.all).toMatch(/^fill {2}done in .* · 0 refused · /m);
+      expect(fill.all).not.toContain('[refused]');
       expect(fill.stdout).toContain('yg check: PASS');
     } finally {
       rmSync(dir, { recursive: true, force: true });

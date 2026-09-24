@@ -11,7 +11,9 @@ description: "Re-runs an aspect's rule over its violates-*/satisfies-* case corp
   corpus label, content hashes, and pass/fail — never the case source. The
   --nodeless flag switches an LLM run's assembled prompts to the shape a file
   enforced by its architecture type alone (no owning component) receives from
-  the real reviewer, instead of the default synthetic node. The command also
+  the real reviewer, instead of the default synthetic node. With --json the
+  run answers as one versioned document (counts, per-case results, corpus) in
+  place of the case lines, with the same exit code. The command also
   takes a case INTO the corpus from real history: it reads a file as it stood at
   a named commit, writes it in under the corpus's own violates/satisfies
   convention with its origin in the name, then immediately runs the rule over it

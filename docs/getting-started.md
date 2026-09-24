@@ -119,33 +119,33 @@ blocking error:
 ```text
 $ yg check
 
-yg check: PASS (1 warning)  0 nodes · 4/54 files (0 node-owned, 0 type-covered, 4 excluded) · 0 aspects · 0 flows
+yg check: PASS  1 warning   0 nodes · 4/54 files covered (4 excluded)
 
-Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
+warning[uncovered] 50 files belong to no node — not under coverage.required, so they never block
+  at:   package.json
+        src/f1.ts
+        src/f10.ts
+        src/f11.ts
+        src/f12.ts
+        src/f13.ts
+        src/f14.ts
+        src/f15.ts
+        src/f16.ts
+        src/f17.ts
+        src/f18.ts
+        src/f19.ts
+        … +38 more  (yg check --details)
+  why:  Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
+  fix:  Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
 
-Nothing is required to be covered, so the 50 uncovered files this run lists can never fail a check — only ever be listed. Name a path under coverage.required in .yggdrasil/yg-config.yaml to make files under it block until a component owns them.
+note: Type-level coverage is on, but no type in yg-architecture.yaml declares 'when:' — no file can be type-covered until you add classifying types.
 
-Warnings (1):
-
-  uncovered (50)
-            package.json
-            src/f1.ts
-            src/f10.ts
-            src/f11.ts
-            src/f12.ts
-            src/f13.ts
-            src/f14.ts
-            src/f15.ts
-            src/f16.ts
-            src/f17.ts
-            ... +40 (yg check --details)
-            Why: Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it. Your architecture has no type for this file yet.
-            Fix: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
-
-Next: Map these files to a node, or add their root to coverage.required to make this an error. Or design an architecture type that covers files like it: yg type-suggest --file <path>.
+next: yg type-suggest --file package.json
 ```
 
-`yg init` turns `coverage.type_level` on by default (see [Configuration](/configuration#coverage-config)), and the fresh architecture starts with no classifying types — hence the first notice line. Add a `when:` predicate to a type and matching files start satisfying coverage on their own, with no node required. The second notice is require-nothing mode stating its own consequence: it appears whenever `coverage.required` is empty _and_ something is still uncovered, and it stops the moment either half stops being true.
+`yg init` turns `coverage.type_level` on by default (see [Configuration](/configuration#coverage-config)), and the fresh architecture starts with no classifying types — hence the `note:` line. Add a `when:` predicate to a type and matching files start satisfying coverage on their own, with no node required. The block heading states require-nothing mode's consequence: `warning[uncovered]` files are not under `coverage.required`, so they never block.
+
+Every finding reads the same way: a heading `error[<label>] <subject>` or `warning[<label>] <subject>`, then `at:` (where), `why:` (once per block) and `fix:`. Standing facts follow as `note:` lines, and the report ends with `next:` — the one step to take first — and sometimes `then:`, the step after it. See [the report grammar](/cli-reference#reading-the-report).
 
 Nothing is enforced yet — the warnings are your to-do list. Tell your agent to
 create the first rule.
@@ -181,57 +181,40 @@ Now run `yg check`:
 ```text
 $ yg check
 
-yg check: FAIL  1 node · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspect · 0 flows
+yg check: FAIL  1 error   1 node · 5/5 files covered (1 node-owned · 4 excluded)
 
-Errors (1):
-
-  unverified (not yet reviewed)  1 pair  1 node
-            The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-            Fix: yg check --approve  (1 reviewer pair, paid)
-            - payments  aspect 'requires-audit'
-
-Next: yg check --approve
+error[unverified] 1 pair with no verdict yet
+  at:   requires-audit @ payments
+  why:  The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
+  fix:  yg check --approve  (1 reviewer pair · paid)
 ```
 
-Check detected that the `requires-audit` rule on `src/payments/` has no recorded
-verdict. (Once a verdict exists and the code changes, the same pair shows up as
-`stale (inputs changed since the verdict)`; a script rule with no result in this
-checkout's local cache — a fresh clone — shows up as `unverified (deterministic
-check not run on this checkout — free)`, fixed by the free
-`yg check --approve --only-deterministic`.) The agent runs `yg check --approve` and the reviewer reads the source
-code, checks it against the rules in `content.md`. The reviewer runs on stderr
-and the report is written to stdout — a clean run prints the PASS header:
+Check detected that the `requires-audit` rule on `src/payments/` has no recorded verdict. The block's `fix:` is the one step, so the report prints no separate `next:` line. (Once a verdict exists and the code changes, the same pair shows up as `error[unverified] 1 pair whose inputs changed since the verdict`; a script rule with no result in this checkout's local cache — a fresh clone — shows up as `error[unverified] N pairs whose script check has not run on this checkout — free to run`, fixed by the free `yg check --approve --only-deterministic`.) The agent runs `yg check --approve` and the reviewer reads the source code, checks it against the rules in `content.md`. The fill reports on stderr, in lines that start with `fill`, and the report is written to stdout — a clean run prints the PASS verdict line:
 
 ```text
 $ yg check --approve
 
-Filling 1 unverified pairs across 1 nodes — 0 deterministic (no cost), 1 reviewer calls (consensus included).
+fill  1 pair · 0 script (free) · 1 reviewer call (consensus included)
+fill  done in 6s — 1 approved · 0 refused · 0 failed · 1 reviewer call
 
-yg check: PASS  1 node · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspect · 0 flows · 1 verified (0 deterministic, 1 LLM)
+yg check: PASS  1 node · 5/5 files covered (1 node-owned · 4 excluded) · 1 pair verified (reviewer)
 ```
 
-If the code didn't satisfy the aspect, the pair is refused and the report shows
-the enforced refusal block with the reviewer's reason:
+If the code didn't satisfy the aspect, the pair is refused and the report shows the refusal block with the reviewer's reason under `at:`:
 
 ```text
-yg check: FAIL  1 node · 5/5 files (1 node-owned, 0 type-covered, 4 excluded) · 1 aspect · 0 flows
+yg check: FAIL  1 error   1 node · 5/5 files covered (1 node-owned · 4 excluded)
 
-Errors (1):
+error[refused] requires-audit — refused on payments
+  at:   payments  chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
+  why:  Every mutation emits an audit event
+  fix:  Four exits — the verdict is recorded for this exact code, so re-running the reviewer changes nothing:
+          1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
+          2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+          3. Propose a `yg-suppress` to the user for a deliberate exception — ask the user to approve the reason.
+          4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
 
-  enforced  1 pair  1 node  aspect 'requires-audit'
-            A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
-            Fix: Four exits:
-              1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
-              2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
-              3. Propose a `yg-suppress` to the user for a deliberate exception (user must approve the reason).
-              4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
-            - payments  Reviewer reason: chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
-
-Next: Four exits:
-  1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
-  2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
-  3. Propose a `yg-suppress` to the user for a deliberate exception (user must approve the reason).
-  4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
+next: change the code of payments so it satisfies requires-audit
 ```
 
 The agent fixes the code and re-runs `yg check --approve` until all aspects pass.
@@ -308,13 +291,15 @@ this way, so the moment you map a directory that imports from another mapped
 directory, the check turns red and names each import, like this:
 
 ```text
-  relation-undeclared-dependency  1 issue  1 node
-            Fix: Declare the missing relation(s) in .yggdrasil/model/users/yg-node.yaml (or remove the dependency if it is not legitimate):
-            payments: allowed relation type(s) [uses, calls, extends, implements, emits, listens]. Add to .yggdrasil/model/users/yg-node.yaml:
-            relations:
-              - target: payments
-                type: uses
-            - users  src/users/index.js:1 → payments
+error[relation-undeclared-dependency] Node 'users' has undeclared dependencies on other nodes:
+  at:   users
+          src/users/index.js:1 → payments
+  why:  A dependency on another component must be a sanctioned, declared relation. Undeclared edges erode the architecture allow-list of who may depend on whom.
+  fix:  Declare the missing relation(s) in .yggdrasil/model/users/yg-node.yaml (or remove the dependency if it is not legitimate):
+        payments: allowed relation type(s) [uses, calls, extends, implements, emits, listens]. Add to .yggdrasil/model/users/yg-node.yaml:
+        relations:
+          - target: payments
+            type: uses
 ```
 
 Paste the `relations:` stanza it prints into the importing node. Two things can

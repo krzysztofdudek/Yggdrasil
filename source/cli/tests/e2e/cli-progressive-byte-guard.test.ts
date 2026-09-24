@@ -52,22 +52,19 @@ function run(args: string[], cwd: string): { status: number | null; stdout: stri
 /** The header line — the first line of every report, in every view. */
 const headerOf = (stdout: string): string => stdout.split('\n')[0];
 
-/** Everything the report prints under Errors, up to the warnings subheader. */
-function errorSection(stdout: string): string {
-  const from = stdout.indexOf('Errors (');
-  if (from < 0) return '';
-  const to = stdout.indexOf('Warnings (');
-  return to < 0 ? stdout.slice(from) : stdout.slice(from, to);
+/** Every finding block of one severity (`error[…]` / `warning[…]`), in report order. */
+function blocksOf(stdout: string, severity: 'error' | 'warning'): string {
+  return stdout.split('\n\n').filter((b) => b.startsWith(`${severity}[`)).join('\n\n');
 }
 
-/** Everything the report prints under Warnings. */
-function warningSection(stdout: string): string {
-  const from = stdout.indexOf('Warnings (');
-  return from < 0 ? '' : stdout.slice(from);
-}
+/** Every error block the report prints. */
+const errorSection = (stdout: string): string => blocksOf(stdout, 'error');
 
-/** The violation line each component's TODO produces, as the report prints it. */
-const TODO_IN = (dir: string): string => `src/${dir}/${dir}.ts:1: TODO comment found`;
+/** Every warning block the report prints. */
+const warningSection = (stdout: string): string => blocksOf(stdout, 'warning');
+
+/** The violation member line each component's TODO produces, as the report prints it. */
+const TODO_IN = (dir: string): string => `${dir}  src/${dir}/${dir}.ts:1  TODO comment found`;
 
 /** The edit that makes `alpha` violate the one rule in the fixture. */
 const VIOLATING_EDIT = '// TODO: introduced by this very change.\nexport const alpha = 1;\n';
@@ -139,7 +136,7 @@ describe.skipIf(!distExists)('yg check — the byte guard', () => {
     // The obligation covering the hidden file is answered for…
     expect(status).toBe(1);
     expect(headerOf(stdout)).toContain('yg check: FAIL');
-    expect(errorSection(stdout)).toContain("- alpha  aspect 'no-todo-comments'");
+    expect(errorSection(stdout)).toContain('no-todo-comments @ alpha');
     // …and the run is still a MEASURED one, not a whole-project gate in
     // disguise: the refusal it genuinely inherited is still only a warning.
     expect(headerOf(stdout)).toContain('outside your changes vs main');
@@ -154,7 +151,7 @@ describe.skipIf(!distExists)('yg check — the byte guard', () => {
     const { status, stdout } = run(['check'], fixture.dir);
 
     expect(status).toBe(1);
-    expect(errorSection(stdout)).toContain("- alpha  aspect 'no-todo-comments'");
+    expect(errorSection(stdout)).toContain('no-todo-comments @ alpha');
     expect(warningSection(stdout)).toContain(TODO_IN('beta'));
   });
 
@@ -187,7 +184,7 @@ describe.skipIf(!distExists)('yg check — the byte guard', () => {
     const { status, stdout } = run(['check'], fixture.dir);
 
     expect(status).toBe(1);
-    expect(errorSection(stdout)).toContain("- alpha  aspect 'no-todo-comments'");
+    expect(errorSection(stdout)).toContain('no-todo-comments @ alpha');
     expect(warningSection(stdout)).toContain(TODO_IN('beta'));
   });
 
@@ -312,7 +309,8 @@ describe.skipIf(!distExists)('yg check — the byte guard', () => {
 
     const blocked = run(['check'], fixture.dir);
     expect(blocked.status).toBe(1);
-    expect(errorSection(blocked.stdout)).toContain("- alpha  aspect 'has-doc-comment'");
+    expect(errorSection(blocked.stdout)).toContain('has-doc-comment @ alpha'
+);
 
     const filled = await runAsync(['check', '--approve'], fixture.dir);
 
@@ -395,10 +393,11 @@ describe.skipIf(!distExists)('yg check — the byte guard', () => {
       const { status, stdout } = run(['check', '--details'], fixture.dir);
 
       expect(status).toBe(1);
-      expect(errorSection(stdout)).toContain("'has-doc-comment' on file:src/alpha/helper.ts");
-      expect(errorSection(stdout)).toContain("'has-doc-comment' on file:src/alpha/alpha.ts");
+      expect(errorSection(stdout)).toContain('has-doc-comment @ src/alpha/helper.ts');
+      expect(errorSection(stdout)).toContain('has-doc-comment @ src/alpha/alpha.ts');
       // …while the component the change never reached keeps its reviews outside.
-      expect(errorSection(stdout)).not.toContain('file:src/beta/beta.ts');
+      expect(errorSection(stdout)).not.toContain('src/beta/beta.ts');
+
     });
   });
 

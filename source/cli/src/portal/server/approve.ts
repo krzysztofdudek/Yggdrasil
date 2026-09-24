@@ -158,7 +158,9 @@ export function parseDryRunBudget(stdout: string, stderr: string): DryRunPreview
       `Could not read the dry-run cost preview from the CLI's JSON document. Raw output:\n${`${stdout}\n${stderr}`.trim()}`,
     );
   }
-  const headerLine = stderr.split('\n').find((l) => l.startsWith('Filling '));
+  // The fill's own first line (`fill  N pairs · D script (free) · R reviewer calls`),
+  // after the dry-run line that says what the run is.
+  const headerLine = stderr.split('\n').find((l) => /^fill {2}\d/.test(l));
   return {
     pairs: budget.pairs,
     deterministic: budget.deterministic,

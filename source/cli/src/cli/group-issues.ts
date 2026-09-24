@@ -1,5 +1,6 @@
 import type { CheckIssue } from '../core/check.js';
 import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin, unverifiedCauseRank, UNVERIFIED_CAUSE_ORDER } from '../core/check-codes.js';
+import { codeInfo, tierRank } from './output-diagnostic.js';
 
 /**
  * The same codes, plus the `-outside` twin of every one of them that a change
@@ -30,7 +31,7 @@ function withOutsideTwins(codes: readonly string[]): Set<string> {
  * person's screen and reads as a different, unexplained kind of finding rather
  * than a familiar one the change did not cause.
  */
-export const OUTSIDE_LABEL_SUFFIX = ' (outside changes)';
+export const OUTSIDE_LABEL_SUFFIX = '-outside';
 
 export interface IssueGroup {
   code: string;
@@ -115,12 +116,6 @@ export const PAIR_CODES = withOutsideTwins([
 
 // ── Shared code-set constants ────────────────────────────────
 
-/** Architecture-rule issue codes (relation, parent, type, port violations). */
-const ARCHITECTURE_CODES = new Set(['relation-target-forbidden', 'parent-type-forbidden', 'type-undefined', 'port-missing-aspect', 'port-undefined']);
-
-/** Strict-type enforcement issue codes. */
-const STRICT_CODES = new Set(['type-strict-orphan', 'type-strict-misplaced', 'strict-overlap-conflict']);
-
 /**
  * Codes whose `messageData.what` carries the actionable refusal detail (the
  * reviewer's reason / the deterministic violation list) on lines AFTER the first.
@@ -180,7 +175,7 @@ export const COVERAGE_GROUP_EXCLUDED_CODES = withOutsideTwins(['unmapped-files',
 export function coverageBlockLabel(code: string): string {
   const baseCode = baseCodeOfOutsideTwin(code);
   if (baseCode !== undefined) return coverageBlockLabel(baseCode) + OUTSIDE_LABEL_SUFFIX;
-  return code === 'uncovered-advisory' ? 'uncovered' : 'unmapped';
+  return codeInfo(code === 'uncovered-advisory' ? code : 'unmapped-files').label;
 }
 
 /**
@@ -259,33 +254,19 @@ export function issuePriorityRank(issue: CheckIssue): number {
 }
 
 export function getIssueLabel(issue: CheckIssue): string {
-  // An outside twin borrows its mirror's label, whatever that turns out to be —
-  // including a future label rule added for the base code alone.
-  const baseCode = baseCodeOfOutsideTwin(issue.code);
-  if (baseCode !== undefined) {
-    return getIssueLabel({ ...issue, code: baseCode }) + OUTSIDE_LABEL_SUFFIX;
-  }
+  // One word per code, from the code registry — the word a report heads the
+  // finding with and the `label` the JSON document carries beside the code, so
+  // the two can never disagree. An outside twin borrows its mirror's label
+  // with the `-outside` suffix (the registry derives it). An unverified pair's
+  // CAUSE is not part of its label: it is part of the finding's subject, and
+  // it still splits the groups (see groupIssues), because one cause's fix is
+  // wrong for another's.
+  return codeInfo(issue.code).label;
+}
 
-  // Verdict-lock states (spec §10). An unverified pair is labelled by WHY it
-  // has no verdict — the cause decides the fix, so pairs with different causes
-  // must never share one group and one Fix line. A never-reviewed pair (or one
-  // with no recorded cause) keeps the plain label.
-  if (issue.code === 'unverified') {
-    const cause = issue.unverifiedCause;
-    return cause === undefined || cause === 'never-reviewed' ? 'unverified' : cause;
-  }
-  if (issue.code === 'prompt-too-large') return 'prompt-too-large';
-  if (issue.code === 'lock-invalid') return 'lock-invalid';
-  if (issue.code === 'aspect-violation-advisory') return 'advisory';
-  if (issue.code === 'aspect-violation-enforced') return 'enforced';
-  if (issue.code === 'log-conflict') return 'log-conflict';
-  if (issue.code === 'log-integrity') return 'log-integrity';
-  if (issue.code === 'log-format') return 'log-format';
-  if (STRUCTURAL_CODES.has(issue.code)) return issue.code;
-  if (ARCHITECTURE_CODES.has(issue.code)) return issue.code;
-  if (COMPLETENESS_CODES.has(issue.code)) return issue.code;
-  if (STRICT_CODES.has(issue.code)) return issue.code;
-  return issue.code;
+/** Sort key of a whole tier (T0 first), for a finding. Warnings sort after every error regardless. */
+export function issueTierRank(issue: CheckIssue): number {
+  return tierRank(codeInfo(issue.code).tier);
 }
 
 export function groupIssues(issues: CheckIssue[]): IssueGroup[] {
@@ -294,7 +275,7 @@ export function groupIssues(issues: CheckIssue[]): IssueGroup[] {
     // Code-only groups still split by label: an unverified pair's label is its
     // cause, and one cause's fix is wrong for another's.
     const key = CODE_ONLY_GROUP_CODES.has(i.code)
-      ? `${i.code} ${getIssueLabel(i)}`
+      ? `${i.code} ${i.unverifiedCause ?? 'never-reviewed'}`
       : (i.aspectId !== undefined ? `${i.code} ${i.aspectId}` : i.code);
     const arr = byKey.get(key) ?? [];
     arr.push(i);
@@ -342,6 +323,12 @@ export function groupIssues(issues: CheckIssue[]): IssueGroup[] {
     });
   }
   groups.sort((a, b) => {
+    // Tier first (graph-invalid, code and graph errors, gate prerequisites,
+    // pending), then the fixed priority within it.
+    // Tier orders errors (as the report's blocks do); warnings keep the fixed priority alone.
+    const ta = a.severity === 'error' ? issueTierRank(a.members[0]) : 0;
+    const tb = b.severity === 'error' ? issueTierRank(b.members[0]) : 0;
+    if (ta !== tb) return ta - tb;
     const ra = issuePriorityRank(a.members[0]);
     const rb = issuePriorityRank(b.members[0]);
     if (ra !== rb) return ra - rb;

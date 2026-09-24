@@ -3,24 +3,24 @@ exit: 1
 --- stdout
 yg check: ABORTED  nothing recorded — 24 nodes need a log entry first
 
-Errors (24):
+error[log-entry-missing] 24 nodes have no log entry yet — one is owed before their first verdicts are recorded
+  at:   app/svc-01
+        app/svc-02
+        app/svc-03
+        app/svc-04
+        app/svc-05
+        app/svc-06
+        app/svc-07
+        app/svc-08
+        app/svc-09
+        app/svc-10
+        app/svc-11
+        app/svc-12
+        … +12 more  (yg check --details)
+  why:  Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.
+  fix:  yg log add --node <node> --reason '<why this change was made>'  for each node above
+        Then re-run yg check --approve --only-deterministic. If you did not make this change, ask the user for the reason — never invent one.
 
-  log-entry-missing  24 issues  24 nodes
-            Node type 'service' has log_required: true — every component of it needs a justification entry capturing WHY before verdicts are recorded over its code. This one has never been verified, so there is no earlier state it drifted from: its first entry is simply owed. Recording answers for the code as it stands, so it stops here and approves nothing this run until the entry exists.
-            Fix: yg log add --node <node> --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one  (for each node below)
-            - app/svc-01  No log entry for node 'app/svc-01' — mandatory before its first verdicts are recorded.
-            - app/svc-02  No log entry for node 'app/svc-02' — mandatory before its first verdicts are recorded.
-            - app/svc-03  No log entry for node 'app/svc-03' — mandatory before its first verdicts are recorded.
-            - app/svc-04  No log entry for node 'app/svc-04' — mandatory before its first verdicts are recorded.
-            - app/svc-05  No log entry for node 'app/svc-05' — mandatory before its first verdicts are recorded.
-            - app/svc-06  No log entry for node 'app/svc-06' — mandatory before its first verdicts are recorded.
-            - app/svc-07  No log entry for node 'app/svc-07' — mandatory before its first verdicts are recorded.
-            - app/svc-08  No log entry for node 'app/svc-08' — mandatory before its first verdicts are recorded.
-            - app/svc-09  No log entry for node 'app/svc-09' — mandatory before its first verdicts are recorded.
-            - app/svc-10  No log entry for node 'app/svc-10' — mandatory before its first verdicts are recorded.
-            - app/svc-11  No log entry for node 'app/svc-11' — mandatory before its first verdicts are recorded.
-            - app/svc-12  No log entry for node 'app/svc-12' — mandatory before its first verdicts are recorded.
-            ... and 12 more (yg check --details)
-
-Next: yg log add --node app/svc-01 --reason '<why this change was made>', then re-run: yg check --approve --only-deterministic — if you did not make this change, ask the user for the reason; never invent one
+next: yg log add --node app/svc-01 --reason '<why this change was made>'
+then: yg check --approve --only-deterministic
 --- stderr

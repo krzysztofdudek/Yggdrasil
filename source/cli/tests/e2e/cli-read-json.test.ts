@@ -79,7 +79,9 @@ describe.skipIf(!existsSync(BIN_PATH))('read commands in JSON, errors as yg-erro
     const doc = JSON.parse(r.stdout);
     expect(doc).toMatchObject({ schema: 'yg-error/1', code: 'node-not-found' });
     expect(doc.what).toContain("'nope'");
-    expect(r.stderr).toContain('Error: ');
+    expect(r.stderr).toContain("error[node-not-found]: ");
+    expect(r.stderr).toContain("'nope'");
+
     const uninit = realpathSync(mkdtempSync(path.join(tmpdir(), 'yg-read-json-empty-')));
     try {
       const u = run(['check', '--json'], uninit);
@@ -88,6 +90,16 @@ describe.skipIf(!existsSync(BIN_PATH))('read commands in JSON, errors as yg-erro
     } finally {
       rmSync(uninit, { recursive: true, force: true });
     }
+  });
+
+  it('yg context --node <missing> --json answers yg-error/1 with code node-not-found, like yg node and yg impact', () => {
+    const r = run(['context', '--node', 'nope', '--json'], dir);
+    expect(r.status).toBe(1);
+    const doc = JSON.parse(r.stdout);
+    expect(doc).toMatchObject({ schema: 'yg-error/1', code: 'node-not-found' });
+    expect(doc.what).toContain("'nope'");
+    const impact = JSON.parse(run(['impact', '--node', 'nope', '--json'], dir).stdout);
+    expect(impact.code).toBe('node-not-found');
   });
 
   it('without --json a failed command writes nothing to stdout', () => {

@@ -21,7 +21,7 @@ export function registerIncidentCommand(program: Command): void {
   const incident = program
     .command('incident')
     .description(
-      'The incident ledger — a committed record of what escaped enforcement and how, the tower\'s only external reality check (read-only; add appends one human-signed entry)',
+      'The incident ledger — a committed record of what escaped enforcement and how, the only outside evidence that a rule missed something (read-only; add appends one human-signed entry)',
     );
 
   incident

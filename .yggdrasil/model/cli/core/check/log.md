@@ -296,3 +296,7 @@ The security fixes (read-only commands no longer run repository companion hooks,
 The list of mapped but excluded files that the check result carries is now normalised with the shared POSIX path helper, like every other path the result reports, so a consumer never receives a native separator or a trailing slash.
 ## [2026-09-24T02:30:18.704Z]
 The log-conflict message now says merge-resolve writes the union while a merge, rebase or cherry-pick is stopped on the conflict, since the command it names now handles all three; saying merge only made a reader at a rebase stop doubt the one command that works there.
+## [2026-09-24T07:23:52.465Z]
+A refusal's why is now the rule's own intent — the first sentence of its description — instead of an explanation of the verdict cache, a script rule's fix names the free recording run, and a missing log entry's next step is the command alone, with the re-run and the instruction never to invent a reason on a line of their own, so a report can state the command once for many nodes.
+## [2026-09-24T08:43:30.077Z]
+The suggested next step no longer restates a finding's code (Fix yaml-invalid in app): a structural or completeness finding leads with its own next step, and its coverage rider is a lowercase then: line, the grammar every report now uses.

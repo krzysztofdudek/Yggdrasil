@@ -8,7 +8,6 @@ import { runCheck, runAttentionDump } from '../core/check.js';
 import { computeSuggestedNext } from '../core/check-suggested-next.js';
 import type { CheckResult } from '../core/check.js';
 import { runFill, FillGatingError } from '../core/fill.js';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import path from 'node:path';
 import { detConcurrencyForThisMachine, detWorkerCeilingForThisMachine, detTaskBudgetMs } from './det-concurrency.js';
 import { getHeadSha } from '../utils/git.js';
@@ -18,12 +17,11 @@ import { runSuppressionsScan, reasonlessMarkerMessage } from '../portal/api/supp
 import { collectMappingEntries, isMappedSource } from '../portal/api/suppress-eligibility.js';
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
-import { formatOutput, type CheckView, resolveTopValue, enrichCheckJson, formatAbort, abortCheckJson } from './check-render-views.js';
-import { renderErrorSection } from './check-render-groups.js';
+import { formatOutput, type CheckView, resolveTopValue, enrichCheckJson, formatAbort, abortCheckJson, formatOwed } from './check-render-views.js';
 import { CHECK_JSON_SCHEMA, formatCheckJson } from '../formatters/check-json.js';
 import { buildCheckJson, checkJsonIssueOf } from '../core/check-json.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';
-import { fail, notice } from './output.js';
+import { fail, notice, warn } from './output.js';
 import { textFillSink } from '../formatters/fill-text.js';
 import { withRunScope } from '../io/run-scope-cache.js';
 
@@ -150,12 +148,12 @@ export function registerCheckCommand(program: Command): void {
   program
     .command('check')
     .description('Unified graph gate — verification, coverage, completeness')
-    .option('--approve', 'Fill every unverified pair (deterministic first, then LLM), then report')
+    .option('--approve', 'Fill every unverified pair (script rules first, then reviewer rules), then report')
     .option('--no-approve', 'Force read-only mode even when auto_approve is configured (overrides config)')
     .option('--only-deterministic', 'Fill ONLY deterministic pairs (implies --approve; keyless, free — runs even with no reviewer configured); committed locks stay untouched. For CI and pre-commit.')
     .option('--dry-run', 'With --approve: free cost preview — print the budget + per-node/per-aspect breakdown, then exit 0 WITHOUT writing anything or calling the reviewer.')
     .option('--top [n]', 'Read-only triage: print only the N highest-priority issue blocks (bare --top = just the single suggested-next group). Header counts + exit code stay TRUE.')
-    .option('--summary', 'Read-only triage: print per-node counts only (no per-issue blocks). Header counts + exit code stay TRUE.')
+    .option('--summary [by]', 'Read-only triage: one line per severity with each finding label and its count; --summary nodes prints one row per node instead. Verdict counts and exit code stay true.')
     .option('--details', 'Read-only: ungrouped, one block per issue (full per-pair detail). Opposite of the default grouped view.')
     .option('--aspect <id>', "Read-only: drill into one rule — show only that aspect's issues, grouped, with the full per-node detail.")
     // The coverage axis — independent of the four view flags above and legal
@@ -178,7 +176,7 @@ export function registerCheckCommand(program: Command): void {
     .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
     // One run scope for the whole command (io/run-scope-cache.ts): every walk in it
     // reads each directory's listing and .gitignore once, not once per consumer.
-    .action((opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean; details?: boolean; aspect?: string; coverage?: boolean; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }, cmd: Command) => withRunScope(async () => {
+    .action((opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean | string; details?: boolean; aspect?: string; coverage?: boolean; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }, cmd: Command) => withRunScope(async () => {
       try {
         // --approve and --no-approve set ONE option, so commander silently keeps
         // whichever came last: `--approve --no-approve` read, `--no-approve
@@ -387,8 +385,17 @@ export function registerCheckCommand(program: Command): void {
           view = { kind: 'aspect', id: opts.aspect };
         } else if (opts.details) {
           view = { kind: 'details' };
-        } else if (opts.summary) {
-          view = { kind: 'summary' };
+        } else if (opts.summary !== undefined && opts.summary !== false) {
+          if (opts.summary !== true && opts.summary !== 'nodes' && opts.summary !== 'codes') {
+            fail({
+              what: `--summary takes 'nodes' or nothing; got "${String(opts.summary)}".`,
+              why: '--summary rolls the findings up by label (one line per severity); --summary nodes rolls them up by node instead. There is no other way to roll them up.',
+              next: 'yg check --summary',
+            }, 'usage');
+            await exitAfterFlush(1);
+            return;
+          }
+          view = { kind: 'summary', by: opts.summary === 'nodes' ? 'nodes' : 'codes' };
         } else if (wantsTop) {
           const n = resolveTopValue(opts.top);
           if (n === null) {
@@ -500,13 +507,13 @@ export function registerCheckCommand(program: Command): void {
           const isConfigFull =
             isConfigDrivenFill && graph.config?.auto_approve === 'full';
           if (isConfigFull && !opts.dryRun) {
-            process.stderr.write(`Notice: ${buildIssueMessage({
+            notice({
               what: changeScope !== undefined
                 ? "auto-approve: full — bare 'yg check' will call the reviewer for anything your change is accountable for."
                 : "auto-approve: full — bare 'yg check' will call the reviewer.",
               why: 'yg-config.yaml sets auto_approve: full, so a plain check fills unverified pairs, including paid reviewer calls, before it reports.',
               next: 'Nothing, to proceed. To keep a run read-only, pass --no-approve; to preview the cost first, run yg check --approve --dry-run.',
-            })}\n`);
+            });
           }
 
           try {
@@ -592,7 +599,7 @@ export function registerCheckCommand(program: Command): void {
               // Width for the single rewritten progress line, so it stays one
               // line instead of wrapping into a new row on every redraw.
               columns: process.stderr.columns,
-              emitIssue: (m) => { process.stderr.write(buildIssueMessage(m) + '\n'); },
+              emitIssue: (m) => { warn(m); },
               // A gate that stops the run hands its findings back on the error
               // instead of streaming them to stderr: the abort is reported
               // below as a report (and, under --json, a yg-check/1 document).
@@ -620,7 +627,7 @@ export function registerCheckCommand(program: Command): void {
               // is part of the preview: the log entries it owes first.
               const owed = fill.checkResult.issues.filter((i) => i.code === 'log-entry-missing' && i.severity === 'error');
               if (owed.length > 0) {
-                process.stdout.write(`\nA recording run stops before spending this budget until these exist:\n\n${renderErrorSection(owed, { capMembers: true })}\n`);
+                process.stdout.write(`\n${formatOwed(owed)}\n`);
               }
               await exitAfterFlush(0);
               return;

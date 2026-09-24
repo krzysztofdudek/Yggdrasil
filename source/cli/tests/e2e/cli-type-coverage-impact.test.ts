@@ -85,11 +85,11 @@ describe.skipIf(!distExists)('CLI E2E — yg impact over type-covered files', ()
       expect(detCount).toBeGreaterThan(0);
 
       const out = await runAsync(['impact', '--file', 'src/leaf/b.ts'], dir);
-      expect(out.all).toMatch(new RegExp(`${detCount} deterministic pair\\(s\\) — free\\.`));
-      expect(out.all).toMatch(new RegExp(`${ownEntries.length} currently-green verdict\\(s\\) re-rolled\\.`));
+      expect(out.all).toMatch(new RegExp(`${detCount} deterministic pairs? — free\\.`));
+      expect(out.all).toMatch(new RegExp(`${ownEntries.length} currently-green verdicts? re-rolled\\.`));
       // The pre-fix bug printed exactly these zeros — pin their absence too.
-      expect(out.all).not.toContain('0 deterministic pair(s)');
-      expect(out.all).not.toContain('0 currently-green verdict(s) re-rolled');
+      expect(out.all).not.toMatch(/\b0 deterministic pairs?\b/);
+      expect(out.all).not.toMatch(/\b0 currently-green verdicts? re-rolled/);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -191,9 +191,9 @@ describe.skipIf(!distExists)('CLI E2E — yg impact over type-covered files', ()
 
       const out = await runAsync(['impact', '--type', 'leaf'], dir);
       // 2 type-covered files (a.ts, b.ts); llm-leaf-rule is the type's one LLM
-      // aspect (consensus 1) -> 2 review(s) = 2 reviewer call(s).
+      // aspect (consensus 1) -> 2 reviews = 2 reviewer calls.
       expect(out.all).toMatch(/Files enforced by this type: 2/);
-      expect(out.all).toMatch(/At stake: \d+ free check\(s\), 2 review\(s\) = 2 reviewer call\(s\)/);
+      expect(out.all).toMatch(/At stake: \d+ free checks?, 2 reviews = 2 reviewer calls/);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });
@@ -208,8 +208,8 @@ describe.skipIf(!distExists)('CLI E2E — yg impact over type-covered files', ()
       await runAsync(['check', '--approve'], dir);
 
       const out = await runAsync(['impact', '--file', 'src/leaf/b.ts'], dir);
-      // llm-leaf-rule is b.ts's one LLM pair (consensus 1) -> 1 review(s) = 1 reviewer call(s).
-      expect(out.all).toMatch(/Giving this file a component of its own re-checks .*1 review\(s\) ≈ 1 reviewer call\(s\)/);
+      // llm-leaf-rule is b.ts's one LLM pair (consensus 1) -> 1 review ≈ 1 reviewer call.
+      expect(out.all).toMatch(/Giving this file a component of its own re-checks .*1 review ≈ 1 reviewer call\b/);
     } finally {
       await mock.close();
       rmSync(dir, { recursive: true, force: true });

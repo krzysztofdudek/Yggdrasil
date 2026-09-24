@@ -9,7 +9,7 @@ export const DERIVED_RELATIONS_NOTE =
 
 /** Next step for a type-covered file that wants component-level control (log gating, explicit relations, its own aspects). */
 export const GRADUATION_NEXT =
-  'To give this file a component of its own: add a yg-node.yaml mapping it, then run yg check --approve.';
+  'next: to give this file a component of its own, add a yg-node.yaml mapping it, then run yg check --approve';
 
 export interface FileContextData {
   filePath: string;
@@ -124,7 +124,7 @@ export function formatFileContext(data: FileContextData): string {
       for (const c of data.candidates) {
         lines.push(`    ${posixPath(c.nodePath)} — ${posixPath(c.mappingPrefix)}`);
       }
-      lines.push('  Add this file to a candidate node\'s mapping in yg-node.yaml, or create a new node.');
+      lines.push('next: add this file to a candidate node\'s mapping in its yg-node.yaml, or create a new node');
     }
     lines.push('');
     return lines.join('\n');
@@ -181,12 +181,13 @@ export function formatFileContext(data: FileContextData): string {
 
   // Dependents
   if (data.dependentCount > 0) {
-    lines.push(`Dependents: ${data.dependentCount} nodes — run yg impact --file ${posixPath(data.filePath)}`);
+    lines.push(`Dependents: ${data.dependentCount} ${data.dependentCount === 1 ? 'node' : 'nodes'}`);
+    lines.push(`next: yg impact --file ${posixPath(data.filePath)}`);
     lines.push('');
   }
 
   // Back-pointer
-  lines.push(`Node context: run yg context --node ${posixPath(data.ownerPath!)}`);
+  lines.push(`then: yg context --node ${posixPath(data.ownerPath!)}  (the owning node's whole context)`);
   lines.push('');
 
   return lines.join('\n');

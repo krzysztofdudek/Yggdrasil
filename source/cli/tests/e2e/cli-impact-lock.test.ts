@@ -199,8 +199,8 @@ describe.skipIf(!distExists)('CLI E2E — yg impact re-sourced from the lock', (
     expect(status).toBe(0);
     // 2 affected service nodes, 2 pairs, 6 reviewer calls (2 units × consensus 3).
     expect(stdout).toContain('Directly affected (2):');
-    expect(stdout).toContain('2 affected node(s) (2 pair(s))');
-    expect(stdout).toContain('6 reviewer call(s) (consensus included)');
+    expect(stdout).toContain('2 affected nodes (2 pairs)');
+    expect(stdout).toContain('6 reviewer calls (consensus included)');
     // Lock vocabulary — never "drift".
     expect(stdout).toContain('would become unverified');
     expect(stdout.toLowerCase()).not.toContain('drift');
@@ -212,9 +212,9 @@ describe.skipIf(!distExists)('CLI E2E — yg impact re-sourced from the lock', (
     const { stdout, status } = run(['impact', '--aspect', 'no-todo-comments'], dir);
     expect(status).toBe(0);
     expect(stdout).toContain('Directly affected (2):');
-    expect(stdout).toContain('2 affected node(s) (2 pair(s))');
+    expect(stdout).toContain('2 affected nodes (2 pairs)');
     expect(stdout).toContain('re-verified for free by yg check --approve (deterministic, no reviewer calls)');
-    expect(stdout).not.toContain('reviewer call(s) (consensus included)');
+    expect(stdout).not.toMatch(/reviewer calls? \(consensus included\)/);
     expect(stdout.toLowerCase()).not.toContain('drift');
   });
 
@@ -459,7 +459,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact re-sourced from the lock', (
     // services/orders is listed in the per-node breakdown (companion observes payments.ts).
     expect(stdout).toContain('services/orders');
     // LLM reviewer calls are billed (companion-rule is an LLM aspect).
-    expect(stdout).toMatch(/\d+ reviewer call\(s\)/);
+    expect(stdout).toMatch(/\d+ reviewer calls?/);
     // Structural owner resolution still renders.
     expect(stdout).toContain('src/services/payments.ts -> services/payments');
     // Old cascade section headers are gone.
@@ -514,11 +514,11 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     const { stdout, status } = run(['impact', '--node', 'services/orders'], dir);
     expect(status).toBe(0);
     // 1 LLM pair (has-doc-comment) at consensus 1 = 1 reviewer call.
-    expect(stdout).toMatch(/1 LLM pair\(s\) = 1 reviewer call\(s\)/);
+    expect(stdout).toMatch(/1 reviewer pair = 1 reviewer call/);
     // 2 deterministic pairs (no-todo-comments, requires-named-export) are free.
     expect(stdout).toContain('2 deterministic = free');
     // Cold lock → nothing green yet.
-    expect(stdout).toMatch(/0 currently-green verdict\(s\) re-rolled/);
+    expect(stdout).toMatch(/0 currently-green verdicts re-rolled/);
     // Lock vocabulary — never "drift".
     expect(stdout.toLowerCase()).not.toContain('drift');
   });
@@ -529,7 +529,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     const { stdout, status } = run(['impact', '--node', 'services/orders'], dir);
     expect(status).toBe(0);
     // 1 LLM pair × consensus 3 = 3 reviewer calls.
-    expect(stdout).toMatch(/1 LLM pair\(s\) = 3 reviewer call\(s\)/);
+    expect(stdout).toMatch(/1 reviewer pair = 3 reviewer calls/);
     expect(stdout).toContain('2 deterministic = free');
   });
 
@@ -551,7 +551,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     });
     const { stdout, status } = run(['impact', '--node', 'services/orders'], dir);
     expect(status).toBe(0);
-    expect(stdout).toMatch(/2 currently-green verdict\(s\) re-rolled/);
+    expect(stdout).toMatch(/2 currently-green verdicts re-rolled/);
   });
 
   it('zero-LLM node prints 0 LLM pairs = 0 reviewer calls without crashing', () => {
@@ -561,7 +561,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     dropLlmDefault(dir);
     const { stdout, status } = run(['impact', '--node', 'services/orders'], dir);
     expect(status).toBe(0);
-    expect(stdout).toMatch(/0 LLM pair\(s\) = 0 reviewer call\(s\)/);
+    expect(stdout).toMatch(/0 reviewer pairs = 0 reviewer calls/);
     expect(stdout).toContain('2 deterministic = free');
   });
 
@@ -574,9 +574,9 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --node/--file reviewer-call 
     // The unified Total block replaces the old single-line cost framing.
     expect(stdout).toContain('Total to re-verify:');
     // 1 LLM pair (has-doc-comment) at consensus 1 = 1 reviewer call.
-    expect(stdout).toMatch(/1 reviewer call\(s\)/);
+    expect(stdout).toMatch(/1 reviewer call\b/);
     // 2 deterministic pairs (no-todo-comments, requires-named-export) are free.
-    expect(stdout).toMatch(/2 deterministic pair\(s\)/);
+    expect(stdout).toMatch(/2 deterministic pairs/);
     // The old single-line framing is gone.
     expect(stdout).not.toMatch(/Editing this file re-verifies:/);
   });
@@ -669,7 +669,7 @@ describe.skipIf(!distExists)('CLI E2E — yg impact --file unified Total (new ca
     expect(stdout).toContain('Total to re-verify:');
     // services/orders is billed because companion-rule (LLM) touched payments.ts.
     expect(stdout).toContain('services/orders');
-    expect(stdout).toMatch(/\d+ reviewer call\(s\)/);
+    expect(stdout).toMatch(/\d+ reviewer calls?/);
     expect(stdout).toContain('src/services/payments.ts -> services/payments');
   });
 

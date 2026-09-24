@@ -555,6 +555,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     cachedRefusals: verification.pairs.filter((vp) => vp.state.kind === 'refused').length,
     elapsedMs: Math.max(0, opts.now() - startedAt),
     usage: llm.usage,
+    outcomes: tracker.counts(),
   }, emit, emitIssue);
 
   // Drain all queued progress writes first, then stop the timer and clear the TTY line.

@@ -311,11 +311,15 @@ describe.skipIf(!distExists)('CLI E2E — flows extended (multi-aspect / dry-run
       // One repo-wide fill records every pair's verdict independently.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // Fill-time progress ([det] lines) go to STDERR; grouped report to STDOUT.
+      // Fill-time progress goes to STDERR (its closing line counts exactly two
+      // refusals); the report to STDOUT names each one.
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 2 refused · 0 failed/m);
       // orders: alpha refused, beta approved.
-      expect(fill.stderr).toContain('[det] flow-alpha on node:services/orders — refused');
+      expect(fill.stdout).toContain('error[refused] flow-alpha — 1 violation in services/orders');
+      expect(fill.stdout).not.toContain('flow-beta — 1 violation in services/orders');
       // payments: beta refused, alpha approved.
-      expect(fill.stderr).toContain('[det] flow-beta on node:services/payments — refused');
+      expect(fill.stdout).toContain('error[refused] flow-beta — 1 violation in services/payments');
+      expect(fill.stdout).not.toContain('flow-alpha — 1 violation in services/payments');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -399,15 +403,15 @@ describe.skipIf(!distExists)('CLI E2E — flows extended (multi-aspect / dry-run
       // Clean child fills (the flow aspect is satisfied).
       const clean = run(['check', '--approve'], dir);
       expect(clean.status).toBe(0);
-      // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
 
       // Violate the flow-delivered enforced aspect on the child source.
       appendFileSync(orderRepoFile(dir), '\n// TODO: implement caching\n');
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
-      expect(refused.stderr).toContain('[det] no-todo-comments on node:services/orders/order-repo — refused');
-      expect(refused.stdout).toContain('enforced');
-      expect(refused.stdout).toContain('services/orders/order-repo');
+      // Fill-time progress goes to STDERR (its closing line counts the refusal);
+      // the report names it as an enforced error on the child.
+      expect(refused.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(refused.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/orders/order-repo');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -600,7 +604,7 @@ describe.skipIf(!distExists)('CLI E2E — flows extended (multi-aspect / dry-run
       // body; assert the group label + shared why/fix.
       expect(check.stdout).toContain('description-missing');
       expect(check.stdout).toContain('Description is used in context output');
-      expect(check.stdout).toContain('Add a description field to yg-flow.yaml.');
+      expect(check.stdout).toMatch(/Add a description field to \.yggdrasil\/flows\/[^ ]+\/yg-flow\.yaml\./);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -620,9 +624,11 @@ describe.skipIf(!distExists)('CLI E2E — flows extended (multi-aspect / dry-run
       const flows = run(['flows'], dir);
       expect(flows.status).toBe(0);
       expect(flows.stdout).toBe('(no flows defined)\n');
-      // And check accounts zero flows.
+      // And check accounts zero flows: a zero segment is never printed, so the
+      // header carries no flow count at all.
       const check = run(['check'], dir);
-      expect(check.stdout).toContain('0 flows');
+      expect(check.stdout.split('\n')[0]).toMatch(/^yg check: /);
+      expect(check.stdout.split('\n')[0]).not.toMatch(/\bflows?\b/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

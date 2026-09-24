@@ -29,21 +29,63 @@ coverage gaps (\`unmapped-files\` errors under required roots,
 orphans/misplaced files, \`prompt-too-large\`, \`lock-invalid\`. Severity of a pair
 follows its effective status: enforced → error (blocks), advisory → warning.
 
-When at least one pair is verified, the PASS/FAIL header shows how many green
-pairs are deterministic (machine-checked locally, zero LLM cost) vs LLM-reviewed
-— e.g. \`12 verified (9 deterministic, 3 LLM)\` — so a clean run never hides how
-much of it was actually reviewed by an LLM versus checked for free.
+When at least one pair is verified, the verdict line says how many — e.g.
+\`16 pairs verified (12 script · 4 reviewer)\`, or \`(script)\` / \`(reviewer)\` when only one kind is present — so a
+clean run never hides how much of it was reviewed versus checked for free.
 
 Exit 0 = clean. Exit 1 = errors found. CI runs it cheap and keyless.
 
-### Default grouped output
+### Reading the report
 
-The default \`yg check\` output is grouped: issues that share the same rule are
-collapsed into one block — the shared why + fix is shown once, and the affected
-nodes are listed beneath. The header shows \`Errors (N) in M groups:\` when there
-is more than one group. \`unverified\` pairs collapse to one group per aspect
-(node lines only, no repeated explanation). The \`Next:\` line is annotated with
-a residual count when the suggested command will not clear every error.
+Every report has one shape:
+
+\`\`\`text
+yg check: FAIL  34 errors · 1 warning   25 nodes · 24/29 files covered · 16 pairs verified (script)
+
+error[refused] no-todo — 8 violations in 8 nodes
+  at:   app/svc-03  src/svc-03/index.ts:2  TODO marker left in shipped code — move it to the tracker
+        …
+  why:  Unfinished work belongs in the tracker, not in shipped code.
+  fix:  Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.
+
+error[unverified] 24 pairs with no verdict yet
+  at:   readable-names  24 pairs · 24 nodes · reviewer
+  why:  The lock holds no entry for this pair: …
+  fix:  yg check --approve  (24 reviewer pairs · paid)
+
+next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
+then: yg check --approve  (24 reviewer pairs · paid)
+\`\`\`
+
+- The verdict line: \`yg check: PASS|FAIL|ABORTED\`, the finding counts, then the
+  size of what was checked. A zero count is never printed. A narrowed view ends
+  with \`view: top 2\` / \`view: aspect <id>\` / \`view: summary\` / \`view: details\`;
+  its counts are always the whole run's.
+- One block per finding group: \`error[<label>] <subject>\` or
+  \`warning[<label>] <subject>\`, then \`at:\` (members, at most 12, then
+  \`… +K more  (<command that lists them all>)\`), \`why:\` (once per block) and
+  \`fix:\`. A fix that differs only by node is printed once with \`<node>\` and ends
+  \`for each node above\`; a fill names its cost (\`(24 script pairs · free)\`,
+  \`(24 reviewer pairs · paid)\`).
+- Labels: \`refused\` (a rule refused the code — error if enforced, warning if
+  advisory), \`unmapped\` (required files no node owns), \`uncovered\` (files outside
+  coverage.required — never blocking), \`unverified\` (no valid verdict; the cause
+  is in the subject: no verdict yet / inputs changed since the verdict / script
+  check has not run on this checkout — free to run / …), \`<label>-outside\` (a
+  finding outside a measured change), else the issue code itself. The JSON
+  document's \`label\` field carries the same word.
+- Order: errors by tier — graph invalid, then code/graph errors, then gate
+  prerequisites (log-entry-missing, log-conflict, config-reviewer-missing), then
+  pending (unverified) — then warnings.
+- After the blocks: \`note:\` lines (standing facts, never counted), then \`next:\`
+  and optionally \`then:\`. \`next:\` is the first step of the first block — never a
+  fill while a code or graph error stands, never a restated code — annotated with
+  its block and what still needs a fix when other blocks exist. \`then:\` is the
+  step after it. When the report holds exactly one error block (or, with no
+  errors, one finding) whose \`fix:\` already is the step, there is no \`next:\`.
+  Read the \`next:\` line and do that.
+- A \`partial: …\` line under the verdict line means part of the graph did not load;
+  the findings may be symptoms of it — fix it first.
 
 ### Triage views: \`--top [N]\`, \`--summary\`, \`--aspect <id>\`, and \`--details\`
 
@@ -56,22 +98,24 @@ force-read-only and would otherwise silently drop the fill you asked for.)
 Explicit CLI flags override \`auto_approve\` config.
 
 \`\`\`bash
-yg check --top 5           # print only the 5 highest-priority GROUPS
-yg check --top             # print only the single suggested-next group (no value)
-yg check --summary         # print per-node counts only — no per-issue blocks
-yg check --aspect <id>     # drill into one rule: show only that rule's group
-yg check --details         # ungrouped per-issue view (one block per pair, old style)
+yg check --top 5           # print only the first 5 blocks
+yg check --top             # print only the block next: points at (no value)
+yg check --summary         # one line per severity: each label with its count
+yg check --summary nodes   # one row per node instead
+yg check --aspect <id>     # drill into one rule: its blocks, every member listed
+yg check --details         # every block, every member listed
 \`\`\`
 
-\`--top N\` renders the N highest-priority GROUPS (in the same priority order the
-\`Next:\` line draws from); a bare \`--top\` (no value) renders exactly one group —
-the suggested-next one. \`--summary\` prints one line per node —
-\`K unverified (J deterministic-free, L LLM), M refused\` — plus a named bucket
-for non-pair errors (coverage / log / relation / structural) so per-node totals
-reconcile with the header. \`--aspect <id>\` shows the single group for that rule
-with full per-node details; its \`Next (this group):\` line is the bare command
-to run. \`--details\` reverts to the old ungrouped per-pair layout — useful when
-you need every individual reviewer reason visible at once.
+\`--top N\` renders the first N blocks (in report order, so the first is the one
+\`next:\` points at), then \`… +K more blocks  (yg check)\`; a bare \`--top\` (no
+value) renders exactly one. \`--summary\` prints
+\`errors    refused 8 · relation-broken 1 · unmapped 1 · unverified 24 (24 reviewer)\`
+and \`warnings  uncovered 4\` — every counted finding under exactly one label, the
+unverified count split into script (free) and reviewer pairs. \`--summary nodes\`
+prints one row per node (busiest first, capped at 24 rows, the rest counted).
+\`--aspect <id>\` shows that rule's blocks with every member listed and ends with
+the rule's own \`next:\`. \`--details\` lists every member of every block (an
+unverified block then lists \`<aspect> @ <unit>\` per pair).
 
 ### \`--coverage\`: the per-type coverage listing
 
@@ -96,14 +140,11 @@ with \`--approve\` / \`--only-deterministic\`, and it never moves a count, a
 verdict, or the exit code. Inside \`--summary\` / \`--top\` it renders one counts
 line per type instead of the full listing, so a triage view stays short.
 
-Guardrail: EVERY view always prints the true aggregate \`Errors (N)\`/\`Warnings (N)\`
-header and preserves the real exit code, so a narrowed view can never read as a
-clean build. When a \`--top\` slice leaves a section (Errors or Warnings) with a
-true count > 0 but no chosen groups, a parenthetical note is printed beneath
-that subheader instead of leaving it dangling empty. An invalid \`--top\` value
-(negative, fractional, non-numeric, or an explicit \`0\`) is a guided error,
-never a silent full dump — for the single suggested-next group use bare
-\`--top\`. Read the raw output — never pipe it through \`| grep\`,
+Guardrail: EVERY view prints the same verdict line with the TRUE counts and
+preserves the real exit code, so a narrowed view can never read as a clean
+build. An invalid \`--top\` value (negative, fractional, non-numeric, or an
+explicit \`0\`) is an \`error[usage]\`, never a silent full dump — for the single
+first block use bare \`--top\`. Read the raw output — never pipe it through \`| grep\`,
 \`| head\`, or \`| tail\`: those silently drop lines and the count you act on stops
 matching the count the build enforces. Orient with \`--summary\`/\`--top\`, drill
 with \`--aspect\` or plain \`yg check\`.
@@ -114,8 +155,11 @@ A project can name a branch that changes are measured against (the
 \`progressive\` block — see \`yg schemas read config\`). When it does, a plain
 \`yg check\` blocks only on what the current change is accountable for;
 everything it inherited from that branch is still listed and still counted, as a
-warning that does not fail the build. The header says how much sits outside the
-change and what it was measured against.
+warning that does not fail the build — its label gains \`-outside\`
+(\`refused-outside\`, \`unverified-outside\`), its heading ends \`— outside your
+changes\`, and it carries no \`fix:\`. The verdict line says how much sits outside
+the change and what it was measured against; when nothing of yours blocks,
+\`next:\` is \`yg check --full  (N obligations outside your changes)\`.
 
 When progressive mode is on, a run that RECORDS verdicts — \`--approve\`, or a
 bare run on a project configured to approve automatically — is measured the same
@@ -192,7 +236,12 @@ reason for it, coverage (files, covered, and whether anything is required to be
 covered at all), totals by severity and by verdict, EVERY expected pair, every
 finding as structured \`what\`/\`why\`/\`next\`, who judged outside the
 configured reviewer, the standing floor when the project measures changes
-against a branch, and \`suggestedNext\`.
+against a branch, \`groups\` (one per text block: \`code\`, \`label\`, \`subject\`,
+\`cause\`, shared \`why\`/\`next\`, member indexes), \`suggestedNext\` — the text of the
+report's own \`next:\` line, or null — and \`next\`, the same step as an object:
+\`{command, text, target, cost: {free, reviewerPairs}, remaining: {needsFix,
+fillable}, then}\` (\`command\` is an argv array, or null when the step is not one
+runnable command; \`then\` is the text of the \`then:\` line).
 
 Per pair: the rule, the subject (\`unit\`), the effective \`status\` that decides
 whether a finding blocks, what the lock says (\`verdict\`), who answers
@@ -220,9 +269,23 @@ log baseline. Explicit flags
 \`auto_approve\` setting in \`yg-config.yaml\`.
 
 During filling, progress is streamed to **stderr** (stdout holds only the clean
-final report). A heartbeat keeps the output from looking hung on long runs.
-Pass \`--quiet\` / \`-q\` to silence the progress stream entirely — useful when
-piping the report or running in environments where stderr noise matters.
+final report), in lines that start with \`fill\`:
+
+\`\`\`text
+fill  24 pairs · 24 script (free) · 0 reviewer calls
+fill  24 reviewer pairs left alone — script rules only this run
+fill  done in 3s — 16 approved · 8 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone
+next: yg check --approve  (reviews the pairs left alone)
+\`\`\`
+
+A pair gets its own line only when it could not be judged
+(\`fill  not judged  <aspect> @ <unit>\`) or a consensus split
+(\`fill  approved by 2 of 3 votes  <aspect> @ <unit>\`); refusals are in the report.
+On a terminal one status line updates in place (\`fill  37/50 · 3 refused · 12s
+<pair>\`); elsewhere a \`fill  still working — 6/24, waiting on <pair>\` line keeps
+a long run from looking hung. A fill with nothing to do prints nothing. Pass
+\`--quiet\` / \`-q\` to silence the progress stream entirely — useful when piping the
+report or running in environments where stderr noise matters.
 
 \`\`\`bash
 yg check --approve                      # fill everything (deterministic, then LLM), then report
@@ -232,7 +295,7 @@ yg check --approve --quiet              # fill everything but silence stderr pro
 \`\`\`
 
 When \`auto_approve\` is set to \`full\` in \`yg-config.yaml\`, bare \`yg check\`
-triggers a full fill and the PASS header shows \`(auto-filled)\` to distinguish it
+triggers a full fill and the PASS verdict line says \`auto-filled\` to distinguish it
 from a clean read-only pass. A pre-run banner on stderr warns that reviewer
 calls will be made.
 
@@ -249,26 +312,27 @@ pre-commit run produces zero committed-lock churn. A fresh checkout has no
 deterministic cache, so this rematerializes it; it also re-hashes the committed
 LLM verdicts, so the trailing report still catches a stale committed LLM verdict.
 
-The full-run order: a pre-dispatch header (\`Filling N unverified pairs across M
-nodes — D deterministic (no cost), K reviewer calls (consensus included)\`); the
-per-node log gate; deterministic fills first (free); the deterministic gate (a
+The full-run order: the per-node log gate (a stop there prints no \`fill\` line);
+the pre-dispatch line (\`fill  N pairs · D script (free) · K reviewer calls (consensus included)\`); deterministic fills first (free); the deterministic gate (a
 node with an enforced deterministic refusal has its LLM fills skipped this run);
 then LLM fills. A real verdict (approved or refused) is written to the lock; every
 infra disposition writes nothing and the pair stays unverified. Refusals are
 cached and FINAL for unchanged inputs. Interrupting is safe — finished pairs
 persist, the next run resumes.
 
-When nothing was unverified, the summary says \`0 reviewer calls made — all
-expected pairs hold valid verdicts\`. Under \`--only-deterministic\` the header and
-summary instead name the LLM pairs left unverified — they are skipped by design,
+When nothing was unverified, the fill prints nothing at all. Under
+\`--only-deterministic\` the opening \`fill\` lines and the closing \`fill  done …\`
+line name the reviewer pairs left unverified — they are skipped by design,
 not reviewed — and point at a full \`yg check --approve\` to review them, so a
 deterministic-only run never reads as if it verified everything. Use \`yg impact\`
 to predict cost before editing.
 
 \`--dry-run\` (with \`--approve\`) is a free cost preview: it runs the same
-structural gate, pair classification, and budget computation, prints the
-pre-dispatch header plus a per-node / per-aspect breakdown (each deterministic
-pair labelled free; each LLM pair labelled with its consensus call count), then
+structural gate, pair classification, and budget computation, prints
+\`fill  dry run — a cost preview; nothing is filled or written\`, the pre-dispatch
+line, one \`  <aspect> @ <unit> — N reviewer calls\` line per reviewer pair (with
+its consensus call count), one \`  N script pairs — free, not listed\` line, and a
+closing \`note:\` that the total is an upper bound, then
 exits 0 WITHOUT calling the reviewer, running any \`check.mjs\`, or writing a
 single byte to any lock file. The reviewer-call number is an UPPER BOUND — a
 node with an enforced deterministic refusal has its LLM fills skipped, and a
@@ -652,8 +716,8 @@ yg impact --type service               # all nodes of this type + coverage
 \`\`\`
 
 For \`--node\`, the output ends with a one-line cost summary (\`Editing this node
-re-verifies: N LLM pair(s) = M reviewer call(s) (consensus included); D
-deterministic = free; G currently-green verdict(s) re-rolled\`). For \`--file\`, it ends with a precise
+re-verifies: N reviewer pairs = M reviewer calls (consensus included); D
+deterministic = free; G currently-green verdicts re-rolled\`). For \`--file\`, it ends with a precise
 \`Total to re-verify:\` block -- billed reviewer calls, free deterministic pairs,
 and currently-green verdicts re-rolled -- preceded by a per-node breakdown tagged
 with why each node is affected (own pairs / references this file / companion
@@ -723,7 +787,7 @@ not that: it is the contract the port declares onto its consumers, part of the
 component's own structure. A relation's port list is never empty the same way:
 naming none reports \`default\`, the port every component carries implicitly.
 
-A path naming no component is refused with what/why/next and exit 1. Fields may
+A path naming no component is refused with \`error[node-not-found]\` (\`why:\`, \`next:\`) and exit 1. Fields may
 be added within \`yg-node/1\`; only a change to an existing field's shape takes a
 new schema number.
 
@@ -958,12 +1022,12 @@ flows.
 With \`coverage.type_level\` on, a file satisfied by the type-level lattice (no
 node of its own) is searchable too — its result prints \`Kind: file\`, a
 \`Type:\` line naming the matched classifying type, and a \`Description\` taken
-from that type's own description. \`yg find\` prints one terminal \`Next\` line
+from that type's own description. \`yg find\` prints one terminal \`next:\` line
 for the whole search, drawn from the single top-ranked result: when that
-result is a type-covered file, \`Next\` reads \`yg context --file <path>\`,
+result is a type-covered file, \`next:\` reads \`yg context --file <path>\`,
 never \`--node\` — a type-covered file has no \`yg-node.yaml\` to look up. When
 a node or an aspect outranks the file, the file still appears in the list
-with its own \`Kind\`/\`Type\`/\`Description\`, but \`Next\` follows the
+with its own \`Kind\`/\`Type\`/\`Description\`, but \`next:\` follows the
 higher-ranked entry instead.
 
 ## yg log
@@ -1009,7 +1073,13 @@ Read-only attention layer over the graph. With no subcommand, \`yg advise\` prin
 two fixed sections and exits 0 whenever the graph loads (a graph that does not
 load exits non-zero via the standard loader error). It **never** gates: it makes
 no reviewer calls, writes no verdict, changes no exit code, and never appears in
-\`suggestedNext\`.
+a \`yg check\` \`next:\` line.
+
+Output: \`yg advise: N attention items · M nominations\`, then an \`attention\`
+section (one indented line per signal class) and a \`nominations\` section, each
+nomination a block — \`nomination[<class>] <what>\`, \`why:\`, \`fix:\` (ending
+\`— ask the user to approve it first.\`), plus \`id:\` with \`--ids\`. An empty section
+reads \`none right now\`; past the cap, \`… +K more  (yg advise --all)\`.
 
 \`\`\`bash
 yg advise            # the two-section feed

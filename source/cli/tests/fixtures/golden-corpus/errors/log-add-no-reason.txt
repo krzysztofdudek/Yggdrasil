@@ -2,6 +2,6 @@ $ yg log add --node app/svc-01
 exit: 1
 --- stdout
 --- stderr
-Error: Exactly one of --reason or --reason-file is required
-Cannot provide both, cannot provide neither.
-Pass --reason "<text>" OR --reason-file <path>.
+error[usage]: yg log add needs exactly one of --reason or --reason-file
+  why:  An entry has one text: given on the command line, or read from a file.
+next: yg log add --node app/svc-01 --reason '<why this change was made>'

@@ -385,7 +385,7 @@ export function registerAdoptCommand(program: Command): void {
         if (transaction.movedAsideTo !== undefined) {
           summary.push(row('Previous graph', `kept at ${path.basename(transaction.movedAsideTo)}/ — delete it once you are satisfied`));
         }
-        summary.push('', 'Next: yg check', '');
+        summary.push('', 'next: yg check', '');
         process.stdout.write(summary.join('\n'));
         await exitAfterFlush(0);
       } catch (error) {

@@ -183,7 +183,7 @@ describe.skipIf(!distExists)('CLI E2E — migrations & config remaining paths (p
       // Per-issue `what` is gone in the grouped renderer; assert the group's shared
       // `why` + `Fix:` guidance that conveys the same intent (tiers are required).
       expect(stdout).toContain('tiers are the only way to declare reviewer configurations');
-      expect(stdout).toContain('Fix: add `reviewer.tiers:');
+      expect(stdout).toContain('  fix:  add `reviewer.tiers:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -201,7 +201,7 @@ describe.skipIf(!distExists)('CLI E2E — migrations & config remaining paths (p
       expect(stdout).toContain('config-default-tier-unknown');
       // Per-issue `what` is gone; assert the group's shared `why` + `Fix:` instead.
       expect(stdout).toContain('default references a tier by name');
-      expect(stdout).toContain('Fix: set reviewer.default to one of: standard');
+      expect(stdout).toContain('  fix:  set reviewer.default to one of: standard');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -217,7 +217,7 @@ describe.skipIf(!distExists)('CLI E2E — migrations & config remaining paths (p
       expect(stdout).toContain('config-tier-invalid');
       // Per-issue `what` is gone; assert the group's shared `why` + `Fix:` instead.
       expect(stdout).toContain('each tier is a mapping with provider, consensus, config');
-      expect(stdout).toContain('Fix: replace with `{ provider:');
+      expect(stdout).toContain('  fix:  replace with `{ provider:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -235,7 +235,7 @@ describe.skipIf(!distExists)('CLI E2E — migrations & config remaining paths (p
       expect(stdout).toContain('config-tier-config-not-mapping');
       // Per-issue `what` is gone; assert the group's shared `why` + `Fix:` instead.
       expect(stdout).toContain('provider settings are key-value pairs');
-      expect(stdout).toContain('Fix: replace with `config: { model:');
+      expect(stdout).toContain('  fix:  replace with `config: { model:');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

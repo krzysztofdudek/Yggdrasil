@@ -50,7 +50,7 @@ export async function logGateBlocks(
   if (!blocked) return null;
 
   const nodePath = toPosixPath(node.path);
-  const next = `yg log add --node ${nodePath} --reason '<why this change was made>', then re-run: ${retry} — if you did not make this change, ask the user for the reason; never invent one`;
+  const next = `yg log add --node ${nodePath} --reason '<why this change was made>'\nThen re-run ${retry}. If you did not make this change, ask the user for the reason — never invent one.`;
   if (lock.nodes[node.path]?.source === undefined) {
     return {
       what: `No log entry for node '${nodePath}' — mandatory before its first verdicts are recorded.`,

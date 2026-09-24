@@ -6,7 +6,7 @@
 // enforced rule covering it — the code most in motion with the least protection.
 // The churn is measured READ-ONLY from real git history; the nomination carries the
 // churn count, a capped file sample, and its provenance as QUOTED DATA, and names a
-// human NEXT that requires approval. It is a suggestion, never an automatic rule.
+// human NEXT that asks the user to approve it first. It is a suggestion, never an automatic rule.
 // Every scenario asserts exit 0 (the attention layer never gates — G4).
 //
 //   1. a git repo whose zero-aspect node churns → the hot-spot nomination fires with
@@ -114,14 +114,19 @@ describe.skipIf(!distExists)('CLI E2E — yg advise uncovered hot spot', () => {
       expect(stdout).toContain('Evidence: src/bare/a.ts (last 200 commits, from git history).');
       // Human NEXT requiring approval — a suggestion, never an automatic rule.
       expect(stdout).toContain('propose an aspect or a coverage node');
-      expect(stdout).toContain('requires their approval');
+      expect(stdout).toContain('to the user. Evidence: ');
+      expect(stdout).toContain('Ask the user to approve it first.');
+      expect(stdout).toContain('nomination[uncovered-hot-spot] ' + HOT_WHAT('hot'));
 
       // A node covered by an enforced rule is NEVER an uncovered hot spot, however
       // much it churns.
       expect(stdout).not.toContain(HOT_WHAT('safe'));
 
-      // It lives under Nominations (a T1 class), below the Attention section.
-      expect(stdout.indexOf('Nominations')).toBeLessThan(stdout.indexOf(HOT_WHAT('hot')));
+      // It lives under nominations (a T1 class), below the attention section.
+      expect(stdout.indexOf('\nattention\n')).toBeGreaterThan(-1);
+      expect(stdout.indexOf('\nattention\n')).toBeLessThan(stdout.indexOf('\nnominations\n'));
+      expect(stdout.indexOf('\nnominations\n')).toBeLessThan(stdout.indexOf(HOT_WHAT('hot')));
+
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
     }

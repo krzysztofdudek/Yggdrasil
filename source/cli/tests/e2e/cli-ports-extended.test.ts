@@ -281,15 +281,15 @@ mapping:
       expect(status).toBe(0); // advisory refusal never blocks fill
       // The advisory pair fills with a refused verdict; the headline still PASSes
       // (with the refusal surfaced as a non-blocking warning).
-      // Fill-time progress ([det] line) goes to STDERR; final report to STDOUT.
-      // A second warning group (`rules-digest-stale`) is always present too —
+      // Fill-time progress goes to STDERR (its closing line counts the refusal);
+      // final report to STDOUT.
+      // A second warning (`rules-digest-stale`) is always present too —
       // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
       // .clinerules digest artifacts, and the committed-digest staleness gate
       // flags that on every `yg check`/`yg check --approve` here.
-      expect(stderr).toContain('[det] audit-required on node:services/orders — refused');
-      expect(stdout).toContain('PASS (2 warnings)');
-      expect(stdout).toContain('advisory');
-      expect(stdout).toContain('audit-required');
+      expect(stderr).toMatch(/^fill {2}done in .* — 0 approved · 1 refused · 0 failed/m);
+      expect(stdout).toContain('yg check: PASS  2 warnings');
+      expect(stdout).toContain('warning[refused] audit-required — 1 violation in services/orders');
       expect(stdout).toContain('rules-digest-stale');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -309,10 +309,9 @@ mapping:
       expect(run(['check', '--approve'], dir).status).toBe(0);
       const { status, stdout } = run(['check'], dir);
       expect(status).toBe(0); // advisory warning does NOT fail check
-      // Second warning group is `rules-digest-stale` — see the comment on C5.
-      expect(stdout).toContain('PASS (2 warnings)');
-      expect(stdout).toContain('advisory');
-      expect(stdout).toContain('audit-required');
+      // Second warning is `rules-digest-stale` — see the comment on C5.
+      expect(stdout).toContain('yg check: PASS  2 warnings');
+      expect(stdout).toContain('warning[refused] audit-required — 1 violation in services/orders');
       expect(stdout).toContain('rules-digest-stale');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -343,8 +342,8 @@ mapping:
       // fires. (A draft aspect is excluded from the expected-pair set entirely.)
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      // Fill-time progress goes to STDERR; final report to STDOUT.
-      expect(fill.stderr).toContain('Filling 0 unverified pairs across 0 nodes');
+      // A fill with nothing to do prints no fill progress at all on STDERR.
+      expect(fill.stderr).not.toMatch(/^fill /m);
       expect(fill.stdout).not.toContain('refused');
 
       // yg check tallies the draft and passes — the draft port aspect is dormant.
@@ -397,12 +396,12 @@ mapping:
       // exit 1, the pair fills refused, and the enforced refusal renders.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      // Fill-time progress ([det] line) goes to STDERR; grouped report to STDOUT.
-      expect(fill.stderr).toContain('[det] audit-required on node:services/orders — refused');
-      // The grouped enforced refusal names the aspect in its header and lists
-      // the consumer node it refuses on.
-      expect(fill.stdout).toMatch(/enforced\s+1 pair\s+1 node\s+aspect 'audit-required'/);
-      expect(fill.stdout).toContain('- services/orders');
+      // Fill-time progress goes to STDERR (its closing line counts the refusal).
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — 0 approved · 1 refused · 0 failed/m);
+      // The enforced refusal is an error block naming the aspect and the
+      // consumer node it refuses on.
+      expect(fill.stdout).toContain('error[refused] audit-required — 1 violation in services/orders');
+      expect(fill.stdout).toContain('  at:   services/orders  ');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -670,7 +669,8 @@ mapping:
       expect(stdout).toContain('port-undefined');
       // The shared WHY echoes the surviving available port; the consumer is listed.
       expect(stdout).toContain('Available ports: [refund]');
-      expect(stdout).toContain('- services/orders');
+      expect(stdout).toContain('  at:   services/orders\n');
+
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

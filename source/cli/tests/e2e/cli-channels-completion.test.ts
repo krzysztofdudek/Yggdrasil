@@ -192,10 +192,12 @@ describe.skipIf(!distExists)('CLI E2E — channel propagation completion (CH5 an
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(refused.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.all).toContain('- services/orders');
+      // The fill refused exactly one pair (the closing fill line counts it), and
+      // the enforced refusal block names the rule and the child node it refused on.
+      expect(refused.all).toMatch(/fill {2}done in \S+ — \d+ approved · 1 refused · 0 failed/);
+      expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      // The block's member line lists the node with the violating file:line.
+      expect(refused.all).toMatch(/at: {3}services\/orders {2}src\/services\/orders\.ts:\d+ {2}/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -254,10 +256,12 @@ describe.skipIf(!distExists)('CLI E2E — channel propagation completion (CH5 an
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(refused.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.all).toContain('- services/orders');
+      // The fill refused exactly one pair (the closing fill line counts it), and
+      // the enforced refusal block names the rule and the child node it refused on.
+      expect(refused.all).toMatch(/fill {2}done in \S+ — \d+ approved · 1 refused · 0 failed/);
+      expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      // The block's member line lists the node with the violating file:line.
+      expect(refused.all).toMatch(/at: {3}services\/orders {2}src\/services\/orders\.ts:\d+ {2}/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -302,10 +306,12 @@ describe.skipIf(!distExists)('CLI E2E — channel propagation completion (CH5 an
       const refused = run(['check', '--approve'], dir);
       expect(refused.status).toBe(1);
       expect(refused.all).toContain('no-banned-word');
-      // Fill-time line names the refused deterministic pair on the child node.
-      expect(refused.all).toContain('[det] no-banned-word on node:services/orders — refused');
-      // The grouped error body lists the node under the enforced group.
-      expect(refused.all).toContain('- services/orders');
+      // The fill refused exactly one pair (the closing fill line counts it), and
+      // the enforced refusal block names the rule and the child node it refused on.
+      expect(refused.all).toMatch(/fill {2}done in \S+ — \d+ approved · 1 refused · 0 failed/);
+      expect(refused.all).toContain('error[refused] no-banned-word — 1 violation in services/orders');
+      // The block's member line lists the node with the violating file:line.
+      expect(refused.all).toMatch(/at: {3}services\/orders {2}src\/services\/orders\.ts:\d+ {2}/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

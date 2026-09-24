@@ -70,6 +70,8 @@ export interface FillOutcomeTotals {
    *  reported it (`reportedCalls` of `reviewerCallsMade`). Absent when no call
    *  reported anything. */
   usage?: FillUsageTotals;
+  /** How every pair the run finished ended: approved, refused, or not judged (infra). */
+  outcomes?: FillProgressCounts;
 }
 
 /** Summed reviewer usage for a run — see FillOutcomeTotals.usage. */

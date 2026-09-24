@@ -178,25 +178,21 @@ function wireOrdersToPayments(dir: string): void {
   );
 }
 
-// The Phase-1 grouped `yg check` body renders one block per (code, aspectId):
-// a group header naming the aspect, the shared why/Fix, then one `- <node>` line
-// per member. The old per-issue `what`
-// ("No valid verdict for aspect '<id>' on <unit>.") is gone for the non-FULL_WHAT
-// unverified code, so to assert WHICH nodes are unverified for a given aspect we
-// scan body lines that have the form "- <node>  aspect '<id>'".
-// Since Phase 1.6, all unverified issues collapse into ONE code-only group;
-// the aspect appears on each body line rather than in the group header.
+// An uncapped `yg check --details` view lists every unverified pair as its own
+// member line, `<aspect> @ <unit>`, under an `error[unverified]` /
+// `warning[unverified]` block (the capped default view folds many pairs of one
+// rule into a count line). To assert WHICH nodes are unverified for a given
+// aspect, scan the member lines of the unverified blocks.
 function unverifiedNodesForAspect(all: string, aspectId: string): string[] {
-  const lines = all.split('\n');
   const nodes: string[] = [];
-  // Escape every regex metacharacter (including backslash) before interpolating the id into
-  // the pattern, so an id with special characters matches literally instead of being parsed
-  // as regex syntax.
-  const escapedId = aspectId.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const bodyPattern = new RegExp(`^\\s*-\\s+(\\S+)\\s+aspect '${escapedId}'\\s*$`);
-  for (const line of lines) {
-    const m = line.match(bodyPattern);
-    if (m) nodes.push(m[1]);
+  let inUnverified = false;
+  for (const line of all.split('\n')) {
+    const head = line.match(/^(?:error|warning)\[([^\]]+)\]/);
+    if (head) { inUnverified = head[1].startsWith('unverified'); continue; }
+    if (!line.startsWith(' ')) { inUnverified = false; continue; }
+    if (!inUnverified) continue;
+    const m = line.match(/^\s+(?:at:\s+)?(\S+) @ (\S+)\s*$/);
+    if (m && m[1] === aspectId) nodes.push(m[2]);
   }
   return nodes;
 }
@@ -228,11 +224,11 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
       // payments' own pairs go unverified as ordinary source change.
       appendFileSync(paymentsFile(dir), '\n// benign cross-node edit\n');
 
-      const drifted = run(['check'], dir);
+      const drifted = run(['check', '--details'], dir);
       expect(drifted.status).toBe(1);
-      // The grouped view collapses all unverified pairs into ONE group by code only
-      // (Phase 1.6); each body line carries "- <node>  aspect '<id>'". Read which
-      // nodes are unverified for a given aspect from those body lines.
+      // The uncapped --details view lists every unverified pair as
+      // "<aspect> @ <node>". Read which nodes are unverified for a given aspect
+      // from those member lines.
       // The graph-aware pair on the DEPENDENT node is invalidated by the cross-node edit.
       expect(unverifiedNodesForAspect(drifted.all, 'cross-read-todo')).toContain('services/orders');
       // orders' OTHER aspects did NOT read payments, so they stay valid — orders
@@ -301,16 +297,12 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
       expect(fill.status).toBe(1);
       // Every pair is processed — the clean nodes approve.
       // The bad pair refuses — not aborted, its sibling pairs still ran.
-      expect(fill.all).toContain('[det] no-todo-comments on node:services/orders — refused');
-      // The refusal renders as an enforced error in the post-fill check. In the
-      // grouped view the `what` line-0 header ("Aspect '...' is refused on ...")
-      // is dropped; the retained FULL_WHAT detail is the group label + aspect
-      // segment + the `- <node>` line carrying the deterministic Violations tail.
-      expect(fill.all).toContain('enforced');
-      expect(fill.all).toContain("aspect 'no-todo-comments'");
-      expect(fill.all).toContain('- services/orders');
-      expect(fill.all).toContain('Violations:');
-      expect(fill.all).toContain('TODO comment found');
+      // The closing fill line counts them: five approved, the one bad pair refused.
+      expect(fill.all).toMatch(/fill {2}done in .* — 5 approved · 1 refused · 0 failed/);
+      // The refusal renders as an enforced error block in the post-fill check,
+      // one member line per violation: the unit, the file:line, the message.
+      expect(fill.all).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
+      expect(fill.all).toMatch(/ {2}at: {3}services\/orders {2}src\/services\/orders\.ts:\d+ {2}TODO comment found/);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -340,7 +332,10 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
       appendFileSync(ordersFile(dir), '\n// benign source edit needing a log\n');
       const noLog = run(['check', '--approve'], dir);
       expect(noLog.status).toBe(1);
-      expect(noLog.all).toContain("No fresh log entry for node 'services/orders' — mandatory before recording verdicts when its source drifted.");
+      expect(noLog.all).toContain('yg check: ABORTED  nothing recorded — 1 node needs a log entry first');
+      expect(noLog.all).toContain('error[log-entry-missing] 1 node changed with no log entry');
+      expect(noLog.all).toMatch(/ {2}at: {3}services\/orders$/m);
+      expect(noLog.all).toContain("next: yg log add --node services/orders --reason '<why this change was made>'");
       expect(noLog.all).toContain('log_required: true');
 
       // Provide the fresh log entry and re-fill — orders settles green.
@@ -354,7 +349,7 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
       expect(run(['check'], dir).status).toBe(1);
       const reFill = run(['check', '--approve'], dir);
       expect(reFill.status).toBe(0);
-      expect(reFill.all).not.toContain('No fresh log entry');
+      expect(reFill.all).not.toContain('log-entry-missing');
       expect(run(['check'], dir).status).toBe(0);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -458,11 +453,11 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
       appendFileSync(noTodoCheckMjs(dir), '\n// aspect tweak\n'); // invalidates no-todo on every node
       appendFileSync(parentNodeYaml(dir), '\n# parent metadata tweak — NEGATIVE control\n'); // no input change
 
-      const drifted = run(['check'], dir);
+      const drifted = run(['check', '--details'], dir);
       expect(drifted.status).toBe(1);
-      // The grouped view collapses all unverified pairs into ONE group by code only
-      // (Phase 1.6); each body line carries "- <node>  aspect '<id>'". Read which
-      // nodes are unverified for a given aspect from those body lines.
+      // The uncapped --details view lists every unverified pair as
+      // "<aspect> @ <node>". Read which nodes are unverified for a given aspect
+      // from those member lines.
       // The aspect-content edit invalidates no-todo on BOTH nodes.
       expect(unverifiedNodesForAspect(drifted.all, 'no-todo-comments')).toContain('services/orders');
       expect(unverifiedNodesForAspect(drifted.all, 'no-todo-comments')).toContain('services/payments');
@@ -523,17 +518,14 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
 
       // Delete ONE of the two mapped files.
       rmSync(helpersFile, { force: true });
-      const drifted = run(['check'], dir);
+      const drifted = run(['check', '--details'], dir);
       expect(drifted.status).toBe(1);
-      expect(drifted.all).toContain('mapping-path-missing');
-      // mapping-path-missing is not a FULL_WHAT code, so the per-issue `what`
-      // ("Mapping path '...' does not exist on disk.") is gone in the grouped
-      // view; the detail now lives in the shared why. Assert the now-visible why
-      // plus the offending node line.
+      // The mapping-path-missing block names the missing path and the offending node.
+      expect(drifted.all).toContain("error[mapping-path-missing] Mapping path 'src/services/orders-helpers.ts' does not exist on disk");
       expect(drifted.all).toContain('Node maps a file that was deleted or moved.');
-      expect(drifted.all).toContain('- services/orders');
+      expect(drifted.all).toMatch(/ {2}at: {3}services\/orders$/m);
       // The deletion also changes the node's source hash → its pairs go unverified;
-      // the body line "- services/orders  aspect 'no-todo-comments'" confirms it.
+      // the member line "no-todo-comments @ services/orders" confirms it.
       expect(unverifiedNodesForAspect(drifted.all, 'no-todo-comments')).toContain('services/orders');
 
       // Restore the file byte-identically — both issues clear (the recorded
@@ -560,16 +552,19 @@ describe.skipIf(!distExists)('CLI E2E — invalidation extended paths', () => {
     try {
       const first = run(['check', '--approve'], dir);
       expect(first.status).toBe(0);
-      expect(first.all).toContain('Filling 4 unverified pairs across 2 nodes');
+      expect(first.all).toContain('fill  4 pairs · 4 script (free) · 0 reviewer calls');
+      expect(first.all).toMatch(/fill {2}done in .* — 4 approved · 0 refused · 0 failed · 0 reviewer calls/);
 
       // Nothing changed: the second fill is the true no-op.
       const second = run(['check', '--approve'], dir);
       expect(second.status).toBe(0);
-      expect(second.all).toContain('Filling 0 unverified pairs across 0 nodes');
-      expect(second.all).toContain('0 reviewer calls made — all expected pairs hold valid verdicts');
+      // A fill with nothing to do prints no fill line at all — no header, no
+      // closing count — and the verdict line still holds every pair verified.
+      expect(second.all).not.toMatch(/^fill {2}/m);
+      expect(second.all).toContain('4 pairs verified');
       // A no-op re-runs no aspect.
-      expect(second.all).not.toContain('— approved');
-      expect(second.all).not.toContain('— refused');
+      expect(second.all).not.toContain('approved');
+      expect(second.all).not.toContain('refused');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

@@ -29,13 +29,36 @@ function run(args: string[], cwd: string): { stdout: string; status: number | nu
   return { stdout: result.stdout ?? '', status: result.status };
 }
 
-/** Command names listed under "Commands:" in a commander help screen (minus `help`). */
+/**
+ * Command names a help screen lists (minus `help`). A subcommand screen lists
+ * them under commander's "Commands:" heading; the top-level `yg --help` screen
+ * is grouped instead (Daily / Explore / Rules / Setup), one `  name  summary`
+ * row per command, with the Setup group folded into one `  a · b · c` row. The
+ * grouped screen ends at its "Examples" section.
+ */
 function listedCommands(helpText: string): string[] {
   const lines = helpText.split('\n');
-  const start = lines.findIndex((l) => l.trim() === 'Commands:');
-  if (start === -1) return [];
   const names: string[] = [];
-  for (const line of lines.slice(start + 1)) {
+  const start = lines.findIndex((l) => l.trim() === 'Commands:');
+  if (start !== -1) {
+    for (const line of lines.slice(start + 1)) {
+      const m = /^ {2}([a-z][a-z-]*)(?:\s|$)/.exec(line);
+      if (m && m[1] !== 'help') names.push(m[1]);
+    }
+    return names;
+  }
+  const groups = new Set(['Daily', 'Explore', 'Rules', 'Setup']);
+  let inGroup = false;
+  for (const line of lines) {
+    if (/^\S/.test(line)) {
+      inGroup = groups.has(line.trim());
+      continue;
+    }
+    if (!inGroup) continue;
+    if (line.includes(' · ')) {
+      for (const word of line.trim().split(' · ')) if (/^[a-z][a-z-]*$/.test(word)) names.push(word);
+      continue;
+    }
     const m = /^ {2}([a-z][a-z-]*)(?:\s|$)/.exec(line);
     if (m && m[1] !== 'help') names.push(m[1]);
   }

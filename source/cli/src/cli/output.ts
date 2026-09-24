@@ -17,7 +17,6 @@
  */
 
 import chalk from 'chalk';
-import { buildIssueMessage } from '../formatters/message-builder.js';
 import type { IssueMessage } from '../model/validation.js';
 import { type Diagnostic, type Fix, fromIssueMessage, toIssueMessage } from './output-diagnostic.js';
 import { neutralizeStream } from '../utils/terminal-safe.js';
@@ -91,16 +90,81 @@ export function list(items: readonly string[], opts: ListOptions = {}): string[]
   return out;
 }
 
-// ── Blocks, verdicts, next steps ───────────────────────────
+// ── The block grammar ──────────────────────────────────────
 
 /**
- * A diagnostic as the three-part text every command prints today: what (all of
- * its lines), why, next — one per line, no labels. The labelled block grammar
- * is a later, deliberate change; this keeps the bytes every current reader
- * parses.
+ * Whether this run decorates its text: colour, and the one glyph a heading or
+ * a verdict carries. Off whenever chalk is (NO_COLOR, a pipe, TERM=dumb), so a
+ * reader in a pipe gets the same words and layout with nothing added. Meaning
+ * is always in the words; decoration only repeats it.
  */
-export function block(d: Diagnostic | IssueMessage): string {
-  return buildIssueMessage(isDiagnostic(d) ? toIssueMessage(d) : d);
+export const decorated: boolean = chalk.level > 0;
+
+/**
+ * The field labels a block uses, in the order it uses them. Always lowercase,
+ * always present when the field is: a line with no label is continuation of
+ * the field above it, never a field of its own.
+ *   at   — where: the members the finding is about
+ *   why  — the reason it matters, stated once for the whole block
+ *   fix  — what to do about it
+ *   see  — where to read more
+ *   id   — the handle a follow-up command takes (a nomination's id)
+ */
+export type FieldLabel = 'at' | 'why' | 'fix' | 'see' | 'id';
+
+/** Every field value starts at this column; its label is padded to reach it. */
+export const FIELD_INDENT = '        ';
+
+/**
+ * A labelled field: `  why:  <text>`, every later line of a multi-line value
+ * aligned under the first (column 9). An empty value renders nothing.
+ */
+export function field(label: FieldLabel, value: string | string[], colour = decorated): string[] {
+  const lines = (Array.isArray(value) ? value : value.split('\n')).filter((l, i) => i > 0 || l.trim() !== '');
+  if (lines.length === 0) return [];
+  const head = `  ${`${label}:`.padEnd(6)}`;
+  const tag = colour ? chalk.dim(head) : head;
+  return [`${tag}${lines[0]}`, ...lines.slice(1).map((l) => `${FIELD_INDENT}${l}`)];
+}
+
+/** The severity words a heading can start with. */
+export type HeadingSeverity = 'error' | 'warning' | 'note' | 'nomination';
+
+/**
+ * A block heading: `error[label] subject` (a report finding) or, with
+ * `colon`, `error[code]: subject` (a command error). The glyph and the colour
+ * are decoration only; the words carry the meaning.
+ */
+export function heading(severity: HeadingSeverity, label: string | undefined, subject: string, opts: { colon?: boolean; colour?: boolean } = {}): string {
+  const colour = opts.colour ?? decorated;
+  const tag = `${severity}${label !== undefined && label !== '' ? `[${label}]` : ''}`;
+  const sep = opts.colon === true ? ': ' : ' ';
+  if (!colour) return `${tag}${sep}${subject}`;
+  const glyph = severity === 'error' ? '✗ ' : severity === 'warning' ? '! ' : '';
+  const paint = severity === 'error' ? chalk.red : severity === 'warning' ? chalk.yellow : (t: string) => t;
+  return `${paint(`${glyph}${tag}`)}${sep}${chalk.bold(subject)}`;
+}
+
+/**
+ * A diagnostic as a command error or notice reads, on stderr:
+ *
+ *   error[code]: <what>
+ *     <further lines of what>
+ *     why:  <why>
+ *   next: <step>
+ *
+ * `severity` picks the heading word (`note` for a notice).
+ */
+export function block(d: Diagnostic | IssueMessage, severity: HeadingSeverity = 'error', code?: string): string {
+  const diag = isDiagnostic(d) ? d : fromIssueMessage(d, { code: code ?? (severity === 'error' ? 'command-error' : '') });
+  // A note carries no code; a warning shows one only when it has one.
+  const label = severity === 'note' || diag.code === '' ? undefined : diag.code;
+  const lines = [heading(severity, label, diag.summary, { colon: true })];
+  for (const extra of diag.detail ?? []) if (extra.trim() !== '') lines.push(`  ${extra.replace(/^\s+/, '')}`);
+  if (diag.why !== undefined && diag.why !== '') lines.push(...field('why', diag.why));
+  // A step reads as the step itself: `yg tree`, not `Run: yg tree`.
+  if (diag.fix !== undefined && diag.fix.text !== '') lines.push(next(diag.fix.text.replace(/^Run:?\s+(?=yg )/, '')));
+  return lines.join('\n');
 }
 
 export type VerdictStatus = 'PASS' | 'FAIL' | 'ABORTED';
@@ -111,13 +175,33 @@ export type VerdictStatus = 'PASS' | 'FAIL' | 'ABORTED';
  * verdict states it through here.
  */
 export function verdict(command: string, status: VerdictStatus, tail = '', colour = true): string {
+  const glyph = colour && decorated ? (status === 'PASS' ? '✓ ' : '✗ ') : '';
   const word = !colour ? status : status === 'PASS' ? chalk.green(status) : chalk.red(status);
-  return `${command}: ${word}${tail !== '' ? `  ${tail}` : ''}`;
+  return `${glyph}${command}: ${word}${tail !== '' ? `  ${tail}` : ''}`;
 }
 
-/** A report's last line: `Next: <step><suffix>`. */
+/**
+ * A report's or an error's last line: `next: <step>` — one line; a step that
+ * needs more lines keeps them aligned under its first.
+ */
 export function next(step: string, suffix = ''): string {
-  return `Next: ${step}${suffix}`;
+  const [first, ...rest] = `${step}${suffix}`.split('\n');
+  // Later lines keep their own indentation (a YAML snippet is only correct as written).
+  return [`next: ${first}`, ...rest.map((l) => `      ${l.trimEnd()}`)].join('\n');
+}
+
+/**
+ * The step after `next:`, when there is one worth naming: `then: <step>`.
+ * (Never exported as `then`: a module exporting a `then` function is a
+ * thenable, and `await import()` of it would call it.)
+ */
+export function thenStep(step: string): string {
+  return `then: ${step.split('\n')[0]}`;
+}
+
+/** A standing fact that is not a finding: `note: <text>`, one line. */
+export function note(text: string): string {
+  return `note: ${text}`;
 }
 
 /** The first line of a fix, or all of it when that line is a heading introducing a list. */
@@ -145,11 +229,11 @@ export function writeJsonDocument(doc: unknown, sink: TextSink = stdoutSink): vo
 // ── Errors ─────────────────────────────────────────────────
 
 /** Schema id of the machine form of a command error. */
-export const ERROR_SCHEMA = 'yg-error/1';
+export const ERROR_JSON_SCHEMA = 'yg-error/1';
 
 /** The machine form of a command error. */
 export interface ErrorDocument {
-  schema: typeof ERROR_SCHEMA;
+  schema: typeof ERROR_JSON_SCHEMA;
   code: string;
   what: string;
   why: string;
@@ -181,7 +265,7 @@ export function isJsonOutput(): boolean {
 export function errorDocument(d: Diagnostic): ErrorDocument {
   const msg = toIssueMessage(d);
   return {
-    schema: ERROR_SCHEMA,
+    schema: ERROR_JSON_SCHEMA,
     code: d.code,
     what: msg.what,
     why: msg.why,
@@ -199,19 +283,32 @@ function asDiagnostic(d: Diagnostic | IssueMessage, code: string): Diagnostic {
 }
 
 /**
- * Report a command error: the `Error: what / why / next` text on stderr, in
- * red, and — when this invocation answers in JSON — the yg-error/1 document on
- * stdout. Does not exit: the caller owns the exit (most await exitAfterFlush so
- * a long stdout drains first). `code` names the error for machines; it
- * defaults to `command-error`. With `document: false` the JSON document is
- * left to the caller, whose own document answers this outcome.
+ * Report a command error on stderr in the one error grammar —
+ * `error[code]: what`, `why:`, `next:` — and, when this invocation answers in
+ * JSON, the yg-error/1 document on stdout. Does not exit: the caller owns the
+ * exit (most await exitAfterFlush so a long stdout drains first). `code` names
+ * the error for machines and heads the text; it defaults to `command-error`.
+ * With `document: false` the JSON document is left to the caller, whose own
+ * document answers this outcome.
  */
-export function fail(d: Diagnostic | IssueMessage, code = 'command-error', opts: { document?: boolean } = {}): void {
-  const diag = asDiagnostic(d, code);
-  process.stderr.write(chalk.red(`Error: ${block(diag)}`) + '\n');
+export function fail(d: Diagnostic | IssueMessage, code?: string, opts: { document?: boolean } = {}): void {
+  const diag = asDiagnostic(d, code ?? (isDiagnostic(d) ? d.code : inferErrorCode(d.what)));
+  process.stderr.write(`${block(diag, 'error')}\n`);
   // `document: false` for a command whose JSON answer to this outcome is its
   // own document (written next), so stdout still carries exactly one.
   if (isJsonOutput() && opts.document !== false) writeJsonDocument(errorDocument(diag));
+}
+
+/**
+ * The code of a command error its caller did not name, from what it says: a
+ * node that is not in the graph is `node-not-found`, a flag used wrongly is
+ * `usage`, anything else `command-error`. A caller that knows better names the
+ * code itself.
+ */
+export function inferErrorCode(what: string): string {
+  if (/^node\b.*\b(?:not found|is not in the graph|does not exist in the graph)/i.test(what)) return 'node-not-found';
+  if (/cannot be combined|\brequires? --|\bexpects\b|is required|\bneeds (?:exactly )?one of|exactly one of|go together|\btakes '|unknown option|missing required|too many arguments/i.test(what)) return 'usage';
+  return 'command-error';
 }
 
 /** {@link fail}, then exit 1 at once. For a command that has written nothing else to stdout. */
@@ -221,10 +318,20 @@ export function failAndExit(d: Diagnostic | IssueMessage, code?: string): never 
 }
 
 /**
- * A non-fatal notice on stderr — `<prefix>: what / why / next` in yellow. For
- * something the reader should know before the result (a flag held back by
- * CI, a scope the run could not measure), never for a failure.
+ * A non-fatal notice on stderr, in the same grammar as an error but headed
+ * `note:` — for something the reader should know before the result (a flag
+ * held back by CI, a scope the run could not measure), never for a failure.
  */
-export function notice(d: Diagnostic | IssueMessage, prefix = 'Notice'): void {
-  process.stderr.write(chalk.yellow(`${prefix}: ${block(d)}`) + '\n');
+export function notice(d: Diagnostic | IssueMessage): void {
+  process.stderr.write(`${block(d, 'note')}\n`);
+}
+
+/**
+ * A non-fatal problem on stderr while a command goes on — a reviewer that
+ * could not be reached, a divergence the fill noticed — headed `warning:` in
+ * the same grammar as an error. The command's own result reports what it
+ * means for the outcome.
+ */
+export function warn(d: Diagnostic | IssueMessage, code?: string): void {
+  process.stderr.write(`${block(d, 'warning', code)}\n`);
 }

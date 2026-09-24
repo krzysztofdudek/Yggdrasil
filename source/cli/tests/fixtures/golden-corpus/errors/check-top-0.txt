@@ -2,6 +2,6 @@ $ yg check --top 0
 exit: 1
 --- stdout
 --- stderr
-Error: --top expects a positive whole number (1 or more); got "0".
---top N prints the N highest-priority issue blocks. Zero, a negative, fractional, or non-numeric value is meaningless, and printing the full wall instead would silently hide that the flag was ignored — masking the very output you tried to narrow.
-Run: yg check --top 5 (top 5 blocks), yg check --top (the single suggested-next group), or yg check (full output).
+error[usage]: --top expects a positive whole number (1 or more); got "0".
+  why:  --top N prints the N highest-priority issue blocks. Zero, a negative, fractional, or non-numeric value is meaningless, and printing the full wall instead would silently hide that the flag was ignored — masking the very output you tried to narrow.
+next: yg check --top 5 (top 5 blocks), yg check --top (the single suggested-next group), or yg check (full output).

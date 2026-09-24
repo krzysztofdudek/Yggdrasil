@@ -197,7 +197,7 @@ describe('impact command', () => {
       });
     });
 
-    it('ends with a terminal Next: line after the Blast radius footer', async () => {
+    it('ends with a terminal next: line after the Blast radius footer', async () => {
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync(
           'node',
@@ -208,7 +208,7 @@ describe('impact command', () => {
         // The blast-radius footer must precede the Next line; Next is the LAST
         // substantive line so the actionable step is never buried.
         const brIdx = result.stdout.indexOf('Blast radius:');
-        const nextIdx = result.stdout.indexOf('Run yg context --node orders/order-service');
+        const nextIdx = result.stdout.indexOf('next: yg context --node orders/order-service');
         expect(brIdx).toBeGreaterThan(-1);
         expect(nextIdx).toBeGreaterThan(brIdx);
         expect(result.stdout).toContain('yg context --node orders/order-service');
@@ -256,7 +256,7 @@ describe('impact command', () => {
       });
     });
 
-    it('ends with a terminal Next: line pointing at cost + yg check --approve', async () => {
+    it('ends with a terminal next: line pointing at cost + yg check --approve', async () => {
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync(
           'node',
@@ -265,7 +265,7 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(0);
         expect(result.stdout).toContain(
-          'Next: weigh the cost above before editing the aspect, then run yg check --approve to re-verify the affected pairs.',
+          'next: weigh the cost above before editing the aspect, then run yg check --approve to re-verify the affected pairs.',
         );
       });
     });
@@ -351,7 +351,7 @@ describe('impact command', () => {
       });
     });
 
-    it('ends with a terminal Next: line for flow mode', async () => {
+    it('ends with a terminal next: line for flow mode', async () => {
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync(
           'node',
@@ -360,7 +360,7 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(0);
         expect(result.stdout).toContain(
-          'Next: review the participants above before editing the flow, then run yg check --approve to re-verify them.',
+          'next: review the participants above before editing the flow, then run yg check --approve to re-verify them.',
         );
       });
     });
@@ -623,7 +623,7 @@ describe('impact command', () => {
       });
     });
 
-    it('ends with a terminal Next: line for type mode', async () => {
+    it('ends with a terminal next: line for type mode', async () => {
       await withFixtureCopy(async (cwd) => {
         const result = spawnSync(
           'node',
@@ -632,7 +632,7 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(0);
         expect(result.stdout).toContain(
-          "Next: review the nodes of this type above before editing the type's defaults or when predicate, then run yg check --approve.",
+          "next: review the nodes of this type above before editing the type's defaults or when predicate, then run yg check --approve.",
         );
       });
     });
@@ -703,16 +703,16 @@ describe('impact command', () => {
         );
         expect(result.status).toBe(0);
         // New cost block — substring-stable fragments.
-        expect(result.stdout).toMatch(/reviewer call\(s\)/);
+        expect(result.stdout).toMatch(/\d+ reviewer calls? \(consensus included\)/);
         expect(result.stdout).toContain('deterministic = free');
-        expect(result.stdout).toMatch(/currently-green verdict\(s\) re-rolled/);
+        expect(result.stdout).toMatch(/\d+ currently-green verdicts? re-rolled/);
         expect(result.stdout).toContain('Editing this node re-verifies:');
         // The vague pre-cost sentence is gone (it had no number).
         expect(result.stdout).not.toContain(
           'Editing this node re-verifies its own pairs on the next yg check --approve',
         );
-        // The terminal Next: line still ends the output (structured what/why/next format).
-        expect(result.stdout).toContain('Run yg context --node orders/order-service');
+        // The terminal next: line still ends the output (structured what/why/next format).
+        expect(result.stdout).toMatch(/^next: yg context --node orders\/order-service {2}\(for any dependent you are unsure about\)\n*$/m);
       });
     });
 
@@ -727,8 +727,8 @@ describe('impact command', () => {
         expect(result.stdout).toContain('src/orders/order.service.ts -> orders/order-service');
         // New unified Total block replaces the old "Editing this file re-verifies:" line.
         expect(result.stdout).toContain('Total to re-verify:');
-        expect(result.stdout).toMatch(/reviewer call\(s\)/);
-        expect(result.stdout).toContain('deterministic pair(s)');
+        expect(result.stdout).toMatch(/Total to re-verify: \d+ reviewer calls? — billed by yg check --approve/);
+        expect(result.stdout).toMatch(/\d+ deterministic pairs? — free/);
         // The old framing is gone.
         expect(result.stdout).not.toContain('Editing this file re-verifies:');
       });
@@ -753,7 +753,7 @@ describe('summarizeImpact + renderImpactTotal', () => {
     expect(s.byNode.map((n) => n.nodePath).sort()).toEqual(['scenarios', 'specs']);
     const out = renderImpactTotal(s, 'apps/x/a.ts', { isTTY: false });
     expect(out).toContain('Total to re-verify:');
-    expect(out).toContain('1 reviewer call(s)');
+    expect(out).toContain('Total to re-verify: 1 reviewer call — billed');
     expect(out).toContain('1 deterministic');
     expect(out).not.toContain('reviewer requests × consensus');
   });
@@ -786,8 +786,8 @@ describe('yg impact — type-level coverage threading', () => {
       // 3 total, not 1. Without threading, computeAspectFillCost would only
       // ever see the 1 node-owned pair. The other 2 are named as file-only
       // (no owning component) right alongside the total, not folded in silently.
-      expect(result.stdout).toContain('3 pair(s) (2 of them from files enforced by');
-      expect(result.stdout).toContain('3 reviewer call(s)');
+      expect(result.stdout).toContain('3 pairs (2 of them from files enforced by');
+      expect(result.stdout).toContain('3 reviewer calls');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -829,7 +829,7 @@ describe('yg impact — type-level coverage threading', () => {
       expect(result.stdout).not.toMatch(/Directly affected \(0\):\s*\n\s*\(none\)\s*\n/);
       expect(result.stdout).toContain('1 file');
       expect(result.stdout).toContain("architecture type alone");
-      expect(result.stdout).toContain('(1 pair(s)');
+      expect(result.stdout).toContain('(1 pair (1 of them from a file');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

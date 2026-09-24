@@ -37,9 +37,9 @@ export async function logAdd(input: LogAddInput): Promise<LogAddResult> {
     return {
       ok: false,
       error: {
-        what: `Node not found: ${nodePath}`,
-        why: 'Node must exist in the graph before log entries can be added.',
-        next: 'Create yg-node.yaml first, or fix the --node argument.',
+        what: `node '${nodePath}' is not in the graph`,
+        why: 'A log entry belongs to a node, so the node must exist first.',
+        next: `yg find "${nodePath}"`,
       },
     };
   }

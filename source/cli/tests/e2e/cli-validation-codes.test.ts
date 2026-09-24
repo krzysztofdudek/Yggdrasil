@@ -285,7 +285,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check validation code matrix (remai
       // The aspect id no longer appears in the per-issue `what` (gone in the
       // grouped default view for non-FULL_WHAT codes). Assert the now-visible
       // group guidance (shared why + Fix) instead.
-      expect(all).toContain("either populate the list, or remove the 'references:' line entirely");
+      expect(all).toContain("Populate the list in .yggdrasil/aspects/");
+      expect(all).toContain("or remove its 'references:' line");
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

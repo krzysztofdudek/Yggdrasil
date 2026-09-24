@@ -62,19 +62,22 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // The lattice is one issue per file, most-binding wins: the strict-claimed
       // file must not ALSO inflate the generic bulk "unmapped" listing.
       expect(out).not.toMatch(/unmapped[\s\S]{0,120}src\/util\/special\.ts/);
-      // suggestedNext names the ambiguous file's own two-exit guidance, not the
-      // generic structural fallback (`Next: Fix ambiguous-node-type in .yggdrasil`).
-      expect(out).toContain('Next: Two exits:');
-      expect(out).not.toContain('Next: Fix ambiguous-node-type in .yggdrasil');
+      // The block's fix carries the ambiguous file's own two-exit guidance, and
+      // next: is its first exit — not the generic structural fallback
+      // (`Fix ambiguous-node-type in .yggdrasil`).
+      expect(out).toContain('  fix:  Two exits:');
+      expect(out).toContain('next: Create an explicit node declaring the intended type (yg-node.yaml with type: <one of: svc | util>)');
+      expect(out).not.toContain('next: Fix ambiguous-node-type in .yggdrasil');
       // Header split, corrected: this fixture has ZERO nodes, so "node-owned"
-      // must read 0 — vendor/tool.ts (the excluded-root file) is its own
+      // must read 0 (a zero term is left out of the header) — vendor/tool.ts (the excluded-root file) is its own
       // "excluded" term, never folded into "node-owned" just because the
       // legacy coveredFiles counter (unrelated to this label) counts it.
       // Sum invariant (core/check.ts is the source of truth; pinned again
       // here through the real CLI process): 0 node-owned + 1 type-covered
       // (handler.ts) + 1 excluded (vendor/tool.ts) + 1 ambiguous (overlap.ts)
       // + 1 strict-orphan (special.ts) + 1 unmapped (plain.ts) = 5 files.
-      expect(out).toContain('2/5 files (0 node-owned, 1 type-covered, 1 excluded)');
+      expect(out).toContain('0 nodes · 2/5 files covered (1 type-covered · 1 excluded)');
+      expect(out).not.toContain('node-owned');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -93,7 +96,8 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // This fixture also has ZERO nodes: vendor/tool.ts (excluded root) is
       // its own "excluded" term, not "node-owned" — src/svc/handler.ts is
       // the one type-covered file. 0 + 1 + 1 = 2/2.
-      expect(out).toContain('2/2 files (0 node-owned, 1 type-covered, 1 excluded)');
+      expect(out).toContain('0 nodes · 2/2 files covered (1 type-covered · 1 excluded)');
+      expect(out).not.toContain('node-owned');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -135,7 +139,7 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // svcnode/kept.ts (the one genuinely node-owned file), and the two
       // svcnode/vendor/*.ts files — mapped by svcnode's directory entry, but
       // excluded, so they must land in "excluded", not "node-owned".
-      expect(out).toContain('5/5 files (1 node-owned, 1 type-covered, 3 excluded)');
+      expect(out).toContain('5/5 files covered (1 node-owned · 1 type-covered · 3 excluded)');
       // Agreement across surfaces, on the SAME run: yg context --node names
       // only the one real subject file this node actually enforces.
       const context = run(['context', '--node', 'svcnode'], dir);
@@ -188,7 +192,7 @@ describe.skipIf(!distExists)('E2E: type-level classification lattice via the rea
       // the answer came from a fresh evaluation or a stored cache entry.
       expect(cold.status).toBe(warm.status);
       expect(cold.out).toBe(warm.out);
-      expect(warm.out).toContain("matches 2 classifying types: svc, util.");
+      expect(warm.out).toContain("matches 2 classifying types: svc, util");
       expect(warm.out).toContain('type: <one of: svc | util>');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -393,11 +397,11 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
     }
   });
 
-  it('--root naming an unknown node prints the "Error: " prefixed not-found message, in BOTH flag states', () => {
+  it('--root naming an unknown node prints the error[node-not-found] not-found message, in BOTH flag states', () => {
     // The type-covered summary line never has a chance to run here — the --root lookup
     // fails before the node listing (and the line after it) is ever built — so this error
-    // path must render identically whether or not coverage.type_level is on. The "Error: "
-    // prefix is the canonical bespoke-error form cli-command-contract requires for a
+    // path must render identically whether or not coverage.type_level is on. The
+    // `error[<code>]: ` prefix is the canonical command-error form cli-command-contract requires for a
     // constant-text command error like this one (its own content.md names "node not found"
     // as an example) — dropping it would be a regression, not a fix, independent of this flag.
     const onDir = copyFixture(RELATION_GATE_FIXTURE);
@@ -410,7 +414,8 @@ describe.skipIf(!distExists)('E2E: yg tree — the type-covered summary line', (
       const flagOff = run(['tree', '--root', 'nosuch'], offDir);
       for (const result of [flagOn, flagOff]) {
         expect(result.status).toBe(1);
-        expect(result.out).toContain("Error: Node 'nosuch' not found.");
+        expect(result.out).toContain("error[node-not-found]: Node 'nosuch' not found.");
+        expect(result.out).toContain('next: yg tree');
       }
       expect(flagOn.out).toBe(flagOff.out);
     } finally {

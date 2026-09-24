@@ -63,9 +63,9 @@ export function relationRefusedMessage(
       const fromDesc = fromType ?? '(unknown type)';
       const toDesc = toType ?? '(unknown type)';
       blocks.push(
-        `${target}: no relation type is allowed from ${fromDesc} to ${toDesc}; ` +
-          `either change a node's type or update the allowed relations in ` +
-          `.yggdrasil/yg-architecture.yaml (requires confirming the architecture change).`,
+        `${target}: no relation type is allowed from ${fromDesc} to ${toDesc}, so none can be declared. ` +
+          `Remove the dependency, or ask the user to approve an architecture change — a different node type, ` +
+          `or a new allowed relation in .yggdrasil/yg-architecture.yaml.`,
       );
     } else {
       blocks.push(
