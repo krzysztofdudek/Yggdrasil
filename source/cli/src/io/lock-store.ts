@@ -359,7 +359,7 @@ function parseOneLockFile(filePath: string, ctx: ParseCtx): LockSections {
         '  OR\n' +
         `  git checkout --theirs -- .yggdrasil/${ctx.fileName}\n` +
         (ctx.fileName === LOCK_LOGS_FILE_NAME
-          ? 'Then run `yg check`: a log.md conflicted by the same merge is reconciled next with `yg log merge-resolve --node <path>` (it names each one), before any `yg check --approve`.\n'
+          ? 'Then run `yg check`: a log.md conflicted by the same merge, rebase or cherry-pick is reconciled next with `yg log merge-resolve --node <path>` (it names each one), before any `yg check --approve`.\n'
           : 'Then run `yg check --approve` to re-verify all pairs whose verdicts may have changed.\n') +
         'Hand-stitching entries line-by-line is forbidden — structural damage makes the whole file lock-invalid.',
     });

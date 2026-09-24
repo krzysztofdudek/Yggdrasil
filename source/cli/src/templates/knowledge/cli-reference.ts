@@ -977,7 +977,7 @@ yg log read --node orders/handler              # top 10 entries, newest first
 yg log read --node orders/handler --top 5
 yg log read --node orders/handler --all
 yg log read --node orders/handler --with-verdicts   # interleave verification outcomes
-yg log merge-resolve --node orders/handler     # after git merge with conflicting logs
+yg log merge-resolve --node orders/handler     # a merge/rebase/cherry-pick stopped on a conflicted log
 \`\`\`
 
 Use \`--reason-file <path>\` instead of \`--reason\` to supply multi-line entry

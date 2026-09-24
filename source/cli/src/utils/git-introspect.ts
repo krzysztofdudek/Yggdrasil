@@ -37,6 +37,37 @@ export async function mergeInProgressHead(repoCwd: string): Promise<string | nul
   }
 }
 
+/**
+ * The commit `ref` names (a pseudo-ref such as `REBASE_HEAD` or
+ * `CHERRY_PICK_HEAD`, or `<sha>^1`), or null when it does not resolve to one,
+ * outside a repository, or on any git failure.
+ */
+export async function resolveCommit(repoCwd: string, ref: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFilep('git', ['rev-parse', '-q', '--verify', `${ref}^{commit}`], { cwd: repoCwd });
+    const sha = stdout.trim();
+    return sha === '' ? null : sha;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The absolute path of `name` inside the repository's git directory (`git
+ * rev-parse --git-path`, so a linked worktree gets its own), POSIX-normalized,
+ * or null outside a repository or on any git failure. Whether that path exists is the caller's
+ * question.
+ */
+export async function gitDirPath(repoCwd: string, name: string): Promise<string | null> {
+  try {
+    const { stdout } = await execFilep('git', ['rev-parse', '--path-format=absolute', '--git-path', name], { cwd: repoCwd });
+    const p = toPosixPath(stdout.trim());
+    return p === '' ? null : p;
+  } catch {
+    return null;
+  }
+}
+
 /** Returns parent SHAs of the merge commit at `ref`. Throws on non-merge. */
 export async function getMergeParents(repoCwd: string, ref: string): Promise<string[]> {
   const { stdout } = await execFilep('git', ['rev-list', '--parents', '-n', '1', ref], {

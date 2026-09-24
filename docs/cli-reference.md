@@ -855,7 +855,7 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
     tolerated and skipped. If the sidecar is unexpectedly committed (git-tracked),
     the header says so and drops the "local" label — a tracked sidecar is shared
     history, not local-only telemetry.
-- `merge-resolve` — Reconcile `log.md` after a git merge. Two modes:
+- `merge-resolve` — Reconcile `log.md` after a git merge, rebase or cherry-pick. Two modes:
   - **During a merge stopped on a conflicted `log.md`** (the usual case: `git merge`
     left conflict markers in it), run it right there. It reads the two sides from
     `HEAD` and `MERGE_HEAD`, **writes the union** — the shared history byte-for-byte,
@@ -864,10 +864,23 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
     merge. If `yg-lock.logs.json` is conflicted too, take one side of it first
     (`git checkout --ours -- .yggdrasil/yg-lock.logs.json`); merge-resolve rewrites the
     node's baseline in it.
+  - **During a rebase or cherry-pick stopped on a conflicted `log.md`**, the same
+    command, run the same way. `HEAD` is the side being built on (the upstream a rebase
+    replays onto, the branch a cherry-pick lands on) and `REBASE_HEAD` /
+    `CHERRY_PICK_HEAD` is the commit being replayed. It writes `HEAD`'s log plus the
+    entries that commit added over its own parent — each where its timestamp falls,
+    byte-for-byte, with its original date — verifies it and records the baseline. Then
+    `git add` both files and `git rebase --continue` (or `git cherry-pick --continue`);
+    a rebase that replays several commits stops once per commit, and each stop resolves
+    the same way. During a rebase, `--ours` is the upstream: take that side of a
+    conflicted lock file. A cherry-pick carries only the picked commit's entries, never
+    the history behind it. A commit whose log dropped or changed an entry its parent had
+    is refused — abort, restore the entry, and replay again.
   - **On a log that is already whole** — on the merge commit, or, for a merge that left
-    no merge commit (a merge script, a squash, a rebase), naming the two sides with
+    no merge commit (a merge script, a squash, a rebase already finished), naming the two sides with
     `--ours <ref> --theirs <ref>` (`--base <ref>` overrides their merge base) — it only
-    **verifies**: the ancestor portion byte-exact, every entry from both sides present
+    **verifies**: the ancestor portion byte-exact (at a rebase or cherry-pick stop: HEAD's
+    entries and the replayed commit's added ones, nothing more), every entry from both sides present
     and unaltered, none invented, all in date order. It never rewrites that log.
     `git merge-file --union` and `merge=union` join the sides without sorting, so put
     interleaved entries in date order first.

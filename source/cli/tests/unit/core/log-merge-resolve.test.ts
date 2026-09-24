@@ -474,7 +474,7 @@ describe('logMergeResolve — a merge still in progress with log.md conflicted',
     expect(await readFile(logPath, 'utf-8')).toMatch(/^<{7}/m);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'merge' });
     // Theirs (11:00) sorts ahead of ours (12:00) even though ours is HEAD.
     expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
     expect(readLock(path.join(projectRoot, '.yggdrasil')).nodes.billing?.log).toEqual(expectedBaselineFromContent(RESOLVED_LOG_GOOD));
@@ -503,7 +503,7 @@ describe('logMergeResolve — a merge still in progress with log.md conflicted',
     const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, PARENT2_LOG, theirs);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'merge' });
     expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
   });
 
@@ -512,7 +512,7 @@ describe('logMergeResolve — a merge still in progress with log.md conflicted',
     const { projectRoot, logPath } = await setupConflictedMerge(ANCESTOR_LOG, ours, PARENT1_LOG);
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
-    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'merge' });
     expect(await readFile(logPath, 'utf-8')).toBe(RESOLVED_LOG_GOOD);
   });
 
@@ -565,6 +565,127 @@ describe('logMergeResolve — a merge still in progress with log.md conflicted',
       expect(result.error.what).toContain('yg-lock.logs.json contains git conflict markers');
       expect(result.error.next).toContain('git checkout --ours -- .yggdrasil/yg-lock.logs.json');
     }
+  });
+});
+
+// A rebase or a cherry-pick that STOPPED on the conflicted log: HEAD is the side
+// being built on, REBASE_HEAD / CHERRY_PICK_HEAD the commit being replayed. The
+// replayed commit contributes the entries it added over its own parent.
+const E0 = '## [2026-05-11T10:00:00.000Z]\nbase.\n';
+const A1 = '## [2026-05-11T11:00:00.000Z]\nbranch a1.\n';
+const A2 = '## [2026-05-11T11:30:00.000Z]\nbranch a2.\n';
+const M = '## [2026-05-11T12:00:00.000Z]\nmain.\n';
+
+async function setupReplay(
+  op: 'rebase' | 'cherry-pick',
+  branch: string[],
+  onMain: string,
+): Promise<{ projectRoot: string; logPath: string; r: (cmd: string) => Buffer }> {
+  const repo = await mkdtemp(path.join(tmpdir(), `yg-replay-${op}-`));
+  dirs.push(repo);
+  const r = (cmd: string) => execSync(cmd, { cwd: repo, stdio: 'pipe', env: { ...gitFixtureEnv(repo), GIT_EDITOR: 'true' } });
+  r('git init -q -b main');
+  r('git config user.email t@t.test');
+  r('git config user.name Test');
+  const nodeDir = path.join(repo, '.yggdrasil', 'model', 'billing');
+  await mkdir(nodeDir, { recursive: true });
+  const logPath = path.join(nodeDir, 'log.md');
+  await writeFile(path.join(nodeDir, 'yg-node.yaml'), 'name: billing\ntype: module\ndescription: x\n');
+  await writeFile(logPath, E0);
+  r('git add -A && git commit -qm base');
+  r('git checkout -qb feat');
+  for (const [i, content] of branch.entries()) {
+    await writeFile(logPath, content);
+    r(`git add -A && git commit -qm feat${i}`);
+  }
+  r('git checkout -q main');
+  await writeFile(logPath, onMain);
+  r('git add -A && git commit -qm main');
+  if (op === 'rebase') r('git checkout -q feat && (git rebase main -q || true)');
+  else r('git cherry-pick feat || true');
+  return { projectRoot: repo, logPath, r };
+}
+
+describe('logMergeResolve — a rebase or cherry-pick still in progress', () => {
+  it('writes HEAD\'s log plus what the replayed commit added, in date order, and records it as the baseline', async () => {
+    const { projectRoot, logPath } = await setupReplay('rebase', [E0 + A1], E0 + M);
+    expect(await readFile(logPath, 'utf-8')).toMatch(/^<{7}/m);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'rebase' });
+    expect(await readFile(logPath, 'utf-8')).toBe(E0 + A1 + M);
+    expect(readLock(path.join(projectRoot, '.yggdrasil')).nodes.billing?.log).toEqual(expectedBaselineFromContent(E0 + A1 + M));
+  });
+
+  it('carries on through a second rebase stop, adding only that commit\'s entry', async () => {
+    const { projectRoot, logPath, r } = await setupReplay('rebase', [E0 + A1, E0 + A1 + A2], E0 + M);
+    let graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    expect((await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot })).ok).toBe(true);
+    r('git add -A && (git rebase --continue || true)');
+    expect(await readFile(logPath, 'utf-8')).toMatch(/^<{7}/m);
+    graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'rebase' });
+    expect(await readFile(logPath, 'utf-8')).toBe(E0 + A1 + A2 + M);
+  });
+
+  it('cherry-picks only the picked commit\'s entry, not the history behind it', async () => {
+    const { projectRoot, logPath } = await setupReplay('cherry-pick', [E0 + A1, E0 + A1 + A2], E0 + M);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'cherry-pick' });
+    expect(await readFile(logPath, 'utf-8')).toBe(E0 + A2 + M);
+  });
+
+  it('verifies a hand resolution at a rebase stop, and rejects an entry neither side has', async () => {
+    const { projectRoot, logPath } = await setupReplay('rebase', [E0 + A1], E0 + M);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    await writeFile(logPath, E0 + A1 + M);
+    expect(await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot })).toEqual({ ok: true, nodePath: 'billing', inProgress: 'rebase' });
+    await writeFile(logPath, E0 + A1 + M + '## [2026-05-11T13:00:00.000Z]\ninvented.\n');
+    const bad = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(bad.ok).toBe(false);
+    if (!bad.ok) expect(bad.error.what).toContain('found neither on HEAD nor added by the commit being rebased');
+  });
+
+  it('rejects a hand resolution that drops the replayed entry or puts it out of date order', async () => {
+    const { projectRoot, logPath } = await setupReplay('rebase', [E0 + A1], E0 + M);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    await writeFile(logPath, E0 + M);
+    const dropped = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(dropped.ok).toBe(false);
+    if (!dropped.ok) expect(dropped.error.what).toContain('missing or has altered 1 entry');
+    await writeFile(logPath, E0 + M + A1);
+    const unordered = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(unordered.ok).toBe(false);
+    if (!unordered.ok) expect(unordered.error.what).toContain('not in chronological order');
+  });
+
+  it('refuses to write a union when the replayed commit rewrote an entry its parent had, and leaves the file alone', async () => {
+    const rewritten = '## [2026-05-11T10:00:00.000Z]\nbase, rewritten.\n' + A1;
+    const { projectRoot, logPath } = await setupReplay('rebase', [rewritten], E0 + M);
+    const before = await readFile(logPath, 'utf-8');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.what).toContain('rewrote .yggdrasil/model/billing/log.md');
+      expect(result.error.next).toContain('git rebase --abort');
+    }
+    expect(await readFile(logPath, 'utf-8')).toBe(before);
+  });
+
+  it('does not take a REBASE_HEAD a finished rebase left behind for a rebase in progress', async () => {
+    const { projectRoot, r } = await setupReplay('rebase', [E0 + A1], E0 + M);
+    const graph0 = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    expect((await logMergeResolve({ graph: graph0, nodePath: 'billing', repoRoot: projectRoot })).ok).toBe(true);
+    r('git add -A && git rebase --continue');
+    const stale = execSync('git rev-parse --git-path REBASE_HEAD', { cwd: projectRoot }).toString().trim();
+    await writeFile(path.join(projectRoot, stale), execSync('git rev-parse HEAD', { cwd: projectRoot }).toString());
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.what).toContain('no merge, rebase or cherry-pick is in progress');
   });
 });
 

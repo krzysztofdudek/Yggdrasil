@@ -13,7 +13,8 @@
 //      run) is named on the report and in `--json`, and `Next:` points at it
 //   4. an async check.mjs that throws still reaches the report
 //   5. a reason-less yg-suppress marker is warned about before it matters
-//   6. a log conflict met mid-merge resolves with the command the check names
+//   6. a log conflict met mid-merge, mid-rebase or mid-cherry-pick resolves with
+//      the command the check names, and the result passes yg check --approve
 //   7. the log gate stops before announcing a fill, and its retry keeps flags
 //   8. the closing summary never claims "all valid" after filling something
 //   9. contradictory / invalid flags are refused with an accurate message
@@ -317,6 +318,135 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         expect(merged).not.toMatch(/^[<>]{7}/m);
         expect(merged).toContain('branch a');
         expect(merged).toContain('main');
+      } finally {
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+      }
+    });
+  });
+
+  // A rebase or a cherry-pick that stops on a conflicted log.md is the same
+  // conflict as a merge — the two sides are HEAD (the upstream, or the branch
+  // picked onto) and the commit being replayed (REBASE_HEAD / CHERRY_PICK_HEAD).
+  // Both lock files and log.md conflict when each side approved its own entry;
+  // the lock takes the side being built on, the log gets the union.
+  const lockFiles = ['yg-lock.logs.json', 'yg-lock.nondeterministic.json'];
+
+  /** Resolve one stop of a rebase / cherry-pick the way the check says to; returns the merge-resolve output. */
+  function resolveStop(dir: string): Run {
+    for (const f of lockFiles) {
+      const p = path.join(dir, '.yggdrasil', f);
+      if (existsSync(p) && /^<{7}/m.test(readFileSync(p, 'utf-8'))) git(['checkout', '--ours', '--', `.yggdrasil/${f}`], dir);
+    }
+    const doc = json(run(['check', '--json'], dir));
+    expect(doc.issues.some((i) => i.code === 'log-conflict')).toBe(true);
+    expect(doc.suggestedNext).toBe('yg log merge-resolve --node services/payments');
+    const r = run(['log', 'merge-resolve', '--node', 'services/payments'], dir);
+    git(['add', '-A'], dir);
+    return r;
+  }
+
+  function continueOp(op: 'rebase' | 'cherry-pick', dir: string): string {
+    const r = spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', op, '--continue'], {
+      cwd: dir, encoding: 'utf-8', env: { ...process.env, GIT_EDITOR: 'true' },
+    });
+    return (r.stdout ?? '') + (r.stderr ?? '');
+  }
+
+  const inProgress = (dir: string, ref: string): boolean =>
+    spawnSync('git', ['rev-parse', '-q', '--verify', ref], { cwd: dir, encoding: 'utf-8' }).status === 0;
+
+  /** base (approved) → branch feat-a with two approved entries → main with one approved entry, written after them. */
+  function divergedProject(label: string): { dir: string; main: string } {
+    const dir = project(label);
+    dropJudgmentRule(dir);
+    makeServiceLogRequired(dir);
+    run(['log', 'add', '--node', 'services/payments', '--reason', 'initial'], dir);
+    run(['log', 'add', '--node', 'services/orders', '--reason', 'initial'], dir);
+    expect(run(['check', '--approve'], dir).stdout).toContain('yg check: PASS');
+    git(['add', '-A'], dir);
+    git(['commit', '-qm', 'base'], dir);
+    const main = git(['rev-parse', '--abbrev-ref', 'HEAD'], dir).trim();
+    git(['checkout', '-qb', 'feat-a'], dir);
+    for (const reason of ['branch a1', 'branch a2']) {
+      run(['log', 'add', '--node', 'services/payments', '--reason', reason], dir);
+      run(['check', '--approve'], dir);
+      git(['add', '-A'], dir);
+      git(['commit', '-qm', reason], dir);
+    }
+    git(['checkout', '-q', main], dir);
+    run(['log', 'add', '--node', 'services/payments', '--reason', 'main'], dir);
+    run(['check', '--approve'], dir);
+    git(['add', '-A'], dir);
+    git(['commit', '-qm', 'main'], dir);
+    return { dir, main };
+  }
+
+  const LOG = (dir: string): string => path.join(dir, '.yggdrasil', 'model', 'services', 'payments', 'log.md');
+
+  describe('6c. a log conflict met mid-rebase', () => {
+    it('resolves every stop with the command the check names, and the rebased branch passes yg check --approve', () => {
+      const { dir, main } = divergedProject('rebase');
+      try {
+        git(['checkout', '-q', 'feat-a'], dir);
+        git(['rebase', main], dir);
+        let stops = 0;
+        // A finished rebase can leave REBASE_HEAD behind; its state directory is what says it is still going.
+        const rebasing = (): boolean => existsSync(path.join(dir, '.git', 'rebase-merge')) || existsSync(path.join(dir, '.git', 'rebase-apply'));
+        while (rebasing()) {
+          expect(readFileSync(LOG(dir), 'utf-8')).toMatch(/^<{7}/m);
+          const r = resolveStop(dir);
+          expect(r.all).not.toContain('not a merge commit');
+          expect(r.status).toBe(0);
+          expect(r.stdout).toContain('wrote the union of both sides');
+          expect(r.stdout).toContain('git rebase --continue');
+          const merged = readFileSync(LOG(dir), 'utf-8');
+          expect(merged).not.toMatch(/^[<>]{7}/m);
+          continueOp('rebase', dir);
+          stops++;
+          expect(stops).toBeLessThan(5);
+        }
+        // Both branch commits stop: each adds an entry where main added one.
+        expect(stops).toBe(2);
+        // Every entry, each exactly once, in the order it was written — the
+        // branch's two entries keep their original timestamps ahead of main's.
+        const final = readFileSync(LOG(dir), 'utf-8');
+        const order = ['initial', 'branch a1', 'branch a2', '\nmain'].map((s) => final.indexOf(s));
+        expect(order.every((i) => i >= 0)).toBe(true);
+        expect([...order].sort((a, b) => a - b)).toEqual(order);
+        expect(final.split('branch a1').length).toBe(2);
+        const headers = [...final.matchAll(/^## \[([^\]]+)\]/gm)].map((m) => m[1]);
+        expect([...headers].sort()).toEqual(headers);
+        const approve = run(['check', '--approve'], dir);
+        expect(approve.stdout).toContain('yg check: PASS');
+        expect(approve.status).toBe(0);
+      } finally {
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+      }
+    });
+  });
+
+  describe('6d. a log conflict met mid-cherry-pick', () => {
+    it('adds only the picked commit\'s entry, and the result passes yg check --approve', () => {
+      const { dir } = divergedProject('cherry');
+      try {
+        // main is checked out; pick only feat-a's SECOND commit.
+        git(['cherry-pick', 'feat-a'], dir);
+        expect(inProgress(dir, 'CHERRY_PICK_HEAD')).toBe(true);
+        expect(readFileSync(LOG(dir), 'utf-8')).toMatch(/^<{7}/m);
+        const r = resolveStop(dir);
+        expect(r.status).toBe(0);
+        expect(r.stdout).toContain('wrote the union of both sides');
+        expect(r.stdout).toContain('git cherry-pick --continue');
+        continueOp('cherry-pick', dir);
+        expect(inProgress(dir, 'CHERRY_PICK_HEAD')).toBe(false);
+        const final = readFileSync(LOG(dir), 'utf-8');
+        expect(final).toContain('branch a2');
+        // a1 was never picked, so it is not carried in.
+        expect(final).not.toContain('branch a1');
+        expect(final.indexOf('branch a2')).toBeLessThan(final.indexOf('\nmain'));
+        const approve = run(['check', '--approve'], dir);
+        expect(approve.stdout).toContain('yg check: PASS');
+        expect(approve.status).toBe(0);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }

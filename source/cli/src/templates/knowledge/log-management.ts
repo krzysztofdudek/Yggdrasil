@@ -217,28 +217,36 @@ invalidate and \`yg check --approve\` re-verifies just this node — accept that
 re-verification. The new log entry records the revert; closure re-establishes the
 node's baseline.
 
-## After a git merge
+## After a git merge, rebase or cherry-pick
 
-If both branches added log entries to the same node, run from the merge
-commit:
+If both sides added log entries to the same node, git stops with conflict
+markers in its \`log.md\`. Run, right there, with the operation still stopped:
 
 \`\`\`bash
 yg log merge-resolve --node <path>
 \`\`\`
 
-The tool validates byte-exact ancestor portion and union of new entries — it
-cannot silently drop or fabricate entries — and records the node's \`log\` baseline
-into the lock. The reconciled history itself stays in \`log.md\`, written by your
-merge resolution; merge-resolve reads it, never rewrites it. Do NOT manually
-concatenate the two log histories — integrity hashes will break and \`yg check\`
-will fail.
+It reads the two sides from git: a merge's \`HEAD\` and \`MERGE_HEAD\`; a rebase's
+or cherry-pick's \`HEAD\` (the side being built on) and \`REBASE_HEAD\` /
+\`CHERRY_PICK_HEAD\` (the commit being replayed — it contributes the entries it
+added over its own parent, nothing more). It **writes the union** — every entry
+byte-for-byte with its original date, oldest first — verifies it, and records the
+node's \`log\` baseline into the lock. Then \`git add\` the log and
+\`yg-lock.logs.json\` and finish the operation (\`git commit\`, \`git rebase
+--continue\`, \`git cherry-pick --continue\`); a rebase stops once per replayed
+commit, and each stop resolves the same way.
+
+On a log that is already whole (the merge commit, or a hand resolution) it only
+verifies: it cannot silently drop or fabricate entries. Do NOT manually
+concatenate the two log histories or keep one side and re-add entries — integrity
+hashes break, and re-added entries lose their original dates.
 
 When BOTH \`log.md\` and \`yg-lock.logs.json\` conflicted, the order is: resolve the lock
-(take ONE side wholesale) → \`yg log merge-resolve --node <path>\` per conflicted
+(take ONE side wholesale — during a rebase \`--ours\` is the upstream) → \`yg log merge-resolve --node <path>\` per conflicted
 log → \`yg check --approve\`. (Lock merge mechanics:
 \`yg knowledge read verification-and-lock\`.)
 
-A merge that left no merge commit (a merge script, a squash, a rebase) names its
+A merge that left no merge commit (a merge script, a squash, a finished rebase) names its
 two sides instead:
 
 \`\`\`bash

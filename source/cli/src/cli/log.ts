@@ -7,7 +7,7 @@ import { findOwnerWithinOwnGraph } from './owner.js';
 import { debugWrite } from '../utils/debug-log.js';
 import { logAdd } from '../core/log/log-add.js';
 import { logRead } from '../core/log/log-read.js';
-import { logMergeResolve } from '../core/log/log-merge-resolve.js';
+import { logMergeResolve, OPERATION_COMMANDS } from '../core/log/log-merge-resolve.js';
 import { projectRootFromGraph } from '../io/paths.js';
 import { readVerdictEvents } from '../io/events-reader.js';
 import type { VerdictEvent } from '../io/events-store.js';
@@ -262,7 +262,7 @@ export function registerLogCommand(program: Command): void {
   log
     .command('merge-resolve')
     .description(
-      'Reconcile log.md after a git merge: during a merge stopped on a conflicted log.md (writes the union of both sides), on the merge commit, or with --ours/--theirs naming the two sides of a merge that left no merge commit',
+      'Reconcile log.md after a git merge: during a merge, rebase or cherry-pick stopped on a conflicted log.md (writes the union of both sides), on the merge commit, or with --ours/--theirs naming the two sides of a merge that left no merge commit',
     )
     .requiredOption('--node <path>', 'Node path (relative to .yggdrasil/model/)')
     .option('--ours <ref>', 'one side of a merge that left no merge commit (with --theirs)')
@@ -275,7 +275,7 @@ export function registerLogCommand(program: Command): void {
           fail({
                 what: '--ours and --theirs go together, and --base only with them.',
                 why: 'A merge has two sides; the merged log is verified against both, so naming one of them names no merge.',
-                next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only when they share no merge base), or none of them (during a merge in progress, or on the merge commit).',
+                next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only when they share no merge base), or none of them (during a merge, rebase or cherry-pick in progress, or on the merge commit).',
               });
           process.exit(1);
         }
@@ -294,7 +294,7 @@ export function registerLogCommand(program: Command): void {
           chalk.green(
             result.wroteUnion === true
               ? `Merge-resolve wrote the union of both sides into .yggdrasil/model/${result.nodePath}/log.md and verified it.\nLog baseline updated.\n` +
-                `Next: git add .yggdrasil/model/${result.nodePath}/log.md .yggdrasil/yg-lock.logs.json, finish the merge (git commit), then run yg check.\n`
+                `Next: git add .yggdrasil/model/${result.nodePath}/log.md .yggdrasil/yg-lock.logs.json, finish the ${result.inProgress ?? 'merge'} (${OPERATION_COMMANDS[result.inProgress ?? 'merge'].finish}), then run yg check.\n`
               : `Merge-resolve verified for .yggdrasil/model/${result.nodePath}/log.md\nLog baseline updated.\n`,
           ),
         );
