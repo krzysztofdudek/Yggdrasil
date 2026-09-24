@@ -188,3 +188,119 @@ describe('resolver — Ruby lexical gates and external roots', () => {
     });
   });
 });
+
+// Java and Kotlin share one JVM namespace (symbol-table.ts); Kotlin star imports and Java's
+// source-root-miss fallback collapse by owner; a Kotlin file's incompleteness markers only
+// ever keep an ambiguity, never create a binding.
+describe('resolver — the shared JVM namespace', () => {
+  const owners: Record<string, string> = { 'k/A.kt': 'k', 'j/B.java': 'j', 'x/X.kt': 'x', 'y/Y.kt': 'y', 'k/A2.kt': 'k' };
+  const ownerIndex = { ownerOf: (f: string) => owners[f] } as never;
+  const mk = (st: SymbolTable, probe: () => string | undefined = () => undefined) =>
+    makeResolver({ ownerIndex, symbolTable: st, resolvePathToFile: probe });
+
+  it('a Kotlin symbol resolves to a Java declaration and a Java inline FQN to a Kotlin one', () => {
+    const st = new SymbolTable();
+    st.declare('java', 'a.B', 'j/B.java');
+    st.declare('kotlin', 'a.A', 'k/A.kt');
+    const r = mk(st);
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.B' }, 'k/A.kt', 'kotlin')).toEqual({ kind: 'resolved', ownerNode: 'j', resolvedFile: 'j/B.java' });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.A' }, 'j/B.java', 'java')).toEqual({ kind: 'resolved', ownerNode: 'k', resolvedFile: 'k/A.kt' });
+    // other languages keep their own namespace
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.B' }, 'z.cs', 'csharp')).toEqual({ kind: 'absent' });
+  });
+
+  it('a Java import the source-root probe misses falls back to the JVM namespace (type, and package by owner)', () => {
+    const st = new SymbolTable();
+    st.declare('kotlin', 'a.A', 'k/A.kt');
+    st.declare('kotlin', 'a.A2', 'k/A2.kt');
+    st.declare('kotlin', 's.X', 'x/X.kt');
+    st.declare('kotlin', 's.Y', 'y/Y.kt');
+    const r = mk(st);
+    expect(r.classify({ kind: 'path', specifier: 'a.A' }, 'j/B.java', 'java')).toEqual({ kind: 'resolved', ownerNode: 'k', resolvedFile: 'k/A.kt' });
+    expect(r.classify({ kind: 'path', specifier: 'a', isPackage: true }, 'j/B.java', 'java')).toMatchObject({ kind: 'resolved', ownerNode: 'k' });
+    expect(r.classify({ kind: 'path', specifier: 's', isPackage: true }, 'j/B.java', 'java')).toEqual({ kind: 'ambiguous' });
+    expect(r.resolveFile({ kind: 'path', specifier: 'a.A' }, 'j/B.java', 'java')).toBe('k/A.kt');
+    // a probe HIT is never second-guessed, and a non-Java path miss never falls back
+    expect(mk(st, () => 'j/B.java').classify({ kind: 'path', specifier: 'a.A' }, 'x/X.kt', 'java')).toMatchObject({ kind: 'resolved', ownerNode: 'j' });
+    expect(r.classify({ kind: 'path', specifier: 'a.A' }, 'z.php', 'php')).toEqual({ kind: 'absent' });
+  });
+
+  it('a Kotlin star hint `<pkg>.*` collapses the package by owner; a classifier star binds the classifier', () => {
+    const st = new SymbolTable();
+    st.declare('kotlin', 'a.A', 'k/A.kt');
+    st.declare('kotlin', 'a.f', 'k/A2.kt');
+    st.declare('kotlin', 'a.sub.Z', 'x/X.kt'); // a sub-package member is not a member of `a`
+    st.declare('kotlin', 'e.Colors', 'y/Y.kt');
+    const r = mk(st);
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.*' }, 'j/B.java', 'kotlin')).toMatchObject({ kind: 'resolved', ownerNode: 'k' });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'e.Colors.*' }, 'j/B.java', 'kotlin')).toMatchObject({ kind: 'resolved', ownerNode: 'y' });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'nothing.*' }, 'j/B.java', 'kotlin')).toEqual({ kind: 'absent' });
+    st.declare('kotlin', 'a.Other', 'x/X.kt');
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.*' }, 'j/B.java', 'kotlin')).toEqual({ kind: 'ambiguous' });
+  });
+
+  it('incompleteness markers: never bind alone, keep the ambiguity of another file, cover only their own package', () => {
+    const st = new SymbolTable();
+    st.declare('kotlin', 'a.*', 'x/X.kt'); // x may declare anything in package `a`
+    st.declare('kotlin', 'a.T', 'y/Y.kt');
+    st.declare('kotlin', 'a.b.C', 'y/Y.kt');
+    st.declare('kotlin', 'a.U', 'x/X.kt');
+    const r = mk(st);
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.Nowhere' }, 'k/A.kt', 'kotlin')).toEqual({ kind: 'absent' });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.T' }, 'k/A.kt', 'kotlin')).toEqual({ kind: 'ambiguous' });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.U' }, 'k/A.kt', 'kotlin')).toMatchObject({ kind: 'resolved', ownerNode: 'x' });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.b.C' }, 'k/A.kt', 'kotlin')).toMatchObject({ kind: 'resolved', ownerNode: 'y' });
+    // the Java fallback honours the same markers
+    expect(r.classify({ kind: 'path', specifier: 'a.T' }, 'j/B.java', 'java')).toEqual({ kind: 'ambiguous' });
+  });
+
+  it('a type-members marker `<pkg>.<T>+*` keeps a nested key ambiguous but leaves the type itself alone', () => {
+    const st = new SymbolTable();
+    st.declare('kotlin', 'p.Box', 'x/X.kt');
+    st.declare('kotlin', 'p.Box+*', 'x/X.kt');
+    st.declare('kotlin', 'q.Box', 'y/Y.kt');
+    st.declare('kotlin', 'q.Box+Inner', 'y/Y.kt');
+    st.declare('kotlin', 'q.Box+*', 'k/A.kt'); // another file lost members of a same-named q.Box
+    const r = mk(st);
+    expect(r.classify({ kind: 'symbol', symbolKey: 'p.Box' }, 'k/A.kt', 'kotlin')).toMatchObject({ kind: 'resolved', ownerNode: 'x' });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'q.Box.Inner' }, 'j/B.java', 'kotlin')).toEqual({ kind: 'ambiguous' });
+  });
+});
+
+describe('resolver — JVM route edge branches', () => {
+  it('resolveFile follows the JVM route for symbols, stars and Java probe misses', () => {
+    const st = new SymbolTable();
+    st.declare('kotlin', 'a.A', 'k/A.kt');
+    st.declare('kotlin', 'a.B', 'x/B.kt');
+    st.declare('kotlin', 'u.U', 'vendor/U.kt'); // unmapped
+    const owners: Record<string, string> = { 'k/A.kt': 'k', 'x/B.kt': 'x' };
+    const r = makeResolver({ ownerIndex: { ownerOf: (f: string) => owners[f] } as never, symbolTable: st, resolvePathToFile: () => undefined });
+    expect(r.resolveFile({ kind: 'symbol', symbolKey: 'a.A' }, 'z.kt', 'kotlin')).toBe('k/A.kt');
+    expect(r.resolveFile({ kind: 'symbol', symbolKey: 'a.*' }, 'z.kt', 'kotlin')).toBeUndefined(); // split → ambiguous
+    expect(r.resolveFile({ kind: 'symbol', symbolKey: 'u.*' }, 'z.kt', 'kotlin')).toBe('vendor/U.kt'); // no owner → a file anyway
+    expect(r.classify({ kind: 'symbol', symbolKey: 'u.*' }, 'z.kt', 'kotlin')).toEqual({ kind: 'absent' });
+    expect(r.resolveFile({ kind: 'path', specifier: 'a.A' }, 'z.java', 'java')).toBe('k/A.kt');
+    expect(r.resolveFile({ kind: 'path', specifier: 'nope.X' }, 'z.java', 'java')).toBeUndefined();
+    expect(r.resolve({ kind: 'path', specifier: 'a.A' }, 'z.java', 'java')).toEqual({ ownerNode: 'k', resolvedFile: 'k/A.kt' });
+    expect(r.resolve({ kind: 'path', specifier: 'a', isPackage: true }, 'z.java', 'java')).toBeUndefined();
+    expect(r.resolve({ kind: 'symbol', symbolKey: 'a.B' }, 'z.kt', 'kotlin')).toEqual({ ownerNode: 'x', resolvedFile: 'x/B.kt' });
+    expect(r.resolve({ kind: 'symbol', symbolKey: 'u.U' }, 'z.kt', 'kotlin')).toBeUndefined();
+  });
+
+  it('a star over a package with an unmapped file still collapses to the one owner', () => {
+    const st = new SymbolTable();
+    st.declare('kotlin', 'a.A', 'k/A.kt');
+    st.declare('kotlin', 'a.V', 'vendor/V.kt');
+    const r = makeResolver({ ownerIndex: { ownerOf: (f: string) => (f === 'k/A.kt' ? 'k' : undefined) } as never, symbolTable: st, resolvePathToFile: () => undefined });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.*' }, 'z.kt', 'kotlin')).toEqual({ kind: 'resolved', ownerNode: 'k', resolvedFile: 'k/A.kt' });
+  });
+
+  it('a set / nestedOnly hint in a JVM language takes the generic symbol route', () => {
+    const st = new SymbolTable();
+    st.declare('java', 'a.A', 'k/A.kt');
+    const r = makeResolver({ ownerIndex: { ownerOf: () => 'k' } as never, symbolTable: st, resolvePathToFile: () => undefined });
+    expect(r.classify({ kind: 'symbol', symbolKey: 'a.A', set: [{ symbolKey: 'a.A' }] }, 'z.java', 'java')).toMatchObject({ kind: 'resolved' });
+    expect(r.resolveFile({ kind: 'symbol', symbolKey: 'a.A', nestedOnly: true }, 'z.java', 'java')).toBeUndefined();
+    expect(r.resolveFile({ kind: 'symbol', symbolKey: 'X' }, 'z.rb', 'ruby')).toBeUndefined();
+  });
+});

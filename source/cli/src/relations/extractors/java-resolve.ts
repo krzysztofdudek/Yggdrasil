@@ -21,7 +21,10 @@ import path from 'node:path';
  * RESOLUTION MISS → undefined. This fail-to-silence is the single most important
  * false-positive guard: a `java.*` / `javax.*` / `jakarta.*` stdlib type, a
  * third-party library type, or any FQN whose file is not present resolves to
- * nothing and is never flagged.
+ * nothing and is never flagged. A miss here is not yet final: the resolver then looks
+ * the FQN up in the JVM symbol table (resolver.ts), which reaches a sibling module's
+ * source root, `src/main` from `src/test`, and Kotlin declarations — still binding only
+ * a FQN exactly one graph file declares.
  *
  * `deps.isExcluded`, when supplied, makes an excluded hit act as though it does
  * not exist, for BOTH resolvers: `resolveType` skips it and keeps walking (the

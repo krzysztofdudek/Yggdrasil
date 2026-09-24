@@ -2,6 +2,7 @@ import type { Node } from 'web-tree-sitter';
 import { walk } from '../../ast/walk.js';
 import type { DependencyExtractor, DetectedDep, DeclaredSymbol, ParsedFile } from './types.js';
 import { single } from './types.js';
+import { kotlinView, type KotlinView } from './kotlin-recover.js';
 
 /**
  * Kotlin dependency extractor — the FIRST language that resolves through the shared
@@ -41,14 +42,29 @@ import { single } from './types.js';
  *    and `type_alias` do NOT: a property's name sits under a `variable_declaration`
  *    child's `identifier`; a type alias's name is a direct `identifier` child.
  *
- * WILDCARD HANDLING (documented v1 decision): `import com.foo.*` emits the PACKAGE FQN
- * (`com.foo`) as the symbol hint. A file's `declarations()` emits per-type FQNs
- * (`com.foo.Bar`), never the bare package, so a wildcard hint resolves through the
- * SymbolTable ONLY if some file happens to `declare` the package string itself — which
- * never happens in v1. In practice a wildcard import therefore resolves to undefined
- * (silence), i.e. v1 treats star imports as non-edges. This is the safe direction
- * (under-detect, never over-flag) and is consistent with the resolution-miss = non-event
- * precision rule. Per-member wildcard resolution is DEFERRED.
+ * STAR IMPORTS: `import com.foo.*` emits the hint `com.foo.*` (the `*` kept as a marker the
+ * resolver recognises). The resolver collapses it by owner exactly like Java's on-demand
+ * import: the files declaring a direct top-level member of `com.foo` (or the classifier
+ * `com.foo`, for a star import of an enum's entries / an object's members) → one owning node
+ * → one edge; zero or two or more owners → silence. It is never expanded into per-name edges.
+ *
+ * ONE JVM NAMESPACE: Kotlin declares into, and resolves against, the same namespace as Java
+ * (symbol-table.ts), so an import of a Java class binds, and a Java import of a Kotlin class or
+ * file facade binds. A file with a top-level function or property also declares its JVM FILE
+ * FACADE (`<File>Kt`, or the `@file:JvmName` name): Kotlin source can never name a facade, so
+ * that key is only ever matched by a Java consumer.
+ *
+ * LOCAL DECLARATIONS (inside a function body, lambda, `init` block, accessor, secondary
+ * constructor, or object expression) have no FQN and are not importable: they are NOT keyed.
+ *
+ * PARSE RECOVERY: the shipped grammar predates Kotlin 2.2 and turns a when-guard, a
+ * multi-dollar string or a context-parameter clause into an ERROR that runs to the end of the
+ * file. Both walks go through `kotlinView` (kotlin-recover.ts), which blanks those forms and
+ * re-parses, re-parses what is still damaged one top-level declaration at a time, and reports
+ * what it could not read. Unreadable parts become INCOMPLETENESS MARKERS: `<package>.*` (the
+ * file may declare anything in its package) and `<package>.<Type>+*` (some members of `Type`
+ * are unreadable). A marker never binds anything; the resolver uses it only to keep the
+ * ambiguity the unreadable declarations might have created (fail closed).
  *
  * stdlib / external imports (`kotlin.*`, `kotlinx.*`, `java.*`, AndroidX, third-party)
  * still emit a symbol hint here — silence is the SymbolTable's job (an FQN no in-graph
@@ -97,7 +113,37 @@ function dottedUserType(node: Node): string | undefined {
   return segs.length >= 2 ? segs.join('.') : undefined;
 }
 
+/** True when an `import` node is a star import (`import a.b.*`): the `*` is its own token. */
+function isStarImport(decl: Node): boolean {
+  for (let i = 0; i < decl.childCount; i++) {
+    const c = decl.child(i);
+    if (c !== null && !c.isNamed && c.type === '*') return true;
+  }
+  return false;
+}
+
+/** Walk every trustworthy root of a view, never descending into an ERROR subtree. */
+function walkView(view: KotlinView, visit: (node: Node) => boolean | undefined): void {
+  for (const root of view.roots) {
+    walk(root, (node) => (node.type === 'ERROR' ? false : visit(node)));
+  }
+}
+
+/** Run `fn` over the recovered view of `file`, releasing any tree the recovery made. */
+function withView<T>(file: ParsedFile, fn: (view: KotlinView) => T): T {
+  const view = kotlinView(file.tree, file.content);
+  try {
+    return fn(view);
+  } finally {
+    view.dispose();
+  }
+}
+
 function uses(file: ParsedFile): DetectedDep[] {
+  return withView(file, (view) => usesOf(view));
+}
+
+function usesOf(view: KotlinView): DetectedDep[] {
   const out: DetectedDep[] = [];
   const seen = new Set<string>();
 
@@ -110,7 +156,7 @@ function uses(file: ParsedFile): DetectedDep[] {
     out.push(single({ kind: 'symbol', symbolKey }, kind, line));
   };
 
-  walk(file.tree.rootNode, (node) => {
+  walkView(view, (node) => {
     // Inline FQN type reference: a multi-segment `user_type` (type position only — an
     // expression-position dotted reference is a navigation_expression, never a user_type).
     if (node.type === 'user_type') {
@@ -120,11 +166,12 @@ function uses(file: ParsedFile): DetectedDep[] {
 
     // Match the NAMED `import` node, never the bare `import` keyword token.
     if (node.type !== 'import' || !node.isNamed) return undefined;
-    // The FQN is the qualified_identifier text. For a wildcard the text is already the
-    // package (the `*` is a separate token); for an alias the trailing identifier (the
-    // `as B` binding) is a separate child and is NOT returned by importFqn — so the FQN
-    // is emitted unchanged in every case.
-    emit(importFqn(node), node);
+    // The FQN is the qualified_identifier text. For a star import the text is the package
+    // (the `*` is a separate token), emitted as `<package>.*` so the resolver collapses it by
+    // owner; for an alias the trailing identifier (the `as B` binding) is a separate child and
+    // is NOT returned by importFqn — so the FQN is emitted unchanged.
+    const fqn = importFqn(node);
+    emit(fqn !== undefined && isStarImport(node) ? `${fqn}.*` : fqn, node);
     return undefined;
   });
 
@@ -187,6 +234,55 @@ const ENCLOSING_TYPE_TYPES = new Set([
   'companion_object',
 ]);
 
+/** Ancestors that make a declaration LOCAL (no FQN, not importable): a function body, a
+ *  lambda or anonymous function, an `init` block, an accessor, a secondary constructor, an
+ *  object expression, or any statement block / control-structure body. */
+const LOCAL_SCOPE_TYPES = new Set([
+  'function_body',
+  'lambda_literal',
+  'anonymous_function',
+  'anonymous_initializer',
+  'getter',
+  'setter',
+  'secondary_constructor',
+  'object_literal',
+  'block',
+  'control_structure_body',
+  'when_entry',
+  'catch_block',
+  'finally_block',
+]);
+
+function isLocal(node: Node): boolean {
+  for (let cur = node.parent; cur !== null; cur = cur.parent) {
+    if (LOCAL_SCOPE_TYPES.has(cur.type)) return true;
+  }
+  return false;
+}
+
+/** The JVM file-facade class name of a `.kt` file: the `@file:JvmName("…")` argument when
+ *  present, else the file name (without `.kt`, non-identifier characters as `_`, first letter
+ *  upper-cased) + `Kt`. Undefined for a script (`.kts`), which compiles to a script class. */
+function facadeName(file: ParsedFile, view: KotlinView): string | undefined {
+  if (!file.path.endsWith('.kt')) return undefined;
+  let jvmName: string | undefined;
+  walkView(view, (node) => {
+    if (jvmName !== undefined) return false;
+    if (node.type !== 'file_annotation') return node.type === 'source_file' ? undefined : false;
+    const inv = node.namedChildren.find((c) => c?.type === 'constructor_invocation');
+    const typeName = inv?.namedChildren.find((c) => c?.type === 'user_type')?.text;
+    if (typeName !== 'JvmName' && typeName !== 'kotlin.jvm.JvmName') return false;
+    const str = inv?.descendantsOfType('string_content')[0]?.text;
+    if (str !== undefined && str !== '') jvmName = str;
+    return false;
+  });
+  if (jvmName !== undefined) return jvmName;
+  const base = file.path.slice(file.path.lastIndexOf('/') + 1, -'.kt'.length).replace(/[^A-Za-z0-9_$]/g, '_');
+  if (base === '') return undefined;
+  const safe = /^[0-9]/.test(base) ? `_${base}` : base;
+  return `${safe[0].toUpperCase()}${safe.slice(1)}Kt`;
+}
+
 /** The enclosing-TYPE chain of `node`, read from its ancestor chain, outermost-first. A
  *  nested `class Inner` inside `class Outer` yields `["Outer"]`; deeper nesting yields
  *  `["Outer", "Mid"]`; a member inside a `companion object` yields `["Outer", "Companion"]`.
@@ -233,10 +329,20 @@ function enclosingTypeChain(node: Node): string[] {
  * These keys feed the shared SymbolTable; a use's import FQN resolves against them.
  */
 function declarations(file: ParsedFile): DeclaredSymbol[] {
+  return withView(file, (view) => declarationsOf(file, view));
+}
+
+function declarationsOf(file: ParsedFile, view: KotlinView): DeclaredSymbol[] {
   const out: DeclaredSymbol[] = [];
+  const seen = new Set<string>();
+  const add = (symbolKey: string, line: number): void => {
+    if (seen.has(symbolKey)) return;
+    seen.add(symbolKey);
+    out.push({ symbolKey, line });
+  };
 
   let pkg = '';
-  walk(file.tree.rootNode, (node) => {
+  walkView(view, (node) => {
     if (node.type !== 'package_header') return undefined;
     for (let i = 0; i < node.namedChildCount; i++) {
       const c = node.namedChild(i);
@@ -248,22 +354,40 @@ function declarations(file: ParsedFile): DeclaredSymbol[] {
     return false;
   });
 
-  walk(file.tree.rootNode, (node) => {
+  const qualify = (typeKey: string): string => (pkg === '' ? typeKey : `${pkg}.${typeKey}`);
+  let topLevelCallable = false;
+  walkView(view, (node) => {
     if (!DECLARATION_TYPES.has(node.type)) return undefined;
+    if (isLocal(node)) return undefined;
     const name = declarationName(node);
     if (name === undefined || name === '') return undefined;
-    const typeKey = [...enclosingTypeChain(node), name].join('+');
-    const symbolKey = pkg === '' ? typeKey : `${pkg}.${typeKey}`;
-    out.push({ symbolKey, line: node.startPosition.row + 1 });
+    const chain = enclosingTypeChain(node);
+    if (chain.length === 0 && (node.type === 'function_declaration' || node.type === 'property_declaration')) {
+      topLevelCallable = true;
+    }
+    add(qualify([...chain, name].join('+')), node.startPosition.row + 1);
     return undefined;
   });
 
+  // Declarations read only from a damaged declaration's leading tokens, and the markers for
+  // what could not be read at all (see the file doc comment, PARSE RECOVERY).
+  for (const d of view.lexical) {
+    if (d.kind === 'callable') topLevelCallable = true;
+    add(qualify(d.name), d.line);
+  }
+  for (const typeName of view.incompleteTypes) add(qualify(`${typeName}+*`), 1);
+  if (view.packageIncomplete) add(qualify('*'), 1);
+
+  if (topLevelCallable) {
+    const facade = facadeName(file, view);
+    if (facade !== undefined) add(qualify(facade), 1);
+  }
   return out;
 }
 
 export const kotlinExtractor: DependencyExtractor = {
   languages: new Set(['kotlin']),
-  rev: 2,
+  rev: 3,
   declarations,
   uses,
 };

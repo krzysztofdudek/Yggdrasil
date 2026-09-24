@@ -189,6 +189,36 @@ function rubyGate(
   return undefined;
 }
 
+/** The languages that share the one JVM namespace (see symbol-table.ts). */
+const JVM_LANGUAGES: ReadonlySet<string> = new Set(['java', 'kotlin']);
+
+/** The file-level outcome of a JVM lookup, before node ownership is asked: exactly one file,
+ *  a real ambiguity (silence the group), or nothing in-graph. */
+type JvmOutcome = { kind: 'file'; file: string } | { kind: 'ambiguous' } | { kind: 'none' };
+
+/**
+ * The "declarations incomplete" markers a Kotlin file declares when part of it could not be
+ * parsed (kotlin.ts): `<package>.*` — the file may declare anything in its package — and
+ * `<package>.<Type>+*` — the file declares `Type` but some of its members were unreadable.
+ * A marker never names a real symbol, so it never creates a binding. It only keeps an
+ * ambiguity the unreadable declarations might have created: when a binding key `k` has a
+ * definer, every marker that could cover `k` contributes its file, and a marker file other
+ * than the definer makes the lookup ambiguous (fail closed).
+ *
+ * Only the binding key's OWN package can be covered: a file of package `a` cannot declare
+ * `a.b.C` as a top-level member, and declaring it as `a.b+C` (a type `b` nesting `C`) while a
+ * package `a.b` exists is a JVM class/package clash, so a marker of an enclosing package never
+ * covers a sub-package key.
+ */
+function incompletenessMarkers(bindingKey: string): string[] {
+  const plus = bindingKey.indexOf('+');
+  const typePart = plus === -1 ? bindingKey : bindingKey.slice(0, plus);
+  const dot = typePart.lastIndexOf('.');
+  const markers = [dot === -1 ? '*' : `${typePart.slice(0, dot)}.*`];
+  if (plus !== -1) markers.push(`${typePart}+*`);
+  return markers;
+}
+
 export function makeResolver(deps: ResolverDeps): TargetResolver {
   /** The DISTINCT defining files a dotted symbol candidate maps to, across the verbatim key
    *  AND the guarded nested-type `+`-splits. The set-level rule: 0 distinct files → absent,
@@ -233,7 +263,89 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
     return memberFiles(language, hint.symbolKey, hint.nestedOnly === true);
   };
 
+  /**
+   * One dotted JVM symbol (a Kotlin import, a Java or Kotlin inline FQN type, or a Java import
+   * the source-root probe missed) in the shared JVM namespace: the verbatim key plus its guarded
+   * `+`-splits, 0 files → none, 2+ → ambiguous, exactly one → that file unless an
+   * incompleteness marker of ANOTHER file could cover a key that binds (then ambiguous).
+   */
+  const jvmSymbolOutcome = (language: string, symbolKey: string): JvmOutcome => {
+    const keys = nestedSplitKeys(deps.symbolTable, language, symbolKey);
+    const files = new Set<string>();
+    const bindingKeys: string[] = [];
+    for (const key of keys) {
+      const defs = deps.symbolTable.filesFor(language, key);
+      if (defs.length > 0) bindingKeys.push(key);
+      for (const f of defs) files.add(f);
+    }
+    if (files.size === 0) return { kind: 'none' };
+    if (files.size >= 2) return { kind: 'ambiguous' };
+    const file = [...files][0];
+    for (const key of bindingKeys) {
+      for (const marker of incompletenessMarkers(key)) {
+        if (deps.symbolTable.filesFor(language, marker).some((f) => f !== file)) return { kind: 'ambiguous' };
+      }
+    }
+    return { kind: 'file', file };
+  };
+
+  /**
+   * A star / on-demand import of `prefix` (Kotlin `import a.b.*`, a Java `import a.b.*;` whose
+   * package directory the source-root probe did not find): every file declaring a direct
+   * top-level member of package `prefix`, plus the declaring file of a CLASSIFIER named `prefix`
+   * (a star import of an enum's entries or an object's members), collapsed by owner exactly like
+   * Java's on-disk wildcard: one owning node → one of its files; two or more owners → ambiguous;
+   * no owner at all → a file anyway (so `resolveFile` can still see a type-covered target; the
+   * ownership step turns it into `absent`), or none when nothing in-graph declares into it.
+   */
+  const jvmStarOutcome = (language: string, prefix: string): JvmOutcome => {
+    const files = new Set<string>(deps.symbolTable.filesInPackage(language, prefix));
+    for (const f of symbolFiles(language, prefix)) files.add(f);
+    if (files.size === 0) return { kind: 'none' };
+    const sorted = [...files].sort();
+    let sole: string | undefined;
+    for (const f of sorted) {
+      const owner = deps.ownerIndex.ownerOf(f);
+      if (owner === undefined) continue;
+      if (sole === undefined) sole = owner;
+      else if (owner !== sole) return { kind: 'ambiguous' };
+    }
+    if (sole === undefined) return { kind: 'file', file: sorted[0] };
+    return { kind: 'file', file: sorted.find((f) => deps.ownerIndex.ownerOf(f) === sole)! };
+  };
+
+  /** The JVM route for a hint, or undefined when the hint is not a JVM hint this route owns: a
+   *  Kotlin star import (`<prefix>.*`), any plain JVM symbol hint, or — only after the Java
+   *  source-root probe returned nothing (`pathMissed`) — a Java import resolved through the
+   *  shared JVM namespace (cross-module, test → main, Java → Kotlin class or file facade). */
+  const jvmOutcome = (hint: TargetHint, language: string, pathMissed: boolean): JvmOutcome | undefined => {
+    if (!JVM_LANGUAGES.has(language)) return undefined;
+    if (hint.kind === 'symbol') {
+      if (hint.set !== undefined || hint.nestedOnly === true) return undefined;
+      if (language === 'kotlin' && hint.symbolKey.endsWith('.*')) {
+        return jvmStarOutcome(language, hint.symbolKey.slice(0, -2));
+      }
+      return jvmSymbolOutcome(language, hint.symbolKey);
+    }
+    if (language !== 'java' || !pathMissed) return undefined;
+    return hint.isPackage === true
+      ? jvmStarOutcome(language, hint.specifier)
+      : jvmSymbolOutcome(language, hint.specifier);
+  };
+
+  const classifyJvm = (outcome: JvmOutcome): Classification => {
+    if (outcome.kind === 'ambiguous') return { kind: 'ambiguous' };
+    if (outcome.kind === 'none') return { kind: 'absent' };
+    const ownerNode = deps.ownerIndex.ownerOf(outcome.file);
+    return ownerNode ? { kind: 'resolved', ownerNode, resolvedFile: outcome.file } : { kind: 'absent' };
+  };
+
   const resolve: TargetResolver['resolve'] = (hint, fromFile, language) => {
+    const jvmFirst = hint.kind === 'symbol' ? jvmOutcome(hint, language, false) : undefined;
+    if (jvmFirst !== undefined) {
+      const c = classifyJvm(jvmFirst);
+      return c.kind === 'resolved' ? { ownerNode: c.ownerNode, resolvedFile: c.resolvedFile } : undefined;
+    }
     let file: string | undefined;
     if (hint.kind === 'symbol') {
       if (language === 'ruby' && rubyGate(hint, undefined, deps.symbolTable) !== undefined) return undefined;
@@ -243,6 +355,13 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
       file = [...files][0];
     } else {
       file = deps.resolvePathToFile(hint.specifier, fromFile, language, hint.isPackage);
+      if (!file) {
+        const fallback = jvmOutcome(hint, language, true);
+        if (fallback !== undefined) {
+          const c = classifyJvm(fallback);
+          return c.kind === 'resolved' ? { ownerNode: c.ownerNode, resolvedFile: c.resolvedFile } : undefined;
+        }
+      }
     }
     if (!file) return undefined;                 // unresolved / ambiguous → silence
     const ownerNode = deps.ownerIndex.ownerOf(file);
@@ -251,6 +370,8 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
   };
 
   const classify: TargetResolver['classify'] = (hint, fromFile, language) => {
+    const jvmFirst = hint.kind === 'symbol' ? jvmOutcome(hint, language, false) : undefined;
+    if (jvmFirst !== undefined) return classifyJvm(jvmFirst);
     if (hint.kind === 'symbol') {
       // Ruby: a multi-segment constant whose ROOT namespace is not itself declared in-repo
       // is reopening an EXTERNAL library (e.g. a test stub `module Rackup::Handler`) → absent,
@@ -278,21 +399,31 @@ export function makeResolver(deps: ResolverDeps): TargetResolver {
       return ownerNode ? { kind: 'resolved', ownerNode, resolvedFile: file } : { kind: 'absent' };
     }
     // Path axis (PHP/Java/TS/JS/Py/Go/Rust/C/C++): resolution maps to AT MOST ONE file,
-    // so there is no `ambiguous` outcome on the path axis — only resolved or absent.
+    // so the path probe itself has no `ambiguous` outcome — only resolved or absent. The one
+    // exception is Java's miss fallback into the shared JVM namespace, where a duplicate
+    // declaration or a split package IS an ambiguity.
     const file = deps.resolvePathToFile(hint.specifier, fromFile, language, hint.isPackage);
-    if (!file) return { kind: 'absent' };
+    if (!file) {
+      const fallback = jvmOutcome(hint, language, true);
+      return fallback !== undefined ? classifyJvm(fallback) : { kind: 'absent' };
+    }
     const ownerNode = deps.ownerIndex.ownerOf(file);
     return ownerNode ? { kind: 'resolved', ownerNode, resolvedFile: file } : { kind: 'absent' };
   };
 
   const resolveFile: TargetResolver['resolveFile'] = (hint, fromFile, language) => {
+    const jvmFirst = hint.kind === 'symbol' ? jvmOutcome(hint, language, false) : undefined;
+    if (jvmFirst !== undefined) return jvmFirst.kind === 'file' ? jvmFirst.file : undefined;
     if (hint.kind === 'symbol') {
       if (language === 'ruby' && rubyGate(hint, undefined, deps.symbolTable) !== undefined) return undefined;
       const files = hintFiles(hint, language);
       if (language === 'ruby' && rubyGate(hint, files, deps.symbolTable) !== undefined) return undefined;
       return files.size === 1 ? [...files][0] : undefined; // 0 → unresolved; ≥2 → ambiguous
     }
-    return deps.resolvePathToFile(hint.specifier, fromFile, language, hint.isPackage);
+    const file = deps.resolvePathToFile(hint.specifier, fromFile, language, hint.isPackage);
+    if (file) return file;
+    const fallback = jvmOutcome(hint, language, true);
+    return fallback?.kind === 'file' ? fallback.file : undefined;
   };
 
   return { resolve, classify, resolveFile };
