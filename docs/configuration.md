@@ -52,6 +52,8 @@ directly under `reviewer:` or inside a tier is a hard `config-reviewer-unknown-k
 alongside `agents_md: false` — `config-rules-artifacts-unknown-key` /
 `config-rules-artifacts-orphan-import`). Unknown keys under a tier's `config:`
 remain the one exception (see below).
+
+An unknown top-level key is ignored and everything else in both files stays in effect, so the error is about the key alone: coverage, the reviewer and every other setting still apply. It still blocks `yg check`, because whatever the key was meant to set is not set. A key in `yg-secrets.yaml` fails only on your machine, since CI never reads that file; `yg init --upgrade` lists the unknown keys of both files.
 :::
 
 Node types are defined in the separate **architecture file** (`.yggdrasil/yg-architecture.yaml`),

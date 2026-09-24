@@ -300,3 +300,5 @@ The log-conflict message now says merge-resolve writes the union while a merge, 
 A refusal's why is now the rule's own intent — the first sentence of its description — instead of an explanation of the verdict cache, a script rule's fix names the free recording run, and a missing log entry's next step is the command alone, with the re-run and the instruction never to invent a reason on a line of their own, so a report can state the command once for many nodes.
 ## [2026-09-24T08:43:30.077Z]
 The suggested next step no longer restates a finding's code (Fix yaml-invalid in app): a structural or completeness finding leads with its own next step, and its coverage rider is a lowercase then: line, the grammar every report now uses.
+## [2026-09-24T13:49:35.225Z]
+next: now names the configuration fix first under every code a configuration that did not load is reported by, then an unknown top-level key, then the architecture and component files, because everything else in the report may be a symptom of the configuration falling back to its defaults.

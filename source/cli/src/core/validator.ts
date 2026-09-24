@@ -117,6 +117,18 @@ export async function validate(
     });
   }
 
+  // Unknown top-level configuration keys: the rest of the configuration is in
+  // effect, so these are findings of their own, not a fallback to defaults.
+  for (const { messageData: msgData } of graph.configUnknownKeys ?? []) {
+    issues.push({
+      severity: 'error',
+      code: 'config-unknown-key',
+      rule: 'config-unknown-key',
+      ...issueMsg(msgData),
+      messageData: msgData,
+    });
+  }
+
   for (const { nodePath, messageData } of graph.nodeParseErrors ?? []) {
     issues.push({
       severity: 'error',

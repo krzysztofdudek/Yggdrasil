@@ -95,6 +95,10 @@ export const STRUCTURAL_CODES = new Set<string>([
   'file-duplicate-mapping',
   'structural-cycle',
   'config-invalid',
+  // A top-level key yg-config.yaml or yg-secrets.yaml does not know. The rest of
+  // the configuration is in effect; the key itself blocks until it is renamed or
+  // removed, because whatever it was meant to set is not set.
+  'config-unknown-key',
   // A reviewer credential in the committed configuration, or the local secrets
   // overlay tracked by git (core/checks/credentials.ts).
   'config-committed-api-key',
@@ -187,6 +191,19 @@ export const STRUCTURAL_CODES = new Set<string>([
   // required or advisory coverage root.
   'ambiguous-node-type',
 ]);
+
+/**
+ * Whether an issue says the configuration did not load, so every setting in it
+ * fell back to its default: `config-invalid` itself, or one of the specific
+ * codes the parser uses for the same failure (`config-tier-unknown-key`,
+ * `config-coverage-unknown-key`, …), which the validator emits under the rule
+ * `invalid-config`. The findings computed on those defaults (files reading as
+ * unmapped once the coverage exclusions are gone, pairs with no reviewer) are
+ * symptoms, so the fix of this one ranks ahead of all of them.
+ */
+export function isConfigLoadFailure(issue: { code?: string; rule?: string }): boolean {
+  return issue.code === 'config-invalid' || issue.rule === 'invalid-config';
+}
 
 /**
  * Metadata-completeness codes surfaced in the summary. NOTE: despite the

@@ -1,0 +1,7 @@
+name: E2E Tests — Unknown Configuration Keys Keep the Rest
+type: test-suite
+description: "Subprocess E2E that copies the shipped passing example, puts an unknown top-level key into the committed yg-config.yaml or the local yg-secrets.yaml, and asserts the rest of the configuration stays in effect: the only finding is config-unknown-key naming the file, the key and a did-you-mean, the recorded reviewer verdict still counts, next: names the key, a configuration that did not load ranks first in next: under every code it is reported by, yg context resolves against the kept configuration, and yg init --upgrade lists the unknown keys of both files."
+aspects: []
+relations: []
+mapping:
+  - source/cli/tests/e2e/cli-config-unknown-key.test.ts

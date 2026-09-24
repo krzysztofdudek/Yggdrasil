@@ -10,7 +10,7 @@
  * names is the same group `yg check --top` renders first.
  */
 
-import { STRUCTURAL_CODES, COMPLETENESS_CODES, OUTSIDE_CODES, unverifiedCauseRank } from './check-codes.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, OUTSIDE_CODES, unverifiedCauseRank, isConfigLoadFailure } from './check-codes.js';
 import { countOutside } from './check-progressive.js';
 import { toPosixPath } from '../utils/posix.js';
 import type { CheckIssue } from './check-contract.js';
@@ -116,7 +116,16 @@ export function computeSuggestedNext(issues: CheckIssue[]): string | null {
   //    because their owner never loaded, coverage roots lost with the config),
   //    so the root fix comes first, in the order the loader depends on them.
   //    Within yaml-invalid, the first by node path.
-  for (const code of ['config-invalid', 'architecture-invalid', 'yaml-invalid']) {
+  //    A configuration that did not load leads under any of its codes (a
+  //    misspelled tier key is config-tier-unknown-key, not config-invalid), then
+  //    an unknown top-level key — the configuration loaded, but a setting the
+  //    user meant to make is not in effect, and in the local yg-secrets.yaml
+  //    nobody else will ever see it.
+  const configLoad = errors.find(i => isConfigLoadFailure(i));
+  if (configLoad) return configLoad.messageData.next;
+  const unknownKey = errors.find(i => i.code === 'config-unknown-key');
+  if (unknownKey) return unknownKey.messageData.next;
+  for (const code of ['architecture-invalid', 'yaml-invalid']) {
     const graphInvalid = errors
       .filter(i => i.code === code)
       .sort((a, b) => (a.nodePath ?? '').localeCompare(b.nodePath ?? '', 'en'))[0];

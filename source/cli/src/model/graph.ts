@@ -501,6 +501,13 @@ export interface Graph {
   configError?: string;
   /** Structured form of configError — present when the config parse failure has what/why/next fields */
   configErrorMessage?: IssueMessage;
+  /**
+   * Top-level keys yg-config.yaml or yg-secrets.yaml carries that the
+   * configuration does not know. They set nothing, so the rest of the
+   * configuration is kept (no configError on their account); the validator
+   * reports each as a blocking config-unknown-key error with `messageData`.
+   */
+  configUnknownKeys?: Array<{ file: string; key: string; suggestion?: string; messageData: IssueMessage }>;
   /** Parse errors for yg-node.yaml files; reported as yaml-invalid */
   nodeParseErrors?: Array<{ nodePath: string; messageData: IssueMessage }>;
   /** Parse errors for yg-aspect.yaml files. Each carries the structured

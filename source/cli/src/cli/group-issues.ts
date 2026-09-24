@@ -1,5 +1,5 @@
 import type { CheckIssue } from '../core/check.js';
-import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin, unverifiedCauseRank, UNVERIFIED_CAUSE_ORDER } from '../core/check-codes.js';
+import { STRUCTURAL_CODES, COMPLETENESS_CODES, SCOPED_CODES, baseCodeOfOutsideTwin, outsideTwin, unverifiedCauseRank, UNVERIFIED_CAUSE_ORDER, isConfigLoadFailure } from '../core/check-codes.js';
 import { codeInfo, tierRank } from './output-diagnostic.js';
 
 /**
@@ -189,6 +189,9 @@ const ERROR_CODE_PRIORITY: string[] = [
   // below may be a symptom of one of these — a component that failed to load
   // reads as "non-existent" to a flow, its files as unmapped — so they lead.
   'config-invalid',
+  // The configuration loaded, but one of its top-level keys is unknown, so a
+  // setting the user meant to make is not in effect.
+  'config-unknown-key',
   'architecture-invalid',
   'yaml-invalid',
   'lock-invalid',
@@ -208,7 +211,11 @@ const ERROR_CODE_PRIORITY: string[] = [
 ];
 
 export function issuePriorityRank(issue: CheckIssue): number {
-  const idx = ERROR_CODE_PRIORITY.indexOf(issue.code);
+  // Every code a configuration that did not load is reported under ranks as
+  // config-invalid (see isConfigLoadFailure).
+  const idx = issue.severity === 'error' && isConfigLoadFailure(issue)
+    ? ERROR_CODE_PRIORITY.indexOf('config-invalid')
+    : ERROR_CODE_PRIORITY.indexOf(issue.code);
   // Unverified pairs sub-rank by cause (UNVERIFIED_CAUSE_ORDER), the SAME order
   // computeSuggestedNext picks by — fillable first, infrastructure after — so the
   // unverified group `--top` renders first is the one `Next:` names. The
