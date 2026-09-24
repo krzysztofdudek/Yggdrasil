@@ -33,6 +33,13 @@ run_step() {
   fi
 }
 
+# First: an install that drifted from the lock (a container volume or a checkout
+# that skipped `npm ci` after a lock change) runs every later step against other
+# versions than CI — web-tree-sitter, vitest, the grammar packages — so its
+# results say nothing about the committed state. The step names each drifted
+# package and the fix (`npm ci`).
+run_step "CLI: node_modules match package-lock.json" "$REPO_ROOT/source/cli" "node scripts/check-install.mjs"
+run_step "Docs: node_modules match package-lock.json" "$REPO_ROOT" "node source/cli/scripts/check-install.mjs docs"
 run_step "CLI: typecheck" "$REPO_ROOT/source/cli" "npm run typecheck"
 # The portal Playwright e2e specs run page.evaluate() in a real browser (DOM lib) and use
 # bundler module resolution, so they are type-checked against their own tsconfig (the shipped-CLI

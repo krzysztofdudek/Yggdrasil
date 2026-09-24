@@ -3,7 +3,8 @@ type: test-suite
 description: >-
   Spawn-smoke for the dogfood-only repo scripts (scripts/lock-history-audit.mjs
   and scripts/decision-load.mjs) and the grammar build step (scripts/grammars.mjs,
-  run offline against a temporary cache). Runs each plain-Node script as a real
+  run offline against a temporary cache) and the install-drift check
+  (scripts/check-install.mjs, against temporary package trees). Runs each plain-Node script as a real
   subprocess against this repository's actual git history and asserts it exits 0
   and prints its recognizable header. Robust to a shallow clone (the audit sees
   zero comparisons, the meter sees zero decision events — both still exit 0 and
@@ -13,3 +14,4 @@ relations: [ { target: cli/tests/support, type: uses } ]
 mapping:
   - source/cli/tests/e2e/dogfood-scripts-smoke.test.ts
   - source/cli/tests/e2e/grammar-pipeline.test.ts
+  - source/cli/tests/e2e/check-install.test.ts

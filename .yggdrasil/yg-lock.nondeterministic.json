@@ -587,6 +587,7 @@
       "file:source/cli/src/io/type-class-cache.ts": {"filledAt":"2026-09-24T01:29:53.257Z","filledSha":"865c140b160b2705473923689d3e5b766818b97a","hash":"5a29a386823b28c96a9ff56d53fba8ff26d78f3d8260a49e73b0037774552687","promptChars":16711,"verdict":"approved"}
     },
     "test-deterministic": {
+      "file:source/cli/tests/e2e/check-install.test.ts": {"filledAt":"2026-09-24T07:30:45.560Z","filledSha":"c299f3858df5880fe1a8380a94a75a89fb6cc952","hash":"3162c423a3d62affa3a65937480dee077441f9f3791a4b54f13d716471404609","promptChars":7573,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-adopt.test.ts": {"filledAt":"2026-09-23T12:22:40.454Z","filledSha":"e25bbed6179ee5c3b9da675dc93b0af79b8aae97","hash":"bb1072a6c65c4ca011f9ce090d1fbf5386c92ed83fb3f1e892e939cf7f65b814","promptChars":17252,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-advise-deviation-line.test.ts": {"filledAt":"2026-09-23T22:41:52.653Z","filledSha":"41580654235e02d6d2625d8a0c529b0860362516","hash":"d8ac3372aea7741e14e9715dda5d0c5635a6524bdc9fdf7bd9206881e9d1736e","promptChars":13228,"verdict":"approved"},
       "file:source/cli/tests/e2e/cli-advise-hot-spot.test.ts": {"filledAt":"2026-09-23T23:02:19.873Z","filledSha":"0d922e91ea284ec429b1db39644a0157ae36eddd","hash":"cff863c9f29632e994319e1ac97ba7dc88dbf31cc4b412924b11012779cf96a1","promptChars":14895,"verdict":"approved"},

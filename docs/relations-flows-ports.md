@@ -79,6 +79,29 @@ Like the built-in relation-conformance check, this is not an aspect (no status, 
 
 **Be honest with yourself about how much this gate is actually doing.** A node type with no `relations:` table at all has an absent default, and an absent default means *allow* — every relation type, to every target — so the gate is vacuous for that type's edges until you write one. A project with no relation tables anywhere gets zero protection from turning `type_level` on; the gate exists, but nothing is declared for it to enforce against. The free way to see how much a real table would catch: add one deny-default table (`relations: { default: deny, uses: [library] }`, say), run plain `yg check`, read what it names, and decide whether to keep it or revert — no `--approve`, no cost, no commitment. A mature set of deny-default tables converts every silent explicit-to-uncovered-type edge into a blocking error the moment you turn the flag on; an empty or allow-everything architecture converts none of them.
 
+### Known grammar limits
+
+Each language is parsed by a pinned tree-sitter grammar. The CLI's language registry records the version, the upstream commit and the sha256 of every grammar it ships, and the build refuses a grammar whose bytes differ from its pin. A construct a grammar does not know becomes an `ERROR` node in the tree. A rule that reads the AST (`ctx.parseAst`, a file's `.ast`) sees that `ERROR`. The relation check never adds an edge from inside one, but it can miss a declaration or an import that the error swallowed.
+
+These gaps are known in the shipped grammars, checked on 2026-09-24:
+
+| Language | Grammar shipped | Parses as `ERROR` or misparses | Upstream |
+|---|---|---|---|
+| Go | 0.25.0 | Go 1.27 generic methods (`func (r *T) M[X any]() …`), which also drop out of the file's declarations; Go 1.26 `new(expr)` (`new(42)`). Imports are unaffected. | No fix; no grammar change since 2025-09. |
+| TypeScript / TSX | 0.23.2 with upstream PRs #357, #358, #364, #365 applied, regenerated against JavaScript 0.25 | `import defer * as m from "…"`; `static accessor x`; `export … from "…" with { … }` (also in JavaScript). `using` / `await using` declarations, `export type *`, `in`/`out` variance and `typeof import("…").X<T>` parse. | The PRs are open and unmerged; nothing handles the other three yet. |
+| Java | 0.23.5 | Java 25 flexible constructor bodies (statements before `super(…)` / `this(…)`); `import module java.base;`. Both edges around them survive. | No grammar change since 2024-12. |
+| Kotlin | 1.1.0 (`tree-sitter-grammars` fork) | Kotlin 2.2+ `when` guards (`is Int if x > 0 ->`), `context(…)` parameters and `$$"…"` strings turn the rest of the file into one `ERROR`. | The fork has been dormant since 2025-01; the fwcd grammar has the fixes but different node types and no npm release. |
+| C# | 0.23.5 | C# 14 extension blocks (`extension(Widget w) { … }` parses as a constructor) and `a?.B = 1`. | Supported on master, which this release does not take yet: an extractor handles the extension block's old shape and must learn the new one first. |
+| PHP | master 3fda2fb9 (after 0.24.2) | PHP 8.5 `clone($obj, [...])`. PHP 8.4 asymmetric visibility (`private(set)`) now parses, in constructor promotion too. | `clone` with arguments: open. |
+| Python | 0.25.0 | PEP 696 type-parameter defaults (`def f[T = int]()`, `class A[T = str]`). | Also fails on master. |
+| Ruby | master ad907a69 (after 0.23.1) | A Ruby 4.0 leading `\|\|` / `&&` continuation line after an assignment (`x = foo(1)` followed by a line that starts with `\|\| bar`) splits into two statements. | Open. Master's heredoc fix (a delimiter of 256+ characters crashed the parser) is included. |
+| C | 0.24.2 | `#embed` inside an initializer; `_BitInt(N)`. | Open. |
+| C++ | master c0092228 (after 0.23.4) | Static lambdas (`[] static () { … }`) and `if consteval` leave small `ERROR` nodes. Modules (`export module`, `import "x.hpp"`) and explicit object parameters (`this S& self`) parse. | Open. |
+| JSON | 0.24.8 | An exponent with an explicit plus sign (`1e+5`). | Fixed on master (2026-08-17), not released. |
+| TOML | 0.7.0 | TOML 1.1: multi-line inline tables, the `\e` escape, times without seconds (`07:32`). | No release supports TOML 1.1. |
+
+When a grammar changes, every deterministic verdict that read a syntax tree of that language is re-judged on the next `yg check --approve` (free and keyless for deterministic rules), because each such verdict records which grammar and parser runtime built the trees it read.
+
 ---
 
 ## Ports
