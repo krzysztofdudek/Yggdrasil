@@ -145,3 +145,21 @@ export function isTrackedByGit(projectRoot: string, relativePath: string): boole
     return false;
   }
 }
+
+/**
+ * A file's bytes as the last commit (HEAD) holds them, as text; null when
+ * there is no repository, no commit yet, or HEAD has no such file. For a
+ * finding whose truth depends on what is already in history — a credential
+ * committed, versus one only typed into the working tree.
+ */
+export function readHeadFile(projectRoot: string, relativePath: string): string | null {
+  try {
+    return execFileSync('git', ['show', `HEAD:${toPosixPath(relativePath)}`], {
+      cwd: projectRoot,
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe'],
+    });
+  } catch {
+    return null;
+  }
+}

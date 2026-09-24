@@ -54,6 +54,13 @@ export interface LlmHashInput extends CommonHashInput {
 
 export interface DetHashInput extends CommonHashInput {
   touched: Array<[string, string]>;     // [observationKey, observationHash] — sorted internally by key
+  /**
+   * The canonical-form contract to hash under: the current one when absent,
+   * none at all (the form before the marker existed) when null. Only the
+   * verifier passes it, to tell a verdict an earlier release recorded from one
+   * whose inputs moved — never to record one.
+   */
+  contract?: number | null;
 }
 
 // ============================================================
@@ -228,9 +235,10 @@ export function computeDetInputHash(input: DetHashInput): string {
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
     .map(([k, h]) => [k, h]);
 
+  const contract = input.contract === undefined ? DET_HASH_CONTRACT : input.contract;
   const canonical: Record<string, unknown> = {
     ...common,
-    contract: DET_HASH_CONTRACT,
+    ...(contract !== null ? { contract } : {}),
     kind: 'deterministic',
     touched,
   };

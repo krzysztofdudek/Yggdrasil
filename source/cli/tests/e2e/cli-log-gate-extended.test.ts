@@ -359,7 +359,8 @@ describe.skipIf(!distExists)('CLI E2E — log gate semantics, format edges, node
       // Zero pairs to fill: a fill with nothing to do prints no fill line on STDERR,
       // and the verdict line shows every pair skipped as draft with none verified.
       expect(stderr).not.toContain('fill  ');
-      expect(stdout).toMatch(/^yg check: FAIL .* · 3 draft pairs skipped$/m);
+      // A count of draft rules: the pairs a draft rule would fan out to are never enumerated.
+      expect(stdout).toMatch(/^yg check: FAIL .* · 3 draft rules skipped$/m);
       expect(stdout).not.toContain('pairs verified');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);

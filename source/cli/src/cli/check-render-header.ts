@@ -232,7 +232,9 @@ export function renderHeader(result: CheckResult, errorCount: number, warningCou
       : result.verifiedDet > 0 ? ' (script)' : ' (reviewer)';
     metrics.push(`${count(verifiedTotal, 'pair')} verified${split}`);
   }
-  if (result.draftSkipped > 0) metrics.push(`${count(result.draftSkipped, 'draft pair')} skipped`);
+  // A count of rules: a draft rule's pairs are never enumerated, so how many
+  // it would have fanned out to is not known here — `N draft pairs` claimed it was.
+  if (result.draftSkipped > 0) metrics.push(`${count(result.draftSkipped, 'draft rule')} skipped`);
   const changeScope = renderChangeScope(result, errorCount);
   if (changeScope !== undefined) metrics.push(changeScope);
 

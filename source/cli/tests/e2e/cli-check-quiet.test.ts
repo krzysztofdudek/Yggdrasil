@@ -108,7 +108,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       // The dry-run-specific upper-bound budget note is emitted via the `write`
       // sink — which --quiet must NOT swallow when --dry-run is also set.
       expect(result.stdout).not.toBe('');
-      expect(result.stdout).toContain('reviewer calls is an upper bound');
+      expect(result.stdout).toContain('note: Nothing was written');
       // The per-pair budget breakdown also lands on stdout.
       expect(result.stdout).toMatch(/^fill {2}\d+ pairs · /m);
 
@@ -133,11 +133,11 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       const result = run(['check', '--approve', '--dry-run', '--json', '--quiet'], dir);
 
       // The budget breakdown reaches STDERR (stdout is the JSON document's).
-      expect(result.stderr).toContain('reviewer calls is an upper bound');
+      expect(result.stderr).toContain('note: Nothing was written');
       expect(result.stderr).toMatch(/^fill {2}\d+ pairs · /m);
 
       // STDOUT stays a clean, parseable JSON document — no preview text mixed in.
-      expect(result.stdout).not.toContain('upper bound');
+      expect(result.stdout).not.toContain('Nothing was written');
       expect(() => JSON.parse(result.stdout)).not.toThrow();
 
       // --dry-run always exits 0 (it is a cost preview, never a verdict).
@@ -154,8 +154,8 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       // preview already belongs on stderr so stdout carries the document alone.
       const result = run(['check', '--approve', '--dry-run', '--json'], dir);
 
-      expect(result.stderr).toContain('reviewer calls is an upper bound');
-      expect(result.stdout).not.toContain('upper bound');
+      expect(result.stderr).toContain('note: Nothing was written');
+      expect(result.stdout).not.toContain('Nothing was written');
       expect(() => JSON.parse(result.stdout)).not.toThrow();
       expect(result.status).toBe(0);
     } finally {
@@ -170,7 +170,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --quiet flag', () => {
       // preview on stdout, where it has always been.
       const result = run(['check', '--approve', '--dry-run'], dir);
 
-      expect(result.stdout).toContain('reviewer calls is an upper bound');
+      expect(result.stdout).toContain('note: Nothing was written');
       expect(result.stdout).toMatch(/^fill {2}\d+ pairs · /m);
       expect(result.status).toBe(0);
     } finally {

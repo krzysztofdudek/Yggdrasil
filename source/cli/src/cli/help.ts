@@ -233,11 +233,27 @@ function pathOf(cmd: Command): string {
 function routeParserErrors(cmd: Command): void {
   cmd.configureOutput({
     outputError: (str) => {
-      const what = str.replace(/^error:\s*/i, '').trim();
       const at = pathOf(cmd);
-      fail({ what, why: '', next: `yg ${at === '' ? '' : `${at} `}--help` }, 'usage');
+      fail(parserError(str, `yg ${at === '' ? '' : `${at} `}--help`, at), 'usage');
     },
   });
+}
+
+/**
+ * A parser error in the one grammar, on one line: the parser's suggestion
+ * (`(Did you mean --reason?)` on a line of its own) joins the sentence, and
+ * the step stays the command's help, runnable as given. A suggestion for
+ * `--json` on a command that does not answer in JSON is dropped: the nearest
+ * spelling is never what was meant, and that is said instead.
+ */
+export function parserError(raw: string, help: string, at: string): { what: string; why: string; next: string } {
+  const text = raw.replace(/^error:\s*/i, '').trim();
+  const suggestion = /\s*\(Did you mean ([^?)]+)\?\)\s*$/.exec(text);
+  const what = suggestion !== null ? text.slice(0, suggestion.index).trim() : text;
+  if (/^unknown option '--json'/.test(what)) {
+    return { what: `${what} — yg ${at} does not answer in JSON`, why: 'Only a command that lists --json in its help writes a machine document.', next: help };
+  }
+  return { what: suggestion !== null ? `${what} — did you mean ${suggestion[1]}?` : what, why: '', next: help };
 }
 
 /** Everything under a command, itself included. */
@@ -273,4 +289,18 @@ export function registerHelpCommand(program: Command): void {
 function defaultFormat(cmd: Command, helper: Help): string {
   const proto = Object.getPrototypeOf(helper) as { formatHelp: (c: Command, h: Help) => string };
   return proto.formatHelp.call(helper, cmd, helper);
+}
+
+/**
+ * The command line without its colour flags — `--color`, `--color=<when>`
+ * (auto, always, never, true, false) and `--no-color` — which work on every
+ * command. The colour library reads them straight off the command line when it
+ * loads, before any command runs, so all that is left is to keep the argument
+ * parser from refusing them as unknown options. Anything after `--` is kept.
+ */
+export function withoutColourFlags(argv: readonly string[]): string[] {
+  const at = argv.indexOf('--');
+  const head = at < 0 ? argv : argv.slice(0, at);
+  const tail = at < 0 ? [] : argv.slice(at);
+  return [...head.filter((a) => !/^--(?:no-colou?rs?|colou?rs?(?:=(?:auto|always|never|true|false))?)$/.test(a)), ...tail];
 }

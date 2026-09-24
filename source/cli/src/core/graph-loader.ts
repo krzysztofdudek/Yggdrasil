@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { readSortedDir, readSortedDirOrEmpty, readTextFile } from '../io/graph-fs.js';
+import { readSortedDir, readSortedDirOrEmpty, readTextFile, isDirectoryLink } from '../io/graph-fs.js';
 import { gt, lt, valid } from 'semver';
 import type {
   Graph,
@@ -11,7 +11,7 @@ import type {
 } from '../model/graph.js';
 import { parseConfigDetailed, ConfigParseError, unknownConfigKeyMessage, type UnknownConfigKey } from '../io/config-parser.js';
 import { parseNodeYaml } from '../io/node-parser.js';
-import { parseAspect } from '../io/aspect-parser.js';
+import { parseAspect, aspectSourceSymlinkMessage } from '../io/aspect-parser.js';
 import { parsePackageManifest } from '../io/package-manifest-parser.js';
 import { isIgnoredPackageEntry } from '../io/package-store.js';
 import { PACKAGE_FILENAME, PACKAGES_DIR } from '../model/packages.js';
@@ -433,6 +433,16 @@ async function scanAspectsDirectory(
   }
 
   for (const entry of entries) {
+    // A rule directory that is itself a link (a monorepo sharing rules this
+    // way) is refused like a linked rule file — never walked past as if it were
+    // absent, which reported every type attaching it as naming an undefined
+    // rule and told the reader to create a directory that already exists.
+    if (entry.isSymbolicLink() && !entry.name.startsWith('.') && isDirectoryLink(path.join(dirPath, entry.name))) {
+      const id = toPosixPath(path.relative(aspectsRoot, path.join(dirPath, entry.name)));
+      const rel = toPosixPath(path.relative(path.dirname(path.dirname(aspectsRoot)), path.join(dirPath, entry.name)));
+      parseErrors.push({ aspectId: id, code: 'aspect-source-symlink', messageData: aspectSourceSymlinkMessage(id, [rel]) });
+      continue;
+    }
     if (!entry.isDirectory()) continue;
     if (entry.name.startsWith('.')) continue;
     // `packages` directly under aspects/ is where installed packages live. It is

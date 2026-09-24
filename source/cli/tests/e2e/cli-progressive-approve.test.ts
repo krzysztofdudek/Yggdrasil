@@ -154,7 +154,9 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       // The run says what it bought and what it left…
       expect(stderr).toContain('fill  4 pairs · 3 script (free) · 1 reviewer call');
       expect(stderr).toContain('fill  2 reviewer pairs outside this change left alone');
-      expect(stderr).toMatch(/fill {2}done in .* · 1 reviewer call · 2 reviewer pairs outside this change left alone\nnext: yg check --full --approve {2}\(reviews the pairs outside this change\)/);
+      expect(stderr).toMatch(/fill {2}done in .* · 1 reviewer call · 2 reviewer pairs outside this change left alone\n/);
+      // The fill prints no next: of its own: the report's is the run's one step.
+      expect(stderr).not.toMatch(/^next: /m);
       // …and passes: what it left is reported, without blocking.
       expect(status).toBe(0);
       expect(stdout).toContain('yg check: PASS');
@@ -170,9 +172,9 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       expect(mock.chatCount()).toBe(0);
       expect(reviewedUnits(fixture.dir)).toEqual([]);
       // Never "all expected pairs hold valid verdicts": three of them do not.
-      expect(stderr).toMatch(
-        /fill {2}done in .* · 0 reviewer calls · 3 reviewer pairs outside this change left alone\nnext: yg check --full --approve {2}\(reviews the pairs outside this change\)/,
-      );
+      // The fill prints no next: of its own (the report's is the one step).
+      expect(stderr).toMatch(/fill {2}done in .* · 0 reviewer calls · 3 reviewer pairs outside this change left alone\n/);
+      expect(stderr).not.toMatch(/^next: /m);
       expect(stderr).toContain('fill  3 reviewer pairs outside this change left alone');
       // And a run that deliberately filled nothing is not a convergence failure:
       // the sentinel that watches for a fill accomplishing nothing stays silent.

@@ -4,14 +4,18 @@ exit: 1
 {
   "schema": "yg-error/1",
   "code": "node-not-found",
-  "what": "Node 'nope' does not exist in the graph.",
+  "what": "node 'nope' is not in the graph",
   "why": "The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.",
   "next": {
-    "command": null,
-    "text": "Browse the graph with yg tree, or locate one with yg find \"<keywords>\", then retry with a valid path."
+    "command": [
+      "yg",
+      "find",
+      "nope"
+    ],
+    "text": "yg find \"nope\""
   }
 }
 --- stderr
-error[node-not-found]: Node 'nope' does not exist in the graph.
+error[node-not-found]: node 'nope' is not in the graph
   why:  The path must name an existing component — a directory under .yggdrasil/model/, written without the model/ prefix.
-next: Browse the graph with yg tree, or locate one with yg find "<keywords>", then retry with a valid path.
+next: yg find "nope"

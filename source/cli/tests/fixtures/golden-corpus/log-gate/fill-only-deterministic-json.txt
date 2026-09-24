@@ -1093,11 +1093,15 @@ exit: 1
     },
     "remaining": {
       "needsFix": 24,
-      "fillable": 0
+      "fillable": 0,
+      "needsUser": 0,
+      "waitingOnReviewer": 0
     },
+    "requiresUser": false,
     "then": "yg check --approve --only-deterministic"
   },
   "banner": null,
+  "notes": [],
   "aborted": {
     "stage": "log-gate",
     "issues": [

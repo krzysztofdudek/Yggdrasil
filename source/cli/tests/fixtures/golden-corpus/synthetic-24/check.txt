@@ -23,12 +23,12 @@ error[relation-broken] Relation target 'app/svc-99' does not exist
 error[unmapped] 1 file belongs to no node
   at:   src/tools/gen.ts
   why:  No node maps these files, so no rule checks them, and yg check stays red until each one has an owner (or is moved out of coverage.required).
-  fix:  Add each file to a node's mapping, or create a new node for it — yg context --file <path> lists candidate owners.
+  fix:  Add each file to a node's mapping, or create a new node for it — yg context --file src/tools/gen.ts lists candidate owners.
 
 error[unverified] 24 pairs with no verdict yet
   at:   readable-names  24 pairs · 24 nodes · reviewer
   why:  The lock holds no entry for this pair: it is new (a new rule, component or mapped file), or the fill that would have judged it did not complete.
-  fix:  yg check --approve  (24 reviewer pairs · paid)
+  fix:  yg check --approve  (24 reviewer pairs · paid — ask the user first)
 
 warning[uncovered] 4 files belong to no node — not under coverage.required, so they never block
   at:   .clinerules/yggdrasil.md
@@ -39,5 +39,5 @@ warning[uncovered] 4 files belong to no node — not under coverage.required, so
   fix:  Map these files to a node, or add their root to coverage.required to make this an error.
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
-then: yg check --approve  (24 reviewer pairs · paid)
+then: yg check --approve  (24 reviewer pairs · paid — ask the user first)
 --- stderr

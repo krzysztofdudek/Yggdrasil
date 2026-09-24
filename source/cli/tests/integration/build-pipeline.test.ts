@@ -339,7 +339,8 @@ describe('context pipeline integration', () => {
       );
 
       expect(result.status).toBe(1);
-      expect(result.stderr).toContain('build-context blocked by');
+      expect(result.stderr).toContain('yg context cannot assemble orders/broken-service');
+      expect(result.stderr).toContain('relation-broken');
     });
   });
 });

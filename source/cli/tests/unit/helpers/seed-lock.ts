@@ -92,6 +92,11 @@ export interface VerdictSpec {
   touched?: Array<[string, string]>;
   /** det only: observation keys re-observed against current disk and folded. */
   observe?: string[];
+  /**
+   * det only: the canonical-form contract to hash under — `null` for the form
+   * an earlier release wrote (no contract marker). Absent: the current one.
+   */
+  contract?: number | null;
 }
 
 export interface NodeFactsSpec {
@@ -212,6 +217,7 @@ async function buildEntry(
     files,
     touched,
     verdict,
+    ...(v.contract !== undefined ? { contract: v.contract } : {}),
   });
   const entry = makeEntry(verdict, hash, v.reason);
   if (touched.length > 0) entry.touched = touched;

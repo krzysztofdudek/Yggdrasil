@@ -86,7 +86,7 @@ export interface ParseAspectOptions {
 }
 
 /** The refusal for a rule whose sources run through a symbolic link (see io/artifact-reader.ts). */
-function aspectSourceSymlinkMessage(aspectId: string, links: string[]): IssueMessage {
+export function aspectSourceSymlinkMessage(aspectId: string, links: string[]): IssueMessage {
   return {
     what: `Aspect '${aspectId}' is built from a symbolic link: ${links.join(', ')}.`,
     why: 'A rule\'s files are verdict inputs, and a link is followed by some readers and skipped by others — the rule would be reviewed or hashed as something other than what runs — and it can point outside the repository, so each machine could see a different rule.',

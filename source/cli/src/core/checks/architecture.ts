@@ -175,10 +175,12 @@ export function checkTypeWithoutWhenWithMapping(graph: Graph): ValidationIssue[]
     const mapping = node.meta.mapping ?? [];
     if (mapping.length === 0) continue;
 
+    // The mapping on a line of its own, flat: the heading stays the same for
+    // every node of the type, so a report states it once.
     const preview = mapping.slice(0, 3).map((m) => toPosixPath(m)).join(', ');
-    const ellipsis = mapping.length > 3 ? ` … +${mapping.length - 3} more` : '';
+    const ellipsis = mapping.length > 3 ? `, … (${mapping.length - 3} more)` : '';
     const msgData: IssueMessage = {
-      what: `Node '${nodePath}' has type '${node.meta.type}' (no \`when\` — organizational type) but its mapping is not empty: ${preview}${ellipsis}`,
+      what: `Node '${nodePath}' has type '${node.meta.type}' (no \`when\` — organizational type) but mapping is not empty\nmapping: ${preview}${ellipsis}`,
       why: `Types without \`when\` are organizational (parent-only). Nodes of such types cannot have mapped files.`,
       next: `Add a \`when\` predicate to type '${node.meta.type}' in yg-architecture.yaml, move what it maps to a node whose type has \`when\`, or empty this node's mapping.`,
     };

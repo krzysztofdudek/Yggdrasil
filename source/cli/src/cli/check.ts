@@ -17,8 +17,8 @@ import { runSuppressionsScan, reasonlessMarkerMessage } from '../portal/api/supp
 import { collectMappingEntries, isMappedSource } from '../portal/api/suppress-eligibility.js';
 import type { YggConfig, Graph } from '../model/graph.js';
 import { readRulesArtifacts } from './rules-artifacts.js';
-import { formatOutput, type CheckView, resolveTopValue, enrichCheckJson, formatAbort, abortCheckJson, formatOwed } from './check-render-views.js';
-import { CHECK_JSON_SCHEMA, formatCheckJson } from '../formatters/check-json.js';
+import { formatOutput, type CheckView, resolveTopValue, enrichCheckJson, previewCheckJson, formatAbort, abortCheckJson, formatOwed } from './check-render-views.js';
+import { CHECK_JSON_SCHEMA, formatCheckJson, formatCompactCheckJson, type CheckJsonDocument } from '../formatters/check-json.js';
 import { buildCheckJson, checkJsonIssueOf } from '../core/check-json.js';
 import { resolveChangeScope } from './progressive-scope-resolve.js';
 import { fail, notice, warn, writeErr, writeOut } from './output.js';
@@ -154,7 +154,7 @@ export function registerCheckCommand(program: Command): void {
     .option('--dry-run', 'With --approve: free cost preview — print the budget + per-node/per-aspect breakdown, then exit 0 WITHOUT writing anything or calling the reviewer.')
     .option('--top [n]', 'Read-only triage: print only the N highest-priority issue blocks (bare --top = just the single suggested-next group). Header counts + exit code stay TRUE.')
     .option('--summary [by]', 'Read-only triage: one line per severity with each finding label and its count; --summary nodes prints one row per node instead. Verdict counts and exit code stay true.')
-    .option('--details', 'Read-only: ungrouped, one block per issue (full per-pair detail). Opposite of the default grouped view.')
+    .option('--details', 'Read-only: every block with every member listed — the default grouped view with nothing cut. Verdict counts and exit code stay true.')
     .option('--aspect <id>', "Read-only: focus on one rule — show only that aspect's issues, grouped, with the full per-node detail.")
     // The coverage axis — independent of the four view flags above and legal
     // alongside the writer (--approve / --only-deterministic), because it
@@ -171,12 +171,13 @@ export function registerCheckCommand(program: Command): void {
     // into a blocking one, never the reverse, so it is safe to hand to anyone.
     .option('--full', 'Answer for the whole project, ignoring any configured reference branch.')
     .option('--json', `Machine-readable output: one ${CHECK_JSON_SCHEMA} document on stdout instead of the text report. Same work, same exit code, always the TRUE whole-run counts.`)
+    .option('--compact', `With --json: the same ${CHECK_JSON_SCHEMA} document without what a reader can recompute — approved pairs left out of pairs[] (still counted in totals), each issue's why and next left out where its group states them, no indentation. For a reader that pays per token.`)
     // Hidden calibration instrument: print the raw per-file structural measurements grouped by
     // family, with the outliers marked, then exit 0. Writes nothing, makes no LLM calls.
     .addOption(new Option('--attention-dump', 'Calibration: print raw structural measurements (writes nothing, exit 0).').hideHelp())
     // One run scope for the whole command (io/run-scope-cache.ts): every walk in it
     // reads each directory's listing and .gitignore once, not once per consumer.
-    .action((opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean | string; details?: boolean; aspect?: string; coverage?: boolean; quiet?: boolean; full?: boolean; json?: boolean; attentionDump?: boolean }, cmd: Command) => withRunScope(async () => {
+    .action((opts: { approve?: boolean; onlyDeterministic?: boolean; dryRun?: boolean; top?: boolean | string; summary?: boolean | string; details?: boolean; aspect?: string; coverage?: boolean; quiet?: boolean; full?: boolean; json?: boolean; compact?: boolean; attentionDump?: boolean }, cmd: Command) => withRunScope(async () => {
       try {
         // --approve and --no-approve set ONE option, so commander silently keeps
         // whichever came last: `--approve --no-approve` read, `--no-approve
@@ -194,6 +195,16 @@ export function registerCheckCommand(program: Command): void {
           return;
         }
         const asJson = opts.json === true;
+        if (opts.compact === true && !asJson) {
+          fail({
+            what: '--compact requires --json.',
+            why: '--compact shortens the machine document; the text report is already the short form.',
+            next: 'yg check --json --compact',
+          }, 'usage');
+          await exitAfterFlush(1);
+          return;
+        }
+        const renderJson = (doc: CheckJsonDocument): string => (opts.compact === true ? formatCompactCheckJson(doc) : formatCheckJson(doc));
         const cwd = process.cwd();
         const graph = await loadGraphOrAbort(cwd, { tolerateInvalidConfig: true });
         initDebugLog(graph.rootPath, graph.config.debug ?? false, appendToDebugLog);
@@ -634,7 +645,9 @@ export function registerCheckCommand(program: Command): void {
             }
             writeOut(
               asJson
-                ? formatCheckJson({ ...enrichCheckJson(buildCheckJson(fill.checkResult), fill.checkResult), ...(fill.dryRunBudget ? { dryRunBudget: fill.dryRunBudget } : {}) })
+                ? renderJson(isDryRun && fill.dryRunBudget
+                  ? previewCheckJson(enrichCheckJson(buildCheckJson(fill.checkResult), fill.checkResult), fill.dryRunBudget)
+                  : enrichCheckJson(buildCheckJson(fill.checkResult), fill.checkResult))
                 // `undefined` for the emoji gate keeps formatOutput's own
                 // chalk-derived default; the writer path carries --coverage
                 // exactly as the read path does, which is the whole point of
@@ -678,7 +691,7 @@ export function registerCheckCommand(program: Command): void {
                   changeScope: changeScope,
                 });
                 await appendReasonlessSuppressWarnings(read, graph, projectRoot, repoFiles);
-                writeOut(formatCheckJson(abortCheckJson(enrichCheckJson(buildCheckJson(read), read), abort, checkJsonIssueOf)));
+                writeOut(renderJson(abortCheckJson(enrichCheckJson(buildCheckJson(read), read), abort, checkJsonIssueOf)));
               } else {
                 writeOut(formatAbort(abort));
               }
@@ -715,7 +728,7 @@ export function registerCheckCommand(program: Command): void {
           changeScope: changeScope,
         });
         await appendReasonlessSuppressWarnings(result, graph, projectRoot, repoFiles);
-        writeOut(asJson ? formatCheckJson(enrichCheckJson(buildCheckJson(result), result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
+        writeOut(asJson ? renderJson(enrichCheckJson(buildCheckJson(result), result)) : formatOutput(result, view, false, undefined, { coverage: opts.coverage === true }));
 
         // Exit code is derived from the FULL issue set, OUTSIDE formatOutput and
         // independent of the chosen view — a truncated --top/--summary render must

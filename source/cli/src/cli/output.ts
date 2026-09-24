@@ -175,9 +175,35 @@ export function block(d: Diagnostic | IssueMessage, severity: HeadingSeverity = 
   const lines = [heading(severity, label, diag.summary, { colon: true })];
   for (const extra of diag.detail ?? []) if (extra.trim() !== '') lines.push(`  ${extra.replace(/^\s+/, '')}`);
   if (diag.why !== undefined && diag.why !== '') lines.push(...field('why', diag.why));
-  // A step reads as the step itself: `yg tree`, not `Run: yg tree`.
-  if (diag.fix !== undefined && diag.fix.text !== '') lines.push(next(diag.fix.text.replace(/^Run:?\s+(?=yg )/, '')));
+  if (diag.fix !== undefined && diag.fix.text !== '') {
+    // An error ends the output, so its step is the `next:` line. A warning or a
+    // note is said while a command goes on — a report, or more of the run,
+    // follows it — so its remedy is a `fix:` field: `next:` is only ever the
+    // last line of the output, and a run shows at most one.
+    lines.push(...(severity === 'error' ? [next(stepText(diag.fix.text))] : field('fix', stepText(diag.fix.text))));
+  }
   return lines.join('\n');
+}
+
+/**
+ * A step as it reads: the step itself — `yg tree`, not `Run: yg tree`. The one
+ * place a step's text is cleaned, so the text and the JSON form of an error say
+ * the same words.
+ */
+export function stepText(text: string): string {
+  return text.replace(/^Run:?\s+(?=yg )/, '');
+}
+
+/**
+ * A runnable command as argv — `yg find "nope"` is `["yg", "find", "nope"]` —
+ * or null when it is not one a reader can run as given: it holds a placeholder
+ * (`<name>`), an optional part (`[--model <m>]`) or an unbalanced quote.
+ */
+export function commandArgv(command: string | undefined): string[] | null {
+  if (command === undefined || !/^yg [a-z]/.test(command.trim()) || /[<>[\]]/.test(command)) return null;
+  const tokens = command.trim().match(/'[^']*'|"[^"]*"|\S+/g) ?? [];
+  if (tokens.some((t) => /^['"]/.test(t) ? t.length < 2 || t[0] !== t[t.length - 1] : /['"]/.test(t))) return null;
+  return tokens.map((t) => (/^(['"]).*\1$/.test(t) ? t.slice(1, -1) : t));
 }
 
 export type VerdictStatus = 'PASS' | 'FAIL' | 'ABORTED';
@@ -264,13 +290,18 @@ export function writeJsonDocument(doc: unknown, sink: TextSink = stdoutSink): vo
 /** Schema id of the machine form of a command error. */
 export const ERROR_JSON_SCHEMA = 'yg-error/1';
 
-/** The machine form of a command error. */
+/**
+ * The machine form of a command error. `next.command` is argv — the same form
+ * as `yg-check/1`'s `next.command` — or null when the step is not a command a
+ * reader can run as given; `next.text` is the step as the text's `next:` line
+ * prints it. `why` is null when the error has no reason beyond what it says.
+ */
 export interface ErrorDocument {
   schema: typeof ERROR_JSON_SCHEMA;
   code: string;
   what: string;
-  why: string;
-  next: { command: string | null; text: string };
+  why: string | null;
+  next: { command: string[] | null; text: string };
 }
 
 let jsonOutput: boolean | undefined;
@@ -301,8 +332,8 @@ export function errorDocument(d: Diagnostic): ErrorDocument {
     schema: ERROR_JSON_SCHEMA,
     code: d.code,
     what: msg.what,
-    why: msg.why,
-    next: { command: d.fix?.command ?? null, text: msg.next },
+    why: msg.why !== '' ? msg.why : null,
+    next: { command: commandArgv(d.fix?.command), text: stepText(msg.next) },
   };
 }
 
@@ -342,6 +373,16 @@ export function inferErrorCode(what: string): string {
   if (/^node\b.*\b(?:not found|is not in the graph|does not exist in the graph)/i.test(what)) return 'node-not-found';
   if (/cannot be combined|\brequires? --|\bexpects\b|is required|\bneeds (?:exactly )?one of|exactly one of|go together|\btakes '|unknown option|missing required|too many arguments/i.test(what)) return 'usage';
   return 'command-error';
+}
+
+/**
+ * The one node-not-found error every command that takes a node answers with:
+ * the same words, the same `node-not-found` code, and the same runnable step
+ * (`yg find "<path>"`, argv under --json). `why` says what the command needed
+ * the node for.
+ */
+export function nodeNotFound(nodePath: string, why: string): IssueMessage {
+  return { what: `node '${nodePath}' is not in the graph`, why, next: `yg find "${nodePath}"` };
 }
 
 /** {@link fail}, then exit 1 at once. For a command that has written nothing else to stdout. */

@@ -186,3 +186,7 @@ The events line gains two fields for auditing the reviewer: an approval's own re
 A skipped symlinked log is reported with a lowercase warning: label, the one grammar every command speaks.
 ## [2026-09-24T13:51:18.323Z]
 The search index no longer writes to stderr about a log it could not take whole (over 1 MiB, a symlink, unreadable): it hands each case to its caller as a what/why/next message through an onWarning callback, and the command renders it as a warning in the one output grammar. The repository now refuses a direct stream write outside the output layer, and a persistence module writing finished prose to a stream was exactly what the layer exists to end.
+## [2026-09-24T14:30:39.542Z]
+Adds a small helper that tells whether a symbolic link leads to a directory, so the graph loader can refuse a linked rule directory while leaving a linked rule file to the rule parser's own refusal; the filesystem read stays in the io layer.
+## [2026-09-24T15:09:48.858Z]
+Reapplied on top of the output-guards work, which routes every write through the output layer and flattens multi-line messages: this node's changes for the Next contract (the whole command's cost, the user's decisions asked for, one next step per run, the node-not-found error shared by every command, the context gate narrowed to errors that affect the context) now write through the same layer, so both changes hold at once.
