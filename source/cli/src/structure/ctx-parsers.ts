@@ -6,7 +6,7 @@ import { parse as parseTomlSmol } from 'smol-toml';
 import { parseFile as parseAstFile, loadedParserFor, grammarDigestForLanguage } from '../ast/parser.js';
 import type { ParseCache } from '../ast/parse-cache.js';
 import type { Tree } from 'web-tree-sitter';
-import { getLanguageForExtension } from '../utils/language-registry.js';
+import { getLanguageForExtension, grammarExtensionForPath } from '../utils/language-registry.js';
 import { resolveAllowedReadPath } from './ctx-fs.js';
 import type { File } from './types.js';
 import type { ObservationRecorder } from './observations.js';
@@ -148,7 +148,7 @@ export { grammarDigestForLanguage };
 
 export function recordGrammarObservation(recorder: ObservationRecorder | undefined, filePath: string): void {
   if (!recorder) return;
-  const languageId = getLanguageForExtension(extname(filePath).toLowerCase());
+  const languageId = getLanguageForExtension(grammarExtensionForPath(filePath));
   if (languageId === null) return;
   const digest = grammarDigestForLanguage(languageId);
   if (digest !== undefined) recorder.recordGrammar(languageId, digest);
