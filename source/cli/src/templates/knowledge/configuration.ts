@@ -148,9 +148,14 @@ be a positive odd integer.
 - \`1\` — single call, cheapest.
 - \`3\` — majority vote (2 of 3 must agree), more reliable.
 
-Consensus multiplies wall-clock per pair (calls run sequentially inside
-the slot held by the global \`parallel\` limit). The trade-off is per tier,
-not global.
+Consensus multiplies cost, not wall-clock: a pair's calls run at the same time
+inside the slot held by the global \`parallel\` limit, so up to
+\`parallel × consensus\` calls are in flight. Only verdicts vote — a call that
+fails on a provider error is left out, and when the verdicts that came back are
+not a majority of the calls asked for, the pair is not judged (infra, nothing
+written). A tie refuses. Consensus is not part of a pair's hash: raising it
+re-judges nothing already recorded; only moving an aspect to a newly named tier
+re-reviews its pairs. The trade-off is per tier, not global.
 
 ### reviewer.tiers.<name>.max_prompt_chars
 
@@ -308,9 +313,12 @@ number and its justification, keeping the exception auditable.
 \`parallel\` (top-level) controls how many **LLM** pair verifications run
 concurrently during \`yg check --approve\`. It governs ONLY the reviewer (LLM)
 fill phase — the phase whose cost is network latency, where overlapping requests
-is the win. It defaults to \`1\`; raise it (for example to 10) to verify LLM pairs
-in parallel. Each verification runs its tier's \`consensus\` calls sequentially in
-a single slot, and lock writes are serialized in-process. Cross-tier traffic
+is the win. It defaults to \`1\`; \`yg init\` writes \`4\` for a CLI reviewer
+(claude-code, codex, gemini-cli, copilot-cli) when the config has none — each
+call is its own local process under the user's subscription, and four stay
+inside its rate limit. Raise it to verify more LLM pairs at once, within the
+provider's rate limit. Each verification runs its tier's \`consensus\` calls
+concurrently within its slot, and lock writes are serialized in-process. Cross-tier traffic
 shares one queue: an expensive tier saturating the queue starves a cheap tier.
 Tune \`parallel\` conservatively when mixing tier costs.
 

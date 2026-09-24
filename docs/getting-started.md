@@ -220,16 +220,18 @@ Errors (1):
 
   enforced  1 pair  1 node  aspect 'requires-audit'
             A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
-            Fix: Three exits:
+            Fix: Four exits:
               1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
-              2. Sharpen the aspect's content.md — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
-              3. Propose a `yg-suppress` to the user (user must approve the reason).
+              2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+              3. Propose a `yg-suppress` to the user for a deliberate exception (user must approve the reason).
+              4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
             - payments  Reviewer reason: chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
 
-Next: Three exits:
+Next: Four exits:
   1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
-  2. Sharpen the aspect's content.md — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
-  3. Propose a `yg-suppress` to the user (user must approve the reason).
+  2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+  3. Propose a `yg-suppress` to the user for a deliberate exception (user must approve the reason).
+  4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
 ```
 
 The agent fixes the code and re-runs `yg check --approve` until all aspects pass.

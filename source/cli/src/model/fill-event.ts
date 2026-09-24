@@ -64,6 +64,21 @@ export interface FillOutcomeTotals {
   reviewerConfigured?: boolean;
   /** Refusals already recorded for unchanged code, which this run left standing. */
   cachedRefusals?: number;
+  /** Wall time of the run from its start to its closing line, in milliseconds. */
+  elapsedMs?: number;
+  /** What the reviewer calls consumed, summed over the calls whose provider
+   *  reported it (`reportedCalls` of `reviewerCallsMade`). Absent when no call
+   *  reported anything. */
+  usage?: FillUsageTotals;
+}
+
+/** Summed reviewer usage for a run — see FillOutcomeTotals.usage. */
+export interface FillUsageTotals {
+  reportedCalls: number;
+  inputTokens: number;
+  outputTokens: number;
+  /** Absent when no call reported a cost. */
+  costUsd?: number;
 }
 
 /** Running tallies the progress events carry. */
@@ -86,8 +101,10 @@ export type FillEvent =
   | { type: 'prune'; entries: PrunedEntry[]; billedCount: number; freeCount: number; unknownCount: number }
   /** A rule's standing moved since the last run, and the move was written into its log. */
   | { type: 'rule-status'; aspectId: string; from: string; to: string }
-  /** A pair finished with something other than an approval (refused, infra). */
-  | { type: 'pair-outcome'; lane: FillLane; aspectId: string; unitKey: string; verdict: string }
+  /** A pair finished with something other than an approval (refused, infra), or
+   *  was approved by a consensus that split. `votes` is the consensus split —
+   *  verdict votes only — present whenever the tier cast more than one. */
+  | { type: 'pair-outcome'; lane: FillLane; aspectId: string; unitKey: string; verdict: string; votes?: { satisfied: number; total: number } }
   /** A periodic tally line (non-interactive sinks). */
   | { type: 'milestone'; counts: FillProgressCounts }
   /** Nothing finished for a while (non-interactive sinks). */
@@ -97,7 +114,14 @@ export type FillEvent =
   /** Clear the in-place status line (interactive sinks). */
   | { type: 'clear-line' }
   /** The closing line: what the run did. */
-  | { type: 'totals'; totals: FillOutcomeTotals };
+  | { type: 'totals'; totals: FillOutcomeTotals }
+  /**
+   * SIGINT/SIGTERM stopped the run. `saved` verdicts this run wrote are on disk
+   * (`flushed` false when that last write failed); the other pairs of `total`
+   * stay unverified and the next run resumes with only them. In-flight
+   * reviewer calls were stopped with the run.
+   */
+  | { type: 'interrupted'; saved: number; total: number; flushed: boolean; message: IssueMessage };
 
 /** Where fill events go. */
 export type FillEventSink = (event: FillEvent) => void;

@@ -150,6 +150,35 @@ function renderStatus(e: Extract<FillEvent, { type: 'status' }>): string {
  * It claims "all expected pairs hold valid verdicts" only when the run neither
  * filled nor skipped anything.
  */
+/** A duration as a person reads it: `42s`, `3m46s`, `1h02m`. */
+export function formatElapsed(ms: number): string {
+  const s = Math.max(0, Math.round(ms / 1000));
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m${String(s % 60).padStart(2, '0')}s`;
+  return `${Math.floor(m / 60)}h${String(m % 60).padStart(2, '0')}m`;
+}
+
+/**
+ * The closing line of a run that made reviewer calls: how many, how long the
+ * run took, and what the calls consumed as far as the provider reported it.
+ * The figures are the provider's own; a cost is its list price, which is not
+ * what a subscription is billed per call, and the line says which calls it
+ * covers when not all of them reported.
+ */
+function renderPaidTotals(t: FillOutcomeTotals): string {
+  const parts = [`${count(t.reviewerCallsMade, 'reviewer call')} made`];
+  if (t.elapsedMs !== undefined) parts[0] += ` in ${formatElapsed(t.elapsedMs)}`;
+  const u = t.usage;
+  if (u !== undefined) {
+    const tokens = `${u.inputTokens.toLocaleString('en-US')} input / ${u.outputTokens.toLocaleString('en-US')} output tokens`;
+    const cost = u.costUsd !== undefined ? `, ~$${u.costUsd.toFixed(2)} at list price` : '';
+    const scope = u.reportedCalls < t.reviewerCallsMade ? ` (reported by ${u.reportedCalls} of ${t.reviewerCallsMade} calls)` : '';
+    parts.push(`${tokens}${cost}${scope}`);
+  }
+  return `${parts.join(' · ')}\n`;
+}
+
 function renderTotals(t: FillOutcomeTotals): string {
   const detFilled = t.detApproved + t.detRefused;
   const detClause = detFilled > 0
@@ -158,8 +187,8 @@ function renderTotals(t: FillOutcomeTotals): string {
         .filter((part) => part !== '').join(', ')
     })`
     : '';
+  if (t.reviewerCallsMade !== 0) return renderPaidTotals(t);
   if (
-    t.reviewerCallsMade !== 0 ||
     t.infraFailures !== 0 ||
     t.runtimeErrors !== 0 ||
     t.companionRuntimeErrors !== 0 ||
@@ -210,7 +239,9 @@ export function renderFillEvent(e: FillEvent): string {
     case 'rule-status':
       return `  Rule '${e.aspectId}' now stands at ${e.to} (was ${e.from}) — written into its own log.\n`;
     case 'pair-outcome':
-      return `  [${e.lane}] ${e.aspectId} on ${toPosixPath(e.unitKey)} — ${e.verdict}\n`;
+      return `  [${e.lane}] ${e.aspectId} on ${toPosixPath(e.unitKey)} — ${e.verdict}${
+        e.votes !== undefined ? ` (consensus ${e.votes.satisfied}/${e.votes.total} satisfied)` : ''
+      }\n`;
     case 'milestone':
       return renderMilestone(e.counts);
     case 'still-working':
@@ -221,6 +252,9 @@ export function renderFillEvent(e: FillEvent): string {
       return CLEAR_LINE;
     case 'totals':
       return renderTotals(e.totals);
+    case 'interrupted':
+      // Laid out like any what/why/next, from the message the engine built.
+      return `${CLEAR_LINE}${e.message.what}\n  ${e.message.why}\n  ${e.message.next}\n`;
   }
 }
 

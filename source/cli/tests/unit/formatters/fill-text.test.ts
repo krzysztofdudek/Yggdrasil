@@ -4,7 +4,7 @@
  * WHEN an event fires; these pin what each one reads as.
  */
 import { describe, it, expect } from 'vitest';
-import { renderFillEvent, textFillSink } from '../../../src/formatters/fill-text.js';
+import { formatElapsed, renderFillEvent, textFillSink } from '../../../src/formatters/fill-text.js';
 import type { FillOutcomeTotals } from '../../../src/model/fill-event.js';
 
 const zeroTotals: FillOutcomeTotals = {
@@ -43,7 +43,48 @@ describe('renderFillEvent', () => {
     expect(renderFillEvent({ type: 'totals', totals: zeroTotals })).toBe('0 reviewer calls made — all expected pairs hold valid verdicts\n');
     expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, detApproved: 2, detRefused: 1 } }))
       .toBe('0 reviewer calls made — 3 deterministic pairs filled (2 approved, 1 refused).\n');
-    expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, reviewerCallsMade: 4 } })).toBe('');
+  });
+
+  // Issue 210 (m11): a run that called the reviewer used to end with no line at
+  // all — no time, no tokens, no cost. It now ends with all three, as far as the
+  // provider reported them.
+  it('totals of a paid run: the calls, the elapsed time, and the reported tokens and cost', () => {
+    expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, reviewerCallsMade: 4 } })).toBe('4 reviewer calls made\n');
+    expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, reviewerCallsMade: 13, elapsedMs: 226_400 } }))
+      .toBe('13 reviewer calls made in 3m46s\n');
+    expect(renderFillEvent({
+      type: 'totals',
+      totals: { ...zeroTotals, reviewerCallsMade: 2, elapsedMs: 41_000, usage: { reportedCalls: 2, inputTokens: 74_190, outputTokens: 912, costUsd: 0.0814 } },
+    })).toBe('2 reviewer calls made in 41s · 74,190 input / 912 output tokens, ~$0.08 at list price\n');
+    // Not every call reported usage: the line says which ones it covers.
+    expect(renderFillEvent({
+      type: 'totals',
+      totals: { ...zeroTotals, reviewerCallsMade: 3, elapsedMs: 3_700_000, usage: { reportedCalls: 1, inputTokens: 10, outputTokens: 2 } },
+    })).toBe('3 reviewer calls made in 1h01m · 10 input / 2 output tokens (reported by 1 of 3 calls)\n');
+  });
+
+  it('formats elapsed time as a person reads it', () => {
+    expect(formatElapsed(0)).toBe('0s');
+    expect(formatElapsed(59_400)).toBe('59s');
+    expect(formatElapsed(60_000)).toBe('1m00s');
+    expect(formatElapsed(7_260_000)).toBe('2h01m');
+  });
+
+  // Issue 210 (m14): an interrupted fill says what it kept and how to resume.
+  it('interrupted: renders the engine\'s what / why / next', () => {
+    const line = renderFillEvent({
+      type: 'interrupted', saved: 3, total: 8, flushed: true,
+      message: { what: 'Interrupted — 3 of 8 pairs have a verdict saved from this run.', why: 'A signal stopped the run.', next: 'Re-run: yg check --approve' },
+    });
+    expect(line).toBe('\r\u001b[2KInterrupted — 3 of 8 pairs have a verdict saved from this run.\n  A signal stopped the run.\n  Re-run: yg check --approve\n');
+  });
+
+  // Issue 209 (m13): a consensus split is visible where the pair is reported.
+  it('pair-outcome carries a consensus split when the tier cast more than one vote', () => {
+    expect(renderFillEvent({ type: 'pair-outcome', lane: 'llm', aspectId: 'a', unitKey: 'node:x', verdict: 'approved', votes: { satisfied: 2, total: 3 } }))
+      .toBe('  [llm] a on node:x — approved (consensus 2/3 satisfied)\n');
+    expect(renderFillEvent({ type: 'pair-outcome', lane: 'llm', aspectId: 'a', unitKey: 'node:x', verdict: 'refused' }))
+      .toBe('  [llm] a on node:x — refused\n');
   });
 
   it('dry run: headed as a preview, lists only what costs something, counts the free pairs', () => {

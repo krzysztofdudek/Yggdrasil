@@ -598,10 +598,11 @@ function promotionNominations(graph: Graph, events: VerdictEvent[]): Nomination[
 // T1 — sharpen (a rule the reviewer judged the same input inconsistently)
 // ---------------------------------------------------------------------------
 
-/** Per-(aspect,unit) vote tally from `--repeat` diagnostic telemetry. */
+/** Per-(aspect, unit, input, judge) vote tally from diagnostic telemetry. */
 interface DiagTally {
   aspectId: string;
   unitKey: string;
+  promptHash: string;
   satisfied: number;
   total: number;
   lastTs: string;
@@ -610,21 +611,30 @@ interface DiagTally {
 
 /**
  * Nominate `sharpen-content.md` when the reviewer judged the SAME prompt
- * inconsistently across `yg aspect-test --repeat` runs — a stable split vote is
+ * inconsistently across `yg aspect-test` runs — a stable split vote is
  * measured rule ambiguity (wave-3 C6.3a). Reads ONLY `source:'diag'` events
- * (mixing regimes would corrupt the statistic). One nomination per aspect,
- * citing its most-ambiguous unit; thin-data honesty labels as for promotion.
+ * (mixing regimes would corrupt the statistic), and counts votes together only
+ * when they were cast on the same input by the same judge: the tally key is
+ * (aspect, unit, promptHash, judge). Without the hash, the ordinary fix loop —
+ * refused, fix the code, satisfied — read as a split vote on one input, and
+ * nominated a rule that had judged consistently. A diag line with no
+ * promptHash (written before the field existed) cannot say what it judged,
+ * and is left out. One nomination per aspect, citing its most-ambiguous
+ * input; thin-data honesty labels as for promotion.
  */
 function sharpenNominations(events: VerdictEvent[]): Nomination[] {
   const tallies = new Map<string, DiagTally>();
   for (const e of events) {
     if (e.source !== 'diag' || e.votes === undefined) continue;
-    const key = `${e.aspectId}\u0000${e.unitKey}`;
+    if (typeof e.promptHash !== 'string' || e.promptHash === '') continue;
+    const judgeKey = e.judge !== undefined ? `${e.judge.provider}/${e.judge.model}` : '';
+    const key = `${e.aspectId}\u0000${e.unitKey}\u0000${e.promptHash}\u0000${judgeKey}`;
     let t = tallies.get(key);
     if (t === undefined) {
       t = {
         aspectId: e.aspectId,
         unitKey: e.unitKey,
+        promptHash: e.promptHash,
         satisfied: 0,
         total: 0,
         lastTs: '',
@@ -663,7 +673,7 @@ function sharpenNominations(events: VerdictEvent[]): Nomination[] {
       id: `sharpen:${t.aspectId}`,
       classRank: CLASS_RANK.sharpen,
       what: `Rule '${aspectQ}' judged the same input inconsistently.`,
-      why: `reviewed ${t.total} times on unit '${unitQ}', ${t.satisfied} satisfied and ${refusedVotes} refused — a split vote is measured rule ambiguity${honestySuffix(labels)}.`,
+      why: `reviewed ${t.total} times on unit '${unitQ}' with the same input and the same reviewer, ${t.satisfied} satisfied and ${refusedVotes} refused — a split vote is measured rule ambiguity${honestySuffix(labels)}.`,
       next: asApprovalNext(
         `Propose sharpening the wording of rule '${aspectQ}' so the reviewer judges this case the same way every time.`,
       ),
@@ -671,6 +681,7 @@ function sharpenNominations(events: VerdictEvent[]): Nomination[] {
         source: 'sharpen',
         aspectId: t.aspectId,
         unitKey: t.unitKey,
+        promptHash: t.promptHash,
         satisfied: t.satisfied,
         total: t.total,
       }),

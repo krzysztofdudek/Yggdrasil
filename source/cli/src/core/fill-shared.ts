@@ -43,7 +43,18 @@ export type DetFillOutcome =
  *  failure is self-describing at the point it is produced. The bare `why` stays for
  *  callers that fold it into their own surrounding message. */
 export type LlmFillOutcome =
-  | { kind: 'verdict'; entry: VerdictEntry; callsMade: number; votes: AspectResponse[] }
+  | {
+    kind: 'verdict';
+    entry: VerdictEntry;
+    callsMade: number;
+    votes: AspectResponse[];
+    /** The reviewer's reason for an APPROVAL. The lock keeps a reason only on a
+     *  refusal; this one travels to the local events line alone, so an approval
+     *  can be audited afterwards (what did the reviewer say it looked at?)
+     *  without adding a word to the committed lock. Absent on a refusal, whose
+     *  reason already rides on `entry.reason`. */
+    approvalReason?: string;
+  }
   | { kind: 'infra'; why: string; messageData?: IssueMessage; callsMade: number }
   | { kind: 'companion-runtime-error'; why: string; messageData: IssueMessage; callsMade: 0 };
 

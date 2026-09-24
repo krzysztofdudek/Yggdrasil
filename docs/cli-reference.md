@@ -1668,8 +1668,11 @@ yg aspect-test --aspect <id> --node <node-path> --tier <name>
   the reviewer flips its own verdict run to run. The total reviewer-call budget (`repeat N × units`)
   prints before the first call; provider-error runs are excluded from the ratio and reported
   separately; any single refused run marks the unit refused, and a unit whose runs all erred is
-  stamped `incomplete`. Rejected with `--dry-run`, with `--files`, and for deterministic aspects
-  (already exactly reproducible — use `--check-determinism` there).
+  stamped `incomplete`. When two or more runs refuse, a `cited violations: K of M cited locations
+  named by every refusal` line follows — a steady refusal can still name a different list of
+  violations each run, and when fewer than half of them recur the output says to sharpen the rule
+  before fixing code to a list that moves. Rejected with `--dry-run`, with `--files`, and for
+  deterministic aspects (already exactly reproducible — use `--check-determinism` there).
 - `--tier <name>` — (LLM only, with `--node` or `--file`) Re-runs the same pairs under a named reviewer tier
   from the merged config (`yg-config.yaml` plus the local `yg-secrets` overlay), **overriding** the
   tier the aspect would normally resolve — the dry-fit for "does this still pass under the model
@@ -1679,9 +1682,11 @@ yg aspect-test --aspect <id> --node <node-path> --tier <name>
 
 Every LLM `aspect-test` run that actually calls the reviewer records one line of **local
 diagnostic telemetry** (`.yg-events.jsonl`, gitignored) — which reviewer judged the unit and how
-it voted. A plain `--node` run, `--repeat`, and `--tier` all record alike; `--repeat` just adds
-one line per repeated run and `--tier` re-points which reviewer is recorded (`--dry-run` makes no
-reviewer call, so it records nothing). It is write-only observability for later judge-stability and
+it voted, with a hash of the exact prompt it judged. A plain `--node` run, `--repeat`, and `--tier`
+all record alike; `--repeat` just adds one line per repeated run and `--tier` re-points which
+reviewer is recorded (`--dry-run` makes no reviewer call, so it records nothing). `yg advise`
+counts a split vote only across lines with the same prompt hash and reviewer, so refusing, fixing
+the code and passing reads as two inputs judged consistently, not as an ambiguous rule. It is write-only observability for later judge-stability and
 model-swap analysis; nothing in `yg check` ever reads it back, and the lock is never touched.
 
 For a deterministic aspect it runs `check.mjs` and prints violations. For an LLM

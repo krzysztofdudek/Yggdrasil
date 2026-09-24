@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { buildPrompt, verifyWithConsensus } from '../../../src/llm/aspect-verifier.js';
+import { buildPrompt, verifyWithConsensus, consensusTally } from '../../../src/llm/aspect-verifier.js';
 import type { LlmProvider, AspectResponse } from '../../../src/llm/types.js';
 
 describe('buildPrompt', () => {
@@ -117,36 +117,105 @@ describe('verifyWithConsensus', () => {
     expect(result.votes).toHaveLength(3);
   });
 
-  it('(e) consensus=2 mixed losing set [provider-error, codeViolation] surfaces the real violation reason, not the provider-error text', async () => {
+  it('(e) consensus=3 [provider-error, codeViolation, codeViolation] refuses with the real violation reason, not the provider-error text', async () => {
     const responses: AspectResponse[] = [
       { satisfied: false, reason: 'OpenAI request failed', errorSource: 'provider' },
       { satisfied: false, reason: 'Rule X violated: missing null check', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'Rule X violated again', errorSource: 'codeViolation' },
     ];
     let i = 0;
     const provider: LlmProvider = {
       verifyAspect: vi.fn(async () => responses[i++]),
       isAvailable: vi.fn(async () => true),
     };
-    const result = await verifyWithConsensus(provider, 'prompt', 2);
+    const result = await verifyWithConsensus(provider, 'prompt', 3);
     expect(result.response.satisfied).toBe(false);
-    // Classification is unchanged: at least one losing vote is a real refusal.
     expect(result.response.errorSource).toBe('codeViolation');
-    // The reason must come from the codeViolation vote, not the leading provider error.
+    // The reason must come from a codeViolation vote, not the leading provider error.
     expect(result.response.reason).toBe('Rule X violated: missing null check');
   });
 
-  it('(f) consensus=2 mixed losing set is order-independent [codeViolation, provider-error]', async () => {
+  it('(f) the refusal reason is order-independent [codeViolation, provider-error, codeViolation]', async () => {
     const responses: AspectResponse[] = [
       { satisfied: false, reason: 'Rule Y violated: unsafe cast', errorSource: 'codeViolation' },
       { satisfied: false, reason: 'Anthropic request failed', errorSource: 'provider' },
+      { satisfied: false, reason: 'Rule Y violated too', errorSource: 'codeViolation' },
     ];
     let i = 0;
     const provider: LlmProvider = {
       verifyAspect: vi.fn(async () => responses[i++]),
       isAvailable: vi.fn(async () => true),
     };
-    const result = await verifyWithConsensus(provider, 'prompt', 2);
+    const result = await verifyWithConsensus(provider, 'prompt', 3);
     expect(result.response.errorSource).toBe('codeViolation');
     expect(result.response.reason).toBe('Rule Y violated: unsafe cast');
+  });
+
+  // ── Issue 209 (m13): a provider-error vote is not a refusal ──────────────────
+  it('(g) error votes are left out of the majority: [sat, sat, err, err, refuse] at consensus 5 APPROVES (2 of 3 verdicts)', async () => {
+    const responses: AspectResponse[] = [
+      { satisfied: true, reason: 'ok 1', errorSource: 'codeViolation' },
+      { satisfied: true, reason: 'ok 2', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'timed out', errorSource: 'provider' },
+      { satisfied: false, reason: 'unparseable', errorSource: 'provider' },
+      { satisfied: false, reason: 'Rule Z violated', errorSource: 'codeViolation' },
+    ];
+    let i = 0;
+    const provider: LlmProvider = { verifyAspect: vi.fn(async () => responses[i++]), isAvailable: vi.fn(async () => true) };
+    const result = await verifyWithConsensus(provider, 'prompt', 5);
+    expect(result.response).toEqual({ satisfied: true, reason: 'ok 1', errorSource: 'codeViolation' });
+    expect(consensusTally(result.votes)).toEqual({ satisfied: 2, total: 3 });
+  });
+
+  it('(h) too few verdicts for a majority is infra, never a refusal: [refuse, err, err] at consensus 3', async () => {
+    const responses: AspectResponse[] = [
+      { satisfied: false, reason: 'Rule Z violated', errorSource: 'codeViolation' },
+      { satisfied: false, reason: 'HTTP 529 overloaded', errorSource: 'provider' },
+      { satisfied: false, reason: 'HTTP 529 overloaded', errorSource: 'provider' },
+    ];
+    let i = 0;
+    const provider: LlmProvider = { verifyAspect: vi.fn(async () => responses[i++]), isAvailable: vi.fn(async () => true) };
+    const result = await verifyWithConsensus(provider, 'prompt', 3);
+    expect(result.response.satisfied).toBe(false);
+    expect(result.response.errorSource).toBe('provider');
+    expect(result.response.reason).toContain('only 1 of 3 consensus votes returned a verdict');
+    expect(result.response.reason).toContain('HTTP 529 overloaded');
+  });
+
+  it('(i) the votes run concurrently: every pass is in flight before any answers', async () => {
+    let started = 0;
+    let release!: () => void;
+    const allStarted = new Promise<void>((r) => { release = r; });
+    const provider: LlmProvider = {
+      verifyAspect: vi.fn(async () => {
+        started += 1;
+        if (started === 3) release();
+        await allStarted; // a sequential loop would wait here forever on the first vote
+        return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' as const };
+      }),
+      isAvailable: vi.fn(async () => true),
+    };
+    const result = await Promise.race([
+      verifyWithConsensus(provider, 'prompt', 3),
+      new Promise<'stuck'>((r) => setTimeout(() => r('stuck'), 1000)),
+    ]);
+    expect(result).not.toBe('stuck');
+    expect(started).toBe(3);
+  });
+
+  it('(j) a throwing pass still fails the pair, once every pass has settled', async () => {
+    let settled = 0;
+    const provider: LlmProvider = {
+      verifyAspect: vi.fn(async (): Promise<AspectResponse> => {
+        const n = settled;
+        await new Promise((r) => setTimeout(r, n === 0 ? 0 : 20));
+        settled += 1;
+        if (n === 0) throw new Error('boom');
+        return { satisfied: true, reason: 'ok', errorSource: 'codeViolation' };
+      }),
+      isAvailable: vi.fn(async () => true),
+    };
+    await expect(verifyWithConsensus(provider, 'prompt', 3)).rejects.toThrow('boom');
+    expect(settled).toBe(3);
   });
 });

@@ -98,8 +98,8 @@ describe.skipIf(!distExists)('docs output samples match the CLI', () => {
     try {
       cpSync(path.join(REPO_ROOT, 'examples', 'failing'), dir, { recursive: true });
       const live = yg(['check'], dir).stdout;
-      const fix = live.slice(live.indexOf('            Fix: Three exits:'), live.indexOf('            - payments'));
-      const next = live.slice(live.indexOf('Next: Three exits:')).trimEnd();
+      const fix = live.slice(live.indexOf('            Fix: Four exits:'), live.indexOf('            - payments'));
+      const next = live.slice(live.indexOf('Next: Four exits:')).trimEnd();
       expect(fix.length).toBeGreaterThan(0);
       for (const page of ['docs/reviewers.md', 'docs/getting-started.md']) {
         expect(doc(page), page).toContain(fix);

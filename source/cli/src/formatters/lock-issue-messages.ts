@@ -95,10 +95,11 @@ export function llmRefusedMessage(params: {
     what: `Aspect '${params.aspectId}' is refused on ${params.unitKey}. cached verdict — the reviewer did NOT re-run; inputs are identical to the refused review.\n${by}Reviewer reason: ${params.reason}`,
     why: 'A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.',
     next:
-      `Three exits:\n` +
+      `Four exits:\n` +
       `  1. Fix the code so it satisfies aspect '${params.aspectId}', then: yg check --approve\n` +
-      `  2. Sharpen the aspect's content.md — this re-reviews EVERY node using the aspect; check \`yg impact --aspect ${params.aspectId}\` first.\n` +
-      `  3. Propose a \`yg-suppress\` to the user (user must approve the reason).`,
+      `  2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check \`yg impact --aspect ${params.aspectId}\` first.\n` +
+      `  3. Propose a \`yg-suppress\` to the user for a deliberate exception (user must approve the reason).\n` +
+      `  4. Not sure yet which it is: propose \`status: advisory\` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.`,
   };
 }
 
@@ -123,7 +124,22 @@ export function detRefusedMessage(params: {
  * The assembled prompt for an LLM pair exceeds the resolved tier's
  * max_prompt_chars (§4). Blocking error. Remedies are listed in SAFETY ORDER:
  * narrow scope first (no judgment change), then per-file (only if file-local),
- * then split, then raise the limit / change tier (cascades).
+ * then split, then raise the limit or move tiers. Remedy 4 says plainly what
+ * each half costs: `max_prompt_chars` is not a verdict input, so raising it
+ * re-verifies nothing; the tier NAME is, so moving the aspect re-reviews every
+ * pair of that aspect. (It once said "tier edits cascade re-verification
+ * across every aspect resolving to that tier", which read as if raising the
+ * cap re-billed the whole tier, and pushed adopters to split nodes instead.)
+ */
+export function raiseCapRemedy(tierName: string, limit: number): string {
+  return (
+    `  4. Raise max_prompt_chars on the '${tierName}' tier (now ${limit}) — it is a gate, not a verdict input, so raising it re-verifies nothing and costs only this pair's review; keep it inside the model's context window. ` +
+    `Or move the aspect to a tier with a higher limit — that re-reviews every pair of the aspect, because the tier name is part of each pair's hash.`
+  );
+}
+
+/**
+ * The prompt-too-large blocking message (see raiseCapRemedy for remedy 4).
  */
 export function promptTooLargeMessage(params: {
   aspectId: string;
@@ -140,7 +156,7 @@ export function promptTooLargeMessage(params: {
       `  1. Narrow scope.files so non-target payload (README, fixtures) leaves the prompt.\n` +
       `  2. Switch the aspect to per: file — only if the rule is file-local; see \`yg knowledge read writing-llm-aspects\`.\n` +
       `  3. Split the node so its mapped files divide across smaller nodes.\n` +
-      `  4. Raise max_prompt_chars or move the aspect to a higher-limit tier — note: tier edits cascade re-verification across every aspect resolving to that tier.`,
+      raiseCapRemedy(params.tierName, params.limit),
   };
 }
 

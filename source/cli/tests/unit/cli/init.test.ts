@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { Command } from 'commander';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
@@ -270,13 +270,51 @@ describe('init --provider keeps yg-config.yaml readable', () => {
     await existingInitNonInteractive(root, ygg, { provider: 'copilot-cli', model: 'auto' });
     const after = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
     const comments = (t: string) => t.split('\n').filter((l) => l.trim().startsWith('#'));
-    expect(comments(after)).toEqual(comments(before));
+    // Every comment survives, in order; the only new ones explain the
+    // `parallel` init writes for a CLI reviewer (issue 210).
+    expect(comments(after).filter((l) => comments(before).includes(l))).toEqual(comments(before));
+    expect(comments(after).filter((l) => !comments(before).includes(l)).join('\n')).toContain('How many reviewer calls run at once');
     expect(after).toContain('NOTE: an ABSENT');
     expect(after).toMatch(/^version: "/m);
-    // Only lines were added: every line of the old file is still there, in order.
+    // Only lines were added: every line of the old file is still there, in order
+    // (blank lines aside — the added `parallel` block brings its own).
     const added = after.split('\n').filter((l) => !before.split('\n').includes(l));
     expect(added.join('\n')).toContain('provider: copilot-cli');
-    expect(after.split('\n').filter((l) => before.split('\n').includes(l))).toEqual(before.split('\n'));
+    const text = (t: string) => t.split('\n').filter((l) => l.trim() !== '');
+    expect(text(after).filter((l) => text(before).includes(l))).toEqual(text(before));
+  });
+
+  // Issue 210 (m11): at the engine default of 1, a first fill of a few hundred
+  // pairs takes hours and nothing says the fix is one key. A CLI reviewer gets a
+  // sensible `parallel` with the reason beside it; a chosen value is kept; an API
+  // reviewer (whose safe concurrency is its key's rate-limit tier) is left alone.
+  it('writes parallel: 4 with its reason for a CLI reviewer, directly after the reviewer block', async () => {
+    const { root, ygg } = await freshDir('parallel-cli');
+    await freshInitKeyless(root, ygg);
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    await existingInitNonInteractive(root, ygg, { provider: 'claude-code', model: 'haiku' });
+    const cfg = await readFile(path.join(ygg, 'yg-config.yaml'), 'utf-8');
+    expect(cfg).toMatch(/^parallel: 4$/m);
+    expect(cfg).toContain('yg init wrote 4 for a');
+    expect(cfg.indexOf('parallel: 4')).toBeGreaterThan(cfg.indexOf('reviewer:'));
+    expect(cfg.indexOf('parallel: 4')).toBeLessThan(cfg.indexOf('debug:'));
+  });
+
+  it('keeps a parallel the config already sets, and writes none for an API reviewer', async () => {
+    const { root, ygg } = await freshDir('parallel-keep');
+    await freshInitKeyless(root, ygg);
+    const cfgPath = path.join(ygg, 'yg-config.yaml');
+    await writeFile(cfgPath, (await readFile(cfgPath, 'utf-8')) + 'parallel: 12\n', 'utf-8');
+    vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
+    await existingInitNonInteractive(root, ygg, { provider: 'claude-code', model: 'haiku' });
+    const kept = await readFile(cfgPath, 'utf-8');
+    expect(kept).toMatch(/^parallel: 12$/m);
+    expect(kept).not.toMatch(/^parallel: 4$/m);
+
+    const api = await freshDir('parallel-api');
+    await freshInitKeyless(api.root, api.ygg);
+    await existingInitNonInteractive(api.root, api.ygg, { provider: 'ollama', model: 'llama3', endpoint: 'http://localhost:11434' });
+    expect(await readFile(path.join(api.ygg, 'yg-config.yaml'), 'utf-8')).not.toMatch(/^parallel:/m);
   });
 
   it('replacing an existing reviewer keeps the comments too', async () => {

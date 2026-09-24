@@ -64,16 +64,32 @@ export interface VerdictEvent {
   disposition: 'approved' | 'refused' | 'infra' | 'companion-runtime-error' | 'runtime-error' | 'malformed-suppress';
   /** inputHash — present on approved/refused only. */
   hash?: string;
-  /** Present on REFUSED only (mirrors the lock; approved rationale is deliberately NOT recorded in v1). */
+  /** The reviewer's reason. On REFUSED it mirrors the lock. On an LLM APPROVED
+   *  line it is the approval's own reason, which the lock never records — kept
+   *  here, on the local line only, so approvals can be audited (a vague rule
+   *  that approves everything, or an approval a subject file argued the
+   *  reviewer into, shows up in its reason). The committed stream strips it
+   *  either way. Absent on deterministic approvals and older lines. */
   reason?: string;
   /** LLM only — tier NAME. */
   tier?: string;
   /** LLM only — PROMPT_FORMAT_REV at emission time. */
   promptRev?: number;
   /**
+   * `source: 'diag'` only — sha256 of the exact prompt the reviewer was given.
+   * Two diagnostic runs judged the same input exactly when their promptHash
+   * (and judge) match; `yg advise` counts a split vote only among such runs,
+   * so a refusal before a code fix and an approval after it are never read as
+   * one ambiguous rule. Absent on older lines, which advise therefore ignores.
+   * NEVER a hash ingredient.
+   */
+  promptHash?: string;
+  /**
    * LLM verdicts only — the consensus vote split for this pair: how many of the
-   * tier's independent review passes were satisfied (`satisfied`) out of the total
-   * passes cast (`total`). A single-vote tier (consensus <= 1) records the
+   * tier's independent review passes were satisfied (`satisfied`) out of the
+   * passes that returned a verdict (`total`). A pass that failed on a provider
+   * error is not a verdict and counts in neither figure, so `total` can be
+   * below the tier's consensus. A single-vote tier (consensus <= 1) records the
    * length-1 case, `total: 1`. Absent on deterministic verdicts and on every
    * no-write disposition.
    */

@@ -113,6 +113,10 @@ export class ProgressTracker {
     unitKey: string,
     verdict: string,
     emit: FillEventSink,
+    /** A consensus review's split (verdict votes only). When it is not
+     *  unanimous the pair gets its own line even on an approval — a 2-of-3
+     *  approval is exactly what a reader must be able to see. */
+    votes?: { satisfied: number; total: number },
   ): void {
     this.state.completed += 1;
     this.state.lastCompletionTime = this.now();
@@ -126,18 +130,23 @@ export class ProgressTracker {
       this.state.refused += 1;
     }
 
+    const split = votes !== undefined && votes.total > 1 && votes.satisfied > 0 && votes.satisfied < votes.total;
+    const outcome = {
+      type: 'pair-outcome' as const, lane: kind, aspectId, unitKey, verdict,
+      ...(votes !== undefined && votes.total > 1 ? { votes } : {}),
+    };
     if (this.isTTY) {
-      // For refused/infra in TTY mode: clear the TTY line first, then emit the permanent line
-      if (verdict !== 'approved') {
+      // For refused/infra (and a split consensus) in TTY mode: clear the TTY line first, then emit the permanent line
+      if (verdict !== 'approved' || split) {
         emit({ type: 'clear-line' });
-        emit({ type: 'pair-outcome', lane: kind, aspectId, unitKey, verdict });
+        emit(outcome);
       }
       this._emitStatus(emit);
     } else {
       // Non-TTY mode
-      if (verdict !== 'approved') {
-        // Refused/infra: immediate permanent line
-        emit({ type: 'pair-outcome', lane: kind, aspectId, unitKey, verdict });
+      if (verdict !== 'approved' || split) {
+        // Refused/infra (or an approval a consensus split on): immediate permanent line
+        emit(outcome);
       }
       // Milestone fires on every Nth completion regardless of verdict —
       // it shows overall progress (K/T filled + breakdown). A refused/infra

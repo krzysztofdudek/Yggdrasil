@@ -106,15 +106,21 @@ describe.skipIf(!distExists)('CLI E2E — yg aspect-test diagnostic telemetry', 
         expect(e.kind).toBe('llm');
         expect(e.disposition).toBe('approved');
         expect(e.tier).toBe('standard');
-        // PROMPT_FORMAT_REV is at 3: bumped 1 -> 2 for the nodeless prompt
-        // variant, then 2 -> 3 when the <node> element lost its description
-        // attribute (llm/prompt.ts). The marker exists so a recorded event
-        // still says which prompt shape produced it; it is not a hash
-        // ingredient, so moving it invalidates no verdict.
-        expect(e.promptRev).toBe(3);
+        // PROMPT_FORMAT_REV is at 4: bumped 1 -> 2 for the nodeless prompt
+        // variant, 2 -> 3 when the <node> element lost its description
+        // attribute, and 3 -> 4 when the task began framing subject text as
+        // data and every subject line got its number (llm/prompt.ts). The
+        // marker exists so a recorded event still says which prompt shape
+        // produced it; it is not a hash ingredient, so moving it invalidates
+        // no verdict.
+        expect(e.promptRev).toBe(4);
         expect(e.votes).toEqual({ satisfied: 1, total: 1 });
         expect(e.judge).toEqual({ provider: 'ollama', model: STANDARD_MODEL });
+        // Issue 209: each diag line names the exact input judged.
+        expect(e.promptHash).toMatch(/^[0-9a-f]{64}$/);
       }
+      // Three runs of ONE prompt: one hash, so yg advise may count them together.
+      expect(new Set(events.map((e) => e.promptHash)).size).toBe(1);
 
       // The lock was NEVER written by the diagnostic.
       const lockAfter = existsSync(lockPath(dir)) ? readFileSync(lockPath(dir), 'utf-8') : '';

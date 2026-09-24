@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import chalk from 'chalk';
 import path from 'node:path';
 import { statSync, accessSync, constants as fsConstants } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { loadGraphOrAbort, abortOnUnexpectedError } from './preamble.js';
 import { exitAfterFlush } from './exit-after-flush.js';
 import { debugWrite } from '../utils/debug-log.js';
@@ -18,7 +19,7 @@ import { buildPairPrompt, PROMPT_FORMAT_REV } from '../llm/prompt.js';
 import type { PromptReferenceInput, PromptFileInput, PromptCompanionInput, PromptSuppressedRangesInput } from '../llm/prompt.js';
 import { appendVerdictEvent, type VerdictEvent } from '../io/events-store.js';
 import { resolveSuppressedRangesForPrompt, SuppressMarkerError } from '../structure/index.js';
-import { verifyWithConsensus } from '../llm/aspect-verifier.js';
+import { verifyWithConsensus, consensusTally } from '../llm/aspect-verifier.js';
 import { createLlmProvider } from '../llm/index.js';
 import { probeProvider, REVIEWER_DEBUG_HINT } from '../llm/provider.js';
 import { selectTierForAspect } from '../core/tier-selection.js';
@@ -38,6 +39,74 @@ import type { AspectTestFileTarget } from '../core/aspect-test-file-target.js';
 import type { ExpectedPair } from '../core/pairs.js';
 import type { AspectDef, LlmConfig } from '../model/graph.js';
 import { fail } from './output.js';
+
+/** One `file:line` (or `file:start-end`) a reviewer's reason cites. */
+export interface CitedLocation { file: string; start: number; end: number }
+
+/**
+ * The `file:line` locations a reviewer's reason cites. Only a token shaped like
+ * a file path with an extension followed by `:<line>` or `:<start>-<end>`
+ * counts — prose such as "line 12" names no file and cannot be compared
+ * across runs.
+ */
+export function citedLocations(reason: string): CitedLocation[] {
+  const out: CitedLocation[] = [];
+  for (const m of reason.matchAll(/([A-Za-z0-9_./@-]+\.[A-Za-z0-9]+):(\d+)(?:-(\d+))?/g)) {
+    const start = Number(m[2]);
+    const end = m[3] !== undefined ? Math.max(start, Number(m[3])) : start;
+    out.push({ file: m[1]!, start, end });
+  }
+  return out;
+}
+
+/**
+ * How far the violations cited by repeated refusals of the SAME prompt agree.
+ * A borderline rule often refuses every time while naming a different list of
+ * violations each time; the verdict ratio alone hides that, and an adopter who
+ * fixes one run's list meets a new list on the next.
+ *
+ * Citations from all refusals are grouped per file into locations, where
+ * overlapping line ranges are one location (`normalize.ts:1-5` in one run and
+ * `normalize.ts:2-4` in the next point at the same text). `common` counts the
+ * locations every citing refusal named; `union` counts them all. Undefined when
+ * fewer than two refusals cited anything — there is nothing to compare.
+ */
+export function citationOverlap(refusalReasons: string[]): { common: number; union: number } | undefined {
+  const runs = refusalReasons.map(citedLocations).filter((r) => r.length > 0);
+  if (runs.length < 2) return undefined;
+  const byFile = new Map<string, Array<CitedLocation & { run: number }>>();
+  runs.forEach((r, run) => {
+    for (const c of r) {
+      const list = byFile.get(c.file) ?? [];
+      list.push({ ...c, run });
+      byFile.set(c.file, list);
+    }
+  });
+  let union = 0;
+  let common = 0;
+  for (const list of byFile.values()) {
+    list.sort((a, b) => a.start - b.start || a.end - b.end);
+    let end = -1;
+    let members = new Set<number>();
+    const close = (): void => {
+      if (members.size === 0) return;
+      union += 1;
+      if (members.size === runs.length) common += 1;
+    };
+    for (const c of list) {
+      if (c.start > end) {
+        close();
+        members = new Set<number>();
+        end = c.end;
+      } else {
+        end = Math.max(end, c.end);
+      }
+      members.add(c.run);
+    }
+    close();
+  }
+  return { common, union };
+}
 
 /**
  * The report for one stability-mode run that produced no verdict: infrastructure,
@@ -417,9 +486,11 @@ export function registerAspectTestCommand(program: Command): void {
             const effective = computeEffectiveAspects(node, graph);
             const attached = effective.has(aspect.id);
             if (!attached) {
-              process.stderr.write(
-                `Note: aspect '${aspect.id}' is not attached to node '${nodePath}' — running the check ad-hoc against its files; yg check will not produce a verdict for this pair.\n`,
-              );
+              process.stderr.write(`${buildIssueMessage({
+                what: `Note: aspect '${aspect.id}' is not attached to node '${nodePath}' — running the check ad-hoc against its files.`,
+                why: 'yg check will not produce a verdict for this pair, so what this run prints is a diagnostic only.',
+                next: `To have yg check judge it, attach aspect '${aspect.id}' to node '${nodePath}' (or to an ancestor or its type) — an architecture change for the user to approve.`,
+              })}\n`);
             }
           } catch (e) {
             debugWrite(`[aspect-test] effectiveness precheck failed for ${aspect.id} on ${nodePath}: ${e instanceof Error ? e.message : String(e)}`);
@@ -911,9 +982,16 @@ async function runLlmAspectTest(
     // separate judge/model regimes. Best-effort: appendVerdictEvent swallows any
     // write failure by contract, so telemetry can never fail the diagnostic. NOT a
     // hash ingredient — aspect-test never writes the lock.
+    //
+    // `promptHash` names the exact input judged: a hash of the assembled prompt
+    // (rule, subject bytes, references, companions, suppressed spans and the
+    // prompt shape itself). `yg advise` compares votes only across lines with
+    // the same hash and judge — a refusal before a code fix and an approval
+    // after it are two different inputs, not a split vote on one.
     const emitDiag = (
       unitKey: string,
       disposition: 'approved' | 'refused' | 'infra',
+      promptHash: string,
       votes?: { satisfied: number; total: number },
     ): void => {
       const event: VerdictEvent = {
@@ -926,6 +1004,7 @@ async function runLlmAspectTest(
         disposition,
         tier: tierName,
         promptRev: PROMPT_FORMAT_REV,
+        promptHash,
         judge: { provider: tier.provider, model: String(tier.model) },
       };
       // votes accompany a real verdict only; an infra run cast no countable vote.
@@ -990,6 +1069,7 @@ async function runLlmAspectTest(
         suppressedRanges,
         scope: aspect.scope,
       });
+      const promptHash = createHash('sha256').update(prompt).digest('hex');
 
       if (repeat >= 2) {
         // ── Stability mode: N runs of the SAME prompt, consensus forced to 1 ──
@@ -1000,6 +1080,7 @@ async function runLlmAspectTest(
         let satisfiedRuns = 0;
         let refusedRuns = 0;
         let providerErrorRuns = 0;
+        const refusalReasons: string[] = [];
         for (let i = 1; i <= repeat; i++) {
           let response;
           try {
@@ -1007,7 +1088,7 @@ async function runLlmAspectTest(
           } catch (e) {
             debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${e instanceof Error ? e.message : String(e)}`);
             providerErrorRuns++;
-            emitDiag(pair.unitKey, 'infra');
+            emitDiag(pair.unitKey, 'infra', promptHash);
             // Infrastructure, not a code violation — same routing as every other
             // provider-error report in this file (stderr, never stdout).
             process.stderr.write(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, `reviewer threw: ${e instanceof Error ? e.message : String(e)}`))}\n`);
@@ -1016,15 +1097,18 @@ async function runLlmAspectTest(
           if (!response.satisfied && response.errorSource === 'provider') {
             debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey} run ${i}/${repeat}: ${response.reason}`);
             providerErrorRuns++;
-            emitDiag(pair.unitKey, 'infra');
+            emitDiag(pair.unitKey, 'infra', promptHash);
             process.stderr.write(`${buildIssueMessage(repeatRunProviderError(pair.unitKey, i, repeat, response.reason))}\n`);
             continue;
           }
           if (response.satisfied) satisfiedRuns++;
-          else refusedRuns++;
+          else {
+            refusedRuns++;
+            refusalReasons.push(response.reason);
+          }
           // Consensus is forced to 1 per run here, so each run casts exactly one
           // countable vote (votes.total: 1) — the raw self-consistency signal.
-          emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', {
+          emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', promptHash, {
             satisfied: response.satisfied ? 1 : 0,
             total: 1,
           });
@@ -1045,6 +1129,23 @@ async function runLlmAspectTest(
           ? ` (${providerErrorRuns} provider-error run${providerErrorRuns === 1 ? '' : 's'} excluded)`
           : '';
         process.stdout.write(`  stability: ${satisfiedRuns}/${validRuns} satisfied${excludedNote}\n`);
+        // The verdict ratio says whether the reviewer refuses consistently; it
+        // does not say whether it refuses for the same REASONS. Compare the
+        // locations the refusals cited.
+        if (refusedRuns >= 2) {
+          const overlap = citationOverlap(refusalReasons);
+          if (overlap === undefined) {
+            process.stdout.write(`  cited violations: not compared — fewer than two refusals cited a file:line\n`);
+          } else {
+            process.stdout.write(`  cited violations: ${overlap.common} of ${overlap.union} cited location${overlap.union === 1 ? '' : 's'} named by every refusal\n`);
+            if (overlap.common * 2 < overlap.union) {
+              process.stdout.write(
+                `  The refusals name mostly different violations from run to run, so fixing one run's list will not settle the next. ` +
+                  `Sharpen the rule (content.md) until it names what counts before editing code to a list that moves.\n`,
+              );
+            }
+          }
+        }
         if (refusedRuns > 0) refusedCount++;
         continue;
       }
@@ -1055,7 +1156,7 @@ async function runLlmAspectTest(
         ({ response, votes } = await verifyWithConsensus(provider, prompt, mergedTier.consensus ?? 1));
       } catch (e) {
         debugWrite(`[aspect-test] reviewer threw for ${aspect.id} on ${pair.unitKey}: ${e instanceof Error ? e.message : String(e)}`);
-        emitDiag(pair.unitKey, 'infra');
+        emitDiag(pair.unitKey, 'infra', promptHash);
         fail({
             what: `Reviewer threw an error for aspect '${aspect.id}' on ${pair.unitKey}.`,
             why: `The reviewer returned an unparseable or errored response: ${e instanceof Error ? e.message : String(e)}`,
@@ -1073,7 +1174,7 @@ async function runLlmAspectTest(
       // editing code for a violation the reviewer never actually found.
       if (!response.satisfied && response.errorSource === 'provider') {
         debugWrite(`[aspect-test] provider error for ${aspect.id} on ${pair.unitKey}: ${response.reason}`);
-        emitDiag(pair.unitKey, 'infra');
+        emitDiag(pair.unitKey, 'infra', promptHash);
         fail({
             what: `Reviewer for aspect '${aspect.id}' on ${pair.unitKey} returned a provider error: ${response.reason}`,
             why: `A provider-sourced failure is infrastructure, not a code violation — the unit was not verified.`,
@@ -1086,15 +1187,14 @@ async function runLlmAspectTest(
       if (!response.satisfied) refusedCount++;
       // Record the real verdict with its full consensus vote split (how many of
       // the tier's independent passes were satisfied out of the total cast).
-      emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', {
-        satisfied: votes.filter((v) => v.satisfied).length,
-        total: votes.length,
-      });
+      // (verdict votes only — a provider-error vote was never a judgment).
+      const tally = consensusTally(votes);
+      emitDiag(pair.unitKey, response.satisfied ? 'approved' : 'refused', promptHash, tally);
       const verdict = response.satisfied ? 'satisfied' : 'refused';
       // Vote-split suffix — only when consensus > 1 actually cast multiple votes;
       // a consensus=1 aspect always wraps a single vote, so the line stays as-is.
       const voteSuffix = votes.length > 1
-        ? ` [votes ${votes.filter((v) => v.satisfied).length}/${votes.length}]`
+        ? ` [votes ${tally.satisfied}/${tally.total}]`
         : '';
       process.stdout.write(`${pair.unitKey}: ${verdict} — ${response.reason}${voteSuffix}\n`);
     }

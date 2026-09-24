@@ -107,6 +107,7 @@ function diagEvent(aspectId: string, satisfied: 0 | 1, ts: string): VerdictEvent
     v: 1,
     ts,
     source: 'diag',
+    promptHash: 'prompt-1',
     aspectId,
     unitKey: `node:auth`,
     kind: 'llm',
@@ -360,6 +361,48 @@ describe('buildNominations — T1 promotion + sharpen (below all T0)', () => {
     expect(sharpen!.why).toContain('reviewed 5 times');
     expect(sharpen!.why).toContain('2 satisfied and 3 refused');
     expect(sharpen!.next).toContain("Requires the user's approval");
+  });
+
+  // Issue 209 (M12): the ordinary fix loop — refused on the original code, the
+  // code is fixed, satisfied afterwards — is two inputs judged consistently, not
+  // one input judged inconsistently. Only votes on the same prompt count together.
+  it('does NOT nominate sharpen for the fix loop: refusals on one input, approvals on a later one', async () => {
+    const graph = await loadGraph(projectRoot);
+    const onInput = (satisfied: 0 | 1, ts: string, promptHash: string): VerdictEvent => ({ ...diagEvent('requires-logging', satisfied, ts), promptHash });
+    const events = [
+      onInput(0, '2026-07-01T00:00:00.000Z', 'before-fix'),
+      onInput(0, '2026-07-01T00:00:01.000Z', 'before-fix'),
+      onInput(0, '2026-07-01T00:00:02.000Z', 'before-fix'),
+      onInput(1, '2026-07-01T00:10:00.000Z', 'after-fix'),
+      onInput(1, '2026-07-01T00:10:01.000Z', 'after-fix'),
+    ];
+    const noms = buildNominations(graph, { todayUtc: TODAY, verdictEvents: events });
+    expect(noms.find((n) => n.id === 'sharpen:requires-logging')).toBeUndefined();
+  });
+
+  it('ignores diagnostic lines that cannot say what they judged (no promptHash)', async () => {
+    const graph = await loadGraph(projectRoot);
+    const hashless = (satisfied: 0 | 1, ts: string): VerdictEvent => {
+      const e = diagEvent('requires-logging', satisfied, ts);
+      delete e.promptHash;
+      return e;
+    };
+    const events = [hashless(1, '2026-07-01T00:00:00.000Z'), hashless(0, '2026-07-01T00:00:01.000Z'), hashless(0, '2026-07-01T00:00:02.000Z')];
+    const noms = buildNominations(graph, { todayUtc: TODAY, verdictEvents: events });
+    expect(noms.find((n) => n.id === 'sharpen:requires-logging')).toBeUndefined();
+  });
+
+  it('does not pool one input judged by two different reviewers into a split vote', async () => {
+    const graph = await loadGraph(projectRoot);
+    const by = (satisfied: 0 | 1, ts: string, model: string): VerdictEvent => ({ ...diagEvent('requires-logging', satisfied, ts), judge: { provider: 'claude-code', model } });
+    const events = [
+      by(1, '2026-07-01T00:00:00.000Z', 'haiku'),
+      by(1, '2026-07-01T00:00:01.000Z', 'haiku'),
+      by(0, '2026-07-01T00:00:02.000Z', 'sonnet'),
+      by(0, '2026-07-01T00:00:03.000Z', 'sonnet'),
+    ];
+    const noms = buildNominations(graph, { todayUtc: TODAY, verdictEvents: events });
+    expect(noms.find((n) => n.id === 'sharpen:requires-logging')).toBeUndefined();
   });
 
   it('does NOT nominate sharpen when every repeat run agreed (unanimous)', async () => {
@@ -671,6 +714,7 @@ describe('buildNominations — T1 sharpen: regime label, recency, multi-unit tie
         v: 1,
         ts: '2026-07-01T00:00:00.000Z',
         source: 'diag',
+        promptHash: 'prompt-1',
         aspectId: 'requires-logging',
         unitKey: 'node:auth',
         kind: 'llm',
@@ -681,6 +725,7 @@ describe('buildNominations — T1 sharpen: regime label, recency, multi-unit tie
         v: 1,
         ts: '2026-07-01T00:00:01.000Z',
         source: 'diag',
+        promptHash: 'prompt-1',
         aspectId: 'requires-logging',
         unitKey: 'node:auth',
         kind: 'llm',
@@ -713,6 +758,7 @@ describe('buildNominations — T1 sharpen: regime label, recency, multi-unit tie
         v: 1,
         ts,
         source: 'diag',
+        promptHash: 'prompt-1',
         aspectId: 'requires-logging',
         unitKey,
         kind: 'llm',

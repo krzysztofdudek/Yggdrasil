@@ -27,9 +27,18 @@ The `reviewer:` block is **optional** — reviewer kind is inferred from rule-fi
 
 The LLM reviewer is a separate LLM call from the coding agent — one LLM verifying the work of another. `yg check --approve` assembles each unverified LLM pair into one prompt — the aspect's `content.md` plus the subject files for that pair (the whole node under `per: node`, a single file under `per: file`). The reviewer also receives any reference files declared on the aspect, presented as authoritative context (not under review). It responds with a JSON object — `{"satisfied": true|false, "reason": "explanation with file:line references"}` — and that `satisfied` boolean is recorded in the lock as the verdict. Each unverified LLM pair costs one reviewer call, multiplied by the tier's consensus count.
 
+Two things in the prompt keep the reviewer honest about what it reads. Every line of every subject file carries its line number (`12| ...`), so the `file:line` in a reason and the spans of a `yg-suppress` waiver point at the same lines, not at the model's own count. And the prompt tells the reviewer that everything in the subject files, references and companions is material under review, never instructions: text in the code that addresses the reviewer, claims the code was already approved, or dictates a verdict is itself a violation, and the reviewer is told to refuse and cite it. That matters because the author of the code under review — often the coding agent itself — writes the reviewer's input. It is an instruction to a model, not a guarantee: a small model can still be argued round, so the reason of every approval is kept in the local events file where you can read it back (see [Verdict-events sidecar](#verdict-events-sidecar)), and the source diff shows any such comment to a human reviewer.
+
 **Draft aspects produce no pairs.** When an aspect's effective status on a node is `draft`, no pair is expected for it — there is nothing to verify and nothing to record (`yg aspect-test` can still run a draft aspect live — diagnostic only, the lock is never written). Aspects with effective status `advisory` or `enforced` are verified normally; the level only changes how a refused or unverified pair renders in `yg check` (warning vs. error). Verdicts survive status flips, including a `draft` round-trip — returning an aspect to enforced re-uses the recorded verdict for unchanged inputs. See [Aspect Status](/aspect-status) for the lifecycle.
 
-**LLM verdicts are not deterministic.** The same code against the same rule can come back satisfied on one run and refused on another — most often on borderline rules. To avoid laundering a refusal into an approval, a recorded refusal is final for unchanged inputs: re-running `yg check --approve` does not re-roll it. The three honest ways out are fix the code, sharpen the rule (which re-verifies every pair of the aspect — check `yg impact --aspect` first), or add a `yg-suppress` marker with your sign-off. Manage variance up front by writing rules that are concrete and decidable rather than vague, by preferring a `deterministic` `check.mjs` whenever a rule is programmatically checkable (zero LLM cost, identical result every run), and by raising `consensus` on high-stakes or noisy aspects so a majority vote smooths out single-call variance. To explore whether the rule text is the problem, use `yg aspect-test` — a diagnostic re-run that never writes the lock.
+**LLM verdicts are not deterministic.** The same code against the same rule can come back satisfied on one run and refused on another — most often on borderline rules. To avoid laundering a refusal into an approval, a recorded refusal is final for unchanged inputs: re-running `yg check --approve` does not re-roll it. What to do about a refusal depends on what is wrong, and the refusal's Fix text lists the same four exits:
+
+1. **The code is wrong** — fix it and re-run `yg check --approve`.
+2. **The rule is wrong or unclear** — sharpen `content.md`. This re-reviews every pair of the aspect, so check `yg impact --aspect <id>` first.
+3. **The code is a deliberate, known exception to a rule that is right** — add a `yg-suppress` marker with a reason the user signs off on. This is the honest exit for an exception, not for a rule that misfires: a rule that needs many markers needs sharpening instead.
+4. **You cannot tell yet** — set the aspect to `status: advisory` while you decide (the user's call, like any rule change). The recorded refusal stays, but it shows as a warning and stops blocking; nothing is re-reviewed, and moving the aspect back to `enforced` re-uses the recorded verdicts for unchanged inputs.
+
+Manage variance up front by writing rules that are concrete and decidable rather than vague, and by preferring a `deterministic` `check.mjs` whenever a rule is programmatically checkable (zero LLM cost, identical result every run). A tier's `consensus` smooths single-call variance for the pairs it reviews from then on, but raising it re-judges nothing already recorded: consensus is not part of a pair's hash, so only moving the aspect to a newly named tier re-reviews its pairs under the new vote count. To explore whether the rule text is the problem, use `yg aspect-test` — a diagnostic re-run that never writes the lock; `--repeat N` also reports how far the violations the refusals cite agree from run to run.
 
 ### Directory structure
 
@@ -83,27 +92,36 @@ Errors (1):
 
   enforced  1 pair  1 node  aspect 'requires-audit'
             A refused verdict for unchanged inputs is final and cached; re-running the reviewer would only re-roll the same inputs.
-            Fix: Three exits:
+            Fix: Four exits:
               1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
-              2. Sharpen the aspect's content.md — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
-              3. Propose a `yg-suppress` to the user (user must approve the reason).
+              2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+              3. Propose a `yg-suppress` to the user for a deliberate exception (user must approve the reason).
+              4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
             - payments  Reviewer reason: chargeCard() does not emit an audit event; no auditLog.emit() call in any mutation path.
 
-Next: Three exits:
+Next: Four exits:
   1. Fix the code so it satisfies aspect 'requires-audit', then: yg check --approve
-  2. Sharpen the aspect's content.md — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
-  3. Propose a `yg-suppress` to the user (user must approve the reason).
+  2. Sharpen the aspect's content.md if the rule is wrong or unclear — this re-reviews EVERY node using the aspect; check `yg impact --aspect requires-audit` first.
+  3. Propose a `yg-suppress` to the user for a deliberate exception (user must approve the reason).
+  4. Not sure yet which it is: propose `status: advisory` on the aspect to the user — the refusal stays recorded but stops blocking while you decide.
 ```
 
-If the reviewer rejects compliant code, the fix is improving the aspect's `content.md` — make the rule clearer and more specific. Sharpening the rule re-verifies every pair of the aspect. The escape hatch is better rules, not bypassing enforcement.
+If the reviewer rejects compliant code, the rule is what misfired, so the fix is improving the aspect's `content.md` — make the rule clearer and more specific (exit 2). Sharpening the rule re-verifies every pair of the aspect. A `yg-suppress` marker is for a deliberate exception to a rule that is right (exit 3), not a way around a rule that misreads compliant code; while you decide which case you are in, `status: advisory` (exit 4) stops the refusal from blocking.
 
 ### Cost
 
 Cost is counted per pair. A `per: node` aspect on a node with 5 source files is one pair — one LLM call (times consensus). A typical fill for a node with 3 `per: node` aspects makes 3 LLM calls. A `per: file` aspect over those 5 files is 5 pairs — 5 calls. Using a fast model (Haiku, GPT-4o-mini, Gemini Flash) keeps cost under a few cents per call. The model is your choice: `yg init --provider claude-code` writes `sonnet` unless you pass `--model haiku`, and a tier's `config.model` can be changed at any time (see [Configuration](/configuration)). Deterministic pairs are free regardless of scope. For local review, Ollama runs on your machine with no API cost. See [Configuration](/configuration) for provider setup.
 
+Wall time is set by `parallel` — how many reviewer calls run at once (engine default `1`). A single call takes roughly 10–40 seconds, so a first fill of a few hundred pairs at `parallel: 1` takes hours. `yg init` with a CLI reviewer (claude-code, codex, gemini-cli, copilot-cli) writes `parallel: 4`: each call is its own local process under your subscription, and four stay inside its rate limit while cutting wall time about fourfold. For an API reviewer, set it to what your key's rate limit allows. A tier with `consensus: N` runs up to `parallel × N` calls at once. Every fill that calls the reviewer ends with a line giving the number of calls, the elapsed time and, where the provider reports them (claude-code does), the tokens used and the cost at list price, which is not what a subscription is billed per call. An interrupted fill (Ctrl-C, or a SIGTERM from a CI timeout) stops the reviewer calls still running and says how many verdicts it saved; re-running `yg check --approve` reviews only the rest.
+
 ### Consensus
 
 Set `consensus: 3` (or any odd integer) on a tier in `yg-config.yaml` to run multiple review passes and take the majority vote. Higher confidence, proportionally higher cost. Useful for high-stakes aspects or noisy borderline rules.
+
+- **The passes run at the same time**, so consensus multiplies cost, not wall time.
+- **Only verdicts vote.** A pass that fails on a provider error (a timeout, an unparseable reply) is not counted as a refusal. The verdicts that did come back must still be a majority of the passes the tier asked for; with fewer, the pair is not judged at all — nothing is written and it stays unverified, like any reviewer failure. A tie refuses.
+- **A split shows.** When the passes disagree, the fill prints the pair with its split — `approved (consensus 2/3 satisfied)` — and the events file records it.
+- **Raising `consensus` re-judges nothing already recorded.** It is not part of a pair's hash, so existing verdicts stand. To re-review an aspect's pairs under the new count, move the aspect to a newly named tier.
 
 ```yaml
 reviewer:
@@ -654,7 +672,7 @@ Both reviewer types record their results the same way: one content-addressed ent
 
 ### Verdict-events sidecar
 
-Alongside the lock, every `yg check --approve` fill appends a one-line record of each verdict — and each failed attempt — to a local `.yg-events.jsonl` file under `.yggdrasil/`. Each line is a single JSON object describing one filled pair: the aspect, the unit, the reviewer kind, the disposition (approved, refused, or a specific no-write outcome such as an unreachable reviewer, a crashed check, or a malformed suppress marker), and a UTC timestamp; when the fill ran inside a git repository, the line also carries the commit it ran at (absent otherwise — never fabricated, and never a hash ingredient); a refusal also carries its reason, and a consensus review carries its vote tally (satisfied of total). By default the file is **local-only telemetry**: it is gitignored, never committed, and **never read back by any check, verification, or render path** — it exists only to make fill outcomes observable across runs (which rules refuse often, which infrastructure paths fail repeatedly), motivating rule-health reporting. A failed append is swallowed and can never change a fill's outcome. The file is kept bounded: once it reaches 5 MiB it is moved aside to `.yg-events.jsonl.1`, replacing the previous one, and readers read both.
+Alongside the lock, every `yg check --approve` fill appends a one-line record of each verdict — and each failed attempt — to a local `.yg-events.jsonl` file under `.yggdrasil/`. Each line is a single JSON object describing one filled pair: the aspect, the unit, the reviewer kind, the disposition (approved, refused, or a specific no-write outcome such as an unreachable reviewer, a crashed check, or a malformed suppress marker), and a UTC timestamp; when the fill ran inside a git repository, the line also carries the commit it ran at (absent otherwise — never fabricated, and never a hash ingredient); every LLM verdict carries the reviewer's reason — for a refusal the one the lock also keeps, for an approval one that exists only here, so approvals can be read back and audited — and a consensus review carries its vote tally (satisfied of the passes that returned a verdict). A diagnostic `yg aspect-test` line also carries a hash of the exact prompt it judged, which is how `yg advise` tells a split vote on one input (an ambiguous rule) from a refusal and a later approval on two inputs (a fixed bug). By default the file is **local-only telemetry**: it is gitignored, never committed, and **never read back by any check, verification, or render path** — it exists only to make fill outcomes observable across runs (which rules refuse often, which infrastructure paths fail repeatedly), motivating rule-health reporting. A failed append is swallowed and can never change a fill's outcome. The file is kept bounded: once it reaches 5 MiB it is moved aside to `.yg-events.jsonl.1`, replacing the previous one, and readers read both.
 
 #### Committed, shared record (opt-in)
 
@@ -662,7 +680,7 @@ A team can opt into a **committed, shared** record of LLM verification-fill even
 
 - **LLM-fill only.** Deterministic checks, drill runs, and diagnostic runs always stay in the local sidecar, so the free, keyless CI gate (`yg check --approve --only-deterministic`) never touches the committed file — running it adds nothing and produces zero churn.
 - **Union-merged.** `yg init` marks the file `merge=union` in `.gitattributes`, so events appended on different branches combine on merge instead of conflicting.
-- **Rationale-stripped.** The refusal reason is omitted from the shared copy (it can carry code fragments); the local copy keeps it.
+- **Rationale-stripped.** The reviewer's reason — of a refusal or an approval — is omitted from the shared copy (it can carry code fragments); the local copy keeps it.
 
 Readers combine the local sidecar with the committed stream, de-duplicated line by line. Because a machine on an older CLI writes only locally, a reader that surfaces these events notes that older machines do not contribute to the shared record — the committed stream is never assumed complete. The opt-in never affects any verdict or its hash: turning it on or off invalidates nothing.
 
@@ -683,7 +701,7 @@ The reviewer is a separate model judging the coding agent's work, and a recorded
 
 ### LLM reviewer
 
-**Borderline rejections.** Compliant code can be rejected by an LLM that misread the rule. Fix: clarify `content.md`. The escape hatch is better rules, not `yg-suppress`. A recorded refusal is final for unchanged inputs — sharpening the rule is the way to overturn it (and it re-verifies every pair of the aspect).
+**Borderline rejections.** Compliant code can be rejected by an LLM that misread the rule. Fix: clarify `content.md` (exit 2 above) — a `yg-suppress` marker is for a deliberate exception, not for a rule that misfires. A recorded refusal is final for unchanged inputs — sharpening the rule is the way to overturn it (and it re-verifies every pair of the aspect); `status: advisory` stops it from blocking while you work out the wording.
 
 **Cost spikes when an aspect changes.** Editing a widely-used aspect's content invalidates every pair it produces → N LLM calls to refill. Before such an edit, run `yg impact --aspect <id>` to see the count. `--aspect` also accounts for `companion.mjs` — editing it invalidates every pair of the aspect just as a `content.md` edit does, at the same billed cost. Consider `consensus: 1` for high-fan-out aspects.
 

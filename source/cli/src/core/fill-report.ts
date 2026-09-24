@@ -12,7 +12,7 @@
  */
 
 import type { IssueMessage } from '../model/validation.js';
-import type { FillEventSink } from '../model/fill-event.js';
+import type { FillEventSink, FillUsageTotals } from '../model/fill-event.js';
 import type { CheckResult } from './check-contract.js';
 import type { UnverifiedCause } from './check-codes.js';
 import { computeSuggestedNext } from './check-suggested-next.js';
@@ -137,6 +137,10 @@ export interface FillTotals {
   retry?: string;
   /** Refusals the lock held for unchanged inputs before this run (they still stand). */
   cachedRefusals?: number;
+  /** Wall time of the run so far, for the closing line. */
+  elapsedMs?: number;
+  /** Reviewer usage the provider reported, for the closing line. */
+  usage?: FillUsageTotals;
 }
 
 /**
@@ -167,6 +171,8 @@ export function reportFillTotals(
       skippedByDetGate: totals.skippedByDetGate ?? 0,
       ...(totals.reviewerConfigured !== undefined ? { reviewerConfigured: totals.reviewerConfigured } : {}),
       ...(totals.cachedRefusals !== undefined ? { cachedRefusals: totals.cachedRefusals } : {}),
+      ...(totals.elapsedMs !== undefined ? { elapsedMs: totals.elapsedMs } : {}),
+      ...(totals.usage !== undefined ? { usage: totals.usage } : {}),
     },
   });
   if (totals.infraFailures > 0) {
