@@ -61,7 +61,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: cached refusals / det gat
       // First fill: the LLM aspect refuses on both nodes → exit 1, entries recorded refused.
       const fill1 = await runAsync(['check', '--approve'], dir);
       expect(fill1.status).toBe(1);
-      expect(fill1.all).toMatch(/^fill {2}done in .* — 4 approved · 2 refused · 0 failed · 2 reviewer calls/m);
+      expect(fill1.all).toMatch(/^fill {2}done in .* — 4 passed · 2 refused · 0 failed · 2 reviewer calls/m);
       expect(fill1.all).toContain('error[refused] has-doc-comment — refused on 2 nodes');
       const callsAfterFirst = mock.chatCount();
       expect(callsAfterFirst).toBe(2); // consensus 1 × 2 LLM pairs

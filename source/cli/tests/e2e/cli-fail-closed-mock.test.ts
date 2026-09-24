@@ -97,7 +97,7 @@ describe.skipIf(!distExists)('CLI E2E — fail-closed reviewer (#2)', () => {
         expect(fill.status).toBe(1); // infra → run ends red, nothing written
         // The infra summary is printed, naming the failed pairs.
         expect(fill.all).toMatch(/^warning: 1 pair failed on provider\/config errors/m);
-        expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 0 refused · 1 failed · /m);
+        expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 0 refused · 1 failed · /m);
 
         // FAIL-CLOSED: the EDITED pair's lock entry must NOT have advanced — it is
         // byte-identical to the green entry (old hash + prior verdict), so the
@@ -138,7 +138,7 @@ describe.skipIf(!distExists)('CLI E2E — fail-closed reviewer (#2)', () => {
         const fill = await runAsync(['check', '--approve'], dir);
         expect(fill.status).toBe(1);
         expect(fill.all).toMatch(/^warning: 1 pair failed on provider\/config errors/m);
-        expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 0 refused · 1 failed · /m);
+        expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 0 refused · 1 failed · /m);
         // The garbled "satisfied" did NOT advance the edited pair's lock entry.
         expect(lockEntry(dir, 'has-doc-comment', 'node:services/orders')).toBe(ordersBefore);
         expect((await runAsync(['check'], dir)).status).toBe(1); // RED

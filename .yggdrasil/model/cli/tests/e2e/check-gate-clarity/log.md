@@ -1,0 +1,2 @@
+## [2026-09-24T14:33:33.040Z]
+The infrastructure-failure case pointed the reviewer at a fixed loopback port and relied on nothing listening there, which depends on the machine running the test. It now asks the OS for a free ephemeral port and closes it before use, so the reviewer call is refused the same way everywhere, and the fill tally it reads says passed instead of approved, matching the Glossary.

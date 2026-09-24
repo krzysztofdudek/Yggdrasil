@@ -246,7 +246,7 @@ export function registerDrillAddCommand(drill: Command, buildDrillRun: BuildDril
           fail({
               what: `The rule '${aspect.def.id}' does not catch '${first.case.caseLabel}': it expected ${first.case.expect} and got ${first.got}.`,
               why: 'This is real code that the rule let through. The case is now in the corpus and stays there — that is the point of adding it — and it will keep failing until the rule is sharpened enough to catch it.',
-              next: `Sharpen the rule in .yggdrasil/aspects/${aspect.def.id}/, then re-run yg drill --aspect ${aspect.def.id}. Changing an LLM rule's text re-reviews every place it applies; check yg impact --aspect ${aspect.def.id} first.`,
+              next: `Sharpen the rule in .yggdrasil/aspects/${aspect.def.id}/, then re-run yg drill --aspect ${aspect.def.id}. Changing a reviewer rule's text re-reviews every place it applies; check yg impact --aspect ${aspect.def.id} first.`,
             });
           await exitAfterFlush(1);
           return;

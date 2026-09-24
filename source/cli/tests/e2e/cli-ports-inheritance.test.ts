@@ -297,7 +297,7 @@ mapping:
       expect(fill.status).toBe(1);
       // Fill verdicts: the implier (channel 6) holds and the implied aspect
       // (channel 7) refuses — the closing fill line counts one of each.
-      expect(fill.stderr).toMatch(/fill {2}done in \S+ — 1 approved · 1 refused · 0 failed/);
+      expect(fill.stderr).toMatch(/fill {2}done in \S+ — 1 passed · 1 refused · 0 failed/);
       // The enforced refusal block (error[refused]) names the implied aspect in
       // its subject — proving the implied aspect is enforced — and lists the
       // consumer node it refuses on.
@@ -406,7 +406,7 @@ mapping:
       // this fixture never ran `yg init`, so it carries no AGENTS.md/CLAUDE.md/
       // .clinerules digest artifacts, and the committed-digest staleness gate
       // flags that on every `yg check`/`yg check --approve` here.
-      expect(fill.all).toMatch(/fill {2}done in \S+ — 1 approved · 1 refused · 0 failed/);
+      expect(fill.all).toMatch(/fill {2}done in \S+ — 1 passed · 1 refused · 0 failed/);
       expect(fill.all).toContain('yg check: PASS  2 warnings');
       // Advisory refusal: a warning-severity refused block, not an error.
       expect(fill.all).toContain('warning[refused] diag-advisory — 1 violation in services/orders');

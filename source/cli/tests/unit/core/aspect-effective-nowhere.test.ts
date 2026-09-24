@@ -148,7 +148,7 @@ describe('checkAspectEffectiveNowhere (C4 dead-attach linter)', () => {
       "Aspect 'dead-rule' has a rule source but is effective on zero nodes.",
     );
     expect(issues[0].messageData.why).toBe(
-      "Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — dead law that looks enforced.",
+      "Its attach sites plus 'when' predicates match nothing, so the rule is never verified anywhere — a dead rule that looks enforced.",
     );
     expect(issues[0].messageData.next).toBe(
       "Check the attach sites and 'when' predicate (yg impact --aspect dead-rule). While authoring graph-before-code this is expected: create the node/type it targets, or set status: draft until the code lands.",
@@ -459,10 +459,10 @@ describe('type-coverage tier-awareness', () => {
     const issues = checkAspectEffectiveNowhere(graph, typeCoverage);
     const issue = issues.find((i) => i.messageData.what.includes("'whole-unit-only-rule'"))!;
     expect(issue.messageData.why).toBe(
-      "It is whole-unit (scope: { per: 'node' }), and the only instances of type 'leafy' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never verify anywhere.",
+      "It is a per: node rule (scope: { per: 'node' }), and the only instances of type 'leafy' are type-covered files (no component of their own) — there is no component for it to run on, so it can never verify anywhere.",
     );
     expect(issue.messageData.next).toBe(
-      "Give a file of type 'leafy' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/whole-unit-only-rule/yg-aspect.yaml.",
+      "Give a file of type 'leafy' a component of its own, or make it a per: file rule (scope: { per: 'file' }) in .yggdrasil/aspects/whole-unit-only-rule/yg-aspect.yaml.",
     );
     // Never the predicate-remedy wording — there is no predicate to widen or remove.
     expect(issue.messageData.why).not.toMatch(/'when'/);
@@ -498,7 +498,7 @@ describe('type-coverage tier-awareness', () => {
     const issue = issues.find((i) => i.messageData.what.includes("'cyclic-rule'"));
     expect(issue).toBeDefined();
     expect(issue!.messageData.why).toBe(
-      "The aspect graph has an implies cycle at 'cyclic-rule' — the cascade cannot tell which of the type's rules apply until that cycle is broken. The only instances of type 'leafy' are files enforced by their type alone (no component of their own), so there is no real node this rule could have been filtered off of — it was never resolved.",
+      "The aspect graph has an implies cycle at 'cyclic-rule' — the cascade cannot tell which of the type's rules apply until that cycle is broken. The only instances of type 'leafy' are type-covered files (no component of their own), so there is no real node this rule could have been filtered off of — it was never resolved.",
     );
     expect(issue!.messageData.next).toBe(
       "Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/.",
@@ -507,7 +507,7 @@ describe('type-coverage tier-awareness', () => {
     // and never the whole-unit wording — this is not a scope.per gap.
     expect(issue!.messageData.why).not.toMatch(/'when'/);
     expect(issue!.messageData.next).not.toMatch(/Widen or remove/);
-    expect(issue!.messageData.why).not.toMatch(/whole-unit/);
+    expect(issue!.messageData.why).not.toMatch(/per: node rule/);
   });
 
   // Same non-bootstrap discrimination for checkArchitectureDefaultAspectUnreachable:
@@ -611,10 +611,10 @@ describe('type-coverage tier-awareness', () => {
     expect(issues).toHaveLength(1);
     const issue = issues[0];
     expect(issue.messageData.why).toBe(
-      "It is whole-unit (scope: { per: 'node' }), and the only instances of 'leafy' are files enforced by their type alone (no component of their own) — there is no component for it to run on, so it can never enforce here.",
+      "It is a per: node rule (scope: { per: 'node' }), and the only instances of 'leafy' are type-covered files (no component of their own) — there is no component for it to run on, so it can never enforce here.",
     );
     expect(issue.messageData.next).toBe(
-      "Give a file of type 'leafy' a component of its own, or make the rule file-level (scope: { per: 'file' }) in .yggdrasil/aspects/whole-unit-default/yg-aspect.yaml.",
+      "Give a file of type 'leafy' a component of its own, or make it a per: file rule (scope: { per: 'file' }) in .yggdrasil/aspects/whole-unit-default/yg-aspect.yaml.",
     );
     expect(issue.messageData.why).not.toMatch(/'when'/);
     expect(issue.messageData.next).not.toMatch(/Widen or remove/);
@@ -648,13 +648,13 @@ describe('type-coverage tier-awareness', () => {
     expect(issues).toHaveLength(1);
     const issue = issues[0];
     expect(issue.messageData.why).toBe(
-      "The aspect graph has an implies cycle at 'cyclic-default' — the cascade cannot tell which of the type's rules apply until that cycle is broken. The only instances of 'leafy' are files enforced by their type alone (no component of their own), so there is no real node this default could have been filtered off of — it was never resolved.",
+      "The aspect graph has an implies cycle at 'cyclic-default' — the cascade cannot tell which of the type's rules apply until that cycle is broken. The only instances of 'leafy' are type-covered files (no component of their own), so there is no real node this default could have been filtered off of — it was never resolved.",
     );
     expect(issue.messageData.next).toBe(
       "Run yg check to see the blocking aspect-implies-cycle error, then remove one implies edge in .yggdrasil/aspects/.",
     );
     expect(issue.messageData.why).not.toMatch(/'when'/);
     expect(issue.messageData.next).not.toMatch(/Widen or remove/);
-    expect(issue.messageData.why).not.toMatch(/whole-unit/);
+    expect(issue.messageData.why).not.toMatch(/per: node rule/);
   });
 });

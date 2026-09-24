@@ -3,21 +3,21 @@
 Sometimes an aspect attached through a channel applies to only *some* of the
 nodes the channel delivers it to. Historically the only way to handle this
 was textual — the aspect's `content.md` would say "applies only when X" and
-the reviewer (LLM) would read the note and decide N/A per-node. That pays an
-LLM call for every N/A node and risks a wrong decision.
+the reviewer would read the note and decide N/A per-node. That pays a
+reviewer call for every N/A node and risks a wrong decision.
 
 The `when` predicate moves that decision into the graph. The CLI evaluates
 it deterministically before the reviewer is invoked. If the predicate is
-false for a node, the aspect is silently skipped on that node — no LLM
+false for a node, the aspect is silently skipped on that node — no reviewer
 call, no reviewer uncertainty.
 
-> **One grammar, three sites — same operators, two atom families.**
+> **One grammar, three sites — same operators, two atom sets.**
 > Yggdrasil has a single predicate engine (`all_of` / `any_of` / `not`
 > combinators). The site you write it at determines which atoms are legal —
 > **node atoms** where the subject is a node, **file atoms** where the
 > subject is a file:
 >
-> | Site | What it filters | Atom family |
+> | Site | What it filters | Atom set |
 > |---|---|---|
 > | aspect `when:` (this page) | which **nodes** an aspect applies to | `node`, `relations`, `descendants` |
 > | `yg-architecture.yaml` `node_types.*.when` | which **files** belong to a node type | `path`, `content` |
@@ -127,8 +127,8 @@ belong is an error too, and the message points you at `scope.files` instead.
   has this precondition *wherever* it is attached.
 - **On any attach site** — the same channel-specific list entry (the *attach
   entry*) can become an object with `id` + `when`. This is the attach entry's
-  own `when`, distinct from the `references:` feature (supporting files for an
-  LLM reviewer prompt):
+  own `when`, distinct from the `references:` feature (supporting files for a
+  reviewer prompt):
 
 ```yaml
 aspects:

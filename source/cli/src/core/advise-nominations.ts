@@ -578,7 +578,7 @@ function promotionNominations(graph: Graph, events: VerdictEvent[]): Nomination[
       id: `promotion:${aspect.id}`,
       classRank: CLASS_RANK.promotion,
       what: `Advisory rule '${aspectQ}' has a clean recorded record.`,
-      why: `${approved} approved and 0 refused verdicts recorded for rule '${aspectQ}' while advisory${honestySuffix(labels)}.`,
+      why: `${approved} passed and 0 refused verdicts recorded for rule '${aspectQ}' while advisory${honestySuffix(labels)}.`,
       next: asApprovalNext(
         `Propose promoting rule '${aspectQ}' from advisory to enforced, citing these numbers.`,
       ),
@@ -806,10 +806,10 @@ function hotSpotNominations(
     out.push({
       id: `uncovered-hot-spot:${nodeId}`,
       classRank: CLASS_RANK.uncoveredHotSpot,
-      what: `Node '${nodeQ}' is changing but has no rule covering it.`,
+      what: `Node '${nodeQ}' is changing but has no rule guarding it.`,
       why:
         `${churn} of the last ${window} commits touched this node's files, yet no rule beyond ` +
-        `drafts verifies any of them — an uncovered hot spot: the code most in motion has the ` +
+        `drafts verifies any of them — an unguarded hot spot: the code most in motion has the ` +
         `least protection.`,
       next:
         `Consider adding a rule or coverage here — propose an aspect or a coverage node to ` +
@@ -965,9 +965,9 @@ function typeCoveredChurnNominations(
       partners.length > 0
         ? `${commitsPhrase} touched '${fileQ}', which matches only type '${typeQ}' and has no owning node — ` +
           `it also imports (or is imported by) ${partners.map((p) => `'${p}'`).join(', ')}: a same-type cluster, ` +
-          `${clusterSizePhrase} carrying real weight the type tier alone cannot enforce narrowly.`
+          `${clusterSizePhrase} carrying real weight that type-level coverage alone cannot enforce narrowly.`
         : `${commitsPhrase} touched '${fileQ}', which matches only type '${typeQ}' and has no owning ` +
-          `node — with nothing narrower to attach a node-level rule to, the type tier alone carries whatever ` +
+          `node — with nothing narrower to attach a per: node rule to, type-level coverage alone carries whatever ` +
           `enforcement this file gets.`;
 
     out.push({
@@ -979,7 +979,7 @@ function typeCoveredChurnNominations(
       what: `File '${fileQ}' (matched type '${typeQ}') is changing but has no node of its own.`,
       why,
       next:
-        `Create an explicit node for '${fileQ}' (or widen an existing one's mapping to cover it), so the type tier is no ` +
+        `Create an explicit node for '${fileQ}' (or widen an existing one's mapping to cover it), so type-level coverage is no ` +
         `longer carrying all of its enforcement — propose it to the user. Ask the user to approve it first.`,
       // Bind to churn + window + typeId + the partner set: a new commit, a widened
       // window, a re-bucketed type, or a changed cluster moves the hash, so a

@@ -358,7 +358,7 @@ describe.skipIf(!distExists)('CLI E2E — yg check --approve stream split (progr
 
       // STDERR: fill progress must be present — the opening and the closing line.
       expect(stderr).toMatch(/^fill {2}1 pair · 1 script \(free\) · 0 reviewer calls$/m);
-      expect(stderr).toMatch(/^fill {2}done in .* — 1 approved · 0 refused · 0 failed/m);
+      expect(stderr).toMatch(/^fill {2}done in .* — 1 passed · 0 refused · 0 failed/m);
 
       // STDERR: the final report header must NOT appear (it lives on stdout).
       expect(stderr).not.toMatch(/yg check: (PASS|FAIL)/);

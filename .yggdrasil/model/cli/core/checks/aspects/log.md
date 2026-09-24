@@ -74,3 +74,5 @@ Two gaps let the gate stay green over something it exists to catch. A reference 
 The review-date finding tells the reader to propose a new date or a demotion and ask the user to approve it, in the one sign-off phrasing every command now uses, instead of a sentence that also forbade what it proposed.
 ## [2026-09-24T10:05:57.695Z]
 An empty references list names the rule file to edit in its next step.
+## [2026-09-24T14:23:31.953Z]
+The same idea went by several names across the docs, the agent manual and the CLI's own messages, so a reader could not tell whether two words meant one thing or two. The words this component prints now follow the Glossary, which defines each term once: the reviewer is only the model configured under reviewer:, a rule is a reviewer rule, a script rule or a bundle, the --approve run is a fill whose verdicts are passed or refused, a rule's draft/advisory/enforced is its status, covered only means the graph accounts for a file, tier only means a reviewer tier, and a file enforced by its type alone is a type-covered file. JSON fields, codes and config values are unchanged, so no machine consumer is affected.

@@ -16,7 +16,14 @@ description: "Repo-wide meta-tests (in-process, no spawned binary) that guard
   leave the page saying something a consumer in another repository would
   believe. A fourth fails when an adopter-facing surface (the docs site, the
   READMEs, the templates the CLI prints, the examples) describes a removed
-  feature, such as the port contract baseline, as if it still existed. Two more
+  feature, such as the port contract baseline, as if it still existed. A fifth
+  holds one word to one meaning: it fails when a retired synonym the Glossary
+  lists as not used (LLM aspect, judgment rule, enforcement level, drill into
+  for a check view, and the like) comes back in adopter-facing prose or in a
+  non-comment line of CLI source. A sixth evaluates the portal glossary module
+  in a sandbox and fails when docs/glossary.md is not exactly the page rendered
+  from its entries, when an entry's docs link or anchor does not exist, or when
+  the Glossary page leaves the Start here group of the docs sidebar. Two more
   hold the graph's self-governance to the files it claims: every rule script
   this graph defines, at any nesting depth, is owned by the rule-script node
   and no drill fixture is; no tracked file matches the when of two
@@ -48,3 +55,5 @@ mapping:
   - source/cli/tests/unit/repo/no-retired-features-in-docs.test.ts
   - source/cli/tests/unit/repo/graph-self-governance-invariant.test.ts
   - source/cli/tests/unit/repo/self-governance-rules.test.ts
+  - source/cli/tests/unit/repo/glossary-sync.test.ts
+  - source/cli/tests/unit/repo/no-retired-terms.test.ts

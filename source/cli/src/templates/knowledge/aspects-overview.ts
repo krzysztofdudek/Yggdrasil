@@ -1,23 +1,23 @@
 export const summary =
-  'What aspects are, when to create, LLM vs deterministic vs aggregating reviewer choice, scope, cost model per pair, directory organization, positive vs negative aspects';
+  'What aspects are, when to create, the three rule kinds (reviewer rule, script rule, bundle), scope, cost model per pair, directory organization, positive vs negative aspects';
 
 export const content = `# Aspects overview
 
-Aspects are enforceable rules attached to nodes. A reviewer (LLM or
-deterministic) checks the subject files of a unit against the aspect, and the
-verdict is cached in the lock.
+Aspects are enforceable rules attached to nodes. The reviewer (for a reviewer
+rule) or a local script (for a script rule) checks the subject files of a unit
+against the aspect, and the verdict is cached in the lock.
 
 ## What an aspect is
 
-An aspect pairs a description (\`content.md\` for LLM, \`check.mjs\` for
-deterministic) with metadata (\`yg-aspect.yaml\`), and optionally reference files
-(LLM aspects only) for supporting context. Verification produces \`approved\` or
-\`refused\` with a violation report, cached in the lock keyed by the
-\`(aspect, unit)\` pair — LLM verdicts in the committed \`yg-lock.nondeterministic.json\`,
-deterministic verdicts in the gitignored \`.yg-lock.deterministic.json\` cache.
+An aspect pairs a rule source (\`content.md\` for a reviewer rule, \`check.mjs\` for
+a script rule) with metadata (\`yg-aspect.yaml\`), and optionally reference files
+(reviewer rules only) for supporting context. Verification produces a verdict,
+passed or refused (with a violation report), cached in the lock keyed by the
+\`(aspect, unit)\` pair — reviewer verdicts in the committed \`yg-lock.nondeterministic.json\`,
+script verdicts in the gitignored \`.yg-lock.deterministic.json\` cache.
 
 A verdict holds exactly while the inputs that produced it are unchanged. Editing
-a subject file, the aspect's rule source, its \`scope\`, or its tier makes the pair
+a subject file, the aspect's rule source, its \`scope\`, or its reviewer tier makes the pair
 unverified, and \`yg check --approve\` re-verifies it. A status flip is not an
 input — it never invalidates a verdict. (Full mechanics:
 \`yg knowledge read verification-and-lock\`.)
@@ -30,7 +30,7 @@ example), see the SYSTEM section of the agent operating manual (\`yg prime\`)
 
 Create an aspect when:
 1. The same pattern appears in 3+ files AND
-2. A reviewer can verify it against source code
+2. It can be checked against source code (by the reviewer or a script)
 
 Both conditions must hold. "Code should be readable" fails condition 2.
 "Every handler must log an audit trail" satisfies both.
@@ -66,57 +66,59 @@ scope:
 
 A \`scope\` edit (either \`per\` or \`files\`) invalidates EVERY pair of the aspect —
 it cascades exactly like a \`content.md\` edit. Run \`yg impact --aspect <id>\`
-before changing scope on a widely-used aspect. Aggregating aspects have no rule
+before changing scope on a widely-used aspect. Bundles have no rule
 source and therefore no \`scope\` (a validator error if present).
 
-## Three reviewer kinds
+## Three rule kinds
 
-Three reviewer kinds exist: LLM, deterministic, and aggregating. The kind is
-**inferred** from which rule source file is present in the aspect directory:
-\`content.md\` → LLM; \`check.mjs\` → deterministic; neither file but \`implies:\`
-declared → aggregating. The \`reviewer:\` block in \`yg-aspect.yaml\` is optional;
-if present, an explicit \`reviewer.type\` must agree with the inferred kind.
+There are exactly three rule kinds: reviewer rule, script rule, and bundle. The
+kind is **inferred** from which rule source file is present in the aspect directory:
+\`content.md\` → reviewer rule (judged by the reviewer, the model configured in
+\`yg-config.yaml\`); \`check.mjs\` → script rule (runs locally, free); neither file
+but \`implies:\` declared → bundle (no verdict of its own). The \`reviewer:\` block in
+\`yg-aspect.yaml\` is optional; if present, an explicit \`reviewer.type\` (\`llm\`,
+\`deterministic\` or \`aggregate\`) must agree with the inferred kind.
 
-**\`companion.mjs\` is an add-on to the LLM kind, not a fourth reviewer kind.**
-An LLM aspect may ship \`companion.mjs\` alongside \`content.md\` to provide a
+**\`companion.mjs\` is an add-on to a reviewer rule, not a fourth rule kind.**
+A reviewer rule may ship \`companion.mjs\` alongside \`content.md\` to provide a
 per-unit companion file resolver — a hook that selects 0..N files injected
 into the reviewer prompt for each unit individually. Presence of
-\`companion.mjs\` does not change the inferred reviewer kind (still LLM) and
+\`companion.mjs\` does not change the inferred kind (still a reviewer rule) and
 is forbidden alongside \`check.mjs\`. See
 \`yg knowledge read writing-llm-aspects\` for the full contract.
 
-### Aggregating aspects
+### Bundles
 
-An aggregating aspect ships neither \`content.md\` nor \`check.mjs\`. It exists
-purely to bundle other aspects under one named attach point. When an aggregating
-aspect is effective on a node, all aspects in its \`implies:\` list are expanded
-and verified individually. The aggregate itself has no own reviewer and produces
-no own verdict. It never dispatches to an LLM and never runs \`check.mjs\`.
+A bundle ships neither \`content.md\` nor \`check.mjs\`. It exists
+purely to group other aspects under one named attach point. When a bundle
+is effective on a node, all aspects in its \`implies:\` list are expanded
+and verified individually. The bundle itself has no reviewer and produces
+no verdict of its own. It never calls the reviewer and never runs \`check.mjs\`.
 
-Use aggregating aspects to decompose a multi-rule contract: attach the aggregate
+Use bundles to decompose a multi-rule contract: attach the bundle
 once (per node, per flow, per architecture type) and let each implied child carry
 one concrete, independently-verdicted rule. An aspect with neither rule source
 and no \`implies:\` is rejected by the validator.
 
-### When to use LLM
+### When to write a reviewer rule
 
-Choose LLM (ship a \`content.md\`) when:
+Choose a reviewer rule (ship a \`content.md\`) when:
 - The rule requires judgment ("no business logic in controllers")
 - The rule involves semantics ("correlation ID must propagate across calls")
 - The rule needs to understand intent rather than syntax
 - The rule is hard to express as a structural pattern
 
-LLM reviewers understand context, read prose rules, and can assess whether
-code satisfies a nuanced requirement. They are slower and cost per call.
+The reviewer understands context, reads the rule's prose, and can assess whether
+code satisfies a nuanced requirement. It is slower and costs per call.
 
-LLM aspects may declare \`reviewer.tier: <name>\` to opt into a specific reviewer
+Reviewer rules may declare \`reviewer.tier: <name>\` to opt into a specific reviewer
 tier configured in \`yg-config.yaml\` (a higher-capability model for critical
 aspects). If \`tier:\` is omitted, the aspect uses the tier named by
 \`reviewer.default\` (or the sole tier, if only one is configured).
 
-### When to use deterministic
+### When to write a script rule
 
-Choose deterministic (ship a \`check.mjs\`) when:
+Choose a script rule (ship a \`check.mjs\`) when:
 - The rule is structural ("never import from \`db/\` in \`ui/\`")
 - The rule is naming-based ("exported classes must be PascalCase")
 - The rule is about graph or file-system shape ("every command node must have
@@ -128,7 +130,7 @@ Choose deterministic (ship a \`check.mjs\`) when:
 A \`check.mjs\` is one \`check(ctx)\` function: it reads the unit's files and may
 reach related nodes, the file system, and graph metadata through \`ctx\`. It runs
 locally during \`yg check --approve\` at zero LLM cost and returns exact,
-deterministic results. Deterministic aspects do NOT use reviewer tiers —
+deterministic results. Script rules do NOT use reviewer tiers —
 \`reviewer.tier:\` is rejected on them.
 
 \`check.mjs\` runs in the main Node process with full privileges — there is no
@@ -139,22 +141,22 @@ dependencies, not an isolation boundary. Only run aspects you trust.
 
 1. Can the rule be expressed as "this syntax pattern must (not) appear" or
    "this graph/file-system shape must hold"?
-   → Yes: use deterministic
+   → Yes: write a script rule
    → No: continue
 
 2. Does the rule require understanding code intent or business logic?
-   → Yes: use LLM
+   → Yes: write a reviewer rule
 
 3. Is the rule about naming, import paths, structural shape, or cross-node
    consistency?
-   → Yes: use deterministic
+   → Yes: write a script rule
 
 4. Does the rule need to assess whether semantics match a requirement?
-   → Yes: use LLM
+   → Yes: write a reviewer rule
 
 When in doubt: write a draft \`check.mjs\`, test it with \`yg aspect-test\`. If it
-catches real violations without false positives, ship it as deterministic. If it
-misses violations that require reading intent, switch to LLM.
+catches real violations without false positives, ship it as a script rule. If it
+misses violations that require reading intent, switch to a reviewer rule.
 
 To author a \`check.mjs\`: \`yg knowledge read writing-deterministic-aspects\`.
 
@@ -162,13 +164,13 @@ To author a \`check.mjs\`: \`yg knowledge read writing-deterministic-aspects\`.
 
 Cost is counted per PAIR.
 
-- An LLM pair = at least one reviewer call during \`yg check --approve\`,
-  multiplied by the tier's consensus count. An LLM aspect touching 20 single-unit
+- A reviewer pair = at least one reviewer call during \`yg check --approve\`,
+  multiplied by the tier's consensus count. A reviewer rule touching 20 single-unit
   nodes = at least 20 calls. With \`per: file\`, multiply by the subject-file count
   (and references travel in every per-file prompt).
-- Deterministic pairs run locally at zero LLM cost, however many they touch.
-- Aggregating aspects have no own reviewer call.
-- A \`scope\` edit, a \`content.md\` edit, a reference-file edit, or a tier change
+- Script pairs run locally at zero LLM cost, however many they touch.
+- Bundles have no reviewer call of their own.
+- A \`scope\` edit, a \`content.md\` edit, a reference-file edit, or a reviewer-tier change
   invalidates pairs and re-bills them. Run \`yg impact --aspect <id>\` before
   modifying a widely-used aspect to see the re-verification cost.
 - **Editing \`companion.mjs\`** re-verifies ALL pairs of the aspect (like a
@@ -177,7 +179,7 @@ Cost is counted per PAIR.
   decide, not only what it returns.
   Use \`yg impact --file <companion>\` to see which pairs read a given file.
 
-The prompt-size gate (\`max_prompt_chars\` per tier) bounds an LLM prompt, not the
+The prompt-size gate (\`max_prompt_chars\` per tier) bounds a reviewer prompt, not the
 node. For the full caching, hashing, and merge model:
 \`yg knowledge read verification-and-lock\`.
 
@@ -185,7 +187,7 @@ node. For the full caching, hashing, and merge model:
 
 Aspects declare \`status: draft | advisory | enforced\` (default \`enforced\`).
 Status never changes a verdict's validity. Rendering is its main effect, but not
-its only one — \`enforced\` also gates the deterministic-refusal skip and positive
+its only one — \`enforced\` also gates the script-refusal skip and positive
 closure (see \`yg knowledge read aspect-status\`).
 
 | Status   | Expected pairs | Renders as |
@@ -220,14 +222,14 @@ between aspects. A child-directory aspect does not inherit its parent directory'
 rules; cascade comes from the NODE hierarchy and the attach channels, never from
 where an aspect's files sit. When several aspects share a theme or attach point,
 prefer grouping them in a directory (and, for a multi-rule contract behind one
-name, an aggregating aspect) over leaving them scattered.
+name, a bundle) over leaving them scattered.
 
 ## Positive and negative aspects
 
 An aspect can require something to BE present (positive — "every public handler
 validates its input") or forbid something from being present (negative — "no
 component reaches the data store directly"). This is purely how the rule file is
-worded: an LLM aspect's prose states the prohibition, a deterministic check returns
+worded: a reviewer rule's prose states the prohibition, a script rule returns
 a violation when the forbidden pattern appears. Both are first-class; neither needs
 a special mechanism.
 

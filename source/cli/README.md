@@ -18,7 +18,7 @@ cd your-project
 yg init
 ```
 
-`yg init` writes the `.yggdrasil/` graph and the agent-rules files into your repo, then asks one question: which reviewer should verify your code. **"None for now"** is a real answer. Script rules, dependency control and the CI gate all work from there with no key and no model calls.
+`yg init` writes the `.yggdrasil/` graph and the agent-rules files into your repo, then asks one question: which reviewer should judge your code. **"None for now"** is a real answer. Script rules, dependency control and the CI gate all work from there with no key and no model calls.
 
 Then tell your agent what matters:
 

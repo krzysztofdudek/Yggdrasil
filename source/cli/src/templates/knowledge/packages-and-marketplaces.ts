@@ -57,7 +57,7 @@ has some.
 | A repository that **consumes** packages | \`.yggdrasil/yg-packages.yaml\`, and rules under \`.yggdrasil/aspects/packages/\` |
 
 A repository can be both. A marketplace does NOT need a \`.yggdrasil/\` of its own
-— it publishes law rather than enforcing any — which is why \`yg marketplace check\`
+— it publishes rules rather than enforcing any — which is why \`yg marketplace check\`
 never asks for a graph and never tells you to run \`yg init\`.
 
 ## Starting one
@@ -138,7 +138,7 @@ does not know where it will be installed, and the loader prefixes every relative
 name with the install path. A package may not imply a rule outside itself at all:
 it has to stand on its own.
 
-**5. Bring the drills.** A deterministic rule must ship at least one
+**5. Bring the drills.** A script rule must ship at least one
 \`drills/violates-…/\` case and at least one \`drills/satisfies-…/\` case. The
 directory is \`drills\`, and the FIRST path segment of a case is what says which it
 is — the prefix is exactly \`violates-\` or \`satisfies-\`, and the case file may sit
@@ -148,7 +148,7 @@ what the rule refuses and what it lets through, before they trust it.
 **6. Declare it.** Add the rule's directory to \`aspects:\` in \`yg-package.yaml\` and
 the package to \`packages:\` in \`yg-marketplace.yaml\`. Every directory in a package
 must be declared and every declared one must exist: an undeclared directory would
-arrive in someone's repository as law nobody announced.
+arrive in someone's repository as rules nobody announced.
 
 ## You adapt beside a copy; you never edit one
 
@@ -157,7 +157,7 @@ refuses an edited copy by name, and \`yg pack update\` refuses to update a packa
 whose copy has changed (\`yg pack update <name> --reinstall\` is how they put an
 edited copy back). Everything they want different goes in the
 \`yg-aspect.adapt.yaml\` written beside each copy: its granularity, its reviewer,
-its standing, its review date, its references, its companion module, and any
+its status, its review date, its references, its companion module, and any
 setting you declared. The stub lists your settings with your defaults COMMENTED
 OUT, so a consumer who never opens it follows your defaults, including when you
 change one; a setting they uncomment is theirs. A rule's history in their
@@ -198,7 +198,7 @@ Two consequences for you:
 A consumer following your newest version takes the highest tag on their next
 \`yg pack update\`; one who pinned a version stays there until they move it with
 \`--to\`. Their update tells them, before it swaps anything in, what your version
-changes: rules added and removed, a change of standing (a draft you made
+changes: rules added and removed, a status change (a draft you made
 enforced), a change to what a rule implies or to its scope, which files changed,
 and every setting added, removed or given a new default. A rule whose content
 actually changed goes back to unverified in their repository and gets judged
@@ -227,7 +227,7 @@ names its own code:
 | \`package-scope-literal-root\` | a scope glob anchored to a directory name |
 | \`package-review-by-present\` | a published rule carries a review date |
 | \`package-references-repo-path\` | a published rule names a reference file |
-| \`package-drills-missing\` | a deterministic rule with no cases, or with only one of the two kinds |
+| \`package-drills-missing\` | a script rule with no cases, or with only one of the two kinds |
 | \`package-file-unreadable\` | a file that cannot be read cannot be copied or checked |
 
 And four warnings, which do not fail the check: \`package-config-unused\` (declared

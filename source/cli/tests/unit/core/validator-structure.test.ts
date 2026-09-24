@@ -68,7 +68,7 @@ describe('validator — aspect-rule-sources for structure', () => {
     const issue = result.issues.find((i) => i.code === 'aspect-unexpected-rule-source');
 
     expect(issue).toBeDefined();
-    expect(issue?.messageData.why).toContain('Deterministic aspects');
+    expect(issue?.messageData.why).toContain('A script rule');
   });
 
   it('rejects structure aspect without check.mjs (aspect-missing-rule-source)', async () => {
@@ -81,7 +81,7 @@ describe('validator — aspect-rule-sources for structure', () => {
     const issue = result.issues.find((i) => i.code === 'aspect-missing-rule-source');
 
     expect(issue).toBeDefined();
-    expect(issue?.messageData.why).toContain('Deterministic aspects');
+    expect(issue?.messageData.why).toContain('A script rule');
   });
 
   it('accepts structure aspect with check.mjs only', async () => {
@@ -110,6 +110,6 @@ describe('validator — aspect-rule-sources for structure', () => {
     expect(codes).toContain('aspect-both-rule-sources');
     expect(codes).toContain('aspect-unexpected-rule-source');
     const issue = result.issues.find((i) => i.code === 'aspect-unexpected-rule-source');
-    expect(issue?.messageData.why).toContain('Deterministic aspects');
+    expect(issue?.messageData.why).toContain('A script rule');
   });
 });

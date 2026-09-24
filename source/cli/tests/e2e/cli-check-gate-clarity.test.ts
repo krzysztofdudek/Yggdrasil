@@ -34,6 +34,20 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { copyFixtureTree } from '../support/fixture-copy.js';
 import { FIXTURE_RM_OPTIONS } from '../support/git-fixture.js';
+import net from 'node:net';
+
+/**
+ * A loopback port nothing listens on: the OS hands out a free ephemeral port, the
+ * server is closed at once, so the reviewer call is refused on any machine without
+ * depending on a fixed port number being unused.
+ */
+async function closedLoopbackPort(): Promise<number> {
+  const srv = net.createServer();
+  await new Promise<void>((resolve) => srv.listen(0, '127.0.0.1', () => resolve()));
+  const { port } = srv.address() as net.AddressInfo;
+  await new Promise<void>((resolve) => srv.close(() => resolve()));
+  return port;
+}
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CLI_ROOT = path.join(__dirname, '../..');
@@ -171,10 +185,11 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
   });
 
   describe('3. an infrastructure failure is on the report, not only on stderr', () => {
-    it('names reviewer-unreachable and check-failed-to-run, and next: points at a fix', () => {
+    it('names reviewer-unreachable and check-failed-to-run, and next: points at a fix', async () => {
       const dir = project('infra');
       try {
-        edit(dir, '.yggdrasil/yg-config.yaml', (s) => s.replace(/endpoint:.*/, 'endpoint: "http://127.0.0.1:9"'));
+        const port = await closedLoopbackPort();
+        edit(dir, '.yggdrasil/yg-config.yaml', (s) => s.replace(/endpoint:.*/, `endpoint: "http://127.0.0.1:${port}"`));
         edit(dir, '.yggdrasil/aspects/no-todo-comments/check.mjs', (s) => s.replace('export function check', 'export default function check'));
         const r = run(['check', '--approve', '--json'], dir);
         expect(r.status).toBe(1);
@@ -647,7 +662,7 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         appendFileSync(path.join(dir, 'src', 'services', 'orders.ts'), '// TODO refuse\n');
         const r = run(['check', '--approve', '--only-deterministic'], dir);
         expect(r.stderr).not.toContain('all expected pairs hold valid verdicts');
-        expect(r.stderr).toMatch(/^fill {2}done in .* — \d+ approved · [1-9]\d* refused · \d+ failed · 0 reviewer calls/m);
+        expect(r.stderr).toMatch(/^fill {2}done in .* — \d+ passed · [1-9]\d* refused · \d+ failed · 0 reviewer calls/m);
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }

@@ -121,7 +121,7 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
       );
       // Only payments' LLM pair was dispatched/recorded this run; orders' was not:
       // the closing fill line counts one approval and one reviewer call.
-      expect(fill2.all).toMatch(/fill {2}done in .* — 1 approved · 0 refused · 0 failed · 1 reviewer call\b/);
+      expect(fill2.all).toMatch(/fill {2}done in .* — 1 passed · 0 refused · 0 failed · 1 reviewer call\b/);
 
       // No LLM verdict entry exists for orders — the gate left it unverified.
       const lock2 = readLock(dir);
@@ -253,7 +253,7 @@ describe.skipIf(!distExists)('CLI E2E — fill-stage semantics', () => {
       // deciding votes: 2 of 3 refused (only 1 was satisfied).
       expect(fill.all).toContain('fill  refused by 2 of 3 votes  has-doc-comment @ services/orders');
       expect(fill.all).toContain('fill  refused by 2 of 3 votes  has-doc-comment @ services/payments');
-      expect(fill.all).toMatch(/fill {2}done in .* — 4 approved · 2 refused · 0 failed · 6 reviewer calls/);
+      expect(fill.all).toMatch(/fill {2}done in .* — 4 passed · 2 refused · 0 failed · 6 reviewer calls/);
 
       // Plain check renders the cached enforced refusal (exit 1) and does not
       // re-roll the reviewer.

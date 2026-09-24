@@ -725,7 +725,7 @@ exit: 1
     {
       "code": "aspect-violation-enforced",
       "severity": "error",
-      "what": "Aspect 'no-todo' is refused on node:app/svc-03 by a deterministic check.\nViolations:\nsrc/svc-03/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-03 by a script rule.\nViolations:\nsrc/svc-03/index.ts:2: TODO marker left in shipped code — move it to the tracker",
       "why": "Unfinished work belongs in the tracker, not in shipped code.",
       "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo",
@@ -747,7 +747,7 @@ exit: 1
     {
       "code": "aspect-violation-enforced",
       "severity": "error",
-      "what": "Aspect 'no-todo' is refused on node:app/svc-06 by a deterministic check.\nViolations:\nsrc/svc-06/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-06 by a script rule.\nViolations:\nsrc/svc-06/index.ts:2: TODO marker left in shipped code — move it to the tracker",
       "why": "Unfinished work belongs in the tracker, not in shipped code.",
       "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo",
@@ -769,7 +769,7 @@ exit: 1
     {
       "code": "aspect-violation-enforced",
       "severity": "error",
-      "what": "Aspect 'no-todo' is refused on node:app/svc-09 by a deterministic check.\nViolations:\nsrc/svc-09/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-09 by a script rule.\nViolations:\nsrc/svc-09/index.ts:2: TODO marker left in shipped code — move it to the tracker",
       "why": "Unfinished work belongs in the tracker, not in shipped code.",
       "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo",
@@ -791,7 +791,7 @@ exit: 1
     {
       "code": "aspect-violation-enforced",
       "severity": "error",
-      "what": "Aspect 'no-todo' is refused on node:app/svc-12 by a deterministic check.\nViolations:\nsrc/svc-12/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-12 by a script rule.\nViolations:\nsrc/svc-12/index.ts:2: TODO marker left in shipped code — move it to the tracker",
       "why": "Unfinished work belongs in the tracker, not in shipped code.",
       "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo",
@@ -813,7 +813,7 @@ exit: 1
     {
       "code": "aspect-violation-enforced",
       "severity": "error",
-      "what": "Aspect 'no-todo' is refused on node:app/svc-15 by a deterministic check.\nViolations:\nsrc/svc-15/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-15 by a script rule.\nViolations:\nsrc/svc-15/index.ts:2: TODO marker left in shipped code — move it to the tracker",
       "why": "Unfinished work belongs in the tracker, not in shipped code.",
       "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo",
@@ -835,7 +835,7 @@ exit: 1
     {
       "code": "aspect-violation-enforced",
       "severity": "error",
-      "what": "Aspect 'no-todo' is refused on node:app/svc-18 by a deterministic check.\nViolations:\nsrc/svc-18/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-18 by a script rule.\nViolations:\nsrc/svc-18/index.ts:2: TODO marker left in shipped code — move it to the tracker",
       "why": "Unfinished work belongs in the tracker, not in shipped code.",
       "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo",
@@ -857,7 +857,7 @@ exit: 1
     {
       "code": "aspect-violation-enforced",
       "severity": "error",
-      "what": "Aspect 'no-todo' is refused on node:app/svc-21 by a deterministic check.\nViolations:\nsrc/svc-21/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-21 by a script rule.\nViolations:\nsrc/svc-21/index.ts:2: TODO marker left in shipped code — move it to the tracker",
       "why": "Unfinished work belongs in the tracker, not in shipped code.",
       "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo",
@@ -879,7 +879,7 @@ exit: 1
     {
       "code": "aspect-violation-enforced",
       "severity": "error",
-      "what": "Aspect 'no-todo' is refused on node:app/svc-24 by a deterministic check.\nViolations:\nsrc/svc-24/index.ts:2: TODO marker left in shipped code — move it to the tracker",
+      "what": "Aspect 'no-todo' is refused on node:app/svc-24 by a script rule.\nViolations:\nsrc/svc-24/index.ts:2: TODO marker left in shipped code — move it to the tracker",
       "why": "Unfinished work belongs in the tracker, not in shipped code.",
       "next": "Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.",
       "aspect": "no-todo",
@@ -1306,7 +1306,7 @@ exit: 1
       "code": "uncovered-advisory",
       "severity": "warning",
       "what": "4 coverage-visible files outside any required coverage root.\n  .clinerules/yggdrasil.md\n  .gitattributes\n  AGENTS.md\n  CLAUDE.md",
-      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "why": "Not under a coverage.required root — shown, but it never blocks.",
       "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
       "files": [
         ".clinerules/yggdrasil.md",
@@ -1406,7 +1406,7 @@ exit: 1
       "aspect": null,
       "severity": "warning",
       "subject": "4 files belong to no node — not under coverage.required, so they never block",
-      "why": "Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.",
+      "why": "Not under a coverage.required root — shown, but it never blocks.",
       "next": "Map these files to a node, or add their root to coverage.required to make this an error.",
       "members": [
         34

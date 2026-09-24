@@ -372,7 +372,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
     );
     await runCommand(['--aspect', 'a', '--node', 'N', '--dry-run']);
     expect(exitCode).toBe(1);
-    expect(stderr).toContain('--dry-run is not supported for deterministic aspect');
+    expect(stderr).toContain('--dry-run is not supported for script rule');
     expect(stderr).toContain('locally');
   });
 
@@ -992,7 +992,7 @@ describe('aspect-test command behavior (mocked runners)', () => {
     );
     await runCommand(['--aspect', 'det-a', '--node', 'N', '--repeat', '3']);
     expect(exitCode).toBe(1);
-    expect(stderr).toContain("--repeat is not supported for deterministic aspect 'det-a'");
+    expect(stderr).toContain("--repeat is not supported for script rule 'det-a'");
   });
 });
 

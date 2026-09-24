@@ -432,7 +432,7 @@ export async function parsePackageManifest(
       if (!aspects.includes(present)) {
         return fail('package-aspect-dir-undeclared', {
           what: `The package at ${filePath} carries a directory '${present}' that aspects: does not declare.`,
-          why: 'Every directory in a package is copied into the consumer, so an undeclared rule directory would arrive as law nobody announced.',
+          why: 'Every directory in a package is copied into the consumer, so an undeclared rule directory would arrive as a rule nobody announced.',
           next: `Add '${present}' to aspects:, or remove the directory from the package.`,
         });
       }

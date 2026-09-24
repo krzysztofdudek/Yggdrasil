@@ -186,7 +186,7 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via mock (exten
       expect(fill.status).toBe(1); // refused enforced verdict
       // The fill no longer prints a per-pair line; the refusals are counted on
       // the closing line and named, per node, in the report's refused block.
-      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 2 refused · 0 failed · 2 reviewer calls/m);
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 2 refused · 0 failed · 2 reviewer calls/m);
       expect(fill.all).toMatch(/^error\[refused\] has-doc-comment — refused on 2 nodes$/m);
       expect(fill.all).toMatch(/^ {2}at: {3}services\/orders +missing the file comment$/m);
       // yg check renders the stored refused enforced verdict as a blocking error
@@ -215,7 +215,7 @@ describe.skipIf(!distExists)('CLI E2E — LLM reviewer mechanics via mock (exten
       // An advisory refusal does not block the fill (exit 0) but records the verdict.
       const fill = await runAsync(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 2 refused · 0 failed · 2 reviewer calls/m);
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 2 refused · 0 failed · 2 reviewer calls/m);
       expect(fill.all).toMatch(/^ {2}at: {3}services\/orders +advisory: no comment$/m);
       // yg check renders the advisory violations as non-blocking warnings (exit 0).
       const check = await runAsync(['check'], dir);

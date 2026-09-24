@@ -910,7 +910,7 @@ describe.skipIf(!distExists)('CLI E2E — aspect authoring & deterministic check
       const { status, all } = run(['aspect-test', '--aspect', 'has-doc-comment', '--files', 'src/services/orders.ts'], dir);
       expect(status).toBe(1);
       expect(all).toContain("error[command-error]: --files cannot be used with reviewer rule 'has-doc-comment'.");
-      expect(all).toContain('Use --node <node-path> or --file <path> instead, or switch to a deterministic aspect for --files mode.');
+      expect(all).toContain('Use --node <node-path> or --file <path> instead, or switch to a script rule for --files mode.');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

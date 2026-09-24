@@ -5,11 +5,11 @@ export const content = `# Meta-modeling
 
 Meta-modeling is bringing files that live UNDER the graph directory (\`.yggdrasil/\`)
 INTO the graph as graph-visible files — so the graph can model and verify its own
-enforcement layer (aspect rule files, deterministic checks, node/flow definitions),
+enforcement layer (aspect rule files, script rules' checks, node/flow definitions),
 not just your application source.
 
 The motivating shape is a feedback loop: a requirements document whose front-matter
-names the deterministic check meant to enforce it, plus an LLM aspect that reads
+names the script rule meant to enforce it, plus a reviewer rule that reads
 that check and judges whether it actually realizes the requirement. The rules end
 up reviewing the rules.
 
@@ -25,16 +25,16 @@ up reviewing the rules.
   FEW graph-directory files without the coverage gate demanding you cover the rest.
   Meta-modeling is partial and opt-in by construction.
 
-## The four ways a graph-directory file reaches a reviewer
+## The four ways a graph-directory file reaches a rule
 
-A file under the graph directory can be put in front of a reviewer four ways. They
+A file under the graph directory can be put in front of a rule four ways. They
 differ in what they require and what they cost.
 
 1. **Mapping → subject.** Map the file to a node and it becomes one of that node's
    SUBJECT files — reviewed by every aspect effective on the node, and parsed by the
    built-in relation check if it is a parseable language. Mapping is resolved against
    disk, so a graph-directory file mapped this way really does become a subject.
-2. **\`references:\` (static).** An LLM aspect's \`references:\` list may name any
+2. **\`references:\` (static).** A reviewer rule's \`references:\` list may name any
    repository-relative file — including one under the graph directory — and its bytes
    travel in every prompt for that aspect. References need no mapping and no relation,
    but they are not free of gates: the entry must be well-formed (a bare string, or a
@@ -50,11 +50,11 @@ differ in what they require and what they cost.
    relation-reachable from the reviewed node (own mapping, a declared relation's
    target, an ancestor, or a descendant). To reach a graph-directory file this way,
    that file must be mapped to a node the reviewed node can reach.
-4. **Deterministic \`ctx.fs\` read.** A deterministic check may read a
+4. **Script rule \`ctx.fs\` read.** A script rule's check may read a
    relation-reachable graph-directory file through its context object — same
    reachability boundary as a companion.
 
-References (2) need no graph wiring at all; companion (3) and deterministic
+References (2) need no graph wiring at all; companion (3) and a script rule's
 \`ctx.fs\` (4) need the target to be relation-reachable, which for a graph-directory
 file means mapping it and declaring a relation to its node.
 
@@ -92,7 +92,7 @@ graph citizens, with the obligations that implies:
   layer small and targeted.
 - **Never map the whole graph directory.** A broad \`**/\` glob over the graph
   directory would pull in the committed verdict-lock files, which change on every
-  approve and would never converge. Map narrowly — name the specific rule files you
+  fill and would never converge. Map narrowly — name the specific rule files you
   intend to model (e.g. one glob over the check files of one area), never the graph
   directory wholesale. (Generated, gitignored state is excluded automatically, but
   the committed lock files are not.)
@@ -120,10 +120,10 @@ narrowly you map. Keep it tight:
 ## Worked example: a requirement audits its own enforcer
 
 1. A document node maps your requirement documents. Each document's front-matter
-   names the deterministic check meant to enforce it.
+   names the script rule meant to enforce it.
 2. A second node maps those checks (narrowly), and the document node declares a
    relation to it — so the checks are relation-reachable from the documents.
-3. An LLM aspect on the document node ships a \`companion.mjs\` that reads the
+3. A reviewer rule on the document node ships a \`companion.mjs\` that reads the
    document's front-matter, resolves the named check's path, and returns it. The
    reviewer then sees the requirement prose (subject) plus the check (companion) and
    judges whether the check actually realizes the requirement.

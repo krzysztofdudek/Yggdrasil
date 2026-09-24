@@ -394,7 +394,7 @@ describe.skipIf(!distExists)('yg check --approve — buying review for the chang
       // The free half is whole-project, so both inherited drifts are re-checked
       // and recorded even though the change reached neither.
       expect(stderr).toContain('fill  2 pairs · 2 script (free) · 0 reviewer calls');
-      expect(stderr).toMatch(/fill {2}done in .* — 2 approved · 0 refused · 0 failed/);
+      expect(stderr).toMatch(/fill {2}done in .* — 2 passed · 0 refused · 0 failed/);
       // beta's TODO still refuses — inherited, so the run stays green.
       expect(status).toBe(0);
     });

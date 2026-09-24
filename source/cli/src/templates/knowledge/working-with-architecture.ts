@@ -29,7 +29,7 @@ Two kinds of types coexist:
 
 ## Predicate grammar
 
-A type's \`when\` uses the FILE-atom family — \`path\` and \`content\` — with the
+A type's \`when\` uses the FILE-atom set — \`path\` and \`content\` — with the
 shared boolean combinators \`all_of\` / \`any_of\` / \`not\`. This is one of the three
 sites of a single predicate grammar (the other file-atom site is an aspect's
 \`scope.files\`; node-atom \`when:\` filters which NODES an aspect applies to). The
@@ -77,14 +77,14 @@ on the one or two types where an explicit, reviewable node has to exist
 every time, and leave the rest alone. This holds even when
 \`coverage.type_level\` is on for the rest of the architecture — the backward
 scan only ever accepts an explicit node's mapping as proof of coverage,
-never the type-level lattice, so a strict type never lets a matching file
+never type-level coverage, so a strict type never lets a matching file
 coast on automatic type coverage the way a non-strict type's files do.
 
 The backward check honors \`coverage.excluded\` like every other coverage
 question: a file under an excluded root is never a \`type-strict-orphan\` or
 \`type-strict-misplaced\` candidate, even when it matches \`when\`. An excluded
 path is gone from this graph's coverage entirely, not merely from the
-ordinary required/advisory tiering.
+ordinary required / not-required coverage levels.
 
 Don't use \`enforce: strict\` when the \`when\` predicate is broad (e.g.
 \`path: "**"\`) — every repo file would be required in that type's mapping.
@@ -186,7 +186,7 @@ node_types:
 ## Aspect status in architecture default aspects
 
 Architecture-level default aspects (channel 3) may declare \`status:\` to
-control the enforcement level. When a node_type in \`yg-architecture.yaml\`
+control its status. When a node_type in \`yg-architecture.yaml\`
 declares a default aspect with status, that status applies to every node of
 that type unless explicitly overridden at the node or channel level.
 See: \`yg knowledge read aspect-status\`.

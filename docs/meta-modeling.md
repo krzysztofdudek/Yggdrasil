@@ -2,7 +2,7 @@
 
 Most of your graph models your **application** — its components, the rules they must
 satisfy, the relations between them. Meta-modeling turns the same machinery on the
-graph's OWN rule files: the deterministic checks, rule documents, and definitions
+graph's OWN rule files: the script rules' checks, rule documents, and definitions
 under the `.yggdrasil/` directory. Map them into the graph and you can verify the
 rules the way you verify everything else — the rules reviewing the rules.
 
@@ -20,7 +20,7 @@ component's mapping.) And because the graph directory is excluded from the
 "uncovered files" scan, you can model a few rule files without the coverage check
 demanding you model the rest. Meta-modeling is partial by design.
 
-## Four ways a rule file reaches a reviewer
+## Four ways a rule file reaches a check
 
 1. **Mapping** — map the file to a component and it becomes a reviewed file there.
 2. **Static reference** — list it under a rule's `references:` and its contents ride
@@ -31,15 +31,15 @@ demanding you model the rest. Meta-modeling is partial by design.
    files, a declared relation's target *and everything beneath that target*, an
    ancestor, or a descendant — minus whatever the graph excludes (a nested project's
    own root, a `coverage.excluded` path) and minus anything a symlink resolves to
-   outside the repository. A file enforced by its architecture type alone, with no
-   component of its own, is not covered by that rule at all: what it may read comes
+   outside the repository. A type-covered file (one enforced by its architecture type alone, with no
+   component of its own) is not subject to that rule at all: what it may read comes
    from the architecture's allowed relations between its own type and each
    candidate's owning type.
-4. **Deterministic read** — a deterministic check may read a reachable rule file
+4. **Script-rule read** — a script rule's check may read a reachable rule file
    through its context object (the same reachability rule as a companion, the
-   type-based form for a component-less file included).
+   type-based form for a type-covered file included).
 
-References (2) need no graph wiring; companion (3) and deterministic reads (4) need
+References (2) need no graph wiring; companion (3) and script-rule reads (4) need
 the target reachable, which for a graph-directory file means mapping it and declaring
 a relation to its component.
 
@@ -64,7 +64,7 @@ Mapping rule files makes them first-class citizens, with the obligations that br
 - A rule that reviews another rule means editing one re-checks both — keep the meta
   layer small and targeted.
 - **Never map the whole `.yggdrasil/` directory.** A broad glob would sweep in the
-  committed verdict lock, which changes on every approval and would never settle. Map
+  committed verdict lock, which changes on every fill and would never settle. Map
   narrowly — name the specific rule files you mean.
 
 ## Keeping the blast radius small

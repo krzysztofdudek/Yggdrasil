@@ -3,7 +3,7 @@
  *
  * Renders ONE rule into the shared right-hand panel: Yg.views.panel delegates here for an aspect
  * route. Shows the rule's identity (kind / status / scope / when), the actual rule prose
- * (content.md) for an LLM rule or an honest note for a deterministic / aggregate one, its implies
+ * (content.md) for a reviewer rule or an honest note for a deterministic / aggregate one, its implies
  * chain, and every component it lands on with that component's honest verdict (each cell routing
  * to the component's own panel). Split out of panel-view.js so each file stays a focused unit.
  *
@@ -43,7 +43,7 @@
 
   /**
    * Render a RULE into the shared panel — its identity (kind / status / scope / when), the actual
-   * rule prose (content.md) for an LLM rule or an honest note for a deterministic / aggregate one,
+   * rule prose (content.md) for a reviewer rule or an honest note for a deterministic / aggregate one,
    * its implies chain, and every node it lands on with that node's honest verdict.
    */
   function renderAspectPanel(panel, route, data, nav) {
@@ -69,7 +69,7 @@
     head.appendChild(dom.el('div', 'pan-title mono', aspect.id));
     var meta = dom.el('div', 'pan-meta');
     meta.appendChild(
-      dom.el('span', 'rb-badge rb-badge-' + aspect.kind, aspect.kind === 'llm' ? 'LLM' : aspect.kind === 'aggregate' ? 'aggregating' : 'deterministic'),
+      dom.el('span', 'rb-badge rb-badge-' + aspect.kind, aspect.kind === 'llm' ? 'reviewer rule' : aspect.kind === 'aggregate' ? 'bundle' : 'script rule'),
     );
     meta.appendChild(dom.el('span', 'rb-st rb-st-' + aspect.status, aspect.status));
     if (aspect.kind !== 'aggregate') meta.appendChild(dom.el('span', 'mono', 'per:' + aspect.scope + (aspect.hasWhen ? ' · when' : '')));

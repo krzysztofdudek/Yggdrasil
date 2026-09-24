@@ -19,8 +19,8 @@ Every command here reads the graph of the directory it runs in, never a commit n
 | `yg impact --file <path>` / `--node <path>` / `--aspect <id>` / `--flow <name>` / `--type <id>` | Blast radius analysis (`--json` for the machine-readable form) |
 | `yg node <path>` | One component's structure — what it owns, what it depends on, the ports it publishes (`--json` for the machine-readable form) |
 | `yg check` | Unified gate — by default writes nothing, no LLM, no keys (see `auto_approve` in [Configuration](/configuration)). `--json` for the machine-readable form |
-| `yg check --approve` | Verify every unverified pair the run answers for and record the verdicts in the lock |
-| `yg check --approve --only-deterministic` | Fill only the deterministic pairs, free and keyless; writes the gitignored cache |
+| `yg check --approve` | Fill every unverified pair the run answers for and record the verdicts in the lock (a [fill](/glossary#fill), not a human approval) |
+| `yg check --approve --only-deterministic` | Fill only the script pairs, free and keyless; writes the gitignored cache |
 | `yg log add` / `read` / `merge-resolve` | Per-node append-only business log |
 
 ### `yg context`
@@ -95,9 +95,9 @@ log gate's answer before `yg check --approve`, read the text `--node` view.
 
 The document names the subject, what its rules are anchored to (`owner`), the
 chain it inherits along nearest-first (`chain` — a component and its type at each
-link, or `node: null` and a type for a file governed by its architecture type
-alone), and every effective rule. Each rule carries its `id`, effective `status`,
-reviewer `kind` (`llm`, `deterministic` or `aggregate`), `name`, `description`,
+link, or `node: null` and a type for a type-covered file), and every effective
+rule. Each rule carries its `id`, effective `status`,
+rule `kind` (`llm`, `deterministic` or `aggregate`), `name`, `description`,
 the `channels` it arrived through (the numbered cascade channel, its kind, a
 machine-readable origin such as `type:command` or `flow:checkout`, and — when
 the attachment site itself declares one — that channel's `declaredStatus`), any
@@ -130,7 +130,7 @@ the attachment site itself declares one — that channel's `declaredStatus`), an
 ```
 
 Every outcome the command has gets a document, not only the ones with rules. A
-file governed by its architecture type alone reports `owner.kind: "type"` with
+type-covered file reports `owner.kind: "type"` with
 the matched type, where the inherited chain stops (`chainTermination`), and a
 `dropped` list of the type's rules that do not apply here with the reason for
 each. A file nothing governs reports `owner.kind: "none"` with
@@ -147,10 +147,10 @@ field's shape takes a new schema number.
 ### `yg impact`
 
 Predicts which pairs an edit to a node, aspect, flow, or type would invalidate —
-the cost surface before you make the change. Deterministic pairs are free; LLM
+the cost surface before you make the change. Script pairs are free; reviewer
 pairs are counted as reviewer calls × consensus.
 
-For `--node`, the output ends with a one-line cost summary that folds each LLM
+For `--node`, the output ends with a one-line cost summary that folds each reviewer
 pair's resolved-tier consensus into the reviewer-call count:
 
 ```text
@@ -158,7 +158,7 @@ pair's resolved-tier consensus into the reviewer-call count:
 ```
 
 For `--file`, it ends with a precise `Total to re-verify:` block — billed
-reviewer calls, free deterministic pairs, and currently-green verdicts re-rolled —
+reviewer calls, free script pairs, and currently-green verdicts re-rolled —
 preceded by a per-node breakdown tagged with why each node is affected (own
 pairs / references this file / companion observes this file / deterministic check
 observes this file / may observe this file (cold-start) / companion may observe
@@ -179,7 +179,7 @@ need no owner and are not errors:
   from graph coverage by design` with its why and next, and exits 0. Under
   `--json` that message goes to stderr instead of stdout; the outcome is
   otherwise identical.
-- A file no component owns but its architecture type governs directly first
+- A type-covered file (no component owns it; its architecture type governs it directly) first
   prints a graduation preview — `Giving this file a component of its own
   re-checks N checks, M reviews ≈ K reviewer calls — the pair hash folds
   nodePath, so every pair on this file re-verifies once it gains one, whether or
@@ -196,8 +196,8 @@ yg impact --type <id>
 ```
 
 - `--node` — Reverse dependencies, descendants, structural dependents of descendants, flows, aspects, and co-aspect nodes
-- `--file` — Resolve owner, then report a precise `Total to re-verify` block for the edit (its own output, not the `--node` summary). Also reflects deterministic checks whose recorded observations touched this file (cross-node impact), and marks a pair with no lock entry yet as one that *may* observe it. A companion-backed pair with no lock entry yet is likewise marked as one that *may* observe the file — its `companion.mjs` is not run, since `yg impact` executes no repository code. The three ownerless outcomes above — the `.yggdrasil/` graph-file redirect, the excluded-by-design report, and the graduation preview for a type-covered file — all exit 0; only a file with no coverage at all (not mapped, not referenced, not observed) is an error.
-- `--aspect` — All nodes where this aspect is effective (own, hierarchy, flow, or implied), plus structural dependents of affected nodes — the pairs an edit to its rule, description, references, scope, tier, or `companion.mjs` would re-verify. Editing `companion.mjs` re-verifies every pair of the aspect (billed, not free); editing a resolved companion file re-verifies only the pairs that read it (also billed). `--file <companion-file>` reflects this fan-out via the lock's `touched` observations. On a type-covered project, the cost line also counts files enforced by the aspect's architecture type alone (no owning node) — named separately, since "Directly affected" itself only lists components.
+- `--file` — Resolve owner, then report a precise `Total to re-verify` block for the edit (its own output, not the `--node` summary). Also reflects script-rule checks whose recorded observations touched this file (cross-node impact), and marks a pair with no lock entry yet as one that *may* observe it. A companion-backed pair with no lock entry yet is likewise marked as one that *may* observe the file — its `companion.mjs` is not run, since `yg impact` executes no repository code. The three ownerless outcomes above — the `.yggdrasil/` graph-file redirect, the excluded-by-design report, and the graduation preview for a type-covered file — all exit 0; only a file with no coverage at all (not mapped, not referenced, not observed) is an error.
+- `--aspect` — All nodes where this aspect is effective (own, hierarchy, flow, or implied), plus structural dependents of affected nodes — the pairs an edit to its rule, description, references, scope, tier, or `companion.mjs` would re-verify. Editing `companion.mjs` re-verifies every pair of the aspect (billed, not free); editing a resolved companion file re-verifies only the pairs that read it (also billed). `--file <companion-file>` reflects this fan-out via the lock's `touched` observations. On a type-covered project, the cost line also counts type-covered files (no owning node) — named separately, since "Directly affected" itself only lists components.
 - `--flow` — All participants and their descendants, plus structural dependents of participants
 - `--type <id>` — All nodes of that architecture type and their source files. Useful
   before adding a default aspect to a type — see how many nodes would be affected.
@@ -301,13 +301,13 @@ yg check --approve --only-deterministic --json
 
 The document carries what the report says: the project's counts, the exit code
 with the reason for it, `coverage` (files, covered, the node-owned, type-covered
-and excluded-by-design counts — those three `null` when the type-level tier is
+and excluded-by-design counts — those three `null` when type-level coverage is
 off — and whether anything is required to be covered at all), the `totals` by
 severity and by verdict plus how many expected pairs a draft rule dropped
 (`draftSkipped`) and the same verified split the text header shows
 (`verified: { deterministic, llm }`), every expected pair, every finding as
 structured `what` / `why` / `next`, who judged outside the configured reviewer,
-the standing floor when the project measures changes against a branch, and the
+the `progressive` floor when the project measures changes against a branch, and the
 one suggested next step.
 
 An `unverified` finding also carries `cause` — why the pair has no valid
@@ -315,12 +315,12 @@ verdict, the same fact the text report groups it by:
 
 - `stale` — judged once, over inputs that have changed since;
 - `never-reviewed` — nothing has judged it yet;
-- `deterministic-not-run` — a deterministic pair with no result in this
+- `deterministic-not-run` — a script pair with no result in this
   checkout's local cache (a fresh clone, a new rule), cleared for free by
   `yg check --approve --only-deterministic`;
-- `reviewer-missing` — a judgment rule in a project with no `reviewer:` section;
+- `reviewer-missing` — a reviewer rule in a project with no `reviewer:` section;
 - `reviewer-unreachable`, `reviewer-failed`, `check-failed-to-run`,
-  `suppress-marker-invalid` — the recording run that emitted the document tried
+  `suppress-marker-invalid` — the fill that emitted the document tried
   and failed on infrastructure: the reviewer did not answer, answered with no
   usable verdict, a `check.mjs` did not complete, or a `yg-suppress` marker in
   range has no reason.
@@ -353,7 +353,7 @@ The step to take first comes twice. `suggestedNext` is the text of the report's 
 
 `command` is the step as an argument vector, `null` when it is not one runnable command (an edit, a step with a `<placeholder>`); `target` names what it acts on; `cost` is what a fill step costs (script pairs free, reviewer pairs paid); `remaining` counts the errors that still need a code or graph fix and the pairs a fill can settle; `then` is the text of the report's `then:` line, or `null`.
 
-When a recording run stops at a gate before recording anything — the
+When a fill stops at a gate before recording anything — the
 mandatory-log gate, or the structural gate — the document is still written:
 `exit.status` is `aborted` (exit code 1), `exit.reason` says which gate and how
 much it is waiting on, `aborted: { stage: 'log-gate' | 'structural', issues }`
@@ -373,15 +373,15 @@ obligations held outside the change (`outside`), the findings the content guard
 kept blocking despite git reporting their files unchanged (`byteGuardKept`),
 whether the reference tree's object ids could not be reproduced so no content
 check was made (`byteGuardUnavailable`), and `noiseFloor` — `{ advisory,
-enforcedOutside }`, the advisory refusals and the enforced findings standing on
+enforcedOutside }`, the advisory refusals and the enforced findings sitting on
 untouched code. Every count in it is `null` when that particular figure is not
 available.
 
 Each pair names its rule; its subject, `unit: { kind: 'node' | 'file', path }`;
 the component that owns it (`node`, `null` for a file no component owns); which
-reviewer kind answers for it (`kind`: `llm` or `deterministic`); the status that
+rule kind it is (`kind`: `llm` or `deterministic`); the status that
 decides whether a finding blocks; what the lock currently says; who answers for
-it (`reviewer` — a local check as itself, an outside judge under their own name,
+it (`reviewer` — a local check as itself, an outside reviewer under their own name,
 otherwise the reviewer tier); and the hash the verdict is bound to. A pair
 refused in force also carries `report`, the violation text. `unverified` is a
 pair nothing has ever judged, `stale` is one that was judged over code that has
@@ -390,7 +390,7 @@ them apart too.
 
 Each pair also names when and at which commit it was filled: `filled: { ts,
 sha }`, or `filled: null` for a pair the lock has never filled (always `null`
-for a deterministic pair — filling one costs nothing, so there is nothing to
+for a script pair — filling one costs nothing, so there is nothing to
 attribute). `sha` is `null` when the commit was not resolvable at fill time (no
 repository, no commit yet, git missing from `PATH`) — the key is present
 regardless, so a consumer always finds it. `filled` rides with a pair
@@ -453,7 +453,7 @@ always a read. Otherwise it recomputes
 each expected pair's input hash and compares it to the recorded verdict in the
 lock (the committed `yg-lock.nondeterministic.json` and `yg-lock.logs.json`, plus
 the gitignored `.yg-lock.deterministic.json` cache; see [The lock](/the-lock)). By default it
-makes no LLM calls, runs no aspect reviewers, and needs no provider config or keys.
+makes no LLM calls, calls no reviewer, and needs no provider config or keys.
 If `auto_approve` is set to `deterministic` or `full` in `yg-config.yaml`, bare
 `yg check` behaves like `yg check --approve --only-deterministic` or `yg check
 --approve` respectively — explicit CLI flags (`--approve`, `--no-approve`,
@@ -461,8 +461,8 @@ If `auto_approve` is set to `deterministic` or `full` in `yg-config.yaml`, bare
 The one thing it always runs over your code is the built-in relation-conformance
 check, live and parse-based, at zero LLM cost.
 
-On a fresh checkout the gitignored deterministic cache is absent, so `yg check`
-reports the deterministic pairs as unverified until `yg check --approve
+On a fresh checkout the gitignored script-rule cache is absent, so `yg check`
+reports the script pairs as unverified until `yg check --approve
 --only-deterministic` rebuilds the cache for free.
 
 ```bash
@@ -519,11 +519,11 @@ then: yg check --approve  (24 reviewer pairs · paid)
 
 The label comes from one registry, and the JSON document's `label` field is the same word: `refused` (a rule's refusal — an error when the rule is enforced, a warning when it is advisory), `unmapped` (files under `coverage.required` that no node owns), `uncovered` (files outside it — never blocking), `unverified` (a pair with no valid verdict; the cause is in the subject: `with no verdict yet`, `whose inputs changed since the verdict`, `whose script check has not run on this checkout — free to run`, …), `<label>-outside` for a finding put outside a measured change (see `--full` below), and the code itself for everything else (`relation-broken`, `log-entry-missing`, `yaml-invalid`, …).
 
-**Block order** is urgency. Errors come first, by tier: the graph is invalid (a file that does not parse, an architecture that does not load); then code and graph errors (refusals, relations, coverage); then gate prerequisites (`log-entry-missing`, `log-conflict`, `config-reviewer-missing`); then pending work (`unverified`). Warnings follow.
+**Block order** is urgency. Errors come first, most urgent first: the graph is invalid (a file that does not parse, an architecture that does not load); then code and graph errors (refusals, relations, coverage); then gate prerequisites (`log-entry-missing`, `log-conflict`, `config-reviewer-missing`); then pending work (`unverified`). Warnings follow.
 
 **After the blocks**, `note:` lines state standing facts that are not findings — never counted, never blocking (for example, that no architecture type declares `when:` yet). The report ends with `next:` and, sometimes, `then:`:
 
-- `next:` is the first step of the first block — the highest tier present. It is a concrete step (`edit src/svc-03/index.ts:2`, `yg log add --node app/svc-01 --reason '<why this change was made>'`, `yg check --approve  (24 reviewer pairs · paid)`), never a restated code, and never a fill while a code or graph error stands. When other blocks remain it is annotated with the block it belongs to and what still needs a fix: `(refused — 10 errors need a code or graph fix)`.
+- `next:` is the first step of the first block — the most urgent one present. It is a concrete step (`edit src/svc-03/index.ts:2`, `yg log add --node app/svc-01 --reason '<why this change was made>'`, `yg check --approve  (24 reviewer pairs · paid)`), never a restated code, and never a fill while a code or graph error stands. When other blocks remain it is annotated with the block it belongs to and what still needs a fix: `(refused — 10 errors need a code or graph fix)`.
 - `then:` is the step after it — typically the fill, once the fixes are in.
 - There is no `next:` at all when the report holds exactly one error block (or, with no errors, one finding) whose `fix:` already is the step: the line would only repeat it.
 
@@ -549,7 +549,7 @@ next: yg log add --node app/svc-01 --reason '<why this change was made>'
 then: yg check --approve --only-deterministic
 ```
 
-On a fresh checkout with no local deterministic cache, the script pairs are genuinely unverified — `error[unverified] N pairs whose script check has not run on this checkout — free to run` — and `pairs verified` counts none of them until `yg check --approve --only-deterministic` rebuilds the cache.
+On a fresh checkout with no local script-rule cache, the script pairs are genuinely unverified — `error[unverified] N pairs whose script check has not run on this checkout — free to run` — and `pairs verified` counts none of them until `yg check --approve --only-deterministic` rebuilds the cache.
 
 Exit code 0 if fully clean, 1 if any errors found.
 
@@ -574,7 +574,7 @@ yg check --top          # only the block next: points at (flag with no value)
 yg check --summary      # one rollup line per severity — each label with its count
 yg check --summary nodes  # one row per node instead
 yg check --details      # every block, every member listed
-yg check --aspect <id>  # drill into one rule — its blocks, every member listed
+yg check --aspect <id>  # focus on one rule — its blocks, every member listed
 yg check --coverage     # ADD the per-type coverage listing (not a view; combines with everything except --json)
 yg check --approve --quiet  # suppress fill progress during --approve (stderr)
 ```
@@ -633,17 +633,17 @@ still listed and still counted, as a warning that does not fail the build. The
 header says how much sits outside your change and what it was measured against.
 Every such warning reads exactly like the finding it mirrors — same why, the label with `-outside` appended (`refused-outside`, `unverified-outside`), and the heading ending `— outside your changes` — so it never reads as a raw internal code; its `fix:` line is left off rather than repeating a command that would, for this one finding, be misleading (see below), since the WHY is still true regardless of who caused it. When nothing of yours blocks, the report's `next:` is `yg check --full  (N obligations outside your changes)`.
 
-A run that records verdicts — `--approve`, or a bare run on a project
-configured to approve automatically — is measured the same way, so it reports
+A fill — `--approve`, or a bare run on a project
+configured to fill automatically — is measured the same way, so it reports
 what a plain run reports and reviews only the rules your change is accountable
 for. It says how many it left for later, and `yg check --full --approve` is what
 reviews those. Checks that run locally still cover the whole project: they cost
 nothing, and what they observe is what the next measurement reads.
 
 One thing stays whole-project on purpose. If a component's source has moved past
-the last entry its log records, and its type requires one, a recording run stops
+the last entry its log records, and its type requires one, a fill stops
 and asks for that entry — whoever moved the code, and whether or not your change
-went near it. Recording answers for the code as it stands, so it will not record
+went near it. A fill answers for the code as it stands, so it will not record
 over an unexplained edit; a plain read of the same branch can pass while that run
 stops, and the message says which component it is waiting on.
 
@@ -676,7 +676,7 @@ setting affects bare `yg check` only; CI scripts should always use explicit flag
 `--only-deterministic` on its own implies `--approve`. `--approve` together with
 `--no-approve` is refused as a usage error, whatever their order.
 
-**Guardrail:** every view prints the same verdict line with the true counts and a `view:` tag, and preserves the real exit code, so a narrowed view can never read as a clean build. An invalid `--top` value — anything but a positive whole number: `0`, negative, fractional, non-numeric — is an `error[usage]`, never a silent full dump; for the single first block use bare `--top`. Use `--summary` and `--top` to orient, then drill into one rule with `--aspect <id>` or read the full report with plain `yg check`, which shows every block (member lists capped at 12); `--details` lists every member.
+**Guardrail:** every view prints the same verdict line with the true counts and a `view:` tag, and preserves the real exit code, so a narrowed view can never read as a clean build. An invalid `--top` value — anything but a positive whole number: `0`, negative, fractional, non-numeric — is an `error[usage]`, never a silent full dump; for the single first block use bare `--top`. Use `--summary` and `--top` to orient, then focus on one rule with `--aspect <id>` or read the full report with plain `yg check`, which shows every block (member lists capped at 12); `--details` lists every member.
 
 #### `--approve` — fill unverified pairs
 
@@ -685,10 +685,10 @@ reports — all of them, or (when a missing log entry stops the run) none. By
 default that is the whole project; on a project that measures changes against a
 branch it is the whole project for the checks that run locally, and the rules
 your change is accountable for for the ones a reviewer judges (see `--full`
-above). Deterministic pairs run first,
-locally, for free; a node with an enforced deterministic refusal has its LLM
-pairs skipped this run. LLM pairs then go to the reviewer per tier and consensus.
-Each real verdict — approved or refused — is recorded in the lock; infrastructure
+above). Script pairs run first,
+locally, for free; a node with an enforced script refusal has its reviewer
+pairs skipped this run. Reviewer pairs then go to the reviewer per tier and consensus.
+Each real verdict — passed or refused — is recorded in the lock; infrastructure
 failures (provider unreachable, a `check.mjs` that throws, a `yg-suppress` marker
 with no reason, or a `companion.mjs` hook that fails to assemble a companion)
 write nothing and leave the pair unverified. The report that run prints names
@@ -697,15 +697,15 @@ its `next:` points at that fix — never back at the command that just failed �
 once nothing a fill can still settle is left. A
 refusal is cached and final for unchanged inputs: re-running does not re-roll it.
 
-A project with no `reviewer:` section and an effective enforced judgment rule
+A project with no `reviewer:` section and an effective enforced reviewer rule
 (`content.md`) stops a full `yg check --approve` before anything runs, with
 `config-reviewer-missing`: the fix is `yg init --provider <name> [--model <m>]`
 — the user's decision, since it sends code to that provider — or setting the
 rule to `status: draft`. Plain `yg check` points there too, ahead of the
 unverified pairs. That stop never applies to `--only-deterministic` or `--dry-run`,
-which call no reviewer (the judgment pairs stay unverified and each says why), nor
-to a project whose judgment rules are all advisory: then the finding is a warning,
-since advisory never blocks, and `--approve` fills the deterministic pairs.
+which call no reviewer (the reviewer pairs stay unverified and each says why), nor
+to a project whose reviewer rules are all advisory: then the finding is a warning,
+since advisory never blocks, and `--approve` fills the script pairs.
 
 A `log_required` component whose source moved with no fresh log entry stops the
 run before its first `fill` line, so a stopped run never announces a fill. Every
@@ -717,11 +717,11 @@ While it fills, `yg check --approve` reports on stderr in lines that start with 
 ```text
 fill  24 pairs · 24 script (free) · 0 reviewer calls
 fill  24 reviewer pairs left alone — script rules only this run
-fill  done in 3s — 16 approved · 8 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone
+fill  done in 3s — 16 passed · 8 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone
 next: yg check --approve  (reviews the pairs left alone)
 ```
 
-A pair gets a line of its own only when it did not simply pass or fail — it could not be judged (`fill  not judged  <aspect> @ <unit>`) or a consensus split on it (`fill  approved by 2 of 3 votes  <aspect> @ <unit>`); a refusal is in the report. On a terminal a single status line updates in place (`fill  37/50 · 3 refused · 12s  <pair>`); elsewhere a `fill  still working — 6/24, waiting on <pair>` line appears when nothing has finished for a while. The closing `fill  done in …` line counts what the fill approved, refused and could not judge, the reviewer calls it made and, where the provider reports them, the tokens and the cost at list price — then what it left alone. It never says the result is valid; the report below it says what stands. A fill with nothing to do prints nothing. When the fill prunes lock entries no longer expected, it says so: `fill  pruned 3 stale verdicts (1 reviewer · 2 script)`, then one indented `<aspect> @ <unit> — <reason>` line per entry. For a full preview before committing to the cost, use `--dry-run` (below); use `yg impact` to predict cost before an edit, and `yg aspect-test --dry-run` to preview a single reviewer prompt.
+A pair gets a line of its own only when it did not simply pass or fail — it could not be judged (`fill  not judged  <aspect> @ <unit>`) or a consensus split on it (`fill  passed by 2 of 3 votes  <aspect> @ <unit>`); a refusal is in the report. On a terminal a single status line updates in place (`fill  37/50 · 3 refused · 12s  <pair>`); elsewhere a `fill  still working — 6/24, waiting on <pair>` line appears when nothing has finished for a while. The closing `fill  done in …` line counts what passed, what was refused and what could not be judged, the reviewer calls it made and, where the provider reports them, the tokens and the cost at list price — then what it left alone. It never says the result is valid; the report below it says what stands. A fill with nothing to do prints nothing. When the fill prunes lock entries no longer expected, it says so: `fill  pruned 3 stale verdicts (1 reviewer · 2 script)`, then one indented `<aspect> @ <unit> — <reason>` line per entry. For a full preview before committing to the cost, use `--dry-run` (below); use `yg impact` to predict cost before an edit, and `yg aspect-test --dry-run` to preview a single reviewer prompt.
 
 #### Silent structural-deviation index
 
@@ -756,13 +756,13 @@ fill  24 pairs · 0 script (free) · 24 reviewer calls (consensus included)
 note: 24 reviewer calls is an upper bound — a unit a script rule refuses has its reviewer pairs skipped, and a fresh refusal or an unreachable reviewer can leave a pair unfilled. Nothing was written; run yg check --approve to fill.
 ```
 
-When a recording run would first stop on missing log entries, the preview prints those findings too; it prints no report of the tree under it. Then it exits 0 **without calling the reviewer, running any `check.mjs`, or writing a single byte to any lock file**. The reviewer-call total is an **upper bound**: a node with an enforced deterministic refusal has its reviewer pairs skipped, and a fresh refusal or an infrastructure failure can leave a pair unfilled, so the real `--approve` bills at most that many calls. On a project that measures changes against a reference branch, the preview prices what your change is accountable for — the same work the real run would buy — and names how many reviewed rules it left outside it.
+When a fill would first stop on missing log entries, the preview prints those findings too; it prints no report of the tree under it. Then it exits 0 **without calling the reviewer, running any `check.mjs`, or writing a single byte to any lock file**. The reviewer-call total is an **upper bound**: a node with an enforced script refusal has its reviewer pairs skipped, and a fresh refusal or an infrastructure failure can leave a pair unfilled, so the real `--approve` bills at most that many calls. On a project that measures changes against a reference branch, the preview prices what your change is accountable for — the same work the real run would buy — and names how many reviewed rules it left outside it.
 
 The preview always exits 0, even when enforced pairs are unverified — it never
 blocks the build. The only thing that aborts a preview is a broken configuration
 (the structural gate), which surfaces the same blocker a real `--approve` would hit
 — except a missing reviewer, which the preview reports under its header (the
-judgment pairs it priced cannot be reviewed until one is configured) instead of
+reviewer pairs it priced cannot be reviewed until one is configured) instead of
 aborting.
 A cost estimate never demands a fresh log entry, so the preview also **bypasses the
 per-node log gate** — it previews even on `log_required` nodes whose source changed
@@ -771,33 +771,33 @@ first. `--dry-run` requires `--approve`; used on its own it is a usage error (pl
 `yg check` is already a free, no-write read — or `yg check --no-approve`, when
 `auto_approve` makes a bare `yg check` fill).
 
-#### `--only-deterministic` — fill the deterministic cache only
+#### `--only-deterministic` — fill the script-rule cache only
 
-`yg check --approve --only-deterministic` fills **only** the deterministic
+`yg check --approve --only-deterministic` fills **only** the script-rule
 (`check.mjs`) pairs. It runs them locally — no provider key, no LLM call, no cost —
 and writes **only** the gitignored `.yg-lock.deterministic.json` cache; the two
 committed lock files are left untouched. Then it reports, like any other check.
 
-This is the CI / pre-commit gate for the deterministic cache. A fresh checkout has
-no deterministic cache, so plain `yg check` reports those pairs as unverified — in
+This is the CI / pre-commit gate for the script-rule cache. A fresh checkout has
+no script-rule cache, so plain `yg check` reports those pairs as unverified — in
 a block of their own, `error[unverified] N pairs whose script check has not run on this checkout — free to run`, whose
 fix is this command; running it rematerializes the cache for free and clears them,
 without a key and without touching a committed file. It runs in a project with no
-reviewer configured too: the judgment pairs stay unverified and name the missing
-reviewer, while every deterministic pair is filled. Use plain `yg check --approve`
-(no flag) when you also want the LLM pairs filled.
+reviewer configured too: the reviewer pairs stay unverified and name the missing
+reviewer, while every script pair is filled. Use plain `yg check --approve`
+(no flag) when you also want the reviewer pairs filled.
 
 A missing log entry on a `log_required` component stops this run as it stops any
 `--approve` (see above). One caveat: this run never records a component's source
 baseline — only a full `yg check --approve` does, once every rule on the component
-holds a verdict. On a project whose only recording run is this one, the newest
+holds a verdict. On a project whose only fill is this one, the newest
 log entry goes on satisfying the requirement for every later edit; plain `yg check`
 says so with the `log-cycle-open` warning until a full run closes the cycle.
 
 It is also honest about what it did not do: the opening `fill  N reviewer pairs left alone — …` line and the closing `fill  done …` line name
 the reviewer pairs left unverified — they were skipped by design, not reviewed — and
-point at a full `yg check --approve`. A deterministic-only run can never read as if
-it had verified everything. It does still re-hash the committed LLM verdicts, so a
+point at a full `yg check --approve`. A script-only run can never read as if
+it had verified everything. It does still re-hash the committed reviewer verdicts, so a
 stale one is still caught in the trailing report.
 
 #### Verification and aspect-status issue codes
@@ -812,23 +812,23 @@ are listed as a non-blocking warning when your change did not reach them, whatev
 their severity below; [what never becomes a warning](/progressive-mode#what-never-becomes-a-warning)
 is the list of the ones that never are. `error (always)` in the column means the code
 is not governed by aspect status — it is an error whatever a rule's
-`draft`/`advisory`/`enforced` level says.
+`draft`/`advisory`/`enforced` status says.
 
 | Code | Severity | Meaning |
 |------|----------|---------|
-| `unverified` | error (enforced) / warning (advisory) | Expected pair has no valid verdict. Grouped, and in `--json` tagged (`cause`), by why: stale (inputs changed since the verdict — `yg check --approve`), never reviewed (`yg check --approve`), deterministic check not run on this checkout (`yg check --approve --only-deterministic`, free), no reviewer configured (`yg init --provider <name>` or `status: draft`), or — on the report of the recording run that hit it — an infrastructure failure (reviewer unreachable, reviewer returned no verdict, `check.mjs` failed to run, `yg-suppress` marker with no reason), whose own fix is named. |
-| `config-reviewer-missing` | error / warning (all judgment rules advisory) | An effective judgment rule and no `reviewer:` section in `yg-config.yaml`. Follows the strictest status among the judgment pairs left without a judge. Stops a full `yg check --approve`; never stops `--only-deterministic` or `--dry-run`. Fix: `yg init --provider <name> [--model <m>]` (the user's decision) or `status: draft`. |
+| `unverified` | error (enforced) / warning (advisory) | Expected pair has no valid verdict. Grouped, and in `--json` tagged (`cause`), by why: stale (inputs changed since the verdict — `yg check --approve`), never reviewed (`yg check --approve`), script check not run on this checkout (`yg check --approve --only-deterministic`, free), no reviewer configured (`yg init --provider <name>` or `status: draft`), or — on the report of the fill that hit it — an infrastructure failure (reviewer unreachable, reviewer returned no verdict, `check.mjs` failed to run, `yg-suppress` marker with no reason), whose own fix is named. |
+| `config-reviewer-missing` | error / warning (all reviewer rules advisory) | An effective reviewer rule and no `reviewer:` section in `yg-config.yaml`. Follows the strictest status among the reviewer pairs left without a reviewer. Stops a full `yg check --approve`; never stops `--only-deterministic` or `--dry-run`. Fix: `yg init --provider <name> [--model <m>]` (the user's decision) or `status: draft`. |
 | `aspect-violation-enforced` | error | Valid `refused` verdict on an enforced pair — blocks `yg check`. |
 | `aspect-violation-advisory` | warning | Valid `refused` verdict on an advisory pair — does not block. |
-| `prompt-too-large` | error | Assembled LLM prompt exceeds the resolved tier's `max_prompt_chars`. Takes precedence over `unverified`; `--approve` skips the pair. |
+| `prompt-too-large` | error | Assembled reviewer prompt exceeds the resolved tier's `max_prompt_chars`. Takes precedence over `unverified`; `--approve` skips the pair. |
 | `lock-invalid` | error | A **committed** lock file (`yg-lock.nondeterministic.json`, `yg-lock.logs.json`, or the legacy single-file `yg-lock.json`) is unparseable, garbled, conflict-markered, or an unknown version — fail closed. The derived, gitignored `.yg-lock.deterministic.json` is exempt: the same content faults there are discarded and the file rebuilt from scratch, noted in the debug log only and never raised as an issue. It holds no source of truth, and the pairs it would have covered simply read as unverified until recomputed. A real I/O failure (a permission error, an unreadable mount) still propagates from either kind. |
 | `relation-undeclared-dependency` | error (always) | Built-in relation-conformance check — a component depends on another component's code without a declared relation. Not an aspect: no status, not suppressible. Fix by declaring the relation in `yg-node.yaml` or removing the dependency. |
 | `type-relation-forbidden` | error (always) | With `coverage.type_level` on — a statically-resolved import between two classified endpoints (an explicit node and/or a type-covered file) has no relation type the architecture allows between their two node types. Additive to `relation-undeclared-dependency`, for the case that check cannot see: a type-covered endpoint has no `yg-node.yaml` to declare a relation in. Not an aspect, never cached. See [Relations, flows & ports](/relations-flows-ports#the-same-gate-widened-to-type-covered-files). |
 | `structural-cycle` | error (always) | The declared structural relations (`calls` / `uses` / `extends` / `implements`) form a cycle — including a component relating to itself. Not an aspect: no status, not suppressible. Reported once per group of components that reach each other, naming the members and one cycle through them; `yg context` refuses only for a component in the group or one whose context draws on a member. Break the cycle (extract the shared piece into a third component) rather than declaring a mutual dependency. |
 | `aspect-check-runtime-error` | error (`--approve` only) | A `check.mjs` failed to import or threw at fill time — fail closed, no verdict written. |
 | `aspect-companion-runtime-error` | error (`--approve` only) | A `companion.mjs` failed to resolve/run at fill time (threw, returned a bad shape, resolved a missing or out-of-reach path, or observations stayed inconsistent) — fail closed, no verdict written; plain `yg check` shows the pair as unverified. |
-| `aspect-companion-without-content` | error (structural) | An aspect ships `companion.mjs` without `content.md`. Companions are an add-on to LLM aspects; `companion.mjs` alone is invalid. |
-| `aspect-companion-with-check` | error (structural) | An aspect ships both `companion.mjs` and `check.mjs`. Companions apply to LLM aspects only. |
+| `aspect-companion-without-content` | error (structural) | An aspect ships `companion.mjs` without `content.md`. Companions are an add-on to reviewer rules; `companion.mjs` alone is invalid. |
+| `aspect-companion-with-check` | error (structural) | An aspect ships both `companion.mjs` and `check.mjs`. Companions apply to reviewer rules only. |
 | `log-entry-missing` | error | A `log_required` node changed source without a fresh log entry. Enforced read-only — a blocking error on plain `yg check`, not only at `--approve`. |
 | `log-cycle-open` | warning | A `log_required` node's source moved past its recorded baseline and its newest log entry keeps satisfying the requirement, because no full `yg check --approve` has recorded a new baseline (`--only-deterministic` never does). Never blocks. Fix: a full `yg check --approve`. |
 | `suppress-marker-missing-reason` | warning | A `yg-suppress` marker in a mapped source has no reason. It waives nothing: the first violation in its range makes the fill reject it and leave the pair unverified. Fix: add the reason (the user approves it) or remove the marker. |
@@ -836,16 +836,16 @@ is not governed by aspect status — it is an error whatever a rule's
 | `aspect-status-downgrade` | error | An attach site declares a status lower than the cascade would yield (bump up OK, downgrade is an error). |
 | `implies-status-inherit-invalid` | error | `status_inherit:` is not `strictest` or `own-default`. |
 | `aspect-review-by-malformed` | error | A rule's `review_by:` is present but not a calendar-valid bare `YYYY-MM-DD` date (`2027-13-01`, `2027-02-30`). Fired only on the rule that carries the field. |
-| `aspect-review-overdue` | warning | A rule's standing `review_by:` date has passed — it is running unreviewed. Status-independent; never writes a verdict and never blocks. Renew or retire the rule; never change the date without the owner's approval. |
+| `aspect-review-overdue` | warning | A rule's `review_by:` date has passed — it is running unreviewed. Status-independent; never writes a verdict and never blocks. Renew or retire the rule; never change the date without the owner's approval. |
 | `rules-digest-stale` | warning | The committed agent-rules digest (the `AGENTS.md` block, `.clinerules/yggdrasil.md`, or the `CLAUDE.md` `@AGENTS.md` import) is missing, hand-edited, from an older CLI, or duplicated. Never cached, never suppressible — recomputed live on every check. Only artifacts this project carries are compared: an artifact switched off under `rules_artifacts` in `yg-config.yaml` is never mentioned. Fix: `yg init --upgrade`. |
-| `coverage-required-shadowed` | warning | A plain (non-glob) `coverage.required` root sits entirely inside a plain `coverage.excluded` root — exclusion is absolute, so every file under that required root is silenced before the required/advisory split ever runs, and the required line can never make anything block. Fix: remove the required line, or narrow the excluded root so it no longer contains it. |
-| `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components, OR — under `coverage.type_level` — while it could actually run (a `per: file` rule, not a whole-unit one) on at least one file enforced by its architecture type alone; a whole-unit rule stays reported dead even once a file matches its type, since it can never produce a verdict there. Usually fixed by correcting the attach sites / `when`, or setting `status: draft` until the component or type it targets exists — but when the rule is whole-unit and the type's only instances are such type-covered files, there is no `when` at fault: give a matching file a component of its own, or make the rule file-level. When the type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`, and points at `yg check` and the aspect files. |
-| `architecture-default-aspect-unreachable` | warning | An architecture type's own default rule is effective on zero instances OF THAT TYPE, even though the rule may be live on other types — its own `when` (or the attach-site `when`) filters it back off the exact type that declares it. Silent while the type has no instances at all; under `coverage.type_level`, a file enforced by the type alone counts as an instance, but only lets a `per: file` default count as reached there — a whole-unit default stays reported unreachable. Usually fixed by widening/removing the `when` so it reaches the type, or dropping the default if it should not apply there — but when the type's only instances are such type-covered files and the default is whole-unit, there is no `when` at fault: give a matching file a component of its own, or make the default file-level. When that type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`. |
+| `coverage-required-shadowed` | warning | A plain (non-glob) `coverage.required` root sits entirely inside a plain `coverage.excluded` root — exclusion is absolute, so every file under that required root is silenced before the required/not-required split ever runs, and the required line can never make anything block. Fix: remove the required line, or narrow the excluded root so it no longer contains it. |
+| `aspect-effective-nowhere` | warning | A rule that ships a rule source and is not draft is effective on zero components after the full cascade and every `when` — a rule that looks enforced but is never verified anywhere. Silent while the model has no components, OR — under `coverage.type_level` — while it could actually run (a `per: file` rule, not a `per: node` one) on at least one type-covered file; a `per: node` rule stays reported dead even once a file matches its type, since it can never produce a verdict there. Usually fixed by correcting the attach sites / `when`, or setting `status: draft` until the component or type it targets exists — but when the rule is `per: node` and the type's only instances are type-covered files, there is no `when` at fault: give a matching file a component of its own, or make the rule `per: file`. When the type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`, and points at `yg check` and the aspect files. |
+| `architecture-default-aspect-unreachable` | warning | An architecture type's own default rule is effective on zero instances OF THAT TYPE, even though the rule may be live on other types — its own `when` (or the attach-site `when`) filters it back off the exact type that declares it. Silent while the type has no instances at all; under `coverage.type_level`, a type-covered file of the type counts as an instance, but only lets a `per: file` default count as reached there — a `per: node` default stays reported unreachable. Usually fixed by widening/removing the `when` so it reaches the type, or dropping the default if it should not apply there — but when the type's only instances are type-covered files and the default is `per: node`, there is no `when` at fault: give a matching file a component of its own, or make the default `per: file`. When that type's only instance's rules could not be worked out at all (an aspect `implies` cycle), the same applies: it names the cycle, not a `when`. |
 
 ### `yg log`
 
 Per-node append-only log of business decisions, constraints, and reasoning. Agents write
-to this log before approving changes so that future agents have context about why code
+to this log before a fill records verdicts for changed code, so that future agents have context about why code
 is written the way it is.
 
 ```bash
@@ -958,7 +958,7 @@ yg tree [--root <path>] [--depth <n>] [--long] [--json]
   counts below as numbers, `null` when the flag is off)
 
 With `coverage.type_level` on, a summary line follows the node listing naming
-how many files are covered by their architecture type alone, with no component of
+how many type-covered files there are, with no component of
 their own (never a synthetic tree entry — the listing above still renders
 nodes only). The count is always repo-wide: a type-covered file has no place
 in the graph hierarchy for `--root` to scope it to, so narrowing `--root` adds
@@ -971,7 +971,7 @@ misread as "N files enforced." The "checked by at least one rule" count
 further names, in parentheses, how many of those files have no CURRENT valid
 lock entry for at least one of their rules — a real re-verification (the same
 per-pair check `yg check` itself runs, scoped to just this listing's own
-nodeless pairs rather than a second whole-project pass), so it catches a rule
+type-covered files' pairs rather than a second whole-project pass), so it catches a rule
 whose recorded verdict has gone stale since a source edit exactly the way `yg
 owner --file` and `yg context --file` do (see those commands below), not only
 one the lock has never recorded at all. Absent entirely when the flag is off.
@@ -1054,7 +1054,7 @@ closely-clustered scores mean the query is ambiguous, so confirm the top
 candidate with `yg context` before relying on it. Flows are not in the index — to
 find a flow, use `yg flows`.
 
-With `coverage.type_level` on, a file satisfied by the type-level lattice (no
+With `coverage.type_level` on, a type-covered file (no
 node of its own) is also searchable — its `Kind` prints `file`, its `Type:`
 line names the matched classifying type, and its `Description` is that type's
 own description (types carry required descriptions). `yg find` prints one
@@ -1076,31 +1076,31 @@ yg aspects --health   # per-aspect health table
 
 Output: a custom human-readable line format (not YAML). Each aspect renders as a header line
 `<id> [<status>] — <description>` (the description falls back to the aspect name when no
-description is set — there is no separate `name` field), followed by a `Reviewer:` line (for
-`llm` reviewers it also shows the tier), a usage line `Used by: N nodes
+description is set — there is no separate `name` field), followed by a `Kind:` line (`reviewer rule`,
+`script rule` or `bundle`; a reviewer rule also shows its tier), a usage line `Used by: N nodes
 (architecture/direct/implied/flow)` — or `Used by: 0 nodes — orphaned` when nothing references
 it — and an `Implies:` line when the aspect implies others. Under `coverage.type_level`, a rule
 reaching files only through an architecture type (no owning component) is never called orphaned:
 the line instead reads `Used by: 0 nodes, N type-covered file(s)` (for example, `Used by: 0 nodes,
 3 type-covered files`), or names the type-covered count alongside the node count when both apply.
 
-`--health` switches to a per-aspect health table: one row per aspect showing its kind
+`--health` switches to a per-aspect health table: one row per aspect showing its rule kind
 (`llm` / `deterministic` / `aggregate`), status, review surface (`nodes` and `pairs`),
 `refused` (refusals whose recorded result still matches the current code — stale or
 never-checked units are excluded), `suppresses` (live `yg-suppress` markers targeting it;
 wildcard markers are summarized separately, not attributed per-aspect), `errs` (a
-deterministic check's error-direction label), `age` (how long ago the aspect's rule
+script rule's error-direction label), `age` (how long ago the aspect's rule
 source was first added to version control, as a coarse duration such as `3mo` or `1y`), and —
 per rule — `catch` and `exposure` (how many times the rule has actually refused a unit against
 how many times a reviewer genuinely exercised it, counted over distinct checks so a cached
-re-render never inflates them, and never pooled across the two reviewer kinds), plus a
+re-render never inflates them, and never pooled across reviewer rules and script rules), plus a
 plain-words read of how confident that ratio is (few observations reads as a wide uncertainty
 range, never a false-precise number), and a `label` — `active`, `quiet`, or `decorative?`. A
 `decorative?` rule whose own examples still pass is reported as *possibly deterring the very
 violations it would catch* rather than assumed useless; a demotion is only ever suggested when
 several independent signals agree, never on the catch count alone. The `fp` column is the
 false-block signal — how many of the rule's refusals a human later waived or overturned (a live
-`yg-suppress` waiver now covers the refused code, or the block was re-approved after a waiver moved
+`yg-suppress` waiver now covers the refused code, or the pair passed again after a waiver moved
 rather than a genuine code fix; a real fix, with no waiver, never counts). It is a count with a
 plain-words small-sample label, never a bare rate, and it never gates — it feeds a human retirement
 ritual (the false-block budget), never an automatic block. The `wrong-rule` column is the
@@ -1110,10 +1110,10 @@ because incident testimony is sparse and qualitative (there is no exposure denom
 thin-ness). A `wrong-rule` incident recorded **without** `--aspect` counts in the `yg advise`
 aggregate but never surfaces per-rule here — the ledger read runs only in this view and never
 influences a verdict. A `files` column appears after `wrong-rule` only once `coverage.type_level`
-is on: how many distinct type-covered files — files enforced by the aspect's architecture type
-alone, with no owning component — have a review pair for the rule. With the tier off, the column
+is on: how many distinct type-covered files (no owning component) have a review pair for the rule.
+With type-level coverage off, the column
 is absent entirely (not a column of zeros or dashes) — the question was never asked, so no cell
-claims an answer. With the tier on, the count is real and may legitimately read `0`. `nodes` above
+claims an answer. With it on, the count is real and may legitimately read `0`. `nodes` above
 counts only real components, but `pairs` and `refused` already count node-owned and type-covered
 pairs together, matching the same universe `yg check` reports on — `files` is that breakdown, not
 a separate universe. When
@@ -1126,7 +1126,7 @@ never calls a reviewer.
 #### `yg aspects --json` {#yg-aspects-json}
 
 The rule inventory as one `yg-aspects/1` document: each rule's id, name and
-description, its reviewer kind and tier, its status, its standing review date,
+description, its rule kind and tier, its status, its `review_by:` date,
 its error direction, what it implies, how many places it reaches (a split into
 `own` / `architecture` / `flow` / `inherited` (declared on an ancestor, or on an
 ancestor's type) / `port` / `implied` (reached only through another rule's
@@ -1160,8 +1160,8 @@ yg aspects --health --json
 ```
 
 `--reach` adds a `reach.units` array to every rule: each subject it actually
-judges, as `unit` (`kind` plus `path`), the `node` that owns it (null for a file
-governed by its architecture type alone), the `status` it is judged under there,
+judges, as `unit` (`kind` plus `path`), the `node` that owns it (null for a
+type-covered file), the `status` it is judged under there,
 and the channel it arrived through — `via` (`own`, `hierarchy`, `architecture`,
 `flow`, `port`, `implied`, `type`) with `from` naming the ancestor, type, flow,
 port or implying rule it came from. `usage` counts those places; this names them.
@@ -1174,11 +1174,11 @@ listed with the units they reach, which the gate's pair list cannot show, since 
 draft pair is not judged and so never appears there: a rule that reaches nothing
 and a rule not yet judging the ten subjects it reaches are different facts, and an
 empty `units` only ever means the first. A bundle always reports `units: []` — it
-has no reviewer of its own; each rule it implies carries its own reach.
+has no verdict of its own; each rule it implies carries its own reach.
 
 `usage` and `reach` are not the same tally, and neither checks the other:
 `usage` counts components a rule is effective on, while `units` lists the review
-pairs it produces — one per subject file for a file-scoped rule, and none at all
+pairs it produces — one per subject file for a `per: file` rule, and none at all
 on a component whose subject set for that rule is empty, which is a vacuous pass
 the gate expects no verdict for.
 
@@ -1198,7 +1198,7 @@ their flags differ:
 |---|---|---|
 | Which log | `--node <path>` | `--aspect <id>` |
 | Entry text | `--reason` / `--reason-file` | `--reason` / `--reason-file` |
-| Standing change | — | `--status`, with `--evidence` and `--by` |
+| Status change | — | `--status`, with `--evidence` and `--by` |
 | How many to read | `--top <n>` (default 10) or `--all` | `--top <n>` (alias `--limit <n>`) or `--all` (default: the whole history, which is what other tools reading `--json` expect) |
 | Machine output | — | `--json` (one `yg-aspect-log/1` document) |
 | Verification events | `--with-verdicts` | — |
@@ -1212,16 +1212,16 @@ yg aspects log read --aspect no-raw-sql --top 5
 yg aspects log read --aspect no-raw-sql --json   # one yg-aspect-log/1 document
 ```
 
-`--status` **records** a change of standing; it does not make one. The rule's own
-file stays yours to edit, so the command refuses a standing the file does not
+`--status` **records** a change of status; it does not make one. The rule's own
+file stays yours to edit, so the command refuses a status the file does not
 already carry — a history that claimed a change nobody made would be worse than
 none. Recording one requires `--evidence`: what justified the move is the part
 nobody can reconstruct a year later. Where it moved *from* is taken from the
-rule's own history, or failing that from the standing the tool last saw; when
+rule's own history, or failing that from the status the tool last saw; when
 neither knows, the entry says so rather than guessing.
 
-**A standing changed by hand is noticed.** `yg check` reports a rule standing
-somewhere other than where the tool last saw it — a warning, never a failure,
+**A status changed by hand is noticed.** `yg check` reports a rule whose status
+differs from the one the tool last saw — a warning, never a failure,
 because moving a rule is not a violation of anything — and the next
 `yg check --approve` writes the bare fact into that rule's log and stops
 mentioning it. A change you recorded yourself is never written a second time.
@@ -1268,22 +1268,22 @@ the last two are whole-codebase observations:
 3. **A rule effective nowhere** — it ships a rule source and is not draft, yet lands on no component.
 4. **An orphaned rule** — nothing references it at all.
 5. **A rule past its `review_by:` date** — it is running unreviewed.
-6. **Promote a clean-record advisory rule** — it has approvals and no refusals while advisory.
+6. **Promote a clean-record advisory rule** — it has passing verdicts and no refusals while advisory.
 7. **Sharpen an inconsistently-judged rule** — the reviewer disagrees with itself on it.
 8. **A rule that has never once caught a violation** — reported as *possibly deterring* what it would catch, never assumed useless.
-9. **An uncovered hot spot** — a component whose files change often yet no rule beyond drafts covers them (an advisory rule counts as covering): the code most in motion with the least protection.
-10. **A churning file the type tier alone carries** — with `coverage.type_level` on, a file with a matched architecture type but no component of its own has no node-level rule that can ever attach to it. This proposes giving such a file a component once TWO conditions both hold: it appears in at least two of the last 200 commits — the window this reads from git history; a file whose edits fall outside that window, or whose history is hidden by a rename or a merge, reads as unchanged here even though it was genuinely edited — and its matched type genuinely enforces something on it — a file whose matched type enforces nothing is simply uncovered, not carried by the type tier, so it does not appear here either. Within this class, items are ranked by how much they have churned — the busiest file first, never alphabetically. Two or more such files of the same type that import each other, both meeting these same two conditions, upgrade the evidence from one busy file to a cluster naming every file in it. On a shallow clone or a directory with no git history at all, this class reads as nothing to report rather than as no churn: there is no history to count from, so it stays silent rather than guessing — the same honest silence a CI checkout with a truncated fetch depth sees by default.
-11. **A candidate rule family** — see below.
+9. **An unguarded hot spot** — a component whose files change often yet no rule beyond drafts guards them (an advisory rule counts as guarding): the code most in motion with the least protection.
+10. **A churning type-covered file** — with `coverage.type_level` on, a type-covered file (a matched architecture type but no component of its own) has no `per: node` rule that can ever attach to it. This proposes giving such a file a component once TWO conditions both hold: it appears in at least two of the last 200 commits — the window this reads from git history; a file whose edits fall outside that window, or whose history is hidden by a rename or a merge, reads as unchanged here even though it was genuinely edited — and its matched type genuinely enforces something on it — a file whose matched type enforces nothing is simply unguarded, not carried by type-level coverage, so it does not appear here either. Within this class, items are ranked by how much they have churned — the busiest file first, never alphabetically. Two or more such files of the same type that import each other, both meeting these same two conditions, upgrade the evidence from one busy file to a cluster naming every file in it. On a shallow clone or a directory with no git history at all, this class reads as nothing to report rather than as no churn: there is no history to count from, so it stays silent rather than guessing — the same honest silence a CI checkout with a truncated fetch depth sees by default.
+11. **A look-alike group** — see below.
 12. **An architecture cut** — see below.
 
-The lowest-priority suggestions include two whole-codebase observations: a **candidate rule
-family** — a tight group of near-identical files with no law of their own, offered with a
+The lowest-priority suggestions include two whole-codebase observations: a **look-alike
+group** — a tight group of near-identical files with no rule of their own, offered with a
 ready-to-refine scope pattern (the rationale is always yours to supply) and shown only while its
-file is fresh. Each producer writes its own `.family-candidates.<producer>.json` in `.yggdrasil/`:
+file is fresh. Each producer writes its own `.family-candidates.<producer>.json` in `.yggdrasil/` (the file name keeps an older term):
 `grain propose` writes `.family-candidates.grain.json` into its proposal, so `yg adopt` carries it
 in, and Yggdrasil's offline structural-clustering pass (not part of the installed package) writes
 `.family-candidates.yggdrasil-miner.json`. Each suggestion says which producer measured it and what
-"without a law" meant to that producer; only the miner checks that the fitted scope leaves every
+"without a rule" meant to that producer; only the miner checks that the fitted scope leaves every
 other file out. The class stays silent while no such file exists; its absence is not an error. And an
 **architecture cut** — two or more module groups that depend on each other in a loop, read
 straight from the committed graph's declared dependencies (reproducible on any machine),
@@ -1302,8 +1302,8 @@ yg advise import proposals.json                        # take in another tool's 
 ```
 
 `--reason` is mandatory (recorded precedent must carry a human-signed justification). Decisions
-are written one per line to `.yggdrasil/advise-decisions.jsonl`, which is **committed** (case
-law — honored on every clone) and carries a `merge=union` attribute so branches merge cleanly.
+are written one per line to `.yggdrasil/advise-decisions.jsonl`, which is **committed** (recorded
+precedent — honored on every clone) and carries a `merge=union` attribute so branches merge cleanly.
 Dismissing or deferring is human-signature territory, the same authorization class as
 `yg-suppress`: the agent records a decision only on your explicit instruction, with your reason.
 `yg advise` always exits 0 on a loadable graph; it never changes a verdict, the lock, or whether
@@ -1359,7 +1359,7 @@ The incident ledger — a committed record of what escaped enforcement and how i
 surfaced. It is the one signal that comes from **outside** the graph: everything else
 the tool reports is the graph reasoning about itself, while an incident is a person
 writing down a real miss — a concern that shipped with no rule, a rule that fired on
-the wrong thing, a reviewer that could not see what mattered, a lone judge that missed
+the wrong thing, a reviewer that could not see what mattered, a lone reviewer that missed
 what a panel would have caught, or a gap that was not about enforcement at all.
 
 ```bash
@@ -1604,7 +1604,7 @@ yg schemas read node
 |------------------------------------------------------------------|---------------------------------------|
 | `yg aspect-test --aspect <id> --node <path>` / `--file <path>` / `--files <paths...>` | Run an aspect of either kind on demand; never writes the lock |
 | `yg drill --aspect <id>` / `add`                                 | Replay a rule over its `drills/` case corpus (`violates-*` must refuse, `satisfies-*` must pass); `add` takes a real file at a commit into that corpus. Never writes the lock |
-| `yg simulate <candidate> --node <path>` / `--file <path>`        | Replay a deterministic rule over reachable history in an isolated clone; read-only, exits 0 |
+| `yg simulate <candidate> --node <path>` / `--file <path>`        | Replay a script rule over reachable history in an isolated clone; read-only, exits 0 |
 
 ### `yg drill`
 
@@ -1624,8 +1624,8 @@ yg drill --aspect no-direct-minimatch --json       # one yg-drill/1 document
 Each case resolves to `pass`, `MISS` (a `violates-*` case the rule failed to
 refuse), `FALSE-ALARM` (a `satisfies-*` case wrongly refused), `unrun` (infra —
 a check error or an over-limit prompt), or `unsupported` (the rule needs context
-a single-file drill cannot supply). Deterministic drills run locally and free; an
-LLM aspect goes through the real reviewer and bills it (the call budget prints
+a single-file drill cannot supply). Script rules drill locally and free; a
+reviewer rule goes through the real reviewer and bills it (the call budget prints
 first). Exit `1` on any MISS/FALSE-ALARM, else `2` on any unrun, else `0`.
 
 `--json` prints one `yg-drill/1` document instead of the case lines: `aspect`,
@@ -1636,20 +1636,20 @@ first). Exit `1` on any MISS/FALSE-ALARM, else `2` on any unrun, else `0`.
 corpus is a document with `total: 0`, exit `0`. The reviewer budget line goes to
 stderr, and the sidecars are written as in a text run.
 
-`--nodeless` assembles every LLM case's prompt WITHOUT a node — the shape a
-real file enforced by its architecture type alone (no owning component)
+`--nodeless` drills as a type-covered file: it assembles every reviewer-rule case's prompt WITHOUT a node — the shape a
+real [type-covered file](/glossary#type-covered) (no owning component)
 receives from the reviewer, instead of the default synthetic node every other
-drill case carries. It has no effect on a deterministic aspect (its check runs
+drill case carries. It has no effect on a script rule (its check runs
 over case files regardless).
 
 Failure output shows only the case label, content hashes, and pass/fail — never
 the case source. `yg drill` writes to two gitignored sidecars and never to the
 verification lock: every case appends to the local results log
 (`.yggdrasil/.drill-results.jsonl`), which is what lets the attention feed notice
-later that a rule has stopped catching one of its own cases, and each LLM case
+later that a rule has stopped catching one of its own cases, and each reviewer-rule case
 that actually reached the reviewer additionally appends one verdict event
-(`source: 'drill'`) to `.yggdrasil/.yg-events.jsonl`. Deterministic cases, and an
-LLM case stamped `unsupported`, emit no verdict event. Keeping a corpus for every
+(`source: 'drill'`) to `.yggdrasil/.yg-events.jsonl`. Script-rule cases, and a
+reviewer-rule case stamped `unsupported`, emit no verdict event. Keeping a corpus for every
 enforced rule is a convention, not a requirement — a missing corpus never blocks
 `yg check`.
 
@@ -1681,7 +1681,7 @@ rule itself, so the reason a case exists travels with the rule instead of living
 in one commit message; when you give no reason the log says so rather than
 inventing one.
 
-The case keeps the path the file had in the repository: `src/search/query.ts` is stored as `drills/<case>/src/search/query.ts`, and the rule drilled over it sees `src/search/query.ts` — in `ctx.files[].path` for a script rule, in the prompt for a judgment rule. A rule anchored on a path prefix therefore drills the way it runs in `yg check`.
+The case keeps the path the file had in the repository: `src/search/query.ts` is stored as `drills/<case>/src/search/query.ts`, and the rule drilled over it sees `src/search/query.ts` — in `ctx.files[].path` for a script rule, in the prompt for a reviewer rule. A rule anchored on a path prefix therefore drills the way it runs in `yg check`.
 
 **A rule that does not catch its own escape exits non-zero and the case stays.**
 That is the point: the case sits in the corpus, failing, until the rule is
@@ -1699,16 +1699,16 @@ reached — is taken back out, because an unmeasurable fixture is worse than non
 
 ### `yg aspect-test`
 
-Runs a single aspect — deterministic or LLM — against a node, a file enforced by
-its architecture type alone (no owning component), or an explicit file list, and
+Runs a single aspect — script rule or reviewer rule — against a node, a type-covered
+file (no owning component), or an explicit file list, and
 prints the result. It is a **diagnostic**: it always runs live and never
 writes the lock, so use it freely while authoring a rule. Every run carries a
 one-line verdict stamp `yg aspect-test: satisfied|refused|incomplete|dry-run` —
-leading on deterministic runs, as a trailing summary after the per-unit verdict
-lines on LLM runs (`incomplete` means some unit could not be verified — fail
+leading on script-rule runs, as a trailing summary after the per-unit verdict
+lines on reviewer-rule runs (`incomplete` means some unit could not be verified — fail
 closed, exit 1). Every run that produces a result ends with `diagnostic only —
-lock unchanged; yg check judges the lock against your files, not this run`. On an
-LLM run against a tier with `consensus` greater than 1, each per-unit line also
+lock unchanged; yg check judges the lock against your files, not this run`. On a
+reviewer-rule run against a tier with `consensus` greater than 1, each per-unit line also
 carries the vote split — `[votes 2/3]` — how many of the review passes were
 satisfied, so a bare-majority verdict is visible as such rather than hidden
 behind the aggregate.
@@ -1733,26 +1733,26 @@ yg aspect-test --aspect <id> --node <node-path> --tier <name>
   `ctx` (its own files plus, via declared relations, related nodes' files and metadata). The
   allow-list is a read *discipline* that scopes which files count as observations — not a
   security sandbox; `check.mjs` runs with full Node privileges.
-- `--file <path>` — Run against a file enforced by its architecture type alone (`coverage.type_level`,
+- `--file <path>` — Run against a type-covered file (`coverage.type_level`,
   no owning component), with an architecture-derived read allowance in place of a node mapping: what
   the matched type's `relations:` allow-list permits it to depend on, computed the same way a live
   `check --approve` fill computes it for this kind of unit. Refused when the path already has a
   component (use `--node` instead) or does not classify to exactly one non-strict architecture type
   (the refusal names which). Mutually exclusive with `--node` and `--files`.
 - `--files <paths...>` — Run against an explicit file list with **no graph attachment at all**
-  (deterministic aspects only) — no node mapping, no architecture classification, no `ctx.node` /
+  (script rules only) — no node mapping, no architecture classification, no `ctx.node` /
   `ctx.graph`. Useful for ad-hoc testing before wiring the aspect into the graph. Do not confuse with
   `--file` (singular): that one *is* graph-attached, to a file's architecture type.
-- `--check-determinism` — (deterministic) Runs the check twice and exits 1 if the violation
+- `--check-determinism` — (script rules) Runs the check twice and exits 1 if the violation
   sets differ (lexically sorted), catching side effects and machine-dependence in `check.mjs`.
-- `--dry-run` — (LLM) Runs the companion hook live (if present), then prints the resolved companion
+- `--dry-run` — (reviewer rules) Runs the companion hook live (if present), then prints the resolved companion
   paths and the assembled reviewer prompt(s) for the aspect's scope. Makes no LLM calls and does
   not touch the lock. The sanctioned way to inspect a prompt — including which companion files
   resolved — before switching an aspect to `per: file`. Never available with `--files`, companion
-  or not: `--dry-run` applies to LLM aspects only and `--files` to deterministic aspects only, so
-  the two can never be combined — the refusal you actually get names that reviewer-type mismatch,
+  or not: `--dry-run` applies to reviewer rules only and `--files` to script rules only, so
+  the two can never be combined — the refusal you actually get names that rule-kind mismatch,
   before any question of node context arises.
-- `--repeat <N>` — (LLM only, N ≥ 2) Re-runs each unit N times against the identical prompt and
+- `--repeat <N>` — (reviewer rules only, N ≥ 2) Re-runs each unit N times against the identical prompt and
   prints a per-unit `stability: k/N satisfied` line — how often the reviewer returned the same
   verdict. Each run is forced to a single vote, so the figure measures the reviewer's raw
   self-consistency, **not** correctness: a rule can be consistently wrong, and `3/3 satisfied` says
@@ -1764,36 +1764,36 @@ yg aspect-test --aspect <id> --node <node-path> --tier <name>
   named by every refusal` line follows — a steady refusal can still name a different list of
   violations each run, and when fewer than half of them recur the output says to sharpen the rule
   before fixing code to a list that moves. Rejected with `--dry-run`, with `--files`, and for
-  deterministic aspects (already exactly reproducible — use `--check-determinism` there).
-- `--tier <name>` — (LLM only, with `--node` or `--file`) Re-runs the same pairs under a named reviewer tier
+  script rules (already exactly reproducible — use `--check-determinism` there).
+- `--tier <name>` — (reviewer rules only, with `--node` or `--file`) Re-runs the same pairs under a named reviewer tier
   from the merged config (`yg-config.yaml` plus the local `yg-secrets` overlay), **overriding** the
   tier the aspect would normally resolve — the dry-fit for "does this still pass under the model
   I'm about to switch to?" Diagnostic only: no graph edits, no lock writes. An unknown tier name is
-  an error listing the tiers that exist. Rejected with `--files` and for deterministic aspects, and
+  an error listing the tiers that exist. Rejected with `--files` and for script rules, and
   may combine with `--repeat` (each of the N runs then goes through the chosen tier).
 
-Every LLM `aspect-test` run that actually calls the reviewer records one line of **local
+Every reviewer-rule `aspect-test` run that actually calls the reviewer records one line of **local
 diagnostic telemetry** (`.yg-events.jsonl`, gitignored) — which reviewer judged the unit and how
 it voted, with a hash of the exact prompt it judged. A plain `--node` run, `--repeat`, and `--tier`
 all record alike; `--repeat` just adds one line per repeated run and `--tier` re-points which
 reviewer is recorded (`--dry-run` makes no reviewer call, so it records nothing). `yg advise`
 counts a split vote only across lines with the same prompt hash and reviewer, so refusing, fixing
-the code and passing reads as two inputs judged consistently, not as an ambiguous rule. It is write-only observability for later judge-stability and
+the code and passing reads as two inputs judged consistently, not as an ambiguous rule. It is write-only observability for later reviewer-stability and
 model-swap analysis; nothing in `yg check` ever reads it back, and the lock is never touched.
 
-For a deterministic aspect it runs `check.mjs` and prints violations. For an LLM
-aspect it runs the reviewer (or just prints the prompt under `--dry-run`). Exits 0
+For a script rule it runs `check.mjs` and prints violations. For a reviewer
+rule it runs the reviewer (or just prints the prompt under `--dry-run`). Exits 0
 when clean, 1 when violations or refusals are found — or when a unit could not be
 verified at all (fail closed, stamped `incomplete`).
 
-When `yg aspect-test` repeatedly approves what the lock has refused, the rule text
+When `yg aspect-test` repeatedly passes what the lock has refused, the rule text
 is ambiguous — sharpen `content.md` (which re-verifies every pair of the aspect; check
 `yg impact --aspect` first) or propose a suppress. There is deliberately no command
 to drop or re-roll a recorded verdict.
 
 ### `yg simulate`
 
-Replays a candidate **deterministic** rule over the history it can honestly reach —
+Replays a candidate **script** rule over the history it can honestly reach —
 "if I had shipped this rule, what would it have caught?" It replays the candidate's
 `check.mjs` over recent commits in an **isolated temp clone**, one fresh subprocess
 per commit, strictly read-only: your working tree is left byte-for-byte unchanged.
@@ -1805,12 +1805,12 @@ yg simulate <candidate> --file <path>                      # replay over one typ
 ```
 
 - `<candidate>` — Required. The id of an aspect in this project that ships a
-  `check.mjs`. An LLM- or companion-reviewed candidate is refused up front: a
+  `check.mjs`. A reviewer rule (with or without a companion) is refused up front as a candidate: a
   language-model verdict is point-in-time testimony, not a reproducible replay — use
-  `yg drill` to test an LLM rule's falsifiability instead.
+  `yg drill` to test a reviewer rule's falsifiability instead.
 - `--node <path>` / `--file <path>` — Exactly one is required. `--node` names the
   node whose files the candidate replays over at each commit. `--file` names a
-  file that its architecture type alone enforces (no owning node): the replay
+  type-covered file (no owning node): the replay
   runs over that file's content at each commit, classified against the
   architecture as it is today, so the rule and its attachment are today's and
   only the code is history.
@@ -1876,7 +1876,7 @@ reviewer only and leaves the rules files untouched.
 **Fresh repo (no `.yggdrasil/` yet):**
 
 ```bash
-yg init --provider <name> [--model <m>] [--endpoint <url>]   # non-interactive bootstrap with a judge
+yg init --provider <name> [--model <m>] [--endpoint <url>]   # non-interactive bootstrap with a reviewer
 yg init --no-reviewer                                        # non-interactive bootstrap with none
 ```
 
@@ -1887,7 +1887,7 @@ interactive wizard offers the same choice as its last provider option ("None
 for now"), and a bare non-interactive run (no `--provider`, no `--no-reviewer`,
 no TTY) takes that route by itself, since there is nobody to prompt. Add
 `--provider` (same command, or later against the now-existing repo) once the
-graph gains its first judgment (LLM) rule.
+graph gains its first reviewer rule.
 
 `--no-reviewer` is rejected with an explanation when combined with
 `--provider` / `--model` / `--endpoint` (they ask for opposite things), with
@@ -1898,7 +1898,7 @@ never removes a reviewer an existing one configured.
 **Existing repo:**
 
 ```bash
-yg init --provider <name> [--model <m>] [--endpoint <url>]   # configure/replace the judge
+yg init --provider <name> [--model <m>] [--endpoint <url>]   # configure/replace the reviewer
 yg init --upgrade                                             # refresh agent rules
 ```
 
@@ -1970,7 +1970,7 @@ and the exit code is 0. No network call is made. An existing `yg-config.yaml`
 keeps its comments and formatting: only the `reviewer:` section is written.
 
 `yg init` also maintains a `.gitattributes` entry marking the committed lock files
-as generated (`linguist-generated=true`), adds the gitignored deterministic cache
+as generated (`linguist-generated=true`), adds the gitignored script-rule cache
 (`.yg-lock.deterministic.json`) to `.yggdrasil/.gitignore`, and writes
 `max_prompt_chars: 50000` into the generated reviewer tier.
 
@@ -1993,7 +1993,7 @@ never edits your configuration. See [Coverage](/configuration#coverage-config).
 
 `--upgrade` names every file it touched: the rules files it rewrote, and any
 line it appended to `.yggdrasil/.gitignore` or `.gitattributes` (for example
-the family-candidates ignore lines a 6.0.0 project lacks). It says "nothing
+the look-alike group (`.family-candidates.*`) ignore lines a 6.0.0 project lacks). It says "nothing
 changed" only when that is true.
 
 ### `yg adopt`
@@ -2162,7 +2162,7 @@ Machine-readable documents `yg pack` and `yg marketplace` read and write:
 
 Publishes rules from this repository. A marketplace is an ordinary git repository
 with `yg-marketplace.yaml` at its root — it needs no `.yggdrasil/` of its own,
-because it publishes law rather than enforcing any, and neither subcommand loads
+because it publishes rules rather than enforcing any, and neither subcommand loads
 a graph or asks you to create one. Full guide: [Packages](/packages).
 
 ```bash
@@ -2180,7 +2180,7 @@ yg marketplace check
   every rule loading under the loader a consumer will use, every `implies` inside
   its own package, every setting read declared and every setting declared read,
   and portability — no review date, no reference path, no folder-anchored file
-  filter, and a pair of drill cases on every deterministic rule. Each finding
+  filter, and a pair of drill cases on every script rule. Each finding
   carries its own code; `yg knowledge read packages-and-marketplaces` lists what
   each one means.
 

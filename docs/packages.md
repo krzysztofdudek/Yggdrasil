@@ -3,7 +3,7 @@ title: Packages
 ---
 
 A package is a set of rules published by one repository and installed into
-another. You take someone else's law, you keep taking their improvements, and
+another. You take someone else's rules, you keep taking their improvements, and
 you tune it to your repository without ever editing what they wrote.
 
 There is no registry. A marketplace is an ordinary git repository with a
@@ -151,11 +151,11 @@ config:
 | Adaptable | What it does |
 |---|---|
 | `scope` | review granularity — `per: file`, a `files` filter |
-| `reviewer` | which tier reviews it — LLM rules only |
+| `reviewer` | which tier reviews it — reviewer rules only |
 | `review_by` | when you want to re-examine whether it still earns its place |
-| `references` | supporting files for the reviewer — LLM rules only, see below |
+| `references` | supporting files for the reviewer — reviewer rules only, see below |
 | `status` | `draft` / `advisory` / `enforced` |
-| `companion` | a repo-relative path to *your* companion module, instead of the package's — LLM rules only |
+| `companion` | a repo-relative path to *your* companion module, instead of the package's — reviewer rules only |
 | `config` | the settings the rule reads (see below) |
 
 The stub offers only the keys that mean something for its rule: a rule with a
@@ -176,7 +176,7 @@ and an update that changes that default tells you it is shadowing it.
 
 ### The rule's history
 
-A rule's history — a change of standing noticed by `yg check --approve`, an
+A rule's history — a change of status noticed by `yg check --approve`, an
 entry written with `yg aspects log add` — lives in `log.md` beside a rule of your
 own. An installed rule's directory is the package's copy and holds nothing the
 package did not ship, so its history is written beside the adaptation instead,
@@ -187,18 +187,18 @@ A rule's regression cases (`drills/`) are part of the package. `yg drill add` on
 an installed rule is refused: send the case to its author, so it ships with the
 next version.
 
-### `references` is for LLM rules; `ctx.config` is for the rest
+### `references` is for reviewer rules; `ctx.config` is for the rest
 
-`references:` is adaptable, but it only means anything on a rule an LLM reviews:
-reference files are supporting material put in front of the reviewer. A rule with
-a `check.mjs` has no reviewer to put anything in front of, so declaring
+`references:` is adaptable, but it only means anything on a reviewer rule:
+reference files are supporting material put in front of the reviewer. A script rule
+(one with a `check.mjs`) has no reviewer to put anything in front of, so declaring
 `references:` on one is refused — in an adaptation exactly as in the rule's own
 file, because an adaptation is merged in *before* the rule is validated and does
 not bypass anything. The refusal names the adaptation, the one file of the rule
 that is yours to change.
 
 That is the design line, not an oversight: **`ctx.config` is the way a
-deterministic rule is parameterized, and the only way.** It is also the better
+script rule is parameterized, and the only way.** It is also the better
 one. A setting a rule reads becomes part of that rule's verdict (below), so
 changing it re-opens exactly the verdicts it could have changed — something a
 reference file could not offer.
@@ -261,7 +261,7 @@ beside them — are carried across byte for byte.** Rules whose content actually
 changed go back to unverified, and `yg check --approve` judges them again; rules
 that did not change keep their verdicts. Before it swaps anything in, `update`
 says what the new version changes about each rule: rules added and removed, a
-change of standing (a `draft` rule that is now `enforced`), a change to what a
+change of status (a `draft` rule that is now `enforced`), a change to what a
 rule implies or to its scope, which of its files changed, and every setting that
 was added, removed, or got a new default — including one your adaptation sets.
 
@@ -351,7 +351,7 @@ yg pack remove house-style
 The rules, their adaptations and the record go. It refuses while anything in
 your graph still names one of the rules — a component, one of its ports, a type,
 a flow, or a rule of your own that `implies:` one — listing what does: removing
-law something still names makes every check fail on dangling names rather than
+rules something still names makes every check fail on dangling names rather than
 on anything real. Detach first, then remove.
 
 ## Running a pack command from anywhere
@@ -443,7 +443,7 @@ and their `--reinstall` refuses it.
 
 Every directory in a package must be declared in `aspects:`, and every declared
 one must exist. An undeclared rule directory would arrive in someone's repository
-as law nobody announced; a declared one that is missing would install as a rule
+as rules nobody announced; a declared one that is missing would install as a rule
 they can attach and that can never run.
 
 ## Authoring a package
@@ -482,7 +482,7 @@ that really does mean one named tier is a thing you are allowed to publish.
 bare directory name, never a full path. A package may not imply anything outside
 itself.
 
-**The proof it ships with.** A deterministic rule needs at least one
+**The proof it ships with.** A script rule needs at least one
 `drills/violates-…/` case and one `drills/satisfies-…/` case. Those two are the
 only thing that shows a consumer what the rule refuses and what it allows, before
 they trust it.

@@ -48,19 +48,19 @@ const distExists = existsSync(BIN_PATH);
 // from the pre-`--health` binary. The default path must stay byte-identical.
 const DEFAULT_ASPECTS_GOLDEN =
   'has-doc-comment [enforced] — Every source file must begin with a documentation comment describing the file\'s purpose.\n' +
-  '  Reviewer: llm — tier: (default)\n' +
+  '  Kind: reviewer rule — tier: (default)\n' +
   '  Used by: 2 nodes (architecture: 2)\n' +
   '\n' +
   'no-todo-comments [enforced] — Source files must not contain TODO comments — track work in the issue tracker, not the code.\n' +
-  '  Reviewer: deterministic\n' +
+  '  Kind: script rule\n' +
   '  Used by: 2 nodes (architecture: 2)\n' +
   '\n' +
   'requires-named-export [advisory] — Each source file should expose at least one named export so it can be consumed as a module.\n' +
-  '  Reviewer: deterministic\n' +
+  '  Kind: script rule\n' +
   '  Used by: 2 nodes (architecture: 2)\n' +
   '\n' +
   'wip-rule [draft] — Work-in-progress rule that is not ready for judgment yet — kept draft so the reviewer skips it.\n' +
-  '  Reviewer: deterministic\n' +
+  '  Kind: script rule\n' +
   '  Used by: 1 node (direct: 1)\n';
 
 function run(args: string[], cwd: string): { stdout: string; stderr: string; status: number | null; all: string } {
@@ -195,7 +195,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
 
       // no-todo-comments: one hash-valid refusal (orders), one approved (payments).
       const noTodo = healthRow(out, 'no-todo-comments');
-      expect(noTodo[COL.kind]).toBe('deterministic');
+      expect(noTodo[COL.kind]).toBe('script rule');
       expect(noTodo[COL.status]).toBe('enforced');
       expect(noTodo[COL.nodes]).toBe('2');
       expect(noTodo[COL.pairs]).toBe('2');
@@ -216,7 +216,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspects --health (C3 slice 1)', () 
 
       // has-doc-comment: LLM pair never filled ⇒ unverified, NEVER 0.
       const hasDoc = healthRow(out, 'has-doc-comment');
-      expect(hasDoc[COL.kind]).toBe('llm');
+      expect(hasDoc[COL.kind]).toBe('reviewer rule');
       expect(hasDoc[COL.refused]).toBe('unverified');
       expect(hasDoc[COL.refused]).not.toBe('0');
     } finally {

@@ -9,8 +9,8 @@ process) propagates to **every participant** in that process. Here the rule is
 the payment, and the fulfillment step alike — even though it is declared exactly
 once, on the flow.
 
-This example is **keyless**: the rule is a *deterministic* aspect (a local
-`check.mjs`, no LLM, no API key). Its verdict is filled for free by
+This example is **keyless**: the rule is a *script rule* (a local
+`check.mjs`, no reviewer, no API key). Its verdict is filled for free by
 `yg check --approve --only-deterministic`.
 
 ## What is in the graph
@@ -21,8 +21,8 @@ This example is **keyless**: the rule is a *deterministic* aspect (a local
   Each step declares a `uses` relation to it (satisfying the built-in
   relation-conformance check, since each step imports `track`).
 - **One flow** — `checkout` (`.yggdrasil/flows/checkout/yg-flow.yaml`) whose
-  participants are the three step nodes, carrying the flow-level deterministic
-  aspect **`emits-telemetry`**.
+  participants are the three step nodes, carrying the flow-level script
+  rule **`emits-telemetry`**.
 - **The rule** — `.yggdrasil/aspects/emits-telemetry/check.mjs` scans each step's
   source for a `track(` call. Present → pass; absent → refuse. Because the aspect
   sits on the flow, it reaches all three participants (channel 5).
@@ -34,7 +34,7 @@ Run everything with this example directory as the working directory:
 ```bash
 cd examples/checkout-flow
 
-# 1. Fill the deterministic verdicts for free (no API key, no LLM):
+# 1. Fill the script verdicts for free (no API key, no reviewer):
 node ../../source/cli/dist/bin.js check --approve --only-deterministic
 
 # 2. Verify — should print PASS and exit 0:
@@ -47,7 +47,7 @@ Expected final output:
 yg check: PASS  4 nodes · 9/9 files · 1 aspects · 1 flows · 3 verified (3 deterministic, 0 LLM)
 ```
 
-> On a fresh clone, step 1 is required: the deterministic verdict lives in the
+> On a fresh clone, step 1 is required: the script verdict lives in the
 > gitignored `.yggdrasil/.yg-lock.deterministic.json`, so before the free fill a
 > plain `yg check` reports the three `emits-telemetry` pairs as *unverified*
 > (exit 1). The free fill turns them green.
@@ -90,7 +90,7 @@ Errors (1):
 
 ## Do not commit the cache
 
-The deterministic verdict cache (`.yggdrasil/.yg-lock.deterministic.json`) and
+The script verdict cache (`.yggdrasil/.yg-lock.deterministic.json`) and
 the AST cache (`.yggdrasil/.ast-cache/`) are rebuildable and **gitignored** (see
 `.yggdrasil/.gitignore`). They are recreated for free by
 `yg check --approve --only-deterministic`.

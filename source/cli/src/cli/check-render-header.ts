@@ -160,7 +160,7 @@ export function renderExternalJudgesNotice(result: CheckResult): string | undefi
     .sort((a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0))
     .map(([name, n]) => `${name} (${n})`);
   const total = [...counts.values()].reduce((a, b) => a + b, 0);
-  return `${total} verdict${total === 1 ? '' : 's'} in this report ${total === 1 ? 'was' : 'were'} recorded by a judge outside the configured reviewer: ${named.join(', ')}. Each is bound to the same content hashes any verdict is, and is re-proved here by hashing alone.`;
+  return `${total} verdict${total === 1 ? '' : 's'} in this report ${total === 1 ? 'was' : 'were'} recorded by a model other than the configured reviewer: ${named.join(', ')}. Each is bound to the same content hashes any verdict is, and is re-proved here by hashing alone.`;
 }
 
 /**
@@ -486,7 +486,7 @@ export function renderTypeVisibilityBlock(result: CheckResult, opts?: { countsOn
       for (const reasonLine of renderReasonGroups(droppedForDisplay)) lines.push(`      ${reasonLine}`);
     }
     for (const b of block.halfExpandedBundles) {
-      lines.push(`    ${b.bundleId}: file-level part applies; whole-unit part needs a component`);
+      lines.push(`    ${b.bundleId}: its per: file part applies; its per: node part needs a component`);
     }
     lines.push(`    ${describeChainTermination(block.chainTermination)}`);
   }

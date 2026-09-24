@@ -44,7 +44,7 @@ test.describe('§3a SHELL-panel — Node Attestation + global transitions', () =
     // The fixture's one aspect is deterministic + free, and the pair is unverified (not green).
     const aspRow = panel.locator('.pan-asprow').first();
     await expect(aspRow.locator('.pan-aspname')).toHaveText('no-todo-comments');
-    await expect(aspRow.locator('.pan-badge')).toContainText('deterministic');
+    await expect(aspRow.locator('.pan-badge')).toContainText('script rule');
     // The enforcement-level chip is present and reflects this rule's real status (enforced).
     await expect(aspRow.locator('.pan-status')).toHaveText('enforced');
     // The unverified caveat appears, status-aware: enforced blocks until reviewed.

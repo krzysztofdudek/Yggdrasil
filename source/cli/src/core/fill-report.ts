@@ -74,7 +74,7 @@ export function emitGroupedDiagnostics(
       const overflow = unitKeys.length > cap ? ` … and ${unitKeys.length - cap} more` : '';
       let what: string;
       if (kind === 'det') {
-        what = `Deterministic check '${aspectId}' failed to run on ${unitKeys.length} units — left unverified (aspect-check-runtime-error): ${listed}${overflow}`;
+        what = `Script rule '${aspectId}' failed to run on ${unitKeys.length} units — left unverified (aspect-check-runtime-error): ${listed}${overflow}`;
       } else if (kind === 'companion') {
         what = `Companion resolution for '${aspectId}' failed to run on ${unitKeys.length} units — left unverified (aspect-companion-runtime-error): ${listed}${overflow}`;
       } else if (kind === 'malformed-suppress') {

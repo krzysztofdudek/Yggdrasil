@@ -294,7 +294,7 @@ describe.skipIf(!distExists)('CLI E2E — conditional aspects (`when` predicate)
       //   payments → aspect not attached (and would be filtered) → TODO ignored.
       const fill = run(['check', '--approve'], dir);
       // The fill refuses exactly one pair (orders'), and the report names orders only.
-      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(fill.all).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
       expect(fill.all).not.toContain('no-todo-comments — 1 violation in services/payments');
 

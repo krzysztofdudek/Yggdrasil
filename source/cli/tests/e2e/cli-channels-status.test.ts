@@ -238,7 +238,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       // / "not blocking: ...") is replaced by the fill's non-blocking warning.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(fill.stdout).toContain('warning[refused] no-banned-word — 1 violation in services/orders');
       // The advisory violation renders as a warning[refused] block (non-blocking
       // is shown by the warning severity + PASS verdict). A second warning
@@ -327,7 +327,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       // Advisory via CH4 does NOT block the fill — exit 0, recorded-not-blocking.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(fill.stdout).toContain('warning[refused] no-banned-word — 1 violation in services/orders');
       // The advisory violation renders as a warning[refused] block (non-blocking
       // is shown by the warning severity + PASS verdict). A second warning
@@ -432,7 +432,7 @@ describe.skipIf(!distExists)('CLI E2E — status propagation on cascading channe
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
       // The fill's closing line counts the refusal.
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       // The enforced refusal is an error block naming the node.
       expect(fill.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
 

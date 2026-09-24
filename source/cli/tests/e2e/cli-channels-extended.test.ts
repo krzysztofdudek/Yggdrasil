@@ -460,7 +460,7 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       expect(refused.status).toBe(1);
       expect(refused.stdout).toContain('no-banned-word');
       // Fill-time progress goes to STDERR (its closing line counts the refusal); the report to STDOUT.
-      expect(refused.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(refused.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       // The refusal block (an error: enforced) names the node.
       expect(refused.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
     } finally {
@@ -583,7 +583,7 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       expect(fill.status).toBe(1);
       expect(fill.stdout).toContain('no-banned-word');
       // Fill-time progress goes to STDERR (its closing line counts the refusal); the report to STDOUT.
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       // The refusal block (an error: enforced) names orders.
       expect(fill.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
       // payments is gated out of the flow aspect — no no-banned-word pair is
@@ -681,7 +681,7 @@ describe.skipIf(!distExists)('CLI E2E — 7-channel `when` on cascading channels
       expect(refused.status).toBe(1);
       expect(refused.stdout).toContain('no-banned-word');
       // Fill-time progress goes to STDERR (its closing line counts the refusal); the report to STDOUT.
-      expect(refused.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(refused.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       // The refusal block (an error: enforced) names the node.
       expect(refused.stdout).toContain('error[refused] no-banned-word — 1 violation in services/orders');
     } finally {

@@ -913,11 +913,11 @@ describe.skipIf(!distExists)('buildNominations — the family nomination names i
   it("names Grain's oracle as data and does not claim the miner's narrow-rule criterion for it", async () => {
     const fam = await familyOf({ producer: 'grain', gate: 'no-certified-convention' });
     expect(fam.why).toContain("Measured by 'grain' under the gate 'no-certified-convention'.");
-    expect(fam.why).toContain("have no law under the gate 'no-certified-convention'");
+    expect(fam.why).toContain("have no rule under the gate 'no-certified-convention'");
     expect(fam.why).not.toContain('narrow-ancestor rule');
     // The WHAT line and the scope claim follow the same gate: Grain's answers "no certified
     // convention", not "no rule of their own", and Grain never checks non-members.
-    expect(fam.what).toContain("files have no law under the gate 'no-certified-convention'");
+    expect(fam.what).toContain("files have no rule under the gate 'no-certified-convention'");
     expect(fam.what).not.toContain('share no rule of their own');
     expect(fam.why).not.toContain('covers exactly them');
     expect(fam.why).toContain('selects them (its producer does not check that it leaves every other file out)');
@@ -1005,7 +1005,7 @@ describe.skipIf(!distExists)('yg advise — T2 family-without-law (spawned)', ()
     expect(status).toBe(0);
 
     // WHAT names the N member files as quoted data.
-    expect(stdout).toContain('A candidate rule family — 5 files share no rule of their own');
+    expect(stdout).toContain('A look-alike group — 5 files share no rule of their own');
     expect(stdout).toContain("'src/data/M0ARepository.ts'");
     expect(stdout).toContain("'src/data/M0ERepository.ts'");
 
@@ -1020,7 +1020,7 @@ describe.skipIf(!distExists)('yg advise — T2 family-without-law (spawned)', ()
     expect(stdout).toMatch(/for these 5 files, then supply the rationale — never invent it — and ask the user to approve it first\./);
 
     // Exactly one family item (one planted family).
-    expect((stdout.match(/A candidate rule family —/g) ?? []).length).toBe(1);
+    expect((stdout.match(/A look-alike group —/g) ?? []).length).toBe(1);
   });
 
   it('--ids shows the family stable id under the item', () => {
@@ -1033,7 +1033,7 @@ describe.skipIf(!distExists)('yg advise — T2 family-without-law (spawned)', ()
     rmSync(path.join(projectRoot, '.yggdrasil', '.family-candidates.json'));
     const { status, stdout } = run(['advise'], projectRoot);
     expect(status).toBe(0);
-    expect(stdout).not.toContain('candidate rule family');
+    expect(stdout).not.toContain('look-alike group');
   });
 });
 
@@ -1131,7 +1131,7 @@ describe.skipIf(!distExists)('yg advise — T2 shares the JOINT cap with T1 (non
     expect(status).toBe(0);
 
     const overdueShown = stdout.includes('is past its review_by date');
-    const familiesShown = (stdout.match(/A candidate rule family —/g) ?? []).length;
+    const familiesShown = (stdout.match(/A look-alike group —/g) ?? []).length;
     expect(overdueShown).toBe(true); // the T0 outranks every family
     // 13 total, cap 10 → 1 T0 + 9 families shown (NOT 1 + 10 = 11: the cap is joint).
     expect(familiesShown).toBe(9);
@@ -1141,7 +1141,7 @@ describe.skipIf(!distExists)('yg advise — T2 shares the JOINT cap with T1 (non
   it('--all lifts the cap and shows every family', () => {
     const { status, stdout } = run(['advise', '--all'], projectRoot);
     expect(status).toBe(0);
-    expect((stdout.match(/A candidate rule family —/g) ?? []).length).toBe(12);
+    expect((stdout.match(/A look-alike group —/g) ?? []).length).toBe(12);
   });
 });
 

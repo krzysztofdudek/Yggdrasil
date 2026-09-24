@@ -243,7 +243,7 @@ export async function handleRequest(
       if (approveInProgress(config.projectRoot)) {
         sendJson(res, 409, {
           error: 'approve-in-progress',
-          message: 'An approval is already running in this repository; wait for it to finish, then approve again.',
+          message: 'A fill is already running in this repository; wait for it to finish, then run it again.',
         });
         return;
       }

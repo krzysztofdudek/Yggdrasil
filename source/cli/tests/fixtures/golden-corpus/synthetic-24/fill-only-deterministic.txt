@@ -35,7 +35,7 @@ warning[uncovered] 4 files belong to no node — not under coverage.required, so
         .gitattributes
         AGENTS.md
         CLAUDE.md
-  why:  Not under a coverage.required root — visible but non-blocking. Bring an area under graph coverage to enforce it.
+  why:  Not under a coverage.required root — shown, but it never blocks.
   fix:  Map these files to a node, or add their root to coverage.required to make this an error.
 
 next: edit src/svc-03/index.ts:2  (refused — 10 errors need a code or graph fix)
@@ -43,5 +43,5 @@ then: yg check --approve  (24 reviewer pairs · paid)
 --- stderr
 fill  24 pairs · 24 script (free) · 0 reviewer calls
 fill  24 reviewer pairs left alone — script rules only this run
-fill  done in <DUR> — 16 approved · 8 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone
+fill  done in <DUR> — 16 passed · 8 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone
 next: yg check --approve  (reviews the pairs left alone)

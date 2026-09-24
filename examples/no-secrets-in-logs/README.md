@@ -4,9 +4,9 @@
 
 ## What this demonstrates
 
-A **deterministic aspect** (`no-secret-in-logs`): a local `check.mjs` that scans every logging call and refuses the node if a log statement references a forbidden secret/PII identifier — `password`, `apiKey`, `secret`, `token`, `pan`, `cardNumber`, `cvv`, or `ssn`. This is a real PCI-DSS concern: retained log lines are in audit scope, so credentials and cardholder data must never reach them.
+A **script rule** (`no-secret-in-logs`): a local `check.mjs` that scans every logging call and refuses the node if a log statement references a forbidden secret/PII identifier — `password`, `apiKey`, `secret`, `token`, `pan`, `cardNumber`, `cvv`, or `ssn`. This is a real PCI-DSS concern: retained log lines are in audit scope, so credentials and cardholder data must never reach them.
 
-The check runs **keyless and free** — no API key, no LLM. Its verdict is cached in the gitignored `.yggdrasil/.yg-lock.deterministic.json`, filled for free by `yg check --approve --only-deterministic`. On a fresh clone, that verdict does not exist yet, so plain `yg check` reports the pair as *unverified* (exit 1) until the free fill runs once.
+The check runs **keyless and free** — no API key, no reviewer. Its verdict is cached in the gitignored `.yggdrasil/.yg-lock.deterministic.json`, filled for free by `yg check --approve --only-deterministic`. On a fresh clone, that verdict does not exist yet, so plain `yg check` reports the pair as *unverified* (exit 1) until the free fill runs once.
 
 The realistic source logs only redacted values: a masked PAN (`maskedPan`) and generated ids (`chargeId`, `refundId`). The raw card fields stay out of every log call.
 
@@ -17,16 +17,16 @@ Run everything with this directory as the working directory. `yg` is invoked her
 ```bash
 cd examples/no-secrets-in-logs
 
-# 1. Fresh clone: the deterministic verdict is not cached yet, so this is red
+# 1. Fresh clone: the script verdict is not cached yet, so this is red
 #    (the logging-rule pairs are "unverified"). Exit 1.
 node ../../source/cli/dist/bin.js check
 
-# 2. Fill the deterministic verdict — free, keyless, local. Writes only the
+# 2. Fill the script verdict — free, keyless, local. Writes only the
 #    gitignored cache.
 node ../../source/cli/dist/bin.js check --approve --only-deterministic
 
 # 3. Now green. Plain check just re-hashes the cached verdict — still no key,
-#    no LLM. Exit 0.
+#    no reviewer. Exit 0.
 node ../../source/cli/dist/bin.js check
 ```
 
@@ -48,7 +48,7 @@ logger.info("charge.authorized", { chargeId, maskedPan });
 logger.info(`charge.authorized ${request.card.pan}`, { chargeId, maskedPan });
 ```
 
-Re-fill the deterministic verdict and check:
+Re-fill the script verdict and check:
 
 ```bash
 node ../../source/cli/dist/bin.js check --approve --only-deterministic
@@ -71,6 +71,6 @@ Restore the original line and re-run steps 2–3 to return to green.
 
 - `src/logger.ts` — tiny structured logger + `maskPan()` helper (a `library` node).
 - `src/charge.ts`, `src/refund.ts` — charge / refund use cases that log redacted values only (a `service` node that `uses` the logging library).
-- `.yggdrasil/aspects/no-secret-in-logs/` — the deterministic aspect (`yg-aspect.yaml` + `check.mjs`).
+- `.yggdrasil/aspects/no-secret-in-logs/` — the script rule (`yg-aspect.yaml` + `check.mjs`).
 - `.yggdrasil/model/logging/`, `.yggdrasil/model/payments/` — the two graph nodes mapping the source.
 - `.yggdrasil/yg-architecture.yaml`, `.yggdrasil/yg-config.yaml` — node types and (keyless) project config.

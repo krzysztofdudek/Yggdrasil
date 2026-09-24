@@ -13,20 +13,20 @@ import { createHash } from 'node:crypto';
 export const DIGEST_BODY = `## Yggdrasil
 
 This repository is managed by Yggdrasil — continuous architecture enforcement.
-An architecture graph in \`.yggdrasil/\` defines the rules; a reviewer verifies
+An architecture graph in \`.yggdrasil/\` defines the rules; the reviewer and local scripts verify
 source code against them, and \`yg check\` blocks CI whenever an enforced rule
 is violated or unverified.
 
 **Required first step:** run \`yg prime\` and follow the protocol it prints
 before making any change. The full, current operating manual comes from the
-installed CLI — this block is only the standing summary. If \`yg prime\` is not
+installed CLI — this block is only the short summary. If \`yg prime\` is not
 a recognized command, the installed Yggdrasil CLI predates this integration:
 update the \`@chrisdudek/yg\` package before proceeding.
 
 Non-negotiable invariants (they hold even before reading the manual):
 
 - Never write a \`yg-suppress\` marker without the user's explicit
-  confirmation. The reviewer honors suppressions unconditionally — an
+  confirmation. Every rule honors suppressions unconditionally — an
   unauthorized suppress silently disables a rule.
 - Never change a rule's \`review_by:\` date; renewing or retiring a rule is
   the user's decision.

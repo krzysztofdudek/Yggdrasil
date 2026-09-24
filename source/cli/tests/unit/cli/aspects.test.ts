@@ -220,25 +220,25 @@ describe('formatAspectsOutput', () => {
     expect(output).toContain('Used by: 1 node');
   });
 
-  it('shows Reviewer: deterministic for deterministic aspects', () => {
+  it('shows Kind: script rule for deterministic aspects', () => {
     const aspects = [makeAspect('async-fs', { reviewer: 'deterministic' })];
     const graph = makeGraph(aspects);
     const output = formatAspectsOutput(graph);
-    expect(output).toMatch(/Reviewer:\s*deterministic/);
+    expect(output).toMatch(/Kind:\s*script rule/);
   });
 
-  it('shows Reviewer: llm for aspects without explicit reviewer', () => {
+  it('shows Kind: reviewer rule for aspects without explicit reviewer', () => {
     const aspects = [makeAspect('posix-paths')];
     const graph = makeGraph(aspects);
     const output = formatAspectsOutput(graph);
-    expect(output).toMatch(/Reviewer:\s*llm/);
+    expect(output).toMatch(/Kind:\s*reviewer rule/);
   });
 
-  it('shows Reviewer: llm for aspects with explicit reviewer: llm', () => {
+  it('shows Kind: reviewer rule for aspects with explicit reviewer: llm', () => {
     const aspects = [makeAspect('explicit-llm', { reviewer: 'llm' })];
     const graph = makeGraph(aspects);
     const output = formatAspectsOutput(graph);
-    expect(output).toMatch(/Reviewer:\s*llm/);
+    expect(output).toMatch(/Kind:\s*reviewer rule/);
   });
 
   it('shows [enforced] tag when aspect has no explicit status', () => {

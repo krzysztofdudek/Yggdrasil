@@ -152,7 +152,7 @@ describe.skipIf(!distExists)('CLI E2E — port channel-6 enforcement / relation 
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0);
       // The consumer's charge-port pair fills clean (approved, no refusal).
-      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 0 refused · 0 failed/m);
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 0 refused · 0 failed/m);
       expect(fill.all).not.toContain('[refused]');
       const { status, all } = run(['check'], dir);
       expect(status).toBe(0);

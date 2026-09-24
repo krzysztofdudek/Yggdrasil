@@ -704,7 +704,7 @@ describe('impact command', () => {
         expect(result.status).toBe(0);
         // New cost block — substring-stable fragments.
         expect(result.stdout).toMatch(/\d+ reviewer calls? \(consensus included\)/);
-        expect(result.stdout).toContain('deterministic = free');
+        expect(result.stdout).toContain('script = free');
         expect(result.stdout).toMatch(/\d+ currently-green verdicts? re-rolled/);
         expect(result.stdout).toContain('Editing this node re-verifies:');
         // The vague pre-cost sentence is gone (it had no number).
@@ -728,7 +728,7 @@ describe('impact command', () => {
         // New unified Total block replaces the old "Editing this file re-verifies:" line.
         expect(result.stdout).toContain('Total to re-verify:');
         expect(result.stdout).toMatch(/Total to re-verify: \d+ reviewer calls? — billed by yg check --approve/);
-        expect(result.stdout).toMatch(/\d+ deterministic pairs? — free/);
+        expect(result.stdout).toMatch(/\d+ script pairs? — free/);
         // The old framing is gone.
         expect(result.stdout).not.toContain('Editing this file re-verifies:');
       });
@@ -754,7 +754,7 @@ describe('summarizeImpact + renderImpactTotal', () => {
     const out = renderImpactTotal(s, 'apps/x/a.ts', { isTTY: false });
     expect(out).toContain('Total to re-verify:');
     expect(out).toContain('Total to re-verify: 1 reviewer call — billed');
-    expect(out).toContain('1 deterministic');
+    expect(out).toContain('1 script');
     expect(out).not.toContain('reviewer requests × consensus');
   });
 
@@ -786,7 +786,7 @@ describe('yg impact — type-level coverage threading', () => {
       // 3 total, not 1. Without threading, computeAspectFillCost would only
       // ever see the 1 node-owned pair. The other 2 are named as file-only
       // (no owning component) right alongside the total, not folded in silently.
-      expect(result.stdout).toContain('3 pairs (2 of them from files enforced by');
+      expect(result.stdout).toContain('3 pairs (2 of them from type-covered files');
       expect(result.stdout).toContain('3 reviewer calls');
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -827,9 +827,9 @@ describe('yg impact — type-level coverage threading', () => {
       // Never a bare "(none)" here — that would claim literally nothing is
       // affected, false when a type-covered file is.
       expect(result.stdout).not.toMatch(/Directly affected \(0\):\s*\n\s*\(none\)\s*\n/);
-      expect(result.stdout).toContain('1 file');
-      expect(result.stdout).toContain("architecture type alone");
-      expect(result.stdout).toContain('(1 pair (1 of them from a file');
+      expect(result.stdout).toContain('1 type-covered file');
+      expect(result.stdout).toContain("type-covered file");
+      expect(result.stdout).toContain('(1 pair (1 of them from a type-covered file');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

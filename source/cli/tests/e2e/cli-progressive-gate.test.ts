@@ -59,7 +59,7 @@ function blockStarting(stdout: string, prefix: string): string {
 /** The inherited unverified twin's heading and member, as every triage view prints it. */
 const UNVERIFIED_TWIN = 'warning[unverified-outside] 1 pair whose script check has not run on this checkout — free to run — outside your changes\n'
   + '  at:   no-todo-comments @ beta\n'
-  + '  why:  Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.';
+  + '  why:  Script-rule results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.';
 
 /** Every error block the report prints. */
 const errorSection = (stdout: string): string => blocksOf(stdout, 'error');

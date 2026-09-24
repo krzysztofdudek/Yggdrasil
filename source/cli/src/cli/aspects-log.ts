@@ -47,7 +47,7 @@ import { failAndExit } from './output.js';
  * could claim a change nobody made would be worse than no log at all.
  */
 export function registerAspectsLogCommand(aspects: Command): void {
-  const log = aspects.command('log').description("A rule's own history — why it exists, and every change of its standing");
+  const log = aspects.command('log').description("A rule's own history — why it exists, and every change of its status");
 
   log
     .command('add')
@@ -57,10 +57,10 @@ export function registerAspectsLogCommand(aspects: Command): void {
     .option('--reason-file <path>', 'read the entry text from a file')
     .option(
       '--status <status>',
-      `record that the rule's standing moved to this one (${ASPECT_STATUSES.join(' | ')}) — the rule's own file must already carry it`,
+      `record that the rule's status moved to this one (${ASPECT_STATUSES.join(' | ')}) — the rule's own file must already carry it`,
     )
-    .option('--evidence <text>', 'what justified the change of standing (required with --status)')
-    .option('--by <who>', "who decided — the reviewer, an outside judge, or a person (default: 'the user')")
+    .option('--evidence <text>', 'what justified the change of status (required with --status)')
+    .option('--by <who>', "who decided — the reviewer, an outside model, or a person (default: 'the user')")
     .action(async (opts: {
       aspect: string;
       reason?: string;
@@ -207,7 +207,7 @@ async function statusPrefixFor(
   const to = opts.status as string;
   if (!(ASPECT_STATUSES as readonly string[]).includes(to)) {
     failAndExit({
-      what: `'${to}' is not a standing a rule can have.`,
+      what: `'${to}' is not a status a rule can have.`,
       why: `A rule stands at one of ${ASPECT_STATUSES.join(', ')} — draft enforces nothing, advisory reports without blocking, enforced refuses. Anything else names no authority at all.`,
       next: `Re-run with --status ${ASPECT_STATUSES.join(' | --status ')}.`,
     });
@@ -224,8 +224,8 @@ async function statusPrefixFor(
 
   if (opts.evidence === undefined || opts.evidence.trim() === '') {
     failAndExit({
-      what: 'A change of standing was recorded with no evidence.',
-      why: "A rule's standing is the whole of its authority, so what justified moving it is the part of the record that matters most a year later — and the part nobody can reconstruct.",
+      what: 'A change of status was recorded with no evidence.',
+      why: "A rule's status is the whole of its authority, so what justified moving it is the part of the record that matters most a year later — and the part nobody can reconstruct.",
       next: 'Re-run with --evidence "<what justified it>", e.g. --evidence "two waves clean, no new violations".',
     });
   }
@@ -233,8 +233,8 @@ async function statusPrefixFor(
   const previous = await previousStatus(graph, aspect);
   if (previous === to) {
     failAndExit({
-      what: `Rule '${aspect.id}' already stood at ${to} before this entry, so there is no change of standing to record.`,
-      why: "A status entry records a move from one standing to another. Writing one where nothing moved would put a promotion into the rule's history that never happened.",
+      what: `Rule '${aspect.id}' already stood at ${to} before this entry, so there is no change of status to record.`,
+      why: "A status entry records a move from one status to another. Writing one where nothing moved would put a promotion into the rule's history that never happened.",
       next: `Record the note without --status (yg aspects log add --aspect ${aspect.id} --reason "..."), or set a different status: in the rule's yg-aspect.yaml first and record that change.`,
     });
   }
@@ -278,7 +278,7 @@ async function previousStatus(graph: Graph, aspect: AspectDef): Promise<string> 
     // written with the honest one.
     debugWrite(`[aspects log] lock unreadable while resolving the previous standing: ${err instanceof Error ? err.message : String(err)}`);
   }
-  return 'an unrecorded standing';
+  return 'an unrecorded status';
 }
 
 /** The document form: the rule, what it stands at now, and its entries newest first. */

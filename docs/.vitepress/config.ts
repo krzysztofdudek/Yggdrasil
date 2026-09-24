@@ -28,6 +28,7 @@ export default defineConfig({
         items: [
           { text: "How It Works", link: "/how-it-works" },
           { text: "Getting Started", link: "/getting-started" },
+          { text: "Glossary", link: "/glossary" },
         ],
       },
       {

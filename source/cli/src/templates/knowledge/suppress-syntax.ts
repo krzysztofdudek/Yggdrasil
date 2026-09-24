@@ -1,9 +1,9 @@
-export const summary = 'yg-suppress inline waiver syntax: single-line, bracket disable/enable, wildcard, file-level placement';
+export const summary = 'yg-suppress inline waiver syntax: single-line, bracket disable/enable, wildcard, whole-file form';
 
 export const content = `# Suppress syntax
 
-\`yg-suppress\` is an inline waiver that tells the reviewer to skip a specific
-aspect for a piece of code. Use it for known tech debt or intentional
+\`yg-suppress\` is a line-scoped inline waiver: the named aspect skips the lines it
+covers, whatever the rule kind. Use it for known tech debt or intentional
 exceptions — not to silence valid violations you intend to fix.
 
 Authorization rules (when you may write a suppress, who approves the reason)
@@ -90,13 +90,13 @@ ignored, and a disable with no matching enable suppresses through to the end
 of the file. Whether \`yg suppressions\` flags that unbounded-to-EOF range as an
 "Unbounded range" warning depends on WHERE the disable sits: a bare disable at
 the very top of the file is the sanctioned whole-file form and is NOT warned;
-one placed lower IS (see "File-level placement" below). The matcher does not
+one placed lower IS (see "Whole-file form" below). The matcher does not
 raise an error for an unmatched marker, so keep pairs explicit and review the
-resulting range yourself. The resolved range is the same for every reviewer kind.
+resulting range yourself. The resolved range is the same for every rule kind.
 
 ## Wildcard
 
-\`*\` as the id suppresses ALL aspects (LLM and deterministic) in the range.
+\`*\` as the id suppresses ALL aspects (reviewer rules and script rules) in the range.
 
 \`\`\`typescript
 // yg-suppress-disable(*) generated code, do not edit manually
@@ -108,7 +108,7 @@ A specific \`enable(<id>)\` does NOT punch through \`disable(*)\` — the
 wildcard disable covers the entire range regardless of specific enables
 within it.
 
-## File-level placement
+## Whole-file form
 
 When the ENTIRE file is exempt, there are two spellings, both honored
 identically (everything below the disable is waived):
@@ -132,12 +132,12 @@ deliberate whole-file waiver, or add the closing marker to bound the range.
 Do NOT reach for the single-line \`yg-suppress(<id>)\` to waive a whole file —
 it covers only the one line that follows it. This is true for EVERY aspect kind:
 suppress scope is resolved once, deterministically, into line ranges, and BOTH
-reviewer kinds honor the exact same ranges. A deterministic \`check.mjs\` reads
-those ranges directly; an LLM aspect's reviewer receives them injected into its
+kinds that produce a verdict honor the exact same ranges. A script rule's \`check.mjs\` reads
+those ranges directly; for a reviewer rule, the reviewer receives them injected into its
 prompt (as resolved \`(start-line, end-line)\` spans) and is instructed to honor
 exactly those lines — it does not re-interpret the marker's scope. So a
-single-line marker waives one line for an LLM aspect just as it does for a
-deterministic one. To waive a whole file, use the \`disable\`/\`enable\` bracket
+single-line marker waives one line for a reviewer rule just as it does for a
+script rule. To waive a whole file, use the \`disable\`/\`enable\` bracket
 (or a bare \`disable\` that runs to end of file) — never a single-line marker.
 
 ## Language support
@@ -168,8 +168,8 @@ For a file whose extension has a registered grammar, markers are read from the
 file's comments, so a \`yg-suppress(...)\` that merely appears inside a string
 literal is NOT treated as a marker. For a file whose extension has no registered
 grammar (e.g. \`.sql\`, \`.md\`, \`.sh\`), there is no parse tree, so markers are
-found by scanning the raw lines — which is what lets a content-only deterministic
-check waive a violation in such a file. In this raw-scan mode the marker line
+found by scanning the raw lines — which is what lets a content-only script
+rule waive a violation in such a file. In this raw-scan mode the marker line
 must still BEGIN with a comment delimiter (\`#\`, \`--\`, \`<!--\`, \`;\`, ...):
 a bare line that merely starts with the token — a wrapped prose sentence or a
 string-literal line with no delimiter — is NOT a marker. A real

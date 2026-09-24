@@ -355,7 +355,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate --file (a file with no own
 
       // The header names the FILE, not "node", and states plainly that the
       // rule/attachment come from today while the code is historical.
-      expect(stdout).toContain("over file 'src/leaf/a.ts'");
+      expect(stdout).toContain("over type-covered file 'src/leaf/a.ts'");
       expect(stdout.toLowerCase()).toMatch(/today/);
       expect(stdout.toLowerCase()).toContain('history');
 
@@ -383,7 +383,7 @@ describe.skipIf(!distExists)('CLI E2E — yg simulate --file (a file with no own
       expect(status).toBe(0);
       expect(lineFor(stdout, 'leaf-violation')).toContain('violations');
       expect(lineFor(stdout, 'leaf-clean')).toContain('ran-clean');
-      expect(stdout).toContain("over file 'src/leaf/a.ts'");
+      expect(stdout).toContain("over type-covered file 'src/leaf/a.ts'");
       expect(stdout).not.toContain('./src/leaf/a.ts');
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);

@@ -1,4 +1,4 @@
-export const summary = 'Reviewer config — tiers, quality thresholds, parallelism, auto-approval, schema version.';
+export const summary = 'Reviewer config — tiers, quality thresholds, parallelism, auto_approve (automatic fill), schema version.';
 
 export const content = `# yg-config.yaml — Schema for the Yggdrasil project configuration
 # Located at .yggdrasil/yg-config.yaml — one per project.
@@ -13,20 +13,21 @@ quality:                          # optional — quality thresholds
 
 parallel: 1                       # optional — concurrency limit for the LLM (reviewer) fill phase only
                                   # (positive integer, default: 1). Applies to yg check --approve or to bare
-                                  # yg check when auto_approve is enabled. Deterministic checks ignore it —
+                                  # yg check when auto_approve is enabled. Script rules ignore it —
                                   # they run across an auto-sized worker-thread pool (CPU cores).
 
 debug: false                      # optional — when true, appends all command output to .yggdrasil/.debug.log
                                   # Default: false (off). Log is append-only; rotate or delete manually.
 
 auto_approve: false               # optional — controls the behavior of bare \`yg check\` (with no explicit
-                                  #   --approve / --no-approve / --only-deterministic flag).
+                                  #   --approve / --no-approve / --only-deterministic flag): whether it
+                                  #   runs a fill by itself. A fill is not a human approval.
                                   #
                                   #   false (default): read-only. No writes, no LLM calls, no API keys
                                   #     needed. Equivalent to running \`yg check\` with no flags.
                                   #   "deterministic": bare \`yg check\` behaves as
                                   #     \`yg check --approve --only-deterministic\` — fills only
-                                  #     deterministic pairs (free, keyless, local).
+                                  #     script pairs (free, keyless, local).
                                   #   "full": bare \`yg check\` behaves as \`yg check --approve\` —
                                   #     fills the unverified pairs that run answers for and may call
                                   #     the reviewer (needs keys).
@@ -44,9 +45,9 @@ coverage:                         # optional — scopes the unmapped-files gate.
                                   # Subtrees containing their own nested .yggdrasil/ are auto-skipped by every check.
   type_level: false               #   optional — boolean, default false. A fresh \`yg init\` writes true.
                                   # When true: a file matched by exactly one classifying type's \`when\`
-                                  # counts as covered by that type, with no node of its own — only a
-                                  # \`scope: { per: file }\` rule can ever produce a verdict on such a
-                                  # file (a per: node rule has no whole unit to run against there).
+                                  # counts as covered by that type, with no node of its own (a type-covered
+                                  # file) — only a \`scope: { per: file }\` rule can ever produce a verdict on
+                                  # such a file (a per: node rule has no node to run against there).
                                   # Committed-config only: a yg-secrets.yaml overlay can never change
                                   # this key, since it changes what counts as covered for everyone.
                                   # Does nothing until some type declares \`when:\`.
@@ -101,16 +102,16 @@ signals:                          # optional — attention-layer switches. Absen
   attention: true                 #   attention (default true): the advisory "structurally unusual" note in
                                   #   yg context --file. false silences it. Must be boolean; unknown keys rejected.
 
-events:                           # optional — where LLM verification-fill events are recorded. Absent = local only.
-  committed_llm: false            #   committed_llm (default false): when true, LLM-fill events go to a COMMITTED,
+events:                           # optional — where reviewer verification-fill events are recorded. Absent = local only.
+  committed_llm: false            #   committed_llm (default false): when true, reviewer-fill events go to a COMMITTED,
                                   #   union-merged, rationale-stripped file (.yggdrasil/yg-events.llm.jsonl) shared
-                                  #   with the team instead of the local gitignored sidecar. Deterministic/drill/diag
+                                  #   with the team instead of the local gitignored sidecar. Script/drill/diag
                                   #   events always stay local (keyless CI = zero churn). Must be boolean; unknown
                                   #   keys rejected. Never folded into any verdict hash — flipping it invalidates nothing.
 
-reviewer:                         # required only once a judgment (LLM) rule is actually effective —
+reviewer:                         # required only once a reviewer rule is actually effective —
                                   # used during yg check --approve or when auto_approve triggers a fill.
-                                  # A script-only / keyless project (deterministic aspects only, or none)
+                                  # A script-only / keyless project (script rules only, or none)
                                   # needs no reviewer: section at all.
   default: standard               # required when more than one tier is configured; optional with exactly one tier.
                                   #   Must reference one of the keys under reviewer.tiers.
@@ -125,7 +126,7 @@ reviewer:                         # required only once a judgment (LLM) rule is 
         temperature: 0            #       reduces variability — keep at 0
         # timeout: 300            #       Per-call timeout in SECONDS (default 300). CLI providers and ollama; other API providers ignore it.
       # max_prompt_chars: 200000  # optional — assembled reviewer-prompt character cap (positive integer).
-                                  #   Checked deterministically before the LLM call. Absent defaults to 50000.
+                                  #   Checked deterministically before the reviewer call. Absent defaults to 50000.
                                   #   Exceeding this limit renders a blocking error naming remedies
                                   #   (split the node, shorten references, or raise the cap).
                                   #   Never participates in verdict identity — tuning it does not

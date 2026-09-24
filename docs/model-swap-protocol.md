@@ -72,7 +72,7 @@ the correct test for paired yes/no outcomes, and it is honest about small sample
 
    Re-pointing a rule to a different tier name invalidates that rule's recorded
    reviewer verdicts (the tier name is a verdict input), so do this on a scratch
-   branch you discard, or re-approve afterward. Each drill case is logged locally
+   branch you discard, or fill again afterward (`yg check --approve`). Each drill case is logged locally
    with the tier it ran under. This is local, private telemetry — it is never
    committed and never affects a verdict.
 
@@ -132,7 +132,7 @@ The paired comparison asks *do two models agree?* A related question is *does on
 model agree with itself when the code says the same thing in a different way?* A
 reviewer you can trust should not change its verdict when you rename a local
 variable or reflow whitespace — those rewrites preserve meaning. If the verdict
-moves anyway, the rule text or the judge is reacting to surface, not substance.
+moves anyway, the rule text or the reviewer is reacting to surface, not substance.
 
 A **metamorphic probe** measures exactly that. It takes one of a rule's own example
 files and generates variants of it:

@@ -556,7 +556,7 @@ async function parseConfigInner(
       if (!allowedEventKeys.has(k)) {
         throw new ConfigParseError({
           what: `${filename}: unknown key '${k}' under events:`,
-          why: 'the events section accepts only `committed_llm`; a misspelled key would silently leave the committed LLM-fill event stream disabled.',
+          why: 'the events section accepts only `committed_llm`; a misspelled key would silently leave the committed reviewer-fill event stream disabled.',
           next: 'Remove the key, or set events.committed_llm to true or false.',
         }, 'config-events-unknown-key');
       }
@@ -564,7 +564,7 @@ async function parseConfigInner(
     if (ev.committed_llm !== undefined && typeof ev.committed_llm !== 'boolean') {
       throw new ConfigParseError({
         what: `${filename}: events.committed_llm must be a boolean (got ${JSON.stringify(ev.committed_llm)}).`,
-        why: 'events.committed_llm opts the repo into a committed, shared record of LLM verification-fill events; only a boolean can switch it.',
+        why: 'events.committed_llm opts the repo into a committed, shared record of reviewer-rule fill events; only a boolean can switch it.',
         next: 'Set events.committed_llm to true or false, or remove the events key.',
       }, 'config-invalid');
     }

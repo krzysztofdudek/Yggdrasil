@@ -99,7 +99,7 @@ reports no change here" and "this file has not changed" — see
 [A file git has been told to ignore](#a-file-git-has-been-told-to-ignore-still-answers-for-itself).
 It only ever adds to what blocks.
 
-The same five steps decide what a recording run buys, not only what a plain run
+The same five steps decide what a fill buys, not only what a plain run
 reports — which is why `yg check --approve` under a measurement pays for the
 rules your change reached and no others. See
 [Recording verdicts under a measurement](#recording-verdicts-under-a-measurement).
@@ -205,15 +205,15 @@ Two more rules exist so that a gap can never read as a clean slate. A rule whose
 recorded verdict your change **deleted** is always yours. And a rule with no
 recorded result yet is yours as soon as your change touches anything its component
 is allowed to read — with the reach worked out from the component, so this one
-applies to the rules that can read across their subjects: the deterministic ones,
-and reviewer-judged ones that ship a companion. A plain reviewer-judged rule reads
+applies to the rules that can read across their subjects: script rules,
+and reviewer rules that ship a companion. A plain reviewer rule reads
 nothing but its own subject files and its own rule text, and both are already
-covered exactly by the rules above, so it is reached through those rather than
+accounted for exactly by the rules above, so it is reached through those rather than
 through an estimate that would burn most of the graph for no added truth. A rule
-enforced by a file's type alone, with no component of its own, has no component
+on a type-covered file (one enforced by its type alone, with no component of its own) has no component
 reach to work from and is likewise left to those rules. A fresh clone therefore
 never reads as "everything was already verified" — but it is the subject and rule
-lines above, not the reach, that guarantee that for a plain reviewer-judged rule.
+lines above, not the reach, that guarantee that for a plain reviewer rule.
 
 Everything else falls on the safe side. A finding that cannot be tied to a file
 or a component keeps blocking: "cannot tell" is never read as "not yours".
@@ -258,7 +258,7 @@ note: Content check: 12 findings kept in scope — the files behind them differ 
 
 That is the symptom of a project on which measuring changes cannot currently
 narrow anything: everything inherited blocks, and — the part that costs real
-money — a recording run has nothing left to leave out, so it reviews the whole
+money — a fill has nothing left to leave out, so it reviews the whole
 project exactly as it would on a branch that reached everything. It errs toward
 gating more rather than less, and `yg check --full` reports the same set either
 way, but if you see this on every run, measuring against a branch is buying you
@@ -293,11 +293,11 @@ findings are never eligible for it at all:
   cannot be read. These block wherever you run them. The test is whether the
   graph *contradicts itself*: that is something whoever wrote it can always fix
   on the spot, and there is no version of it that belongs to somebody else.
-- **Anything that stops a recording run before it writes.**
+- **Anything that stops a fill before it writes.**
 - **Any finding the run cannot attribute** to a file or a component, as above.
-- **The written-reason requirement, at recording time.** If a component's type
+- **The written-reason requirement, at fill time.** If a component's type
   asks for a log entry and its source has moved past the entry its log records, a
-  recording run stops and asks for that entry — whoever moved the code, and
+  fill stops and asks for that entry — whoever moved the code, and
   whether or not your change went near it. Recording answers for the code as it
   stands, so it will not record over an edit nobody explained. A plain read of the
   same branch can pass while that run stops; both are true, and the message names
@@ -343,24 +343,24 @@ you wondering whether the mode had quietly stopped working.
 
 ## Recording verdicts under a measurement
 
-A run that records verdicts — `yg check --approve`, or a bare `yg check` on a
-project configured to approve automatically — is measured the same way as a plain
+A run that records verdicts — a fill: `yg check --approve`, or a bare `yg check` on a
+project configured to fill automatically — is measured the same way as a plain
 one. It reports what a plain run reports, and it asks the reviewer only about the
 rules your change is accountable for. It says how many reviewed rules it left for
 later, and `yg check --full --approve` is what reviews those.
 
 The checks that run locally are not narrowed: they cost nothing, and what they
-observe is what the next measurement reads, so they keep covering the whole
-project on every recording run.
+observe is what the next measurement reads, so they keep checking the whole
+project on every fill.
 
 `yg check --approve --dry-run` prices exactly what the real run would buy — on a
-change that reaches no reviewer-judged rule, that is nothing at all.
+change that reaches no reviewer rule, that is nothing at all.
 
 This changes one thing about the written reason a component owes. Where a type
 asks for one, a component owes an entry whenever its source moves on from the
-state its recorded verdicts covered, and that entry covers every edit until the
+state its recorded verdicts were given for, and that entry satisfies the requirement for every edit until the
 component next comes up clean. Under a measurement, a component comes up clean
-when every rule the run was asked to settle is approved — a rule the run was
+when every rule the run was asked to settle has passed — a rule the run was
 deliberately told not to buy counts as settled, because nobody is going to look at
 it either way — so the next change to that component asks for its own reason,
 exactly as after an ordinary clean run. What such a component's record attests is
@@ -368,7 +368,7 @@ correspondingly narrower: every rule the run was asked to settle saw those bytes
 not that every rule on the component did, and the ones it was told not to buy stay
 openly unverified and are still reported that way. Anything else that leaves a
 rule unsettled still holds the cycle open — a refusal, a check that could not run,
-a reviewer that could not be reached — so the standing promise is untouched: a
+a reviewer that could not be reached — so that promise is untouched: a
 change that fails a check and is then fixed still needs only the one written
 reason.
 
@@ -388,18 +388,18 @@ eligible — the graph's own integrity, and anything the run cannot attribute �
 still block there, so that branch is not free of gates; it is free of the ones
 progressive mode narrows.)
 
-### The free recording path never ends a written-reason cycle
+### The free fill never ends a written-reason cycle
 
 `yg check --approve --only-deterministic` writes nothing but its own local,
 gitignored cache — that is what makes it free and keyless. It therefore never
 records the point at which a component came up clean, and a component's
 written-reason cycle only ends at that point.
 
-On a project whose only recording run is that free pipeline gate, no cycle ever
+On a project whose only fill is that free pipeline gate, no cycle ever
 ends: the newest log entry a component has keeps satisfying the requirement for
 every later source change, and no second entry is ever asked for. This is not
-specific to progressive mode — it is true of any project whose recording is
-free-only — but it matters here, because the pipeline below leans on that free
+specific to progressive mode — it is true of any project whose only fill is
+the free one — but it matters here, because the pipeline below leans on that free
 gate. If you want each round of work to carry its own written reason, a run that
 records verdicts (`yg check --approve`) has to happen somewhere: on a developer's
 machine before the change lands, or on a pipeline leg that has a reviewer
@@ -475,5 +475,5 @@ still recorded as unverified, so the first run afterwards names all of them;
   reference.
 - [CLI reference](/cli-reference) — `--full`, `--approve`, and the rest of
   `yg check`'s flags.
-- [The lock](/the-lock) — what a recording run writes, and the written-reason
+- [The lock](/the-lock) — what a fill writes, and the written-reason
   requirement in full.

@@ -47,9 +47,9 @@ describe('renderFillEvent', () => {
   it('totals: says what was done, and never claims every pair valid (a fill with nothing to do prints nothing)', () => {
     expect(renderFillEvent({ type: 'totals', totals: zeroTotals })).toBe('');
     expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, detApproved: 2, detRefused: 1 } }))
-      .toBe('fill  done — 2 approved · 1 refused · 0 failed · 0 reviewer calls\n');
+      .toBe('fill  done — 2 passed · 1 refused · 0 failed · 0 reviewer calls\n');
     expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, detApproved: 1, skippedLlmPairs: 24 } }))
-      .toBe('fill  done — 1 approved · 0 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone\nnext: yg check --approve  (reviews the pairs left alone)\n');
+      .toBe('fill  done — 1 passed · 0 refused · 0 failed · 0 reviewer calls · 24 reviewer pairs left alone\nnext: yg check --approve  (reviews the pairs left alone)\n');
   });
 
   // Issue 210 (m11): a run that called the reviewer used to end with no line at
@@ -59,18 +59,18 @@ describe('renderFillEvent', () => {
     // The engine always passes the tracker's outcome counts on a real run.
     const done = (n: number) => ({ completed: n, total: n, approved: n, refused: 0, infra: 0 });
     expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, reviewerCallsMade: 4, outcomes: done(4) } }))
-      .toBe('fill  done — 4 approved · 0 refused · 0 failed · 4 reviewer calls\n');
+      .toBe('fill  done — 4 passed · 0 refused · 0 failed · 4 reviewer calls\n');
     expect(renderFillEvent({ type: 'totals', totals: { ...zeroTotals, reviewerCallsMade: 13, elapsedMs: 226_400, outcomes: done(13) } }))
-      .toBe('fill  done in 3m46s — 13 approved · 0 refused · 0 failed · 13 reviewer calls\n');
+      .toBe('fill  done in 3m46s — 13 passed · 0 refused · 0 failed · 13 reviewer calls\n');
     expect(renderFillEvent({
       type: 'totals',
       totals: { ...zeroTotals, reviewerCallsMade: 2, elapsedMs: 41_000, outcomes: done(2), usage: { reportedCalls: 2, inputTokens: 74_190, outputTokens: 912, costUsd: 0.0814 } },
-    })).toBe('fill  done in 41s — 2 approved · 0 refused · 0 failed · 2 reviewer calls · 74,190 input / 912 output tokens, ~$0.08 at list price\n');
+    })).toBe('fill  done in 41s — 2 passed · 0 refused · 0 failed · 2 reviewer calls · 74,190 input / 912 output tokens, ~$0.08 at list price\n');
     // Not every call reported usage: the line says which ones it covers.
     expect(renderFillEvent({
       type: 'totals',
       totals: { ...zeroTotals, reviewerCallsMade: 3, elapsedMs: 3_700_000, outcomes: done(3), usage: { reportedCalls: 1, inputTokens: 10, outputTokens: 2 } },
-    })).toBe('fill  done in 1h01m — 3 approved · 0 refused · 0 failed · 3 reviewer calls · 10 input / 2 output tokens (reported by 1 of 3 calls)\n');
+    })).toBe('fill  done in 1h01m — 3 passed · 0 refused · 0 failed · 3 reviewer calls · 10 input / 2 output tokens (reported by 1 of 3 calls)\n');
   });
 
   it('formats elapsed time as a person reads it', () => {
@@ -92,7 +92,7 @@ describe('renderFillEvent', () => {
   // Issue 209 (m13): a consensus split is visible where the pair is reported.
   it('pair-outcome carries a consensus split when the tier cast more than one vote', () => {
     expect(renderFillEvent({ type: 'pair-outcome', lane: 'llm', aspectId: 'a', unitKey: 'node:x', verdict: 'approved', votes: { satisfied: 2, total: 3 } }))
-      .toBe('fill  approved by 2 of 3 votes  a @ x\n');
+      .toBe('fill  passed by 2 of 3 votes  a @ x\n');
     // A unanimous refusal has no line of its own — the report lists it.
     expect(renderFillEvent({ type: 'pair-outcome', lane: 'llm', aspectId: 'a', unitKey: 'node:x', verdict: 'refused' })).toBe('');
   });

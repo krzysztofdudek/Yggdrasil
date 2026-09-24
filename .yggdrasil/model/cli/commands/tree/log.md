@@ -38,3 +38,5 @@ yg tree printed every description whole, so a graph with long descriptions produ
 Node names, types and descriptions are repository text, and a description carrying a terminal control sequence (a screen clear, a clipboard write) was obeyed by the terminal when the tree was listed. Each listing line now shows such characters in caret notation instead, so a hostile or accidental escape in a graph file can only be read, never executed by the terminal.
 ## [2026-09-24T08:37:59.561Z]
 An empty graph now says so and names its next step on a labelled next: line instead of a parenthetical hint, the one way every command points at what to do.
+## [2026-09-24T14:24:28.157Z]
+The tree's footer called the files enforced by their type alone the type-level lattice, one of about eight names for that one idea. It now counts them as type-covered files, the name the check header, the docs and the Glossary use, so a reader searching for one name finds all of them.

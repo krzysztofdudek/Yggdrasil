@@ -216,7 +216,7 @@ describe.skipIf(!distExists)('CLI E2E — yg aspect-test diagnostic telemetry', 
         dir,
       );
       expect(onDet.status).toBe(1);
-      expect(onDet.stderr).toContain("--tier is not supported for deterministic aspect 'no-todo-comments'.");
+      expect(onDet.stderr).toContain("--tier is not supported for script rule 'no-todo-comments'.");
 
       // No telemetry from a rejected invocation.
       expect(diagLines(dir)).toHaveLength(0);

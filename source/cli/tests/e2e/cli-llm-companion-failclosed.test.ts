@@ -467,7 +467,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
       expect(chk.all).toContain('aspect-companion-without-content');
       // The per-issue `what` ("has companion.mjs but no content.md") is no longer
       // rendered in the grouped view; the same intent is in the shared why.
-      expect(chk.all).toContain('companion.mjs is an add-on for LLM aspects; it requires content.md as the primary rule source.');
+      expect(chk.all).toContain('companion.mjs is an add-on for reviewer rules; it requires content.md as the primary rule source.');
 
       // --approve still reports the validation error and stays red. (The
       // validation error is a graph-validation diagnostic, not a fill gate, so
@@ -507,7 +507,7 @@ describe.skipIf(!distExists)('CLI E2E — per-unit companion files (fail-closed)
       expect(chk.all).toContain('aspect-companion-with-check');
       // The per-issue `what` ("has companion.mjs together with check.mjs") is no
       // longer rendered in the grouped view; the same intent is in the shared why.
-      expect(chk.all).toContain('companion.mjs is an add-on for LLM aspects only; it is incompatible with the deterministic check.mjs runner.');
+      expect(chk.all).toContain("companion.mjs is an add-on for reviewer rules only; it is incompatible with a script rule's check.mjs runner.");
       // The more-specific code wins: the without-content code must NOT also fire
       // for this aspect (content.md IS present anyway).
       expect(chk.all).not.toContain('aspect-companion-without-content');

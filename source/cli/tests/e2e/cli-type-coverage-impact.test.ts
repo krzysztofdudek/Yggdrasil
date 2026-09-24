@@ -85,10 +85,10 @@ describe.skipIf(!distExists)('CLI E2E — yg impact over type-covered files', ()
       expect(detCount).toBeGreaterThan(0);
 
       const out = await runAsync(['impact', '--file', 'src/leaf/b.ts'], dir);
-      expect(out.all).toMatch(new RegExp(`${detCount} deterministic pairs? — free\\.`));
+      expect(out.all).toMatch(new RegExp(`${detCount} script pairs? — free\\.`));
       expect(out.all).toMatch(new RegExp(`${ownEntries.length} currently-green verdicts? re-rolled\\.`));
       // The pre-fix bug printed exactly these zeros — pin their absence too.
-      expect(out.all).not.toMatch(/\b0 deterministic pairs?\b/);
+      expect(out.all).not.toMatch(/\b0 script pairs?\b/);
       expect(out.all).not.toMatch(/\b0 currently-green verdicts? re-rolled/);
     } finally {
       await mock.close();

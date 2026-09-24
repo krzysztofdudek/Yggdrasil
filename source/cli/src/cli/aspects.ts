@@ -56,7 +56,7 @@ import {
   type AspectFalsePositiveSignal,
   type DrillStatus,
 } from '../core/aspect-health-signals.js';
-import { fail } from './output.js';
+import { fail, note } from './output.js';
 
 interface AspectUsage {
   architecture: number;
@@ -427,9 +427,9 @@ export function formatAspectsOutput(graph: Graph, typeCoverage?: TypeCoverageInp
     const reviewerType = aspect.reviewer.type;
     if (reviewerType === 'llm') {
       const tier = aspect.reviewer.tier ?? '(default)';
-      lines.push(`  Reviewer: llm — tier: ${tier}`);
+      lines.push(`  Kind: reviewer rule — tier: ${tier}`);
     } else {
-      lines.push(`  Reviewer: ${reviewerType}`);
+      lines.push(`  Kind: ${reviewerType === 'deterministic' ? 'script rule' : 'bundle'}`);
     }
 
     if (u.total === 0 && u.typeCovered === 0) {
@@ -924,6 +924,9 @@ export function computeAspectHealth(
   return { rows, wildcardMarkers, hasUnverified, signalNotes, fpNotes, hasWrongRuleAttribution, typeLevelEnabled, telemetry: fp.telemetry };
 }
 
+/** The rule kind as the health table prints it; the JSON keeps the config value. */
+const KIND_LABEL: Record<string, string> = { llm: 'reviewer rule', deterministic: 'script rule', aggregate: 'bundle' };
+
 /** Column order is fixed by contract; other waves append columns to the right. */
 const HEALTH_HEADERS = [
   'aspect',
@@ -956,7 +959,7 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
     ...health.rows.map((r) => {
       const row = [
         r.aspectId,
-        r.kind,
+        KIND_LABEL[r.kind] ?? r.kind,
         r.status,
         String(r.nodes),
         String(r.pairs),
@@ -989,7 +992,7 @@ export function formatAspectsHealthOutput(health: AspectHealth): string {
   if (health.wildcardMarkers > 0) {
     lines.push('');
     lines.push(
-      `Note: ${health.wildcardMarkers} wildcard suppress marker${health.wildcardMarkers === 1 ? '' : 's'} ${health.wildcardMarkers === 1 ? 'applies' : 'apply'} to every aspect and ${health.wildcardMarkers === 1 ? 'is' : 'are'} not counted per-aspect above.`,
+      note(`${health.wildcardMarkers} wildcard suppress marker${health.wildcardMarkers === 1 ? '' : 's'} ${health.wildcardMarkers === 1 ? 'applies' : 'apply'} to every aspect and ${health.wildcardMarkers === 1 ? 'is' : 'are'} not counted per-aspect above.`),
     );
   }
 

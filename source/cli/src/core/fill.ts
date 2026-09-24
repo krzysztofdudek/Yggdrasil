@@ -238,7 +238,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     if (opts.gateIssuesOnError !== true) {
       emitIssue({
         what: `yg check --approve aborted — ${gating.length} ${single ? 'problem' : 'problems'} must be fixed before anything runs.`,
-        why: `Approval records verdicts, and ${single ? 'this problem leaves' : 'these problems leave'} it unclear what would be checked, how it would be judged, or whether doing so is safe; nothing ran and nothing was written.`,
+        why: `A fill records verdicts, and ${single ? 'this problem leaves' : 'these problems leave'} it unclear what would be checked, how it would be judged, or whether doing so is safe; nothing ran and nothing was written.`,
         next: `Fix the errors below, then re-run: ${retry}`,
       });
       for (const i of gating) emitIssue(i.messageData);
@@ -294,9 +294,9 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     if (!reviewerConfigured && llmPairs.length > 0) {
       // Structured what / why / next; the renderer lays it out under the header.
       const noReviewer = {
-        what: `No reviewer is configured — the ${llmPairs.length} judgment pair${llmPairs.length === 1 ? '' : 's'} counted here cannot be reviewed.`,
-        why: 'Judgment rules are decided only by the configured reviewer; this run fills the script rules and leaves these pairs unverified.',
-        next: "yg init --provider <name> [--model <m>] (the user's decision), or set the judgment rule to status: draft.",
+        what: `No reviewer is configured — the ${llmPairs.length} reviewer pair${llmPairs.length === 1 ? '' : 's'} counted here cannot be reviewed.`,
+        why: 'Reviewer rules are decided only by the configured reviewer; this run fills the script rules and leaves these pairs unverified.',
+        next: "yg init --provider <name> [--model <m>] (the user's decision), or set the reviewer rule to status: draft.",
       };
       emit({ type: 'no-reviewer', message: noReviewer });
     }
@@ -404,7 +404,7 @@ async function runFillHoldingLock(graph: Graph, opts: RunFillOptions, exclusion?
     throw new FillGatingError([{
       code: 'log-entry-required',
       what: `${blockedNodes.size} node(s) need a fresh log entry before --approve.`,
-      why: 'Their source has drifted from the state their recorded verdicts were written over — by earlier commits as easily as by anything in progress now — and log_required nodes owe a justification entry for that. Nothing was approved this run.',
+      why: 'Their source has drifted from the state their recorded verdicts were written over — by earlier commits as easily as by anything in progress now — and log_required nodes owe a justification entry for that. Nothing was filled this run.',
       next: `Add the log entries listed above (yg log add), then re-run: ${retry}`,
     }], 'log-gate', logGateIssues, retry);
   }

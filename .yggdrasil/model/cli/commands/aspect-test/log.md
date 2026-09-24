@@ -101,3 +101,5 @@ The CLI now speaks one output grammar: every finding is a block headed error[lab
 A repeat run whose refusals disagree names its step on a next: line.
 ## [2026-09-24T09:20:21.915Z]
 The refusal for a file that already has an owning component names the command with the rule the user asked for filled in, instead of an <id> placeholder.
+## [2026-09-24T14:22:59.200Z]
+The same idea went by several names across the docs, the agent manual and the CLI's own messages, so a reader could not tell whether two words meant one thing or two. The words this component prints now follow the Glossary, which defines each term once: the reviewer is only the model configured under reviewer:, a rule is a reviewer rule, a script rule or a bundle, the --approve run is a fill whose verdicts are passed or refused, a rule's draft/advisory/enforced is its status, covered only means the graph accounts for a file, tier only means a reviewer tier, and a file enforced by its type alone is a type-covered file. JSON fields, codes and config values are unchanged, so no machine consumer is affected.

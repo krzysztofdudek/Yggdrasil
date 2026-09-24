@@ -1,21 +1,21 @@
 # Aspect Status
 
-Yggdrasil aspects ship with three enforcement levels: `draft`, `advisory`,
+Every Yggdrasil aspect has one of three statuses: `draft`, `advisory`,
 `enforced`. **Status governs how results render**, and it never changes a
 verdict's input hash or whether a recorded verdict stays valid and is re-used.
 Beyond rendering it has several operational effects. `draft` removes a pair from
 the expected set entirely (nothing is verified for it) and, through `implies`,
 propagates nothing at all — a draft implier never delivers the aspects it implies
-(see [Draft is dormant](#draft-is-dormant)). An `enforced` deterministic refusal
+(see [Draft is dormant](#draft-is-dormant)). An `enforced` script-rule refusal
 on a pair's owning component — or, for a pair with no owning component, on its
-unit — makes `yg check --approve` skip that component's (or that unit's) LLM
+unit — makes `yg check --approve` skip that component's (or that unit's) reviewer
 pairs for the run, so a known-broken subject never bills the reviewer. And only
 `enforced` pairs gate positive closure: a node's source fingerprint and log
 baseline advance only once every enforced pair on it is freshly settled, while an
 advisory refusal never blocks closure. Otherwise it is the dial you turn as a
 rule matures: start silent, gather signal, then enforce.
 
-## Three levels
+## Three statuses
 
 | Status      | A refusal renders as | An unverified pair renders as | Blocks `yg check`? |
 |-------------|----------------------|-------------------------------|--------------------|
@@ -24,7 +24,7 @@ rule matures: start silent, gather signal, then enforce.
 | `enforced`  | error                | error                         | yes                |
 
 A third pair state follows status the same way the two columns above do:
-`companion-error`. When an LLM rule's `companion.mjs` hook fails while the
+`companion-error`. When a reviewer rule's `companion.mjs` hook fails while the
 prompt-size gate assembles the pair, the pair cannot be built and
 `aspect-companion-runtime-error` is emitted — a warning under `advisory`, an
 error that blocks `yg check` under `enforced`. Read the table's two columns as
@@ -32,16 +32,16 @@ error that blocks `yg check` under `enforced`. Read the table's two columns as
 
 A pair whose **effective** status is `draft` is not expected — nothing is
 verified for it and no new verdict is written. (Effective status is the strictest
-level across every channel that attaches the aspect, so an aspect authored
+status across every channel that attaches the aspect, so an aspect authored
 `status: draft` is still enforced wherever an attach site or an active implier
 raises it — see [How effective status is computed](#how-effective-status-is-computed).)
 A verdict already recorded for a pair survives a `draft` round-trip and stays in
 the lock — see [Status and verdicts](#status-and-verdicts). `advisory` and
-`enforced` pairs are both verified and cached the same way; the level only changes
+`enforced` pairs are both verified and cached the same way; the status only changes
 severity. Severity follows status with one exception: **advisory never blocks**
 (whether a pair is refused or merely unverified — and a missing `reviewer:`
-section is reported at the strictest status among the judgment pairs it leaves
-without a judge, so advisory judgment rules alone never make it block) and
+section is reported at the strictest status among the reviewer pairs it leaves
+without a reviewer, so advisory reviewer rules alone never make it block) and
 **enforced always blocks** —
 but a `prompt-too-large` failure is an error regardless of status, so an advisory
 pair can still block `yg check` if its assembled prompt exceeds the resolved
@@ -67,7 +67,7 @@ that names no branch (the default), the table above is the whole story.
   still runnable via `yg aspect-test` (status never gates that diagnostic;
   `--dry-run` previews the prompt for free, a live run calls the reviewer).
   `draft` is also the only way to park an aspect without a provider key —
-  it removes the pairs rather than leaving them red. For LLM aspects with a
+  it removes the pairs rather than leaving them red. For reviewer rules with a
   `companion.mjs` hook: when the aspect is `draft`, the hook never runs
   during `yg check --approve`; `yg aspect-test` still runs it live. One
   consequence to know before you reach for the machine-readable output: a draft
@@ -171,7 +171,7 @@ attaches the aspect (after `when` filtering), then takes the maximum:
 effective_status = max(declared in each channel)
 ```
 
-where `draft < advisory < enforced`. The strictest level wins.
+where `draft < advisory < enforced`. The strictest status wins.
 
 If an attach site explicitly declares a status **lower** than the
 strictest of the aspect-level default and every other channel, the
@@ -193,7 +193,7 @@ ports). Channel 7 (implies) does not declare a `status:` — it carries
 
 ## Implies propagation
 
-> **Terminology note:** In the `implies:` mechanism, aspects implied by another aspect are sometimes informally called "companions" in prose (as in "an implies bundle promotes its implied companions"). This is a different concept from **companion files** — the optional `companion.mjs` hook on an LLM aspect that resolves per-unit files for the reviewer. This page uses "implied sibling" or "implied aspect" to avoid ambiguity.
+> **Terminology note:** In the `implies:` mechanism, aspects implied by another aspect are sometimes informally called "companions" in prose (as in "an implies bundle promotes its implied companions"). This is a different concept from **companion files** — the optional `companion.mjs` hook on a reviewer rule that resolves per-unit files for the reviewer. This page uses "implied sibling" or "implied aspect" to avoid ambiguity.
 
 For aspect `A` that implies aspect `B`, propagation to a node depends on
 A's effective status on that node and the `status_inherit:` modifier on

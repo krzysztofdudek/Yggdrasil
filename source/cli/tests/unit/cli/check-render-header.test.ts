@@ -560,8 +560,8 @@ describe('type-visibility block — what --coverage renders, in full and counts-
     expect(out).toContain('own-rule (1)');
     expect(out).toContain('warn-only (1)');
     // The reason is grouped: stated once, followed by the aspect id it applies to.
-    expect(out).toMatch(/whole-unit.*dead-rule \(1\)/);
-    expect(out).toContain('bundle: file-level part applies');
+    expect(out).toMatch(/per: node rule.*dead-rule \(1\)/);
+    expect(out).toContain('bundle: its per: file part applies');
     expect(out).toContain("inherited rules stop at 't'");
     expect(out).toContain('z.ts');
   });

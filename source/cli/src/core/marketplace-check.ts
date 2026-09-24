@@ -179,7 +179,7 @@ export async function checkMarketplace(root: string): Promise<MarketplaceCheckRe
       record(
         issue('marketplace-manifest-missing', 'error', {
           what: `There is no ${MARKETPLACE_FILENAME} at ${rootForOutput}.`,
-          why: 'A marketplace is a git repository that publishes law from a manifest at its root. Without that file there is nothing here to check.',
+          why: 'A marketplace is a git repository that publishes rules from a manifest at its root. Without that file there is nothing here to check.',
           next: `Run 'yg marketplace init' in this repository to create ${MARKETPLACE_FILENAME}, or change to the directory that has one.`,
         }),
       );
@@ -201,7 +201,7 @@ export async function checkMarketplace(root: string): Promise<MarketplaceCheckRe
         'error',
         {
           what: `${dirPath} is a package directory that ${MARKETPLACE_FILENAME} does not list.`,
-          why: 'The manifest is the whole of what this repository publishes. A directory it does not name is law nobody can install and nobody is reviewing — and the next reader will not be able to tell whether it was forgotten or abandoned.',
+          why: 'The manifest is the whole of what this repository publishes. A directory it does not name is a rule nobody can install and nobody is reviewing — and the next reader will not be able to tell whether it was forgotten or abandoned.',
           next: `Add an entry { name, path: ${dirPath}, version } to packages: in ${MARKETPLACE_FILENAME}, or delete the directory.`,
         },
         dirPath,
@@ -382,7 +382,7 @@ async function checkOneAspect(
         'error',
         {
           what: `The rule '${aspectDir}' in package '${pkg.name}' ships neither check.mjs nor content.md and implies nothing.`,
-          why: 'A rule with no script, no prose and nothing to bundle does nothing at all, and installs as law that can never refuse anything.',
+          why: 'A rule with no script, no prose and nothing to bundle does nothing at all, and installs as a rule that can never refuse anything.',
           next: `Add a check.mjs, a content.md, or an implies: naming the rules of this package that ${aspectDir} stands for.`,
         },
         relDir,

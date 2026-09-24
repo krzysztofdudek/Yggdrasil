@@ -87,7 +87,7 @@ answer is "let me just show you". Match intent, not keywords.
     when it has one. \`yg aspect-test\` →
     quote the \`yg aspect-test: <verdict>\` stamp line verbatim
     (e.g. \`yg aspect-test: refused — 1 violation\` /
-    \`yg aspect-test: satisfied — No violations.\`; LLM runs close with a
+    \`yg aspect-test: satisfied — No violations.\`; reviewer-rule runs close with a
     units summary), then the violation block and the \`diagnostic only —
     lock unchanged; yg check judges the lock against your files, not this
     run\` footer whole. Your plain-language translation goes DIRECTLY
@@ -119,7 +119,7 @@ answer is "let me just show you". Match intent, not keywords.
     ("what should the lamp drop?"). Silence reads as abandonment.
 18. Red is the toy responding: staged edit → verdict → revert costs nothing,
     changes nothing, repeatable as long as curiosity lasts. Say so. (For
-    LLM-judged rules, restate the per-call cost instead of "free".)
+    reviewer rules, restate the per-call cost instead of "free".)
 19. If the user asks to run a command themselves: always yes, plus the named
     safety ("\`yg check --no-approve\` is forced read-only regardless of the
     repo's config — the safest command in the toolbox"). At least once per
@@ -178,7 +178,7 @@ this on later?"
 - **C3 — no repo**: scaffold the practice project yourself (recipe below).
   Narrate the story, not the scaffolding.
 
-**Session setup (any context) — fresh clone or worktree:** the deterministic
+**Session setup (any context) — fresh clone or worktree:** the script
 verdict cache is local and gitignored, so a fresh checkout opens RED for
 cache reasons. Run the session's opening check as \`yg check --summary\` or
 \`--top\` there — the same check, with the true totals and exit code, but
@@ -219,7 +219,7 @@ Stage honestly: a clearly-labeled scratch change, "the kind a busy teammate
 would make". Zero-trace recipe below. Prime with the toy frame (rule 18).
 Ketsu: "your turn — pick any rule from the map, tell me how a hurried
 teammate would break it; I stage it, we watch." Armed answers ready:
-- "So it's a linter?" — one gate spans mechanical AND judgment rules; every
+- "So it's a linter?" — one gate spans script rules AND reviewer rules; every
   verdict is content-addressed and CI re-proves it keylessly (a casually
   hand-edited verdict surfaces as a hash mismatch on the next check); rules
   are repo files with reviewed history and an audited waiver trail.
@@ -227,8 +227,8 @@ teammate would break it; I stage it, we watch." Armed answers ready:
   repo; no vendor server, no key in CI; whoever can review a PR can review
   a rule.
 - "Rules for my Python written in JavaScript?" — the check parses YOUR
-  language's syntax tree (a dozen languages built in); prose rules are
-  language-free.
+  language's syntax tree (a dozen languages built in); reviewer rules,
+  written in prose, are language-free.
 Stuck: scratch edit doesn't trip the rule → own it first clause ("my example
 was too subtle — that's also the honest limit of mechanical rules: tripwires,
 not taint analysis"), then either a blunter edit or the relation demo. Never
@@ -240,13 +240,13 @@ implement it, show green. Let the user name the moral in their own words
 (don't recite "negotiation, not a wall" — it's a paraphrase target, not a
 slogan).
 
-### 4. Your words become law
+### 4. Your words become a rule
 Mission: the user states a rule they actually care about. Classify honestly:
-mechanically checkable → deterministic \`check.mjs\`; judgment-shaped → LLM
-aspect (disclose cost + data flow first). Authoring loop: deterministic →
-author as \`draft\`, iterate with \`yg aspect-test\`. LLM → the same ladder
+mechanically checkable → script rule (\`check.mjs\`); judgment-shaped → reviewer
+rule (disclose cost + data flow first). Authoring loop: script rule →
+author as \`draft\`, iterate with \`yg aspect-test\`. Reviewer rule → the same ladder
 works (draft aspects run under aspect-test for both kinds); a live
-run without \`--dry-run\` on an LLM rule makes one real reviewer call — say so
+run without \`--dry-run\` on a reviewer rule makes one real reviewer call — say so
 before running it. Note: promoting to \`enforced\` makes \`yg check\` red until
 the next fill — narrate it.
 Write the violation MESSAGE in the user's own words from this conversation,
@@ -275,7 +275,7 @@ own it, file it if it's a defect.
 \`--file\`, \`Blast radius:\` otherwise), \`yg check --approve --dry-run\`.
 The most common dry-run result on a green repo is the best evaluator stamp
 there is: "fill  0 pairs · 0 script (free) · 0 reviewer calls". State the
-arithmetic once: deterministic = free forever; LLM pair = calls ×
+arithmetic once: script pair = free forever; reviewer pair = calls ×
 consensus; CLI providers add no separate bill. (Fill counts can slightly
 exceed error counts — advisory pairs fill too but only warn.)
 
@@ -285,7 +285,7 @@ feels like what it is: signing a decision). \`yg suppressions\` shows the
 audit with its own warnings (wildcard, unbounded, unknown-id). Remove the
 waiver, watch the refusal return.
 
-### 8. The judgment layer
+### 8. The reviewer layer
 Only with a configured reviewer (CLI providers are keyless). Disclose
 first — what leaves the machine, to which provider, under whose credential,
 per-call cost and latency. Demo via \`yg aspect-test\` (no lock write);
@@ -302,7 +302,7 @@ once (rule 19) if it hasn't happened yet.
 
 ## Zero-trace demo recipes
 
-Aspect refusal (deterministic or LLM):
+Aspect refusal (script rule or reviewer rule):
 \`\`\`
 # 1. clearly-labeled scratch edit violating <aspect> in <file>
 # 2. yg aspect-test --aspect <id> --node <node>   ← live verdict, lock NEVER written
@@ -343,11 +343,11 @@ record a refusal.
    A learner asking whether they can skip one of the three agent-rules
    files: yes — \`yg knowledge read configuration\`, \`rules_artifacts\`.
 4. Graph by hand per \`yg schemas read node|aspect|architecture\`: two nodes,
-   one deterministic aspect, one OBVIOUS planted violation. Mapping entries
+   one script rule, one OBVIOUS planted violation. Mapping entries
    as file globs (see the C2 known-limitation note).
 5. \`git add -A && git commit\`. Then: \`yg check\` shows the pair as
-   **unverified** — "the judge hasn't looked yet; mechanical looks are
-   free" — and \`yg check --approve --only-deterministic\` surfaces the
+   **unverified** — "the rule hasn't run yet; script rules
+   run free" — and \`yg check --approve --only-deterministic\` surfaces the
    planted refusal as the user's first sight. (The CLI steps are
    near-instant; the slow part is YOUR file writing — apply the dead-air
    rule.)
@@ -360,7 +360,9 @@ record a refusal.
 2. Inventory of artifacts, not applause: list what now exists because of
    them (a rule file, a green stamp, a WHY entry, a declared relation).
 3. Micro-glossary: the 3–5 official terms this session actually earned,
-   each glossed in the user's own words.
+   each glossed in the user's own words, using the canonical names (reviewer
+   rule / script rule / bundle, fill, passed / refused, verified / unverified,
+   type-covered file).
 4. One next action (if calibration captured a real project: the exact
    command for it).
 5. Resume line — honest version: "say 'continue onboarding' anytime and

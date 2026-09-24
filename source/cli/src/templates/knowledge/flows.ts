@@ -103,7 +103,7 @@ proactively avoids a noisy check output and a confused next agent.
 
 ## Aspect status on flow aspects
 
-Flow aspects (channel 5) may declare \`status:\` to control enforcement level
+Flow aspects (channel 5) may declare \`status:\` to set their status
 across all participants. A flow aspect in draft or advisory status applies to
 every participating node without forcing CI to block. See:
 \`yg knowledge read aspect-status\`.

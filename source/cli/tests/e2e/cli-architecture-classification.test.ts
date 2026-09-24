@@ -607,7 +607,7 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       // refusal; the post-fill render names the aspect + the refusal.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(fill.all).toContain('own-type-rule');
       // The post-fill render is an error[refused] block (enforced) naming the
       // aspect and the refusing node, with the violation as its member line.
@@ -650,7 +650,7 @@ describe.skipIf(!distExists)('CLI E2E — architecture type classification', () 
       // on the planted token at the nested descendant node:svc/handler.
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(1);
-      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.all).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(fill.all).toContain('parent-type-rule');
       // The post-fill render is an error[refused] block (enforced) naming the
       // ancestor-type aspect and the nested descendant node, with the violation

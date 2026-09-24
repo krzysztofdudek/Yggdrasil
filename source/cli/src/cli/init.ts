@@ -266,7 +266,7 @@ async function freshInit(
     '  reviewer then needs no API key and adds no separate API bill. Ollama runs\n' +
     '  locally with no API cost. API providers (Anthropic, OpenAI, Google) need a key.\n' +
     '  Or pick "None for now": script rules, dependency control and the CI gate all\n' +
-    '  work with no reviewer, and one can be added the day a judgment rule needs it.',
+    '  work with no reviewer, and one can be added the day a reviewer rule needs it.',
   );
   const reviewerConfig = await runReviewerConfigFlow();
 
@@ -398,7 +398,7 @@ export async function freshInitNonInteractive(
  */
 const KEYLESS_WORKING_NOW =
   '  Working now, free: script rules, dependency control, yg check in CI.\n' +
-  '  Add a judge for judgment rules any time: yg init --provider <name> [--model <m>].';
+  '  Add a reviewer for reviewer rules any time: yg init --provider <name> [--model <m>].';
 
 /**
  * Keyless non-interactive bootstrap: scaffold + universal agent rules,
@@ -802,7 +802,7 @@ export function registerInitCommand(program: Command): void {
     .option('--provider <name>', `Configure a reviewer non-interactively — fresh or existing repo (${ALL_PROVIDERS.join(', ')})`)
     .option('--model <name>', 'Reviewer model (defaults to sonnet for claude-code; required otherwise)')
     .option('--endpoint <url>', 'Reviewer endpoint (ollama defaults localhost; required for openai-compatible)')
-    .option('--no-reviewer', 'Bootstrap a fresh project without a reviewer — script rules, dependency control and the CI gate work with no key; add a judge later with --provider')
+    .option('--no-reviewer', 'Bootstrap a fresh project without a reviewer — script rules, dependency control and the CI gate work with no key; add a reviewer later with --provider')
     .option('--no-agents-md', 'Do not install or check the AGENTS.md digest block (also switches off the CLAUDE.md import, which is an import OF that file). Recorded in .yggdrasil/yg-config.yaml under rules_artifacts')
     .option('--no-claude-md', 'Do not install or check the @AGENTS.md import line in CLAUDE.md. Recorded in .yggdrasil/yg-config.yaml under rules_artifacts')
     .option('--no-clinerules', 'Do not install or check .clinerules/yggdrasil.md. Recorded in .yggdrasil/yg-config.yaml under rules_artifacts')
@@ -947,7 +947,7 @@ export function registerInitCommand(program: Command): void {
         if ((options.model || options.endpoint) && !options.provider) {
           fail({
             what: '--model/--endpoint given without --provider.',
-            why: 'A model or endpoint only configures a judge; without --provider there is no judge to configure.',
+            why: 'A model or endpoint only configures a reviewer; without --provider there is no reviewer to configure.',
             next: 'Add --provider <name>, or drop --model/--endpoint (and pass --no-reviewer to start without one).',
           });
           process.exit(1);
@@ -1014,7 +1014,7 @@ export function registerInitCommand(program: Command): void {
             process.stdout.write(chalk.yellow(`${buildIssueMessage({
               what: '.yggdrasil/ already exists and no reconfiguration flag was given (no TTY to open the menu).',
               why: 'Reconfiguration needs either the interactive menu or an explicit flag; a bare non-interactive run has nothing to do.',
-              next: 'Pass one: --provider <name> [--model <m>] to set the judge, or --upgrade to refresh agent rules.',
+              next: 'Pass one: --provider <name> [--model <m>] to set the reviewer, or --upgrade to refresh agent rules.',
             })}\n`));
           }
         } else {

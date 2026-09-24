@@ -1,10 +1,10 @@
 export const summary =
   'How to write check.mjs: the one check(ctx) contract, the ctx surface, tree-sitter API, allowed reads, observation = invalidation surface, machine-independence, cached-at-fill model, cookbook.';
 
-export const content = `# Writing deterministic aspects
+export const content = `# Writing script rules
 
-A deterministic aspect ships a \`check.mjs\` file. The check runs locally at zero
-LLM cost and returns a \`Violation[]\`. Deterministic aspects do not use reviewer
+A script rule ships a \`check.mjs\` file. The check runs locally at zero
+LLM cost and returns a \`Violation[]\`. Script rules do not use reviewer
 tiers — \`reviewer.tier:\` is rejected on them.
 
 The \`check(ctx)\` function receives a \`ctx\` object and returns a synchronous
@@ -20,19 +20,18 @@ that \`ctx\` they touch. But \`ctx\` is not equally rich everywhere it runs (see
 - The **graph-aware runner** — the \`yg check --approve\` fill stage and
   \`yg aspect-test --node\` — always hands the check \`files\`, \`fs\`, \`subject\`, and
   the parsers (\`parseAst\`, \`parseYaml\`, \`parseJson\`, \`parseToml\`); \`graph\` and
-  \`node\` are ALSO present, but only when the unit has an owning component. A
-  file enforced purely by its architecture type (\`coverage.type_level\`, no
-  component of its own) gets everything except \`graph\`/\`node\` — see "Rules on
-  a file with no component" below.
+  \`node\` are ALSO present, but only when the unit has an owning node. A
+  type-covered file (\`coverage.type_level\`, no node of its own) gets
+  everything except \`graph\`/\`node\` — see "Rules on a type-covered file" below.
 - The **graphless AST runner** — \`yg drill\` and \`yg aspect-test --files\` — hands the
   check only \`ctx.files\`. A check that reads any graph-context accessor —
   \`ctx.node\`, \`ctx.subject\`, \`ctx.graph\`, \`ctx.fs\`, \`ctx.parseAst\`, \`ctx.parseYaml\`,
   \`ctx.parseJson\`, or \`ctx.parseToml\` — cannot run there; \`yg drill\` reports that as an
   unsupported-capability gap (exit 0), not a check failure.
 
-**Plain \`yg check\` never executes a deterministic check** — it validates the entry
-by hashing, exactly like an LLM entry; its cost is hashing only. It executes no
-repository code at all: not a \`check.mjs\`, and not an LLM rule's \`companion.mjs\`
+**Plain \`yg check\` never executes a script rule** — it validates the entry
+by hashing, exactly like a reviewer entry; its cost is hashing only. It executes no
+repository code at all: not a \`check.mjs\`, and not a reviewer rule's \`companion.mjs\`
 either (a stale companion pair is reported unverified and sized on the next
 \`--approve\`). The same holds for \`--no-approve\`, \`--approve --dry-run\`,
 \`yg context\`, \`yg owner\`, \`yg tree\`, \`yg impact\`, \`yg aspects\` and \`yg portal\`.
@@ -42,7 +41,7 @@ Code DOES run on: \`yg check --approve --only-deterministic\` (every \`check.mjs
 \`yg aspect-test\` and \`yg drill\` (the rule under test), and a bare \`yg check\` when
 the committed config sets \`auto_approve\` — this repository's rules and those of
 every installed package (\`yg pack\`), with the permissions and environment of
-whoever runs the command. The deterministic cache is gitignored, so the
+whoever runs the command. The script-verdict cache is gitignored, so the
 recommended CI recipe rebuilds it with \`--approve --only-deterministic\`: that step
 runs every \`check.mjs\` with the permissions of the CI job. Treat a rule's
 \`check.mjs\` like any other code your pipeline executes: review it, install
@@ -53,7 +52,7 @@ the rebuild step only in a job that holds no secrets.
 The verdict is cached in the lock like every other verdict. It is reusable while
 its inputs are unchanged — the subject files AND every value the check observed
 through \`ctx\` (see "observation = invalidation surface" below). A cached
-deterministic refusal is final for unchanged inputs; a re-run would reproduce it
+script refusal is final for unchanged inputs; a re-run would reproduce it
 by definition.
 
 ## The \`yg-aspect.yaml\`
@@ -65,8 +64,8 @@ description: What this rule enforces.
 \`\`\`
 
 The aspect's identity is its directory path under \`aspects/\` (here \`my-rule\`) —
-there is no \`id:\` field; \`name:\` and \`description:\` are required. The reviewer
-kind is inferred from the presence of \`check.mjs\`. The runner detects each file's
+there is no \`id:\` field; \`name:\` and \`description:\` are required. The rule
+kind (script rule) is inferred from the presence of \`check.mjs\`. The runner detects each file's
 language from its extension; there is no \`language:\` field and no \`ctx.language\`.
 
 ## Runtime contract
@@ -311,7 +310,7 @@ interface Violation {
 Note \`ctx.files\` (the scope-driven subject view) vs \`ctx.node.files\` (the full
 mapped set — but only when the unit has an owning component; \`ctx.node\`
 itself, \`.files\` included, is absent entirely for a file with none — see
-"Rules on a file with no component" below). Under \`scope.per: file\`,
+"Rules on a type-covered file" below). Under \`scope.per: file\`,
 \`ctx.files\` is the single file; under \`per: node\` it is the whole subject set.
 
 \`file\` is optional on the graph-aware path, where a file-less (graph-level)
@@ -383,29 +382,29 @@ The runner throws before your check ever returns, so no verdict entry is
 written and the pair stays unverified — \`yg check --approve\` reports it under
 \`aspect-check-runtime-error\`, naming the real remedy (widen the architecture's
 \`relations:\` so the reachable type may depend on whatever owns the path, add a
-relation in \`yg-node.yaml\`, or give the file a component of its own) instead of
+relation in \`yg-node.yaml\`, or give the file a node of its own) instead of
 "fix check.mjs" — there is nothing to fix in the check itself.
 
 If your check needs to reach a node not currently in scope, add an explicit
 relation in \`yg-node.yaml\` pointing to that node. Relations are the contract
 that widens the allowed reads set.
 
-## Rules on a file with no component
+## Rules on a type-covered file
 
-A check can also run on a file that has no node of its own — one enforced
-purely by its architecture type (\`coverage.type_level\`). There is no
+A check can also run on a type-covered file — one that has no node of its own
+and is enforced by its architecture type (\`coverage.type_level\`). There is no
 \`yg-node.yaml\` behind such a file, so the ctx surface is narrower:
 
 - \`ctx.node\` and \`ctx.graph\` are **unavailable**. Touching any property of
   \`ctx.node\`, or calling any \`ctx.graph.*\` method, throws immediately — never a
   silent empty result. The two ways out: rewrite the check to use only
   \`ctx.subject\` / \`ctx.fs\` over files the architecture already permits this
-  file's type to reach, or give the file a component of its own (a
+  file's type to reach, or give the file a node of its own (a
   \`yg-node.yaml\` mapping it) so \`ctx.node\` / \`ctx.graph\` become available.
 - \`ctx.fs\` still works, but the allowed reads set is different: the file
   itself, plus every file whose type the architecture's \`relations:\`
   allow-list permits THIS file's type to depend on — whether that file belongs
-  to a declared component or is itself enforced by its type alone. There is no
+  to a declared node or is itself a type-covered file. There is no
   per-component narrowing to apply (there is no component), so the
   architecture's allow-list is the only authority. Reading outside it is the
   same infra fault as the node case (no \`Violation\`; the pair stays
@@ -636,15 +635,14 @@ check reads it.
 
 ## Testing with yg aspect-test
 
-Run a deterministic aspect's \`check.mjs\` live, without writing the lock. Scope it
-to a graph node, a file enforced by its architecture type alone (no owning
-component), or ad-hoc files:
+Run a script rule's \`check.mjs\` live, without writing the lock. Scope it
+to a graph node, a type-covered file (no owning node), or ad-hoc files:
 
 \`\`\`bash
 # Graph-scoped: run the check against a named node
 yg aspect-test --aspect sibling-test-file --node orders/handler
 
-# Type-scoped: run the check against a file with no owning component — the
+# Type-scoped: run the check against a type-covered file (no owning node) — the
 # architecture's relations: allow-list stands in for the node mapping ctx.fs
 # would otherwise enforce against.
 yg aspect-test --aspect sibling-test-file --file src/leaf/order-utils.ts
@@ -659,7 +657,7 @@ yg aspect-test --aspect sibling-test-file --node orders/handler --check-determin
 \`--node\`, \`--file\`, and \`--files\` are mutually exclusive — pass exactly one.
 \`--file\` refuses a path that already has a component (use \`--node\`) or one
 that does not classify to exactly one architecture type (fix the architecture
-or map it to a node). See "A file enforced by its architecture type alone" in
+or map it to a node). See "A type-covered file (no owning node)" in
 \`yg knowledge read writing-llm-aspects\` for what \`ctx.node\`/\`ctx.graph\`
 being unavailable means for a check running this way.
 
@@ -695,17 +693,17 @@ The check function is deterministic and synchronous:
 Respecting purity keeps the check reproducible: the same inputs must always
 yield the same violations, which is what \`--check-determinism\` verifies.
 
-Note: \`companion.mjs\` (the LLM add-on hook) MAY be async — it exports
+Note: \`companion.mjs\` (the reviewer-rule add-on hook) MAY be async — it exports
 \`async function companion(ctx)\`. \`check.mjs\` must remain synchronous. The two
-files are separate contracts: one for deterministic verdict computation
+files are separate contracts: one for script verdict computation
 (\`check.mjs\`), one for per-unit companion file resolution (\`companion.mjs\`).
 \`companion.mjs\` shares the same allowed-reads boundary as \`check.mjs\` and
 also folds everything it reads to decide (read one file via \`ctx.fs.read\`,
 don't scan a node via \`ctx.graph\`) into the pair's hash — editing a resolved
 companion file re-verifies only pairs that read it, exactly like an
-observation fold in a deterministic verdict.
+observation fold in a script verdict.
 
-## Suppression in deterministic aspects
+## Suppression in script rules
 
 \`\`\`typescript
 // yg-suppress(my-aspect/id) reason — suppresses following line
@@ -715,7 +713,7 @@ someCall();
 someCall();
 // yg-suppress-enable(my-aspect/id)
 
-// yg-suppress-disable(*) reason — all deterministic aspects in range
+// yg-suppress-disable(*) reason — all aspects in range
 // yg-suppress-enable(*)
 \`\`\`
 
@@ -724,7 +722,7 @@ Full delimiter table and multi-language bracket syntax: \`yg knowledge read supp
 
 ## Adoption workflow
 
-Deterministic aspects follow the same three-level status as LLM aspects:
+Script rules follow the same three-level status as reviewer rules:
 
 - **draft** — produces no expected pairs; \`check.mjs\` is never executed. Zero
   cost. Use while authoring.

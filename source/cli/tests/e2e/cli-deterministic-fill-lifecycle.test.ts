@@ -216,7 +216,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // The closing line counts the refusal, and the check renderer surfaces the
       // enforced refusal as a blocking error[refused] block whose member line
       // names the node, the violating line and the violation message.
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — 1 approved · 1 refused · 0 failed/m);
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — 1 passed · 1 refused · 0 failed/m);
       expect(fill.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
       expect(fill.stdout).toMatch(/^ {2}at: +services\/orders {2}src\/services\/orders\.ts:\d+ {2}TODO comment found/m);
       // The lock records the refused verdict (with the violation text in reason).
@@ -474,7 +474,7 @@ describe.skipIf(!distExists)('CLI E2E — deterministic fill/verify/refuse/statu
       // Fill progress (the opening and closing `fill` lines) goes to STDERR; the
       // verdict is confirmed via the lock.
       expect(det.stderr).toMatch(/^fill {2}4 pairs · 4 script \(free\) · 0 reviewer calls$/m);
-      expect(det.stderr).toMatch(/^fill {2}done in .* — 4 approved · 0 refused · 0 failed · 0 reviewer calls/m);
+      expect(det.stderr).toMatch(/^fill {2}done in .* — 4 passed · 0 refused · 0 failed · 0 reviewer calls/m);
       expect(verdictFor(readLock(dir), 'no-todo-comments', 'services/orders')?.verdict).toBe('approved');
 
       // The reviewer was NEVER contacted — a full --approve would say 'unreachable'; this does not.

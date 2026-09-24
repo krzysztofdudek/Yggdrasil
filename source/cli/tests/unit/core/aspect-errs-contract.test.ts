@@ -30,8 +30,8 @@ describe('checkAspectErrsDirection', () => {
     expect(issues[0].code).toBe('aspect-errs-invalid');
     expect(issues[0].severity).toBe('error');
     // WHY explains errs is a deterministic-check concept and this aspect is LLM-reviewed.
-    expect(issues[0].messageData!.why).toContain("errs declares a deterministic check's error direction");
-    expect(issues[0].messageData!.why).toContain('LLM-reviewed');
+    expect(issues[0].messageData!.why).toContain("errs declares a script rule's error direction");
+    expect(issues[0].messageData!.why).toContain('a reviewer rule');
     // NEXT points at the fix + the census reference (verbatim).
     expect(issues[0].messageData!.next).toBe(
       'Set errs to one of over|under|exact, or remove the field — see .yggdrasil/aspects/README.md, section "errs census".',

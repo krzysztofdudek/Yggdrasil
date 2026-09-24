@@ -197,7 +197,7 @@ export function registerAdoptCommand(program: Command): void {
           const existing = await describeExistingGraph(destination);
           fail({
             what: `This repository already has a graph: ${count(existing.components, 'component')}, ${count(existing.rules, 'rule')}, ${count(existing.flows, 'flow')}${existing.hasRecordedVerdicts ? ', with verdicts already recorded against it' : ''}.`,
-            why: 'Accepting a proposal REPLACES the whole graph; the two are never merged, because a rule taken from one graph and a component taken from another have never been checked against each other and the result would be a body of law nobody wrote. Doing that silently would discard work with no record that it happened.',
+            why: 'Accepting a proposal REPLACES the whole graph; the two are never merged, because a rule taken from one graph and a component taken from another have never been checked against each other and the result would be a set of rules nobody wrote. Doing that silently would discard work with no record that it happened.',
             next: `Re-run with --replace to accept over it — the existing graph is moved aside under ${GRAPH_DIR}.replaced-<timestamp>/ and nothing is deleted. To compare first, run: yg adopt ${proposalDir} --dry-run (a dry run writes nothing)`,
           });
           await exitAfterFlush(1);

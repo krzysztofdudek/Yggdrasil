@@ -50,15 +50,15 @@ export function unverifiedCauseMessage(params: {
       };
     case 'deterministic-not-run':
       return {
-        what: `No local result for deterministic aspect '${params.aspectId}' on ${params.unitKey}.`,
-        why: 'Deterministic results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.',
+        what: `No local result for script rule '${params.aspectId}' on ${params.unitKey}.`,
+        why: 'Script-rule results live in the gitignored local cache (.yggdrasil/.yg-lock.deterministic.json), so a fresh clone, a new rule or a cleared cache holds none until the check runs on this checkout. Running it is free: no reviewer call, and the committed lock is not touched.',
         next: 'yg check --approve --only-deterministic',
       };
     case 'reviewer-missing':
       return {
-        what: `Judgment aspect '${params.aspectId}' on ${params.unitKey} has no reviewer to judge it.`,
+        what: `Reviewer rule '${params.aspectId}' on ${params.unitKey} has no reviewer to judge it.`,
         why: 'yg-config.yaml has no reviewer: section, so nothing can read this content.md rule. Re-running --approve cannot change that; it stays unverified until a reviewer is configured or the rule is set to status: draft.',
-        next: `yg init --provider <name> [--model <m>] — the user's decision, since it sends code to that provider — or set the judgment aspect to status: draft`,
+        next: `yg init --provider <name> [--model <m>] — the user's decision, since it sends code to that provider — or set the reviewer rule to status: draft`,
       };
     case 'never-reviewed':
       return {
@@ -118,8 +118,8 @@ export function detRefusedMessage(params: {
   intent?: string;
 }): IssueMessage {
   return {
-    what: `Aspect '${params.aspectId}' is refused on ${params.unitKey} by a deterministic check.\nViolations:\n${params.reason}`,
-    why: params.intent ?? 'A deterministic check recorded these violations; the same code reproduces the same verdict.',
+    what: `Aspect '${params.aspectId}' is refused on ${params.unitKey} by a script rule.\nViolations:\n${params.reason}`,
+    why: params.intent ?? 'A script rule recorded these violations; the same code reproduces the same verdict.',
     next: 'Change the code at these lines, then run yg check --approve --only-deterministic (free) to record the new verdict.',
   };
 }

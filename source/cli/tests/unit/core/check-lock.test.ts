@@ -232,7 +232,7 @@ describe('runCheck — deterministic refusal + log integrity/format', () => {
     const issue = result.issues.find((i) => i.code === 'aspect-violation-enforced');
     expect(issue).toBeDefined();
     // The deterministic message (not the LLM cached-verdict marker) renders.
-    expect(issue!.messageData.what).toContain('by a deterministic check');
+    expect(issue!.messageData.what).toContain('by a script rule');
     expect(issue!.messageData.what).toContain('src/a.ts:1: bad thing');
   });
 

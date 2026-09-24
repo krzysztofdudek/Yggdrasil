@@ -55,7 +55,7 @@ describe('KNOWLEDGE_TOPICS', () => {
     'aspects-overview': [
       '## What an aspect is',
       '## When to create an aspect',
-      '## Three reviewer kinds',
+      '## Three rule kinds',
       '## Cost model',
       '## Aspect status',
     ],

@@ -175,7 +175,7 @@ export async function handleAspectImpact(
     // named honestly below in the cost line too).
     process.stdout.write(
       cost.fileUnits > 0
-        ? `  (none among components — ${cost.fileUnits} file${cost.fileUnits === 1 ? '' : 's'} enforced by its architecture type alone would still be affected; see the cost below)\n`
+        ? `  (none among components — ${cost.fileUnits} type-covered file${cost.fileUnits === 1 ? '' : 's'} would still be affected; see the cost below)\n`
         : '  (none)\n',
     );
   } else {
@@ -257,13 +257,13 @@ function renderFillCost(cost: FillCost, affectedNodes: number): string {
   // "N affected node(s)" can never read as the whole cost when it is not.
   const fileNote = cost.fileUnits > 0
     ? cost.fileUnits === 1
-      ? ` (1 of them from a file enforced by this aspect's architecture type alone, no owning component)`
-      : ` (${cost.fileUnits} of them from files enforced by this aspect's architecture type alone, no owning component)`
+      ? ` (1 of them from a type-covered file, no owning component)`
+      : ` (${cost.fileUnits} of them from type-covered files, no owning component)`
     : '';
   if (cost.kind === 'deterministic') {
     return (
       `  All ${affectedNodes} affected ${plural(affectedNodes, 'node')} (${cost.units} ${plural(cost.units, 'pair')}${fileNote}) would become unverified if this aspect changes — ` +
-      `re-verified for free by yg check --approve (deterministic, no reviewer calls).\n`
+      `re-verified for free by yg check --approve (script rule, no reviewer calls).\n`
     );
   }
   return (
@@ -337,7 +337,7 @@ const REASON_GLOSS: Record<ImpactReason, string> = {
   own: 'own pairs',
   reference: 'references this file',
   'observe-companion': 'companion observes this file',
-  'observe-deterministic': 'deterministic check observes this file',
+  'observe-deterministic': 'script rule observes this file',
   'cold-potential-deterministic': 'may observe this file (cold-start)',
   'cold-potential-companion': 'companion may observe this file (cold-start; companion not run)',
 };
@@ -351,7 +351,7 @@ export function renderImpactTotal(summary: ImpactSummary, editedFile: string, op
   for (const n of shown) {
     const parts: string[] = [];
     if (n.llmPairs > 0) parts.push(`${n.llmPairs} reviewer = ${n.reviewerCalls} reviewer ${plural(n.reviewerCalls, 'call')}`);
-    if (n.detPairs > 0) parts.push(`${n.detPairs} deterministic`);
+    if (n.detPairs > 0) parts.push(`${n.detPairs} script`);
     const why = n.reasons.map((r) => REASON_GLOSS[r]).join(', ');
     lines.push(`  ${n.nodePath}  ${parts.join(', ')}  (${why})`);
   }
@@ -359,14 +359,14 @@ export function renderImpactTotal(summary: ImpactSummary, editedFile: string, op
     lines.push(`  ... and ${summary.byNode.length - CAP_NODES} more (yg impact --file ${editedFile} | less)`);
   }
   lines.push(`\nTotal to re-verify: ${summary.billedReviewerCalls} reviewer ${plural(summary.billedReviewerCalls, 'call')} — billed by yg check --approve.`);
-  lines.push(`                    ${summary.freeDeterministic} deterministic ${plural(summary.freeDeterministic, 'pair')} — free.`);
+  lines.push(`                    ${summary.freeDeterministic} script ${plural(summary.freeDeterministic, 'pair')} — free.`);
   lines.push(`                    ${summary.greensReRolled} currently-green ${plural(summary.greensReRolled, 'verdict')} re-rolled.`);
   if (summary.fileLevelPairs > 0) {
     // Named explicitly: these pairs have no owning component, so no row above
     // lists them — without this line the totals would look larger than the
     // sum of the rows shown, with no explanation why.
     lines.push(
-      `                    (${summary.fileLevelPairs} of these ${plural(summary.fileLevelPairs, 'pair')} belong to a file enforced by its architecture type alone — no component row lists them above)`,
+      `                    (${summary.fileLevelPairs} of these ${plural(summary.fileLevelPairs, 'pair')} belong to a type-covered file — no component row lists them above)`,
     );
   }
   if (summary.unresolved.length > 0) {
@@ -437,7 +437,7 @@ export function renderNodeFillCost(cost: NodeFillCost, subject: 'node' | 'file')
   return (
     `  Editing this ${subject} re-verifies: ${cost.llmPairs} reviewer ${plural(cost.llmPairs, 'pair')} = ` +
     `${cost.reviewerCalls} reviewer ${plural(cost.reviewerCalls, 'call')} (consensus included); ` +
-    `${cost.detPairs} deterministic = free; ` +
+    `${cost.detPairs} script = free; ` +
     `${cost.greensReRolled} currently-green ${plural(cost.greensReRolled, 'verdict')} re-rolled.\n`
   );
 }

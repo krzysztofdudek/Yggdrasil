@@ -278,7 +278,7 @@ describe('header + summary strings (exact)', () => {
     );
     // …and the closing summary never claims every pair holds a valid verdict:
     // it names the reviewer pair it left alone.
-    expect(w.text()).toMatch(/fill {2}done in \d+\S* — 1 approved · 0 refused · 0 failed · 0 reviewer calls · 1 reviewer pair left alone\nnext: yg check --approve {2}\(reviews the pairs left alone\)\n/);
+    expect(w.text()).toMatch(/fill {2}done in \d+\S* — 1 passed · 0 refused · 0 failed · 0 reviewer calls · 1 reviewer pair left alone\nnext: yg check --approve {2}\(reviews the pairs left alone\)\n/);
     expect(w.text()).not.toMatch(/\bvalid\b/);
     // No reviewer was constructed at all — the count above is not merely unspent.
     expect(mockCreateLlmProvider).not.toHaveBeenCalled();
@@ -403,7 +403,7 @@ describe('zero-calls summary gated on runtimeErrors === 0 (side-fix B3)', () => 
     expect(result.reviewerCallsMade).toBe(0);
     // The closing line MUST NOT read as clean when there was a runtime error: it counts the failure.
     expect(w.text()).not.toMatch(/\bvalid\b/);
-    expect(w.text()).toMatch(/fill {2}done in \d+\S* — 0 approved · 0 refused · 1 failed · 0 reviewer calls\n/);
+    expect(w.text()).toMatch(/fill {2}done in \d+\S* — 0 passed · 0 refused · 1 failed · 0 reviewer calls\n/);
   });
 });
 
@@ -438,7 +438,7 @@ describe('consensus=3 majority-approve', () => {
     // Header must show 3 reviewer calls (consensus included in the budget).
     expect(w.text()).toContain('fill  1 pair · 0 script (free) · 3 reviewer calls (consensus included)\n');
     // The 2-of-3 split gets a line of its own.
-    expect(w.text()).toContain('fill  approved by 2 of 3 votes  llm-a @ svc\n');
+    expect(w.text()).toContain('fill  passed by 2 of 3 votes  llm-a @ svc\n');
     expect(result.reviewerCallsMade).toBe(3);
 
     // The verdict entry must be approved (majority).

@@ -69,7 +69,7 @@ describe('selectTierForAspect', () => {
     const cfg: ReviewerConfig = { tiers: { a: tierA } };
     const r = selectTierForAspect(aspect({ type: 'deterministic' }), cfg);
     expect(r.ok).toBe(false);
-    if (!r.ok) expect(r.error.what).toMatch(/non-LLM aspect/);
+    if (!r.ok) expect(r.error.what).toMatch(/not a reviewer rule/);
   });
 
   it('errors when tiers is empty', () => {

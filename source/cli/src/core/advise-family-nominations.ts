@@ -155,11 +155,11 @@ export function familyNominations(data: FamilyCandidatesData): Nomination[] {
   const minersGate = gate === undefined || gate === NARROW_ASPECT_GATE;
   const lawless = minersGate
     ? 'share no own, port, or narrow-ancestor rule'
-    : `have no law under the gate '${quoteData(gate)}'`;
+    : `have no rule under the gate '${quoteData(gate)}'`;
   // The WHAT line makes the same claim in fewer words, so it follows the same gate. And only the
   // miner checks that its fitted scope leaves every non-member out; another producer only drops the
   // members its predicate misses, so for it the scope selects the family and nothing more is claimed.
-  const lawlessShort = minersGate ? 'share no rule of their own' : `have no law under the gate '${quoteData(gate)}'`;
+  const lawlessShort = minersGate ? 'share no rule of their own' : `have no rule under the gate '${quoteData(gate)}'`;
   const fits = minersGate ? 'covers exactly them' : 'selects them (its producer does not check that it leaves every other file out)';
   const measuredBy =
     data.producer !== undefined && data.gate !== undefined
@@ -177,7 +177,7 @@ export function familyNominations(data: FamilyCandidatesData): Nomination[] {
     out.push({
       id: `family-without-law:${fam.id}`,
       classRank: CLASS_RANK.familyWithoutLaw,
-      what: `A candidate rule family — ${n} files ${lawlessShort}: ${memberList}.`,
+      what: `A look-alike group — ${n} files ${lawlessShort}: ${memberList}.`,
       why:
         `${sinceLabel}: these files cluster tightly (tightness ${fam.tightness}) yet ${lawless} ` +
         `— the fingerprint of a convention with no rule of its own. A ` +

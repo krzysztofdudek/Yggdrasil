@@ -337,7 +337,7 @@ describe.skipIf(!distExists)('CLI E2E — advanced flow-aspect mechanics (condit
       expect(fill.status).toBe(1);
       // Fill-time progress goes to STDERR (its closing line counts exactly one
       // refusal); the report to STDOUT names it as an enforced error on orders.
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       expect(fill.stdout).toContain('error[refused] no-todo-comments — 1 violation in services/orders');
 
       // Gateway participant: predicate FALSE → no-todo-comments never reaches it,
@@ -373,7 +373,7 @@ describe.skipIf(!distExists)('CLI E2E — advanced flow-aspect mechanics (condit
       const fill = run(['check', '--approve'], dir);
       expect(fill.status).toBe(0); // advisory does NOT block the fill
       // Fill-time progress goes to STDERR; its closing line counts the refusal.
-      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ approved · 1 refused · 0 failed/m);
+      expect(fill.stderr).toMatch(/^fill {2}done in .* — \d+ passed · 1 refused · 0 failed/m);
       // Rendered as a non-blocking advisory warning: a warning[refused] block
       // (not an error) and the PASS verdict with a warning count (exit 0
       // already asserted above).

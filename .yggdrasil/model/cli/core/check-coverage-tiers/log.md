@@ -28,3 +28,5 @@ Added a helper that splits the aggregate unmapped-files finding by a given file 
 The unmapped-file finding justified itself with an undefined protocol and, once enriched, ran two commands together in one unreadable fix line. It now states the concrete consequence — nothing checks those files and the check stays red — and gives one readable instruction.
 ## [2026-09-24T01:25:04.452Z]
 Deciding which paths no mapping claims tested every path against every mapping entry; it now uses the shared mapping index, which gives the same answers by lookup.
+## [2026-09-24T14:24:33.714Z]
+The warning for an unmapped file outside coverage.required said to bring an area under graph coverage to enforce it, which mixed two senses of coverage: being accounted for by the graph, and having a rule that checks it. It now says plainly that such a file is shown but never blocks; the fix line already names adding its root to coverage.required.

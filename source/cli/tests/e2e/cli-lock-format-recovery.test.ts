@@ -167,7 +167,7 @@ describe.skipIf(!distExists)('CLI E2E — lock matrix: prompt-too-large / merge 
       // The kept (orders) entries were never re-verified — they carried forward:
       // the fill judged exactly payments' two missing pairs.
       expect(refill.all).toMatch(/^fill {2}2 pairs · 2 script \(free\) · 0 reviewer calls$/m);
-      expect(refill.all).toMatch(/^fill {2}done in .* — 2 approved · 0 refused · 0 failed/m);
+      expect(refill.all).toMatch(/^fill {2}done in .* — 2 passed · 0 refused · 0 failed/m);
 
     } finally {
       rmSync(dir, FIXTURE_RM_OPTIONS);
