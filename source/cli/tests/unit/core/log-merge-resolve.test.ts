@@ -72,7 +72,7 @@ function expectedBaselineFromContent(content: string): { last_entry_datetime: st
 }
 
 describe('logMergeResolve (core, lock store)', () => {
-  it('accepts byte-exact ancestor prefix + union of new entries (prior lock baseline present)', async () => {
+  it('accepts the byte-exact shared history + union of new entries (prior lock baseline present)', async () => {
     const { projectRoot, nodePath } = await setupMergeRepo();
     const yggRoot = path.join(projectRoot, '.yggdrasil');
     // Seed a prior lock baseline at the ancestor boundary; the resolved log is a
@@ -212,7 +212,7 @@ describe('logMergeResolve (core, lock store)', () => {
     const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
     const result = await logMergeResolve({ graph, nodePath, repoRoot: projectRoot });
     expect(result.ok).toBe(false);
-    if (!result.ok) expect(result.error.what).toContain('ancestor prefix');
+    if (!result.ok) expect(result.error.what).toContain('does not start with the history both sides share');
   });
 
   it('rejects when new entries dropped (union missing)', async () => {
@@ -716,5 +716,75 @@ describe('looksLikeInterleavedMerge — what it refuses to call a merge', () => 
   it('is false for a log path git has never seen', async () => {
     const { projectRoot } = await setupInterleavedWorkingTree();
     expect(await looksLikeInterleavedMerge(projectRoot, '.yggdrasil/model/nowhere/log.md', INTERLEAVED, expectedBaselineFromContent(SIDE_A))).toBe(false);
+  });
+});
+
+// Issue 222: the shared history of a merge is what the two logs themselves start
+// with — not the log at the merge-base commit. A branch whose log an earlier
+// merge put in date order no longer starts with the log at a later merge base.
+describe('logMergeResolve — a side whose log an earlier merge reordered by date', () => {
+  const E0 = '## [2026-05-11T10:00:00.000Z]\nbase.\n';
+  const C1 = '## [2026-05-11T10:30:00.000Z]\nc1 from an earlier merge.\n';
+  const M1 = '## [2026-05-11T11:00:00.000Z]\nm1.\n';
+  const X = '## [2026-05-11T12:00:00.000Z]\ntheirs x.\n';
+  const Y = '## [2026-05-11T13:00:00.000Z]\nours y.\n';
+
+  it('writes the union from the common prefix of the two sides, though the merge base\'s log starts neither', async () => {
+    // Merge base [E0, M1]; theirs merged C1 in date order ahead of M1, so it no
+    // longer starts with [E0, M1]. The two sides share [E0] only.
+    const { projectRoot, logPath } = await setupConflictedMerge(E0 + M1, E0 + M1 + Y, E0 + C1 + M1 + X);
+    expect(await readFile(logPath, 'utf-8')).toMatch(/^<{7}/m);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result).toEqual({ ok: true, nodePath: 'billing', wroteUnion: true, inProgress: 'merge' });
+    const union = E0 + C1 + M1 + X + Y;
+    expect(await readFile(logPath, 'utf-8')).toBe(union);
+    expect(readLock(path.join(projectRoot, '.yggdrasil')).nodes.billing?.log).toEqual(expectedBaselineFromContent(union));
+  });
+
+  it('verifies that union on the merge commit, and rejects it out of date order', async () => {
+    const { projectRoot, logPath } = await setupConflictedMerge(E0 + M1, E0 + M1 + Y, E0 + C1 + M1 + X);
+    const r = (cmd: string) => execSync(cmd, { cwd: projectRoot, stdio: 'pipe', env: gitFixtureEnv(projectRoot) });
+    await writeFile(logPath, E0 + C1 + M1 + X + Y);
+    r('git add -A && git commit -qm merged');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    expect(await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot })).toEqual({ ok: true, nodePath: 'billing' });
+    await writeFile(logPath, E0 + M1 + C1 + X + Y);
+    const unordered = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(unordered.ok).toBe(false);
+    if (!unordered.ok) expect(unordered.error.what).toContain('not in chronological order');
+  });
+
+  it('still refuses a side that lost an entry it had at the merge base', async () => {
+    const { projectRoot, logPath } = await setupConflictedMerge(E0 + M1, E0 + M1 + Y, E0 + X);
+    const before = await readFile(logPath, 'utf-8');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error.what).toContain('theirs side of the merge dropped or changed 1 entry');
+      expect(result.error.next).toContain('2026-05-11T11:00:00.000Z');
+      expect(result.error.next).toContain('git merge --abort');
+    }
+    expect(await readFile(logPath, 'utf-8')).toBe(before);
+  });
+
+  it('refuses two different entries at one datetime after the shared history', async () => {
+    const other = '## [2026-05-11T12:00:00.000Z]\nours, same instant.\n';
+    const { projectRoot, logPath } = await setupConflictedMerge(E0, E0 + other, E0 + X);
+    const before = await readFile(logPath, 'utf-8');
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.error.why).toContain('2026-05-11T12:00:00.000Z');
+    expect(await readFile(logPath, 'utf-8')).toBe(before);
+  });
+
+  it('counts an entry once when only one side ends it without a final newline', async () => {
+    const { projectRoot, logPath } = await setupConflictedMerge(E0, E0 + M1.slice(0, -1), E0 + M1 + X);
+    const graph = await loadGraph(projectRoot, { tolerateInvalidConfig: true });
+    const result = await logMergeResolve({ graph, nodePath: 'billing', repoRoot: projectRoot });
+    expect(result.ok).toBe(true);
+    expect(await readFile(logPath, 'utf-8')).toBe(E0 + M1 + X);
   });
 });

@@ -331,8 +331,8 @@ the diff and present it as the reason.
 After a git merge, rebase or cherry-pick: if both sides added log entries
 to the same node, run \`yg log merge-resolve --node <path>\` while git is
 stopped on the conflict (it writes the union) or from the merge commit. The
-tool validates byte-exact ancestor portion and union of new entries — it
-cannot silently drop or fabricate entries. Do NOT manually concatenate the two
+tool keeps the entries both sides start with byte-exact and the union of
+every entry after them — it cannot silently drop or fabricate entries. Do NOT manually concatenate the two
 log histories — integrity hashes will break and \`yg check\` will fail.
 
 Deep dive (full format constraints, Supersedes convention, typo recovery,

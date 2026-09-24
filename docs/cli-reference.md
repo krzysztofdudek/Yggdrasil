@@ -859,8 +859,13 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
   - **During a merge stopped on a conflicted `log.md`** (the usual case: `git merge`
     left conflict markers in it), run it right there. It reads the two sides from
     `HEAD` and `MERGE_HEAD`, **writes the union** — the shared history byte-for-byte,
-    then every entry either side added, oldest first — verifies it, and records its
-    baseline. Then `git add` the log and `.yggdrasil/yg-lock.logs.json` and commit the
+    then every entry either side holds after it, each once, oldest first — verifies it,
+    and records its baseline. The shared history is what the two logs themselves
+    start with (their longest run of identical leading entries), not the log at the
+    merge-base commit: an earlier merge that put entries in date order leaves a
+    branch's log no longer starting with a later merge base's log, and that must not
+    stop the next merge. The merge base still serves as a check — neither side may
+    have lost an entry the base had. Then `git add` the log and `.yggdrasil/yg-lock.logs.json` and commit the
     merge. If `yg-lock.logs.json` is conflicted too, take one side of it first
     (`git checkout --ours -- .yggdrasil/yg-lock.logs.json`); merge-resolve rewrites the
     node's baseline in it.
@@ -878,8 +883,9 @@ yg log merge-resolve --node <path> --ours <ref> --theirs <ref> [--base <ref>]
     is refused — abort, restore the entry, and replay again.
   - **On a log that is already whole** — on the merge commit, or, for a merge that left
     no merge commit (a merge script, a squash, a rebase already finished), naming the two sides with
-    `--ours <ref> --theirs <ref>` (`--base <ref>` overrides their merge base) — it only
-    **verifies**: the ancestor portion byte-exact (at a rebase or cherry-pick stop: HEAD's
+    `--ours <ref> --theirs <ref>` (`--base <ref>` names the commit checked for lost
+    entries instead of their merge base) — it only
+    **verifies**: the shared history byte-exact (at a rebase or cherry-pick stop: HEAD's
     entries and the replayed commit's added ones, nothing more), every entry from both sides present
     and unaltered, none invented, all in date order. It never rewrites that log.
     `git merge-file --union` and `merge=union` join the sides without sorting, so put

@@ -14,7 +14,8 @@
 //   4. an async check.mjs that throws still reaches the report
 //   5. a reason-less yg-suppress marker is warned about before it matters
 //   6. a log conflict met mid-merge, mid-rebase or mid-cherry-pick resolves with
-//      the command the check names, and the result passes yg check --approve
+//      the command the check names, and the result passes yg check --approve —
+//      also after an earlier merge put the log's entries in date order
 //   7. the log gate stops before announcing a fill, and its retry keeps flags
 //   8. the closing summary never claims "all valid" after filling something
 //   9. contradictory / invalid flags are refused with an accurate message
@@ -447,6 +448,152 @@ describe.skipIf(!distExists)('CLI E2E — check gate clarity', () => {
         const approve = run(['check', '--approve'], dir);
         expect(approve.stdout).toContain('yg check: PASS');
         expect(approve.status).toBe(0);
+      } finally {
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+      }
+    });
+  });
+
+  // Issue 222: a merge written in date order puts an older entry from the other
+  // branch before a newer one of the branch's own, so the branch's log no longer
+  // starts with the log at the merge base of any LATER merge. The next merge
+  // from a branch cut before that reorder used to be refused ("the two sides do
+  // not share the history"); the shared history is what the two logs themselves
+  // start with.
+  describe('6e. a merge after an earlier merge reordered the log by date', () => {
+    /** Commit everything on the current branch, approving first. */
+    function approveAndCommit(dir: string, msg: string): void {
+      expect(run(['check', '--approve'], dir).stdout).toContain('yg check: PASS');
+      git(['add', '-A'], dir);
+      git(['commit', '-qm', msg], dir);
+    }
+    function addEntry(dir: string, reason: string): void {
+      expect(run(['log', 'add', '--node', 'services/payments', '--reason', reason], dir).status).toBe(0);
+      approveAndCommit(dir, reason);
+    }
+    /** Merge `branch` in, resolve the lock by our side and the log by merge-resolve, approve, commit. */
+    function mergeWithResolve(dir: string, branch: string): Run {
+      git(['merge', '--no-ff', '--no-commit', branch], dir);
+      // Every merge here conflicts on the log: both sides appended after what they share.
+      expect(readFileSync(LOG(dir), 'utf-8')).toMatch(/^<{7}/m);
+      for (const f of lockFiles) {
+        const p = path.join(dir, '.yggdrasil', f);
+        if (existsSync(p) && /^<{7}/m.test(readFileSync(p, 'utf-8'))) git(['checkout', '--ours', '--', `.yggdrasil/${f}`], dir);
+      }
+      const r = run(['log', 'merge-resolve', '--node', 'services/payments'], dir);
+      if (r.status === 0) {
+        const approve = run(['check', '--approve'], dir);
+        expect(approve.stdout).toContain('yg check: PASS');
+        expect(approve.status).toBe(0);
+        git(['add', '-A'], dir);
+        git(['commit', '-qm', `merge ${branch}`], dir);
+      }
+      return r;
+    }
+    function expectDateOrderedOnce(dir: string, reasons: string[]): void {
+      const final = readFileSync(LOG(dir), 'utf-8');
+      const headers = [...final.matchAll(/^## \[([^\]]+)\]/gm)].map((m) => m[1]);
+      expect([...headers].sort()).toEqual(headers);
+      expect(new Set(headers).size).toBe(headers.length);
+      const order = reasons.map((s) => final.indexOf(`\n${s}\n`));
+      expect(order.every((i) => i >= 0)).toBe(true);
+      expect([...order].sort((a, b) => a - b)).toEqual(order);
+      for (const s of reasons) expect(final.split(`\n${s}\n`).length).toBe(2);
+    }
+
+    /**
+     * base → feat-c (entry c1) → main (entry m1, commit M) → feat-d and feat-e cut
+     * from M. Entries are written in the order c1, m1, d1, e1, so merging feat-c
+     * into main writes [c1, m1]: main's log no longer starts with M's.
+     */
+    function chainProject(label: string): { dir: string; main: string } {
+      const dir = project(label);
+      dropJudgmentRule(dir);
+      makeServiceLogRequired(dir);
+      run(['log', 'add', '--node', 'services/payments', '--reason', 'initial'], dir);
+      run(['log', 'add', '--node', 'services/orders', '--reason', 'initial'], dir);
+      approveAndCommit(dir, 'base');
+      const main = git(['rev-parse', '--abbrev-ref', 'HEAD'], dir).trim();
+      git(['checkout', '-qb', 'feat-c'], dir);
+      addEntry(dir, 'branch c1');
+      git(['checkout', '-q', main], dir);
+      addEntry(dir, 'main m1');
+      git(['checkout', '-qb', 'feat-d'], dir);
+      addEntry(dir, 'branch d1');
+      git(['checkout', '-q', main], dir);
+      git(['checkout', '-qb', 'feat-e'], dir);
+      addEntry(dir, 'branch e1');
+      git(['checkout', '-q', main], dir);
+      return { dir, main };
+    }
+
+    it('merges a branch cut before the reorder, and the result passes yg check --approve', () => {
+      const { dir } = chainProject('reorder');
+      try {
+        const first = mergeWithResolve(dir, 'feat-c');
+        expect(first.status).toBe(0);
+        expectDateOrderedOnce(dir, ['initial', 'branch c1', 'main m1']);
+        addEntry(dir, 'main m2');
+
+        const second = mergeWithResolve(dir, 'feat-d');
+        expect(second.all).not.toContain('do not share');
+        expect(second.status).toBe(0);
+        expect(second.stdout).toContain('wrote the union of both sides');
+        expectDateOrderedOnce(dir, ['initial', 'branch c1', 'main m1', 'branch d1', 'main m2']);
+      } finally {
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+      }
+    });
+
+    it('keeps working down a three-branch chain', () => {
+      const { dir } = chainProject('chain');
+      try {
+        for (const [i, b] of ['feat-c', 'feat-d', 'feat-e'].entries()) {
+          const r = mergeWithResolve(dir, b);
+          expect(r.all).not.toContain('do not share');
+          expect(r.status).toBe(0);
+          addEntry(dir, `main after ${i}`);
+        }
+        expectDateOrderedOnce(dir, ['initial', 'branch c1', 'main m1', 'branch d1', 'branch e1', 'main after 0', 'main after 1', 'main after 2']);
+        expect(run(['check'], dir).status).toBe(0);
+      } finally {
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+      }
+    });
+
+    it('merges main back into a branch whose log main reordered', () => {
+      const { dir, main } = chainProject('back');
+      try {
+        expect(mergeWithResolve(dir, 'feat-c').status).toBe(0);
+        addEntry(dir, 'main m2');
+        git(['checkout', '-q', 'feat-d'], dir);
+        const r = mergeWithResolve(dir, main);
+        expect(r.all).not.toContain('do not share');
+        expect(r.status).toBe(0);
+        expectDateOrderedOnce(dir, ['initial', 'branch c1', 'main m1', 'branch d1', 'main m2']);
+      } finally {
+        rmSync(dir, FIXTURE_RM_OPTIONS);
+      }
+    });
+
+    it('rebases a branch cut before the reorder onto it', () => {
+      const { dir, main } = chainProject('rebase-reorder');
+      try {
+        expect(mergeWithResolve(dir, 'feat-c').status).toBe(0);
+        addEntry(dir, 'main m2');
+        git(['checkout', '-q', 'feat-d'], dir);
+        git(['rebase', main], dir);
+        const rebasing = (): boolean => existsSync(path.join(dir, '.git', 'rebase-merge')) || existsSync(path.join(dir, '.git', 'rebase-apply'));
+        let stops = 0;
+        while (rebasing()) {
+          const r = resolveStop(dir);
+          expect(r.status).toBe(0);
+          continueOp('rebase', dir);
+          expect(++stops).toBeLessThan(5);
+        }
+        expect(stops).toBe(1);
+        expectDateOrderedOnce(dir, ['initial', 'branch c1', 'main m1', 'branch d1', 'main m2']);
+        expect(run(['check', '--approve'], dir).stdout).toContain('yg check: PASS');
       } finally {
         rmSync(dir, FIXTURE_RM_OPTIONS);
       }
