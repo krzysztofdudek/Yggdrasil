@@ -204,9 +204,11 @@ and every setting added, removed or given a new default. A rule whose content
 actually changed goes back to unverified in their repository and gets judged
 again; a rule that did not keep its verdicts.
 
-**Never move a published tag.** The consumer's record names the commit the tag
-pointed at; \`yg pack verify\` reports a tag that moved, and \`--reinstall\`
-refuses one. Publish a new version instead.
+**Never move a published tag, and never re-use a version number.** The
+consumer's record names the commit the tag pointed at and what every file hashed
+to; \`yg pack verify\` reports a moved tag or a re-used number, and
+\`--reinstall\` refuses both until the consumer accepts the new content with
+\`--reinstall --accept-republished\`. Publish a new version instead.
 
 ## Reading \`yg marketplace check\`
 

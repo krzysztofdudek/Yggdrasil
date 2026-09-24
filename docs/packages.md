@@ -273,6 +273,17 @@ while your graph still attaches it — any of them stops the whole run with noth
 changed, and says so. If replacing a copy then fails on the disk itself, the
 command says exactly which packages were already updated and which were not.
 
+One case does not stop the others. When `yg pack update` runs with no name, a
+package whose source publishes no version of it at all — typically one an
+earlier release installed from the source's default branch, before versions
+were tags — is left as it is and named at the end, with what to do about it,
+and the run exits 1 after updating every other package. Named on its own, the
+same package is refused.
+
+A record written by an earlier release names no tag or commit. The next `update`
+that reaches the tag of the installed version records both, even when there is
+nothing newer to take, so `yg pack verify` can notice a moved tag from then on.
+
 A rule the new version no longer ships is removed with its adaptation; the update
 says so. While anything in your graph still names such a rule — a component, one
 of its ports, a type, a flow, or another rule's `implies:` — the update is
@@ -294,8 +305,23 @@ When a copied file was edited or deleted and version control cannot put it back
 (an install that was never committed, say), `--reinstall` fetches the version the
 record names and puts the copy back exactly as it was installed, keeping your
 adaptation. It is refused if what the source publishes under that version today
-is not what was installed — a tag that moved, a file that changed — because then
-nothing could be put back faithfully.
+is not what was installed — because then nothing could be put back faithfully —
+and the refusal names the cause: the publisher moved the tag, or the publisher
+re-used the version number for different content.
+
+Either way, the choice to take what the source publishes under that number now
+is yours, and it is made in so many words:
+
+```bash
+yg pack update house-style --reinstall --accept-republished
+```
+
+It takes the content the tag names today under the version already installed,
+keeping your adaptation and its history, says what it changes about each rule
+first, records the new commit and file hashes, and is refused like an update if
+it would drop a rule your graph still attaches. A plain `update`, or `--to` the
+installed version, never takes it: both say the number was re-used and change
+nothing.
 
 ## Verifying against the source
 
@@ -309,9 +335,20 @@ record itself is a committed file, though, and anyone who can change it can
 change it together with the copy. `yg pack verify` asks the source: does the
 recorded tag still point at the recorded commit, does what it holds hash to what
 the record says, and is the copy on disk still that. Any "no" exits 1, naming
-it. A package installed from a plain directory is compared with the directory as
-it is now; one recorded by an earlier release, with no commit, is compared file
-by file with its version's tag.
+it, and says per package what to do next. A package installed from a plain
+directory is compared with the directory as it is now; one recorded by an earlier
+release, with no commit, is compared file by file with its version's tag, and the
+next `yg pack update` records the tag and commit.
+
+Two outcomes are not an edited copy. When the tag holds different files from the
+copy although it has not moved as far as the record can tell, verify says the
+publisher re-used the version number and names `--reinstall --accept-republished`.
+When a copy was installed by an earlier release from a source that has never
+published its version, there is nothing to compare it with: verify says so, and
+names what works — `yg pack update <name>` once the source publishes any version,
+or asking the author to tag the one you have; `yg pack remove` if you would
+rather not depend on it. Both still exit 1: verify passes only a copy it could
+match against its source.
 
 ## Seeing what you have
 
@@ -438,8 +475,10 @@ installing without a version takes the highest such tag; `yg pack list` and
 `yg advise` read the tags to tell a consumer a newer version exists. The version
 in the tag, `version:` in `yg-package.yaml` and the entry in
 `yg-marketplace.yaml` must agree — a consumer is refused a version whose three
-disagree. Never move a published tag: a consumer's `yg pack verify` reports it,
-and their `--reinstall` refuses it.
+disagree. Never move a published tag, and never publish different content under
+a version number consumers already hold: a consumer's `yg pack verify` reports
+either, and their `--reinstall` refuses it until they accept it with
+`--accept-republished`. Publish a new version instead.
 
 Every directory in a package must be declared in `aspects:`, and every declared
 one must exist. An undeclared rule directory would arrive in someone's repository
