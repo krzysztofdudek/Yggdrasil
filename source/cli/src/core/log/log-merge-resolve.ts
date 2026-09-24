@@ -29,7 +29,9 @@ export interface LogMergeResolveInput {
    * The two sides of a merge that left no merge commit behind — a script that
    * merges branch logs into the working tree, a squash, a rebase. Absent ⇒ HEAD
    * must be the merge commit and its two parents are the sides. `base` defaults
-   * to the merge base of `ours` and `theirs`.
+   * to the merge base of `ours` and `theirs`; it is only a sanity signal (no
+   * side may have lost an entry the base had) — the shared history itself is
+   * the common prefix of the two sides' logs.
    */
   sides?: { ours: string; theirs: string; base?: string };
 }
@@ -76,37 +78,144 @@ async function replayInProgress(repoRoot: string): Promise<{ kind: 'rebase' | 'c
 const hasConflictMarkers = (text: string): boolean => /^<{7}/m.test(text) || /^>{7}/m.test(text);
 
 /**
- * The union a conflicted log resolves to: the history both sides share, then
- * every entry either side added after it, oldest first, each byte-for-byte as
- * its side wrote it. An entry both sides carry (same datetime and body) appears
- * once. Null when a side does not start with the shared history — a rewritten
- * log is not something a union can repair.
+ * What two sides of a merge share of a log, read off the two logs themselves:
+ * their longest common prefix of entries (identical entries, in the same
+ * order), and every entry either side holds after it.
+ *
+ * The shared history is deliberately NOT the log at the merge-base commit. A
+ * merge resolved into date order puts an older entry from the other branch
+ * before a newer one of the branch's own, so after one such merge the branch's
+ * log no longer starts with the log at any later merge base — and the next
+ * merge from a branch cut earlier would find "no shared history" although
+ * nothing was rewritten. Two logs share exactly what they both start with.
+ *
+ * `added` keeps ours' entries first, then theirs', each once (an entry both
+ * sides carry after the prefix — same datetime and body — counts once), each
+ * byte-for-byte as its side wrote it and ending in a newline. `clash` names a
+ * datetime at which the two sides hold different entries (or a shared entry
+ * sits beside a different one at its datetime) — a rewritten entry, which no
+ * union can carry. Null when the two logs differ before their first entry.
  */
-function unionOfSides(ancestorLog: string, oursLog: string, theirsLog: string): string | null {
-  const ancestorBytes = Buffer.from(ancestorLog, 'utf-8');
-  const sideBytes = [Buffer.from(oursLog, 'utf-8'), Buffer.from(theirsLog, 'utf-8')];
-  for (const b of sideBytes) {
-    if (b.length < ancestorBytes.length || !b.subarray(0, ancestorBytes.length).equals(ancestorBytes)) return null;
-  }
-  const ancestorCount = parseLog(ancestorLog).length;
-  const seen = new Set<string>();
-  const added: Array<{ datetime: string; raw: Buffer }> = [];
-  for (const [i, text] of [oursLog, theirsLog].entries()) {
-    for (const e of parseLog(text).slice(ancestorCount)) {
-      const key = `${e.datetime}\n${e.body}`;
+interface SharedHistory {
+  /** The shared bytes as ours holds them: anything before the first entry, then the shared entries. */
+  prefix: Buffer;
+  sharedKeys: string[];
+  lastSharedDatetime: string | null;
+  added: Array<{ key: string; datetime: string; raw: Buffer }>;
+  clash: string | null;
+}
+
+function sharedHistoryOf(oursLog: string, theirsLog: string): SharedHistory | null {
+  const oursBytes = Buffer.from(oursLog, 'utf-8');
+  const theirsBytes = Buffer.from(theirsLog, 'utf-8');
+  const ours = parseLog(oursLog);
+  const theirs = parseLog(theirsLog);
+  const preamble = (b: Buffer, entries: ReturnType<typeof parseLog>): Buffer => b.subarray(0, entries.length > 0 ? entries[0].offsetStart : b.length);
+  if (!preamble(oursBytes, ours).equals(preamble(theirsBytes, theirs))) return null;
+  const oursKeys = ours.map((e) => entryKeyOf(withFinalNewline(e)));
+  const theirsKeys = theirs.map((e) => entryKeyOf(withFinalNewline(e)));
+  let k = 0;
+  while (k < oursKeys.length && k < theirsKeys.length && oursKeys[k] === theirsKeys[k]) k++;
+  const prefix = oursBytes.subarray(0, k > 0 ? ours[k - 1].offsetEnd : preamble(oursBytes, ours).length);
+  const sharedKeys = oursKeys.slice(0, k);
+  const seen = new Set(sharedKeys);
+  const byDatetime = new Map<string, string>(ours.slice(0, k).map((e, i) => [e.datetime, sharedKeys[i]]));
+  const added: SharedHistory['added'] = [];
+  let clash: string | null = null;
+  for (const [bytes, entries, keys] of [[oursBytes, ours, oursKeys], [theirsBytes, theirs, theirsKeys]] as const) {
+    for (let i = k; i < entries.length; i++) {
+      const key = keys[i];
       if (seen.has(key)) continue;
       seen.add(key);
-      let raw = sideBytes[i].subarray(e.offsetStart, e.offsetEnd);
-      // The last entry of a side may end without a newline; it may not be last here.
-      if (raw.length > 0 && raw[raw.length - 1] !== 0x0a) raw = Buffer.concat([raw, Buffer.from('\n')]);
-      added.push({ datetime: e.datetime, raw });
+      const e = entries[i];
+      const other = byDatetime.get(e.datetime);
+      if (other !== undefined && other !== key && clash === null) clash = e.datetime;
+      byDatetime.set(e.datetime, key);
+      added.push({ key, datetime: e.datetime, raw: entryBytes(bytes, e) });
     }
   }
-  // Stable sort: equal datetimes keep ours-then-theirs order.
-  added.sort((a, b) => (a.datetime < b.datetime ? -1 : a.datetime > b.datetime ? 1 : 0));
-  let prefix = ancestorBytes;
+  return { prefix, sharedKeys, lastSharedDatetime: k > 0 ? ours[k - 1].datetime : null, added, clash };
+}
+
+/**
+ * The union a conflicted log resolves to: the history both sides share (see
+ * {@link sharedHistoryOf}) byte-for-byte, then every entry either side holds
+ * after it, oldest first (stable: on equal datetimes ours comes first).
+ */
+function unionOf(shared: SharedHistory): string {
+  const added = [...shared.added].sort((a, b) => (a.datetime < b.datetime ? -1 : a.datetime > b.datetime ? 1 : 0));
+  let prefix = shared.prefix;
   if (prefix.length > 0 && added.length > 0 && prefix[prefix.length - 1] !== 0x0a) prefix = Buffer.concat([prefix, Buffer.from('\n')]);
   return Buffer.concat([prefix, ...added.map((a) => a.raw)]).toString('utf-8');
+}
+
+/**
+ * The entries a side lost or changed from the log at the merge base — the
+ * sanity signal the merge base still gives. Order is not compared (a side may
+ * have reordered its log by merging in date order); presence is: a log is
+ * append-only, so every entry the base held must still be on each side.
+ */
+function droppedSinceBase(baseLog: string, sideLog: string): string[] {
+  const side = new Set(parseLog(sideLog).map((e) => entryKeyOf(withFinalNewline(e))));
+  return parseLog(baseLog)
+    .filter((e) => !side.has(entryKeyOf(withFinalNewline(e))))
+    .map((e) => e.datetime);
+}
+
+/**
+ * Verify a merged log against what its two sides share: it starts with their
+ * shared history byte-for-byte, then holds every entry either side added after
+ * it — none dropped or altered, none invented — in strict date order after the
+ * last shared entry. Null when it does.
+ */
+function verifyUnion(currentLog: string, shared: SharedHistory): IssueMessage | null {
+  const currentBytes = Buffer.from(currentLog, 'utf-8');
+  const current = parseLog(currentLog).map(withFinalNewline);
+  const k = shared.sharedKeys.length;
+  if (
+    currentBytes.length < shared.prefix.length ||
+    !currentBytes.subarray(0, shared.prefix.length).equals(shared.prefix) ||
+    current.length < k ||
+    shared.sharedKeys.some((key, i) => entryKeyOf(current[i]) !== key)
+  ) {
+    return {
+      what: 'log.md does not start with the history both sides share',
+      why: 'The entries both sides of the merge start with must stay first and byte-for-byte unchanged; a merge adds the rest after them.',
+      next: 'Restore the shared entries at the start of log.md without modification — or restore the conflicted file (git checkout --conflict=merge -- <log.md>) and let yg log merge-resolve write it.',
+    };
+  }
+  const currentNew = current.slice(k);
+  const currentNewKeys = new Set(currentNew.map(entryKeyOf));
+  const addedKeys = new Set(shared.added.map((a) => a.key));
+
+  const missing = shared.added.filter((a) => !currentNewKeys.has(a.key));
+  if (missing.length > 0) {
+    return {
+      what: `log.md is missing or has altered ${missing.length} entr${missing.length === 1 ? 'y' : 'ies'} from merge parents`,
+      why: 'Every new log entry from both branches must be preserved byte-for-byte in the merge result.',
+      next: `Restore these entries unmodified: ${missing.map((e) => e.datetime).join(', ')}`,
+    };
+  }
+  const fabricated = currentNew.filter((e) => !addedKeys.has(entryKeyOf(e)));
+  if (fabricated.length > 0) {
+    return {
+      what: `log.md contains ${fabricated.length} new entr${fabricated.length === 1 ? 'y' : 'ies'} not present in either merge parent`,
+      why: 'A merge resolution may only union the entries from the two branches — it cannot add or alter entries.',
+      next: `Remove the fabricated or altered entries: ${fabricated.map((e) => e.datetime).join(', ')}`,
+    };
+  }
+  let previous = shared.lastSharedDatetime;
+  for (const e of currentNew) {
+    if (previous !== null && e.datetime <= previous) {
+      return {
+        what: 'New log entries are not in chronological order',
+        why: 'Log entries must be ordered by timestamp to maintain a consistent history.',
+        next: 'Sort the entries after the shared history by datetime (oldest first), each once.',
+      };
+    }
+    previous = e.datetime;
+  }
+  return null;
 }
 
 /**
@@ -376,7 +485,7 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
 
   if (replay !== null) return resolveReplay({ yggRoot, repoRoot, nodePath, logPath, gitLogPath, currentLog, conflicted, replay });
 
-  let ancestorLog: string;
+  let baseLog: string | null;
   let parent1Log: string;
   let parent2Log: string;
   try {
@@ -384,111 +493,72 @@ export async function logMergeResolve(input: LogMergeResolveInput): Promise<LogM
       sides === undefined
         ? await getMergeParents(repoRoot, 'HEAD')
         : [sides.ours, sides.theirs];
-    const ancestorSha = sides?.base ?? (await getMergeBase(repoRoot, parent1, parent2));
-    ancestorLog = await getFileAtRef(repoRoot, ancestorSha, gitLogPath);
     parent1Log = await getFileAtRef(repoRoot, parent1, gitLogPath);
     parent2Log = await getFileAtRef(repoRoot, parent2, gitLogPath);
+    // The merge base is only a sanity signal now (see droppedSinceBase): the
+    // shared history is read off the two sides. Unrelated histories have none.
+    const baseSha =
+      sides?.base ??
+      (await getMergeBase(repoRoot, parent1, parent2).catch((err: unknown) => {
+        debugWrite(`[log-merge-resolve] no merge base for ${nodePath}, skipping the lost-entry check: ${err instanceof Error ? err.message : String(err)}`);
+        return null;
+      }));
+    baseLog = baseSha === null ? null : await getFileAtRef(repoRoot, baseSha, gitLogPath);
   } catch (err) {
     debugWrite(`[log-merge-resolve] could not read the merge sides for ${nodePath}: ${err instanceof Error ? err.message : String(err)}`);
     return {
       ok: false,
       error: {
         what: `Could not read ${gitLogPath} from the two sides of the merge`,
-        why: 'The merged log is verified against the log each side had and the log they shared, so every one of those refs must resolve in this repository.',
-        next: 'Check the refs with git rev-parse, then re-run with --ours and --theirs naming the two branches that were merged (and --base when they share no merge base).',
+        why: 'The merged log is verified against the log each side had, so both refs (and --base, when given) must resolve in this repository.',
+        next: 'Check the refs with git rev-parse, then re-run with --ours and --theirs naming the two branches that were merged.',
       },
     };
+  }
+
+  const abortHint = inProgress !== null ? `Abort the merge (${OPERATION_COMMANDS[inProgress].abort}), restore` : 'Restore';
+  const shared = sharedHistoryOf(parent1Log, parent2Log);
+  if (shared === null || shared.clash !== null) {
+    return {
+      ok: false,
+      error: {
+        what: `The two sides of the merge do not share ${gitLogPath}'s history`,
+        why:
+          shared === null
+            ? 'The two logs differ before their first entry, so there is no common history for a union to keep.'
+            : `Both sides hold a different entry dated ${shared.clash}: one side rewrote an entry the other still has, so there is no union to write — the rewrite has to be undone on that side.`,
+        next: `${abortHint} the rewritten entry on the side that changed it, and merge again.`,
+      },
+    };
+  }
+  if (baseLog !== null) {
+    for (const [label, sideLog] of [['ours', parent1Log], ['theirs', parent2Log]] as const) {
+      const dropped = droppedSinceBase(baseLog, sideLog);
+      if (dropped.length > 0) {
+        return {
+          ok: false,
+          error: {
+            what: `The ${label} side of the merge dropped or changed ${dropped.length} entr${dropped.length === 1 ? 'y' : 'ies'} of ${gitLogPath} it had at the merge base`,
+            why: 'A log is append-only: a branch may add entries, never drop or change one it already had. A union carries added entries, not a rewrite.',
+            next: `${abortHint} these entries on that side unmodified, and merge again: ${dropped.join(', ')}`,
+          },
+        };
+      }
+    }
   }
 
   // Mid-merge with the log conflicted: write the union of both sides, then
   // verify it like any other resolution.
   let wroteUnion = false;
   if (conflicted) {
-    const union = unionOfSides(ancestorLog, parent1Log, parent2Log);
-    if (union === null) {
-      return {
-        ok: false,
-        error: {
-          what: `The two sides of the merge do not share ${gitLogPath}'s history`,
-          why: 'A union keeps the shared history byte-for-byte and adds what each side appended. One side here rewrote that shared part, so there is no union to write — the rewrite has to be undone on that side.',
-          next: `Abort the merge (${OPERATION_COMMANDS[inProgress ?? 'merge'].abort}), restore the shared entries on the side that changed them, and merge again.`,
-        },
-      };
-    }
+    const union = unionOf(shared);
     await writeTextFile(logPath, union);
     currentLog = union;
     wroteUnion = true;
   }
 
-  const ancestorBytes = Buffer.from(ancestorLog, 'utf-8');
-  const currentBytes = Buffer.from(currentLog, 'utf-8');
-  if (
-    currentBytes.length < ancestorBytes.length ||
-    !currentBytes.subarray(0, ancestorBytes.length).equals(ancestorBytes)
-  ) {
-    return {
-      ok: false,
-      error: {
-        what: 'log.md ancestor prefix does not match merge base',
-        why: 'The shared history portion of the log must be preserved byte-for-byte during merge resolution.',
-        next: 'Restore the ancestor entries at the start of log.md without modification.',
-      },
-    };
-  }
-
-  const ancestorEntries = parseLog(ancestorLog);
-  const p1New = parseLog(parent1Log).slice(ancestorEntries.length).map(withFinalNewline);
-  const p2New = parseLog(parent2Log).slice(ancestorEntries.length).map(withFinalNewline);
-  const currentEntries = parseLog(currentLog);
-  const currentNew = currentEntries.slice(ancestorEntries.length);
-
-  // Match new entries by CONTENT (datetime + body), not datetime alone, and in
-  // BOTH directions: every parent-new entry must survive unmodified (no drops,
-  // no body edits), and every result-new entry must originate from a parent (no
-  // fabricated entries). Datetime-only matching let an altered body or an
-  // invented entry pass integrity verification.
-  const entryKey = entryKeyOf;
-
-  const parentNew = [...p1New, ...p2New];
-  const parentNewKeys = new Set(parentNew.map(entryKey));
-  const currentNewKeys = new Set(currentNew.map(entryKey));
-
-  const missing = parentNew.filter(e => !currentNewKeys.has(entryKey(e)));
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      error: {
-        what: `log.md is missing or has altered ${missing.length} entr${missing.length === 1 ? 'y' : 'ies'} from merge parents`,
-        why: 'Every new log entry from both branches must be preserved byte-for-byte in the merge result.',
-        next: `Restore these entries unmodified: ${missing.map(e => e.datetime).join(', ')}`,
-      },
-    };
-  }
-
-  const fabricated = currentNew.filter(e => !parentNewKeys.has(entryKey(e)));
-  if (fabricated.length > 0) {
-    return {
-      ok: false,
-      error: {
-        what: `log.md contains ${fabricated.length} new entr${fabricated.length === 1 ? 'y' : 'ies'} not present in either merge parent`,
-        why: 'A merge resolution may only union the entries from the two branches — it cannot add or alter entries.',
-        next: `Remove the fabricated or altered entries: ${fabricated.map(e => e.datetime).join(', ')}`,
-      },
-    };
-  }
-
-  for (let i = 1; i < currentNew.length; i++) {
-    if (currentNew[i].datetime <= currentNew[i - 1].datetime) {
-      return {
-        ok: false,
-        error: {
-          what: 'New log entries are not in chronological order',
-          why: 'Log entries must be ordered by timestamp to maintain a consistent history.',
-          next: 'Sort the new entries by datetime (oldest first) after the ancestor entries.',
-        },
-      };
-    }
-  }
+  const bad = verifyUnion(currentLog, shared);
+  if (bad !== null) return { ok: false, error: bad };
 
   const lockError = await recordBaseline(yggRoot, nodePath, currentLog);
   if (lockError !== null) return { ok: false, error: lockError };

@@ -267,7 +267,7 @@ export function registerLogCommand(program: Command): void {
     .requiredOption('--node <path>', 'Node path (relative to .yggdrasil/model/)')
     .option('--ours <ref>', 'one side of a merge that left no merge commit (with --theirs)')
     .option('--theirs <ref>', 'the other side of that merge (with --ours)')
-    .option('--base <ref>', 'the log both sides started from (default: the merge base of --ours and --theirs)')
+    .option('--base <ref>', 'the commit whose log entries neither side may have lost (default: the merge base of --ours and --theirs)')
     .action(async (opts: { node: string; ours?: string; theirs?: string; base?: string }) => {
       try {
         const graph = await loadGraphOrAbort(process.cwd(), { tolerateInvalidConfig: true });
@@ -275,7 +275,7 @@ export function registerLogCommand(program: Command): void {
           fail({
                 what: '--ours and --theirs go together, and --base only with them.',
                 why: 'A merge has two sides; the merged log is verified against both, so naming one of them names no merge.',
-                next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only when they share no merge base), or none of them (during a merge, rebase or cherry-pick in progress, or on the merge commit).',
+                next: 'Pass both --ours <ref> and --theirs <ref> (and --base <ref> only to check against a commit other than their merge base), or none of them (during a merge, rebase or cherry-pick in progress, or on the merge commit).',
               });
           process.exit(1);
         }

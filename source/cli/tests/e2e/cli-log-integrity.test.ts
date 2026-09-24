@@ -363,7 +363,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
     }
   });
 
-  it('6b: merge-resolve rejects a tampered ancestor prefix (exit 1)', () => {
+  it('6b: merge-resolve rejects a tampered shared history (exit 1)', () => {
     // Same merge topology, but the resolved log mutates the ancestor entry body.
     const tampered =
       '## [2026-05-11T10:00:00.000Z]\nTAMPERED.\n' + P1_NEW + P2_NEW;
@@ -371,7 +371,7 @@ describe.skipIf(!distExists)('CLI E2E — log integrity (mandatory gate, heading
     try {
       const { status, all } = run(['log', 'merge-resolve', '--node', 'services/orders'], repo);
       expect(status).toBe(1);
-      expect(all).toContain('ancestor prefix');
+      expect(all).toContain('does not start with the history both sides share');
     } finally {
       rmSync(repo, FIXTURE_RM_OPTIONS);
     }

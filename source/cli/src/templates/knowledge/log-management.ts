@@ -229,9 +229,12 @@ yg log merge-resolve --node <path>
 It reads the two sides from git: a merge's \`HEAD\` and \`MERGE_HEAD\`; a rebase's
 or cherry-pick's \`HEAD\` (the side being built on) and \`REBASE_HEAD\` /
 \`CHERRY_PICK_HEAD\` (the commit being replayed — it contributes the entries it
-added over its own parent, nothing more). It **writes the union** — every entry
+added over its own parent, nothing more). It **writes the union** — the entries
+both logs start with, then every entry either side holds after them, each
 byte-for-byte with its original date, oldest first — verifies it, and records the
-node's \`log\` baseline into the lock. Then \`git add\` the log and
+node's \`log\` baseline into the lock. The shared part is read off the two logs,
+not off the merge-base commit, so a log an earlier merge put in date order merges
+again; the merge base only checks that neither side lost an entry it had. Then \`git add\` the log and
 \`yg-lock.logs.json\` and finish the operation (\`git commit\`, \`git rebase
 --continue\`, \`git cherry-pick --continue\`); a rebase stops once per replayed
 commit, and each stop resolves the same way.
