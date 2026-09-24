@@ -29,3 +29,23 @@ describe('SymbolTable', () => {
     expect(t.resolveUnique('cpp', 'Connection')).toBe('src/net/connection.cpp');
   });
 });
+
+describe('SymbolTable — JVM namespace and package members', () => {
+  it('java and kotlin share one namespace; other languages do not', () => {
+    const st = new SymbolTable();
+    st.declare('java', 'a.B', 'B.java');
+    expect(st.filesFor('kotlin', 'a.B')).toEqual(['B.java']);
+    expect(st.filesFor('csharp', 'a.B')).toEqual([]);
+  });
+  it('filesInPackage lists direct top-level members only (no nested `+` keys, no sub-packages)', () => {
+    const st = new SymbolTable();
+    st.declare('kotlin', 'a.A', 'A.kt');
+    st.declare('kotlin', 'a.A+Inner', 'N.kt');
+    st.declare('kotlin', 'a.b.C', 'C.kt');
+    st.declare('kotlin', 'Root', 'R.kt');
+    expect(st.filesInPackage('java', 'a')).toEqual(['A.kt']);
+    expect(st.filesInPackage('kotlin', 'a.b')).toEqual(['C.kt']);
+    expect(st.filesInPackage('kotlin', '')).toEqual(['R.kt']);
+    expect(st.filesInPackage('kotlin', 'zz')).toEqual([]);
+  });
+});

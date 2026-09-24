@@ -293,11 +293,13 @@ function enclosingTypeChain(node: Node): string[] {
 }
 
 /**
- * The FULLY-QUALIFIED symbol keys this file DEFINES. Java IMPORTS resolve by PATH (the
- * package = directory convention; an import emits a `path` hint that never touches the
- * SymbolTable), but the INLINE FULLY-QUALIFIED TYPE form (`uses()` emits a `symbol` hint for
- * a `scoped_type_identifier`) DOES resolve through this table — so it is load-bearing for that
- * one form (the table's distinct-file rule + guarded `+`-split give ambiguity→silence). Reads
+ * The FULLY-QUALIFIED symbol keys this file DEFINES. Java IMPORTS resolve by PATH first (the
+ * package = directory convention under the importing file's ancestors), and fall back to this
+ * table — the JVM namespace Java shares with Kotlin — only when that probe misses (a sibling
+ * Maven/Gradle module, `src/test` → `src/main`, a Kotlin class or file facade; see resolver.ts).
+ * The INLINE FULLY-QUALIFIED TYPE form (`uses()` emits a `symbol` hint for a
+ * `scoped_type_identifier`) always resolves through the table. Either way the table's
+ * distinct-file rule + guarded `+`-split give ambiguity→silence. Reads
  * the file's `package_declaration`, then for each `class`/`interface`/`enum`/`record`
  * declaration (top-level AND nested) emits `<package>.<TypeKey>` (or `<TypeKey>` for the
  * unnamed package).

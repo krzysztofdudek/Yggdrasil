@@ -22,7 +22,9 @@ import { withParsedFile } from '../../../../src/ast/parser.js';
  * it would reintroduce the precedence trap (explicit-import > same-package > star > stdlib) and
  * the stdlib-collision trap (a project `Result`/`Pair`/`List` colliding with an invisible
  * stdlib name). The cardinal invariant — ZERO false positives, a hard wall with no adopter
- * waiver — outranks recall; a missed edge is a tolerated false-NEGATIVE.
+ * waiver — outranks recall; a missed edge is a tolerated false-NEGATIVE. A star import is
+ * still an import: it names a package, and is collapsed by owner exactly like Java's on-demand
+ * import (one owning node → one edge), never expanded into per-name bindings.
  *
  * The catalogue covers the full research enumeration (.plans/2026-06-15-kotlin-name-resolution-
  * research.md): import forms (A1/A3/A4/A5/A6/A7/A8/A9), implicit stdlib (B1), nested/JVM
@@ -60,8 +62,9 @@ describe('MATRIX — enum / companion / object member imports (resolve at the de
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('MATRIX — wildcard import (`import a.b.*`): emits the PACKAGE hint → SILENCE (expansion FORBIDDEN)', () => {
-  it('kotlin-wildcard-import-package-hint-silence', () => runCase('kotlin-wildcard-import-package-hint-silence'));
+describe('MATRIX — star import (`import a.b.*`): package owner-set collapse, like Java (one owner → edge; 0 or 2+ → SILENCE; never expanded)', () => {
+  it('kotlin-wildcard-one-owner-edge', () => runCase('kotlin-wildcard-one-owner-edge'));
+  it('kotlin-wildcard-split-owner-silence', () => runCase('kotlin-wildcard-split-owner-silence'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -109,34 +112,56 @@ describe('MATRIX — inline fully-qualified TYPE reference (no import): the FQN 
 // EXPRESSION position — a constructor call `com.x.Y()`, a `::class` literal, a `::member`
 // callable reference — parses as a navigation_expression / member-access chain that is
 // syntactically indistinguishable from `localVariable.field.method`, so binding it could pick
-// the wrong target; it is DELIBERATELY left silent (zero-FP boundary). Context-parameter types
-// stay silent because the shipped tree-sitter-kotlin grammar predates Kotlin 2.2 context
-// parameters (the `context(...)` clause parses as an ERROR node → invisible to a source-only
-// tool → tolerated recall gap). The bare top-level call documents the same expression-position
+// the wrong target; it is DELIBERATELY left silent (zero-FP boundary). (A type inside a
+// `context(...)` clause is also silent — the parse-recovery block below pins it.) The bare
+// top-level call documents the same expression-position
 // silence: only its IMPORT is the edge, the bare call adds nothing.
 describe('MATRIX — expression-position / grammar-limited silences (deliberate tolerated false-NEGATIVE: SILENT, not a bug)', () => {
   it('kotlin-class-literal-callable-ref-usage-silence', () => runCase('kotlin-class-literal-callable-ref-usage-silence'));
   it('kotlin-constructor-call-usage-silence', () => runCase('kotlin-constructor-call-usage-silence'));
   it('kotlin-fully-qualified-inline-ref-usage-silence', () => runCase('kotlin-fully-qualified-inline-ref-usage-silence'));
-  it('kotlin-context-parameter-type-silent', () => runCase('kotlin-context-parameter-type-silent'));
   it('kotlin-bare-top-level-call-only-import-edge', () => runCase('kotlin-bare-top-level-call-only-import-edge'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('MATRIX — JVM artifacts (Form 8): no `<File>Kt` facade / `@file:JvmName` key for Kotlin resolution', () => {
+describe('MATRIX — JVM artifacts (Form 8): a Kotlin import binds the Kotlin FQN, never the `<File>Kt` / `@file:JvmName` facade', () => {
   it('kotlin-jvmname-no-facade-key-edge', () => runCase('kotlin-jvmname-no-facade-key-edge'));
   it('kotlin-multiple-top-level-decls-one-key-each', () => runCase('kotlin-multiple-top-level-decls-one-key-each'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
 // NEWER-VERSION forms (Kotlin 2.0→2.4) the 2026-06-15 research audit found MISSING. The
-// context-parameter type is a grammar-limited SILENCE (it lives in the expression-position /
-// grammar-limited block above). The context-sensitive-resolution and use-site-target cases
+// context-parameter forms live in the parse-recovery block below. The context-sensitive-resolution and use-site-target cases
 // now EDGE on their inline fully-qualified TYPE reference (they live in the inline-FQN block
 // above). What remains here is the nested type alias — a declaration-keying EDGE the existing
 // enclosing-type-chain logic already handles (pinned here).
 describe('MATRIX — newer forms (Kotlin 2.0→2.4): nested type alias declaration-keying edge', () => {
   it('kotlin-nested-type-alias-plus-keyed', () => runCase('kotlin-nested-type-alias-plus-keyed'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Syntax the shipped grammar does not know (Kotlin 2.2+ when-guards, multi-dollar strings,
+// context parameters) turned the rest of the file into one ERROR node. The extractor blanks
+// the known forms and re-parses, then re-parses what still fails one top-level declaration at
+// a time; an unreadable declaration makes the file fail closed for its package.
+describe('MATRIX — parse recovery: declarations after unknown syntax survive; a parse gap never flips an ambiguity', () => {
+  it('kotlin-when-guard-subsequent-decls-edge', () => runCase('kotlin-when-guard-subsequent-decls-edge'));
+  it('kotlin-multidollar-subsequent-decls-edge', () => runCase('kotlin-multidollar-subsequent-decls-edge'));
+  it('kotlin-context-parameter-subsequent-decls-edge', () => runCase('kotlin-context-parameter-subsequent-decls-edge'));
+  it('kotlin-error-decl-no-ambiguity-flip-silence', () => runCase('kotlin-error-decl-no-ambiguity-flip-silence'));
+  it('kotlin-unrecoverable-decl-fails-closed-silence', () => runCase('kotlin-unrecoverable-decl-fails-closed-silence'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MATRIX — keying and source layout: locals are not keys; KMP source sets; same package needs an import', () => {
+  it('kotlin-local-val-not-a-top-level-key', () => runCase('kotlin-local-val-not-a-top-level-key'));
+  it('kotlin-kmp-source-set-import-edge', () => runCase('kotlin-kmp-source-set-import-edge'));
+  it('kotlin-same-package-cross-node-silence', () => runCase('kotlin-same-package-cross-node-silence'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+describe('MATRIX — one JVM namespace: Kotlin imports Java declarations', () => {
+  it('kotlin-imports-java-class-edge', () => runCase('kotlin-imports-java-class-edge'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -84,6 +84,19 @@ describe('MATRIX — wildcard / on-demand type import: package hint → owner-se
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Imports that cross SOURCE ROOTS (Maven/Gradle modules, src/test → src/main) or cross into
+// Kotlin: the package = directory probe under the importing file's ancestors misses, so the
+// resolver falls back to the shared JVM symbol table (one declaring file → edge; two → silence).
+describe('MATRIX — across source roots and into Kotlin: JVM symbol-table fallback after the directory probe misses', () => {
+  it('java-multi-module-sibling-import-edge', () => runCase('java-multi-module-sibling-import-edge'));
+  it('java-multi-module-wildcard-edge', () => runCase('java-multi-module-wildcard-edge'));
+  it('java-multi-module-duplicate-fqn-silence', () => runCase('java-multi-module-duplicate-fqn-silence'));
+  it('java-test-root-to-main-root-edge', () => runCase('java-test-root-to-main-root-edge'));
+  it('java-imports-kotlin-class-edge', () => runCase('java-imports-kotlin-class-edge'));
+  it('java-imports-kotlin-file-facade-edge', () => runCase('java-imports-kotlin-file-facade-edge'));
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('MATRIX — java.lang / stdlib / external / vendored: fail-to-find silence, except a mapped vendored file', () => {
   it('java-jdk-import-silence', () => runCase('java-jdk-import-silence'));
   it('java-explicit-stdlib-import-silence', () => runCase('java-explicit-stdlib-import-silence'));
@@ -94,9 +107,9 @@ describe('MATRIX — java.lang / stdlib / external / vendored: fail-to-find sile
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-describe('MATRIX — nested types: resolve to the ENCLOSING file (one-level fallback), never deeper', () => {
+describe('MATRIX — nested types: the ENCLOSING file (one-level path fallback); deeper only through a declared nested key', () => {
   it('java-nested-import-enclosing-file-edge', () => runCase('java-nested-import-enclosing-file-edge'));
-  it('java-deep-nested-import-one-level-limit-silence', () => runCase('java-deep-nested-import-one-level-limit-silence'));
+  it('java-deep-nested-import-declared-key-edge', () => runCase('java-deep-nested-import-declared-key-edge'));
   it('java-qualified-inline-outer-import-only-edge', () => runCase('java-qualified-inline-outer-import-only-edge'));
   it('java-binary-name-string-silence', () => runCase('java-binary-name-string-silence'));
 });
@@ -161,6 +174,7 @@ describe('MATRIX — newer forms (Java 17→25: module import, module-info uses/
   it('java-module-import-silence', () => runCase('java-module-import-silence'));
   it('java-module-info-uses-provides', () => runCase('java-module-info-uses-provides'));
   it('java-implicit-module-java-base-silence', () => runCase('java-implicit-module-java-base-silence'));
+  it('java-flexible-constructor-prologue-edge', () => runCase('java-flexible-constructor-prologue-edge'));
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

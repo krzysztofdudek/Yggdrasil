@@ -8,12 +8,7 @@ cites: "Kotlin docs — Packages and imports; Baeldung — JVM Platform Annotati
 
 ## Rule
 
-`@file:JvmName("OrderUtils")` renames the JVM facade class for Java interop only — a
-bytecode artifact, NOT a Kotlin source symbol. The Kotlin FQN is unchanged: a top-level
-`fun place()` in `package com.acme.orders` keeps the key `com.acme.orders.place`. No
-`<File>Kt` / `OrderUtils` facade key is synthesized. A consumer's
-`import com.acme.orders.place` therefore binds the declaring file, and no facade-path
-edge is ever produced (the runner's no-unexpected-edge check confirms it).
+`@file:JvmName("OrderUtils")` renames the JVM facade class for Java interop only — a bytecode artifact, NOT a Kotlin source symbol. The Kotlin FQN is unchanged: a top-level `fun place()` in `package com.acme.orders` keeps the key `com.acme.orders.place`, and a consumer's `import com.acme.orders.place` binds the declaring file through that key, never through the facade. The file does also declare its facade key (`com.acme.orders.OrderUtils`) in the JVM namespace it shares with Java, so a Java import of the facade binds (java-imports-kotlin-file-facade-edge); Kotlin source can never name a facade, so that key never changes what a Kotlin import resolves to (the runner's no-unexpected-edge check confirms there is no extra edge).
 
 ## Files
 
@@ -37,5 +32,4 @@ class C
 
 ## Why
 
-Inventing a `<File>Kt` facade boundary would bind Kotlin references through a class that
-never appears in Kotlin source; ignoring `@JvmName` keeps the real FQN the only key.
+Binding a Kotlin reference through a facade class that never appears in Kotlin source would be wrong; the Kotlin FQN stays the only key a Kotlin import binds through, and the facade key serves Java consumers only.
